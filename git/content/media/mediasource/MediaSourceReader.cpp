@@ -10,6 +10,7 @@
 #include "DecoderTraits.h"
 #include "MediaDataDecodedListener.h"
 #include "MediaDecoderOwner.h"
+#include "MediaSource.h"
 #include "MediaSourceDecoder.h"
 #include "MediaSourceUtils.h"
 #include "SourceBufferDecoder.h"

@@ -7,7 +7,8 @@
 /**
  * Many Gecko operations (painting, reflows, restyle, ...) can be tracked
  * in real time. A marker is a representation of one operation. A marker
- * has a name, and start and end timestamps. Markers are stored in docShells.
+ * has a name, and start and end timestamps. Markers are stored within
+ * a docshell.
  *
  * This actor exposes this tracking mechanism to the devtools protocol.
  *
@@ -27,24 +28,21 @@ const {method, Arg, RetVal} = protocol;
 const events = require("sdk/event/core");
 const {setTimeout, clearTimeout} = require("sdk/timers");
 
-// How often do we pull markers from the docShells, and therefore, how often do
-// we send events to the front (knowing that when there are no markers in the
-// docShell, no event is sent).
 const DEFAULT_TIMELINE_DATA_PULL_TIMEOUT = 200; // ms
 
 /**
- * The timeline actor pops and forwards timeline markers registered in docshells.
+ * The timeline actor pops and forwards timeline markers registered in
+ * a docshell.
  */
 let TimelineActor = exports.TimelineActor = protocol.ActorClass({
   typeName: "timeline",
 
   events: {
     /**
-     * "markers" events are emitted every DEFAULT_TIMELINE_DATA_PULL_TIMEOUT ms
-     * at most, when profile markers are found. A marker has the following
-     * properties:
-     * - start {Number} ms
-     * - end {Number} ms
+     * "markers" events are emitted at regular intervals when profile markers
+     * are found. A marker has the following properties:
+     * - start {Number}
+     * - end {Number}
      * - name {String}
      */
     "markers" : {
@@ -55,13 +53,7 @@ let TimelineActor = exports.TimelineActor = protocol.ActorClass({
 
   initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, conn);
-    this.tabActor = tabActor;
-
-    this._isRecording = false;
-
-    // Make sure to get markers from new windows as they become available
-    this._onWindowReady = this._onWindowReady.bind(this);
-    events.on(this.tabActor, "window-ready", this._onWindowReady);
+    this.docshell = tabActor.docShell;
   },
 
   /**
@@ -75,28 +67,8 @@ let TimelineActor = exports.TimelineActor = protocol.ActorClass({
 
   destroy: function() {
     this.stop();
-
-    events.off(this.tabActor, "window-ready", this._onWindowReady);
-    this.tabActor = null;
-
+    this.docshell = null;
     protocol.Actor.prototype.destroy.call(this);
-  },
-
-  /**
-   * Convert a window to a docShell.
-   * @param {nsIDOMWindow}
-   * @return {nsIDocShell}
-   */
-  toDocShell: win => win.QueryInterface(Ci.nsIInterfaceRequestor)
-                        .getInterface(Ci.nsIWebNavigation)
-                        .QueryInterface(Ci.nsIDocShell),
-
-  /**
-   * Get the list of docShells in the currently attached tabActor.
-   * @return {Array}
-   */
-  get docShells() {
-    return this.tabActor.windows.map(this.toDocShell);
   },
 
   /**
@@ -104,28 +76,20 @@ let TimelineActor = exports.TimelineActor = protocol.ActorClass({
    * markers if any.
    */
   _pullTimelineData: function() {
-    if (!this._isRecording) {
-      return;
-    }
-
-    let markers = [];
-    for (let docShell of this.docShells) {
-      markers = [...markers, ...docShell.popProfileTimelineMarkers()];
-    }
+    let markers = this.docshell.popProfileTimelineMarkers();
     if (markers.length > 0) {
       events.emit(this, "markers", markers);
     }
-
     this._dataPullTimeout = setTimeout(() => {
       this._pullTimelineData();
     }, DEFAULT_TIMELINE_DATA_PULL_TIMEOUT);
   },
 
   /**
-   * Are we recording profile markers currently?
+   * Are we recording profile markers for the current docshell (window)?
    */
   isRecording: method(function() {
-    return this._isRecording;
+    return this.docshell.recordProfileTimelineMarkers;
   }, {
     request: {},
     response: {
@@ -134,46 +98,21 @@ let TimelineActor = exports.TimelineActor = protocol.ActorClass({
   }),
 
   /**
-   * Start recording profile markers.
+   * Start/stop recording profile markers.
    */
   start: method(function() {
-    if (this._isRecording) {
-      return;
+    if (!this.docshell.recordProfileTimelineMarkers) {
+      this.docshell.recordProfileTimelineMarkers = true;
+      this._pullTimelineData();
     }
-    this._isRecording = true;
-
-    for (let docShell of this.docShells) {
-      docShell.recordProfileTimelineMarkers = true;
-    }
-
-    this._pullTimelineData();
   }, {}),
 
-  /**
-   * Stop recording profile markers.
-   */
   stop: method(function() {
-    if (!this._isRecording) {
-      return;
+    if (this.docshell.recordProfileTimelineMarkers) {
+      this.docshell.recordProfileTimelineMarkers = false;
+      clearTimeout(this._dataPullTimeout);
     }
-    this._isRecording = false;
-
-    for (let docShell of this.docShells) {
-      docShell.recordProfileTimelineMarkers = false;
-    }
-
-    clearTimeout(this._dataPullTimeout);
   }, {}),
-
-  /**
-   * When a new window becomes available in the tabActor, start recording its
-   * markers if we were recording.
-   */
-  _onWindowReady: function({window}) {
-    if (this._isRecording) {
-      this.toDocShell(window).recordProfileTimelineMarkers = true;
-    }
-  }
 });
 
 exports.TimelineFront = protocol.FrontClass(TimelineActor, {

@@ -111,7 +111,6 @@ loop.Client = (function($) {
       this.mozLoop.hawkRequest("/call-url/", "POST", {callerId: nickname},
                                function (error, responseText) {
         if (error) {
-          this._telemetryAdd("LOOP_CLIENT_CALL_URL_REQUESTS_SUCCESS", false);
           this._failureHandler(cb, error);
           return;
         }
@@ -119,14 +118,8 @@ loop.Client = (function($) {
         try {
           var urlData = JSON.parse(responseText);
 
-          // This throws if the data is invalid, in which case only the failure
-          // telementry will be recorded.
-          var returnData = this._validate(urlData, expectedCallUrlProperties);
-
-          this._telemetryAdd("LOOP_CLIENT_CALL_URL_REQUESTS_SUCCESS", true);
-          cb(null, returnData);
+          cb(null, this._validate(urlData, expectedCallUrlProperties));
         } catch (err) {
-          this._telemetryAdd("LOOP_CLIENT_CALL_URL_REQUESTS_SUCCESS", false);
           console.log("Error requesting call info", err);
           cb(err);
         }
@@ -193,20 +186,6 @@ loop.Client = (function($) {
 
         this._requestCallUrlInternal(nickname, cb);
       }.bind(this));
-    },
-
-    /**
-     * Adds a value to a telemetry histogram, ignoring errors.
-     *
-     * @param  {string}  histogramId Name of the telemetry histogram to update.
-     * @param  {integer} value       Value to add to the histogram.
-     */
-    _telemetryAdd: function(histogramId, value) {
-      try {
-        this.mozLoop.telemetryAdd(histogramId, value);
-      } catch (err) {
-        console.error("Error recording telemetry", err);
-      }
     },
   };
 

@@ -275,7 +275,7 @@ class FloatRegisters
     }
     static const char *GetName(uint32_t i) {
         MOZ_ASSERT(i < Total);
-        return GetName(Code(i % 32));
+        return GetName(Code(i));
     }
 
     static Code FromName(const char *name);

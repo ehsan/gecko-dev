@@ -9,6 +9,7 @@
 #include "AsyncEventRunner.h"
 #include "MediaSourceUtils.h"
 #include "TrackBuffer.h"
+#include "VideoUtils.h"
 #include "WebMBufferedParser.h"
 #include "mozilla/Endian.h"
 #include "mozilla/ErrorResult.h"
@@ -582,9 +583,15 @@ void
 SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv)
 {
   MSE_DEBUG("SourceBuffer(%p)::AppendData(aLength=%u)", this, aLength);
-  if (!PrepareAppend(aRv)) {
+  if (!IsAttached() || mUpdating) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
+  if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {
+    mMediaSource->SetReadyState(MediaSourceReadyState::Open);
+  }
+  // TODO: Run coded frame eviction algorithm.
+  // TODO: Test buffer full flag.
   StartUpdating();
   // TODO: Run more of the buffer append algorithm asynchronously.
   if (mParser->IsInitSegmentPresent(aData, aLength)) {
@@ -640,28 +647,6 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
     return;
   }
 
-  // Schedule the state machine thread to ensure playback starts
-  // if required when data is appended.
-  mMediaSource->GetDecoder()->ScheduleStateMachineThread();
-
-  // Run the final step of the buffer append algorithm asynchronously to
-  // ensure the SourceBuffer's updating flag transition behaves as required
-  // by the spec.
-  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &SourceBuffer::StopUpdating);
-  NS_DispatchToMainThread(event);
-}
-
-bool
-SourceBuffer::PrepareAppend(ErrorResult& aRv)
-{
-  if (!IsAttached() || mUpdating) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return false;
-  }
-  if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {
-    mMediaSource->SetReadyState(MediaSourceReadyState::Open);
-  }
-
   // Eviction uses a byte threshold. If the buffer is greater than the
   // number of bytes then data is evicted. The time range for this
   // eviction is reported back to the media source. It will then
@@ -680,8 +665,15 @@ SourceBuffer::PrepareAppend(ErrorResult& aRv)
     mMediaSource->NotifyEvicted(0.0, GetBufferedStart());
   }
 
-  // TODO: Test buffer full flag.
-  return true;
+  // Run the final step of the buffer append algorithm asynchronously to
+  // ensure the SourceBuffer's updating flag transition behaves as required
+  // by the spec.
+  nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this, &SourceBuffer::StopUpdating);
+  NS_DispatchToMainThread(event);
+
+  // Schedule the state machine thread to ensure playback starts
+  // if required when data is appended.
+  mMediaSource->GetDecoder()->ScheduleStateMachineThread();
 }
 
 double

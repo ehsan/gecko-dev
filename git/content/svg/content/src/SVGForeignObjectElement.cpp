@@ -116,8 +116,7 @@ SVGForeignObjectElement::BindToTree(nsIDocument* aDocument,
                                                aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIDocument* doc = GetComposedDoc();
-  if (doc && doc->IsSVG()) {
+  if (aDocument && aDocument->IsSVG()) {
     // We assume that we're going to have HTML content, so we ensure that the
     // UA style sheets that nsDocumentViewer::CreateStyleSet skipped when
     // it saw the document was an SVG document are loaded.
@@ -125,7 +124,7 @@ SVGForeignObjectElement::BindToTree(nsIDocument* aDocument,
     // We setup these style sheets during binding, not element construction,
     // because elements can be moved from the document that creates them to
     // another document.
-    doc->AsSVGDocument()->EnsureNonSVGUserAgentStyleSheetsLoaded();
+    aDocument->AsSVGDocument()->EnsureNonSVGUserAgentStyleSheetsLoaded();
   }
 
   return rv;

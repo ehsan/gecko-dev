@@ -163,9 +163,7 @@ LoopUnroller::go(LoopIterationBound *bound)
                 continue;
             if (ins->isTest() || ins->isGoto() || ins->isInterruptCheck())
                 continue;
-#ifdef DEBUG
             JitSpew(JitSpew_Unrolling, "Aborting: can't clone instruction %s", ins->opName());
-#endif
             return;
         }
     }

@@ -446,14 +446,13 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
 
     // Fill 'available' with whatever we've got
     if (mSinglePixel) {
-      target->FillRect(ToRect(aRegion.Intersect(available).Rect()),
-                       ColorPattern(mSinglePixelColor),
+      target->FillRect(ToRect(aRegion.Rect()), ColorPattern(mSinglePixelColor),
                        DrawOptions(1.0f, CompositionOp::OP_SOURCE));
     } else {
       SurfacePattern pattern(aSurface,
                              ExtendMode::REPEAT,
                              ToMatrix(aContext->CurrentMatrix()));
-      target->FillRect(ToRect(aRegion.Intersect(available).Rect()), pattern);
+      target->FillRect(ToRect(aRegion.Rect()), pattern);
     }
 
     RefPtr<SourceSurface> newsurf = target->Snapshot();
@@ -504,7 +503,7 @@ bool imgFrame::Draw(gfxContext* aContext, const ImageRegion& aRegion,
                     mSize.height + aPadding.TopBottom());
 
   RefPtr<SourceSurface> surf = GetSurface();
-  if (!surf && !mSinglePixel) {
+  if (!surf) {
     return false;
   }
 

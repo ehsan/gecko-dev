@@ -690,7 +690,7 @@ ParallelSafetyVisitor::insertWriteGuard(MInstruction *writeInstruction,
     MGuardThreadExclusive *writeGuard =
         MGuardThreadExclusive::New(alloc(), ForkJoinContext(), object);
     block->insertBefore(writeInstruction, writeGuard);
-    writeGuard->typePolicy()->adjustInputs(alloc(), writeGuard);
+    writeGuard->adjustInputs(alloc(), writeGuard);
     return true;
 }
 

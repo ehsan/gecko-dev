@@ -21,7 +21,8 @@
 #include "FFmpegRuntimeLinker.h"
 #endif
 #ifdef MOZ_APPLEMEDIA
-#include "apple/AppleDecoderModule.h"
+#include "apple/AppleCMLinker.h"
+#include "apple/AppleVTLinker.h"
 #endif
 
 namespace mozilla {
@@ -150,7 +151,17 @@ IsAppleAvailable()
     // Disabled by preference.
     return false;
   }
-  return NS_SUCCEEDED(AppleDecoderModule::CanDecode());
+  // Attempt to load the required frameworks.
+  bool haveCoreMedia = AppleCMLinker::Link();
+  if (!haveCoreMedia) {
+    return false;
+  }
+  bool haveVideoToolbox = AppleVTLinker::Link();
+  if (!haveVideoToolbox) {
+    return false;
+  }
+  // All hurdles cleared!
+  return true;
 #endif
 }
 

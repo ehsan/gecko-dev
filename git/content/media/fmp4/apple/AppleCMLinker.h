@@ -22,8 +22,6 @@ class AppleCMLinker
 public:
   static bool Link();
   static void Unlink();
-  static CFStringRef skPropExtensionAtoms;
-  static CFStringRef skPropFullRangeVideo;
 
 private:
   static void* sLink;
@@ -34,11 +32,9 @@ private:
     LinkStatus_FAILED,
     LinkStatus_SUCCEEDED
   } sLinkStatus;
-
-  static CFStringRef GetIOConst(const char* symbol);
 };
 
-#define LINK_FUNC(func) extern typeof(CM ## func)* CM ## func;
+#define LINK_FUNC(func) extern typeof(func)* func;
 #include "AppleCMFunctions.h"
 #undef LINK_FUNC
 

@@ -11,6 +11,7 @@
 #include "mozilla/dom/SourceBufferListBinding.h"
 #include "mozilla/mozalloc.h"
 #include "nsCOMPtr.h"
+#include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"

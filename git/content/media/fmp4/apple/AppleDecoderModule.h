@@ -41,18 +41,8 @@ public:
   virtual bool SupportsAudioMimeType(const char* aMimeType) MOZ_OVERRIDE;
 
   static void Init();
-  static nsresult CanDecode();
-
 private:
-  friend class InitTask;
-  friend class LinkTask;
-  friend class UnlinkTask;
-
-  static bool sInitialized;
-  static bool sIsVTAvailable;
-  static bool sIsVTHWAvailable;
-  static bool sIsVDAAvailable;
-  static bool sForceVDA;
+  static bool sIsEnabled;
 };
 
 } // namespace mozilla

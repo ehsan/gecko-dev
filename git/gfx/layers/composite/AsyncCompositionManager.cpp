@@ -32,7 +32,6 @@
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
 #include "nsTArrayForwardDeclare.h"     // for InfallibleTArray
-#include "UnitTransforms.h"             // for TransformTo
 #if defined(MOZ_WIDGET_ANDROID)
 # include <android/log.h>
 # include "AndroidBridge.h"
@@ -138,19 +137,6 @@ GetBaseTransform2D(Layer* aLayer, Matrix* aTransform)
 }
 
 static void
-TransformClipRect(Layer* aLayer,
-                  const Matrix4x4& aTransform)
-{
-  const nsIntRect* clipRect = aLayer->GetClipRect();
-  if (clipRect) {
-    LayerIntRect transformed = TransformTo<LayerPixel>(
-        aTransform, LayerIntRect::FromUntyped(*clipRect));
-    nsIntRect shadowClip = LayerIntRect::ToUntyped(transformed);
-    aLayer->AsLayerComposite()->SetShadowClipRect(&shadowClip);
-  }
-}
-
-static void
 TranslateShadowLayer2D(Layer* aLayer,
                        const gfxPoint& aTranslation,
                        bool aAdjustClipRect)
@@ -187,8 +173,11 @@ TranslateShadowLayer2D(Layer* aLayer,
   layerComposite->SetShadowTransform(layerTransform3D);
   layerComposite->SetShadowTransformSetByAnimation(false);
 
-  if (aAdjustClipRect) {
-    TransformClipRect(aLayer, Matrix4x4().Translate(aTranslation.x, aTranslation.y, 0));
+  const nsIntRect* clipRect = aLayer->GetClipRect();
+  if (aAdjustClipRect && clipRect) {
+    nsIntRect transformedClipRect(*clipRect);
+    transformedClipRect.MoveBy(aTranslation.x, aTranslation.y);
+    layerComposite->SetShadowClipRect(&transformedClipRect);
   }
 }
 
@@ -738,14 +727,6 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     // as the content scrolls.
     transientTransform.Invert();
     transform = transform * transientTransform;
-
-    // We also need to make a corresponding change on the clip rect of all the
-    // layers on the ancestor chain from the scrollbar layer up to but not
-    // including the layer with the async transform. Otherwise the scrollbar
-    // shifts but gets clipped and so appears to flicker.
-    for (Layer* ancestor = aScrollbar; ancestor != aContent.GetLayer(); ancestor = ancestor->GetParent()) {
-      TransformClipRect(ancestor, transientTransform);
-    }
   }
 
   // GetTransform already takes the pre- and post-scale into account.  Since we

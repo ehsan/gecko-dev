@@ -86,8 +86,7 @@ function test() {
     name: "Google",
     alias: null,
     description: "Google Search",
-    searchForm: "https://www.google.com/search?q=&ie=utf-8&oe=utf-8&aq=t&rls=" +
-                distributionID + ":" + getLocale() + ":" + MOZ_OFFICIAL + "&client=" + GOOGLE_CLIENT,
+    searchForm: "https://www.google.com/",
     type: Ci.nsISearchEngine.TYPE_MOZSEARCH,
     hidden: false,
     wrappedJSObject: {
@@ -175,6 +174,11 @@ function test() {
               "mozparam": true,
             },
           },
+        },
+        {
+          type: "text/html",
+          method: "GET",
+          template: "https://www.google.com/",
         },
       ],
     },

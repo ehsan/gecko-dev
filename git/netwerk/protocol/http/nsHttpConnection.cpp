@@ -179,10 +179,10 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
 
     if (rv == NS_ERROR_ALREADY_OPENED) {
         // Has the interface for TakeSubTransactions() changed?
-        LOG(("TakeSubTransactions somehow called after "
+        LOG(("TakeSubTranscations somehow called after "
              "nsAHttpTransaction began processing\n"));
         MOZ_ASSERT(false,
-                   "TakeSubTransactions somehow called after "
+                   "TakeSubTranscations somehow called after "
                    "nsAHttpTransaction began processing");
         mTransaction->Close(NS_ERROR_ABORT);
         return;

@@ -64,8 +64,9 @@ def running_processes(name, psarg=psarg, defunct=True):
         if 'STAT' in process and not defunct:
             if process['STAT'] == 'Z+':
                 continue
-        command = subprocess.list2cmdline(command)
-        if name in command:
+        prog = command[0]
+        basename = os.path.basename(prog)
+        if basename == name:
             retval.append((int(process['PID']), command))
     return retval
 

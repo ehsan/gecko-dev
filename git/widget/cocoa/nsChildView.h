@@ -310,6 +310,8 @@ typedef NSInteger NSEventGestureAxis;
 
 - (void)handleMouseMoved:(NSEvent*)aEvent;
 
+- (void)updateWindowDraggableStateOnMouseMove:(NSEvent*)theEvent;
+
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
                              type:(mozilla::WidgetMouseEvent::exitType)aType;
@@ -546,9 +548,6 @@ public:
 
   virtual void UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries);
 
-  virtual void UpdateWindowDraggingRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE;
-  const nsIntRegion& GetDraggableRegion() { return mDraggableRegion; }
-
   void              HidePlugin();
   void              UpdatePluginPort();
 
@@ -679,8 +678,6 @@ protected:
   // The area of mTitlebarCGContext that has changed and needs to be
   // uploaded to to mTitlebarImage. Main thread only.
   nsIntRegion           mDirtyTitlebarRegion;
-
-  nsIntRegion           mDraggableRegion;
 
   // Cached value of [mView backingScaleFactor], to avoid sending two obj-c
   // messages (respondsToSelector, backingScaleFactor) every time we need to

@@ -756,12 +756,12 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
                                               aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  nsIDocument* doc = GetComposedDoc();
-  if (doc) {
+  if (aDocument) {
     // Setup the style sheet during binding, not element construction,
     // because we could move the root SVG element from the document
     // that created it to another document.
-    doc->EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::SVGSheet());
+    aDocument->
+      EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::SVGSheet());
   }
 
   if (mTimedDocumentRoot && smilController) {

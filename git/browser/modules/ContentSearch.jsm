@@ -252,7 +252,7 @@ this.ContentSearch = {
     controller.maxLocalResults = ok ? 2 : 6;
     controller.maxRemoteResults = ok ? 6 : 0;
     controller.remoteTimeout = data.remoteTimeout || undefined;
-    let priv = PrivateBrowsingUtils.isBrowserPrivate(msg.target);
+    let priv = PrivateBrowsingUtils.isWindowPrivate(msg.target.contentWindow);
     // fetch() rejects its promise if there's a pending request, but since we
     // process our event queue serially, there's never a pending request.
     let suggestions = yield controller.fetch(data.searchString, priv, engine);

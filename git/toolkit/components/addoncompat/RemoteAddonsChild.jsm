@@ -372,19 +372,16 @@ EventTargetChild.prototype = {
   track: function(path, register) {
     let eventType = path[1];
     let useCapture = path[2];
-    let listener = (event) => this.handleEvent(useCapture, event);
     if (register) {
-      this._childGlobal.addEventListener(eventType, listener, useCapture, true);
+      this._childGlobal.addEventListener(eventType, this, useCapture, true);
     } else {
-      this._childGlobal.removeEventListener(eventType, listener, useCapture);
+      this._childGlobal.removeEventListener(eventType, this, useCapture);
     }
   },
 
-  handleEvent: function(capturing, event) {
+  handleEvent: function(event) {
     this._childGlobal.sendRpcMessage("Addons:Event:Run",
-                                     {type: event.type,
-                                      capturing: capturing,
-                                      isTrusted: event.isTrusted},
+                                     {type: event.type, isTrusted: event.isTrusted},
                                      {event: event});
   }
 };
