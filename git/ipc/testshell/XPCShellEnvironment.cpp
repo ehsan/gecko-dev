@@ -84,7 +84,7 @@ public:
     void ClearGREDir() { mGREDir = nsnull; }
 
 private:
-    nsCOMPtr<nsILocalFile> mGREDir;
+    nsCOMPtr<nsIFile> mGREDir;
 };
 
 inline XPCShellEnvironment*
@@ -878,20 +878,6 @@ FullTrustSecMan::GetCxSubjectPrincipalAndFrame(JSContext *cx,
 {
     *fp = nsnull;
     return mSystemPrincipal;
-}
-
-NS_IMETHODIMP
-FullTrustSecMan::PushContextPrincipal(JSContext *cx,
-                                      JSStackFrame *fp,
-                                      nsIPrincipal *principal)
-{
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-FullTrustSecMan::PopContextPrincipal(JSContext *cx)
-{
-    return NS_OK;
 }
 
 NS_IMETHODIMP_(nsrefcnt)

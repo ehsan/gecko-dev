@@ -9,7 +9,6 @@
 #include "nsIXMLHttpRequest.h"
 #include "nsISupportsUtils.h"
 #include "nsString.h"
-#include "nsIDOMDocument.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
 #include "nsIDocument.h"
@@ -29,7 +28,6 @@
 #include "nsIDOMLSProgressEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsITimer.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsContentUtils.h"
@@ -37,6 +35,7 @@
 #include "nsDOMBlobBuilder.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 
@@ -180,7 +179,10 @@ public:
 
   // The WebIDL constructor.
   static already_AddRefed<nsXMLHttpRequest>
-  Constructor(nsISupports* aGlobal, ErrorResult& aRv)
+  Constructor(JSContext* aCx,
+              nsISupports* aGlobal,
+              const mozilla::dom::Nullable<mozilla::dom::MozXMLHttpRequestParameters>& aParams,
+              ErrorResult& aRv)
   {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal);
     nsCOMPtr<nsIScriptObjectPrincipal> principal = do_QueryInterface(aGlobal);
@@ -191,6 +193,10 @@ public:
 
     nsRefPtr<nsXMLHttpRequest> req = new nsXMLHttpRequest();
     req->Construct(principal->GetPrincipal(), window);
+    if (!aParams.IsNull()) {
+      const mozilla::dom::MozXMLHttpRequestParameters& params = aParams.Value();
+      req->InitParameters(params.mozAnon, params.mozSystem);
+    }
     return req.forget();
   }
 
@@ -204,6 +210,10 @@ public:
     BindToOwner(aOwnerWindow);
     mBaseURI = aBaseURI;
   }
+
+  // Initialize XMLHttpRequestParameter object.
+  nsresult InitParameters(JSContext* aCx, const jsval* aParams);
+  void InitParameters(bool aAnon, bool aSystem);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -359,63 +369,60 @@ private:
   };
 
   static nsresult GetRequestBody(nsIVariant* aVariant,
-                                 JSContext* aCx,
                                  const Nullable<RequestBody>& aBody,
                                  nsIInputStream** aResult,
                                  nsACString& aContentType,
                                  nsACString& aCharset);
 
-  // XXXbz once the nsIVariant bits here go away, we can remove the
-  // implicitJSContext bits in Bindings.conf.
-  nsresult Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<RequestBody>& aBody);
-  nsresult Send(JSContext *aCx, const Nullable<RequestBody>& aBody)
+  nsresult Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody);
+  nsresult Send(const Nullable<RequestBody>& aBody)
   {
-    return Send(aCx, nsnull, aBody);
+    return Send(nsnull, aBody);
   }
-  nsresult Send(JSContext *aCx, const RequestBody& aBody)
+  nsresult Send(const RequestBody& aBody)
   {
-    return Send(aCx, Nullable<RequestBody>(aBody));
+    return Send(Nullable<RequestBody>(aBody));
   }
 
 public:
-  void Send(JSContext *aCx, ErrorResult& aRv)
+  void Send(ErrorResult& aRv)
   {
-    aRv = Send(aCx, Nullable<RequestBody>());
+    aRv = Send(Nullable<RequestBody>());
   }
-  void Send(JSContext *aCx, mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
+  void Send(mozilla::dom::ArrayBuffer& aArrayBuffer, ErrorResult& aRv)
   {
-    aRv = Send(aCx, RequestBody(&aArrayBuffer));
+    aRv = Send(RequestBody(&aArrayBuffer));
   }
-  void Send(JSContext *aCx, nsIDOMBlob* aBlob, ErrorResult& aRv)
+  void Send(nsIDOMBlob* aBlob, ErrorResult& aRv)
   {
     NS_ASSERTION(aBlob, "Null should go to string version");
-    aRv = Send(aCx, RequestBody(aBlob));
+    aRv = Send(RequestBody(aBlob));
   }
-  void Send(JSContext *aCx, nsIDocument* aDoc, ErrorResult& aRv)
+  void Send(nsIDocument* aDoc, ErrorResult& aRv)
   {
     NS_ASSERTION(aDoc, "Null should go to string version");
-    aRv = Send(aCx, RequestBody(aDoc));
+    aRv = Send(RequestBody(aDoc));
   }
-  void Send(JSContext *aCx, const nsAString& aString, ErrorResult& aRv)
+  void Send(const nsAString& aString, ErrorResult& aRv)
   {
     if (DOMStringIsNull(aString)) {
-      Send(aCx, aRv);
+      Send(aRv);
     }
     else {
-      aRv = Send(aCx, RequestBody(aString));
+      aRv = Send(RequestBody(aString));
     }
   }
-  void Send(JSContext *aCx, nsIDOMFormData* aFormData, ErrorResult& aRv)
+  void Send(nsIDOMFormData* aFormData, ErrorResult& aRv)
   {
     NS_ASSERTION(aFormData, "Null should go to string version");
-    aRv = Send(aCx, RequestBody(aFormData));
+    aRv = Send(RequestBody(aFormData));
   }
-  void Send(JSContext *aCx, nsIInputStream* aStream, ErrorResult& aRv)
+  void Send(nsIInputStream* aStream, ErrorResult& aRv)
   {
     NS_ASSERTION(aStream, "Null should go to string version");
-    aRv = Send(aCx, RequestBody(aStream));
+    aRv = Send(RequestBody(aStream));
   }
-  void SendAsBinary(JSContext *aCx, const nsAString& aBody, ErrorResult& aRv);
+  void SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
 
   void Abort();
 
@@ -459,6 +466,9 @@ public:
   void SetMozBackgroundRequest(bool aMozBackgroundRequest, nsresult& aRv);
   bool GetMultipart();
   void SetMultipart(bool aMultipart, nsresult& aRv);
+
+  bool GetMozAnon();
+  bool GetMozSystem();
 
   nsIChannel* GetChannel()
   {
@@ -689,6 +699,9 @@ protected:
   nsCOMPtr<nsITimer> mProgressNotifier;
   void HandleProgressTimerCallback();
 
+  bool mIsSystem;
+  bool mIsAnon;
+
   /**
    * Close the XMLHttpRequest's channels and dispatch appropriate progress
    * events.
@@ -724,8 +737,7 @@ protected:
 
 class nsXMLHttpProgressEvent : public nsIDOMProgressEvent,
                                public nsIDOMLSProgressEvent,
-                               public nsIDOMNSEvent,
-                               public nsIPrivateDOMEvent
+                               public nsIDOMNSEvent
 {
 public:
   nsXMLHttpProgressEvent(nsIDOMProgressEvent* aInner,
@@ -740,36 +752,6 @@ public:
   NS_FORWARD_NSIDOMNSEVENT(mInner->)
   NS_FORWARD_NSIDOMPROGRESSEVENT(mInner->)
   NS_DECL_NSIDOMLSPROGRESSEVENT
-  // nsPrivateDOMEvent
-  NS_IMETHOD DuplicatePrivateData()
-  {
-    return mInner->DuplicatePrivateData();
-  }
-  NS_IMETHOD SetTarget(nsIDOMEventTarget* aTarget)
-  {
-    return mInner->SetTarget(aTarget);
-  }
-  NS_IMETHOD_(bool) IsDispatchStopped()
-  {
-    return mInner->IsDispatchStopped();
-  }
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent()
-  {
-    return mInner->GetInternalNSEvent();
-  }
-  NS_IMETHOD SetTrusted(bool aTrusted)
-  {
-    return mInner->SetTrusted(aTrusted);
-  }
-  virtual void Serialize(IPC::Message* aMsg,
-                         bool aSerializeInterfaceType)
-  {
-    mInner->Serialize(aMsg, aSerializeInterfaceType);
-  }
-  virtual bool Deserialize(const IPC::Message* aMsg, void** aIter)
-  {
-    return mInner->Deserialize(aMsg, aIter);
-  }
 
 protected:
   void WarnAboutLSProgressEvent(nsIDocument::DeprecatedOperations);

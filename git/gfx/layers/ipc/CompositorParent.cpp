@@ -18,13 +18,58 @@
 #include <android/log.h>
 #endif
 
+#include <map>
+
 using base::Thread;
 
 namespace mozilla {
 namespace layers {
 
-CompositorParent::CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop,
-                                   PlatformThreadId aThreadID, bool aRenderToEGLSurface,
+static Thread* sCompositorThread = nsnull;
+
+void CompositorParent::StartUp()
+{
+  CreateCompositorMap();
+  CreateThread();
+}
+
+void CompositorParent::ShutDown()
+{
+  DestroyThread();
+  DestroyCompositorMap();
+}
+
+bool CompositorParent::CreateThread()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
+  if (sCompositorThread) {
+    return true;
+  }
+  sCompositorThread = new Thread("Compositor");
+  if (!sCompositorThread->Start()) {
+    delete sCompositorThread;
+    sCompositorThread = nsnull;
+    return false;
+  }
+  return true;
+}
+
+void CompositorParent::DestroyThread()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
+  if (sCompositorThread) {
+    delete sCompositorThread;
+    sCompositorThread = nsnull;
+  }
+}
+
+MessageLoop* CompositorParent::CompositorLoop()
+{
+  return sCompositorThread ? sCompositorThread->message_loop() : nsnull;
+}
+
+CompositorParent::CompositorParent(nsIWidget* aWidget,
+                                   bool aRenderToEGLSurface,
                                    int aSurfaceWidth, int aSurfaceHeight)
   : mWidget(aWidget)
   , mCurrentCompositeTask(NULL)
@@ -33,26 +78,26 @@ CompositorParent::CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop,
   , mYScale(1.0)
   , mIsFirstPaint(false)
   , mLayersUpdated(false)
-  , mCompositorLoop(aMsgLoop)
-  , mThreadID(aThreadID)
   , mRenderToEGLSurface(aRenderToEGLSurface)
   , mEGLSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mPauseCompositionMonitor("PauseCompositionMonitor")
   , mResumeCompositionMonitor("ResumeCompositionMonitor")
 {
+  NS_ABORT_IF_FALSE(sCompositorThread != nsnull, 
+                    "The compositor thread must be Initialized before instanciating a COmpositorParent.");
   MOZ_COUNT_CTOR(CompositorParent);
-}
-
-MessageLoop*
-CompositorParent::CompositorLoop()
-{
-  return mCompositorLoop;
+  mCompositorID = 0;
+  // FIXME: This holds on the the fact that right now the only thing that 
+  // can destroy this instance is initialized on the compositor thread after 
+  // this task has been processed.
+  CompositorLoop()->PostTask(FROM_HERE, NewRunnableFunction(&AddCompositor, 
+                                                          this, &mCompositorID));
 }
 
 PlatformThreadId
 CompositorParent::CompositorThreadID()
 {
-  return mThreadID;
+  return sCompositorThread->thread_id();
 }
 
 CompositorParent::~CompositorParent()
@@ -74,6 +119,7 @@ bool
 CompositorParent::RecvWillStop()
 {
   mPaused = true;
+  RemoveCompositor(mCompositorID);
 
   // Ensure that the layer manager is destroyed before CompositorChild.
   mLayerManager->Destroy();
@@ -313,27 +359,35 @@ Translate2D(gfx3DMatrix& aTransform, const gfxPoint& aOffset)
 }
 
 void
-CompositorParent::TranslateFixedLayers(Layer* aLayer,
-                                       const gfxPoint& aTranslation)
+CompositorParent::TransformFixedLayers(Layer* aLayer,
+                                       const gfxPoint& aTranslation,
+                                       const gfxPoint& aScaleDiff)
 {
   if (aLayer->GetIsFixedPosition() &&
       !aLayer->GetParent()->GetIsFixedPosition()) {
+    // When a scale has been applied to a layer, it focuses around (0,0).
+    // The anchor position is used here as a scale focus point (assuming that
+    // aScaleDiff has already been applied) to re-focus the scale.
+    const gfxPoint& anchor = aLayer->GetFixedPositionAnchor();
+    gfxPoint translation(aTranslation.x - (anchor.x - anchor.x / aScaleDiff.x),
+                         aTranslation.y - (anchor.y - anchor.y / aScaleDiff.y));
+
     gfx3DMatrix layerTransform = aLayer->GetTransform();
-    Translate2D(layerTransform, aTranslation);
+    Translate2D(layerTransform, translation);
     ShadowLayer* shadow = aLayer->AsShadowLayer();
     shadow->SetShadowTransform(layerTransform);
 
     const nsIntRect* clipRect = aLayer->GetClipRect();
     if (clipRect) {
       nsIntRect transformedClipRect(*clipRect);
-      transformedClipRect.MoveBy(aTranslation.x, aTranslation.y);
+      transformedClipRect.MoveBy(translation.x, translation.y);
       shadow->SetShadowClipRect(&transformedClipRect);
     }
   }
 
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    TranslateFixedLayers(child, aTranslation);
+    TransformFixedLayers(child, aTranslation, aScaleDiff);
   }
 }
 
@@ -377,7 +431,7 @@ CompositorParent::TransformShadowTree()
     mIsFirstPaint = false;
   } else if (!metrics.mContentRect.IsEqualEdges(mContentRect)) {
     mContentRect = metrics.mContentRect;
-    SetPageRect(1/rootScaleX, mContentRect, metrics.mCSSContentRect);
+    SetPageRect(metrics.mCSSContentRect);
   }
 
   // We synchronise the viewport information with Java after sending the above
@@ -411,16 +465,35 @@ CompositorParent::TransformShadowTree()
   ViewTransform treeTransform(-scrollCompensation, mXScale, mYScale);
   shadow->SetShadowTransform(gfx3DMatrix(treeTransform) * currentTransform);
 
-  // Alter the scroll offset so that fixed position layers remain within
-  // the page area.
-  float offsetX = mScrollOffset.x / tempScaleDiffX;
-  float offsetY = mScrollOffset.y / tempScaleDiffY;
-  offsetX = NS_MAX((float)mContentRect.x, NS_MIN(offsetX, (float)(mContentRect.XMost() - mWidgetSize.width)));
-  offsetY = NS_MAX((float)mContentRect.y, NS_MIN(offsetY, (float)(mContentRect.YMost() - mWidgetSize.height)));
-  gfxPoint reverseViewTranslation(offsetX - metricsScrollOffset.x,
-                                  offsetY - metricsScrollOffset.y);
+  // Translate fixed position layers so that they stay in the correct position
+  // when mScrollOffset and metricsScrollOffset differ.
+  gfxPoint offset;
+  gfxPoint scaleDiff;
 
-  TranslateFixedLayers(layer, reverseViewTranslation);
+  // If the contents can fit entirely within the widget area on a particular
+  // dimenson, we need to translate and scale so that the fixed layers remain
+  // within the page boundaries.
+  if (mContentRect.width * tempScaleDiffX < mWidgetSize.width) {
+    offset.x = -metricsScrollOffset.x;
+    scaleDiff.x = NS_MIN(1.0f, mWidgetSize.width / (float)mContentRect.width);
+  } else {
+    offset.x = clamped(mScrollOffset.x / tempScaleDiffX, (float)mContentRect.x,
+                       mContentRect.XMost() - mWidgetSize.width / tempScaleDiffX) -
+               metricsScrollOffset.x;
+    scaleDiff.x = tempScaleDiffX;
+  }
+
+  if (mContentRect.height * tempScaleDiffY < mWidgetSize.height) {
+    offset.y = -metricsScrollOffset.y;
+    scaleDiff.y = NS_MIN(1.0f, mWidgetSize.height / (float)mContentRect.height);
+  } else {
+    offset.y = clamped(mScrollOffset.y / tempScaleDiffY, (float)mContentRect.y,
+                       mContentRect.YMost() - mWidgetSize.height / tempScaleDiffY) -
+               metricsScrollOffset.y;
+    scaleDiff.y = tempScaleDiffY;
+  }
+
+  TransformFixedLayers(layer, offset, scaleDiff);
 }
 
 void
@@ -433,10 +506,10 @@ CompositorParent::SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom,
 }
 
 void
-CompositorParent::SetPageRect(float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
+CompositorParent::SetPageRect(const gfx::Rect& aCssPageRect)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->SetPageRect(aZoom, aPageRect, aCssPageRect);
+  mozilla::AndroidBridge::Bridge()->SetPageRect(aCssPageRect);
 #endif
 }
 
@@ -483,7 +556,11 @@ CompositorParent::AllocPLayers(const LayersBackend& aBackendType, int* aMaxTextu
       new LayerManagerOGL(mWidget, mEGLSurfaceSize.width, mEGLSurfaceSize.height, mRenderToEGLSurface);
     mWidget = NULL;
     mLayerManager = layerManager;
-
+    ShadowLayerManager* shadowManager = layerManager->AsShadowManager();
+    if (shadowManager) {
+      shadowManager->SetCompositorID(mCompositorID);  
+    }
+    
     if (!layerManager->Initialize()) {
       NS_ERROR("Failed to init OGL Layers");
       return NULL;
@@ -517,6 +594,53 @@ CompositorParent::DeallocPLayers(PLayersParent* actor)
   delete actor;
   return true;
 }
+
+
+typedef std::map<PRUint64,CompositorParent*> CompositorMap;
+static CompositorMap* sCompositorMap;
+
+void CompositorParent::CreateCompositorMap()
+{
+  if (sCompositorMap == nsnull) {
+    sCompositorMap = new CompositorMap;
+  }
+}
+
+void CompositorParent::DestroyCompositorMap()
+{
+  if (sCompositorMap != nsnull) {
+    NS_ASSERTION(sCompositorMap->empty(), 
+                 "The Compositor map should be empty when destroyed>");
+    delete sCompositorMap;
+    sCompositorMap = nsnull;
+  }
+}
+
+CompositorParent* CompositorParent::GetCompositor(PRUint64 id)
+{
+  CompositorMap::iterator it = sCompositorMap->find(id);
+  return it != sCompositorMap->end() ? it->second : nsnull;
+}
+
+void CompositorParent::AddCompositor(CompositorParent* compositor, PRUint64* outID)
+{
+  static PRUint64 sNextID = 1;
+  
+  ++sNextID;
+  (*sCompositorMap)[sNextID] = compositor;
+  *outID = sNextID;
+}
+
+CompositorParent* CompositorParent::RemoveCompositor(PRUint64 id)
+{
+  CompositorMap::iterator it = sCompositorMap->find(id);
+  if (it == sCompositorMap->end()) {
+    return nsnull;
+  }
+  sCompositorMap->erase(it);
+  return it->second;
+}
+
 
 } // namespace layers
 } // namespace mozilla

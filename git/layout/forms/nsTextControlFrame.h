@@ -6,7 +6,7 @@
 #ifndef nsTextControlFrame_h___
 #define nsTextControlFrame_h___
 
-#include "nsStackFrame.h"
+#include "nsContainerFrame.h"
 #include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
@@ -26,8 +26,13 @@ class nsIAccessible;
 #endif
 class EditorInitializerEntryTracker;
 class nsTextEditorState;
+namespace mozilla {
+namespace dom {
+class Element;
+}
+}
 
-class nsTextControlFrame : public nsStackFrame,
+class nsTextControlFrame : public nsContainerFrame,
                            public nsIAnonymousContentCreator,
                            public nsITextControlFrame,
                            public nsIStatefulFrame
@@ -49,6 +54,8 @@ public:
   }
 
   virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext* aRenderingContext);
+
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
@@ -59,13 +66,10 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
   virtual bool IsCollapsed();
 
-  DECL_DO_GLOBAL_REFLOW_COUNT_DSP(nsTextControlFrame, nsStackFrame)
+  DECL_DO_GLOBAL_REFLOW_COUNT_DSP(nsTextControlFrame, nsContainerFrame)
 
   virtual bool IsLeaf() const;
   
@@ -73,7 +77,7 @@ public:
   virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     aResult.AssignLiteral("nsTextControlFrame");
@@ -85,7 +89,7 @@ public:
   {
     // nsStackFrame is already both of these, but that's somewhat bogus,
     // and we really mean it.
-    return nsStackFrame::IsFrameOfType(aFlags &
+    return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
@@ -150,12 +154,23 @@ public:
 
   nsresult GetText(nsString& aText);
 
+  NS_IMETHOD PeekOffset(nsPeekOffsetStruct *aPos);
+
   NS_DECL_QUERYFRAME
 
   // Temp reference to scriptrunner
   // We could make these auto-Revoking via the "delete" entry for safety
   NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nsnull)
 
+protected:
+  /**
+   * Launch the reflow on the child frames - see nsTextControlFrame::Reflow()
+   */
+  void ReflowTextControlChild(nsIFrame*                aFrame,
+                              nsPresContext*           aPresContext,
+                              const nsHTMLReflowState& aReflowState,
+                              nsReflowStatus&          aStatus,
+                              nsHTMLReflowMetrics& aParentDesiredSize);
 
 public: //for methods who access nsTextControlFrame directly
   void SetValueChanged(bool aValueChanged);
@@ -166,13 +181,10 @@ public: //for methods who access nsTextControlFrame directly
 
   NS_STACK_CLASS class ValueSetter {
   public:
-    ValueSetter(nsTextControlFrame* aFrame,
-                nsIEditor* aEditor)
-      : mFrame(aFrame)
-      , mEditor(aEditor)
+    ValueSetter(nsIEditor* aEditor)
+      : mEditor(aEditor)
       , mCanceled(false)
     {
-      MOZ_ASSERT(aFrame);
       MOZ_ASSERT(aEditor);
 
       // To protect against a reentrant call to SetValue, we check whether
@@ -195,7 +207,6 @@ public: //for methods who access nsTextControlFrame directly
     }
 
   private:
-    nsTextControlFrame* mFrame;
     nsCOMPtr<nsIEditor> mEditor;
     bool mOuterTransaction;
     bool mCanceled;
@@ -286,7 +297,6 @@ protected:
     nsTextControlFrame* mFrame;
   };
 
-  nsresult DOMPointToOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset, PRInt32 *aResult);
   nsresult OffsetToDOMPoint(PRInt32 aOffset, nsIDOMNode** aResult, PRInt32* aPosition);
 
   /**
@@ -347,6 +357,7 @@ private:
   /**
    * Return the root DOM element, and implicitly initialize the editor if needed.
    */
+  mozilla::dom::Element* GetRootNodeAndInitializeEditor();
   nsresult GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement);
 
   void FinishedInitializer() {

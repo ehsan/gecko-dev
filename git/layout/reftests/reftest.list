@@ -11,6 +11,9 @@ include reftest-sanity/reftest.list
 # images (if libpr0n is busted, could result in weird failures in other tests)
 include ../../image/test/reftest/reftest.list
 
+# CSSWG tests
+include w3c-css/submitted/reftest.list
+
 # relative and absolute positioning
 include abs-pos/reftest.list
 
@@ -226,6 +229,10 @@ include pixel-rounding/reftest.list
 
 # plugin/
 include ../../dom/plugins/test/reftest/reftest.list
+
+# position-dynamic-changes/
+# Disabled on Native Fennec for now, because running them takes too long
+skip-if(Android&&!browserIsRemote) include position-dynamic-changes/reftest.list # Bug 762181
 
 # printing
 include printing/reftest.list

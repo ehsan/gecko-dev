@@ -50,7 +50,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mTimingEnabled(false)
   , mAllowSpdy(true)
   , mSuspendCount(0)
-  , mRedirectedCachekeys(nsnull)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -131,7 +130,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
 
   rv = gHttpHandler->
       AddStandardRequestHeaders(&mRequestHead.Headers(), aCaps,
-                                !mConnectionInfo->UsingSSL() &&
+                                !mConnectionInfo->UsingConnect() &&
                                 mConnectionInfo->UsingHttpProxy());
 
   return rv;
@@ -1625,8 +1624,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
     if (mRedirectedCachekeys) {
         LOG(("HttpBaseChannel::SetupReplacementChannel "
              "[this=%p] transferring chain of redirect cache-keys", this));
-        httpInternal->SetCacheKeysRedirectChain(mRedirectedCachekeys);
-        mRedirectedCachekeys = nsnull;
+        httpInternal->SetCacheKeysRedirectChain(mRedirectedCachekeys.forget());
     }
   }
   

@@ -116,7 +116,7 @@ public:
    * This is called only on the primary text frame. It indicates that
    * the selection state of the given character range has changed.
    * Text in the range is unconditionally invalidated
-   * (nsTypedSelection::Repaint depends on this).
+   * (Selection::Repaint depends on this).
    * @param aSelected true if the selection has been added to the range,
    * false otherwise
    * @param aType the type of selection added or removed
@@ -396,7 +396,7 @@ public:
   struct TrimmedOffsets {
     PRInt32 mStart;
     PRInt32 mLength;
-    PRInt32 GetEnd() { return mStart + mLength; }
+    PRInt32 GetEnd() const { return mStart + mLength; }
   };
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    bool aTrimAfter);
