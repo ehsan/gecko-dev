@@ -1849,6 +1849,3 @@ pref("extensions.interposition.enabled", true);
 #endif
 
 pref("browser.defaultbrowser.notificationbar", false);
-
-// How many milliseconds to wait for a CPOW response from the child process.
-pref("dom.ipc.cpow.timeout", 0);

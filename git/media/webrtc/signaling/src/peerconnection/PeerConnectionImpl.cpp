@@ -902,7 +902,7 @@ PeerConnectionImpl::ConfigureJsepSessionCodecs() {
   }
 
   // Sort by priority
-  int32_t preferredCodec = 0;
+  int32_t preferredCodec;
   branch->GetIntPref("media.navigator.video.preferred_codec",
                      &preferredCodec);
 

@@ -2808,7 +2808,7 @@ CalculateFrameMetricsForDisplayPort(nsIScrollableFrame* aScrollFrame) {
   LayerToParentLayerScale layerToParentLayerScale(1.0f);
   metrics.SetDevPixelsPerCSSPixel(deviceScale);
   metrics.mPresShellResolution = resolution;
-  metrics.SetCumulativeResolution(cumulativeResolution);
+  metrics.mCumulativeResolution = cumulativeResolution;
   metrics.SetZoom(deviceScale * cumulativeResolution * layerToParentLayerScale);
 
   // Only the size of the composition bounds is relevant to the
@@ -3106,11 +3106,8 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 #ifdef MOZ_DUMP_PAINTING
   FILE* savedDumpFile = gfxUtils::sDumpPaintFile;
 
-  bool profilerNeedsDisplayList = profiler_feature_active("displaylistdump");
-  bool consoleNeedsDisplayList = gfxUtils::DumpPaintList() || gfxUtils::sDumpPainting;
-
   UniquePtr<std::stringstream> ss = MakeUnique<std::stringstream>();
-  if (consoleNeedsDisplayList || profilerNeedsDisplayList) {
+  if (gfxUtils::DumpPaintList() || gfxUtils::sDumpPainting) {
     if (gfxUtils::sDumpPaintingToFile) {
       nsCString string("dump-");
       string.AppendInt(gPaintCount);
@@ -3130,12 +3127,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     } else {
       // Flush stream now to avoid reordering dump output relative to
       // messages dumped by PaintRoot below.
-      if (profilerNeedsDisplayList && !consoleNeedsDisplayList) {
-        profiler_log(ss->str().c_str());
-      } else {
-        // Send to the console which will send to the profiler if required.
-        fprint_stderr(gfxUtils::sDumpPaintFile, *ss);
-      }
+      fprint_stderr(gfxUtils::sDumpPaintFile, *ss);
       ss = MakeUnique<std::stringstream>();
     }
   }
@@ -3179,7 +3171,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
                                  paintStart);
 
 #ifdef MOZ_DUMP_PAINTING
-  if (consoleNeedsDisplayList || profilerNeedsDisplayList) {
+  if (gfxUtils::DumpPaintList() || gfxUtils::sDumpPainting) {
     if (gfxUtils::sDumpPaintingToFile) {
       *ss << "</script>";
     }
@@ -3195,12 +3187,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       *ss << "</body></html>";
     }
 
-    if (profilerNeedsDisplayList && !consoleNeedsDisplayList) {
-      profiler_log(ss->str().c_str());
-    } else {
-      // Send to the console which will send to the profiler if required.
-      fprint_stderr(gfxUtils::sDumpPaintFile, *ss);
-    }
+    fprint_stderr(gfxUtils::sDumpPaintFile, *ss);
 
     if (gfxUtils::sDumpPaintingToFile) {
       fclose(gfxUtils::sDumpPaintFile);

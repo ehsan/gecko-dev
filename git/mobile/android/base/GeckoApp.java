@@ -1650,7 +1650,6 @@ public abstract class GeckoApp
             // updated before Gecko has restored.
             if (mShouldRestore) {
                 final JSONArray tabs = new JSONArray();
-                final JSONObject windowObject = new JSONObject();
                 SessionParser parser = new SessionParser() {
                     @Override
                     public void onTabRead(SessionTab sessionTab) {
@@ -1671,11 +1670,6 @@ public abstract class GeckoApp
                         }
                         tabs.put(tabObject);
                     }
-
-                    @Override
-                    public void onClosedTabsRead(final JSONArray closedTabData) throws JSONException {
-                        windowObject.put("closedTabs", closedTabData);
-                    }
                 };
 
                 if (mPrivateBrowsingSession == null) {
@@ -1685,8 +1679,7 @@ public abstract class GeckoApp
                 }
 
                 if (tabs.length() > 0) {
-                    windowObject.put("tabs", tabs);
-                    sessionString = new JSONObject().put("windows", new JSONArray().put(windowObject)).toString();
+                    sessionString = new JSONObject().put("windows", new JSONArray().put(new JSONObject().put("tabs", tabs))).toString();
                 } else {
                     throw new SessionRestoreException("No tabs could be read from session file");
                 }
@@ -1695,6 +1688,7 @@ public abstract class GeckoApp
             JSONObject restoreData = new JSONObject();
             restoreData.put("sessionString", sessionString);
             return restoreData.toString();
+
         } catch (JSONException e) {
             throw new SessionRestoreException(e);
         }

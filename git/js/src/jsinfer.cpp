@@ -4120,13 +4120,12 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext *cx, TypeObject *ty
     if (!initializerList)
         return;
 
-    RootedFunction function(cx, fun);
     Vector<uint32_t, 32> pcOffsets(cx);
     for (ScriptFrameIter iter(cx); !iter.done(); ++iter) {
         pcOffsets.append(iter.script()->pcToOffset(iter.pc()));
 
         // This frame has no this.
-        if (!iter.isConstructing() || iter.matchCallee(cx, function))
+        if (!iter.isConstructing() || iter.callee() != fun)
             continue;
 
         Value thisv = iter.thisv(cx);
