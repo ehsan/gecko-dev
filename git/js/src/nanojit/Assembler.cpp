@@ -1172,8 +1172,6 @@ namespace nanojit
 				case LIR_lsh:
 				case LIR_rsh:
 				case LIR_ush:
-			    case LIR_div:
-			    case LIR_mod:
 				{
                     countlir_alu();
 					asm_arith(ins);
@@ -1382,10 +1380,12 @@ namespace nanojit
 				}
 				
 				case LIR_fcall:
+				case LIR_fcalli:
 #if defined NANOJIT_64BIT
 				case LIR_callh:
 #endif
 				case LIR_call:
+				case LIR_calli:
 				{
                     countlir_call();
                     Register rr = UnknownReg;
@@ -1897,6 +1897,10 @@ namespace nanojit
                 break;
             }
 		}
+        if (isIndirect()) {
+            // add one more arg for indirect call address
+            argc++;
+        }
         return argc;
     }
 

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -447,7 +447,7 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
     jschar *chars;
 
     if (xdr->mode == JSXDR_ENCODE)
-        nchars = (*strp)->length();
+        nchars = JSSTRING_LENGTH(*strp);
     if (!JS_XDRUint32(xdr, &nchars))
         return JS_FALSE;
 
@@ -456,7 +456,7 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
         if (!chars)
             return JS_FALSE;
     } else {
-        chars = (*strp)->chars();
+        chars = JSSTRING_CHARS(*strp);
     }
 
     if (!XDRChars(xdr, chars, nchars))

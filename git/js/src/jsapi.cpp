@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -888,10 +888,6 @@ JS_DestroyRuntime(JSRuntime *rt)
 JS_PUBLIC_API(void)
 JS_ShutDown(void)
 {
-#ifdef MOZ_TRACEVIS
-    JS_StopTraceVis();
-#endif
-
 #ifdef JS_OPMETER
     extern void js_DumpOpMeters();
 
@@ -2086,7 +2082,7 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
       }
 
       case JSTRACE_STRING:
-        name = ((JSString *)thing)->isDependent()
+        name = JSSTRING_IS_DEPENDENT((JSString *)thing)
                ? "substring"
                : "string";
         break;
@@ -2648,7 +2644,7 @@ JS_NewExternalString(JSContext *cx, jschar *chars, size_t length, intN type)
                                      sizeof(JSString));
     if (!str)
         return NULL;
-    str->initFlat(chars, length);
+    JSFLATSTR_INIT(str, chars, length);
     return str;
 }
 
@@ -5453,20 +5449,20 @@ JS_GetStringChars(JSString *str)
      * rate bugs in string concatenation, is worth this slight loss in API
      * compatibility.
      */
-    if (str->isDependent()) {
-        n = str->dependentLength();
+    if (JSSTRING_IS_DEPENDENT(str)) {
+        n = JSSTRDEP_LENGTH(str);
         size = (n + 1) * sizeof(jschar);
         s = (jschar *) malloc(size);
         if (s) {
-            memcpy(s, str->dependentChars(), n * sizeof *s);
+            memcpy(s, JSSTRDEP_CHARS(str), n * sizeof *s);
             s[n] = 0;
-            str->reinitFlat(s, n);
+            JSFLATSTR_REINIT(str, s, n);
         } else {
-            s = str->dependentChars();
+            s = JSSTRDEP_CHARS(str);
         }
     } else {
-        str->flatClearMutable();
-        s = str->flatChars();
+        JSFLATSTR_CLEAR_MUTABLE(str);
+        s = JSFLATSTR_CHARS(str);
     }
     return s;
 }
@@ -5474,7 +5470,7 @@ JS_GetStringChars(JSString *str)
 JS_PUBLIC_API(size_t)
 JS_GetStringLength(JSString *str)
 {
-    return str->length();
+    return JSSTRING_LENGTH(str);
 }
 
 JS_PUBLIC_API(intN)
@@ -5492,7 +5488,7 @@ JS_NewGrowableString(JSContext *cx, jschar *chars, size_t length)
     str = js_NewString(cx, chars, length);
     if (!str)
         return str;
-    str->flatSetMutable();
+    JSFLATSTR_SET_MUTABLE(str);
     return str;
 }
 
@@ -5554,7 +5550,7 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst,
 JS_PUBLIC_API(char *)
 JS_EncodeString(JSContext *cx, JSString *str)
 {
-    return js_DeflateString(cx, str->chars(), str->length());
+    return js_DeflateString(cx, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
 }
 
 JS_PUBLIC_API(JSBool)

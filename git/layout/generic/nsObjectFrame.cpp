@@ -2959,7 +2959,9 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   nsCOMPtr<nsIDOMElement> mydomElement = do_QueryInterface(mContent);
   NS_ENSURE_TRUE(mydomElement, NS_ERROR_NO_INTERFACE);
 
-  nsCOMPtr<nsIDOMNodeList> allParams;
+  nsCOMPtr<nsIDOMNodeList> allParams; 
+
+  nsINodeInfo *ni = mContent->NodeInfo();
 
   // Making DOM method calls can cause our frame to go away, which
   // might kill us...
@@ -4939,8 +4941,8 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
   nsIntPoint pluginOrigin;
   nsIntRect widgetClip;
   PRBool widgetVisible;
-  pluginWidget->GetPluginClipRect(widgetClip, pluginOrigin, widgetVisible);
-
+  pluginWidget->GetPluginClipRect(widgetClip, pluginOrigin, /* out */ widgetVisible);
+  
   // printf("GetPluginClipRect returning visible %d\n", widgetVisible);
 
   isVisible &= widgetVisible;

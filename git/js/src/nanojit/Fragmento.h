@@ -58,10 +58,7 @@ namespace nanojit
     struct Page: public PageHeader
     {
         union {
-            // Conceptually, the lir array holds mostly LIns values (plus some
-            // skip payloads and call arguments).  But we use int8_t as the
-            // element type here so the array size can be expressed in bytes.
-            int8_t lir[NJ_PAGE_SIZE-sizeof(PageHeader)];
+            LIns lir[(NJ_PAGE_SIZE-sizeof(PageHeader))/sizeof(LIns)];
             NIns code[(NJ_PAGE_SIZE-sizeof(PageHeader))/sizeof(NIns)];
         };
     };
@@ -180,7 +177,6 @@ namespace nanojit
 			~Fragment();
 
 			NIns*			code()							{ return _code; }
-			Page*			pages()							{ return _pages; }
 			void			setCode(NIns* codee, Page* pages) { _code = codee; _pages = pages; }
 			int32_t&		hits()							{ return _hits; }
             void            blacklist();
