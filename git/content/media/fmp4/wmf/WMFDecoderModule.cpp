@@ -57,6 +57,8 @@ WMFDecoderModule::Startup()
 nsresult
 WMFDecoderModule::Shutdown()
 {
+  MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
+
   DebugOnly<HRESULT> hr = wmf::MFShutdown();
   NS_ASSERTION(SUCCEEDED(hr), "MFShutdown failed");
 

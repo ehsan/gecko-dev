@@ -22,11 +22,9 @@ VideoCodecStatistics::VideoCodecStatistics(int channel,
   mEncoderDroppedFrames(0),
   mDecoderDiscardedPackets(0),
   mEncoderMode(encoder),
-  mReceiveState(kReceiveStateInitial)
-#ifdef MOZILLA_INTERNAL_API
-  , mRecoveredBeforeLoss(0)
-  , mRecoveredLosses(0)
-#endif
+  mReceiveState(kReceiveStateInitial),
+  mRecoveredBeforeLoss(0),
+  mRecoveredLosses(0)
 {
   MOZ_ASSERT(mPtrViECodec);
   if (mEncoderMode) {
@@ -139,7 +137,7 @@ void VideoCodecStatistics::EndOfCallStats()
     TimeDuration callDelta = TimeStamp::Now() - mFirstDecodeTime;
     if (callDelta.ToSeconds() != 0) {
       uint32_t recovered_per_min = mRecoveredBeforeLoss/(callDelta.ToSeconds()/60);
-      CSFLogError(logTag, "Video recovery before error per min %u", recovered_per_min);
+      CSFLogError(logTag, "Video recovery before error per min %f", recovered_per_min);
       Telemetry::Accumulate(Telemetry::WEBRTC_VIDEO_RECOVERY_BEFORE_ERROR_PER_MIN,
                             recovered_per_min);
       uint32_t err_per_min = mRecoveredLosses/(callDelta.ToSeconds()/60);

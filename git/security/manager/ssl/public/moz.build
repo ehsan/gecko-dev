@@ -40,6 +40,7 @@ XPIDL_SOURCES += [
     'nsIRecentBadCertsService.idl',
     'nsISignatureVerifier.idl',
     'nsISMimeCert.idl',
+    'nsISSLCertErrorDialog.idl',
     'nsISSLErrorListener.idl',
     'nsISSLStatus.idl',
     'nsIStreamCipher.idl',

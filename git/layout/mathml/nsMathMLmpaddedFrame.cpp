@@ -269,11 +269,11 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
              break;
 
         case NS_MATHML_PSEUDO_UNIT_HEIGHT:
-             scaler = aDesiredSize.BlockStartAscent();
+             scaler = aDesiredSize.TopAscent();
              break;
 
         case NS_MATHML_PSEUDO_UNIT_DEPTH:
-             scaler = aDesiredSize.Height() - aDesiredSize.BlockStartAscent();
+             scaler = aDesiredSize.Height() - aDesiredSize.TopAscent();
              break;
 
         default:
@@ -327,8 +327,8 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
     return rv;
   }
 
-  nscoord height = aDesiredSize.BlockStartAscent();
-  nscoord depth  = aDesiredSize.Height() - aDesiredSize.BlockStartAscent();
+  nscoord height = aDesiredSize.TopAscent();
+  nscoord depth  = aDesiredSize.Height() - aDesiredSize.TopAscent();
   // The REC says:
   //
   // "The lspace attribute ('leading' space) specifies the horizontal location
@@ -418,19 +418,19 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   nscoord dx = (StyleVisibility()->mDirection ?
                 width - initialWidth - lspace : lspace);
     
-  aDesiredSize.SetBlockStartAscent(height);
+  aDesiredSize.SetTopAscent(height);
   aDesiredSize.Width() = mBoundingMetrics.width;
-  aDesiredSize.Height() = depth + aDesiredSize.BlockStartAscent();
+  aDesiredSize.Height() = depth + aDesiredSize.TopAscent();
   mBoundingMetrics.ascent = height;
   mBoundingMetrics.descent = depth;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.BlockStartAscent();
+  mReference.y = aDesiredSize.TopAscent();
 
   if (aPlaceOrigin) {
     // Finish reflowing child frames, positioning their origins.
-    PositionRowChildFrames(dx, aDesiredSize.BlockStartAscent() - voffset);
+    PositionRowChildFrames(dx, aDesiredSize.TopAscent() - voffset);
   }
 
   return NS_OK;

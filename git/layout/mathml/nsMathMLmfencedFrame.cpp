@@ -189,7 +189,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
                              nsReflowStatus&          aStatus)
 {
   aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetBlockStartAscent(0);
+  aDesiredSize.SetTopAscent(0);
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   int32_t i;
@@ -239,13 +239,11 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
     SaveReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
                                     childDesiredSize.mBoundingMetrics);
 
-    mozilla::WritingMode wm = aReflowState.GetWritingMode();
-    nscoord childDescent = childDesiredSize.BSize(wm) -
-                           childDesiredSize.BlockStartAscent();
+    nscoord childDescent = childDesiredSize.Height() - childDesiredSize.TopAscent();
     if (descent < childDescent)
       descent = childDescent;
-    if (ascent < childDesiredSize.BlockStartAscent())
-      ascent = childDesiredSize.BlockStartAscent();
+    if (ascent < childDesiredSize.TopAscent())
+      ascent = childDesiredSize.TopAscent();
 
     childFrame = childFrame->GetNextSibling();
   }
@@ -274,11 +272,11 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
       SaveReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
                                       childDesiredSize.mBoundingMetrics);
       
-      nscoord childDescent = childDesiredSize.Height() - childDesiredSize.BlockStartAscent();
+      nscoord childDescent = childDesiredSize.Height() - childDesiredSize.TopAscent();
       if (descent < childDescent)
         descent = childDescent;
-      if (ascent < childDesiredSize.BlockStartAscent())
-        ascent = childDesiredSize.BlockStartAscent();
+      if (ascent < childDesiredSize.TopAscent())
+        ascent = childDesiredSize.TopAscent();
     }
     childFrame = childFrame->GetNextSibling();
   }
@@ -357,7 +355,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
       aDesiredSize.mBoundingMetrics += bm;
 
     FinishReflowChild(childFrame, aPresContext, childSize, nullptr,
-                      dx, ascent - childSize.BlockStartAscent(), 0);
+                      dx, ascent - childSize.TopAscent(), 0);
     dx += childSize.Width();
 
     if (i < mSeparatorsCount) {
@@ -384,10 +382,10 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
 
   aDesiredSize.Width() = aDesiredSize.mBoundingMetrics.width;
   aDesiredSize.Height() = ascent + descent;
-  aDesiredSize.SetBlockStartAscent(ascent);
+  aDesiredSize.SetTopAscent(ascent);
 
   SetBoundingMetrics(aDesiredSize.mBoundingMetrics);
-  SetReference(nsPoint(0, aDesiredSize.BlockStartAscent()));
+  SetReference(nsPoint(0, aDesiredSize.TopAscent()));
 
   // see if we should fix the spacing
   FixInterFrameSpacing(aDesiredSize);

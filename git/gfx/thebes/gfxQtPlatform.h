@@ -28,6 +28,9 @@ public:
     }
 
     virtual already_AddRefed<gfxASurface>
+    OptimizeImage(gfxImageSurface *aSurface,
+                  gfxImageFormat format) MOZ_OVERRIDE;
+    virtual already_AddRefed<gfxASurface>
       CreateOffscreenSurface(const IntSize& size,
                              gfxContentType contentType) MOZ_OVERRIDE;
 

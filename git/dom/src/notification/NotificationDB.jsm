@@ -15,7 +15,6 @@ const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/Promise.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
@@ -23,6 +22,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
+
+XPCOMUtils.defineLazyGetter(this, "gEncoder", function() {
+  return new TextEncoder();
+});
+
+XPCOMUtils.defineLazyGetter(this, "gDecoder", function() {
+  return new TextDecoder();
+});
+
 
 const NOTIFICATION_STORE_DIR = OS.Constants.Path.profileDir;
 const NOTIFICATION_STORE_PATH =
@@ -50,7 +58,7 @@ let NotificationDB = {
     this.loaded = false;
 
     this.tasks = []; // read/write operation queue
-    this.runningTask = null;
+    this.runningTask = false;
 
     Services.obs.addObserver(this, "xpcom-shutdown", false);
     this.registerListeners();
@@ -78,13 +86,15 @@ let NotificationDB = {
   },
 
   // Attempt to read notification file, if it's not there we will create it.
-  load: function() {
-    var promise = OS.File.read(NOTIFICATION_STORE_PATH, { encoding: "utf-8"});
-    return promise.then(
+  load: function(callback) {
+    var promise = OS.File.read(NOTIFICATION_STORE_PATH);
+    promise.then(
       function onSuccess(data) {
-        // JSON parsing failure will get handled by a later catch in the promise
-        // chain
-        this.notifications = JSON.parse(data);
+        try {
+          this.notifications = JSON.parse(gDecoder.decode(data));
+        } catch (e) {
+          if (DEBUG) { debug("Unable to parse file data " + e); }
+        }
         // populate the list of notifications by tag
         if (this.notifications) {
           for (var origin in this.notifications) {
@@ -98,43 +108,70 @@ let NotificationDB = {
           }
         }
         this.loaded = true;
+        callback && callback();
       }.bind(this),
 
       // If read failed, we assume we have no notifications to load.
       function onFailure(reason) {
         this.loaded = true;
-        return this.createStore();
+        this.createStore(callback);
       }.bind(this)
     );
   },
 
   // Creates the notification directory.
-  createStore: function() {
+  createStore: function(callback) {
     var promise = OS.File.makeDir(NOTIFICATION_STORE_DIR, {
       ignoreExisting: true
     });
-    return promise.then(
-      this.createFile.bind(this)
+    promise.then(
+      function onSuccess() {
+        this.createFile(callback);
+      }.bind(this),
+
+      function onFailure(reason) {
+        if (DEBUG) { debug("Directory creation failed:" + reason); }
+        callback && callback();
+      }
     );
   },
 
   // Creates the notification file once the directory is created.
-  createFile: function() {
-    return OS.File.writeAtomic(NOTIFICATION_STORE_PATH, "");
+  createFile: function(callback) {
+    var promise = OS.File.open(NOTIFICATION_STORE_PATH, {create: true});
+    promise.then(
+      function onSuccess(handle) {
+        handle.close();
+        callback && callback();
+      },
+      function onFailure(reason) {
+        if (DEBUG) { debug("File creation failed:" + reason); }
+        callback && callback();
+      }
+    );
   },
 
   // Save current notifications to the file.
-  save: function() {
-    var data = JSON.stringify(this.notifications);
-    return OS.File.writeAtomic(NOTIFICATION_STORE_PATH, data, { encoding: "utf-8"});
+  save: function(callback) {
+    var data = gEncoder.encode(JSON.stringify(this.notifications));
+    var promise = OS.File.writeAtomic(NOTIFICATION_STORE_PATH, data);
+    promise.then(
+      function onSuccess() {
+        callback && callback();
+      },
+      function onFailure(reason) {
+        if (DEBUG) { debug("Save failed:" + reason); }
+        callback && callback();
+      }
+    );
   },
 
-  // Helper function: promise will be resolved once file exists and/or is loaded.
-  ensureLoaded: function() {
+  // Helper function: callback will be called once file exists and/or is loaded.
+  ensureLoaded: function(callback) {
     if (!this.loaded) {
-      return this.load();
+      this.load(callback);
     } else {
-      return Promise.resolve();
+      callback();
     }
   },
 
@@ -153,56 +190,36 @@ let NotificationDB = {
 
     switch (message.name) {
       case "Notification:GetAll":
-        this.queueTask("getall", message.data).then(function(notifications) {
+        this.queueTask("getall", message.data, function(notifications) {
           returnMessage("Notification:GetAll:Return:OK", {
             requestID: message.data.requestID,
             origin: message.data.origin,
             notifications: notifications
           });
-        }).catch(function(error) {
-          returnMessage("Notification:GetAll:Return:KO", {
-            requestID: message.data.requestID,
-            origin: message.data.origin,
-            errorMsg: error
-          });
         });
         break;
 
       case "Notification:GetAllCrossOrigin":
-        this.queueTask("getallaccrossorigin", message.data).then(
+        this.queueTask("getallaccrossorigin", message.data,
           function(notifications) {
             returnMessage("Notification:GetAllCrossOrigin:Return:OK", {
               notifications: notifications
-            });
-          }).catch(function(error) {
-            returnMessage("Notification:GetAllCrossOrigin:Return:KO", {
-              errorMsg: error
             });
           });
         break;
 
       case "Notification:Save":
-        this.queueTask("save", message.data).then(function() {
+        this.queueTask("save", message.data, function() {
           returnMessage("Notification:Save:Return:OK", {
             requestID: message.data.requestID
-          });
-        }).catch(function(error) {
-          returnMessage("Notification:Save:Return:KO", {
-            requestID: message.data.requestID,
-            errorMsg: error
           });
         });
         break;
 
       case "Notification:Delete":
-        this.queueTask("delete", message.data).then(function() {
+        this.queueTask("delete", message.data, function() {
           returnMessage("Notification:Delete:Return:OK", {
             requestID: message.data.requestID
-          });
-        }).catch(function(error) {
-          returnMessage("Notification:Delete:Return:KO", {
-            requestID: message.data.requestID,
-            errorMsg: error
           });
         });
         break;
@@ -214,20 +231,12 @@ let NotificationDB = {
 
   // We need to make sure any read/write operations are atomic,
   // so use a queue to run each operation sequentially.
-  queueTask: function(operation, data) {
+  queueTask: function(operation, data, callback) {
     if (DEBUG) { debug("Queueing task: " + operation); }
-
-    var defer = {};
-
     this.tasks.push({
       operation: operation,
       data: data,
-      defer: defer
-    });
-
-    var promise = new Promise(function(resolve, reject) {
-      defer.resolve = resolve;
-      defer.reject = reject;
+      callback: callback
     });
 
     // Only run immediately if we aren't currently running another task.
@@ -235,60 +244,49 @@ let NotificationDB = {
       if (DEBUG) { debug("Task queue was not running, starting now..."); }
       this.runNextTask();
     }
-
-    return promise;
   },
 
   runNextTask: function() {
     if (this.tasks.length === 0) {
       if (DEBUG) { debug("No more tasks to run, queue depleted"); }
-      this.runningTask = null;
+      this.runningTask = false;
       return;
     }
-    this.runningTask = this.tasks.shift();
+    this.runningTask = true;
 
     // Always make sure we are loaded before performing any read/write tasks.
-    this.ensureLoaded()
-    .then(function() {
-      var task = this.runningTask;
+    this.ensureLoaded(function() {
+      var task = this.tasks.shift();
+
+      // Wrap the task callback to make sure we immediately
+      // run the next task after running the original callback.
+      var wrappedCallback = function() {
+        if (DEBUG) { debug("Finishing task: " + task.operation); }
+        task.callback.apply(this, arguments);
+        this.runNextTask();
+      }.bind(this);
 
       switch (task.operation) {
         case "getall":
-          return this.taskGetAll(task.data);
+          this.taskGetAll(task.data, wrappedCallback);
           break;
 
         case "getallaccrossorigin":
-          return this.taskGetAllCrossOrigin();
+          this.taskGetAllCrossOrigin(wrappedCallback);
           break;
 
         case "save":
-          return this.taskSave(task.data);
+          this.taskSave(task.data, wrappedCallback);
           break;
 
         case "delete":
-          return this.taskDelete(task.data);
+          this.taskDelete(task.data, wrappedCallback);
           break;
       }
-
-    }.bind(this))
-    .then(function(payload) {
-      if (DEBUG) {
-        debug("Finishing task: " + this.runningTask.operation);
-      }
-      this.runningTask.defer.resolve(payload);
-    }.bind(this))
-    .catch(function(err) {
-      if (DEBUG) {
-        debug("Error while running " + this.runningTask.operation + ": " + err);
-      }
-      this.runningTask.defer.reject(new String(err));
-    }.bind(this))
-    .then(function() {
-      this.runNextTask();
     }.bind(this));
   },
 
-  taskGetAll: function(data) {
+  taskGetAll: function(data, callback) {
     if (DEBUG) { debug("Task, getting all"); }
     var origin = data.origin;
     var notifications = [];
@@ -296,10 +294,10 @@ let NotificationDB = {
     for (var i in this.notifications[origin]) {
       notifications.push(this.notifications[origin][i]);
     }
-    return Promise.resolve(notifications);
+    callback(notifications);
   },
 
-  taskGetAllCrossOrigin: function() {
+  taskGetAllCrossOrigin: function(callback) {
     if (DEBUG) { debug("Task, getting all whatever origin"); }
     var notifications = [];
     for (var origin in this.notifications) {
@@ -317,10 +315,10 @@ let NotificationDB = {
         notifications.push(notification);
       }
     }
-    return Promise.resolve(notifications);
+    callback(notifications);
   },
 
-  taskSave: function(data) {
+  taskSave: function(data, callback) {
     if (DEBUG) { debug("Task, saving"); }
     var origin = data.origin;
     var notification = data.notification;
@@ -338,30 +336,32 @@ let NotificationDB = {
     }
 
     this.notifications[origin][notification.id] = notification;
-    return this.save();
+    this.save(callback);
   },
 
-  taskDelete: function(data) {
+  taskDelete: function(data, callback) {
     if (DEBUG) { debug("Task, deleting"); }
     var origin = data.origin;
     var id = data.id;
     if (!this.notifications[origin]) {
       if (DEBUG) { debug("No notifications found for origin: " + origin); }
-      return Promise.resolve();
+      callback();
+      return;
     }
 
     // Make sure we can find the notification to delete.
     var oldNotification = this.notifications[origin][id];
     if (!oldNotification) {
       if (DEBUG) { debug("No notification found with id: " + id); }
-      return Promise.resolve();
+      callback();
+      return;
     }
 
     if (oldNotification.tag) {
       delete this.byTag[origin][oldNotification.tag];
     }
     delete this.notifications[origin][id];
-    return this.save();
+    this.save(callback);
   }
 };
 

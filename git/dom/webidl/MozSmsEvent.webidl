@@ -5,7 +5,7 @@
  */
 interface MozSmsMessage;
 
-[Constructor(DOMString type, optional MozSmsEventInit eventInitDict)]
+[Constructor(DOMString type, optional MozSmsEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface MozSmsEvent : Event
 {
   readonly attribute MozSmsMessage? message;

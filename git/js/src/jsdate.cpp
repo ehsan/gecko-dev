@@ -50,8 +50,6 @@ using namespace js::types;
 using mozilla::ArrayLength;
 using mozilla::IsFinite;
 using mozilla::IsNaN;
-
-using JS::AutoCheckCannotGC;
 using JS::GenericNaN;
 
 /*
@@ -549,20 +547,33 @@ static const int ttb[] = {
     10000 + 8 * 60, 10000 + 7 * 60     /* PST/PDT */
 };
 
-template <typename CharT>
+/* helper for date_parse */
 static bool
-RegionMatches(const char *s1, int s1off, const CharT *s2, int s2off, int count)
+date_regionMatches(const char* s1, int s1off, const jschar* s2, int s2off,
+                   int count, int ignoreCase)
 {
-    while (count > 0 && s1[s1off] && s2[s2off]) {
-        if (unicode::ToLowerCase(s1[s1off]) != unicode::ToLowerCase(s2[s2off]))
-            break;
+    bool result = false;
+    /* return true if matches, otherwise, false */
 
+    while (count > 0 && s1[s1off] && s2[s2off]) {
+        if (ignoreCase) {
+            if (unicode::ToLowerCase(s1[s1off]) != unicode::ToLowerCase(s2[s2off]))
+                break;
+        } else {
+            if ((jschar)s1[s1off] != s2[s2off]) {
+                break;
+            }
+        }
         s1off++;
         s2off++;
         count--;
     }
 
-    return count == 0;
+    if (count == 0) {
+        result = true;
+    }
+
+    return result;
 }
 
 /* find UTC time from given date... no 1900 correction! */
@@ -638,13 +649,13 @@ date_UTC(JSContext *cx, unsigned argc, Value *vp)
  * Succeed if any digits are converted. Advance *i only
  * as digits are consumed.
  */
-template <typename CharT>
 static bool
-ParseDigits(size_t *result, const CharT *s, size_t *i, size_t limit)
+digits(size_t *result, const jschar *s, size_t *i, size_t limit)
 {
     size_t init = *i;
     *result = 0;
-    while (*i < limit && ('0' <= s[*i] && s[*i] <= '9')) {
+    while (*i < limit &&
+           ('0' <= s[*i] && s[*i] <= '9')) {
         *result *= 10;
         *result += (s[*i] - '0');
         ++(*i);
@@ -660,14 +671,14 @@ ParseDigits(size_t *result, const CharT *s, size_t *i, size_t limit)
  * Succeed if any digits are converted. Advance *i only
  * as digits are consumed.
  */
-template <typename CharT>
 static bool
-ParseFractional(double *result, const CharT *s, size_t *i, size_t limit)
+fractional(double *result, const jschar *s, size_t *i, size_t limit)
 {
     double factor = 0.1;
     size_t init = *i;
     *result = 0.0;
-    while (*i < limit && ('0' <= s[*i] && s[*i] <= '9')) {
+    while (*i < limit &&
+           ('0' <= s[*i] && s[*i] <= '9')) {
         *result += (s[*i] - '0') * factor;
         factor *= 0.1;
         ++(*i);
@@ -682,13 +693,12 @@ ParseFractional(double *result, const CharT *s, size_t *i, size_t limit)
  * Succeed if exactly n digits are converted. Advance *i only
  * on success.
  */
-template <typename CharT>
 static bool
-ParseDigitsN(size_t n, size_t *result, const CharT *s, size_t *i, size_t limit)
+ndigits(size_t n, size_t *result, const jschar *s, size_t* i, size_t limit)
 {
     size_t init = *i;
 
-    if (ParseDigits(result, s, i, Min(limit, init + n)))
+    if (digits(result, s, i, Min(limit, init+n)))
         return (*i - init) == n;
 
     *i = init;
@@ -758,10 +768,14 @@ DaysInMonth(int year, int month)
  *   s    = one or more digits representing a decimal fraction of a second
  *   TZD  = time zone designator (Z or +hh:mm or -hh:mm or missing for local)
  */
-template <typename CharT>
+
 static bool
-ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
+date_parseISOString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 {
+    double msec;
+
+    const jschar *s;
+    size_t limit;
     size_t i = 0;
     int tzMul = 1;
     int dateMul = 1;
@@ -776,19 +790,30 @@ ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo
     size_t tzHour = 0;
     size_t tzMin = 0;
 
-#define PEEK(ch) (i < length && s[i] == ch)
+#define PEEK(ch) (i < limit && s[i] == ch)
 
-#define NEED(ch)                                                               \
-    if (i >= length || s[i] != ch) { return false; } else { ++i; }
+#define NEED(ch)                                                     \
+    JS_BEGIN_MACRO                                                   \
+        if (i >= limit || s[i] != ch) { goto syntax; } else { ++i; } \
+    JS_END_MACRO
 
-#define DONE_DATE_UNLESS(ch)                                                   \
-    if (i >= length || s[i] != ch) { goto done_date; } else { ++i; }
+#define DONE_DATE_UNLESS(ch)                                            \
+    JS_BEGIN_MACRO                                                      \
+        if (i >= limit || s[i] != ch) { goto done_date; } else { ++i; } \
+    JS_END_MACRO
 
-#define DONE_UNLESS(ch)                                                        \
-    if (i >= length || s[i] != ch) { goto done; } else { ++i; }
+#define DONE_UNLESS(ch)                                            \
+    JS_BEGIN_MACRO                                                 \
+        if (i >= limit || s[i] != ch) { goto done; } else { ++i; } \
+    JS_END_MACRO
 
-#define NEED_NDIGITS(n, field)                                                 \
-    if (!ParseDigitsN(n, &field, s, &i, length)) { return false; }
+#define NEED_NDIGITS(n, field)                                      \
+    JS_BEGIN_MACRO                                                  \
+        if (!ndigits(n, &field, s, &i, limit)) { goto syntax; }     \
+    JS_END_MACRO
+
+    s = str->chars();
+    limit = str->length();
 
     if (PEEK('+') || PEEK('-')) {
         if (PEEK('-'))
@@ -814,8 +839,8 @@ ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo
         NEED_NDIGITS(2, sec);
         if (PEEK('.')) {
             ++i;
-            if (!ParseFractional(&frac, s, &i, length))
-                return false;
+            if (!fractional(&frac, s, &i, limit))
+                goto syntax;
         }
     }
 
@@ -831,7 +856,7 @@ ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo
          * allow "-0700" as a time zone offset, not just "-07:00".
          */
         if (PEEK(':'))
-            ++i;
+          ++i;
         NEED_NDIGITS(2, tzMin);
     } else {
         isLocalTime = true;
@@ -847,28 +872,35 @@ ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo
         || sec > 59
         || tzHour > 23
         || tzMin > 59)
-    {
-        return false;
-    }
+        goto syntax;
 
-    if (i != length)
-        return false;
+    if (i != limit)
+        goto syntax;
 
     month -= 1; /* convert month to 0-based */
 
-    double msec = date_msecFromDate(dateMul * double(year), month, day,
-                                    hour, min, sec, frac * 1000.0);
+    msec = date_msecFromDate(dateMul * (double)year, month, day,
+                             hour, min, sec,
+                             frac * 1000.0);;
 
-    if (isLocalTime)
+    if (isLocalTime) {
         msec = UTC(msec, dtInfo);
-    else
-        msec -= tzMul * (tzHour * msPerHour + tzMin * msPerMinute);
+    } else {
+        msec -= ((tzMul) * ((tzHour * msPerHour)
+                            + (tzMin * msPerMinute)));
+    }
 
     if (msec < -8.64e15 || msec > 8.64e15)
-        return false;
+        goto syntax;
 
     *result = msec;
+
     return true;
+
+ syntax:
+    /* syntax error */
+    *result = 0;
+    return false;
 
 #undef PEEK
 #undef NEED
@@ -876,114 +908,113 @@ ParseISODate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo
 #undef NEED_NDIGITS
 }
 
-template <typename CharT>
 static bool
-ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
+date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 {
-    if (ParseISODate(s, length, result, dtInfo))
-        return true;
+    double msec;
 
-    if (length == 0)
-        return false;
-
+    const jschar *s;
+    size_t limit;
+    size_t i = 0;
     int year = -1;
     int mon = -1;
     int mday = -1;
     int hour = -1;
     int min = -1;
     int sec = -1;
-    int tzOffset = -1;
-
+    int c = -1;
+    int n = -1;
+    int tzoffset = -1;
     int prevc = 0;
+    bool seenplusminus = false;
+    int temp;
+    bool seenmonthname = false;
 
-    bool seenPlusMinus = false;
-    bool seenMonthName = false;
+    if (date_parseISOString(str, result, dtInfo))
+        return true;
 
-    size_t i = 0;
-    while (i < length) {
-        int c = s[i];
+    s = str->chars();
+    limit = str->length();
+    if (limit == 0)
+        goto syntax;
+    while (i < limit) {
+        c = s[i];
         i++;
         if (c <= ' ' || c == ',' || c == '-') {
-            if (c == '-' && '0' <= s[i] && s[i] <= '9')
-                prevc = c;
+            if (c == '-' && '0' <= s[i] && s[i] <= '9') {
+              prevc = c;
+            }
             continue;
         }
         if (c == '(') { /* comments) */
             int depth = 1;
-            while (i < length) {
+            while (i < limit) {
                 c = s[i];
                 i++;
-                if (c == '(') {
-                    depth++;
-                } else if (c == ')') {
+                if (c == '(') depth++;
+                else if (c == ')')
                     if (--depth <= 0)
                         break;
-                }
             }
             continue;
         }
         if ('0' <= c && c <= '9') {
-            int n = c - '0';
-            while (i < length && '0' <= (c = s[i]) && c <= '9') {
+            n = c - '0';
+            while (i < limit && '0' <= (c = s[i]) && c <= '9') {
                 n = n * 10 + c - '0';
                 i++;
             }
 
-            /*
-             * Allow TZA before the year, so 'Wed Nov 05 21:49:11 GMT-0800 1997'
-             * works.
-             *
-             * Uses of seenPlusMinus allow ':' in TZA, so Java no-timezone style
-             * of GMT+4:30 works.
+            /* allow TZA before the year, so
+             * 'Wed Nov 05 21:49:11 GMT-0800 1997'
+             * works */
+
+            /* uses of seenplusminus allow : in TZA, so Java
+             * no-timezone style of GMT+4:30 works
              */
 
             if ((prevc == '+' || prevc == '-')/*  && year>=0 */) {
-                /* Make ':' case below change tzOffset. */
-                seenPlusMinus = true;
+                /* make ':' case below change tzoffset */
+                seenplusminus = true;
 
                 /* offset */
                 if (n < 24)
                     n = n * 60; /* EG. "GMT-3" */
                 else
                     n = n % 100 + n / 100 * 60; /* eg "GMT-0430" */
-
                 if (prevc == '+')       /* plus means east of GMT */
                     n = -n;
-
-                if (tzOffset != 0 && tzOffset != -1)
-                    return false;
-
-                tzOffset = n;
+                if (tzoffset != 0 && tzoffset != -1)
+                    goto syntax;
+                tzoffset = n;
             } else if (prevc == '/' && mon >= 0 && mday >= 0 && year < 0) {
-                if (c <= ' ' || c == ',' || c == '/' || i >= length)
+                if (c <= ' ' || c == ',' || c == '/' || i >= limit)
                     year = n;
                 else
-                    return false;
+                    goto syntax;
             } else if (c == ':') {
                 if (hour < 0)
                     hour = /*byte*/ n;
                 else if (min < 0)
                     min = /*byte*/ n;
                 else
-                    return false;
+                    goto syntax;
             } else if (c == '/') {
-                /*
-                 * Until it is determined that mon is the actual month, keep
-                 * it as 1-based rather than 0-based.
-                 */
+                /* until it is determined that mon is the actual
+                   month, keep it as 1-based rather than 0-based */
                 if (mon < 0)
                     mon = /*byte*/ n;
                 else if (mday < 0)
                     mday = /*byte*/ n;
                 else
-                    return false;
-            } else if (i < length && c != ',' && c > ' ' && c != '-' && c != '(') {
-                return false;
-            } else if (seenPlusMinus && n < 60) {  /* handle GMT-3:30 */
-                if (tzOffset < 0)
-                    tzOffset -= n;
+                    goto syntax;
+            } else if (i < limit && c != ',' && c > ' ' && c != '-' && c != '(') {
+                goto syntax;
+            } else if (seenplusminus && n < 60) {  /* handle GMT-3:30 */
+                if (tzoffset < 0)
+                    tzoffset -= n;
                 else
-                    tzOffset += n;
+                    tzoffset += n;
             } else if (hour >= 0 && min < 0) {
                 min = /*byte*/ n;
             } else if (prevc == ':' && min >= 0 && sec < 0) {
@@ -995,7 +1026,7 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
             } else if (mon >= 0 && mday >= 0 && year < 0) {
                 year = n;
             } else {
-                return false;
+                goto syntax;
             }
             prevc = 0;
         } else if (c == '/' || c == ':' || c == '+' || c == '-') {
@@ -1003,18 +1034,16 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
         } else {
             size_t st = i - 1;
             int k;
-            while (i < length) {
+            while (i < limit) {
                 c = s[i];
                 if (!(('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')))
                     break;
                 i++;
             }
-
             if (i <= st + 1)
-                return false;
-
-            for (k = ArrayLength(wtb); --k >= 0;) {
-                if (RegionMatches(wtb[k], 0, s, st, i - st)) {
+                goto syntax;
+            for (k = ArrayLength(wtb); --k >= 0;)
+                if (date_regionMatches(wtb[k], 0, s, st, i-st, 1)) {
                     int action = ttb[k];
                     if (action != 0) {
                         if (action < 0) {
@@ -1023,23 +1052,23 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
                              * 12:30, instead of blindly adding 12 if PM.
                              */
                             JS_ASSERT(action == -1 || action == -2);
-                            if (hour > 12 || hour < 0)
-                                return false;
-
-                            if (action == -1 && hour == 12) /* am */
-                                hour = 0;
-                            else if (action == -2 && hour != 12) /* pm */
-                                hour += 12;
+                            if (hour > 12 || hour < 0) {
+                                goto syntax;
+                            } else {
+                                if (action == -1 && hour == 12) { /* am */
+                                    hour = 0;
+                                } else if (action == -2 && hour != 12) { /* pm */
+                                    hour += 12;
+                                }
+                            }
                         } else if (action <= 13) { /* month! */
-                            /*
-                             * Adjust mon to be 1-based until the final values
-                             * for mon, mday and year are adjusted below.
-                             */
-                            if (seenMonthName)
-                                return false;
-
-                            seenMonthName = true;
-                            int temp = /*byte*/ (action - 2) + 1;
+                            /* Adjust mon to be 1-based until the final values
+                               for mon, mday and year are adjusted below */
+                            if (seenmonthname) {
+                                goto syntax;
+                            }
+                            seenmonthname = true;
+                            temp = /*byte*/ (action - 2) + 1;
 
                             if (mon < 0) {
                                 mon = temp;
@@ -1050,58 +1079,53 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
                                 year = mon;
                                 mon = temp;
                             } else {
-                                return false;
+                                goto syntax;
                             }
                         } else {
-                            tzOffset = action - 10000;
+                            tzoffset = action - 10000;
                         }
                     }
                     break;
                 }
-            }
-
             if (k < 0)
-                return false;
-
+                goto syntax;
             prevc = 0;
         }
     }
-
     if (year < 0 || mon < 0 || mday < 0)
-        return false;
-
+        goto syntax;
     /*
-     * Case 1. The input string contains an English month name.
-     *         The form of the string can be month f l, or f month l, or
-     *         f l month which each evaluate to the same date.
-     *         If f and l are both greater than or equal to 70, or
-     *         both less than 70, the date is invalid.
-     *         The year is taken to be the greater of the values f, l.
-     *         If the year is greater than or equal to 70 and less than 100,
-     *         it is considered to be the number of years after 1900.
-     * Case 2. The input string is of the form "f/m/l" where f, m and l are
-     *         integers, e.g. 7/16/45.
-     *         Adjust the mon, mday and year values to achieve 100% MSIE
-     *         compatibility.
-     *         a. If 0 <= f < 70, f/m/l is interpreted as month/day/year.
-     *            i.  If year < 100, it is the number of years after 1900
-     *            ii. If year >= 100, it is the number of years after 0.
-     *         b. If 70 <= f < 100
-     *            i.  If m < 70, f/m/l is interpreted as
-     *                year/month/day where year is the number of years after
-     *                1900.
-     *            ii. If m >= 70, the date is invalid.
-     *         c. If f >= 100
-     *            i.  If m < 70, f/m/l is interpreted as
-     *                year/month/day where year is the number of years after 0.
-     *            ii. If m >= 70, the date is invalid.
-     */
-    if (seenMonthName) {
-        if ((mday >= 70 && year >= 70) || (mday < 70 && year < 70))
-            return false;
-
+      Case 1. The input string contains an English month name.
+              The form of the string can be month f l, or f month l, or
+              f l month which each evaluate to the same date.
+              If f and l are both greater than or equal to 70, or
+              both less than 70, the date is invalid.
+              The year is taken to be the greater of the values f, l.
+              If the year is greater than or equal to 70 and less than 100,
+              it is considered to be the number of years after 1900.
+      Case 2. The input string is of the form "f/m/l" where f, m and l are
+              integers, e.g. 7/16/45.
+              Adjust the mon, mday and year values to achieve 100% MSIE
+              compatibility.
+              a. If 0 <= f < 70, f/m/l is interpreted as month/day/year.
+                 i.  If year < 100, it is the number of years after 1900
+                 ii. If year >= 100, it is the number of years after 0.
+              b. If 70 <= f < 100
+                 i.  If m < 70, f/m/l is interpreted as
+                     year/month/day where year is the number of years after
+                     1900.
+                 ii. If m >= 70, the date is invalid.
+              c. If f >= 100
+                 i.  If m < 70, f/m/l is interpreted as
+                     year/month/day where year is the number of years after 0.
+                 ii. If m >= 70, the date is invalid.
+    */
+    if (seenmonthname) {
+        if ((mday >= 70 && year >= 70) || (mday < 70 && year < 70)) {
+            goto syntax;
+        }
         if (mday > year) {
-            int temp = year;
+            temp = year;
             year = mday;
             mday = temp;
         }
@@ -1114,24 +1138,23 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
         }
     } else if (mon < 100) { /* (b) year/month/day */
         if (mday < 70) {
-            int temp = year;
+            temp = year;
             year = mon + 1900;
             mon = mday;
             mday = temp;
         } else {
-            return false;
+            goto syntax;
         }
     } else { /* (c) year/month/day */
         if (mday < 70) {
-            int temp = year;
+            temp = year;
             year = mon;
             mon = mday;
             mday = temp;
         } else {
-            return false;
+            goto syntax;
         }
     }
-
     mon -= 1; /* convert month to 0-based */
     if (sec < 0)
         sec = 0;
@@ -1140,24 +1163,21 @@ ParseDate(const CharT *s, size_t length, double *result, DateTimeInfo *dtInfo)
     if (hour < 0)
         hour = 0;
 
-    double msec = date_msecFromDate(year, mon, mday, hour, min, sec, 0);
+    msec = date_msecFromDate(year, mon, mday, hour, min, sec, 0);
 
-    if (tzOffset == -1) /* no time zone specified, have to use local */
+    if (tzoffset == -1) { /* no time zone specified, have to use local */
         msec = UTC(msec, dtInfo);
-    else
-        msec += tzOffset * msPerMinute;
+    } else {
+        msec += tzoffset * msPerMinute;
+    }
 
     *result = msec;
     return true;
-}
 
-static bool
-ParseDate(JSLinearString *s, double *result, DateTimeInfo *dtInfo)
-{
-    AutoCheckCannotGC nogc;
-    return s->hasLatin1Chars()
-           ? ParseDate(s->latin1Chars(nogc), s->length(), result, dtInfo)
-           : ParseDate(s->twoByteChars(nogc), s->length(), result, dtInfo);
+syntax:
+    /* syntax error */
+    *result = 0;
+    return false;
 }
 
 static bool
@@ -1178,7 +1198,7 @@ date_parse(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     double result;
-    if (!ParseDate(linearStr, &result, &cx->runtime()->dateTimeInfo)) {
+    if (!date_parseString(linearStr, &result, &cx->runtime()->dateTimeInfo)) {
         args.rval().setNaN();
         return true;
     }
@@ -2961,7 +2981,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
             if (!linearStr)
                 return false;
 
-            if (!ParseDate(linearStr, &d, &cx->runtime()->dateTimeInfo))
+            if (!date_parseString(linearStr, &d, &cx->runtime()->dateTimeInfo))
                 d = GenericNaN();
             else
                 d = TimeClip(d);

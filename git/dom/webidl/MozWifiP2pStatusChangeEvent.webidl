@@ -5,12 +5,10 @@
  */
 
 [Constructor(DOMString type, optional MozWifiP2pStatusChangeEventInit eventInitDict), 
+ HeaderFile="GeneratedEventClasses.h",
  Func="Navigator::HasWifiManagerSupport"]
 interface MozWifiP2pStatusChangeEvent : Event
 {
-  /**
-   * The mac address of the peer whose status has just changed.
-   */
   readonly attribute DOMString peerAddress;
 };
 

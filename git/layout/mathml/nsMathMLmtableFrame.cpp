@@ -571,43 +571,41 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
   // it is wrapped in a single big fictional row at dy = 0, this way of
   // doing so allows us to have a single code path for all cases).
   nscoord dy = 0;
-  WritingMode wm = aDesiredSize.GetWritingMode();
-  nscoord blockSize = aDesiredSize.BSize(wm);
+  nscoord height = aDesiredSize.Height();
   nsIFrame* rowFrame = nullptr;
   if (rowIndex) {
     rowFrame = GetRowFrameAt(aPresContext, rowIndex);
     if (rowFrame) {
-      // translate the coordinates to be relative to us and in our writing mode
+      // translate the coordinates to be relative to us
       nsIFrame* frame = rowFrame;
-      LogicalRect frameRect(wm, frame->GetRect(), aReflowState.ComputedWidth());
-      blockSize = frameRect.BSize(wm);
+      height = frame->GetSize().height;
       do {
-        dy += frameRect.BStart(wm);
+        dy += frame->GetPosition().y;
         frame = frame->GetParent();
       } while (frame != this);
     }
   }
   switch (tableAlign) {
     case eAlign_top:
-      aDesiredSize.SetBlockStartAscent(dy);
+      aDesiredSize.SetTopAscent(dy);
       break;
     case eAlign_bottom:
-      aDesiredSize.SetBlockStartAscent(dy + blockSize);
+      aDesiredSize.SetTopAscent(dy + height);
       break;
     case eAlign_center:
-      aDesiredSize.SetBlockStartAscent(dy + blockSize / 2);
+      aDesiredSize.SetTopAscent(dy + height / 2);
       break;
     case eAlign_baseline:
       if (rowFrame) {
         // anchor the table on the baseline of the row of reference
         nscoord rowAscent = ((nsTableRowFrame*)rowFrame)->GetMaxCellAscent();
         if (rowAscent) { // the row has at least one cell with 'vertical-align: baseline'
-          aDesiredSize.SetBlockStartAscent(dy + rowAscent);
+          aDesiredSize.SetTopAscent(dy + rowAscent);
           break;
         }
       }
       // in other situations, fallback to center
-      aDesiredSize.SetBlockStartAscent(dy + blockSize / 2);
+      aDesiredSize.SetTopAscent(dy + height / 2);
       break;
     case eAlign_axis:
     default: {
@@ -625,23 +623,22 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
         // XXX need to fetch the axis of the row; would need rowalign=axis to work better
         nscoord rowAscent = ((nsTableRowFrame*)rowFrame)->GetMaxCellAscent();
         if (rowAscent) { // the row has at least one cell with 'vertical-align: baseline'
-          aDesiredSize.SetBlockStartAscent(dy + rowAscent);
+          aDesiredSize.SetTopAscent(dy + rowAscent);
           break;
         }
       }
       // in other situations, fallback to using half of the height
-      aDesiredSize.SetBlockStartAscent(dy + blockSize / 2 + axisHeight);
+      aDesiredSize.SetTopAscent(dy + height / 2 + axisHeight);
     }
   }
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.BlockStartAscent();
+  mReference.y = aDesiredSize.TopAscent();
 
   // just make-up a bounding metrics
   mBoundingMetrics = nsBoundingMetrics();
-  mBoundingMetrics.ascent = aDesiredSize.BlockStartAscent();
-  mBoundingMetrics.descent = aDesiredSize.Height() -
-                             aDesiredSize.BlockStartAscent();
+  mBoundingMetrics.ascent = aDesiredSize.TopAscent();
+  mBoundingMetrics.descent = aDesiredSize.Height() - aDesiredSize.TopAscent();
   mBoundingMetrics.width = aDesiredSize.Width();
   mBoundingMetrics.leftBearing = 0;
   mBoundingMetrics.rightBearing = aDesiredSize.Width();

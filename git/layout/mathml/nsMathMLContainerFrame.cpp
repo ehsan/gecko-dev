@@ -56,11 +56,10 @@ nsMathMLContainerFrame::ReflowError(nsRenderingContext& aRenderingContext,
     aRenderingContext.GetBoundingMetrics(errorMsg.get(), errorMsg.Length());
 
   // reflow metrics
-  WritingMode wm = aDesiredSize.GetWritingMode();
-  aDesiredSize.SetBlockStartAscent(fm->MaxAscent());
+  aDesiredSize.SetTopAscent(fm->MaxAscent());
   nscoord descent = fm->MaxDescent();
-  aDesiredSize.BSize(wm) = aDesiredSize.BlockStartAscent() + descent;
-  aDesiredSize.ISize(wm) = mBoundingMetrics.width;
+  aDesiredSize.Height() = aDesiredSize.TopAscent() + descent;
+  aDesiredSize.Width() = mBoundingMetrics.width;
 
   // Also return our bounding metrics
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
@@ -788,7 +787,7 @@ nsMathMLContainerFrame::GatherAndStoreOverflow(nsHTMLReflowMetrics* aMetrics)
   // All non-child-frame content such as nsMathMLChars (and most child-frame
   // content) is included in mBoundingMetrics.
   nsRect boundingBox(mBoundingMetrics.leftBearing,
-                     aMetrics->BlockStartAscent() - mBoundingMetrics.ascent,
+                     aMetrics->TopAscent() - mBoundingMetrics.ascent,
                      mBoundingMetrics.rightBearing - mBoundingMetrics.leftBearing,
                      mBoundingMetrics.ascent + mBoundingMetrics.descent);
 
@@ -846,17 +845,17 @@ nsMathMLContainerFrame::ReflowChild(nsIFrame*                aChildFrame,
          ReflowChild(aChildFrame, aPresContext, aDesiredSize, aReflowState,
                      0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 
-  if (aDesiredSize.BlockStartAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
+  if (aDesiredSize.TopAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
     // This will be suitable for inline frames, which are wrapped in a block.
     nscoord ascent;
-    if (!nsLayoutUtils::GetLastLineBaseline(aChildFrame, &ascent)) {
+    if (!nsLayoutUtils::GetLastLineBaseline(aChildFrame,
+                                            &ascent)) {
       // We don't expect any other block children so just place the frame on
       // the baseline instead of going through DidReflow() and
       // GetBaseline().  This is what nsFrame::GetBaseline() will do anyway.
-      WritingMode wm = aReflowState.GetWritingMode();
-      aDesiredSize.SetBlockStartAscent(aDesiredSize.BSize(wm));
+      aDesiredSize.SetTopAscent(aDesiredSize.Height());
     } else {
-      aDesiredSize.SetBlockStartAscent(ascent);
+      aDesiredSize.SetTopAscent(ascent);
     }
   }
   if (IsForeignChild(aChildFrame)) {
@@ -864,8 +863,8 @@ nsMathMLContainerFrame::ReflowChild(nsIFrame*                aChildFrame,
     nsRect r = aChildFrame->ComputeTightBounds(aReflowState.rendContext->ThebesContext());
     aDesiredSize.mBoundingMetrics.leftBearing = r.x;
     aDesiredSize.mBoundingMetrics.rightBearing = r.XMost();
-    aDesiredSize.mBoundingMetrics.ascent = aDesiredSize.BlockStartAscent() - r.y;
-    aDesiredSize.mBoundingMetrics.descent = r.YMost() - aDesiredSize.BlockStartAscent();
+    aDesiredSize.mBoundingMetrics.ascent = aDesiredSize.TopAscent() - r.y;
+    aDesiredSize.mBoundingMetrics.descent = r.YMost() - aDesiredSize.TopAscent();
     aDesiredSize.mBoundingMetrics.width = aDesiredSize.Width();
   }
 }
@@ -877,7 +876,7 @@ nsMathMLContainerFrame::Reflow(nsPresContext*           aPresContext,
                                nsReflowStatus&          aStatus)
 {
   aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetBlockStartAscent(0);
+  aDesiredSize.SetTopAscent(0);
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   /////////////
@@ -1205,8 +1204,8 @@ public:
   nsIFrame* Frame() const { return mChildFrame; }
   nscoord X() const { return mX; }
   const nsHTMLReflowMetrics& ReflowMetrics() const { return mSize; }
-  nscoord Ascent() const { return mSize.BlockStartAscent(); }
-  nscoord Descent() const { return mSize.Height() - mSize.BlockStartAscent(); }
+  nscoord Ascent() const { return mSize.TopAscent(); }
+  nscoord Descent() const { return mSize.Height() - mSize.TopAscent(); }
   const nsBoundingMetrics& BoundingMetrics() const {
     return mSize.mBoundingMetrics;
   }
@@ -1276,17 +1275,17 @@ nsMathMLContainerFrame::Place(nsRenderingContext& aRenderingContext,
 
   aDesiredSize.Width() = std::max(0, mBoundingMetrics.width);
   aDesiredSize.Height() = ascent + descent;
-  aDesiredSize.SetBlockStartAscent(ascent);
+  aDesiredSize.SetTopAscent(ascent);
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 
   mReference.x = 0;
-  mReference.y = aDesiredSize.BlockStartAscent();
+  mReference.y = aDesiredSize.TopAscent();
 
   //////////////////
   // Place Children
 
   if (aPlaceOrigin) {
-    PositionRowChildFrames(0, aDesiredSize.BlockStartAscent());
+    PositionRowChildFrames(0, aDesiredSize.TopAscent());
   }
 
   return NS_OK;

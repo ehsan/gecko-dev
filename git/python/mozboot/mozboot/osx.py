@@ -303,6 +303,7 @@ class OSXBootstrapper(BaseBootstrapper):
         packages = ['python27',
                     'mercurial',
                     'yasm',
+                    'libidl',
                     'autoconf213']
 
         missing = [package for package in packages if package not in installed]

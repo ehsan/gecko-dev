@@ -126,7 +126,7 @@ nsMathMLTokenFrame::Reflow(nsPresContext*          aPresContext,
 {
   // initializations needed for empty markup like <mtag></mtag>
   aDesiredSize.Width() = aDesiredSize.Height() = 0;
-  aDesiredSize.SetBlockStartAscent(0);
+  aDesiredSize.SetTopAscent(0);
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
@@ -179,8 +179,8 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
 
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   aDesiredSize.Width() = mBoundingMetrics.width;
-  aDesiredSize.SetBlockStartAscent(std::max(mBoundingMetrics.ascent, ascent));
-  aDesiredSize.Height() = aDesiredSize.BlockStartAscent() +
+  aDesiredSize.SetTopAscent(std::max(mBoundingMetrics.ascent, ascent));
+  aDesiredSize.Height() = aDesiredSize.TopAscent() +
                         std::max(mBoundingMetrics.descent, descent);
 
   if (aPlaceOrigin) {
@@ -192,13 +192,13 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
                                      childSize.mBoundingMetrics);
 
       // place and size the child; (dx,0) makes the caret happy - bug 188146
-      dy = childSize.Height() == 0 ? 0 : aDesiredSize.BlockStartAscent() - childSize.BlockStartAscent();
+      dy = childSize.Height() == 0 ? 0 : aDesiredSize.TopAscent() - childSize.TopAscent();
       FinishReflowChild(childFrame, PresContext(), childSize, nullptr, dx, dy, 0);
       dx += childSize.Width();
     }
   }
 
-  SetReference(nsPoint(0, aDesiredSize.BlockStartAscent()));
+  SetReference(nsPoint(0, aDesiredSize.TopAscent()));
 
   return NS_OK;
 }
