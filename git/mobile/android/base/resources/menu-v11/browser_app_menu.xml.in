@@ -39,15 +39,14 @@
           gecko:title="@string/desktop_mode"
           gecko:checkable="true" />
 
-    <item gecko:id="@+id/site_settings"
-          gecko:icon="@drawable/ic_menu_clear_site_settings"
-          gecko:title="@string/site_settings_title" />
-
     <item gecko:id="@+id/addons"
           gecko:title="@string/addons"/>
 
     <item gecko:id="@+id/downloads"
           gecko:title="@string/downloads"/>
+
+    <item gecko:id="@+id/apps"
+          gecko:title="@string/apps"/>
 
     <item gecko:id="@+id/char_encoding"
           gecko:visible="false"

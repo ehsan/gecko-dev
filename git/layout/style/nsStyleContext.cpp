@@ -18,10 +18,13 @@
 #include "nsStyleContext.h"
 #include "prlog.h"
 #include "nsStyleAnimation.h"
+#include "mozilla/Util.h"
 
 #ifdef DEBUG
 // #define NOISY_DEBUG
 #endif
+
+using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -32,20 +35,20 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsRuleNode* aRuleNode,
                                nsPresContext* aPresContext)
   : mParent(aParent),
-    mChild(nsnull),
-    mEmptyChild(nsnull),
+    mChild(nullptr),
+    mEmptyChild(nullptr),
     mPseudoTag(aPseudoTag),
     mRuleNode(aRuleNode),
-    mAllocations(nsnull),
-    mCachedResetData(nsnull),
-    mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
+    mAllocations(nullptr),
+    mCachedResetData(nullptr),
+    mBits(((uint32_t)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
 {
   // This check has to be done "backward", because if it were written the
   // more natural way it wouldn't fail even when it needed to.
   MOZ_STATIC_ASSERT((PR_UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
                     nsCSSPseudoElements::ePseudo_MAX,
-                    "pseudo element bits no longer fit in a PRUint32");
+                    "pseudo element bits no longer fit in a uint32_t");
 
   mNextSibling = this;
   mPrevSibling = this;
@@ -74,7 +77,7 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
 
 nsStyleContext::~nsStyleContext()
 {
-  NS_ASSERTION((nsnull == mChild) && (nsnull == mEmptyChild), "destructing context with children");
+  NS_ASSERTION((nullptr == mChild) && (nullptr == mEmptyChild), "destructing context with children");
 
   nsPresContext *presContext = mRuleNode->GetPresContext();
 
@@ -118,7 +121,7 @@ void nsStyleContext::AddChild(nsStyleContext* aChild)
 
 void nsStyleContext::RemoveChild(nsStyleContext* aChild)
 {
-  NS_PRECONDITION(nsnull != aChild && this == aChild->mParent, "bad argument");
+  NS_PRECONDITION(nullptr != aChild && this == aChild->mParent, "bad argument");
 
   nsStyleContext **list = aChild->mRuleNode->IsRoot() ? &mEmptyChild : &mChild;
 
@@ -129,7 +132,7 @@ void nsStyleContext::RemoveChild(nsStyleContext* aChild)
   } 
   else {
     NS_ASSERTION((*list) == aChild, "bad sibling pointers");
-    (*list) = nsnull;
+    (*list) = nullptr;
   }
 
   aChild->mPrevSibling->mNextSibling = aChild->mNextSibling;
@@ -146,10 +149,10 @@ nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,
 {
   NS_ABORT_IF_FALSE(aRulesIfVisited || !aRelevantLinkVisited,
     "aRelevantLinkVisited should only be set when we have a separate style");
-  PRUint32 threshold = 10; // The # of siblings we're willing to examine
+  uint32_t threshold = 10; // The # of siblings we're willing to examine
                            // before just giving this whole thing up.
 
-  nsStyleContext* result = nsnull;
+  nsStyleContext* result = nullptr;
   nsStyleContext *list = aRuleNode->IsRoot() ? mEmptyChild : mChild;
 
   if (list) {
@@ -199,7 +202,7 @@ const void* nsStyleContext::GetCachedStyleData(nsStyleStructID aSID)
     if (mCachedResetData) {
       cachedData = mCachedResetData->mStyleStructs[aSID];
     } else {
-      cachedData = nsnull;
+      cachedData = nullptr;
     }
   } else {
     cachedData = mCachedInheritedData.mStyleStructs[aSID];
@@ -251,7 +254,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 
   default:
     NS_ERROR("Struct type not supported.  Please find another way to do this if you can!");
-    return nsnull;
+    return nullptr;
   }
 
   if (!result) {
@@ -303,7 +306,7 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
   } else {
     // We might have defined a decoration.
     const nsStyleTextReset* text = GetStyleTextReset();
-    PRUint8 decorationLine = text->mTextDecorationLine;
+    uint8_t decorationLine = text->mTextDecorationLine;
     if (decorationLine != NS_STYLE_TEXT_DECORATION_LINE_NONE &&
         decorationLine != NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL) {
       mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;
@@ -396,6 +399,11 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
              this##struct_->CalcDifference(*other##struct_),                  \
              nsStyle##struct_::MaxDifference()),                              \
              "CalcDifference() returned bigger hint than MaxDifference()");   \
+        NS_ASSERTION(nsStyle##struct_::ForceCompare() ||                      \
+             NS_IsHintSubset(nsStyle##struct_::MaxDifference(),               \
+                             nsChangeHint(~nsChangeHint_NonInherited_Hints)), \
+             "Structs that can return non-inherited hints must return true "  \
+             "from ForceCompare");                                            \
         NS_UpdateHint(hint, this##struct_->CalcDifference(*other##struct_));  \
       }                                                                       \
     }                                                                         \
@@ -407,7 +415,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // Visibility, Outline, TableBorder, Table, Text, UIReset, Quotes
   nsChangeHint maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
       nsChangeHint_UpdateTransformLayer | nsChangeHint_UpdateOpacityLayer |
-      nsChangeHint_UpdateOverflow);
+      nsChangeHint_UpdateOverflow | nsChangeHint_AddOrRemoveTransform);
   DO_STRUCT_DIFFERENCE(Display);
 
   maxHint = nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
@@ -431,6 +439,10 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   DO_STRUCT_DIFFERENCE(SVGReset);
   DO_STRUCT_DIFFERENCE(SVG);
 
+  maxHint = nsChangeHint(NS_STYLE_HINT_REFLOW |
+      nsChangeHint_UpdateOverflow | nsChangeHint_RecomputePosition);
+  DO_STRUCT_DIFFERENCE(Position);
+
   // At this point, we know that the worst kind of damage we could do is
   // a reflow.
   maxHint = NS_STYLE_HINT_REFLOW;
@@ -442,7 +454,6 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   DO_STRUCT_DIFFERENCE(Margin);
   DO_STRUCT_DIFFERENCE(Padding);
   DO_STRUCT_DIFFERENCE(Border);
-  DO_STRUCT_DIFFERENCE(Position);
   DO_STRUCT_DIFFERENCE(TextReset);
 
   // Most backgrounds only require a re-render (i.e., a VISUAL change), but
@@ -603,10 +614,10 @@ nsStyleContext::Mark()
 }
 
 #ifdef DEBUG
-void nsStyleContext::List(FILE* out, PRInt32 aIndent)
+void nsStyleContext::List(FILE* out, int32_t aIndent)
 {
   // Indent
-  PRInt32 ix;
+  int32_t ix;
   for (ix = aIndent; --ix >= 0; ) fputs("  ", out);
   fprintf(out, "%p(%d) parent=%p ",
           (void*)this, mRefCnt, (void *)mParent);
@@ -634,14 +645,14 @@ void nsStyleContext::List(FILE* out, PRInt32 aIndent)
     fputs("{}\n", out);
   }
 
-  if (nsnull != mChild) {
+  if (nullptr != mChild) {
     nsStyleContext* child = mChild;
     do {
       child->List(out, aIndent + 1);
       child = child->mNextSibling;
     } while (mChild != child);
   }
-  if (nsnull != mEmptyChild) {
+  if (nullptr != mEmptyChild) {
     nsStyleContext* child = mEmptyChild;
     do {
       child->List(out, aIndent + 1);
@@ -691,21 +702,40 @@ NS_NewStyleContext(nsStyleContext* aParentContext,
   return context;
 }
 
-static nscolor ExtractColor(nsCSSProperty aProperty,
-                            nsStyleContext *aStyleContext)
+static inline void
+ExtractAnimationValue(nsCSSProperty aProperty,
+                      nsStyleContext* aStyleContext,
+                      nsStyleAnimation::Value& aResult)
 {
-  nsStyleAnimation::Value val;
-#ifdef DEBUG
-  bool success =
-#endif
-    nsStyleAnimation::ExtractComputedValue(aProperty, aStyleContext, val);
+  DebugOnly<bool> success =
+    nsStyleAnimation::ExtractComputedValue(aProperty, aStyleContext, aResult);
   NS_ABORT_IF_FALSE(success,
                     "aProperty must be extractable by nsStyleAnimation");
+}
+
+static nscolor
+ExtractColor(nsCSSProperty aProperty,
+             nsStyleContext *aStyleContext)
+{
+  nsStyleAnimation::Value val;
+  ExtractAnimationValue(aProperty, aStyleContext, val);
   return val.GetColorValue();
 }
 
+static nscolor
+ExtractColorLenient(nsCSSProperty aProperty,
+                    nsStyleContext *aStyleContext)
+{
+  nsStyleAnimation::Value val;
+  ExtractAnimationValue(aProperty, aStyleContext, val);
+  if (val.GetUnit() == nsStyleAnimation::eUnit_Color) {
+    return val.GetColorValue();
+  }
+  return NS_RGBA(0, 0, 0, 0);
+}
+
 struct ColorIndexSet {
-  PRUint8 colorIndex, alphaIndex;
+  uint8_t colorIndex, alphaIndex;
 };
 
 static const ColorIndexSet gVisitedIndices[2] = { { 0, 0 }, { 1, 0 } };
@@ -726,15 +756,20 @@ nsStyleContext::GetVisitedDependentColor(nsCSSProperty aProperty)
                aProperty == eCSSProperty_stroke,
                "we need to add to nsStyleContext::CalcStyleDifference");
 
+  bool isPaintProperty = aProperty == eCSSProperty_fill ||
+                         aProperty == eCSSProperty_stroke;
+
   nscolor colors[2];
-  colors[0] = ExtractColor(aProperty, this);
+  colors[0] = isPaintProperty ? ExtractColorLenient(aProperty, this)
+                              : ExtractColor(aProperty, this);
 
   nsStyleContext *visitedStyle = this->GetStyleIfVisited();
   if (!visitedStyle) {
     return colors[0];
   }
 
-  colors[1] = ExtractColor(aProperty, visitedStyle);
+  colors[1] = isPaintProperty ? ExtractColorLenient(aProperty, visitedStyle)
+                              : ExtractColor(aProperty, visitedStyle);
 
   return nsStyleContext::CombineVisitedColors(colors,
                                               this->RelevantLinkVisited());

@@ -55,6 +55,7 @@
     <application android:label="@MOZ_APP_DISPLAYNAME@"
 		 android:icon="@drawable/icon"
                  android:name="org.mozilla.gecko.GeckoApplication"
+		 android:hardwareAccelerated="true"
 #if MOZILLA_OFFICIAL
 		 android:debuggable="false">
 #else
@@ -71,6 +72,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+            </intent-filter>
+
             <intent-filter>
                 <action android:name="org.mozilla.gecko.UPDATE"/>
                 <category android:name="android.intent.category.DEFAULT" />
@@ -97,6 +102,7 @@
                 <data android:mimeType="text/plain"/>
                 <data android:mimeType="application/xhtml+xml"/>
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.WEB_SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -115,6 +121,25 @@
 
 #include @OBJDIR@/WebAppManifestFragment.xml.in
 
+        <activity android:name=".MarketplaceApp"
+                  android:label="Mozilla Marketplace"
+                  android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
+                  android:windowSoftInputMode="stateUnspecified|adjustResize"
+                  android:icon="@drawable/marketplace"
+                  android:launchMode="singleTask"
+                  android:theme="@style/Gecko.NoActionBar"
+                  android:noHistory="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="marketplace.mozilla.org"/>
+                <data android:scheme="https" android:host="marketplace.mozilla.org"/>
+            </intent-filter>
+
+        </activity>
+
         <!-- Masquerade as the Resolver so that we can be opened from the Marketplace. -->
         <activity-alias
             android:name="com.android.internal.app.ResolverActivity"
@@ -128,10 +153,22 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name="org.mozilla.gecko.GeckoUpdateReceiver">
+            <intent-filter>
+                <action android:name="@ANDROID_PACKAGE_NAME@.CHECK_UPDATE_RESULT" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name="org.mozilla.gecko.GeckoMessageReceiver"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER">
             <intent-filter>
                   <action android:name="org.mozilla.gecko.INIT_PW"></action>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="org.mozilla.gecko.ReferrerReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
             </intent-filter>
         </receiver>
 
@@ -203,6 +240,13 @@
         <provider android:name="@ANDROID_PACKAGE_NAME@.db.TabsProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.tabs"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
+
+        <service
+            android:exported="false"
+            android:name="org.mozilla.gecko.updater.UpdateService"
+            android:process="@MANGLED_ANDROID_PACKAGE_NAME@.UpdateService">
+        </service>
+
 
 #include ../sync/manifests/SyncAndroidManifest_services.xml.in
     </application>

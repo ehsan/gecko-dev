@@ -38,15 +38,15 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
-    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
+    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -150,14 +150,14 @@ nsSVGStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsSVGStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+nsSVGStyleElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify)
 {
   nsresult rv = nsSVGStyleElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
                                                aValue, aNotify);
   if (NS_SUCCEEDED(rv)) {
-    UpdateStyleSheetInternal(nsnull,
+    UpdateStyleSheetInternal(nullptr,
                              aNameSpaceID == kNameSpaceID_None &&
                              (aName == nsGkAtoms::title ||
                               aName == nsGkAtoms::media ||
@@ -168,13 +168,13 @@ nsSVGStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsSVGStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+nsSVGStyleElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                               bool aNotify)
 {
   nsresult rv = nsSVGStyleElementBase::UnsetAttr(aNameSpaceID, aAttribute,
                                                  aNotify);
   if (NS_SUCCEEDED(rv)) {
-    UpdateStyleSheetInternal(nsnull,
+    UpdateStyleSheetInternal(nullptr,
                              aNameSpaceID == kNameSpaceID_None &&
                              (aAttribute == nsGkAtoms::title ||
                               aAttribute == nsGkAtoms::media ||
@@ -199,7 +199,7 @@ void
 nsSVGStyleElement::ContentAppended(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aFirstNewContent,
-                                   PRInt32 aNewIndexInContainer)
+                                   int32_t aNewIndexInContainer)
 {
   ContentChanged(aContainer);
 }
@@ -208,7 +208,7 @@ void
 nsSVGStyleElement::ContentInserted(nsIDocument* aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer)
+                                   int32_t aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -217,7 +217,7 @@ void
 nsSVGStyleElement::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent* aContainer,
                                   nsIContent* aChild,
-                                  PRInt32 aIndexInContainer,
+                                  int32_t aIndexInContainer,
                                   nsIContent* aPreviousSibling)
 {
   ContentChanged(aChild);
@@ -227,7 +227,7 @@ void
 nsSVGStyleElement::ContentChanged(nsIContent* aContent)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
-    UpdateStyleSheetInternal(nsnull);
+    UpdateStyleSheetInternal(nullptr);
   }
 }
 
@@ -289,7 +289,7 @@ already_AddRefed<nsIURI>
 nsSVGStyleElement::GetStyleSheetURL(bool* aIsInline)
 {
   *aIsInline = true;
-  return nsnull;
+  return nullptr;
 }
 
 void

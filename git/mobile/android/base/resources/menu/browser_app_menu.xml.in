@@ -36,14 +36,14 @@
           android:title="@string/desktop_mode"
           android:checkable="true" />
 
-    <item android:id="@+id/site_settings"
-          android:title="@string/site_settings_title" />
-
     <item android:id="@+id/addons"
           android:title="@string/addons"/>
 
     <item android:id="@+id/downloads"
           android:title="@string/downloads"/>
+
+    <item android:id="@+id/apps"
+          android:title="@string/apps"/>
 
     <item android:id="@+id/char_encoding"
           android:visible="false"

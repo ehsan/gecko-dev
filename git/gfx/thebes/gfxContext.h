@@ -216,7 +216,7 @@ public:
     /**
      * Draw a polygon from the given points
      */
-    void Polygon(const gfxPoint *points, PRUint32 numPoints);
+    void Polygon(const gfxPoint *points, uint32_t numPoints);
 
     /*
      * Draw a rounded rectangle, with the given outer rect and
@@ -656,9 +656,9 @@ public:
         FLAG_DISABLE_COPY_BACKGROUND = (1 << 2)
     };
 
-    void SetFlag(PRInt32 aFlag) { mFlags |= aFlag; }
-    void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
-    PRInt32 GetFlags() const { return mFlags; }
+    void SetFlag(int32_t aFlag) { mFlags |= aFlag; }
+    void ClearFlag(int32_t aFlag) { mFlags &= ~aFlag; }
+    int32_t GetFlags() const { return mFlags; }
 
     bool IsCairo() const { return !mDT; }
 
@@ -758,7 +758,7 @@ private:
   cairo_t *mCairo;
   cairo_t *mRefCairo;
   nsRefPtr<gfxASurface> mSurface;
-  PRInt32 mFlags;
+  int32_t mFlags;
 
   mozilla::RefPtr<DrawTarget> mDT;
   mozilla::RefPtr<DrawTarget> mOriginalDT;
@@ -772,7 +772,7 @@ private:
 class THEBES_API gfxContextAutoSaveRestore
 {
 public:
-  gfxContextAutoSaveRestore() : mContext(nsnull) {}
+  gfxContextAutoSaveRestore() : mContext(nullptr) {}
 
   gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
     mContext->Save();
@@ -814,7 +814,7 @@ private:
 class THEBES_API gfxContextPathAutoSaveRestore
 {
 public:
-    gfxContextPathAutoSaveRestore() : mContext(nsnull) {}
+    gfxContextPathAutoSaveRestore() : mContext(nullptr) {}
 
     gfxContextPathAutoSaveRestore(gfxContext *aContext, bool aSave = true) : mContext(aContext)
     {
@@ -854,7 +854,7 @@ public:
         if (mPath) {
             mContext->NewPath();
             mContext->AppendPath(mPath);
-            mPath = nsnull;
+            mPath = nullptr;
         }
     }
 

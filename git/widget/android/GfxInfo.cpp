@@ -43,12 +43,6 @@ GfxInfo::GetDWriteEnabled(bool *aEnabled)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-GfxInfo::GetAzureEnabled(bool *aEnabled)
-{
-  return NS_ERROR_FAILURE;
-}
-
 /* readonly attribute DOMString DWriteVersion; */
 NS_IMETHODIMP
 GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
@@ -80,7 +74,7 @@ GfxInfo::EnsureInitializedFromGfxInfoData()
     // means that the next string we'll read is |mVendor|. We record that knowledge
     // in the |stringToFill| pointer. So when it's not null, we just copy the next
     // input line into the string pointed to by |stringToFill|.
-    nsCString *stringToFill = nsnull;
+    nsCString *stringToFill = nullptr;
     char *bufptr = gfxInfoData.BeginWriting();
 
     while(true) {
@@ -89,7 +83,7 @@ GfxInfo::EnsureInitializedFromGfxInfoData()
         break;
       if (stringToFill) {
         stringToFill->Assign(line);
-        stringToFill = nsnull;
+        stringToFill = nullptr;
       } else if(!strcmp(line, "VENDOR")) {
         stringToFill = &mVendor;
       } else if(!strcmp(line, "RENDERER")) {
@@ -307,11 +301,11 @@ GfxInfo::GetGfxDriverInfo()
 }
 
 nsresult
-GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, 
-                              PRInt32 *aStatus, 
+GfxInfo::GetFeatureStatusImpl(int32_t aFeature, 
+                              int32_t *aStatus, 
                               nsAString & aSuggestedDriverVersion,
                               const nsTArray<GfxDriverInfo>& aDriverInfo, 
-                              OperatingSystem* aOS /* = nsnull */)
+                              OperatingSystem* aOS /* = nullptr */)
 {
   NS_ENSURE_ARG_POINTER(aStatus);
   aSuggestedDriverVersion.SetIsVoid(true);
@@ -371,7 +365,7 @@ NS_IMETHODIMP GfxInfo::SpoofDriverVersion(const nsAString & aDriverVersion)
 }
 
 /* void spoofOSVersion (in unsigned long aVersion); */
-NS_IMETHODIMP GfxInfo::SpoofOSVersion(PRUint32 aVersion)
+NS_IMETHODIMP GfxInfo::SpoofOSVersion(uint32_t aVersion)
 {
   return NS_OK;
 }

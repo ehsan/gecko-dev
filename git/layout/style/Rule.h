@@ -10,9 +10,10 @@
 
 #include "nsIStyleRule.h"
 #include "nsIDOMCSSRule.h"
+#include "nsCSSStyleSheet.h"
 
 class nsIStyleSheet;
-class nsCSSStyleSheet;
+class nsIDocument;
 struct nsRuleData;
 template<class T> struct already_AddRefed;
 
@@ -30,8 +31,8 @@ virtual nsIDOMCSSRule* GetDOMRule();
 class Rule : public nsIStyleRule {
 protected:
   Rule()
-    : mSheet(nsnull),
-      mParentRule(nsnull)
+    : mSheet(nullptr),
+      mParentRule(nullptr)
   {
   }
 
@@ -68,12 +69,20 @@ public:
     PAGE_RULE,
     KEYFRAME_RULE,
     KEYFRAMES_RULE,
-    DOCUMENT_RULE
+    DOCUMENT_RULE,
+    SUPPORTS_RULE
   };
 
-  virtual PRInt32 GetType() const = 0;
+  virtual int32_t GetType() const = 0;
 
   nsCSSStyleSheet* GetStyleSheet() const { return mSheet; }
+
+  // Return the document the rule lives in, if any
+  nsIDocument* GetDocument() const
+  {
+    nsCSSStyleSheet* sheet = GetStyleSheet();
+    return sheet ? sheet->GetDocument() : nullptr;
+  }
 
   virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
 

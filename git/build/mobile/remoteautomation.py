@@ -3,19 +3,18 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import time
-import sys
 import os
-import socket
 import automationutils
 import tempfile
 import shutil
+import subprocess
 
 from automation import Automation
-from devicemanager import DeviceManager, NetworkTools
+from devicemanager import NetworkTools
 
 class RemoteAutomation(Automation):
     _devicemanager = None
-    
+
     def __init__(self, deviceManager, appName = '', remoteLog = None):
         self._devicemanager = deviceManager
         self._appName = appName
@@ -28,7 +27,7 @@ class RemoteAutomation(Automation):
 
     def setDeviceManager(self, deviceManager):
         self._devicemanager = deviceManager
-        
+
     def setAppName(self, appName):
         self._appName = appName
 
@@ -37,7 +36,7 @@ class RemoteAutomation(Automation):
 
     def setProduct(self, product):
         self._product = product
-        
+
     def setRemoteLog(self, logfile):
         self._remoteLog = logfile
 
@@ -88,11 +87,11 @@ class RemoteAutomation(Automation):
         if (self._remoteProfile):
             profileDir = self._remoteProfile
 
-        # Hack for robocop, if app & testURL == None and extraArgs contains the rest of the stuff, lets 
+        # Hack for robocop, if app & testURL == None and extraArgs contains the rest of the stuff, lets
         # assume extraArgs is all we need
         if app == "am" and extraArgs[0] == "instrument":
             return app, extraArgs
- 
+
         cmd, args = Automation.buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs)
         # Remove -foreground if it exists, if it doesn't this just returns
         try:
@@ -113,7 +112,7 @@ class RemoteAutomation(Automation):
 
         return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
 
-    # be careful here as this inner class doesn't have access to outer class members    
+    # be careful here as this inner class doesn't have access to outer class members
     class RProcess(object):
         # device manager process
         dm = None
@@ -129,10 +128,32 @@ class RemoteAutomation(Automation):
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name
+            # Hack for Robocop: Derive the actual process name from the command line.
+            # We expect something like:
+            #  ['am', 'instrument', '-w', '-e', 'class', 'org.mozilla.fennec.tests.testBookmark', 'org.mozilla.roboexample.test/android.test.InstrumentationTestRunner']
+            # and want to derive 'org.mozilla.fennec'.
+            if cmd[0] == 'am' and cmd[1] == "instrument":
+              try:
+                i = cmd.index("class")
+              except ValueError:
+                # no "class" argument -- maybe this isn't robocop?
+                i = -1
+              if (i > 0):
+                classname = cmd[i+1]
+                parts = classname.split('.')
+                try:
+                  i = parts.index("tests")
+                except ValueError:
+                  # no "tests" component -- maybe this isn't robocop?
+                  i = -1
+                if (i > 0):
+                  self.procName = '.'.join(parts[0:i])
+                  print "Robocop derived process name: "+self.procName
 
             # Setting timeout at 1 hour since on a remote device this takes much longer
             self.timeout = 3600
-            time.sleep(15)
+            # The benefit of the following sleep is unclear; it was formerly 15 seconds
+            time.sleep(1)
 
         @property
         def pid(self):
@@ -140,7 +161,7 @@ class RemoteAutomation(Automation):
             if (hexpid == None):
                 hexpid = "0x0"
             return int(hexpid, 0)
-    
+
         @property
         def stdout(self):
             t = self.dm.getFile(self.proc)
@@ -149,7 +170,7 @@ class RemoteAutomation(Automation):
             retVal = t[self.stdoutlen:]
             self.stdoutlen = tlen
             return retVal.strip('\n').strip()
- 
+
         def wait(self, timeout = None):
             timer = 0
             interval = 5
@@ -168,6 +189,6 @@ class RemoteAutomation(Automation):
             if (timer >= timeout):
                 return 1
             return 0
- 
+
         def kill(self):
             self.dm.killProcess(self.procName)

@@ -8,9 +8,7 @@
 #endif
 #include <math.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+#include "mozilla/Constants.h"
 
 #include "cairo.h"
 
@@ -41,7 +39,7 @@ public:
     gfxContext::AzureState &state = mContext->CurrentState();
 
     if (state.pattern) {
-      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nsnull);
+      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nullptr);
     } else if (state.sourceSurface) {
       Matrix transform = state.surfTransform;
 
@@ -497,14 +495,14 @@ gfxContext::Ellipse(const gfxPoint& center, const gfxSize& dimensions)
 }
 
 void
-gfxContext::Polygon(const gfxPoint *points, PRUint32 numPoints)
+gfxContext::Polygon(const gfxPoint *points, uint32_t numPoints)
 {
   if (mCairo) {
     if (numPoints == 0)
         return;
 
     cairo_move_to(mCairo, points[0].x, points[0].y);
-    for (PRUint32 i = 1; i < numPoints; ++i) {
+    for (uint32_t i = 1; i < numPoints; ++i) {
         cairo_line_to(mCairo, points[i].x, points[i].y);
     }
   } else {
@@ -515,7 +513,7 @@ gfxContext::Polygon(const gfxPoint *points, PRUint32 numPoints)
     EnsurePathBuilder();
 
     mPathBuilder->MoveTo(ToPoint(points[0]));
-    for (PRUint32 i = 1; i < numPoints; i++) {
+    for (uint32_t i = 1; i < numPoints; i++) {
       mPathBuilder->LineTo(ToPoint(points[i]));
     }
   }
@@ -902,7 +900,7 @@ gfxContext::SetDash(gfxLineType ltype)
           break;
       case gfxLineSolid:
       default:
-          SetDash(nsnull, 0, 0.0);
+          SetDash(nullptr, 0, 0.0);
           break;
   }
 }
@@ -1372,7 +1370,7 @@ gfxContext::GetPattern()
     cairo_pattern_t *pat = cairo_get_source(mCairo);
     NS_ASSERTION(pat, "I was told this couldn't be null");
 
-    gfxPattern *wrapper = nsnull;
+    gfxPattern *wrapper = nullptr;
     if (pat)
         wrapper = new gfxPattern(pat);
     else
@@ -1514,7 +1512,7 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
           static_cast<gfxTeeSurface*>(d.get())->GetSurfaces(&ds);
           NS_ASSERTION(ss.Length() == ds.Length(), "Mismatched lengths");
           gfxPoint translation = d->GetDeviceOffset() - s->GetDeviceOffset();
-          for (PRUint32 i = 0; i < ss.Length(); ++i) {
+          for (uint32_t i = 0; i < ss.Length(); ++i) {
               CopySurface(ss[i], ds[i], translation);
           }
         } else {
