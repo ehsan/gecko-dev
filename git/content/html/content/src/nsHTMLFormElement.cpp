@@ -350,7 +350,8 @@ PRBool nsHTMLFormElement::gPasswordManagerInitialized = PR_FALSE;
 
 // nsFormControlList
 class nsFormControlList : public nsIDOMNSHTMLFormControlList,
-                          public nsIDOMHTMLCollection
+                          public nsIDOMHTMLCollection,
+                          public nsINodeList
 {
 public:
   nsFormControlList(nsHTMLFormElement* aForm);
@@ -367,6 +368,9 @@ public:
 
   // nsIDOMNSHTMLFormControlList interface
   NS_DECL_NSIDOMNSHTMLFORMCONTROLLIST
+
+  // nsINodeList interface
+  virtual nsINode* GetNodeAt(PRUint32 aIndex);  
 
   nsresult AddElementToTable(nsIFormControl* aChild,
                              const nsAString& aName);
@@ -750,7 +754,7 @@ CollectOrphans(nsINode* aRemovalRoot, nsTArray<nsIFormControl*> aArray
     if (node->HasFlag(MAYBE_ORPHAN_FORM_ELEMENT)) {
       node->UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       if (!nsContentUtils::ContentIsDescendantOf(node, aRemovalRoot)) {
-        control->SetForm(nsnull, PR_TRUE, PR_TRUE);
+        control->ClearForm(PR_TRUE, PR_TRUE);
 #ifdef DEBUG
         removed = PR_TRUE;
 #endif
@@ -2071,12 +2075,12 @@ nsFormControlList::Clear()
   // Null out childrens' pointer to me.  No refcounting here
   PRInt32 i;
   for (i = mElements.Length()-1; i >= 0; i--) {
-    mElements[i]->SetForm(nsnull, PR_FALSE, PR_TRUE);
+    mElements[i]->ClearForm(PR_FALSE, PR_TRUE);
   }
   mElements.Clear();
 
   for (i = mNotInElements.Length()-1; i >= 0; i--) {
-    mNotInElements[i]->SetForm(nsnull, PR_FALSE, PR_TRUE);
+    mNotInElements[i]->ClearForm(PR_FALSE, PR_TRUE);
   }
   mNotInElements.Clear();
 
@@ -2114,8 +2118,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // XPConnect interface list for nsFormControlList
 NS_INTERFACE_TABLE_HEAD(nsFormControlList)
-  NS_INTERFACE_TABLE2(nsFormControlList,
+  NS_INTERFACE_TABLE3(nsFormControlList,
                       nsIDOMHTMLCollection,
+                      nsINodeList,
                       nsIDOMNSHTMLFormControlList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsFormControlList)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLFormControlCollection)
@@ -2141,14 +2146,13 @@ nsFormControlList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsFormControlList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  FlushPendingNotifications();
-
-  if (aIndex < mElements.Length()) {
-    return CallQueryInterface(mElements[aIndex], aReturn);
+  nsINode* node = GetNodeAt(aIndex);
+  if (!node) {
+    *aReturn = nsnull;
+    return NS_OK;
   }
 
-  *aReturn = nsnull;
-  return NS_OK;
+  return CallQueryInterface(node, aReturn);
 }
 
 NS_IMETHODIMP 
@@ -2192,6 +2196,18 @@ nsFormControlList::NamedItem(const nsAString& aName,
 {
   NamedItemInternal(aName, PR_TRUE, aReturn);
   return NS_OK;
+}
+
+nsINode*
+nsFormControlList::GetNodeAt(PRUint32 aIndex)
+{
+  FlushPendingNotifications();
+
+  if (aIndex < mElements.Length()) {
+    mElements[aIndex];
+  }
+
+  return nsnull;
 }
 
 void
@@ -2246,7 +2262,8 @@ nsFormControlList::AddElementToTable(nsIFormControl* aChild,
       // Add the new child too
       list->AppendElement(newChild);
 
-      nsCOMPtr<nsISupports> listSupports = do_QueryInterface(list);
+      nsCOMPtr<nsISupports> listSupports =
+        do_QueryInterface(static_cast<nsIDOMNodeList*>(list));
 
       // Replace the element with the list.
       NS_ENSURE_TRUE(mNameLookupTable.Put(aName, listSupports),
