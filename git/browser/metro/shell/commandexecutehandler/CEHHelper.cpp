@@ -12,7 +12,6 @@
 
 HANDLE sCon;
 LPCWSTR metroDX10Available = L"MetroD3DAvailable";
-LPCWSTR metroLastAHE = L"MetroLastAHE";
 
 typedef HRESULT (WINAPI*D3D10CreateDevice1Func)
   (IDXGIAdapter *, D3D10_DRIVER_TYPE, HMODULE, UINT,
@@ -106,23 +105,6 @@ IsProcessRunning(const wchar_t *processName, bool bCheckIfMetro)
 
   CloseHandle(snapshot);
   return exists;
-}
-
-
-AHE_TYPE
-GetLastAHE()
-{
-  DWORD ahe;
-  if (GetDWORDRegKey(metroLastAHE, ahe)) {
-    return (AHE_TYPE) ahe;
-  }
-  return AHE_DESKTOP;
-}
-
-bool
-SetLastAHE(AHE_TYPE ahe)
-{
-  return SetDWORDRegKey(metroLastAHE, (DWORD) ahe);
 }
 
 bool
