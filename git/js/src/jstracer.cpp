@@ -373,11 +373,6 @@ Oracle::clear()
     _dontDemote.reset();
 }
 
-#if defined(NJ_SOFTFLOAT)
-JS_DECLARE_CALLINFO(i2f)
-JS_DECLARE_CALLINFO(u2f)
-#endif
-
 static bool isi2f(LInsp i)
 {
     if (i->isop(LIR_i2f))
@@ -473,92 +468,6 @@ static bool overflowSafe(LIns* i)
 }
 
 #if defined(NJ_SOFTFLOAT)
-/* soft float */
-
-jsdouble FASTCALL
-js_fneg(jsdouble x)
-{
-    return -x;
-}
-
-jsdouble FASTCALL
-js_i2f(int32 i)
-{
-    return i;
-}
-
-jsdouble FASTCALL
-js_u2f(jsuint u)
-{
-    return u;
-}
-
-int32 FASTCALL
-js_fcmpeq(jsdouble x, jsdouble y)
-{
-    return x==y;
-}
-
-int32 FASTCALL
-js_fcmplt(jsdouble x, jsdouble y)
-{
-    return x < y;
-}
-
-int32 FASTCALL
-js_fcmple(jsdouble x, jsdouble y)
-{
-    return x <= y;
-}
-
-int32 FASTCALL
-js_fcmpgt(jsdouble x, jsdouble y)
-{
-    return x > y;
-}
-
-int32 FASTCALL
-js_fcmpge(jsdouble x, jsdouble y)
-{
-    return x >= y;
-}
-
-jsdouble FASTCALL
-js_fmul(jsdouble x, jsdouble y)
-{
-    return x * y;
-}
-
-jsdouble FASTCALL
-js_fadd(jsdouble x, jsdouble y)
-{
-    return x + y;
-}
-
-jsdouble FASTCALL
-js_fdiv(jsdouble x, jsdouble y)
-{
-    return x / y;
-}
-
-jsdouble FASTCALL
-js_fsub(jsdouble x, jsdouble y)
-{
-    return x - y;
-}
-
-JS_DEFINE_CALLINFO_1(DOUBLE,    fneg, DOUBLE,               1, 1)
-JS_DEFINE_CALLINFO_1(DOUBLE,    i2f, INT32,                 1, 1)
-JS_DEFINE_CALLINFO_1(DOUBLE,    u2f, UINT32,                1, 1)
-JS_DEFINE_CALLINFO_2(INT32,     fcmpeq, DOUBLE, DOUBLE,     1, 1)
-JS_DEFINE_CALLINFO_2(INT32,     fcmplt, DOUBLE, DOUBLE,     1, 1)
-JS_DEFINE_CALLINFO_2(INT32,     fcmple, DOUBLE, DOUBLE,     1, 1)
-JS_DEFINE_CALLINFO_2(INT32,     fcmpgt, DOUBLE, DOUBLE,     1, 1)
-JS_DEFINE_CALLINFO_2(INT32,     fcmpge, DOUBLE, DOUBLE,     1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE,    fmul, DOUBLE, DOUBLE,       1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE,    fadd, DOUBLE, DOUBLE,       1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE,    fdiv, DOUBLE, DOUBLE,       1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE,    fsub, DOUBLE, DOUBLE,       1, 1)
 
 class SoftFloatFilter: public LirWriter
 {
@@ -1331,6 +1240,7 @@ NativeToValue(JSContext* cx, jsval& v, uint8 type, double* slot)
       }
       case JSVAL_STRING:
         v = STRING_TO_JSVAL(*(JSString**)slot);
+        JS_ASSERT(JSVAL_TAG(v) == JSVAL_STRING); /* if this fails the pointer was not aligned */
         debug_only_v(printf("string<%p> ", *(JSString**)slot);)
         break;
       case JSVAL_BOXED:
@@ -1340,6 +1250,7 @@ NativeToValue(JSContext* cx, jsval& v, uint8 type, double* slot)
       default:
         JS_ASSERT(type == JSVAL_OBJECT);
         v = OBJECT_TO_JSVAL(*(JSObject**)slot);
+        JS_ASSERT(JSVAL_TAG(v) == JSVAL_OBJECT); /* if this fails the pointer was not aligned */
         debug_only_v(printf("object<%p:%s> ", JSVAL_TO_OBJECT(v),
                             JSVAL_IS_NULL(v)
                             ? "null"
@@ -2119,9 +2030,9 @@ int
 nanojit::StackFilter::getTop(LInsp guard)
 {
     if (sp == frag->lirbuf->sp)
-        return guard->exit()->sp_adj + sizeof(double);
+        return guard->exit()->sp_adj;
     JS_ASSERT(sp == frag->lirbuf->rp);
-    return guard->exit()->rp_adj + sizeof(FrameInfo);
+    return guard->exit()->rp_adj;
 }
 
 #if defined NJ_VERBOSE
@@ -4531,26 +4442,6 @@ TraceRecorder::record_JSOP_NEW()
         return interpretedFunctionCall(fval, fun, argc, true);
     }
 
-    /*
-     * The prefix string (the first one) can contain the following characters:
-     * 'C': a JSContext* argument
-     * 'T': |this| as a JSObject* argument
-     * 'f': The function object being new'd as a JSObject* argument
-     * 'p': The prototype object to use for the construction as a JSObject*
-     *
-     * The corresponding things will get passed as arguments to the builtin in
-     * reverse order (so pC means JSContext* as the first arg, and the
-     * prototype as the second arg).
-     *
-     * The argtypes string (the second one) can contain the following
-     * characters:
-     * 'd': a number (double) argument
-     * 'i': an integer argument
-     * 'o': a JSObject* argument
-     *
-     * Again, these will be passed to the builtin in reverse order, coming
-     * after the arguments passed by the prefix string.
-     */
     static JSTraceableNative knownNatives[] = {
         { (JSFastNative)js_Array,  &ci_FastNewArray,  "pC", "",    FAIL_NULL },
         { (JSFastNative)js_Array,  &ci_Array_1int,    "pC", "i",   FAIL_NULL },
@@ -6785,10 +6676,11 @@ TraceRecorder::record_JSOP_CALLPROP()
     jsval& l = stackval(-1);
     JSObject* obj;
     LIns* obj_ins;
+    LIns* this_ins;
     if (!JSVAL_IS_PRIMITIVE(l)) {
         obj = JSVAL_TO_OBJECT(l);
         obj_ins = get(&l);
-        stack(0, obj_ins); // |this| for subsequent call
+        this_ins = obj_ins; // |this| for subsequent call
     } else {
         jsint i;
         debug_only(const char* protoname = NULL;)
@@ -6814,7 +6706,7 @@ TraceRecorder::record_JSOP_CALLPROP()
 
         obj_ins = INS_CONSTPTR(obj);
         debug_only(obj_ins = addName(obj_ins, protoname);)
-        stack(0, get(&l)); // use primitive as |this|
+        this_ins = get(&l); // use primitive as |this|
     }
 
     JSObject* obj2;
@@ -6832,6 +6724,7 @@ TraceRecorder::record_JSOP_CALLPROP()
             ABORT_TRACE("callee does not accept primitive |this|");
     }
 
+    stack(0, this_ins);
     stack(-1, INS_CONSTPTR(PCVAL_TO_OBJECT(pcval)));
     return true;
 }
