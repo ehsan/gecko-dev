@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  * Ian Gilman <ian@iangilman.com>
- * Aza Raskin <aza@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -122,13 +121,9 @@ Trench.prototype = {
   setPosition: function Trench_setPos(position, range, minRange) {
     this.position = position;
     
-    var page = Items.getPageBounds( true );
-    
     // optionally, set the range.
     if (isRange(range)) {
       this.range = range;
-    } else {
-      this.range = new Range( 0, (this.xory == 'x' ? page.height : page.width) );
     }
     
     // if there's a minRange, set that too.
@@ -136,9 +131,9 @@ Trench.prototype = {
       this.minRange = minRange;
     
     // set the appropriate bounds as a rect.
-    if ( this.xory == "x" ) // vertical
+    if ( this.xory == "x" ) // horizontal
       this.rect = new Rect ( this.position - this.radius, this.range.min, 2 * this.radius, this.range.extent );
-    else // horizontal
+    else
       this.rect = new Rect ( this.range.min, this.position - this.radius, this.range.extent, 2 * this.radius );
       
     this.show(); // DEBUG
@@ -224,10 +219,8 @@ Trench.prototype = {
       guideTrench.css(this.guideRect);
       iQ("body").append(guideTrench);
     } else {
-      if (this.dom.guideTrench) {
+      if (this.dom.guideTrench)
         this.dom.guideTrench.remove();
-        delete this.dom.guideTrench;
-      }
     }
 
     if (!Trenches.showDebug) {
@@ -589,6 +582,9 @@ var Trenches = {
 
         rect = newRect;
         updated = true;
+//        // turn on the guide
+//        t.showGuide = true;
+//        t.show();
   
         // register this trench as the "snapped trench" for the appropriate edge.
         snappedTrenches[newRect.adjustedEdge] = t;
@@ -605,24 +601,12 @@ var Trenches = {
         if (newRect.adjustedEdge == "bottom" && !this.preferTop)
           updatedY = true;
 
-      }
-    }
-    
-    let snappedIds = [ snappedTrenches[j].id for (j in snappedTrenches) ];
-    for (let i in this.trenches) {
-      let t = this.trenches[i];
-      // show the guide if it was used in snapping
-      if (snappedIds.indexOf(t.id) != -1) {
-        t.showGuide = true;
-        t.show();
-      }
-      // make sure to turn the guide off if we're no longer snapping to it
-      if (t.showGuide && snappedIds.indexOf(t.id) == -1) {
+      } else if (t.showGuide) { // make sure to turn it off
         t.showGuide = false;
         t.show();
       }
     }
-
+    
     if (updated) {
       rect.snappedTrenches = snappedTrenches;
       return rect;

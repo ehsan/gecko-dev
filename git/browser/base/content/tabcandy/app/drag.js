@@ -231,7 +231,6 @@ Drag.prototype = {
   // Function: stop
   // Called in response to an <Item> draggable "stop" event.
   stop: function() {
-		Trenches.hideGuides();
     this.item.isDragging = false;
 
     if(this.parent && !this.parent.locked.close && this.parent != this.item.parent 
