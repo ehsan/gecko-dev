@@ -3703,12 +3703,13 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                     // exception into a string.
                     str = JS_ValueToString(sandcx->GetJSContext(), exn);
 
+                    JSAutoRequest req(cx);
                     if (str) {
                         // We converted the exception to a string. Use that
                         // as the value exception.
                         exn = STRING_TO_JSVAL(str);
                         if (JS_WrapValue(cx, &exn)) {
-                            JS_SetPendingException(cx, exn);
+                            JS_SetPendingException(cx, STRING_TO_JSVAL(str));
                         } else {
                             JS_ClearPendingException(cx);
                             rv = NS_ERROR_FAILURE;
@@ -3718,6 +3719,8 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                         rv = NS_ERROR_FAILURE;
                     }
                 } else {
+                    JSAutoRequest req(cx);
+
                     if (JS_WrapValue(cx, &exn)) {
                         JS_SetPendingException(cx, exn);
                     }
