@@ -90,9 +90,9 @@ _TEST_FILES =\
 		test_nsIAccessible_focus.html \
 		test_nsIAccessibleDocument.html \
 		test_nsIAccessibleEditableText.html \
-	$(warning test_nsIAccessibleHyperLink.html temporarily disabled) \
+		test_nsIAccessibleHyperLink.html \
 		test_nsIAccessibleHyperLink.xul \
-	$(warning test_nsIAccessibleHyperText.html temporarily disabled) \
+		test_nsIAccessibleHyperText.html \
 		test_nsIAccessibleImage.html \
 		$(warning test_nsIAccessibleTable_listboxes.xul temporarily disabled) \
 		test_nsIAccessNode_utils.html \
