@@ -130,12 +130,6 @@ ShaderConfigOGL::SetMask3D(bool aEnabled)
   SetFeature(ENABLE_MASK_3D, aEnabled);
 }
 
-void
-ShaderConfigOGL::SetPremultiply(bool aEnabled)
-{
-  SetFeature(ENABLE_PREMULTIPLY, aEnabled);
-}
-
 /* static */ ProgramProfileOGL
 ProgramProfileOGL::GetProfileFor(ShaderConfigOGL aConfig)
 {
@@ -328,9 +322,6 @@ ProgramProfileOGL::GetProfileFor(ShaderConfigOGL aConfig)
     }
     if (aConfig.mFeatures & ENABLE_OPACITY) {
       fs << "  color *= uLayerOpacity;" << endl;
-    }
-    if (aConfig.mFeatures & ENABLE_PREMULTIPLY) {
-      fs << " color.rgb *= color.a;" << endl;
     }
   }
   if (aConfig.mFeatures & ENABLE_MASK_3D) {

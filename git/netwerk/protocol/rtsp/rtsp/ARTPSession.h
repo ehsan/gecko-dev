@@ -21,8 +21,6 @@
 #include "mozilla/Types.h"
 #include <media/stagefright/foundation/AHandler.h>
 
-#include "prio.h"
-
 namespace android {
 
 struct APacketSource;
@@ -49,8 +47,8 @@ private:
     };
 
     struct TrackInfo {
-        PRFileDesc *mRTPSocket;
-        PRFileDesc *mRTCPSocket;
+        int mRTPSocket;
+        int mRTCPSocket;
 
         sp<APacketSource> mPacketSource;
     };

@@ -26,9 +26,7 @@
 #include <media/stagefright/MediaWriter.h>
 
 #include <arpa/inet.h>
-
-#include "prio.h"
-#include "prnetdb.h"
+#include <sys/socket.h>
 
 #define LOG_TO_FILES    0
 
@@ -79,9 +77,9 @@ private:
     sp<ALooper> mLooper;
     sp<AHandlerReflector<ARTPWriter> > mReflector;
 
-    PRFileDesc *mSocket;
-    PRNetAddr mRTPAddr;
-    PRNetAddr mRTCPAddr;
+    int mSocket;
+    struct sockaddr_in mRTPAddr;
+    struct sockaddr_in mRTCPAddr;
 
     AString mProfileLevel;
     AString mSeqParamSet;

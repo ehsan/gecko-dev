@@ -22,8 +22,6 @@
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/foundation/AString.h>
 
-#include "prio.h"
-
 namespace android {
 
 struct MOZ_EXPORT ABuffer;
@@ -46,7 +44,7 @@ struct ARTSPConnection : public AHandler {
     void observeBinaryData(const sp<AMessage> &reply);
 
     static bool ParseURL(
-            const char *url, AString *host, uint16_t *port, AString *path,
+            const char *url, AString *host, unsigned *port, AString *path,
             AString *user, AString *pass);
 
 protected:
@@ -75,9 +73,8 @@ private:
         DIGEST
     };
 
-    static const uint32_t kSocketPollTimeoutUs;
-    static const uint32_t kSocketPollTimeoutRetries;
-    static const uint32_t kSocketBlokingRecvTimeout;
+    static const int64_t kSelectTimeoutUs;
+    static const int64_t kSelectTimeoutRetries;
 
     bool mUIDValid;
     uid_t mUID;
@@ -85,11 +82,11 @@ private:
     AString mUser, mPass;
     AuthType mAuthType;
     AString mNonce;
+    int mSocket;
     int32_t mConnectionID;
     int32_t mNextCSeq;
     bool mReceiveResponseEventPending;
-    PRFileDesc *mSocket;
-    uint32_t mNumSocketPollTimeoutRetries;
+    int64_t mNumSelectTimeoutRetries;
 
     KeyedVector<int32_t, sp<AMessage> > mPendingRequests;
 
@@ -129,8 +126,6 @@ private:
             const char *from, unsigned long *x);
 
     static void MakeUserAgent(AString *userAgent);
-
-    void closeSocket();
 
     DISALLOW_EVIL_CONSTRUCTORS(ARTSPConnection);
 };

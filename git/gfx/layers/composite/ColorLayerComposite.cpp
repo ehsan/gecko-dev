@@ -41,8 +41,6 @@ ColorLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
   float opacity = GetEffectiveOpacity();
 
-  AddBlendModeEffect(effects);
-
   const gfx::Matrix4x4& transform = GetEffectiveTransform();
   mCompositor->DrawQuad(rect, clipRect, effects, opacity, transform);
   mCompositor->DrawDiagnostics(DiagnosticFlags::COLOR,

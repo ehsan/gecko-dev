@@ -49,8 +49,6 @@ class RtspControllerParent : public PRtspControllerParent
   // The nsIStreamingProtocolController implementation.
   nsCOMPtr<nsIStreamingProtocolController> mController;
   uint32_t mTotalTracks;
-  // Ensure we are destroyed on the main thread.
-  void Destroy();
 };
 
 } // namespace net
