@@ -9,7 +9,6 @@ EXTRA_JS_MODULES += [
     'AndroidLog.jsm',
     'ContactService.jsm',
     'dbg-browser-actors.js',
-    'DownloadNotifications.jsm',
     'HelperApps.jsm',
     'Home.jsm',
     'HomeProvider.jsm',

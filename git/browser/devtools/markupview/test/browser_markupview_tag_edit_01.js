@@ -62,7 +62,7 @@ let TEST_DATA = [{
   }
 }];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
   yield runEditAttributesTests(TEST_DATA, inspector);
 });

@@ -266,14 +266,6 @@ MediaDecoder::DecodedStreamGraphListener::NotifyEvent(MediaStreamGraph* aGraph,
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
 }
-
-void MediaDecoder::RecreateDecodedStreamIfNecessary(int64_t aStartTimeUSecs)
-{
-  if (mInitialAudioCaptured) {
-    RecreateDecodedStream(aStartTimeUSecs);
-  }
-}
-
 void MediaDecoder::DestroyDecodedStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -292,19 +284,15 @@ void MediaDecoder::DestroyDecodedStream()
     // be careful not to send any messages after the Destroy().
     if (os.mStream->IsDestroyed()) {
       // Probably the DOM MediaStream was GCed. Clean up.
-      if (os.mPort) {
-        os.mPort->Destroy();
-      }
+      os.mPort->Destroy();
       mOutputStreams.RemoveElementAt(i);
       continue;
     }
     os.mStream->ChangeExplicitBlockerCount(1);
     // Explicitly remove all existing ports. This is not strictly necessary but it's
     // good form.
-    if (os.mPort) {
-      os.mPort->Destroy();
-      os.mPort = nullptr;
-    }
+    os.mPort->Destroy();
+    os.mPort = nullptr;
   }
 
   mDecodedStream = nullptr;
@@ -853,9 +841,7 @@ void MediaDecoder::PlaybackEnded()
       OutputStreamData& os = mOutputStreams[i];
       if (os.mStream->IsDestroyed()) {
         // Probably the DOM MediaStream was GCed. Clean up.
-        if (os.mPort) {
-          os.mPort->Destroy();
-        }
+        os.mPort->Destroy();
         mOutputStreams.RemoveElementAt(i);
         continue;
       }
@@ -863,9 +849,7 @@ void MediaDecoder::PlaybackEnded()
         // Shouldn't really be needed since mDecodedStream should already have
         // finished, but doesn't hurt.
         os.mStream->Finish();
-        if (os.mPort) {
-          os.mPort->Destroy();
-        }
+        os.mPort->Destroy();
         // Not really needed but it keeps the invariant that a stream not
         // connected to mDecodedStream is explicity blocked.
         os.mStream->ChangeExplicitBlockerCount(1);

@@ -34,7 +34,6 @@
         android:layout_width="64dp"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:visibility="gone"
         style="@style/Widget.ReadingListRow.ReadTime" />
 
 </merge>

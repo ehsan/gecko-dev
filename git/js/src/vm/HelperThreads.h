@@ -272,10 +272,8 @@ class GlobalHelperThreadState
 static inline GlobalHelperThreadState &
 HelperThreadState()
 {
-    extern GlobalHelperThreadState *gHelperThreadState;
-
-    MOZ_ASSERT(gHelperThreadState);
-    return *gHelperThreadState;
+    extern GlobalHelperThreadState gHelperThreadState;
+    return gHelperThreadState;
 }
 
 /* Individual helper thread, one allocated per core. */
@@ -345,17 +343,9 @@ struct HelperThread
 
 /* Methods for interacting with helper threads. */
 
-// Create data structures used by helper threads.
-bool
-CreateHelperThreadsState();
-
-// Destroy data structures used by helper threads.
-void
-DestroyHelperThreadsState();
-
 // Initialize helper threads unless already initialized.
 void
-EnsureHelperThreadsInitialized();
+EnsureHelperThreadsInitialized(ExclusiveContext *cx);
 
 // This allows the JS shell to override GetCPUCount() when passed the
 // --thread-count=N option.

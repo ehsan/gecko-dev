@@ -611,7 +611,7 @@ public:
   /**
    * The frame's writing-mode, used for logical layout computations.
    */
-  virtual mozilla::WritingMode GetWritingMode() const {
+  mozilla::WritingMode GetWritingMode() const {
     return mozilla::WritingMode(StyleContext());
   }
 

@@ -6,7 +6,7 @@
 
 let doc = null, toolbox = null, panelWin = null, modifiedPrefs = [];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   const URL = "data:text/html;charset=utf8,test for dynamically registering and unregistering tools";
   registerNewTool();
   let tab = yield addTab(URL);

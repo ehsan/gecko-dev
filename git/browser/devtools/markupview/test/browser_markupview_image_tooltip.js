@@ -22,7 +22,7 @@ const TEST_NODES = [
   {selector: ".canvas", size: "600 x 600"}
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html,markup view tooltip test");
   createPage();
 

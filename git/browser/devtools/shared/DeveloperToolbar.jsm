@@ -217,7 +217,7 @@ let CommandUtils = {
       },
 
       get window() {
-        return this.chromeWindow.gBrowser.selectedBrowser.contentWindow;
+        return this.chromeWindow.gBrowser.selectedTab.linkedBrowser.contentWindow;
       },
 
       get document() {

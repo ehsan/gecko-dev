@@ -6,7 +6,7 @@
 
 // Test tree selection functionality
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let projecteditor = yield addProjectEditorTabForTempDirectory();
   ok(true, "ProjectEditor has loaded");
 

@@ -10,7 +10,7 @@ let TEST_URI = "http://mochi.test:8888/browser/browser/devtools/fontinspector/te
 
 let view, viewDoc;
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield loadTab(TEST_URI);
   let {toolbox, inspector} = yield openInspector();
 

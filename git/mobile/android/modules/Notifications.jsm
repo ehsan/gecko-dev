@@ -232,7 +232,7 @@ let Notifications = {
         }
 
         let button = notification._buttons[data.buttonId];
-        if (button && button.onClicked) {
+        if (button) {
           button.onClicked(id, notification._cookie);
         }
         break;
@@ -259,5 +259,3 @@ let Notifications = {
     return this;
   }
 }
-
-Services.obs.addObserver(Notifications, "Notification:Event", false);

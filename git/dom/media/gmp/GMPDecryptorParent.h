@@ -109,9 +109,6 @@ private:
   bool mShuttingDown;
   nsRefPtr<GMPParent> mPlugin;
   GMPDecryptorProxyCallback* mCallback;
-#ifdef DEBUG
-  nsIThread* const mGMPThread;
-#endif
 };
 
 } // namespace gmp

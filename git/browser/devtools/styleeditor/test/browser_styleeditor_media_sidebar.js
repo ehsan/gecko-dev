@@ -13,7 +13,7 @@ const NEW_RULE = "\n@media (max-width: 600px) { div { color: blue; } }";
 
 waitForExplicitFinish();
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {UI} = yield addTabAndOpenStyleEditors(2, null, TESTCASE_URI);
 
   is(UI.editors.length, 2, "correct number of editors");

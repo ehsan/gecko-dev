@@ -3492,6 +3492,9 @@ GCHelperState::init()
     if (!(done = PR_NewCondVar(rt->gc.lock)))
         return false;
 
+    if (CanUseExtraThreads())
+        HelperThreadState().ensureInitialized();
+
     return true;
 }
 
@@ -5498,8 +5501,7 @@ GCRuntime::endSweepPhase(bool lastGC)
         ZoneList zones;
         for (GCZonesIter zone(rt); !zone.done(); zone.next())
             zones.append(zone);
-        if (!zones.isEmpty())
-            sweepBackgroundThings(zones, MainThread);
+        sweepBackgroundThings(zones, MainThread);
 
         /*
          * Destroy arenas after we finished the sweeping so finalizers can

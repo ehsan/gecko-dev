@@ -8,7 +8,7 @@ loadHelperScript("helper_edits.js");
 
 // Test menu bar enabled / disabled state.
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let projecteditor = yield addProjectEditorTabForTempDirectory();
   let menubar = projecteditor.menubar;
 

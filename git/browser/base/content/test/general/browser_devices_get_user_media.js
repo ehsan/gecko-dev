@@ -799,7 +799,7 @@ let gTests = [
   run: function checkNoAlwaysOnHttp() {
     // Load an http page instead of the https version.
     let deferred = Promise.defer();
-    let browser = gBrowser.selectedBrowser;
+    let browser = gBrowser.selectedTab.linkedBrowser;
     browser.addEventListener("load", function onload() {
       browser.removeEventListener("load", onload, true);
       deferred.resolve();

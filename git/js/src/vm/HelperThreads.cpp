@@ -28,32 +28,19 @@ using mozilla::DebugOnly;
 
 namespace js {
 
-GlobalHelperThreadState *gHelperThreadState = nullptr;
+GlobalHelperThreadState gHelperThreadState;
 
 } // namespace js
 
-bool
-js::CreateHelperThreadsState()
-{
-    MOZ_ASSERT(!gHelperThreadState);
-    gHelperThreadState = js_new<GlobalHelperThreadState>();
-    return gHelperThreadState != nullptr;
-}
-
 void
-js::DestroyHelperThreadsState()
+js::EnsureHelperThreadsInitialized(ExclusiveContext *cx)
 {
-    MOZ_ASSERT(gHelperThreadState);
-    gHelperThreadState->finish();
-    js_delete(gHelperThreadState);
-    gHelperThreadState = nullptr;
-}
+    // If 'cx' is not a JSContext, we are already off the main thread and the
+    // helper threads would have already been initialized.
+    if (!cx->isJSContext())
+        return;
 
-void
-js::EnsureHelperThreadsInitialized()
-{
-    MOZ_ASSERT(gHelperThreadState);
-    gHelperThreadState->ensureInitialized();
+    HelperThreadState().ensureInitialized();
 }
 
 static size_t
@@ -98,6 +85,8 @@ js::StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData)
 bool
 js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
 {
+    EnsureHelperThreadsInitialized(cx);
+
     AutoLockHelperThreadState lock;
 
     if (!HelperThreadState().ionWorklist().append(builder))
@@ -319,6 +308,8 @@ js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &optio
     // Suppress GC so that calls below do not trigger a new incremental GC
     // which could require barriers on the atoms compartment.
     gc::AutoSuppressGC suppress(cx);
+
+    EnsureHelperThreadsInitialized(cx);
 
     JS::CompartmentOptions compartmentOptions(cx->compartment()->options());
     compartmentOptions.setZone(JS::FreshZone);
@@ -1225,6 +1216,8 @@ HelperThread::handleCompressionWorkload()
 bool
 js::StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task)
 {
+    EnsureHelperThreadsInitialized(cx);
+
     AutoLockHelperThreadState lock;
 
     if (!HelperThreadState().compressionWorklist().append(task)) {

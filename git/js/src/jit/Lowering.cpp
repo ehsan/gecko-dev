@@ -2294,7 +2294,8 @@ LIRGenerator::visitAsmJSInterruptCheck(MAsmJSInterruptCheck *ins)
 {
     gen->setPerformsCall();
 
-    LAsmJSInterruptCheck *lir = new(alloc()) LAsmJSInterruptCheck(ins->interruptExit(),
+    LAsmJSInterruptCheck *lir = new(alloc()) LAsmJSInterruptCheck(temp(),
+                                                                  ins->interruptExit(),
                                                                   ins->funcDesc());
     add(lir, ins);
 }

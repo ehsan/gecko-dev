@@ -127,7 +127,7 @@ CodeGeneratorX86::visitUnbox(LUnbox *unbox)
     MUnbox *mir = unbox->mir();
 
     if (mir->fallible()) {
-        masm.cmp32(ToOperand(unbox->type()), Imm32(MIRTypeToTag(mir->type())));
+        masm.cmpl(ToOperand(unbox->type()), Imm32(MIRTypeToTag(mir->type())));
         bailoutIf(Assembler::NotEqual, unbox->snapshot());
     }
 }
@@ -303,7 +303,7 @@ CodeGeneratorX86::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic 
             addOutOfLineCode(ool, ins->mir());
         }
 
-        masm.cmpPtr(ptr, ImmWord(mir->length()));
+        masm.cmpl(ptr, Imm32(mir->length()));
         if (ool)
             masm.j(Assembler::AboveOrEqual, ool->entry());
         else
@@ -385,7 +385,7 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     OutOfLineLoadTypedArrayOutOfBounds *ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), vt);
     addOutOfLineCode(ool, mir);
 
-    CodeOffsetLabel cmp = masm.cmp32WithPatch(ptrReg, Imm32(0));
+    CodeOffsetLabel cmp = masm.cmplWithPatch(ptrReg, Imm32(0));
     masm.j(Assembler::AboveOrEqual, ool->entry());
 
     uint32_t before = masm.size();
@@ -443,7 +443,7 @@ CodeGeneratorX86::visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStati
     }
 
     MOZ_ASSERT(offset == 0);
-    masm.cmpPtr(ptr, ImmWord(mir->length()));
+    masm.cmpl(ptr, Imm32(mir->length()));
     Label rejoin;
     masm.j(Assembler::AboveOrEqual, &rejoin);
 
@@ -482,7 +482,7 @@ CodeGeneratorX86::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
         return;
     }
 
-    CodeOffsetLabel cmp = masm.cmp32WithPatch(ptrReg, Imm32(0));
+    CodeOffsetLabel cmp = masm.cmplWithPatch(ptrReg, Imm32(0));
     Label rejoin;
     masm.j(Assembler::AboveOrEqual, &rejoin);
 
@@ -511,7 +511,7 @@ CodeGeneratorX86::visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
 
     if (mir->needsBoundsCheck()) {
-        maybeCmpOffset = masm.cmp32WithPatch(ptrReg, Imm32(0)).offset();
+        maybeCmpOffset = masm.cmplWithPatch(ptrReg, Imm32(0)).offset();
         Label goahead;
         masm.j(Assembler::Below, &goahead);
         memoryBarrier(MembarFull);
@@ -524,7 +524,7 @@ CodeGeneratorX86::visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins)
     // Add in the actual heap pointer explicitly, to avoid opening up
     // the abstraction that is compareExchangeToTypedIntArray at this time.
     uint32_t before = masm.size();
-    masm.addlWithPatch(Imm32(0), ptrReg);
+    masm.addl_wide(Imm32(0), ptrReg);
     uint32_t after = masm.size();
     masm.append(AsmJSHeapAccess(before, after, mir->viewType(), maybeCmpOffset));
 
@@ -557,7 +557,7 @@ CodeGeneratorX86::visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins)
     uint32_t maybeCmpOffset = AsmJSHeapAccess::NoLengthCheck;
 
     if (mir->needsBoundsCheck()) {
-        maybeCmpOffset = masm.cmp32WithPatch(ptrReg, Imm32(0)).offset();
+        maybeCmpOffset = masm.cmplWithPatch(ptrReg, Imm32(0)).offset();
         Label goahead;
         masm.j(Assembler::Below, &goahead);
         memoryBarrier(MembarFull);
@@ -570,7 +570,7 @@ CodeGeneratorX86::visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins)
     // Add in the actual heap pointer explicitly, to avoid opening up
     // the abstraction that is atomicBinopToTypedIntArray at this time.
     uint32_t before = masm.size();
-    masm.addlWithPatch(Imm32(0), ptrReg);
+    masm.addl_wide(Imm32(0), ptrReg);
     uint32_t after = masm.size();
     masm.append(AsmJSHeapAccess(before, after, mir->viewType(), maybeCmpOffset));
 
@@ -846,7 +846,7 @@ CodeGeneratorX86::visitOutOfLineTruncate(OutOfLineTruncate *ool)
         // This has to be an exact conversion, as otherwise the truncation works
         // incorrectly on the modified value.
         masm.zeroDouble(ScratchDoubleReg);
-        masm.vucomisd(ScratchDoubleReg, input);
+        masm.ucomisd(input, ScratchDoubleReg);
         masm.j(Assembler::Parity, &fail);
 
         {
@@ -863,10 +863,10 @@ CodeGeneratorX86::visitOutOfLineTruncate(OutOfLineTruncate *ool)
         }
 
         masm.addDouble(input, temp);
-        masm.vcvttsd2si(temp, output);
-        masm.vcvtsi2sd(output, ScratchDoubleReg, ScratchDoubleReg);
+        masm.cvttsd2si(temp, output);
+        masm.cvtsi2sd(output, ScratchDoubleReg);
 
-        masm.vucomisd(ScratchDoubleReg, temp);
+        masm.ucomisd(temp, ScratchDoubleReg);
         masm.j(Assembler::Parity, &fail);
         masm.j(Assembler::Equal, ool->rejoin());
     }
@@ -920,7 +920,7 @@ CodeGeneratorX86::visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool)
         masm.fisttp(Operand(esp, 0));
 
         // Load low word, pop 64bits and jump back.
-        masm.load32(Address(esp, 0), output);
+        masm.movl(Operand(esp, 0), output);
         masm.addl(Imm32(sizeof(uint64_t)), esp);
         masm.jump(ool->rejoin());
 
@@ -935,7 +935,7 @@ CodeGeneratorX86::visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool)
         // This has to be an exact conversion, as otherwise the truncation works
         // incorrectly on the modified value.
         masm.zeroFloat32(ScratchFloat32Reg);
-        masm.vucomiss(ScratchFloat32Reg, input);
+        masm.ucomiss(input, ScratchFloat32Reg);
         masm.j(Assembler::Parity, &fail);
 
         {
@@ -952,10 +952,10 @@ CodeGeneratorX86::visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool)
         }
 
         masm.addFloat32(input, temp);
-        masm.vcvttss2si(temp, output);
-        masm.vcvtsi2ss(output, ScratchFloat32Reg, ScratchFloat32Reg);
+        masm.cvttss2si(temp, output);
+        masm.cvtsi2ss(output, ScratchFloat32Reg);
 
-        masm.vucomiss(ScratchFloat32Reg, temp);
+        masm.ucomiss(temp, ScratchFloat32Reg);
         masm.j(Assembler::Parity, &fail);
         masm.j(Assembler::Equal, ool->rejoin());
     }
@@ -966,7 +966,7 @@ CodeGeneratorX86::visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool)
 
         masm.push(input);
         masm.setupUnalignedABICall(1, output);
-        masm.vcvtss2sd(input, input, input);
+        masm.cvtss2sd(input, input);
         masm.passABIArg(input, MoveOp::DOUBLE);
 
         if (gen->compilingAsmJS())

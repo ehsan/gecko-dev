@@ -50,7 +50,7 @@ function testNavigate([aGrip, aResponse]) {
     }
   });
 
-  gBrowser.selectedBrowser.loadURI(TAB2_URL);
+  gBrowser.selectedTab.linkedBrowser.loadURI(TAB2_URL);
   return promise.all(outstanding.map(e => e.promise))
                 .then(() => aGrip.actor);
 }

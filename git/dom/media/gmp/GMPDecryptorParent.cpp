@@ -16,11 +16,8 @@ GMPDecryptorParent::GMPDecryptorParent(GMPParent* aPlugin)
   , mShuttingDown(false)
   , mPlugin(aPlugin)
   , mCallback(nullptr)
-#ifdef DEBUG
-  , mGMPThread(aPlugin->GMPThread())
-#endif
 {
-  MOZ_ASSERT(mPlugin && mGMPThread);
+  MOZ_ASSERT(mPlugin);
 }
 
 GMPDecryptorParent::~GMPDecryptorParent()
@@ -315,7 +312,7 @@ GMPDecryptorParent::RecvDecrypted(const uint32_t& aId,
 void
 GMPDecryptorParent::Close()
 {
-  MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
+  MOZ_ASSERT(mPlugin->GMPThread() == NS_GetCurrentThread());
   // Consumer is done with us; we can shut down.  No more callbacks should
   // be made to mCallback. Note: do this before Shutdown()!
   mCallback = nullptr;
@@ -323,14 +320,14 @@ GMPDecryptorParent::Close()
 
   // In case this is the last reference
   nsRefPtr<GMPDecryptorParent> kungfudeathgrip(this);
-  this->Release();
+  NS_RELEASE(kungfudeathgrip);
   Shutdown();
 }
 
 void
 GMPDecryptorParent::Shutdown()
 {
-  MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
+  MOZ_ASSERT(mPlugin->GMPThread() == NS_GetCurrentThread());
 
   if (mShuttingDown) {
     return;
