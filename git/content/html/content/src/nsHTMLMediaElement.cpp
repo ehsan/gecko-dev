@@ -2779,9 +2779,9 @@ void nsHTMLMediaElement::DownloadSuspended()
   }
 }
 
-void nsHTMLMediaElement::DownloadResumed(bool aForceNetworkLoading)
+void nsHTMLMediaElement::DownloadResumed()
 {
-  if (mBegun || aForceNetworkLoading) {
+  if (mBegun) {
     mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
     AddRemoveSelfReference();
   }

@@ -40,6 +40,10 @@ GRE_MODULE	    = 1
 
 LIBS		= $(NSPR_LIBS)
 
+ifeq ($(OS_ARCH),WINNT)
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+endif
+
 # JavaScript must be built shared, even for static builds, as it is used by
 # other modules which are always built shared. Failure to do so results in
 # the js code getting copied into xpinstall and jsd as well as mozilla-bin,
@@ -664,16 +668,13 @@ EXTRA_LIBS	+= -lm
 endif
 
 # Prevent floating point errors caused by VC++ optimizations
-ifdef _MSC_VER
-# XXX We should add this to CXXFLAGS, too?
+ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
+ifeq (,$(filter-out 1200 1300 1310,$(_MSC_VER)))
+CFLAGS += -Op
+else
 CFLAGS += -fp:precise
-
-ifeq ($(CPU_ARCH),x86)
-# Workaround compiler bug on PGO (Bug 721284)
-MonoIC.$(OBJ_SUFFIX): CXXFLAGS += -GL-
-Compiler.$(OBJ_SUFFIX): CXXFLAGS += -GL-
 endif
-endif # _MSC_VER
+endif # WINNT
 
 ifeq ($(OS_ARCH),FreeBSD)
 EXTRA_LIBS	+= -pthread

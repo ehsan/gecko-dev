@@ -2455,14 +2455,10 @@ DebuggerScript_getUrl(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGSCRIPT_SCRIPT(cx, argc, vp, "(get url)", args, obj, script);
 
-    if (script->filename) {
-        JSString *str = js_NewStringCopyZ(cx, script->filename);
-        if (!str)
-            return false;
-        args.rval().setString(str);
-    } else {
-        args.rval().setNull();
-    }
+    JSString *str = js_NewStringCopyZ(cx, script->filename);
+    if (!str)
+        return false;
+    args.rval().setString(str);
     return true;
 }
 

@@ -185,9 +185,6 @@ protected:
     RecvNPN_SetException(PPluginScriptableObjectParent* aActor,
                          const nsCString& aMessage);
 
-    NS_OVERRIDE virtual bool
-    RecvNPN_ReloadPlugins(const bool& aReloadPages);
-
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
 

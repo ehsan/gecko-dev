@@ -216,11 +216,6 @@ struct nsCachedStyleData
  * represented by an nsRuleNode are also immutable.
  */
 
-enum nsFontSizeType {
-  eFontSize_HTML = 1,
-  eFontSize_CSS = 2
-};
-
 class nsRuleNode {
 public:
   enum RuleDetail {
@@ -722,18 +717,6 @@ public:
 
   static void ComputeFontFeatures(const nsCSSValuePairList *aFeaturesList,
                                   nsTArray<gfxFontFeature>& aFeatureSettings);
-
-  static nscoord CalcFontPointSize(PRInt32 aHTMLSize, PRInt32 aBasePointSize, 
-                                   nsPresContext* aPresContext,
-                                   nsFontSizeType aFontSizeType = eFontSize_HTML);
-
-  static nscoord FindNextSmallerFontSize(nscoord aFontSize, PRInt32 aBasePointSize, 
-                                         nsPresContext* aPresContext,
-                                         nsFontSizeType aFontSizeType = eFontSize_HTML);
-
-  static nscoord FindNextLargerFontSize(nscoord aFontSize, PRInt32 aBasePointSize, 
-                                        nsPresContext* aPresContext,
-                                        nsFontSizeType aFontSizeType = eFontSize_HTML);
 };
 
 #endif

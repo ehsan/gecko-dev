@@ -97,8 +97,6 @@ union ShmemUnion {
     Shmem;
 };
 
-struct Empty { };
-
 } // namespace _foo
 } // namespace mozilla
 

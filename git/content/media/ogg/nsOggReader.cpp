@@ -101,11 +101,6 @@ nsresult nsOggReader::Init(nsBuiltinDecoderReader* aCloneDonor) {
 
 nsresult nsOggReader::ResetDecode()
 {
-  return ResetDecode(false);
-}
-
-nsresult nsOggReader::ResetDecode(bool start)
-{
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   nsresult res = NS_OK;
 
@@ -118,17 +113,8 @@ nsresult nsOggReader::ResetDecode(bool start)
   if (mVorbisState && NS_FAILED(mVorbisState->Reset())) {
     res = NS_ERROR_FAILURE;
   }
-  if (mOpusState) {
-    if (NS_FAILED(mOpusState->Reset())) {
-      res = NS_ERROR_FAILURE;
-    }
-    else if (start) {
-      // Reset the skip frame counter as if
-      // we're starting playback fresh.
-      mOpusState->mSkip = mOpusState->mPreSkip;
-      LOG(PR_LOG_DEBUG, ("Seek to start: asking opus decoder to skip %d",
-                         mOpusState->mSkip));
-    }
+  if (mOpusState && NS_FAILED(mOpusState->Reset())) {
+    res = NS_ERROR_FAILURE;
   }
   if (mTheoraState && NS_FAILED(mTheoraState->Reset())) {
     res = NS_ERROR_FAILURE;
@@ -392,7 +378,6 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
 nsresult nsOggReader::DecodeOpus(ogg_packet* aPacket) {
   NS_ASSERTION(aPacket->granulepos != -1, "Must know opus granulepos!");
 
-  // Maximum value is 63*2880.
   PRInt32 frames = opus_decoder_get_nb_samples(mOpusState->mDecoder,
                                                aPacket->packet,
                                                aPacket->bytes);
@@ -420,32 +405,23 @@ nsresult nsOggReader::DecodeOpus(ogg_packet* aPacket) {
   PRInt64 startTime = mOpusState->Time(endFrame - frames);
   PRInt64 duration = endTime - startTime;
 
-  // Trim the initial frames while the decoder is settling.
-  if (mOpusState->mSkip > 0) {
-    PRInt32 skipFrames = NS_MIN(mOpusState->mSkip, frames);
-    if (skipFrames == frames) {
-      // discard the whole packet
-      mOpusState->mSkip -= frames;
-      LOG(PR_LOG_DEBUG, ("Opus decoder skipping %d frames"
-                         " (whole packet)", frames));
-      return NS_OK;
-    }
-    PRInt32 keepFrames = frames - skipFrames;
-    int samples = keepFrames * channels;
-    nsAutoArrayPtr<AudioDataValue> trimBuffer(new AudioDataValue[samples]);
-    for (int i = 0; i < samples; i++)
-      trimBuffer[i] = buffer[skipFrames*channels + i];
+  // Trim the initial samples.
+  if (endTime < 0)
+    return NS_OK;
+  if (startTime < 0) {
+    PRInt32 skip = mOpusState->mPreSkip;
+    PRInt32 goodFrames = frames - skip;
+    NS_ASSERTION(goodFrames > 0, "endTime calculation was wrong");
+    nsAutoArrayPtr<AudioDataValue> goodBuffer(new AudioDataValue[goodFrames * channels]);
+    for (PRInt32 i = 0; i < goodFrames * PRInt32(channels); i++)
+      goodBuffer[i] = buffer[skip*channels + i];
 
-    startTime = mOpusState->Time(endFrame - keepFrames);
+    startTime = mOpusState->Time(endFrame - goodFrames);
     duration = endTime - startTime;
-    frames = keepFrames;
-    buffer = trimBuffer;
-
-    mOpusState->mSkip -= skipFrames;
-    LOG(PR_LOG_DEBUG, ("Opus decoder skipping %d frames", skipFrames));
+    frames = goodFrames;
+    buffer = goodBuffer;
   }
 
-  LOG(PR_LOG_DEBUG, ("Opus decoder pushing %d frames", frames));
   mAudioQueue.Push(new AudioData(mPageOffset,
                                  startTime,
                                  duration,
@@ -1110,7 +1086,7 @@ nsresult nsOggReader::Seek(PRInt64 aTarget,
     NS_ENSURE_SUCCESS(res,res);
 
     mPageOffset = 0;
-    res = ResetDecode(true);
+    res = ResetDecode();
     NS_ENSURE_SUCCESS(res,res);
 
     NS_ASSERTION(aStartTime != -1, "mStartTime should be known");

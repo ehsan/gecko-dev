@@ -180,23 +180,17 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
 // Traversal functions
 
 NS_IMETHODIMP
-nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
-                            nsIAccessible* aAnchor, bool aIncludeStart,
-                            PRUint8 aArgc, bool* aResult)
+nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  *aResult = false;
-
-  nsRefPtr<Accessible> anchor =
-    (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
+  if (mPosition && (mPosition->IsDefunct() ||
+                    !mPosition->Document()->IsInDocument(mPosition)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
-  Accessible* accessible =
-    SearchForward(anchor, aRule, (aArgc > 1) ? aIncludeStart : false, &rv);
+  Accessible* accessible = SearchForward(mPosition, aRule, false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aResult = accessible;
@@ -207,24 +201,17 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
 }
 
 NS_IMETHODIMP
-nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule,
-                                nsIAccessible* aAnchor,
-                                bool aIncludeStart,
-                                PRUint8 aArgc, bool* aResult)
+nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  *aResult = false;
-
-  nsRefPtr<Accessible> anchor =
-    (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
+  if (mPosition && (mPosition->IsDefunct() ||
+                    !mPosition->Document()->IsInDocument(mPosition)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
-  Accessible* accessible =
-    SearchBackward(anchor, aRule, (aArgc > 1) ? aIncludeStart : false, &rv);
+  Accessible* accessible = SearchBackward(mPosition, aRule, false, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aResult = accessible;
@@ -333,7 +320,6 @@ nsAccessiblePivot::IsRootDescendant(Accessible* aAccessible)
   if (!mRoot || mRoot->IsDefunct())
     return false;
 
-  // XXX Optimize with IsInDocument() when appropriate. Blocked by bug 759875.
   Accessible* accessible = aAccessible;
   do {
     if (accessible == mRoot)

@@ -541,7 +541,7 @@ extern JS_FRIEND_API(const JSStructuredCloneCallbacks *)
 GetContextStructuredCloneCallbacks(JSContext *cx);
 
 extern JS_FRIEND_API(JSVersion)
-VersionSetMoarXML(JSVersion version, bool enable);
+VersionSetXML(JSVersion version, bool enable);
 
 extern JS_FRIEND_API(bool)
 CanCallContextDebugHandler(JSContext *cx);

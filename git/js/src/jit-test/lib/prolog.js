@@ -23,6 +23,3 @@ if (!("gcslice" in this)) {
 if (!("selectforgc" in this)) {
   selectforgc = function() { }
 }
-
-if ("options" in this)
-    options("allow_xml");

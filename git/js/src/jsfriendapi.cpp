@@ -603,10 +603,10 @@ GetContextStructuredCloneCallbacks(JSContext *cx)
 }
 
 JS_FRIEND_API(JSVersion)
-VersionSetMoarXML(JSVersion version, bool enable)
+VersionSetXML(JSVersion version, bool enable)
 {
-    return enable ? JSVersion(uint32_t(version) | VersionFlags::MOAR_XML)
-                  : JSVersion(uint32_t(version) & ~VersionFlags::MOAR_XML);
+    return enable ? JSVersion(uint32_t(version) | VersionFlags::HAS_XML)
+                  : JSVersion(uint32_t(version) & ~VersionFlags::HAS_XML);
 }
 
 JS_FRIEND_API(bool)

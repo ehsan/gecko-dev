@@ -248,7 +248,7 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, PRInt32 aLength,
   }
 
   if(aLength==-1) {
-    aLength = NS_strlen(aText);
+    aLength=nsCRT::strlen(aText);
   }
 
   /* initialize member data */

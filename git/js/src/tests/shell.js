@@ -679,7 +679,6 @@ if (typeof options == 'function')
 {
   optionsInit();
   optionsClear();
-  options("allow_xml");
 }
 
 function getTestCaseResult(expected, actual)

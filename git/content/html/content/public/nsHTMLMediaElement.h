@@ -153,11 +153,7 @@ public:
   // Called by the media stream, on the main thread, when the download
   // has been resumed by the cache or because the element itself
   // asked the decoder to resumed the download.
-  // If aForceNetworkLoading is True, ignore the fact that the download has
-  // previously finished. We are downloading the middle of the media after
-  // having downloaded the end, we need to notify the element a download in
-  // ongoing.
-  void DownloadResumed(bool aForceNetworkLoading = false);
+  void DownloadResumed();
 
   // Called by the media decoder to indicate that the download has stalled
   // (no data has arrived for a while).

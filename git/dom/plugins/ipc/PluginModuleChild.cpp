@@ -1263,8 +1263,7 @@ _reloadplugins(NPBool aReloadPages)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-
-    PluginModuleChild::current()->SendNPN_ReloadPlugins(!!aReloadPages);
+    NS_WARNING("Not yet implemented!");
 }
 
 void NP_CALLBACK

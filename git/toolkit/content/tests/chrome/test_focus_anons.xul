@@ -98,9 +98,6 @@ function runTests()
     is(gFocuses, 6, "correct number of focuses");
   }
 
-  removeEventListener("focus", focusOccurred, true);
-  removeEventListener("blur", blurOccurred, true);
-
   SimpleTest.finish();
 }
 

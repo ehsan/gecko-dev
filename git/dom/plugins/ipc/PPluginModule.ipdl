@@ -128,8 +128,6 @@ parent:
 
   sync NPN_SetException(nullable PPluginScriptableObject actor,
                         nsCString message);
-
-  async NPN_ReloadPlugins(bool aReloadPages);
 };
 
 } // namespace plugins

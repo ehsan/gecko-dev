@@ -121,7 +121,7 @@ js::IsIdentifier(JSLinearString *str)
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin,
                          const jschar *base, size_t length, const char *fn, unsigned ln,
-                         JSVersion v, StrictModeGetter *smg)
+                         JSVersion v)
   : tokens(),
     tokensRoot(cx, &tokens),
     cursor(),
@@ -139,14 +139,15 @@ TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *origin
     listenerTSData(),
     tokenbuf(cx),
     version(v),
-    allowXML(VersionHasAllowXML(v)),
-    moarXML(VersionHasMoarXML(v)),
+    xml(VersionHasXML(v)),
     cx(cx),
-    originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin)),
-    strictModeGetter(smg)
+    originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin))
 {
     if (originPrincipals)
         JS_HoldPrincipals(originPrincipals);
+
+    if (cx->hasRunOption(JSOPTION_STRICT_MODE))
+        setStrictMode();
 
     JSSourceHandler listener = cx->runtime->debugHooks.sourceHandler;
     void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
@@ -525,18 +526,21 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
 }
 
 bool
-js::ReportStrictModeError(JSContext *cx, TokenStream *ts, ParseNode *pn, unsigned errorNumber, ...)
+js::ReportStrictModeError(JSContext *cx, TokenStream *ts, SharedContext *sc, ParseNode *pn,
+                          unsigned errorNumber, ...)
 {
+    JS_ASSERT(ts || sc);
     JS_ASSERT(cx == ts->getContext());
 
     /* In strict mode code, this is an error, not merely a warning. */
     unsigned flags;
-    if (ts->isStrictMode())
+    if ((ts && ts->isStrictMode()) || (sc && sc->inStrictMode())) {
         flags = JSREPORT_ERROR;
-    else if (cx->hasStrictOption())
+    } else {
+        if (!cx->hasStrictOption())
+            return true;
         flags = JSREPORT_WARNING;
-    else
-        return true;
+    }
 
     va_list ap;
     va_start(ap, errorNumber);
@@ -550,16 +554,17 @@ bool
 js::ReportCompileErrorNumber(JSContext *cx, TokenStream *ts, ParseNode *pn, unsigned flags,
                              unsigned errorNumber, ...)
 {
+    va_list ap;
+
     /*
-     * We don't handle JSREPORT_STRICT_MODE_ERROR here.  Use
-     * ReportStrictModeError instead, or do the checks in the caller and pass
-     * plain old JSREPORT_ERROR.
+     * We don't accept a TreeContext argument, so we can't implement
+     * JSREPORT_STRICT_MODE_ERROR here.  Use ReportStrictModeError instead,
+     * or do the checks in the caller and pass plain old JSREPORT_ERROR.
      */
     JS_ASSERT(!(flags & JSREPORT_STRICT_MODE_ERROR));
-    JS_ASSERT(cx == ts->getContext());
 
-    va_list ap;
     va_start(ap, errorNumber);
+    JS_ASSERT(cx == ts->getContext());
     bool result = ts->reportCompileErrorNumberVA(pn, flags, errorNumber, ap);
     va_end(ap);
 
@@ -883,8 +888,8 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
  * - https://bugzilla.mozilla.org/show_bug.cgi?id=309712
  * - https://bugzilla.mozilla.org/show_bug.cgi?id=310993
  *
- * So without JSOPTION_MOAR_XML, we changed around Firefox 1.5 never to scan an
- * XML comment or CDATA literal.  Instead, we always scan <! as the start of an
+ * So without JSOPTION_XML, we changed around Firefox 1.5 never to scan an XML
+ * comment or CDATA literal.  Instead, we always scan <! as the start of an
  * HTML comment hack to end of line, used since Netscape 2 to hide script tag
  * content from script-unaware browsers.
  *
@@ -1302,7 +1307,7 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSO
 
     /* Strict reserved word. */
     if (isStrictMode())
-        return ReportStrictModeError(cx, this, NULL, JSMSG_RESERVED_ID, kw->chars);
+        return ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars);
     return ReportCompileErrorNumber(cx, this, NULL, JSREPORT_STRICT | JSREPORT_WARNING,
                                     JSMSG_RESERVED_ID, kw->chars);
 }
@@ -1587,7 +1592,7 @@ TokenStream::getTokenInternal()
                             c = peekChar();
                             /* Strict mode code allows only \0, then a non-digit. */
                             if (val != 0 || JS7_ISDEC(c)) {
-                                if (!ReportStrictModeError(cx, this, NULL,
+                                if (!ReportStrictModeError(cx, this, NULL, NULL,
                                                            JSMSG_DEPRECATED_OCTAL)) {
                                     goto error;
                                 }
@@ -1768,7 +1773,7 @@ TokenStream::getTokenInternal()
             numStart = userbuf.addressOfNextRawChar() - 1;  /* one past the '0' */
             while (JS7_ISDEC(c)) {
                 /* Octal integer literals are not permitted in strict mode code. */
-                if (!ReportStrictModeError(cx, this, NULL, JSMSG_DEPRECATED_OCTAL))
+                if (!ReportStrictModeError(cx, this, NULL, NULL, JSMSG_DEPRECATED_OCTAL))
                     goto error;
 
                 /*
@@ -1874,7 +1879,7 @@ TokenStream::getTokenInternal()
 
       case '<':
 #if JS_HAS_XML_SUPPORT
-        if ((flags & TSF_OPERAND) && allowsXML() && (hasMoarXML() || peekChar() != '!')) {
+        if ((flags & TSF_OPERAND) && !isStrictMode() && (hasXML() || peekChar() != '!')) {
             if (!getXMLMarkup(&tt, &tp))
                 goto error;
             goto out;

@@ -876,12 +876,8 @@ void nsBaseWidget::CreateCompositor()
     AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
     mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
     PRInt32 maxTextureSize;
-    PLayersChild* shadowManager;
-    if (mUseAcceleratedRendering) {
-      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
-    } else {
-      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_BASIC, &maxTextureSize);
-    }
+    PLayersChild* shadowManager =
+      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
 
     if (shadowManager) {
       ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -891,10 +887,7 @@ void nsBaseWidget::CreateCompositor()
         return;
       }
       lf->SetShadowManager(shadowManager);
-      if (mUseAcceleratedRendering)
-        lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
-      else
-        lf->SetParentBackendType(LayerManager::LAYERS_BASIC);
+      lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
       lf->SetMaxTextureSize(maxTextureSize);
 
       mLayerManager = lm;
@@ -920,15 +913,16 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
 
     mUseAcceleratedRendering = GetShouldAccelerate();
 
-    // Try to use an async compositor first, if possible
-    if (UseOffMainThreadCompositing()) {
-      // e10s uses the parameter to pass in the shadow manager from the TabChild
-      // so we don't expect to see it there since this doesn't support e10s.
-      NS_ASSERTION(aShadowManager == nsnull, "Async Compositor not supported with e10s");
-      CreateCompositor();
-    }
-
     if (mUseAcceleratedRendering) {
+
+      // Try to use an async compositor first, if possible
+      if (UseOffMainThreadCompositing()) {
+        // e10s uses the parameter to pass in the shadow manager from the TabChild
+        // so we don't expect to see it there since this doesn't support e10s.
+        NS_ASSERTION(aShadowManager == nsnull, "Async Compositor not supported with e10s");
+        CreateCompositor();
+      }
+
       if (!mLayerManager) {
         nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
         /**

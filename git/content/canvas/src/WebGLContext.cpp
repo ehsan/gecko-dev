@@ -153,7 +153,7 @@ WebGLContext::WebGLContext()
     mContextStatus = ContextStable;
     mContextLostErrorSet = false;
 
-    mAlreadyGeneratedWarnings = 0;
+    mAlreadyReportedMessages = 0;
 }
 
 WebGLContext::~WebGLContext()
@@ -911,27 +911,25 @@ WebGLContext::GetExtension(const nsAString& aName)
         return nsnull;
     }
 
-    nsString lowerCaseName(aName);
-    ToLowerCase(lowerCaseName);
-
+    // handle simple extensions that don't need custom objects first
     WebGLExtensionID ei = WebGLExtensionID_Max;
-    if (lowerCaseName.EqualsLiteral("oes_texture_float")) {
+    if (aName.EqualsLiteral("OES_texture_float")) {
         if (IsExtensionSupported(WebGL_OES_texture_float))
             ei = WebGL_OES_texture_float;
     }
-    else if (lowerCaseName.EqualsLiteral("oes_standard_derivatives")) {
+    else if (aName.EqualsLiteral("OES_standard_derivatives")) {
         if (IsExtensionSupported(WebGL_OES_standard_derivatives))
             ei = WebGL_OES_standard_derivatives;
     }
-    else if (lowerCaseName.EqualsLiteral("moz_ext_texture_filter_anisotropic")) {
+    else if (aName.EqualsLiteral("MOZ_EXT_texture_filter_anisotropic")) {
         if (IsExtensionSupported(WebGL_EXT_texture_filter_anisotropic))
             ei = WebGL_EXT_texture_filter_anisotropic;
     }
-    else if (lowerCaseName.EqualsLiteral("moz_webgl_lose_context")) {
+    else if (aName.EqualsLiteral("MOZ_WEBGL_lose_context")) {
         if (IsExtensionSupported(WebGL_WEBGL_lose_context))
             ei = WebGL_WEBGL_lose_context;
     }
-    else if (lowerCaseName.EqualsLiteral("moz_webgl_compressed_texture_s3tc")) {
+    else if (aName.EqualsLiteral("MOZ_WEBGL_compressed_texture_s3tc")) {
         if (IsExtensionSupported(WebGL_WEBGL_compressed_texture_s3tc))
             ei = WebGL_WEBGL_compressed_texture_s3tc;
     }

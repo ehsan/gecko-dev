@@ -28,7 +28,6 @@ var SelectHelper = {
     if (selected == -1)
         return;
 
-    var changed = false;
     if (aElement instanceof Ci.nsIDOMXULMenuListElement) {
       aElement.selectedIndex = selected;
     } else if (aElement instanceof HTMLSelectElement) {
@@ -41,14 +40,10 @@ var SelectHelper = {
       }
       let i = 0;
       this.forOptions(aElement, function(aNode) {
-        if (aNode.selected != selected[i])
-          changed = true;
         aNode.selected = selected[i++];
       });
     }
-
-    if (changed)
-      this.fireOnChange(aElement);
+    this.fireOnChange(aElement);
   },
 
   _isMenu: function(aElement) {

@@ -83,11 +83,6 @@ public:
 
     size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
-    bool HasDefaultBorderImageSlice() const;
-    bool HasDefaultBorderImageWidth() const;
-    bool HasDefaultBorderImageOutset() const;
-    bool HasDefaultBorderImageRepeat() const;
-
 private:
     void* operator new(size_t aBaseSize, PRUint32 aNumProps) {
         NS_ABORT_IF_FALSE(aBaseSize == sizeof(nsCSSCompressedDataBlock),
