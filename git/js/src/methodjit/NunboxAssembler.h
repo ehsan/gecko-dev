@@ -345,8 +345,8 @@ class NunboxAssembler : public JSC::MacroAssembler
         loadPtr(payloadOf(privAddr), to);
     }
 
-    void loadObjPrivate(RegisterID base, RegisterID to, uint32 nfixed) {
-        Address priv(base, JSObject::getPrivateDataOffset(nfixed));
+    void loadObjPrivate(RegisterID base, RegisterID to) {
+        Address priv(base, offsetof(JSObject, privateData));
         loadPtr(priv, to);
     }
 

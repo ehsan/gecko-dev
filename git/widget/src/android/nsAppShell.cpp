@@ -214,7 +214,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     {
         MutexAutoLock lock(mCondLock);
 
-        curEvent = PopNextEvent();
+        curEvent = GetNextEvent();
         if (!curEvent && mayWait) {
             // hmm, should we really hardcode this 10s?
 #if defined(DEBUG_ANDROID_EVENTS)
@@ -229,7 +229,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             mQueueCond.Wait();
 #endif
 
-            curEvent = PopNextEvent();
+            curEvent = GetNextEvent();
         }
     }
 
@@ -244,7 +244,10 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         int curType = curEvent->Type();
         int nextType = nextEvent->Type();
 
-        while (nextType == AndroidGeckoEvent::DRAW && mLastDrawEvent &&
+        // Do not skip draw events if the Java compositor is in use, since the Java compositor
+        // updates only the rect that changed - thus we will lose updates.
+#ifndef MOZ_JAVA_COMPOSITOR
+        while (nextType == AndroidGeckoEvent::DRAW &&
                mNumDraws > 1)
         {
             // skip this draw, since there's a later one already in the queue.. this will let us
@@ -253,27 +256,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             // and end up with just
             //   MOVE DRAW
             // when we process all the events.
-
-            // Combine the next draw event's rect with the last one in the queue
-            const nsIntRect& nextRect = nextEvent->Rect();
-            const nsIntRect& lastRect = mLastDrawEvent->Rect();
-            int combinedArea = (lastRect.width * lastRect.height) +
-                               (nextRect.width * nextRect.height);
-
-            nsIntRect combinedRect = lastRect.Union(nextRect);
-            mLastDrawEvent->Init(AndroidGeckoEvent::DRAW, combinedRect);
-
-            // XXX We may want to consider using regions instead of rectangles.
-            //     Print an error if we're upload a lot more than we would
-            //     if we handled this as two separate events.
-            int boundsArea = combinedRect.width * combinedRect.height;
-            if (boundsArea > combinedArea * 8)
-                ALOG("nsAppShell::ProcessNextNativeEvent: "
-                     "Area of bounds greatly exceeds combined area: %d > %d",
-                     boundsArea, combinedArea);
-
-            // Remove the next draw event
-            PopNextEvent();
+            RemoveNextEvent();
             delete nextEvent;
 
 #if defined(DEBUG_ANDROID_EVENTS)
@@ -283,6 +266,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             nextEvent = PeekNextEvent();
             nextType = nextEvent->Type();
         }
+#endif
 
         // If the next type of event isn't the same as the current type,
         // we don't coalesce.
@@ -301,7 +285,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         ALOG("# Removing % 2d event", curType);
 #endif
 
-        curEvent = PopNextEvent();
+        RemoveNextEvent();
+        curEvent = nextEvent;
         nextEvent = PeekNextEvent();
     }
 
@@ -453,7 +438,7 @@ nsAppShell::ResendLastResizeEvent(nsWindow* aDest) {
 }
 
 AndroidGeckoEvent*
-nsAppShell::PopNextEvent()
+nsAppShell::GetNextEvent()
 {
     AndroidGeckoEvent *ae = nsnull;
     MutexAutoLock lock(mQueueLock);
@@ -461,8 +446,7 @@ nsAppShell::PopNextEvent()
         ae = mEventQueue[0];
         mEventQueue.RemoveElementAt(0);
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
-            if (--mNumDraws == 0)
-                mLastDrawEvent = nsnull;
+            mNumDraws--;
         }
     }
 
@@ -504,10 +488,23 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
 
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             mNumDraws++;
-            mLastDrawEvent = ae;
         }
     }
     NotifyNativeEvent();
+}
+
+void
+nsAppShell::RemoveNextEvent()
+{
+    AndroidGeckoEvent *ae = nsnull;
+    MutexAutoLock lock(mQueueLock);
+    if (mEventQueue.Length()) {
+        ae = mEventQueue[0];
+        mEventQueue.RemoveElementAt(0);
+        if (ae->Type() == AndroidGeckoEvent::DRAW) {
+            mNumDraws--;
+        }
+    }
 }
 
 void

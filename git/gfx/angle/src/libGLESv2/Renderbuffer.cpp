@@ -72,12 +72,12 @@ IDirect3DSurface9 *RenderbufferTexture::getDepthStencil()
 
 GLsizei RenderbufferTexture::getWidth() const
 {
-    return mTexture->getWidth(0);
+    return mTexture->getWidth();
 }
  
 GLsizei RenderbufferTexture::getHeight() const
 {
-    return mTexture->getHeight(0);
+    return mTexture->getHeight();
 }
  
 GLenum RenderbufferTexture::getInternalFormat() const

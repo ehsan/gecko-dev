@@ -38,7 +38,6 @@
 #include "nsIMacDockSupport.h"
 #include "nsIStandaloneNativeMenu.h"
 #include "nsCOMPtr.h"
-#include "nsString.h"
 
 class nsMacDockSupport : public nsIMacDockSupport
 {
@@ -51,5 +50,4 @@ public:
 
 protected:
   nsCOMPtr<nsIStandaloneNativeMenu> mDockMenu;
-  nsString mBadgeText;
 };

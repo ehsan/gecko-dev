@@ -46,7 +46,6 @@ MAKEFILES_dom="
   ipc/ipdl/Makefile
   ipc/testshell/Makefile
   dom/Makefile
-  dom/interfaces/apps/Makefile
   dom/interfaces/base/Makefile
   dom/interfaces/canvas/Makefile
   dom/interfaces/core/Makefile
@@ -71,9 +70,6 @@ MAKEFILES_dom="
   dom/base/Makefile
   dom/battery/Makefile
   dom/indexedDB/Makefile
-  dom/sms/Makefile
-  dom/sms/interfaces/Makefile
-  dom/sms/src/Makefile
   dom/src/Makefile
   dom/src/events/Makefile
   dom/src/jsurl/Makefile
@@ -127,7 +123,6 @@ MAKEFILES_gfx="
   gfx/Makefile
   gfx/2d/Makefile
   gfx/angle/Makefile
-  gfx/gl/Makefile
   gfx/harfbuzz/src/Makefile
   gfx/ipc/Makefile
   gfx/layers/Makefile
@@ -748,7 +743,6 @@ if [ "$ENABLE_TESTS" ]; then
     dom/indexedDB/test/Makefile
     dom/plugins/test/Makefile
     dom/plugins/test/testplugin/Makefile
-    dom/sms/tests/Makefile
     dom/src/foo/Makefile
     dom/src/json/test/Makefile
     dom/src/jsurl/test/Makefile
@@ -900,7 +894,6 @@ if [ "$ENABLE_TESTS" ]; then
     toolkit/components/telemetry/tests/Makefile
     toolkit/components/urlformatter/tests/Makefile
     toolkit/components/viewsource/test/Makefile
-    toolkit/components/viewsource/test/browser/Makefile
     toolkit/content/tests/Makefile
     toolkit/content/tests/chrome/Makefile
     toolkit/content/tests/chrome/rtlchrome/Makefile

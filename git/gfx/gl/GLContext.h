@@ -78,7 +78,7 @@ namespace mozilla {
   namespace layers {
     class LayerManagerOGL;
     class ColorTextureLayerProgram;
-  }
+  };
 
 namespace gl {
 class GLContext;
@@ -542,7 +542,6 @@ public:
 #endif
         mIsGlobalSharedContext(false),
         mHasRobustness(false),
-        mContextLost(false),
         mVendor(-1),
         mDebugMode(0),
         mCreationFormat(aFormat),
@@ -595,8 +594,6 @@ public:
 #endif
         return MakeCurrentImpl(aForce);
     }
-
-    bool IsContextLost() { return mContextLost; }
 
     virtual bool SetupLookupFunction() = 0;
 
@@ -1329,7 +1326,6 @@ protected:
     bool mIsGLES2;
     bool mIsGlobalSharedContext;
     bool mHasRobustness;
-    bool mContextLost;
 
     PRInt32 mVendor;
 

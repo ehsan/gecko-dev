@@ -121,6 +121,22 @@ NS_IMETHODIMP WebGLContext::name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6) { \
     MakeContextCurrent(); gl->f##glname(a1,a2,a3,a4,a5,a6); return NS_OK; \
 }
 
+already_AddRefed<WebGLUniformLocation>
+WebGLProgram::GetUniformLocationObject(GLint glLocation)
+{
+    WebGLUniformLocation *existingLocationObject;
+    if (mMapUniformLocations.Get(glLocation, &existingLocationObject)) {
+        return existingLocationObject;
+    }
+
+    if (glLocation < 0) {
+        return nsnull;
+    }
+
+    nsRefPtr<WebGLUniformLocation> loc = new WebGLUniformLocation(mContext, this, glLocation);
+    mMapUniformLocations.Put(glLocation, loc);
+    return loc.forget();
+}
 
 //
 //  WebGL API
@@ -134,7 +150,7 @@ WebGLContext::ActiveTexture(WebGLenum texture)
     if (mContextLost)
         return NS_OK;
 
-    if (texture < LOCAL_GL_TEXTURE0 || texture >= LOCAL_GL_TEXTURE0 + mBound2DTextures.Length())
+    if (texture < LOCAL_GL_TEXTURE0 || texture >= LOCAL_GL_TEXTURE0+mBound2DTextures.Length())
         return ErrorInvalidEnum("ActiveTexture: texture unit %d out of range (0..%d)",
                                 texture, mBound2DTextures.Length()-1);
 
@@ -169,6 +185,10 @@ WebGLContext::AttachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
 
     if (!program->AttachShader(shader))
         return ErrorInvalidOperation("AttachShader: shader is already attached");
+
+    MakeContextCurrent();
+
+    gl->fAttachShader(progname, shadername);
 
     return NS_OK;
 }
@@ -1067,8 +1087,13 @@ WebGLContext::CreateProgram(nsIWebGLProgram **retval)
 
     *retval = nsnull;
 
-    WebGLProgram *prog = new WebGLProgram(this);
+    MakeContextCurrent();
+
+    WebGLuint name = gl->fCreateProgram();
+
+    WebGLProgram *prog = new WebGLProgram(this, name);
     NS_ADDREF(*retval = prog);
+    mMapPrograms.Put(name, prog);
 
     return NS_OK;
 }
@@ -1087,8 +1112,13 @@ WebGLContext::CreateShader(WebGLenum type, nsIWebGLShader **retval)
         return ErrorInvalidEnumInfo("createShader: type", type);
     }
 
-    WebGLShader *shader = new WebGLShader(this, type);
+    MakeContextCurrent();
+
+    WebGLuint name = gl->fCreateShader(type);
+
+    WebGLShader *shader = new WebGLShader(this, name, type);
     NS_ADDREF(*retval = shader);
+    mMapShaders.Put(name, shader);
 
     return NS_OK;
 }
@@ -1122,17 +1152,11 @@ WebGLContext::DeleteBuffer(nsIWebGLBuffer *bobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundArrayBuffer == buf)
-        BindBuffer(LOCAL_GL_ARRAY_BUFFER, nsnull);
-    if (mBoundElementArrayBuffer == buf)
-        BindBuffer(LOCAL_GL_ELEMENT_ARRAY_BUFFER, nsnull);
+    MakeContextCurrent();
 
-    for (int i = 0; i < mGLMaxVertexAttribs; i++) {
-        if (mAttribBuffers[i].buf == buf)
-            mAttribBuffers[i].buf = nsnull;
-    }
-
-    buf->RequestDelete();
+    gl->fDeleteBuffers(1, &bufname);
+    buf->Delete();
+    mMapBuffers.Remove(bufname);
 
     return NS_OK;
 }
@@ -1143,8 +1167,8 @@ WebGLContext::DeleteFramebuffer(nsIWebGLFramebuffer *fbobj)
     if (mContextLost)
         return NS_OK;
 
-    WebGLFramebuffer *fbuf;
     WebGLuint fbufname;
+    WebGLFramebuffer *fbuf;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteFramebuffer", fbobj, &fbuf, &fbufname, &isNull, &isDeleted))
         return NS_OK;
@@ -1152,10 +1176,14 @@ WebGLContext::DeleteFramebuffer(nsIWebGLFramebuffer *fbobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    fbuf->RequestDelete();
+    MakeContextCurrent();
 
-    if (mBoundFramebuffer == fbuf)
-        BindFramebuffer(LOCAL_GL_FRAMEBUFFER, nsnull);
+    gl->fDeleteFramebuffers(1, &fbufname);
+    fbuf->Delete();
+    mMapFramebuffers.Remove(fbufname);
+
+    if (mBoundFramebuffer && mBoundFramebuffer->GLName() == fbufname)
+        mBoundFramebuffer = NULL;
 
     return NS_OK;
 }
@@ -1166,8 +1194,8 @@ WebGLContext::DeleteRenderbuffer(nsIWebGLRenderbuffer *rbobj)
     if (mContextLost)
         return NS_OK;
 
-    WebGLRenderbuffer *rbuf;
     WebGLuint rbufname;
+    WebGLRenderbuffer *rbuf;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteRenderbuffer", rbobj, &rbuf, &rbufname, &isNull, &isDeleted))
         return NS_OK;
@@ -1175,13 +1203,26 @@ WebGLContext::DeleteRenderbuffer(nsIWebGLRenderbuffer *rbobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundFramebuffer)
-        mBoundFramebuffer->DetachRenderbuffer(rbuf);
+    MakeContextCurrent();
 
-    if (mBoundRenderbuffer == rbuf)
-        BindRenderbuffer(LOCAL_GL_RENDERBUFFER, nsnull);
+    // XXX we need to track renderbuffer attachments; from glDeleteRenderbuffers man page:
 
-    rbuf->RequestDelete();
+    /*
+            If a renderbuffer object that is currently bound is deleted, the binding reverts
+            to 0 (the absence of any renderbuffer object). Additionally, special care
+            must be taken when deleting a renderbuffer object if the image of the renderbuffer
+            is attached to a framebuffer object. In this case, if the deleted renderbuffer object is
+            attached to the currently bound framebuffer object, it is 
+            automatically detached.  However, attachments to any other framebuffer objects are the
+            responsibility of the application.
+    */
+
+    gl->fDeleteRenderbuffers(1, &rbufname);
+    rbuf->Delete();
+    mMapRenderbuffers.Remove(rbufname);
+
+    if (mBoundRenderbuffer && mBoundRenderbuffer->GLName() == rbufname)
+        mBoundRenderbuffer = NULL;
 
     return NS_OK;
 }
@@ -1192,8 +1233,8 @@ WebGLContext::DeleteTexture(nsIWebGLTexture *tobj)
     if (mContextLost)
         return NS_OK;
 
-    WebGLTexture *tex;
     WebGLuint texname;
+    WebGLTexture *tex;
     bool isNull, isDeleted;
     if (!GetConcreteObjectAndGLName("deleteTexture", tobj, &tex, &texname, &isNull, &isDeleted))
         return NS_OK;
@@ -1201,20 +1242,11 @@ WebGLContext::DeleteTexture(nsIWebGLTexture *tobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    if (mBoundFramebuffer)
-        mBoundFramebuffer->DetachTexture(tex);
+    MakeContextCurrent();
 
-    for (int i = 0; i < mGLMaxTextureUnits; i++) {
-        if ((tex->Target() == LOCAL_GL_TEXTURE_2D && mBound2DTextures[i] == tex) ||
-            (tex->Target() == LOCAL_GL_TEXTURE_CUBE_MAP && mBoundCubeMapTextures[i] == tex))
-        {
-            ActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            BindTexture(tex->Target(), nsnull);
-        }
-    }
-    ActiveTexture(LOCAL_GL_TEXTURE0 + mActiveTexture);
-
-    tex->RequestDelete();
+    gl->fDeleteTextures(1, &texname);
+    tex->Delete();
+    mMapTextures.Remove(texname);
 
     return NS_OK;
 }
@@ -1234,7 +1266,12 @@ WebGLContext::DeleteProgram(nsIWebGLProgram *pobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    prog->RequestDelete();
+    MakeContextCurrent();
+
+    gl->fDeleteProgram(progname);
+
+    prog->DeleteWhenNotCurrent();
+    mMapPrograms.Remove(progname);
 
     return NS_OK;
 }
@@ -1254,7 +1291,11 @@ WebGLContext::DeleteShader(nsIWebGLShader *sobj)
     if (isNull || isDeleted)
         return NS_OK;
 
-    shader->RequestDelete();
+    MakeContextCurrent();
+
+    gl->fDeleteShader(shadername);
+    shader->DeleteWhenNotAttached();
+    mMapShaders.Remove(shadername);
 
     return NS_OK;
 }
@@ -1277,6 +1318,12 @@ WebGLContext::DetachShader(nsIWebGLProgram *pobj, nsIWebGLShader *shobj)
     // deleted shader, since it's still a shader
     if (!program->DetachShader(shader))
         return ErrorInvalidOperation("DetachShader: shader is not attached");
+
+    MakeContextCurrent();
+
+    gl->fDetachShader(progname, shadername);
+
+    shader->DetachedFromProgram();
 
     return NS_OK;
 }
@@ -2508,8 +2555,14 @@ WebGLContext::CreateBuffer(nsIWebGLBuffer **retval)
 
     *retval = nsnull;
 
-    WebGLBuffer *globj = new WebGLBuffer(this);
+    MakeContextCurrent();
+
+    WebGLuint name;
+    gl->fGenBuffers(1, &name);
+
+    WebGLBuffer *globj = new WebGLBuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapBuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -2524,8 +2577,12 @@ WebGLContext::CreateTexture(nsIWebGLTexture **retval)
 
     MakeContextCurrent();
 
-    WebGLTexture *globj = new WebGLTexture(this);
+    WebGLuint name;
+    gl->fGenTextures(1, &name);
+
+    WebGLTexture *globj = new WebGLTexture(this, name);
     NS_ADDREF(*retval = globj);
+    mMapTextures.Put(name, globj);
 
     return NS_OK;
 }
@@ -2554,8 +2611,7 @@ WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVari
 
     WebGLuint progname;
     bool isDeleted;
-    WebGLProgram *prog;
-    if (!GetConcreteObjectAndGLName("getProgramParameter: program", pobj, &prog, &progname, nsnull, &isDeleted))
+    if (!GetGLName<WebGLProgram>("getProgramParameter: program", pobj, &progname, nsnull, &isDeleted))
         return NS_OK;
 
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
@@ -2578,8 +2634,6 @@ WebGLContext::GetProgramParameter(nsIWebGLProgram *pobj, PRUint32 pname, nsIVari
         }
             break;
         case LOCAL_GL_DELETE_STATUS:
-            wrval->SetAsBool(prog->IsDeleteRequested());
-            break;
         case LOCAL_GL_LINK_STATUS:
         {
             GLint i = 0;
@@ -2938,10 +2992,9 @@ WebGLContext::GetUniformLocation(nsIWebGLProgram *pobj, const nsAString& name, n
 
     GLint intlocation = gl->fGetUniformLocation(progname, NS_LossyConvertUTF16toASCII(name).get());
 
-    WebGLUniformLocation *loc = nsnull;
-    if (intlocation >= 0)
-        NS_ADDREF(loc = new WebGLUniformLocation(this, prog, intlocation));
-    *retval = loc;
+    nsRefPtr<nsIWebGLUniformLocation> loc = prog->GetUniformLocationObject(intlocation);
+    *retval = loc.forget().get();
+
     return NS_OK;
 }
 
@@ -3070,9 +3123,15 @@ WebGLContext::IsBuffer(nsIWebGLBuffer *bobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint buffername;
     WebGLBuffer *buffer;
-    *retval = GetConcreteObjectAndGLName("isBuffer", bobj, &buffer, &buffername, nsnull, &isDeleted) && 
-              !isDeleted &&
-              buffer->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isBuffer", bobj, &buffer, &buffername, nsnull, &isDeleted) && 
+                !isDeleted &&
+                buffer->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsBuffer(buffername);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3088,9 +3147,15 @@ WebGLContext::IsFramebuffer(nsIWebGLFramebuffer *fbobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint fbname;
     WebGLFramebuffer *fb;
-    *retval = GetConcreteObjectAndGLName("isFramebuffer", fbobj, &fb, &fbname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              fb->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isFramebuffer", fbobj, &fb, &fbname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                fb->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsFramebuffer(fbname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3105,8 +3170,10 @@ WebGLContext::IsProgram(nsIWebGLProgram *pobj, WebGLboolean *retval)
 
     bool isDeleted;
     WebGLProgram *prog = nsnull;
-    *retval = GetConcreteObject("isProgram", pobj, &prog, nsnull, &isDeleted, false) &&
-              !isDeleted;
+    bool ok = GetConcreteObject("isProgram", pobj, &prog, nsnull, &isDeleted, false) &&
+                !isDeleted;
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3122,9 +3189,15 @@ WebGLContext::IsRenderbuffer(nsIWebGLRenderbuffer *rbobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint rbname;
     WebGLRenderbuffer *rb;
-    *retval = GetConcreteObjectAndGLName("isRenderBuffer", rbobj, &rb, &rbname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              rb->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isRenderBuffer", rbobj, &rb, &rbname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                rb->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsRenderbuffer(rbname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3139,8 +3212,10 @@ WebGLContext::IsShader(nsIWebGLShader *sobj, WebGLboolean *retval)
 
     bool isDeleted;
     WebGLShader *shader = nsnull;
-    *retval = GetConcreteObject("isShader", sobj, &shader, nsnull, &isDeleted, false) &&
-              !isDeleted;
+    bool ok = GetConcreteObject("isShader", sobj, &shader, nsnull, &isDeleted, false) &&
+                !isDeleted;
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3156,9 +3231,15 @@ WebGLContext::IsTexture(nsIWebGLTexture *tobj, WebGLboolean *retval)
     bool isDeleted;
     WebGLuint texname;
     WebGLTexture *tex;
-    *retval = GetConcreteObjectAndGLName("isTexture", tobj, &tex, &texname, nsnull, &isDeleted) &&
-              !isDeleted &&
-              tex->HasEverBeenBound();
+    bool ok = GetConcreteObjectAndGLName("isTexture", tobj, &tex, &texname, nsnull, &isDeleted) &&
+                !isDeleted &&
+                tex->HasEverBeenBound();
+    if (ok) {
+        MakeContextCurrent();
+        ok = gl->fIsTexture(texname);
+    }
+
+    *retval = ok;
     return NS_OK;
 }
 
@@ -3912,10 +3993,7 @@ nsresult
 WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
                                        gfxImageSurface **imageOut, int *format)
 {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(imageOrCanvas);
-    if (!content) {
-        return NS_ERROR_FAILURE;
-    }        
+    gfxImageSurface *surf = nsnull;
 
     PRUint32 flags =
         nsLayoutUtils::SFE_WANT_NEW_SURFACE |
@@ -3927,7 +4005,7 @@ WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
         flags |= nsLayoutUtils::SFE_NO_PREMULTIPLY_ALPHA;
 
     nsLayoutUtils::SurfaceFromElementResult res =
-        nsLayoutUtils::SurfaceFromElement(content->AsElement(), flags);
+        nsLayoutUtils::SurfaceFromElement(imageOrCanvas, flags);
     if (!res.mSurface)
         return NS_ERROR_FAILURE;
     if (res.mSurface->GetType() != gfxASurface::SurfaceTypeImage) {
@@ -3956,10 +4034,11 @@ WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
         }
     }
 
-    // part 2: if the DOM element is a canvas, check that it's not write-only.
-    // That would indicate a tainted canvas, i.e. a canvas that could contain
-    // cross-domain image data.
-    if (nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content)) {
+    // part 2: if the DOM element is a canvas, check that it's not write-only. That would indicate a tainted canvas,
+    // i.e. a canvas that could contain cross-domain image data.
+    nsCOMPtr<nsIContent> maybeDOMCanvas = do_QueryInterface(imageOrCanvas);
+    if (maybeDOMCanvas && maybeDOMCanvas->IsHTML(nsGkAtoms::canvas)) {
+        nsHTMLCanvasElement *canvas = static_cast<nsHTMLCanvasElement*>(maybeDOMCanvas.get());
         if (canvas->IsWriteOnly()) {
             LogMessageIfVerbose("The canvas used as source for texImage2D here is tainted (write-only). It is forbidden "
                                 "to load a WebGL texture from a tainted canvas. A Canvas becomes tainted for example "
@@ -3973,7 +4052,7 @@ WebGLContext::DOMElementToImageSurface(nsIDOMElement *imageOrCanvas,
     // Notice that there is never a need to mark the WebGL canvas as write-only, since we reject write-only/cross-domain
     // texture sources in the first place.
 
-    gfxImageSurface* surf = static_cast<gfxImageSurface*>(res.mSurface.get());
+    surf = static_cast<gfxImageSurface*>(res.mSurface.get());
 
     res.mSurface.forget();
     *imageOut = surf;
@@ -4255,7 +4334,11 @@ WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 
     gl->fUseProgram(progname);
 
+    WebGLProgram* previous = mCurrentProgram;
     mCurrentProgram = prog;
+
+    if (previous)
+        previous->NoLongerCurrent();
 
     return NS_OK;
 }
@@ -4291,8 +4374,14 @@ WebGLContext::CreateFramebuffer(nsIWebGLFramebuffer **retval)
 
     *retval = 0;
 
-    WebGLFramebuffer *globj = new WebGLFramebuffer(this);
+    MakeContextCurrent();
+
+    GLuint name;
+    gl->fGenFramebuffers(1, &name);
+
+    WebGLFramebuffer *globj = new WebGLFramebuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapFramebuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -4305,8 +4394,14 @@ WebGLContext::CreateRenderbuffer(nsIWebGLRenderbuffer **retval)
 
     *retval = 0;
 
-    WebGLRenderbuffer *globj = new WebGLRenderbuffer(this);
+    MakeContextCurrent();
+
+    GLuint name;
+    gl->fGenRenderbuffers(1, &name);
+
+    WebGLRenderbuffer *globj = new WebGLRenderbuffer(this, name);
     NS_ADDREF(*retval = globj);
+    mMapRenderbuffers.Put(name, globj);
 
     return NS_OK;
 }
@@ -4469,8 +4564,6 @@ WebGLContext::GetShaderParameter(nsIWebGLShader *sobj, WebGLenum pname, nsIVaria
         }
             break;
         case LOCAL_GL_DELETE_STATUS:
-            wrval->SetAsBool(shader->IsDeleteRequested());
-            break;
         case LOCAL_GL_COMPILE_STATUS:
         {
             GLint i = 0;

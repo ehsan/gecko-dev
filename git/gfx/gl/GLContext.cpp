@@ -2498,16 +2498,14 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
                           aTexture,
                           0);
 
-    GLenum result = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    if (aTexture && (result != LOCAL_GL_FRAMEBUFFER_COMPLETE)) {
-        nsCAutoString msg;
-        msg.Append("Framebuffer not complete -- error 0x");
-        msg.AppendInt(result, 16);
+    if (aTexture && (fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
+                     LOCAL_GL_FRAMEBUFFER_COMPLETE)) {
+
         // Note: if you are hitting this, it is likely that
         // your texture is not texture complete -- that is, you
         // allocated a texture name, but didn't actually define its
         // size via a call to TexImage2D.
-        NS_RUNTIMEABORT(msg.get());
+        NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete!");
     }
 }
 
@@ -2574,6 +2572,11 @@ RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArra
                 break;
             }
         }
+#ifdef DEBUG
+        if (!found) {
+            printf_stderr("GL Context %p deleting resource %d, which doesn't exist!\n", aOrigin, name);
+        }
+#endif
     }
 }
 

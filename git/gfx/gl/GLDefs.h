@@ -3246,5 +3246,4 @@ typedef ptrdiff_t GLintptr;
 #define LOCAL_EGL_CORE_NATIVE_ENGINE          0x305B
 #define LOCAL_EGL_READ                        0x305A
 #define LOCAL_EGL_DRAW                        0x3059
-#define LOCAL_EGL_CONTEXT_LOST                0x300E
 #endif

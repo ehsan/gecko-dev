@@ -1713,20 +1713,14 @@ GLenum Texture2D::getTarget() const
     return GL_TEXTURE_2D;
 }
 
-GLsizei Texture2D::getWidth(GLint level) const
+GLsizei Texture2D::getWidth() const
 {
-    if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
-        return mImageArray[level].getWidth();
-    else
-        return 0;
+    return mImageArray[0].getWidth();
 }
 
-GLsizei Texture2D::getHeight(GLint level) const
+GLsizei Texture2D::getHeight() const
 {
-    if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
-        return mImageArray[level].getHeight();
-    else
-        return 0;
+    return mImageArray[0].getHeight();
 }
 
 GLenum Texture2D::getInternalFormat() const
@@ -2347,20 +2341,14 @@ GLenum TextureCubeMap::getTarget() const
     return GL_TEXTURE_CUBE_MAP;
 }
 
-GLsizei TextureCubeMap::getWidth(GLint level) const
+GLsizei TextureCubeMap::getWidth() const
 {
-    if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
-        return mImageArray[0][level].getWidth();
-    else
-        return 0;
+    return mImageArray[0][0].getWidth();
 }
 
-GLsizei TextureCubeMap::getHeight(GLint level) const
+GLsizei TextureCubeMap::getHeight() const
 {
-    if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
-        return mImageArray[0][level].getHeight();
-    else
-        return 0;
+    return mImageArray[0][0].getHeight();
 }
 
 GLenum TextureCubeMap::getInternalFormat() const

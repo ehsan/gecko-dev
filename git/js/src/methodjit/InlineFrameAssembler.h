@@ -90,6 +90,7 @@ class InlineFrameAssembler {
     {
         frameSize = ic.frameSize;
         funObjReg = ic.funObjReg;
+        tempRegs.takeReg(ic.funPtrReg);
         tempRegs.takeReg(funObjReg);
     }
 

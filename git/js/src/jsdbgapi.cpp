@@ -616,13 +616,8 @@ JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fpArg)
         return NULL;
 
     JS_ASSERT(fp->callee().isFunction());
+    JS_ASSERT(fp->callee().getPrivate() == fp->fun());
     return &fp->callee();
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_GetParentOrScopeChain(JSContext *cx, JSObject *obj)
-{
-    return obj->scopeChain();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -791,7 +786,7 @@ JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp)
         shape = shape->previous();
 
     if (!shape->previous()) {
-        JS_ASSERT(shape->isEmptyShape());
+        JS_ASSERT(JSID_IS_EMPTY(shape->propid));
         shape = NULL;
     }
 
@@ -804,7 +799,7 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
 {
     assertSameCompartment(cx, obj);
     Shape *shape = (Shape *) sprop;
-    pd->id = IdToJsval(shape->propid());
+    pd->id = IdToJsval(shape->propid);
 
     JSBool wasThrowing = cx->isExceptionPending();
     Value lastException = UndefinedValue();
@@ -812,7 +807,7 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
         lastException = cx->getPendingException();
     cx->clearPendingException();
 
-    if (!js_GetProperty(cx, obj, shape->propid(), &pd->value)) {
+    if (!js_GetProperty(cx, obj, shape->propid, &pd->value)) {
         if (!cx->isExceptionPending()) {
             pd->flags = JSPD_ERROR;
             pd->value = JSVAL_VOID;
@@ -832,21 +827,21 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
               |  (!shape->configurable() ? JSPD_PERMANENT : 0);
     pd->spare = 0;
     if (shape->getter() == GetCallArg) {
-        pd->slot = shape->shortid();
+        pd->slot = shape->shortid;
         pd->flags |= JSPD_ARGUMENT;
     } else if (shape->getter() == GetCallVar) {
-        pd->slot = shape->shortid();
+        pd->slot = shape->shortid;
         pd->flags |= JSPD_VARIABLE;
     } else {
         pd->slot = 0;
     }
     pd->alias = JSVAL_VOID;
 
-    if (obj->containsSlot(shape->slot())) {
+    if (obj->containsSlot(shape->slot)) {
         for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
             const Shape &aprop = r.front();
-            if (&aprop != shape && aprop.slot() == shape->slot()) {
-                pd->alias = IdToJsval(aprop.propid());
+            if (&aprop != shape && aprop.slot == shape->slot) {
+                pd->alias = IdToJsval(aprop.propid);
                 break;
             }
         }
@@ -1068,7 +1063,8 @@ JS_IsSystemObject(JSContext *cx, JSObject *obj)
 JS_PUBLIC_API(JSBool)
 JS_MakeSystemObject(JSContext *cx, JSObject *obj)
 {
-    return obj->setSystem(cx);
+    obj->setSystem();
+    return true;
 }
 
 /************************************************************************/
@@ -1610,6 +1606,22 @@ js_ResumeVtune()
 }
 
 #endif /* MOZ_VTUNE */
+
+#ifdef MOZ_TRACE_JSCALLS
+
+JS_PUBLIC_API(void)
+JS_SetFunctionCallback(JSContext *cx, JSFunctionCallback fcb)
+{
+    cx->functionCallback = fcb;
+}
+
+JS_PUBLIC_API(JSFunctionCallback)
+JS_GetFunctionCallback(JSContext *cx)
+{
+    return cx->functionCallback;
+}
+
+#endif /* MOZ_TRACE_JSCALLS */
 
 JS_PUBLIC_API(void)
 JS_DumpBytecode(JSContext *cx, JSScript *script)

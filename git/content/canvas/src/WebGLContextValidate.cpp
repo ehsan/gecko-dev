@@ -57,10 +57,10 @@ using namespace mozilla;
 bool
 WebGLProgram::UpdateInfo(gl::GLContext *gl)
 {
-    gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &mAttribMaxNameLength);
-    gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_UNIFORM_MAX_LENGTH, &mUniformMaxNameLength);
-    gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_UNIFORMS, &mUniformCount);
-    gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_ATTRIBUTES, &mAttribCount);
+    gl->fGetProgramiv(mName, LOCAL_GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &mAttribMaxNameLength);
+    gl->fGetProgramiv(mName, LOCAL_GL_ACTIVE_UNIFORM_MAX_LENGTH, &mUniformMaxNameLength);
+    gl->fGetProgramiv(mName, LOCAL_GL_ACTIVE_UNIFORMS, &mUniformCount);
+    gl->fGetProgramiv(mName, LOCAL_GL_ACTIVE_ATTRIBUTES, &mAttribCount);
 
     GLint numVertexAttribs;
     if (mContext->MinCapabilityMode())  {
@@ -77,9 +77,9 @@ WebGLProgram::UpdateInfo(gl::GLContext *gl)
         GLint attrnamelen;
         GLint attrsize;
         GLenum attrtype;
-        gl->fGetActiveAttrib(mGLName, i, mAttribMaxNameLength, &attrnamelen, &attrsize, &attrtype, nameBuf);
+        gl->fGetActiveAttrib(mName, i, mAttribMaxNameLength, &attrnamelen, &attrsize, &attrtype, nameBuf);
         if (attrnamelen > 0) {
-            GLint loc = gl->fGetAttribLocation(mGLName, nameBuf);
+            GLint loc = gl->fGetAttribLocation(mName, nameBuf);
             mAttribsInUse[loc] = true;
         }
     }
@@ -515,6 +515,7 @@ WebGLContext::InitAndValidateGL()
 
     mAttribBuffers.Clear();
 
+    mUniformTextures.Clear();
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
 
@@ -524,6 +525,13 @@ WebGLContext::InitAndValidateGL()
 
     mBoundFramebuffer = nsnull;
     mBoundRenderbuffer = nsnull;
+
+    mMapTextures.Clear();
+    mMapBuffers.Clear();
+    mMapPrograms.Clear();
+    mMapShaders.Clear();
+    mMapFramebuffers.Clear();
+    mMapRenderbuffers.Clear();
 
     MakeContextCurrent();
 

@@ -49,6 +49,7 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 #include "assembler/wtf/Platform.h"
+#include "assembler/jit/ExecutableAllocator.h"
 #include "yarr/BumpPointerAllocator.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
@@ -84,7 +85,14 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     jaegerCompartment_(NULL),
 #endif
     propertyTree(thisForCtor()),
-    emptyTypeObject(NULL),
+    emptyArgumentsShape(NULL),
+    emptyBlockShape(NULL),
+    emptyCallShape(NULL),
+    emptyDeclEnvShape(NULL),
+    emptyEnumeratorShape(NULL),
+    emptyWithShape(NULL),
+    initialRegExpShape(NULL),
+    initialStringShape(NULL),
     debugModeBits(rt->debugMode ? DebugFromC : 0),
     mathCache(NULL),
     breakpointSites(rt),
@@ -113,8 +121,6 @@ JSCompartment::init(JSContext *cx)
 {
     activeAnalysis = activeInference = false;
     types.init(cx);
-
-    newObjectCache.reset();
 
     if (!crossCompartmentWrappers.init())
         return false;
@@ -255,8 +261,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
             JS_ASSERT(obj->isCrossCompartmentWrapper());
             if (global->getClass() != &dummy_class && obj->getParent() != global) {
                 do {
-                    if (!obj->setParent(cx, global))
-                        return false;
+                    obj->setParent(global);
                     obj = obj->getProto();
                 } while (obj && obj->isCrossCompartmentWrapper());
             }
@@ -310,8 +315,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (!crossCompartmentWrappers.put(GetProxyPrivate(wrapper), *vp))
         return false;
 
-    if (!wrapper->setParent(cx, global))
-        return false;
+    wrapper->setParent(global);
     return true;
 }
 
@@ -429,11 +433,11 @@ JSCompartment::markTypes(JSTracer *trc)
     }
 
     for (size_t thingKind = FINALIZE_OBJECT0;
-         thingKind < FINALIZE_OBJECT_LIMIT;
+         thingKind < FINALIZE_FUNCTION_AND_OBJECT_LIMIT;
          thingKind++) {
         for (CellIterUnderGC i(this, AllocKind(thingKind)); !i.done(); i.next()) {
             JSObject *object = i.get<JSObject>();
-            if (object->hasSingletonType())
+            if (!object->isNewborn() && object->hasSingletonType())
                 MarkRoot(trc, object, "mark_types_singleton");
         }
     }
@@ -456,17 +460,24 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
         }
     }
 
-    /* Remove dead references held weakly by the compartment. */
+    /* Remove dead empty shapes. */
+    if (emptyArgumentsShape && IsAboutToBeFinalized(cx, emptyArgumentsShape))
+        emptyArgumentsShape = NULL;
+    if (emptyBlockShape && IsAboutToBeFinalized(cx, emptyBlockShape))
+        emptyBlockShape = NULL;
+    if (emptyCallShape && IsAboutToBeFinalized(cx, emptyCallShape))
+        emptyCallShape = NULL;
+    if (emptyDeclEnvShape && IsAboutToBeFinalized(cx, emptyDeclEnvShape))
+        emptyDeclEnvShape = NULL;
+    if (emptyEnumeratorShape && IsAboutToBeFinalized(cx, emptyEnumeratorShape))
+        emptyEnumeratorShape = NULL;
+    if (emptyWithShape && IsAboutToBeFinalized(cx, emptyWithShape))
+        emptyWithShape = NULL;
 
-    sweepBaseShapeTable(cx);
-    sweepInitialShapeTable(cx);
-    sweepNewTypeObjectTable(cx, newTypeObjects);
-    sweepNewTypeObjectTable(cx, lazyTypeObjects);
-
-    if (emptyTypeObject && IsAboutToBeFinalized(cx, emptyTypeObject))
-        emptyTypeObject = NULL;
-
-    newObjectCache.reset();
+    if (initialRegExpShape && IsAboutToBeFinalized(cx, initialRegExpShape))
+        initialRegExpShape = NULL;
+    if (initialStringShape && IsAboutToBeFinalized(cx, initialStringShape))
+        initialStringShape = NULL;
 
     sweepBreakpoints(cx);
 

@@ -223,10 +223,7 @@ var runFeatureTest = function(params) {
 
   var wtu = WebGLTestUtils;
   var gridRes = params.gridRes;
-  var vertexTolerance = params.tolerance || 0;
-  var fragmentTolerance = vertexTolerance;
-  if ('fragmentTolerance' in params)
-    fragmentTolerance = params.fragmentTolerance || 0;
+  var tolerance = params.tolerance || 0;
 
   description("Testing GLSL feature: " + params.feature);
 
@@ -255,15 +252,13 @@ var runFeatureTest = function(params) {
       input: "color",
       output: "vColor",
       vertexShaderTemplate: vertexShaderTemplate,
-      fragmentShaderTemplate: baseFragmentShader,
-      tolerance: vertexTolerance
+      fragmentShaderTemplate: baseFragmentShader
     },
     { type: "fragment",
       input: "vColor",
       output: "gl_FragColor",
       vertexShaderTemplate: baseVertexShader,
-      fragmentShaderTemplate: fragmentShaderTemplate,
-      tolerance: fragmentTolerance
+      fragmentShaderTemplate: fragmentShaderTemplate
     }
   ];
   for (var ss = 0; ss < shaderInfos.length; ++ss) {
@@ -333,7 +328,7 @@ var runFeatureTest = function(params) {
       }
       var testImg = makeImage(canvas);
 
-      reportResults(refData, refImg, testData, testImg, shaderInfo.tolerance);
+      reportResults(refData, refImg, testData, testImg);
     }
   }
 
@@ -369,7 +364,7 @@ var runFeatureTest = function(params) {
     console.appendChild(div);
   }
 
-  function reportResults(refData, refImage, testData, testImage, tolerance) {
+  function reportResults(refData, refImage, testData, testImage) {
     var same = true;
     for (var yy = 0; yy < height; ++yy) {
       for (var xx = 0; xx < width; ++xx) {
@@ -492,18 +487,6 @@ return {
    * tests:
    *    The code for each test. It is assumed the tests are for
    *    float, vec2, vec3, vec4 in that order.
-   *
-   * tolerance: (optional)
-   *    Allow some tolerance in the comparisons. The tolerance is applied to 
-   *    both vertex and fragment shaders. The default tolerance is 0, meaning 
-   *    the values have to be identical.
-   *
-   * fragmentTolerance: (optional)
-   *    Specify a tolerance which only applies to fragment shaders. The 
-   *    fragment-only tolerance will override the shared tolerance for 
-   *    fragment shaders if both are specified. Fragment shaders usually
-   *    use mediump float precision so they sometimes require higher tolerance
-   *    than vertex shaders which use highp.
    */
   runFeatureTest: runFeatureTest,
 

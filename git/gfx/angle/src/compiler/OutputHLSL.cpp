@@ -45,12 +45,9 @@ OutputHLSL::OutputHLSL(TParseContext &context) : TIntermTraverser(true, true, tr
     mUsesPointSize = false;
     mUsesXor = false;
     mUsesMod1 = false;
-    mUsesMod2v = false;
-    mUsesMod2f = false;
-    mUsesMod3v = false;
-    mUsesMod3f = false;
-    mUsesMod4v = false;
-    mUsesMod4f = false;
+    mUsesMod2 = false;
+    mUsesMod3 = false;
+    mUsesMod4 = false;
     mUsesFaceforward1 = false;
     mUsesFaceforward2 = false;
     mUsesFaceforward3 = false;
@@ -482,17 +479,8 @@ void OutputHLSL::header()
                "}\n"
                "\n";
     }
-
-    if (mUsesMod2v)
-    {
-        out << "float2 mod(float2 x, float2 y)\n"
-               "{\n"
-               "    return x - y * floor(x / y);\n"
-               "}\n"
-               "\n";
-    }
-
-    if (mUsesMod2f)
+    
+    if (mUsesMod2)
     {
         out << "float2 mod(float2 x, float y)\n"
                "{\n"
@@ -501,16 +489,7 @@ void OutputHLSL::header()
                "\n";
     }
     
-    if (mUsesMod3v)
-    {
-        out << "float3 mod(float3 x, float3 y)\n"
-               "{\n"
-               "    return x - y * floor(x / y);\n"
-               "}\n"
-               "\n";
-    }
-
-    if (mUsesMod3f)
+    if (mUsesMod3)
     {
         out << "float3 mod(float3 x, float y)\n"
                "{\n"
@@ -519,16 +498,7 @@ void OutputHLSL::header()
                "\n";
     }
 
-    if (mUsesMod4v)
-    {
-        out << "float4 mod(float4 x, float4 y)\n"
-               "{\n"
-               "    return x - y * floor(x / y);\n"
-               "}\n"
-               "\n";
-    }
-
-    if (mUsesMod4f)
+    if (mUsesMod4)
     {
         out << "float4 mod(float4 x, float y)\n"
                "{\n"
@@ -1477,17 +1447,12 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
       case EOpVectorNotEqual:   outputTriplet(visit, "(", " != ", ")");                break;
       case EOpMod:
         {
-            // We need to look at the number of components in both arguments
-            switch (node->getSequence()[0]->getAsTyped()->getNominalSize() * 10
-                     + node->getSequence()[1]->getAsTyped()->getNominalSize())
+            switch (node->getSequence()[0]->getAsTyped()->getNominalSize())   // Number of components in the first argument
             {
-              case 11: mUsesMod1 = true; break;
-              case 22: mUsesMod2v = true; break;
-              case 21: mUsesMod2f = true; break;
-              case 33: mUsesMod3v = true; break;
-              case 31: mUsesMod3f = true; break;
-              case 44: mUsesMod4v = true; break;
-              case 41: mUsesMod4f = true; break;
+              case 1: mUsesMod1 = true; break;
+              case 2: mUsesMod2 = true; break;
+              case 3: mUsesMod3 = true; break;
+              case 4: mUsesMod4 = true; break;
               default: UNREACHABLE();
             }
 

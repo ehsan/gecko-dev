@@ -679,13 +679,14 @@ nsJSCID::NewID(const char* str)
 }
 
 static const nsID*
-GetIIDArg(PRUint32 argc, const JS::Value& val, JSContext* cx)
+GetIIDArg(PRUint32 argc, jsval* argv, JSContext* cx)
 {
     const nsID* iid;
 
     // If an IID was passed in then use it
     if (argc) {
         JSObject* iidobj;
+        jsval val = *argv;
         if (JSVAL_IS_PRIMITIVE(val) ||
             !(iidobj = JSVAL_TO_OBJECT(val)) ||
             !(iid = xpc_JSObjectToID(cx, iidobj))) {
@@ -697,39 +698,39 @@ GetIIDArg(PRUint32 argc, const JS::Value& val, JSContext* cx)
     return iid;
 }
 
-static JSObject*
-GetWrapperObject()
-{
-    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-    if (!xpc)
-        return NULL;
-
-    nsAXPCNativeCallContext *ccxp = NULL;
-    xpc->GetCurrentNativeCallContext(&ccxp);
-    if (!ccxp)
-        return NULL;
-
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-    ccxp->GetCalleeWrapper(getter_AddRefs(wrapper));
-    JSObject* obj;
-    wrapper->GetJSObject(&obj);
-    return obj;
-}
-
 /* nsISupports createInstance (); */
 NS_IMETHODIMP
-nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
-                        PRUint8 optionalArgc, JS::Value* retval)
+nsJSCID::CreateInstance(nsISupports **_retval)
 {
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
 
-    JSObject* obj = GetWrapperObject();
-    if (!obj) {
+    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+    if (!xpc)
         return NS_ERROR_UNEXPECTED;
-    }
+
+    nsAXPCNativeCallContext *ccxp = nsnull;
+    xpc->GetCurrentNativeCallContext(&ccxp);
+    if (!ccxp)
+        return NS_ERROR_UNEXPECTED;
+
+    PRUint32 argc;
+    jsval * argv;
+    jsval * vp;
+    JSContext* cx;
+    JSObject* obj;
+
+    ccxp->GetJSContext(&cx);
+    ccxp->GetArgc(&argc);
+    ccxp->GetArgvPtr(&argv);
+    ccxp->GetRetValPtr(&vp);
+
+    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+    ccxp->GetCalleeWrapper(getter_AddRefs(wrapper));
+    wrapper->GetJSObject(&obj);
 
     // Do the security check if necessary
+
     XPCContext* xpcc = XPCContext::GetXPCContext(cx);
 
     nsIXPCSecurityManager* sm;
@@ -740,7 +741,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
     }
 
     // If an IID was passed in then use it
-    const nsID* iid = GetIIDArg(optionalArgc, iidval, cx);
+    const nsID* iid = GetIIDArg(argc, argv, cx);
     if (!iid)
         return NS_ERROR_XPC_BAD_IID;
 
@@ -756,26 +757,46 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
     if (NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
 
-    rv = nsXPConnect::GetXPConnect()->WrapNativeToJSVal(cx, obj, inst, nsnull, iid, true, retval, nsnull);
-    if (NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*retval))
+    rv = xpc->WrapNativeToJSVal(cx, obj, inst, nsnull, iid, true, vp, nsnull);
+    if (NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*vp))
         return NS_ERROR_XPC_CANT_CREATE_WN;
+    ccxp->SetReturnValueWasSet(true);
     return NS_OK;
 }
 
 /* nsISupports getService (); */
 NS_IMETHODIMP
-nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
-                    PRUint8 optionalArgc, JS::Value* retval)
+nsJSCID::GetService(nsISupports **_retval)
 {
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
 
-    JSObject* obj = GetWrapperObject();
-    if (!obj) {
+    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+    if (!xpc)
         return NS_ERROR_UNEXPECTED;
-    }
+
+    nsAXPCNativeCallContext *ccxp = nsnull;
+    xpc->GetCurrentNativeCallContext(&ccxp);
+    if (!ccxp)
+        return NS_ERROR_UNEXPECTED;
+
+    PRUint32 argc;
+    jsval * argv;
+    jsval * vp;
+    JSContext* cx;
+    JSObject* obj;
+
+    ccxp->GetJSContext(&cx);
+    ccxp->GetArgc(&argc);
+    ccxp->GetArgvPtr(&argv);
+    ccxp->GetRetValPtr(&vp);
+
+    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+    ccxp->GetCalleeWrapper(getter_AddRefs(wrapper));
+    wrapper->GetJSObject(&obj);
 
     // Do the security check if necessary
+
     XPCContext* xpcc = XPCContext::GetXPCContext(cx);
 
     nsIXPCSecurityManager* sm;
@@ -787,7 +808,7 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
     }
 
     // If an IID was passed in then use it
-    const nsID* iid = GetIIDArg(optionalArgc, iidval, cx);
+    const nsID* iid = GetIIDArg(argc, argv, cx);
     if (!iid)
         return NS_ERROR_XPC_BAD_IID;
 
@@ -804,11 +825,12 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
 
     JSObject* instJSObj;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = nsXPConnect::GetXPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
+    rv = xpc->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
     if (NS_FAILED(rv) || !holder || NS_FAILED(holder->GetJSObject(&instJSObj)))
         return NS_ERROR_XPC_CANT_CREATE_WN;
 
-    *retval = OBJECT_TO_JSVAL(instJSObj);
+    *vp = OBJECT_TO_JSVAL(instJSObj);
+    ccxp->SetReturnValueWasSet(true);
     return NS_OK;
 }
 

@@ -50,8 +50,13 @@ BEGIN_TEST(testConservativeGC)
 bool checkObjectFields(JSObject *savedCopy, JSObject *obj)
 {
     /* Ignore fields which are unstable across GCs. */
-    CHECK(savedCopy->lastProperty() == obj->lastProperty());
+    CHECK(savedCopy->lastProp == obj->lastProp);
+    CHECK(savedCopy->getClass() == obj->getClass());
+    CHECK(savedCopy->flags == obj->flags);
+    CHECK(savedCopy->newType == obj->newType);
     CHECK(savedCopy->getProto() == obj->getProto());
+    CHECK(savedCopy->parent == obj->parent);
+    CHECK(savedCopy->privateData == obj->privateData);
     return true;
 }
 

@@ -47,13 +47,14 @@ inline uint32
 JSObject::arrayBufferByteLength()
 {
     JS_ASSERT(isArrayBuffer());
-    return getElementsHeader()->length;
+    return *((uint32*) slots);
 }
 
 inline uint8 *
 JSObject::arrayBufferDataOffset()
 {
-    return (uint8 *) elements;
+    uint64 *base = ((uint64*)slots) + 1;
+    return (uint8*) base;
 }
 
 namespace js {
@@ -95,7 +96,7 @@ TypedArray::getBuffer(JSObject *obj) {
 
 inline void *
 TypedArray::getDataOffset(JSObject *obj) {
-    return (void *)obj->getPrivate(NUM_FIXED_SLOTS);
+    return (void *)obj->getPrivate();
 }
 
 }

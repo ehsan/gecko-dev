@@ -340,8 +340,15 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     aBuilder->EnterPresShell(subdocRootFrame, dirty);
   }
 
+  // The subdocView's bounds are in appunits of the subdocument, so adjust
+  // them.
   nsRect subdocBoundsInParentUnits =
-    mInnerView->GetBounds() + GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+    subdocView->GetBounds().ConvertAppUnitsRoundOut(subdocAPD, parentAPD);
+
+  // Get the bounds of subdocView relative to the reference frame.
+  subdocBoundsInParentUnits = subdocBoundsInParentUnits +
+                              mInnerView->GetPosition() +
+                              GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
 
   if (subdocRootFrame && NS_SUCCEEDED(rv)) {
     rv = subdocRootFrame->
@@ -355,7 +362,10 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // for the canvas background color item.
     nsRect bounds;
     if (subdocRootFrame) {
-      bounds = subdocBoundsInParentUnits.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+      nsPoint offset = mInnerView->GetPosition() +
+                       GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
+      offset = offset.ConvertAppUnits(parentAPD, subdocAPD);
+      bounds = subdocView->GetBounds() + offset;
     } else {
       bounds = subdocBoundsInParentUnits;
     }
@@ -401,21 +411,18 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       childItems.AppendToTop(layerItem);
     }
 
-    if (ShouldClipSubdocument()) {
-      nsDisplayClip* item =
+    nsDisplayList list;
+    // Clip children to the child root frame's rectangle
+    rv = list.AppendNewToTop(
         new (aBuilder) nsDisplayClip(aBuilder, this, &childItems,
-                                     subdocBoundsInParentUnits);
-      // Clip children to the child root frame's rectangle
-      childItems.AppendToTop(item);
-    }
+                                     subdocBoundsInParentUnits));
 
     if (mIsInline) {
-      WrapReplacedContentForBorderRadius(aBuilder, &childItems, aLists);
+      WrapReplacedContentForBorderRadius(aBuilder, &list, aLists);
     } else {
-      aLists.Content()->AppendToTop(&childItems);
+      aLists.Content()->AppendToTop(&list);
     }
   }
-
   // delete childItems in case of OOM
   childItems.DeleteAll();
 
@@ -608,14 +615,6 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
     nsIViewManager* vm = mInnerView->GetViewManager();
     vm->MoveViewTo(mInnerView, offset.x, offset.y);
     vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), innerSize), true);
-  }
-
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
-  if (!ShouldClipSubdocument()) {
-    nsIFrame* subdocRootFrame = GetSubdocumentRootFrame();
-    if (subdocRootFrame) {
-      aDesiredSize.mOverflowAreas.UnionWith(subdocRootFrame->GetOverflowAreas() + offset);
-    }
   }
 
   // Determine if we need to repaint our border, background or outline

@@ -2434,7 +2434,8 @@ CallMethodHelper::GatherAndConvertResults()
             !GetInterfaceTypeFromParam(i, datum_type, &param_iid))
             return false;
 
-        nsresult err;
+        uintN err;
+
         if (isArray) {
             XPCLazyCallContext lccx(mCallContext);
             if (!XPCConvert::NativeArray2JS(lccx, &v, (const void**)&dp->val,

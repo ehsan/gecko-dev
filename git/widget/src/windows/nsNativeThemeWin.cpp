@@ -89,11 +89,9 @@ static PRInt32 GetTopLevelWindowActiveState(nsIFrame *aFrame)
   // until it finds a real window.
   nsIWidget* widget = aFrame->GetNearestWidget();
   nsWindow * window = static_cast<nsWindow*>(widget);
-  if (!window)
-    return mozilla::widget::themeconst::FS_INACTIVE;
   if (widget && !window->IsTopLevelWidget() &&
       !(window = window->GetParentWindow(false)))
-    return mozilla::widget::themeconst::FS_INACTIVE;
+    return false;
 
   if (window->GetWindowHandle() == ::GetActiveWindow())
     return mozilla::widget::themeconst::FS_ACTIVE;

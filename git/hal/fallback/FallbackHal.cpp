@@ -66,7 +66,7 @@ GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
 {
   aBatteryInfo->level() = dom::battery::kDefaultLevel;
   aBatteryInfo->charging() = dom::battery::kDefaultCharging;
-  aBatteryInfo->remainingTime() = dom::battery::kDefaultRemainingTime;
+  aBatteryInfo->remainingTime() = dom::battery::kUnknownRemainingTime;
 }
 
 } // hal_impl

@@ -55,8 +55,7 @@
       disablefastfind="true"
       ondragenter="gDragDrop.onDragOver(event)"
       ondragover="gDragDrop.onDragOver(event)"
-      ondrop="gDragDrop.onDrop(event)"
-      onkeypress="gHeader.onKeyPress(event)">
+      ondrop="gDragDrop.onDrop(event)">
 
   <xhtml:link rel="shortcut icon"
               href="chrome://mozapps/skin/extensions/extensionGeneric-16.png"/>
@@ -145,11 +144,6 @@
     <command id="cmd_cancelOperation"/>
     <command id="cmd_contribute"/>
   </commandset>
-
-  <keyset>
-    <key id="focusSearch" key="&search.commandkey;" modifiers="accel"
-         oncommand="gHeader.focusSearchBox();"/>
-  </keyset>
 
   <!-- main header -->
   <hbox id="header" align="center">

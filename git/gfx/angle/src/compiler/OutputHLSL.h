@@ -91,12 +91,9 @@ class OutputHLSL : public TIntermTraverser
     bool mUsesPointSize;
     bool mUsesXor;
     bool mUsesMod1;
-    bool mUsesMod2v;
-    bool mUsesMod2f;
-    bool mUsesMod3v;
-    bool mUsesMod3f;
-    bool mUsesMod4v;
-    bool mUsesMod4f;
+    bool mUsesMod2;
+    bool mUsesMod3;
+    bool mUsesMod4;
     bool mUsesFaceforward1;
     bool mUsesFaceforward2;
     bool mUsesFaceforward3;
