@@ -3,10 +3,8 @@
  * HOTLOOP.  Define some constants up front, so they're easy to grep
  * for.
  */
-// The HOTLOOP constant we depend on; only readable from our stats
-// object in debug builds.
-const haveTracemonkey = !!(this.tracemonkey)
-const HOTLOOP = haveTracemonkey ? tracemonkey.HOTLOOP : 2;
+// The HOTLOOP constant we depend on
+const HOTLOOP = jitstats.HOTLOOP;
 // The loop count at which we trace
 const RECORDLOOP = HOTLOOP;
 // The loop count at which we run the trace
@@ -17,36 +15,16 @@ if ("arguments" in this && arguments.length > 0)
   testName = arguments[0];
 var fails = [], passes=[];
 
-function jitstatHandler(f)
-{
-    if (!haveTracemonkey) {
-	return;
-    }
-    // XXXbz this is a nasty hack, but I can't figure out a way to
-    // just use jitstats.tbl here
-    f("recorderStarted");
-    f("recorderAborted");
-    f("traceCompleted");
-    f("sideExitIntoInterpreter");
-    f("typeMapMismatchAtEntry");
-    f("returnToDifferentLoopHeader");
-    f("traceTriggered");
-    f("globalShapeMismatchAtEntry");
-    f("treesTrashed");
-    f("slotPromoted");
-    f("unstableLoopVariable");
-    f("breakLoopExits");
-    f("returnLoopExits");
-}
-
 function test(f)
 {
   if (!testName || testName == f.name) {
     // Collect our jit stats
     var localJITstats = {};
-    jitstatHandler(function(prop, local, global) {
-                     localJITstats[prop] = tracemonkey[prop];
-                   });
+    if (!f.jitstats)
+      f.jitstats = null;
+    for (var propName in jitstats) {
+      localJITstats[propName] = jitstats[propName];
+    }
     check(f.name, f(), f.expected, localJITstats, f.jitstats);
   }
 }
@@ -55,13 +33,13 @@ function check(desc, actual, expected, oldJITstats, expectedJITstats)
 {
   if (expected == actual) {
     var pass = true;
-    jitstatHandler(function(prop) {
-                     if (expectedJITstats && prop in expectedJITstats &&
-                         expectedJITstats[prop] !=
-                           tracemonkey[prop] - oldJITstats[prop]) {
-                       pass = false;
-                     }
-                   });
+    for (var propName in expectedJITstats) {
+      if (expectedJITstats[propName] !=
+            jitstats[propName] - oldJITstats[propName]) {
+        pass = false;
+        break;
+      }
+    }
     if (pass) {
       passes.push(desc);
       return print(desc, ": passed");
@@ -69,25 +47,17 @@ function check(desc, actual, expected, oldJITstats, expectedJITstats)
   }
   fails.push(desc);
   var expectedStats = "";
-  if (expectedJITstats) {
-      jitstatHandler(function(prop) {
-                       if (prop in expectedJITstats) {
-                         if (expectedStats)
-                           expectedStats += " ";
-                         expectedStats +=
-                           prop + ": " + expectedJITstats[prop];
-                       }
-                     });
+  for (var propName in expectedJITstats) {
+    if (expectedStats)
+      expectedStats += " ";
+    expectedStats += propName + ": " + expectedJITstats[propName];
   }
   var actualStats = "";
-  if (expectedJITstats) {
-      jitstatHandler(function(prop) {
-                       if (prop in expectedJITstats) {
-                         if (actualStats)
-                           actualStats += " ";
-                         actualStats += prop + ": " + (tracemonkey[prop]-oldJITstats[prop]);
-                       }
-                     });
+  for (var propName in expectedJITstats) {
+    if (actualStats)
+      actualStats += " ";
+    actualStats +=
+      propName + ": " + (jitstats[propName] - oldJITstats[propName]);
   }
   print(desc, ": FAILED: expected", typeof(expected), "(", expected, ")",
 	(expectedStats ? " [" + expectedStats + "] " : ""),
@@ -1544,11 +1514,9 @@ function testNestedExitStackOuter() {
   return counter;
 }
 testNestedExitStackOuter.expected = 81;
-testNestedExitStackOuter.jitstats = {
-    recorderStarted: 4,
-    recorderAborted: 0,
-    traceTriggered: 9
-};
+testNestedExitStackOuter.jitstats = {};
+testNestedExitStackOuter.jitstats.recorderStarted = 4;
+testNestedExitStackOuter.jitstats.recorderAborted = 0;
 test(testNestedExitStackOuter);
 
 function testHOTLOOPSize() {
@@ -1557,6 +1525,8 @@ function testHOTLOOPSize() {
 testHOTLOOPSize.expected = true;
 test(testHOTLOOPSize);
 
+// This test has to come last, since it messes with Object.prototype
+// and thus confuses jitstats.
 function testGlobalProtoAccess() {
     return "ok";
 }
