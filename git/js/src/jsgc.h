@@ -983,6 +983,8 @@ struct GCMarker : public JSTracer {
     void dumpConservativeRoots();
 #endif
 
+    js::Vector<JSObject *, 0, js::SystemAllocPolicy> arraysToSlowify;
+
   public:
     explicit GCMarker(JSContext *cx);
     ~GCMarker();
@@ -1003,6 +1005,8 @@ struct GCMarker : public JSTracer {
     void delayMarkingChildren(void *thing);
 
     JS_FRIEND_API(void) markDelayedChildren();
+
+    void slowifyArrays();
 };
 
 void

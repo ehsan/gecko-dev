@@ -71,6 +71,8 @@ ThebesLayerD3D10::SetVisibleRegion(const nsIntRegion &aRegion)
     return;
   }
 
+  HRESULT hr;
+
   nsIntRegion oldVisibleRegion = mVisibleRegion;
   ThebesLayer::SetVisibleRegion(aRegion);
 
@@ -132,7 +134,9 @@ ThebesLayerD3D10::SetVisibleRegion(const nsIntRegion &aRegion)
                                       oldTexture, 0,
                                       &box);
 
-      retainedRegion.Or(retainedRegion, *r);
+      if (SUCCEEDED(hr)) {
+        retainedRegion.Or(retainedRegion, *r);
+      }
     }
   }
 

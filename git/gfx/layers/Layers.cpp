@@ -204,6 +204,7 @@ Layer::CanUseOpaqueSurface()
     parent->CanUseOpaqueSurface();
 }
 
+
 #ifdef MOZ_IPC
 // NB: eventually these methods will be defined unconditionally, and
 // can be moved into Layers.h
@@ -442,8 +443,11 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (GetContentFlags() & CONTENT_OPAQUE) {
     aTo += " [opaqueContent]";
   }
-  if (GetContentFlags() & CONTENT_COMPONENT_ALPHA) {
-    aTo += " [componentAlpha]";
+  if (GetContentFlags() & CONTENT_NO_TEXT) {
+    aTo += " [noText]";
+  }
+  if (GetContentFlags() & CONTENT_NO_TEXT_OVER_TRANSPARENT) {
+    aTo += " [noTextOverTransparent]";
   }
 
   return aTo;

@@ -88,9 +88,8 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
         gfxRect skipRect = *aSkipRect;
         skipRect.RoundIn();
         skipRect.Inset(aBlurRadius + aSpreadRadius);
-        gfxUtils::GfxRectToIntRect(skipRect, &mSkipRect);
-        nsIntRect shadowIntRect;
-        gfxUtils::GfxRectToIntRect(rect, &shadowIntRect);
+        mSkipRect = gfxThebesUtils::GfxRectToIntRect(skipRect);
+        nsIntRect shadowIntRect = gfxThebesUtils::GfxRectToIntRect(rect);
         mSkipRect.IntersectRect(mSkipRect, shadowIntRect);
         if (mSkipRect == shadowIntRect)
           return nsnull;
@@ -294,9 +293,6 @@ static void ComputeLobes(PRInt32 aRadius, PRInt32 aLobes[3][2])
         major = final = z + 1;
         minor = z;
         break;
-    default:
-        NS_ERROR("Mathematical impossibility.");
-        major = minor = final = 0;
     }
     NS_ASSERTION(major + minor + final == aRadius,
                  "Lobes don't sum to the right length");

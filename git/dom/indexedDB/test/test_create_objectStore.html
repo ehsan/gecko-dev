@@ -24,10 +24,7 @@
         { name: "3", keyPath: "", autoIncrement: false },
         { name: "4", keyPath: "" },
         { name: "5", keyPath: null },
-        { name: "6", keyPath: "foo" },
-        { name: "7" },
-        { name: "8", autoIncrement: true },
-        { name: "9", autoIncrement: false }
+        { name: "6", keyPath: "foo" }
       ];
 
       let request = moz_indexedDB.open(name, description);
@@ -49,7 +46,7 @@
       ok(event.source === db, "event.source is correct");
 
       try {
-        db.createObjectStore(null);
+        db.createObjectStore(null, null);
         ok(false, "createObjectStore with null name should throw");
       }
       catch(e) {
@@ -57,36 +54,28 @@
       }
 
       try {
-        db.createObjectStore("");
+        db.createObjectStore("", "");
         ok(false, "createObjectStore with empty name should throw");
       }
       catch(e) {
         ok(true, "createObjectStore with empty name should throw");
       }
 
+      try {
+        db.createObjectStore("Hi");
+        ok(false, "createObjectStore with no keyPath should throw");
+      }
+      catch(e) {
+        ok(true, "createObjectStore with no keyPath should throw");
+      }
+
       for (let index in objectStoreInfo) {
         index = parseInt(index);
-        const info = objectStoreInfo[index];
-
-        let objectStore;
-        if (info.hasOwnProperty("keyPath")) {
-          if (info.hasOwnProperty("autoIncrement")) {
-            objectStore = db.createObjectStore(info.name, info.keyPath,
-                                               info.autoIncrement);
-          }
-          else {
-            objectStore = db.createObjectStore(info.name, info.keyPath);
-          }
-        }
-        else {
-          if (info.hasOwnProperty("autoIncrement")) {
-            objectStore = db.createObjectStore(info.name, null,
-                                               info.autoIncrement);
-          }
-          else {
-            objectStore = db.createObjectStore(info.name);
-          }
-        }
+        let info = objectStoreInfo[index];
+        let objectStore = info.hasOwnProperty("autoIncrement") ?
+                          db.createObjectStore(info.name, info.keyPath,
+                                               info.autoIncrement) :
+                          db.createObjectStore(info.name, info.keyPath);
 
         is(db.objectStoreNames.length, index + 1,
            "updated objectStoreNames list");

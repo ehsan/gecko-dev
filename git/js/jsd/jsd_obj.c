@@ -172,7 +172,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
 static JSHashNumber
 _hash_root(const void *key)
 {
-    return ((JSHashNumber)(ptrdiff_t) key) >> 2; /* help lame MSVC1.5 on Win16 */
+    return ((JSHashNumber) key) >> 2; /* help lame MSVC1.5 on Win16 */
 }
 
 JSBool
@@ -182,7 +182,7 @@ jsd_InitObjectManager(JSDContext* jsdc)
     jsdc->objectsTable = JS_NewHashTable(256, _hash_root,
                                          JS_CompareValues, JS_CompareValues,
                                          NULL, NULL);
-    return !!jsdc->objectsTable;
+    return (JSBool) jsdc->objectsTable;
 }
 
 void

@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ContainerLayerOGL.h"
-#include "gfxUtils.h"
 
 namespace mozilla {
 namespace layers {
@@ -129,15 +128,6 @@ ContainerDestroy(Container* aContainer)
   }
 }
 
-static inline LayerOGL*
-GetNextSibling(LayerOGL* aLayer)
-{
-   Layer* layer = aLayer->GetLayer()->GetNextSibling();
-   return layer ? static_cast<LayerOGL*>(layer->
-                                         ImplData())
-                 : nsnull;
-}
-
 template<class Container>
 static void
 ContainerRender(Container* aContainer,
@@ -181,21 +171,12 @@ ContainerRender(Container* aContainer,
   /**
    * Render this container's contents.
    */
-  for (LayerOGL* layerToRender = aContainer->GetFirstChildOGL();
-       layerToRender != nsnull;
-       layerToRender = GetNextSibling(layerToRender)) {
-
-    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
-      continue;
-    }
-
+  LayerOGL *layerToRender = aContainer->GetFirstChildOGL();
+  while (layerToRender) {
     nsIntRect scissorRect(visibleRect);
 
     const nsIntRect *clipRect = layerToRender->GetLayer()->GetEffectiveClipRect();
     if (clipRect) {
-      if (clipRect->IsEmpty()) {
-        continue;
-      }
       scissorRect = *clipRect;
     }
 
@@ -234,6 +215,11 @@ ContainerRender(Container* aContainer,
     }
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
+
+    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
+    layerToRender = nextSibling ? static_cast<LayerOGL*>(nextSibling->
+                                                         ImplData())
+                                : nsnull;
   }
 
   aContainer->gl()->PopScissorRect();

@@ -1446,6 +1446,7 @@ nsWaveDecoder::MetadataLoaded()
   } else {
     StartProgress();
   }
+  StartTimeUpdate();
 }
 
 void
@@ -1563,6 +1564,7 @@ nsWaveDecoder::Shutdown()
     return;
 
   mShuttingDown = PR_TRUE;
+  StopTimeUpdate();
 
   nsMediaDecoder::Shutdown();
 

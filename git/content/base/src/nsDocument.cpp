@@ -2128,9 +2128,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   // Release the stylesheets list.
   mDOMStyleSheets = nsnull;
 
-  // Clear the original URI so SetDocumentURI sets it.
-  mOriginalURI = nsnull;
-
   SetDocumentURI(aURI);
   // If mDocumentBaseURI is null, nsIDocument::GetBaseURI() returns
   // mDocumentURI.
@@ -2512,11 +2509,6 @@ nsDocument::SetDocumentURI(nsIURI* aURI)
   else {
     equalBases = !oldBase && !newBase;
   }
-
-  // If this is the first time we're setting the document's URI, set the
-  // document's original URI.
-  if (!mOriginalURI)
-    mOriginalURI = mDocumentURI;
 
   // If changing the document's URI changed the base URI of the document, we
   // need to refresh the hrefs of all the links on the page.
@@ -3184,7 +3176,7 @@ nsDocument::doCreateShell(nsPresContext* aContext,
 
   NS_ASSERTION(!mPresShell, "We have a presshell already!");
 
-  NS_ENSURE_FALSE(GetBFCacheEntry(), NS_ERROR_FAILURE);
+  NS_ENSURE_FALSE(mShellIsHidden, NS_ERROR_FAILURE);
 
   FillStyleSet(aStyleSet);
   
@@ -3990,6 +3982,7 @@ nsDocument::BeginLoad()
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
+// static
 void
 nsDocument::ReportEmptyGetElementByIdArg()
 {
@@ -3999,7 +3992,7 @@ nsDocument::ReportEmptyGetElementByIdArg()
                                   nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM", this);
+                                  "DOM");
 }
 
 Element*
@@ -4358,18 +4351,7 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                             nsIDOMElement** aReturn)
 {
   *aReturn = nsnull;
-  nsCOMPtr<nsIContent> content;
-  nsresult rv = CreateElementNS(aNamespaceURI, aQualifiedName,
-                                getter_AddRefs(content));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(content, aReturn);
-}
 
-nsresult
-nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
-                            const nsAString& aQualifiedName,
-                            nsIContent** aReturn)
-{
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nsresult rv = nsContentUtils::GetNodeInfoFromQName(aNamespaceURI,
                                                      aQualifiedName,
@@ -4377,9 +4359,13 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIContent> content;
   PRInt32 ns = nodeInfo->NamespaceID();
-  return NS_NewElement(aReturn, ns,
-                       nodeInfo.forget(), NOT_FROM_PARSER);
+  rv = NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(),
+                     NOT_FROM_PARSER);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return CallQueryInterface(content, aReturn);
 }
 
 NS_IMETHODIMP
@@ -5295,10 +5281,11 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
     nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                     "UseOfGetBoxObjectForWarning",
                                     nsnull, 0,
-                                    nsnull,
+                                    static_cast<nsIDocument*>(this)->
+                                      GetDocumentURI(),
                                     EmptyString(), 0, 0,
                                     nsIScriptError::warningFlag,
-                                    "BoxObjects", this);
+                                    "BoxObjects");
   }
 
   *aResult = nsnull;
@@ -5784,7 +5771,7 @@ nsDocument::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, !mCreatingStaticClone, aReturn);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
 }
 
 NS_IMETHODIMP
@@ -6088,15 +6075,17 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
   PRBool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;
+  JSObject *oldScope = nsnull;
   JSObject *newScope = nsnull;
-  if (!sameDocument) {
-    rv = nsContentUtils::GetContextAndScope(oldDocument, this, &cx, &newScope);
+  if (!sameDocument && oldDocument) {
+    rv = nsContentUtils::GetContextAndScopes(oldDocument, this, &cx, &oldScope,
+                                             &newScope);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMArray<nsINode> nodesWithProperties;
   rv = nsNodeUtils::Adopt(adoptedNode, sameDocument ? nsnull : mNodeInfoManager,
-                          cx, newScope, nodesWithProperties);
+                          cx, oldScope, newScope, nodesWithProperties);
   if (NS_FAILED(rv)) {
     // Disconnect all nodes from their parents, since some have the old document
     // as their ownerDocument and some have this as their ownerDocument.

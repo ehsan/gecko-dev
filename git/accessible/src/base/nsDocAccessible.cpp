@@ -949,12 +949,11 @@ nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
   // such as the existence of aria-pressed for button (so we know if we need to
   // newly expose it as a toggle button) etc.
 
-  // Update dependent IDs cache. Take care of elements that are accessible
-  // because dependent IDs cache doesn't contain IDs from non accessible
-  // elements.
+  // Update dependent IDs cache.
   if (aModType == nsIDOMMutationEvent::MODIFICATION ||
       aModType == nsIDOMMutationEvent::REMOVAL) {
-    nsAccessible* accessible = GetCachedAccessible(aElement);
+    nsAccessible* accessible =
+      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
     if (accessible)
       RemoveDependentIDsFor(accessible, aAttribute);
   }
@@ -966,35 +965,24 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument,
                                   PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                   PRInt32 aModType)
 {
-  // Proceed even if the element is not accessible because element may become
-  // accessible if it gets certain attribute.
-  if (UpdateAccessibleOnAttrChange(aElement, aAttribute))
-    return;
-
-  // Ignore attribute change if the element doesn't have an accessible (at all
-  // or still) iff the element is not a root content of this document accessible
-  // (which is treated as attribute change on this document accessible).
-  nsAccessible* accessible = GetCachedAccessible(aElement);
-  if (!accessible && (mContent != aElement))
-    return;
-
-  // Fire accessible events iff there's an accessible, otherwise we consider
-  // the accessible state wasn't changed, i.e. its state is initial state.
   AttributeChangedImpl(aElement, aNameSpaceID, aAttribute);
 
-  // Update dependent IDs cache. Take care of accessible elements because no
-  // accessible element means either the element is not accessible at all or
-  // its accessible will be created later. It doesn't make sense to keep
-  // dependent IDs for non accessible elements. For the second case we'll update
-  // dependent IDs cache when its accessible is created.
+  // Update dependent IDs cache.
   if (aModType == nsIDOMMutationEvent::MODIFICATION ||
       aModType == nsIDOMMutationEvent::ADDITION) {
-    AddDependentIDsFor(accessible, aAttribute);
+    nsAccessible* accessible =
+      GetAccService()->GetAccessibleInWeakShell(aElement, mWeakShell);
+
+    if (accessible)
+      AddDependentIDsFor(accessible, aAttribute);
   }
 
-  // If it was the focused node, cache the new state.
-  if (aElement == gLastFocusedNode)
-    gLastFocusedAccessiblesState = nsAccUtils::State(accessible);
+  // If it was the focused node, cache the new state
+  if (aElement == gLastFocusedNode) {
+    nsAccessible *focusedAccessible = GetAccService()->GetAccessible(aElement);
+    if (focusedAccessible)
+      gLastFocusedAccessiblesState = nsAccUtils::State(focusedAccessible);
+  }
 }
 
 // nsDocAccessible protected member
@@ -1016,7 +1004,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   //
   // XXX todo:  invalidate accessible when aria state changes affect exposed role
   // filed as bug 472143
-
+  
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
   if (!docShell) {
@@ -1070,6 +1058,29 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
     }
   }
 
+  if (aAttribute == nsAccessibilityAtoms::role) {
+    if (mContent == aContent) {
+      // It is common for js libraries to set the role of the body element after
+      // the doc has loaded. In this case we just update the role map entry. 
+      SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aContent));
+    }
+    else {
+      // Recreate the accessible when role is changed because we might require a
+      // different accessible class for the new role or the accessible may
+      // expose a different sets of interfaces (COM restriction).
+      RecreateAccessible(aContent);
+    }
+  }
+
+  if (aAttribute == nsAccessibilityAtoms::href ||
+      aAttribute == nsAccessibilityAtoms::onclick) {
+    // Not worth the expense to ensure which namespace these are in
+    // It doesn't kill use to recreate the accessible even if the attribute was used
+    // in the wrong namespace or an element that doesn't support it
+    RecreateAccessible(aContent);
+    return;
+  }
+  
   if (aAttribute == nsAccessibilityAtoms::alt ||
       aAttribute == nsAccessibilityAtoms::title ||
       aAttribute == nsAccessibilityAtoms::aria_label ||
@@ -1149,10 +1160,9 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     // to the element with the id that activedescendant points to
     nsCOMPtr<nsINode> focusedNode = GetCurrentFocus();
     if (nsCoreUtils::GetRoleContent(focusedNode) == aContent) {
-      nsAccessible* focusedAcc = GetAccService()->GetAccessible(focusedNode);
       nsRefPtr<nsRootAccessible> rootAcc = GetRootAccessible();
-      if (rootAcc && focusedAcc) {
-        rootAcc->FireAccessibleFocusEvent(focusedAcc, nsnull, PR_TRUE);
+      if (rootAcc) {
+        rootAcc->FireAccessibleFocusEvent(nsnull, focusedNode, nsnull, PR_TRUE);
       }
     }
     return;
@@ -1232,6 +1242,15 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
             eCaseMatters)))) {
     FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
                                aContent);
+    return;
+  }
+
+  if (aAttribute == nsAccessibilityAtoms::aria_multiselectable &&
+      aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
+    // This affects whether the accessible supports SelectAccessible.
+    // COM says we cannot change what interfaces are supported on-the-fly,
+    // so invalidate this object. A new one will be created on demand.
+    RecreateAccessible(aContent);
     return;
   }
 }
@@ -1478,7 +1497,8 @@ nsDocAccessible::UpdateTree(nsIContent* aContainerNode,
     // children of alert accessible to avoid this.
     nsAccessible* ancestor = container;
     while (ancestor) {
-      if (ancestor->ARIARole() == nsIAccessibleRole::ROLE_ALERT) {
+      const nsRoleMapEntry* roleMapEntry = ancestor->GetRoleMapEntry();
+      if (roleMapEntry && roleMapEntry->role == nsIAccessibleRole::ROLE_ALERT) {
         FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT,
                                    ancestor->GetNode(), AccEvent::eRemoveDupes,
                                    fromUserInput);
@@ -1723,46 +1743,6 @@ nsDocAccessible::RemoveDependentIDsFor(nsAccessible* aRelProvider,
   }
 }
 
-bool
-nsDocAccessible::UpdateAccessibleOnAttrChange(dom::Element* aElement,
-                                              nsIAtom* aAttribute)
-{
-  if (aAttribute == nsAccessibilityAtoms::role) {
-    // It is common for js libraries to set the role on the body element after
-    // the document has loaded. In this case we just update the role map entry.
-    if (mContent == aElement) {
-      SetRoleMapEntry(nsAccUtils::GetRoleMapEntry(aElement));
-      return true;
-    }
-
-    // Recreate the accessible when role is changed because we might require a
-    // different accessible class for the new role or the accessible may expose
-    // a different sets of interfaces (COM restriction).
-    RecreateAccessible(aElement);
-    return true;
-  }
-
-  if (aAttribute == nsAccessibilityAtoms::href ||
-      aAttribute == nsAccessibilityAtoms::onclick) {
-    // Not worth the expense to ensure which namespace these are in
-    // It doesn't kill use to recreate the accessible even if the attribute was used
-    // in the wrong namespace or an element that doesn't support it
-    RecreateAccessible(aElement);
-    return true;
-  }
-
-  if (aAttribute == nsAccessibilityAtoms::aria_multiselectable &&
-      aElement->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
-    // This affects whether the accessible supports SelectAccessible.
-    // COM says we cannot change what interfaces are supported on-the-fly,
-    // so invalidate this object. A new one will be created on demand.
-    RecreateAccessible(aElement);
-    return true;
-  }
-
-  return false;
-}
-
 void
 nsDocAccessible::FireValueChangeForTextFields(nsAccessible *aAccessible)
 {
@@ -1943,25 +1923,6 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
 
     updateFlags |= eAccessible;
 
-    if (!aIsInsert) {
-      // Fire menupopup end event before hide event if a menu goes away.
-
-      // XXX: We don't look into children of hidden subtree to find hiding
-      // menupopup (as we did prior bug 570275) because we don't do that when
-      // menu is showing (and that's impossible until bug 606924 is fixed).
-      // Nevertheless we should do this at least because layout coalesces
-      // the changes before our processing and we may miss some menupopup
-      // events. Now we just want to be consistent in content insertion/removal
-      // handling.
-      if (accessible->ARIARole() == nsIAccessibleRole::ROLE_MENUPOPUP) {
-        nsRefPtr<AccEvent> event =
-          new AccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END, accessible);
-
-        if (event)
-          FireDelayedAccessibleEvent(event);
-      }
-    }
-
     // Fire show/hide event.
     if (aFireAllEvents) {
       nsRefPtr<AccEvent> event;
@@ -1975,17 +1936,19 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
     }
 
     if (aIsInsert) {
-      PRUint32 ariaRole = accessible->ARIARole();
-      if (ariaRole == nsIAccessibleRole::ROLE_MENUPOPUP) {
-        // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
-                                   node, AccEvent::eRemoveDupes, aFromUserInput);
+      const nsRoleMapEntry* roleMapEntry = accessible->GetRoleMapEntry();
+      if (roleMapEntry) {
+        if (roleMapEntry->role == nsIAccessibleRole::ROLE_MENUPOPUP) {
+          // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
+          FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
+                                     node, AccEvent::eRemoveDupes, aFromUserInput);
 
-      } else if (ariaRole == nsIAccessibleRole::ROLE_ALERT) {
-        // Fire EVENT_ALERT if ARIA alert appears.
-        updateFlags = eAlertAccessible;
-        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
-                                   AccEvent::eRemoveDupes, aFromUserInput);
+        } else if (roleMapEntry->role == nsIAccessibleRole::ROLE_ALERT) {
+          // Fire EVENT_ALERT if ARIA alert appears.
+          updateFlags = eAlertAccessible;
+          FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
+                                     AccEvent::eRemoveDupes, aFromUserInput);
+        }
       }
 
       // If focused node has been shown then it means its frame was recreated
@@ -1999,13 +1962,7 @@ nsDocAccessible::UpdateTreeInternal(nsAccessible* aContainer,
       }
     } else {
       // Update the tree for content removal.
-      // The accessible parent may differ from container accessible if
-      // the parent doesn't have own DOM node like list accessible for HTML
-      // selects.
-      nsAccessible* parent = accessible->GetParent();
-      NS_ASSERTION(parent, "No accessible parent?!");
-      parent->RemoveChild(accessible);
-
+      aContainer->RemoveChild(accessible);
       UncacheChildrenInSubtree(accessible);
     }
   }

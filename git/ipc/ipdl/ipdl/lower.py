@@ -2817,8 +2817,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         self.cls.addstmts([ onerror, Whitespace.NL ])
 
         # OnChannelConnected()
-        onconnected = MethodDefn(MethodDecl('OnChannelConnected',
-                                            params=[ Decl(Type.INT32, 'pid') ]))
+        onconnected = MethodDefn(MethodDecl('OnChannelConnected'))
         if not ptype.isToplevel():
             onconnected.addstmt(
                 _runtimeAbort("'OnConnected' called on non-toplevel actor"))

@@ -981,8 +981,6 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
   if (!aCompositionString.IsEmpty() || (mIMETextNode && aTextRangeList)) {
     mIMETextRangeList = aTextRangeList;
 
-    nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
-
     SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
     rv = InsertText(aCompositionString);

@@ -41,10 +41,6 @@
 #ifndef nsIFrame_h___
 #define nsIFrame_h___
 
-#ifndef MOZILLA_INTERNAL_API
-#error This header/class should only be used within Mozilla code. It should not be used by extensions.
-#endif
-
 /* nsIFrame is in the process of being deCOMtaminated, i.e., this file is eventually
    going to be eliminated, and all callers will use nsFrame instead.  At the moment
    we're midway through this process, so you will see inlined functions and member
@@ -1296,14 +1292,6 @@ public:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType) = 0;
-
-  /**
-   * When the content states of a content object change, this method is invoked
-   * on the primary frame of that content object.
-   *
-   * @param aStates the changed states
-   */
-  virtual void ContentStatesChanged(nsEventStates aStates) { };
 
   /**
    * Return how your frame can be split.
@@ -2562,8 +2550,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
 
   NS_HIDDEN_(nsresult) Redraw(nsBoxLayoutState& aState, const nsRect* aRect = nsnull);
   NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)=0;
-  // XXX take this out after we've branched
-  virtual PRBool GetMouseThrough() const { return PR_FALSE; };
+  virtual PRBool GetMouseThrough() const = 0;
 
 #ifdef DEBUG_LAYOUT
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug)=0;

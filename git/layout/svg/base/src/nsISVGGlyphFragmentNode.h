@@ -62,7 +62,6 @@ public:
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetFirstGlyphFragment()=0;
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetNextGlyphFragment()=0;
   NS_IMETHOD_(void) SetWhitespaceHandling(PRUint8 aWhitespaceHandling)=0;
-  NS_IMETHOD_(PRBool) IsAllWhitespace()=0;
 };
 
 #endif // __NS_ISVGGLYPHFRAGMENTNODE_H__

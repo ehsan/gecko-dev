@@ -437,6 +437,7 @@ pref("dom.disable_window_flip",                   true);
 // popups.policy 1=allow,2=reject
 pref("privacy.popups.policy",               1);
 pref("privacy.popups.usecustom",            true);
+pref("privacy.popups.firstTime",            true);
 pref("privacy.popups.showBrowserMessage",   true);
 
 pref("privacy.item.cookies",                false);
@@ -943,7 +944,7 @@ pref("dom.ipc.plugins.enabled", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
-pref("browser.taskbar.previews.enable", false);
+pref("browser.taskbar.previews.enable", true);
 pref("browser.taskbar.previews.max", 20);
 pref("browser.taskbar.previews.cachetime", 5);
 pref("browser.taskbar.lists.enabled", true);

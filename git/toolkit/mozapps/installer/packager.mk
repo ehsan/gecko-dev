@@ -193,20 +193,14 @@ ifdef MOZ_IPC
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
 endif
 
-ifdef MOZ_THUMB2
-ABI_DIR = armeabi-v7a
-else
-ABI_DIR = armeabi
-endif
-
 PKG_SUFFIX      = .apk
 INNER_MAKE_PACKAGE	= \
   rm -f $(_ABS_DIST)/gecko.ap_ && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
     rm -rf lib && \
-    mkdir -p lib/$(ABI_DIR) && \
+    mkdir -p lib/armeabi && \
     cp lib*.so lib && \
-    mv lib/libmozutils.so lib/$(ABI_DIR) && \
+    mv lib/libmozutils.so lib/armeabi && \
     rm -f lib.id && \
     for SOMELIB in lib/*.so ; \
     do \
@@ -222,7 +216,7 @@ INNER_UNMAKE_PACKAGE	= \
   mkdir $(MOZ_PKG_DIR) && \
   cd $(MOZ_PKG_DIR) && \
   $(UNZIP) $(UNPACKAGE) && \
-  mv lib/$(ABI_DIR)/*.so . && \
+  mv lib/armeabi/*.so . && \
   mv lib/*.so . && \
   rm -rf lib
 endif
@@ -306,7 +300,7 @@ OMNIJAR_FILES	= \
   greprefs.js \
   $(NULL)
 
-NON_OMNIJAR_FILES += \
+NON_OMNIJAR_FILES = \
   chrome/icons/\* \
   defaults/pref/channel-prefs.js \
   res/cursors/\* \
@@ -389,6 +383,7 @@ NO_PKG_FILES += \
 	nsinstall \
 	viewer \
 	TestGtkEmbed \
+	bloaturls.txt \
 	codesighs* \
 	elf-dynstr-gc \
 	mangle* \

@@ -164,6 +164,8 @@ template <class T,
           class AllocPolicy = ContextAllocPolicy>
 class HashSet;
 
+class DeflatedStringCache;
+
 class PropertyCache;
 struct PropertyCacheEntry;
 

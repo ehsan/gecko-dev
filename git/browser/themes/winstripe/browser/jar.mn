@@ -16,6 +16,7 @@ browser.jar:
         skin/classic/browser/appmenu-icons.png
         skin/classic/browser/appmenu-dropmarker.png
 *       skin/classic/browser/browser.css                             (browser.css)
+*       skin/classic/browser/effects.svg                             (effects.svg)
 *       skin/classic/browser/engineManager.css                       (engineManager.css)
         skin/classic/browser/fullscreen-video.css
         skin/classic/browser/Geolocation-16.png
@@ -47,7 +48,6 @@ browser.jar:
         skin/classic/browser/monitor.png
         skin/classic/browser/monitor_16-10.png
         skin/classic/browser/urlbar-favicon-glow.png
-        skin/classic/browser/urlbar-popup-blocked.png
         skin/classic/browser/feeds/feedIcon.png                      (feeds/feedIcon.png)
         skin/classic/browser/feeds/feedIcon16.png                    (feeds/feedIcon16.png)
         skin/classic/browser/feeds/audioFeedIcon.png                 (feeds/audioFeedIcon.png)
@@ -129,6 +129,7 @@ browser.jar:
         skin/classic/aero/browser/appmenu-dropmarker.png
         skin/classic/aero/browser/appmenu-icons.png
 *       skin/classic/aero/browser/browser.css                        (browser-aero.css)
+*       skin/classic/aero/browser/effects.svg                        (effects.svg)
 *       skin/classic/aero/browser/engineManager.css                  (engineManager.css)
         skin/classic/aero/browser/fullscreen-video.css
         skin/classic/aero/browser/Geolocation-16.png
@@ -160,7 +161,6 @@ browser.jar:
         skin/classic/aero/browser/monitor.png
         skin/classic/aero/browser/monitor_16-10.png
         skin/classic/aero/browser/urlbar-favicon-glow.png
-        skin/classic/aero/browser/urlbar-popup-blocked.png
         skin/classic/aero/browser/feeds/feedIcon.png                 (feeds/feedIcon-aero.png)
         skin/classic/aero/browser/feeds/feedIcon16.png               (feeds/feedIcon16-aero.png)
         skin/classic/aero/browser/feeds/audioFeedIcon.png            (feeds/audioFeedIcon-aero.png)
@@ -172,8 +172,8 @@ browser.jar:
         skin/classic/aero/browser/inspector.css
 *       skin/classic/aero/browser/places/places.css                  (places/places-aero.css)
 *       skin/classic/aero/browser/places/organizer.css               (places/organizer-aero.css)
-        skin/classic/aero/browser/places/bookmark.png                (places/bookmark.png)
-        skin/classic/aero/browser/places/editBookmark.png            (places/editBookmark.png)
+        skin/classic/aero/browser/places/bookmark.png                (places/bookmark-aero.png)
+        skin/classic/aero/browser/places/editBookmark.png            (places/editBookmark-aero.png)
         skin/classic/aero/browser/places/query.png                   (places/query-aero.png)
         skin/classic/aero/browser/places/bookmarksMenu.png           (places/bookmarksMenu-aero.png)
         skin/classic/aero/browser/places/bookmarksToolbar.png        (places/bookmarksToolbar-aero.png)

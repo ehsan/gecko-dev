@@ -230,7 +230,7 @@ public:
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 #ifdef CAIRO_HAS_DWRITE_FONT
-    IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
+    IDWriteFactory *GetDWriteFactory() { return mUseDirectWrite ? mDWriteFactory : nsnull; }
     inline PRBool DWriteEnabled() { return mUseDirectWrite; }
 #else
     inline PRBool DWriteEnabled() { return PR_FALSE; }

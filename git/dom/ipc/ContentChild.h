@@ -131,9 +131,6 @@ public:
                                          const double& z);
 
     virtual bool RecvScreenSizeChanged(const gfxIntSize &size);
-
-    virtual bool RecvFlushMemory(const nsString& reason);
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif

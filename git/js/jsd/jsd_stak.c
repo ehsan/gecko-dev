@@ -356,12 +356,12 @@ jsd_GetThisForStackFrame(JSDContext* jsdc,
     return jsdval;
 }
 
-JSString*
+const char*
 jsd_GetNameForStackFrame(JSDContext* jsdc, 
                          JSDThreadState* jsdthreadstate,
                          JSDStackFrameInfo* jsdframe)
 {
-    JSString *rv = NULL;
+    const char *rv = NULL;
     
     JSD_LOCK_THREADSTATES(jsdc);
     
@@ -370,7 +370,7 @@ jsd_GetNameForStackFrame(JSDContext* jsdc,
         JSFunction *fun = JS_GetFrameFunction (jsdthreadstate->context,
                                                jsdframe->fp);
         if (fun)
-            rv = JS_GetFunctionId (fun);
+            rv = JS_GetFunctionName (fun);
     }
     
     JSD_UNLOCK_THREADSTATES(jsdc);

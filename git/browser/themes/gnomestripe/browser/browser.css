@@ -1116,6 +1116,7 @@ toolbar[iconsize="small"] #feed-button {
   -moz-appearance: none;
   background-color: #fffcd6;
   border: 1px solid #dad8b6;
+  padding: 5px 5px 5px 5px;
   font-weight: bold;
 }
 
@@ -1223,8 +1224,7 @@ toolbar[iconsize="small"] #feed-button {
   font-size: inherit;
 }
 
-.ac-url-text,
-.ac-action-text {
+.ac-url-text {
   color: -moz-nativehyperlinktext;
 }
 
@@ -1236,9 +1236,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   color: GrayText;
 }
 
-.ac-comment[selected="true"],
-.ac-url-text[selected="true"],
-.ac-action-text[selected="true"] {
+.ac-comment[selected="true"], .ac-url-text[selected="true"] {
   color: inherit !important;
 }
 
@@ -1312,11 +1310,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 #urlbar-stop-button:hover {
   background-image: -moz-linear-gradient(rgb(237,120,120), rgb(216,92,92));
-}
-
-/* Popup blocker button */
-#page-report-button {
-  list-style-image: url("chrome://browser/skin/Info.png");
 }
 
 /* Star button */
@@ -1572,9 +1565,14 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-transition: none;
 }
 
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-icon,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menu-dropmarker,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon {
+#TabsToolbar > toolbarbutton > .toolbarbutton-icon,
+#TabsToolbar > toolbarbutton > .toolbarbutton-menu-dropmarker,
+#TabsToolbar > toolbarpaletteitem > toolbarbutton > .toolbarbutton-icon,
+#TabsToolbar > toolbarpaletteitem > toolbarbutton > .toolbarbutton-menu-dropmarker,
+#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-icon,
+#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-menu-dropmarker,
+#TabsToolbar > toolbarpaletteitem > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-icon,
+#TabsToolbar > toolbarpaletteitem > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-menu-dropmarker {
   margin-top: -2px;
   margin-bottom: -2px;
 }
@@ -1718,8 +1716,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 
 /* Application menu toolbar button */
 
-#appmenu-toolbar-button > .toolbarbutton-text,
-#appmenu-toolbar-button > .toolbarbutton-menu-dropmarker {
+#appmenu-toolbar-button > .toolbarbutton-text {
   margin-top: -2px !important;
   margin-bottom: -2px !important;
 }
@@ -1782,7 +1779,6 @@ panel[dimmed="true"] {
   -moz-appearance: none;
 }
 
-/* Add-on bar close button */
-#addonbar-closebutton {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+browser[tabmodalPromptShowing] {
+  filter: url("chrome://browser/skin/effects.svg#blurAndDesaturate");
 }

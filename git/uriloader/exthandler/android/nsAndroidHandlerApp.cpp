@@ -39,7 +39,8 @@
 #include "AndroidBridge.h"
 
 
-NS_IMPL_ISUPPORTS2(nsAndroidHandlerApp, nsIHandlerApp, nsISharingHandlerApp)
+NS_IMPL_ISUPPORTS1(nsAndroidHandlerApp, nsISharingHandlerApp)
+
 
 nsAndroidHandlerApp::nsAndroidHandlerApp(const nsAString& aName,
                                          const nsAString& aDescription,

@@ -360,8 +360,6 @@ EGLSurface __stdcall eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EG
                   default:
                     return error(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
                 }
-
-                attrib_list += 2;
             }
         }
 
@@ -774,28 +772,6 @@ EGLContext __stdcall eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLConte
 
     try
     {
-        // Get the requested client version (default is 1) and check it is two.
-        EGLint client_version = 1;
-        if (attrib_list)
-        {
-            for (const EGLint* attribute = attrib_list; attribute[0] != EGL_NONE; attribute += 2)
-            {
-                if (attribute[0] == EGL_CONTEXT_CLIENT_VERSION)
-                {
-                    client_version = attribute[1];
-                }
-                else
-                {
-                    return error(EGL_BAD_ATTRIBUTE, EGL_NO_CONTEXT);
-                }
-            }
-        }
-
-        if (client_version != 2)
-        {
-            return error(EGL_BAD_CONFIG, EGL_NO_CONTEXT);
-        }
-
         egl::Display *display = static_cast<egl::Display*>(dpy);
 
         if (!validate(display, config))
