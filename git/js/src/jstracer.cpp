@@ -1248,7 +1248,7 @@ TraceRecorder::get(jsval* p)
 
 /* Determine whether a bytecode location (pc) terminates a loop or is a path within the loop. */
 static bool
-js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* pc)
+js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* header, jsbytecode* pc)
 {
     switch (*pc) {
       case JSOP_LT:
@@ -1271,7 +1271,7 @@ js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* pc)
          */
         if (pc[GET_JUMP_OFFSET(pc)] == JSOP_ENDITER)
             return true;
-        return GET_JUMP_OFFSET(pc) < 0;
+        return pc + GET_JUMP_OFFSET(pc) == header;
 
       default:;
     }
@@ -1355,7 +1355,8 @@ SideExit*
 TraceRecorder::snapshot(ExitType exitType)
 {
     JSStackFrame* fp = cx->fp;
-    if (exitType == BRANCH_EXIT && js_IsLoopExit(cx, fp->script, fp->regs->pc))
+    if (exitType == BRANCH_EXIT && 
+        js_IsLoopExit(cx, fp->script, (jsbytecode*)fragment->root->ip, fp->regs->pc))
         exitType = LOOP_EXIT;
     /* Generate the entry map and stash it in the trace. */
     unsigned stackSlots = js_NativeStackSlots(cx, callDepth);
@@ -2825,9 +2826,8 @@ TraceRecorder::map_is_native(JSObjectMap* map, LIns* map_ins, LIns*& ops_ins, si
 bool
 TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2, jsuword& pcval)
 {
-    // Mimic the interpreter's special case for dense arrays by skipping up one
-    // hop along the proto chain when accessing a named (not indexed) property,
-    // typically to find Array.prototype methods.
+    // Mimic JSOP_CALLPROP's special case to skip up from a dense array to find
+    // Array.prototype methods.
     JSObject* aobj = obj;
     if (OBJ_IS_DENSE_ARRAY(cx, obj)) {
         aobj = OBJ_GET_PROTO(cx, obj);
@@ -2862,88 +2862,103 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
     JSAtom* atom;
     JSPropCacheEntry* entry;
     PROPERTY_CACHE_TEST(cx, cx->fp->regs->pc, aobj, obj2, entry, atom);
-    if (atom) {
-        // Miss: pre-fill the cache for the interpreter, as well as for our needs.
-        // FIXME: 452357 - correctly propagate exceptions into the interpreter from
-        // js_FindPropertyHelper, js_LookupPropertyWithFlags, and elsewhere.
-        jsid id = ATOM_TO_JSID(atom);
-        JSProperty* prop;
-        if (JOF_OPMODE(*cx->fp->regs->pc) == JOF_NAME) {
-            JS_ASSERT(aobj == obj);
-            if (js_FindPropertyHelper(cx, id, &obj, &obj2, &prop, &entry) < 0)
-                ABORT_TRACE("failed to find name");
-        } else {
-            int protoIndex = js_LookupPropertyWithFlags(cx, aobj, id, 0, &obj2, &prop);
-            if (protoIndex < 0)
-                ABORT_TRACE("failed to lookup property");
-
-            if (prop) {
-                js_FillPropertyCache(cx, aobj, OBJ_SCOPE(aobj)->shape, 0, protoIndex, obj2,
-                                     (JSScopeProperty*) prop, &entry);
-            }
-        }
-
-        if (!prop) {
-            // Propagate obj from js_FindPropertyHelper to record_JSOP_BINDNAME
-            // via our obj2 out-parameter.
-            obj2 = obj;
-            pcval = PCVAL_NULL;
-            return true;
-        }
-
-        OBJ_DROP_PROPERTY(cx, obj2, prop);
-        if (!entry)
-            ABORT_TRACE("failed to fill property cache");
+    if (!atom) {
+        pcval = entry->vword;
+        return true;
     }
 
-#ifdef JS_THREADSAFE
-    // There's a potential race in any JS_THREADSAFE embedding that's nuts
-    // enough to share mutable objects on the scope or proto chain, but we
-    // don't care about such insane embeddings. Anyway, the (scope, proto)
-    // entry->vcap coordinates must reach obj2 from aobj at this point.
-    JS_ASSERT(cx->requestDepth);
-#endif
+    // FIXME: suppressed exceptions from js_FindPropertyHelper and js_LookupPropertyWithFlags
+    JSProperty* prop;
+    JSScopeProperty* sprop;
+    jsid id = ATOM_TO_JSID(atom);
+    if (JOF_OPMODE(*cx->fp->regs->pc) == JOF_NAME) {
+        JS_ASSERT(aobj == obj);
+        if (js_FindPropertyHelper(cx, id, &obj, &obj2, &prop, &entry) < 0)
+            ABORT_TRACE("failed to find name");
+    } else {
+        int protoIndex = js_LookupPropertyWithFlags(cx, aobj, id, 0, &obj2, &prop);
+        if (protoIndex < 0)
+            ABORT_TRACE("failed to lookup property");
 
-    // Emit guard(s), common code for both hit and miss cases.
-    // Check for first-level cache hit and guard on kshape if possible.
-    // Otherwise guard on key object exact match.
+        if (prop) {
+            sprop = (JSScopeProperty*) prop;
+            js_FillPropertyCache(cx, aobj, OBJ_SCOPE(aobj)->shape, 0, protoIndex, obj2, sprop,
+                                 &entry);
+        }
+    }
+
+    if (!prop) {
+        // Propagate obj from js_FindPropertyHelper to record_JSOP_BINDNAME
+        // via our obj2 out-parameter.
+        obj2 = obj;
+        pcval = PCVAL_NULL;
+        return true;
+    }
+
+    if (!entry) {
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        ABORT_TRACE("failed to fill property cache");
+    }
+
     if (PCVCAP_TAG(entry->vcap) <= 1) {
         if (aobj != globalObj) {
             LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
                                       "shape");
-            guard(true, addName(lir->ins2i(LIR_eq, shape_ins, entry->kshape), "guard(kshape)"),
+            guard(true, addName(lir->ins2i(LIR_eq, shape_ins, entry->kshape), "guard(shape)"),
                   MISMATCH_EXIT);
         }
     } else {
         JS_ASSERT(entry->kpc == (jsbytecode*) atom);
         JS_ASSERT(entry->kshape == jsuword(aobj));
-        if (aobj != globalObj) {
-            guard(true, addName(lir->ins2i(LIR_eq, obj_ins, entry->kshape), "guard(kobj)"),
-                  MISMATCH_EXIT);
-        }
     }
 
-    // For any hit that goes up the scope and or proto chains, we will need to
-    // guard on the shape of the object containing the property.
     if (PCVCAP_TAG(entry->vcap) >= 1) {
-        jsuword vcap = entry->vcap;
-        uint32 vshape = PCVCAP_SHAPE(vcap);
-        JS_ASSERT(OBJ_SCOPE(obj2)->shape == vshape);
+        JS_ASSERT(OBJ_SCOPE(obj2)->shape == PCVCAP_SHAPE(entry->vcap));
 
-        LIns* obj2_ins = INS_CONSTPTR(obj2);
+        LIns* obj2_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
         map_ins = lir->insLoad(LIR_ldp, obj2_ins, (int)offsetof(JSObject, map));
-        if (!map_is_native(obj2->map, map_ins, ops_ins))
+        LIns* ops_ins;
+        if (!map_is_native(obj2->map, map_ins, ops_ins)) {
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
             return false;
+        }
 
-        LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
-                                  "shape");
+        LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)), "shape");
         guard(true,
-              addName(lir->ins2i(LIR_eq, shape_ins, vshape), "guard(vshape)"),
+              addName(lir->ins2i(LIR_eq, shape_ins, PCVCAP_SHAPE(entry->vcap)),
+                      "guard(vcap_shape)"),
               MISMATCH_EXIT);
     }
 
-    pcval = entry->vword;
-    return true;
+    sprop = (JSScopeProperty*) prop;
+    JSScope* scope = OBJ_SCOPE(obj2);
+
+    jsval v;
+
+    if (format & JOF_CALLOP) {
+        if (SPROP_HAS_STUB_GETTER(sprop) && SPROP_HAS_VALID_SLOT(sprop, scope) &&
+            VALUE_IS_FUNCTION(cx, (v = STOBJ_GET_SLOT(obj2, sprop->slot))) &&
+            SCOPE_IS_BRANDED(scope)) {
+            /* Call op, "pure" sprop, function value, branded scope: cache method. */
+            pcval = JSVAL_OBJECT_TO_PCVAL(v);
+            OBJ_DROP_PROPERTY(cx, obj2, prop);
+            return true;
+        }
+
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        ABORT_TRACE("can't fast method value for call op");
+    }
+
+    if ((((format & JOF_SET) && SPROP_HAS_STUB_SETTER(sprop)) ||
+         SPROP_HAS_STUB_GETTER(sprop)) &&
+        SPROP_HAS_VALID_SLOT(sprop, scope)) {
+        /* Stub accessor of appropriate form and valid slot: cache slot. */
+        pcval = SLOT_TO_PCVAL(sprop->slot);
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+        return true;
+    }
+
+    ABORT_TRACE("no cacheable property found");
 }
 
 bool
