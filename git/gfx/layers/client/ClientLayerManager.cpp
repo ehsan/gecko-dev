@@ -607,7 +607,7 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
   }
 
   mForwarder->RemoveTexturesIfNecessary();
-  mForwarder->SendPendingAsyncMessges();
+  mForwarder->SendPendingAsyncMessge();
   mPhase = PHASE_NONE;
 
   // this may result in Layers being deleted, which results in

@@ -2836,7 +2836,7 @@ public:
     ePolygon
   };
 
-  explicit nsStyleBasicShape(Type type)
+  nsStyleBasicShape(Type type)
     : mType(type)
   {
   }

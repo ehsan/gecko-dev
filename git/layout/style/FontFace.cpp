@@ -28,7 +28,7 @@ namespace dom {
 class FontFaceBufferSource : public gfxFontFaceBufferSource
 {
 public:
-  explicit FontFaceBufferSource(FontFace* aFontFace)
+  FontFaceBufferSource(FontFace* aFontFace)
     : mFontFace(aFontFace) {}
   virtual void TakeBuffer(uint8_t*& aBuffer, uint32_t& aLength);
 
@@ -71,7 +71,7 @@ class FontFaceInitializer : public nsIRunnable
 public:
   NS_DECL_ISUPPORTS
 
-  explicit FontFaceInitializer(FontFace* aFontFace)
+  FontFaceInitializer(FontFace* aFontFace)
     : mFontFace(aFontFace)
     , mSourceBuffer(nullptr)
     , mSourceBufferLength(0) {}

@@ -555,7 +555,7 @@ ImageBridgeChild::EndTransaction()
       NS_RUNTIMEABORT("not reached");
     }
   }
-  SendPendingAsyncMessges();
+  SendPendingAsyncMessge();
 }
 
 
@@ -964,7 +964,7 @@ bool ImageBridgeChild::IsSameProcess() const
   return OtherProcess() == ipc::kInvalidProcessHandle;
 }
 
-void ImageBridgeChild::SendPendingAsyncMessges()
+void ImageBridgeChild::SendPendingAsyncMessge()
 {
   if (!IsCreated() ||
       mTransactionsToRespond.empty()) {

@@ -20,7 +20,6 @@
   filter: initial !important;
   clip: initial !important;
   transform: initial !important;
-  transform-style: initial !important;
   /* FIXME: do we need to worry about 'overflow'? */
 }
 

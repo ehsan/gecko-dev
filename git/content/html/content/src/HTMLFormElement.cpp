@@ -2244,7 +2244,7 @@ namespace {
 struct PositionComparator
 {
   nsIContent* const mElement;
-  explicit PositionComparator(nsIContent* const aElement) : mElement(aElement) {}
+  PositionComparator(nsIContent* const element) : mElement(element) {}
 
   int operator()(nsIContent* aElement) const {
     if (mElement == aElement) {
@@ -2260,7 +2260,7 @@ struct PositionComparator
 struct NodeListAdaptor
 {
   nsINodeList* const mList;
-  explicit NodeListAdaptor(nsINodeList* aList) : mList(aList) {}
+  NodeListAdaptor(nsINodeList* aList) : mList(aList) {}
   nsIContent* operator[](size_t aIdx) const {
     return mList->Item(aIdx);
   }

@@ -25,7 +25,7 @@
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
 
-#include "vm/NativeObject-inl.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::gc;

@@ -555,7 +555,7 @@ namespace {
 struct PositionComparator
 {
   Element* const mElement;
-  explicit PositionComparator(Element* const aElement) : mElement(aElement) {}
+  PositionComparator(Element* const aElement) : mElement(aElement) {}
 
   int operator()(void* aElement) const {
     Element* curElement = static_cast<Element*>(aElement);
