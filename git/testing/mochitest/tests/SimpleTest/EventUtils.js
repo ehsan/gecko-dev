@@ -134,20 +134,22 @@ function __doEventDispatch(aTarget, aCharCode, aKeyCode, aHasShift) {
                      aKeyCode, 0);
   var accepted = $(aTarget).dispatchEvent(event);
 
-  // Cancelling keydown cancels keypress too
-  if (accepted) {
-    event = document.createEvent("KeyEvents");
-    if (aCharCode) {
-      event.initKeyEvent("keypress", true, true, document.defaultView,
-                         false, false, aHasShift, false,
-                         0, aCharCode);
-    } else {
-      event.initKeyEvent("keypress", true, true, document.defaultView,
-                         false, false, aHasShift, false,
-                         aKeyCode, 0);
-    }
-    accepted = $(aTarget).dispatchEvent(event);
+  // Preventing the default keydown action also prevents the default
+  // keypress action.
+  event = document.createEvent("KeyEvents");
+  if (aCharCode) {
+    event.initKeyEvent("keypress", true, true, document.defaultView,
+                       false, false, aHasShift, false,
+                       0, aCharCode);
+  } else {
+    event.initKeyEvent("keypress", true, true, document.defaultView,
+                       false, false, aHasShift, false,
+                       aKeyCode, 0);
   }
+  if (!accepted) {
+    event.preventDefault();
+  }
+  accepted = $(aTarget).dispatchEvent(event);
 
   // Always send keyup
   var event = document.createEvent("KeyEvents");
@@ -187,7 +189,7 @@ function _parseModifiers(aEvent)
  * aOffsetY. This allows mouse clicks to be simulated by calling this method.
  *
  * aEvent is an object which may contain the properties:
- *   shiftKey, ctrlKey, altKey, metaKey, accessKey, type
+ *   shiftKey, ctrlKey, altKey, metaKey, accessKey, clickCount, button, type
  *
  * If the type is specified, an mouse event of that type is fired. Otherwise,
  * a mousedown followed by a mouse up is performed.
@@ -208,8 +210,9 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var clickCount = aEvent.clickCount || 1;
     var modifiers = _parseModifiers(aEvent);
 
-    var left = aTarget.boxObject.x;
-    var top = aTarget.boxObject.y;
+    var rect = aTarget.getBoundingClientRect();
+    var left = rect.left;
+    var top = rect.top;
 
     if (aEvent.type) {
       utils.sendMouseEvent(aEvent.type, left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
@@ -218,6 +221,59 @@ function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
       utils.sendMouseEvent("mousedown", left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
       utils.sendMouseEvent("mouseup", left + aOffsetX, top + aOffsetY, button, clickCount, modifiers);
     }
+  }
+}
+
+/**
+ * Synthesize a mouse scroll event on a target. The actual client point is determined
+ * by taking the aTarget's client box and offseting it by aOffsetX and
+ * aOffsetY.
+ *
+ * aEvent is an object which may contain the properties:
+ *   shiftKey, ctrlKey, altKey, metaKey, accessKey, button, type, axis, delta, hasPixels
+ *
+ * If the type is specified, a mouse scroll event of that type is fired. Otherwise,
+ * "DOMMouseScroll" is used.
+ *
+ * If the axis is specified, it must be one of "horizontal" or "vertical". If not specified,
+ * "vertical" is used.
+ * 
+ * 'delta' is the amount to scroll by (can be positive or negative). It must
+ * be specified.
+ *
+ * 'hasPixels' specifies whether kHasPixels should be set in the scrollFlags.
+ *
+ * aWindow is optional, and defaults to the current window object.
+ */
+function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
+{
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+  if (!aWindow)
+    aWindow = window;
+
+  var utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                      getInterface(Components.interfaces.nsIDOMWindowUtils);
+  if (utils) {
+    // See nsMouseScrollFlags in nsGUIEvent.h
+    const kIsVertical = 0x02;
+    const kIsHorizontal = 0x04;
+    const kHasPixels = 0x08;
+
+    var button = aEvent.button || 0;
+    var modifiers = _parseModifiers(aEvent);
+
+    var left = aTarget.boxObject.x;
+    var top = aTarget.boxObject.y;
+
+    var type = aEvent.type || "DOMMouseScroll";
+    var axis = aEvent.axis || "vertical";
+    var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
+    if (aEvent.hasPixels) {
+      scrollFlags |= kHasPixels;
+    }
+    utils.sendMouseScrollEvent(type, left + aOffsetX, top + aOffsetY, button,
+                               scrollFlags, aEvent.delta, modifiers);
   }
 }
 
@@ -258,8 +314,10 @@ function synthesizeKey(aKey, aEvent, aWindow)
       utils.sendKeyEvent(aEvent.type, keyCode, charCode, modifiers);
     }
     else {
-      utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
-      utils.sendKeyEvent("keypress", keyCode, charCode, modifiers);
+      var keyDownDefaultHappened =
+          utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
+      utils.sendKeyEvent("keypress", keyCode, charCode, modifiers,
+                         !keyDownDefaultHappened);
       utils.sendKeyEvent("keyup", keyCode, charCode, modifiers);
     }
   }

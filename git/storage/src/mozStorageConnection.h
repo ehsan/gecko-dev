@@ -41,9 +41,10 @@
 #define _MOZSTORAGECONNECTION_H_
 
 #include "nsCOMPtr.h"
+#include "nsAutoLock.h"
 
 #include "nsString.h"
-#include "nsDataHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "mozIStorageConnection.h"
 
@@ -81,8 +82,6 @@ protected:
     void HandleSqliteError(const char *aSqlStatement);
     static PLDHashOperator s_FindFuncEnum(const nsACString &aKey,
                                           nsISupports* aData, void* userArg);
-    static PLDHashOperator s_ReleaseFuncEnum(const nsACString &aKey,
-                                             nsISupports* aData, void* userArg);
     PRBool FindFunctionByInstance(nsISupports *aInstance);
 
     static int s_ProgressHelper(void *arg);
@@ -93,10 +92,14 @@ protected:
 
     sqlite3 *mDBConn;
     nsCOMPtr<nsIFile> mDatabaseFile;
+
+    PRLock *mTransactionMutex;
     PRBool mTransactionInProgress;
 
-    nsDataHashtable<nsCStringHashKey, nsISupports*> mFunctions;
+    PRLock *mFunctionsMutex;
+    nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
 
+    PRLock *mProgressHandlerMutex;
     nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
 
     // This isn't accessed but is used to make sure that the connections do

@@ -64,9 +64,6 @@ private:
   NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
 public:
-  // nsIFrame:
-  NS_IMETHOD DidSetStyleContext();
-
   // We don't define an AttributeChanged method since changes to the
   // 'x', 'y', 'width' and 'height' attributes of our content object
   // are handled in nsSVGSVGElement::DidModifySVGObservable
@@ -86,12 +83,11 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   virtual void NotifySVGChanged(PRUint32 aFlags);
-  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
   virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
-  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGContainerFrame methods:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
@@ -156,7 +152,7 @@ nsSVGInnerSVGFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect)
+nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect)
 {
   gfxContextAutoSaveRestore autoSR;
 
@@ -198,11 +194,11 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
     // a 'viewBox'.
 
     if (!(aFlags & TRANSFORM_CHANGED) &&
-        svg->mLengthAttributes[nsSVGSVGElement::X].IsPercentage() ||
-        svg->mLengthAttributes[nsSVGSVGElement::Y].IsPercentage() ||
-        (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
-         (svg->mLengthAttributes[nsSVGSVGElement::WIDTH].IsPercentage() ||
-          svg->mLengthAttributes[nsSVGSVGElement::HEIGHT].IsPercentage()))) {
+        (svg->mLengthAttributes[nsSVGSVGElement::X].IsPercentage() ||
+         svg->mLengthAttributes[nsSVGSVGElement::Y].IsPercentage() ||
+         (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
+          (svg->mLengthAttributes[nsSVGSVGElement::WIDTH].IsPercentage() ||
+           svg->mLengthAttributes[nsSVGSVGElement::HEIGHT].IsPercentage())))) {
     
       aFlags |= TRANSFORM_CHANGED;
     }
@@ -232,13 +228,6 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
 }
 
 NS_IMETHODIMP
-nsSVGInnerSVGFrame::SetMatrixPropagation(PRBool aPropagate)
-{
-  mPropagateTransform = aPropagate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsSVGInnerSVGFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
 {
   mOverrideCTM = aCTM;
@@ -253,8 +242,8 @@ nsSVGInnerSVGFrame::GetOverrideCTM()
   return matrix;
 }
 
-NS_IMETHODIMP
-nsSVGInnerSVGFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
+NS_IMETHODIMP_(nsIFrame*)
+nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     float clipX, clipY, clipWidth, clipHeight;
@@ -269,13 +258,13 @@ nsSVGInnerSVGFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
 
     if (!nsSVGUtils::HitTestRect(clipTransform,
                                  clipX, clipY, clipWidth, clipHeight,
-                                 x, y)) {
-      *hit = nsnull;
-      return NS_OK;
+                                 PresContext()->AppUnitsToDevPixels(aPoint.x),
+                                 PresContext()->AppUnitsToDevPixels(aPoint.y))) {
+      return nsnull;
     }
   }
 
-  return nsSVGInnerSVGFrameBase::GetFrameForPointSVG(x, y, hit);
+  return nsSVGInnerSVGFrameBase::GetFrameForPoint(aPoint);
 }
 
 //----------------------------------------------------------------------
@@ -402,12 +391,5 @@ nsSVGInnerSVGFrame::DidModifySVGObservable (nsISVGValue* observable,
                                             nsISVGValue::modificationType aModType)
 {
   NotifyViewportChange();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGInnerSVGFrame::DidSetStyleContext()
-{
-  nsSVGUtils::StyleEffects(this);
   return NS_OK;
 }

@@ -43,6 +43,8 @@
 #include "nsTArray.h"
 #include "nsDataHashtable.h"
 
+#include <fontconfig/fontconfig.h>
+
 class gfxFontNameList : public nsTArray<nsString>
 {
 public:
@@ -60,10 +62,7 @@ public:
         return sUtils;
     }
 
-    static void Shutdown() {
-        delete sUtils;
-        sUtils = nsnull;
-    }
+    static void Shutdown();
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
@@ -76,6 +75,17 @@ public:
                              void *aClosure, PRBool& aAborted);
 
     nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
+
+    static PRUint8 GetThebesStyle(FcPattern *aPattern); // slant
+    static PRUint16 GetThebesWeight(FcPattern *aPattern);
+
+    /**
+     * @param aLangGroup [in] a Mozilla langGroup.
+     * @param aFcLang [out] returns a language suitable for fontconfig
+     *        matching |aLangGroup| or an empty string if no match is found.
+     */
+    static void GetSampleLangForGroup(const nsACString& aLangGroup,
+                                      nsACString *aFcLang);
 
 protected:
     static gfxFontconfigUtils* sUtils;
@@ -94,6 +104,8 @@ protected:
     nsCStringArray mAliasForMultiFonts;
 
     nsDataHashtable<nsCStringHashKey, nsRefPtr<gfxFontNameList> > mAliasTable;
+
+    FcConfig *mLastConfig;
 };
 
 #endif /* GFX_FONTCONFIG_UTILS_H */

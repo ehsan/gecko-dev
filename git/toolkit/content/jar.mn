@@ -11,7 +11,7 @@ toolkit.jar:
 *  content/global/about.xhtml                 (about.xhtml)
    content/global/plugins.html
    content/global/plugins.css
-+  content/global/buildconfig.html            (buildconfig.html)
+*+  content/global/buildconfig.html            (buildconfig.html)
 +  content/global/charsetOverlay.js           (charsetOverlay.js)
 +  content/global/charsetOverlay.xul          (charsetOverlay.xul)
 *+ content/global/commonDialog.js             (commonDialog.js)
@@ -68,6 +68,7 @@ toolkit.jar:
 *+ content/global/bindings/toolbar.xml         (widgets/toolbar.xml)
 *+ content/global/bindings/toolbarbutton.xml   (widgets/toolbarbutton.xml)
 *+ content/global/bindings/tree.xml            (widgets/tree.xml)
+*+ content/global/bindings/videocontrols.xml   (widgets/videocontrols.xml)
 *+ content/global/bindings/wizard.xml          (widgets/wizard.xml)
 *+ content/global/bindings/findbar.xml         (widgets/findbar.xml)
 #ifdef XP_MACOSX

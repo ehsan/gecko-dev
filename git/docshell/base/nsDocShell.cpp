@@ -143,6 +143,9 @@
 #include "nsINestedURI.h"
 #include "nsITransportSecurityInfo.h"
 #include "nsINSSErrorsService.h"
+#include "nsIApplicationCache.h"
+#include "nsIApplicationCacheContainer.h"
+#include "nsIPermissionManager.h"
 
 // Editor-related
 #include "nsIEditingSession.h"
@@ -192,7 +195,6 @@
 
 #include "nsPluginError.h"
 
-static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
@@ -297,6 +299,7 @@ nsDocShell::nsDocShell():
     mIsBeingDestroyed(PR_FALSE),
     mIsExecutingOnLoadHandler(PR_FALSE),
     mIsPrintingOrPP(PR_FALSE),
+    mIsOffScreenBrowser(PR_FALSE),
     mSavingOldViewer(PR_FALSE),
     mAppType(nsIDocShell::APP_TYPE_UNKNOWN),
     mChildOffset(0),
@@ -458,6 +461,31 @@ NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
              NS_SUCCEEDED(EnsureContentViewer())) {
         mContentViewer->GetDOMDocument((nsIDOMDocument **) aSink);
         return *aSink ? NS_OK : NS_NOINTERFACE;
+    }
+    else if (aIID.Equals(NS_GET_IID(nsIApplicationCacheContainer))) {
+        *aSink = nsnull;
+
+        // Return the toplevel document as an
+        // nsIApplicationCacheContainer.
+
+        nsCOMPtr<nsIDocShellTreeItem> rootItem;
+        GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
+        nsCOMPtr<nsIDocShell> rootDocShell = do_QueryInterface(rootItem);
+        if (!rootDocShell)
+            return NS_ERROR_NO_INTERFACE;
+
+        nsCOMPtr<nsIContentViewer> contentViewer;
+        rootDocShell->GetContentViewer(getter_AddRefs(contentViewer));
+        if (!contentViewer)
+            return NS_ERROR_NO_INTERFACE;
+
+        nsCOMPtr<nsIDOMDocument> domDoc;
+        contentViewer->GetDOMDocument(getter_AddRefs(domDoc));
+        NS_ASSERTION(domDoc, "Should have a document.");
+        if (!domDoc)
+            return NS_ERROR_NO_INTERFACE;
+
+        return domDoc->QueryInterface(aIID, aSink);
     }
     else if (aIID.Equals(NS_GET_IID(nsIPrompt)) &&
              NS_SUCCEEDED(EnsureScriptEnvironment())) {
@@ -1190,12 +1218,10 @@ nsDocShell::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
     // Weak reference. Don't addref.
     mChromeEventHandler = piTarget;
 
-    NS_ASSERTION(!mScriptGlobal,
-                 "SetChromeEventHandler() called after the script global "
-                 "object was created! This means that the script global "
-                 "object in this docshell won't get the right chrome event "
-                 "handler. You really don't want to see this assert, FIX "
-                 "YOUR CODE!");
+    nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mScriptGlobal));
+    if (win) {
+        win->SetChromeEventHandler(piTarget);
+    }
 
     return NS_OK;
 }
@@ -3912,7 +3938,8 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
     }
 
     // otherwise, we must walk up the document and view trees checking
-    // for a hidden view.
+    // for a hidden view, unless we're an off screen browser, which 
+    // would make this test meaningless.
 
     nsCOMPtr<nsIDocShellTreeItem> treeItem = this;
     nsCOMPtr<nsIDocShellTreeItem> parentItem;
@@ -3937,7 +3964,9 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
         NS_ASSERTION(shellContent, "subshell not in the map");
 
         nsIFrame* frame = pPresShell->GetPrimaryFrameFor(shellContent);
-        if (frame && !frame->AreAncestorViewsVisible()) {
+        PRBool isDocShellOffScreen = PR_FALSE;
+        docShell->GetIsOffScreenBrowser(&isDocShellOffScreen);
+        if (frame && !frame->AreAncestorViewsVisible() && !isDocShellOffScreen) {
             *aVisibility = PR_FALSE;
             return NS_OK;
         }
@@ -3956,6 +3985,20 @@ nsDocShell::GetVisibility(PRBool * aVisibility)
     // Check with the tree owner as well to give embedders a chance to
     // expose visibility as well.
     return treeOwnerAsWin->GetVisibility(aVisibility);
+}
+
+NS_IMETHODIMP
+nsDocShell::SetIsOffScreenBrowser(PRBool aIsOffScreen) 
+{
+    mIsOffScreenBrowser = aIsOffScreen;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShell::GetIsOffScreenBrowser(PRBool *aIsOffScreen) 
+{
+    *aIsOffScreen = mIsOffScreenBrowser;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4417,6 +4460,31 @@ nsDocShell::RefreshURI(nsIURI * aURI, PRInt32 aDelay, PRBool aRepeat,
         timer->InitWithCallback(refreshTimer, aDelay, nsITimer::TYPE_ONE_SHOT);
     }
     return NS_OK;
+}
+
+nsresult
+nsDocShell::ForceRefreshURIFromTimer(nsIURI * aURI,
+                                     PRInt32 aDelay, 
+                                     PRBool aMetaRefresh,
+                                     nsITimer* aTimer)
+{
+    NS_PRECONDITION(aTimer, "Must have a timer here");
+
+    // Remove aTimer from mRefreshURIList if needed
+    if (mRefreshURIList) {
+        PRUint32 n = 0;
+        mRefreshURIList->Count(&n);
+
+        for (PRUint32 i = 0;  i < n; ++i) {
+            nsCOMPtr<nsITimer> timer = do_QueryElementAt(mRefreshURIList, i);
+            if (timer == aTimer) {
+                mRefreshURIList->RemoveElementAt(i);
+                break;
+            }
+        }
+    }
+
+    return ForceRefreshURI(aURI, aDelay, aMetaRefresh);
 }
 
 NS_IMETHODIMP
@@ -5899,13 +5967,9 @@ nsDocShell::RestoreFromHistory()
     rv = privWin->RestoreWindowState(windowState);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // Now, dispatch a title change event which would happed as the
+    // Now, dispatch a title change event which would happen as the
     // <head> is parsed.
-    nsCOMPtr<nsIDOMNSDocument> nsDoc = do_QueryInterface(document);
-    if (nsDoc) {
-        const nsAFlatString &title = document->GetDocumentTitle();
-        nsDoc->SetTitle(title);
-    }
+    document->NotifyPossibleTitleChange(PR_FALSE);
 
     // Now we simulate appending child docshells for subframes.
     for (i = 0; i < childShells.Count(); ++i) {
@@ -6395,16 +6459,9 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     nsCOMPtr<nsIWidget> widget;
     NS_ENSURE_SUCCESS(GetMainWidget(getter_AddRefs(widget)), NS_ERROR_FAILURE);
 
-    nsCOMPtr<nsIDeviceContext> deviceContext;
-    if (widget) {
-        deviceContext = do_CreateInstance(kDeviceContextCID);
-        NS_ENSURE_TRUE(deviceContext, NS_ERROR_FAILURE);
-        deviceContext->Init(widget->GetNativeData(NS_NATIVE_WIDGET));
-    }
-
     nsRect bounds(x, y, cx, cy);
 
-    if (NS_FAILED(mContentViewer->Init(widget, deviceContext, bounds))) {
+    if (NS_FAILED(mContentViewer->Init(widget, bounds))) {
         mContentViewer = nsnull;
         NS_ERROR("ContentViewer Initialization failed");
         return NS_ERROR_FAILURE;
@@ -7289,6 +7346,15 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     if (aFirstParty) {
         // tag first party URL loads
         loadFlags |= nsIChannel::LOAD_INITIAL_DOCUMENT_URI;
+
+        // Toplevel document loads in domains with the offline-app
+        // permission should check for an associated application
+        // cache.
+        nsCOMPtr<nsIDocShellTreeItem> root;
+        GetSameTypeRootTreeItem(getter_AddRefs(root));
+        if (root == this && NS_OfflineAppAllowed(aURI)) {
+            loadFlags |= nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE;
+        }
     }
 
     if (mLoadType == LOAD_ERROR_PAGE) {
@@ -7462,7 +7528,17 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     nsCOMPtr<nsIPrincipal> ownerPrincipal(do_QueryInterface(aOwner));
     if (URIIsLocalFile(aURI) && ownerPrincipal &&
         NS_SUCCEEDED(ownerPrincipal->CheckMayLoad(aURI, PR_FALSE))) {
-        channel->SetOwner(aOwner);
+        // One more check here.  CheckMayLoad will always return true for the
+        // system principal, but we do NOT want to inherit in that case.
+        PRBool isSystem;
+        nsCOMPtr<nsIScriptSecurityManager> secMan =
+            do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+        if (secMan &&
+            NS_SUCCEEDED(secMan->IsSystemPrincipal(ownerPrincipal,
+                                                   &isSystem)) &&
+            !isSystem) {
+            channel->SetOwner(aOwner);
+        }
     }
 
     nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(channel);
@@ -8440,7 +8516,7 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 }
 
 // callback data for WalkHistoryEntries
-struct CloneAndReplaceData
+struct NS_STACK_CLASS CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
                         nsISHEntry *aDestTreeParent)
@@ -9279,9 +9355,7 @@ nsRefreshTimer::Notify(nsITimer * aTimer)
         // Get the delay count to determine load type
         PRUint32 delay = 0;
         aTimer->GetDelay(&delay);
-        nsCOMPtr<nsIRefreshURI> refreshURI = do_QueryInterface(mDocShell);
-        if (refreshURI)
-            refreshURI->ForceRefreshURI(mURI, delay, mMetaRefresh);
+        mDocShell->ForceRefreshURIFromTimer(mURI, delay, mMetaRefresh, aTimer);
     }
     return NS_OK;
 }

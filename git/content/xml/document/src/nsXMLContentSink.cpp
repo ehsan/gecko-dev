@@ -497,7 +497,8 @@ nsXMLContentSink::SetParser(nsIParser* aParser)
 nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                nsIContent** aResult, PRBool* aAppendContent)
+                                nsIContent** aResult, PRBool* aAppendContent,
+                                PRBool aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -507,7 +508,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     aNodeInfo, PR_TRUE);
+                     aNodeInfo, aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -543,24 +544,9 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     }
   }
 
-  if (aNodeInfo->Equals(nsGkAtoms::title, kNameSpaceID_XHTML)) {
-    if (mDocument && mDocument->GetDocumentTitle().IsVoid()) {
-      mInTitle = PR_TRUE; // The first title wins
-    }
-  }
-#ifdef MOZ_SVG
-  else if (aNodeInfo->Equals(nsGkAtoms::title, kNameSpaceID_SVG)) {
-    nsIContent* parent = GetCurrentContent();
-    if (mDocument && mDocument->GetDocumentTitle().IsVoid() &&
-        parent && parent == mDocElement &&
-        parent->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
-      mInTitle = PR_TRUE; // The first title wins
-    }
-  }
-#endif // MOZ_SVG
-  else if (aNodeInfo->Equals(nsGkAtoms::link, kNameSpaceID_XHTML) ||
-           aNodeInfo->Equals(nsGkAtoms::style, kNameSpaceID_XHTML) ||
-           aNodeInfo->Equals(nsGkAtoms::style, kNameSpaceID_SVG)) {
+  if (aNodeInfo->Equals(nsGkAtoms::link, kNameSpaceID_XHTML) ||
+      aNodeInfo->Equals(nsGkAtoms::style, kNameSpaceID_XHTML) ||
+      aNodeInfo->Equals(nsGkAtoms::style, kNameSpaceID_SVG)) {
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(content));
     if (ssle) {
       ssle->InitStyleLinkElement(PR_FALSE);
@@ -589,11 +575,16 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
   if ((nodeInfo->NamespaceID() == kNameSpaceID_XHTML &&
        (nodeInfo->NameAtom() == nsGkAtoms::select ||
         nodeInfo->NameAtom() == nsGkAtoms::textarea ||
+#ifdef MOZ_MEDIA
+        nodeInfo->NameAtom() == nsGkAtoms::video ||
+        nodeInfo->NameAtom() == nsGkAtoms::audio ||
+#endif
         nodeInfo->NameAtom() == nsGkAtoms::object ||
         nodeInfo->NameAtom() == nsGkAtoms::applet))
 #ifdef MOZ_XTF
       || nodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin
 #endif
+      || nodeInfo->NameAtom() == nsGkAtoms::title
       ) {
     aContent->DoneAddingChildren(HaveNotifiedForCurrentContent());
   }
@@ -639,19 +630,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     return rv;
   }
   
-  if ((nodeInfo->Equals(nsGkAtoms::title, kNameSpaceID_XHTML)
-#ifdef MOZ_SVG
-       || nodeInfo->Equals(nsGkAtoms::title, kNameSpaceID_SVG)
-#endif // MOZ_SVG
-      ) && mInTitle) {
-    NS_ASSERTION(mDocument, "How did mInTitle get to be true if mDocument is null?");
-    // The first title wins
-    nsCOMPtr<nsIDOMNSDocument> dom_doc(do_QueryInterface(mDocument));
-    mTitleText.CompressWhitespace();
-    dom_doc->SetTitle(mTitleText);
-    mInTitle = PR_FALSE;
-  }
-  else if (nodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+  if (nodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
            !mHasProcessedBase) {
     // The first base wins
     rv = ProcessBASETag(aContent);
@@ -1023,12 +1002,11 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   }
   
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  result = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                         getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(result, result);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
-                         getter_AddRefs(content), &appendContent);
+                         getter_AddRefs(content), &appendContent, PR_TRUE);
   NS_ENSURE_SUCCESS(result, result);
 
   // Have to do this before we push the new content on the stack... and have to
@@ -1210,10 +1188,6 @@ nsXMLContentSink::HandleCDataSection(const PRUnichar *aData,
 
   FlushText();
   
-  if (mInTitle) {
-    mTitleText.Append(aData, aLength);
-  }
-  
   nsCOMPtr<nsIContent> cdata;
   nsresult rv = NS_NewXMLCDATASection(getter_AddRefs(cdata), mNodeInfoManager);
   if (cdata) {
@@ -1391,6 +1365,33 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   aIsAlternate = alternate.EqualsLiteral("yes");
 }
 
+/*
+ * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
+ * information is ignored by the generic content sink because it only stores
+ * http-equiv meta tags. We need it in the XMLContentSink for XHTML documents.
+ *
+ * Initially implemented for bug #436083
+ */
+nsresult
+nsXMLContentSink::ProcessMETATag(nsIContent *aContent) {
+
+  /* Call the superclass method. */
+  nsContentSink::ProcessMETATag(aContent);
+
+  nsresult rv = NS_OK;
+
+  /* Look for the viewport meta tag. If we find it, process it and put the
+   * data into the document header. */
+  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                            nsGkAtoms::viewport, eIgnoreCase)) {
+    nsAutoString value;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
+    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
+  }
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsXMLContentSink::HandleXMLDeclaration(const PRUnichar *aVersion,
                                        const PRUnichar *aEncoding,
@@ -1526,11 +1527,6 @@ nsresult
 nsXMLContentSink::AddText(const PRUnichar* aText, 
                           PRInt32 aLength)
 {
-
-  if (mInTitle) {
-    mTitleText.Append(aText,aLength);
-  }
-
   // Create buffer when we first need it
   if (0 == mTextSize) {
     mText = (PRUnichar *) PR_MALLOC(sizeof(PRUnichar) * NS_ACCUMULATION_BUFFER_SIZE);

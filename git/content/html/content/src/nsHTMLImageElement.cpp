@@ -107,6 +107,9 @@ public:
   // nsIDOMNSHTMLImageElement
   NS_DECL_NSIDOMNSHTMLIMAGEELEMENT
 
+  // override from nsGenericHTMLElement
+  NS_IMETHOD GetDraggable(PRBool* aDraggable);
+
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
                         JSObject* aObj, PRUint32 argc, jsval* argv);
@@ -159,17 +162,15 @@ NS_NewHTMLImageElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
    * if someone says "var img = new Image();" in JavaScript, in a case like
    * that we request the nsINodeInfo from the document's nodeinfo list.
    */
-  nsresult rv;
   nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
   if (!nodeInfo) {
     nsCOMPtr<nsIDocument> doc =
       do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
     NS_ENSURE_TRUE(doc, nsnull);
 
-    rv = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                             kNameSpaceID_None,
-                                             getter_AddRefs(nodeInfo));
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nsnull,
+                                                   kNameSpaceID_None);
+    NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
   return new nsHTMLImageElement(nodeInfo);
@@ -216,6 +217,15 @@ NS_IMPL_STRING_ATTR(nsHTMLImageElement, Lowsrc, lowsrc)
 NS_IMPL_URI_ATTR(nsHTMLImageElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLImageElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLImageElement, Vspace, vspace)
+
+NS_IMETHODIMP
+nsHTMLImageElement::GetDraggable(PRBool* aDraggable)
+{
+  // images may be dragged unless the draggable attribute is false
+  *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                             nsGkAtoms::_false, eIgnoreCase);
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHTMLImageElement::GetComplete(PRBool* aComplete)

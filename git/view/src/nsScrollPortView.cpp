@@ -520,19 +520,17 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoin
 {
   if (aTwipsDelta.x != 0 || aTwipsDelta.y != 0)
   {
+    /* If we should invalidate our wrapped view, we should do so at this
+     * point.
+     */
+    if (aScrolledView->NeedsInvalidateFrameOnScroll())
+      GetViewManager()->GetViewObserver()->InvalidateFrameForView(aScrolledView);
+    
     nsIWidget *scrollWidget = GetWidget();
     nsRegion updateRegion;
-    PRBool canBitBlit = PR_TRUE;
-    if (!scrollWidget) {
-      canBitBlit = PR_FALSE;
-    } else {
-      PRUint32 scrolledViewFlags = aScrolledView->GetViewFlags();
-
-      if ((!(mScrollProperties & NS_SCROLL_PROPERTY_ALWAYS_BLIT) && 
-           !mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion))) {
-        canBitBlit = PR_FALSE;
-      }
-    }
+    PRBool canBitBlit = scrollWidget &&
+                        ((mScrollProperties & NS_SCROLL_PROPERTY_ALWAYS_BLIT) ||
+                         mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion));
 
     if (canBitBlit) {
       // We're going to bit-blit.  Let the viewmanager know so it can
@@ -554,7 +552,7 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoin
       // If we don't have a scroll widget then we must just update.
       // We should call this after fixing up the widget positions to be
       // consistent with the view hierarchy.
-      mViewManager->UpdateView(this, 0);
+      mViewManager->UpdateView(this, NS_VMREFRESH_DEFERRED);
     } else if (!canBitBlit) {
       // We can't blit for some reason.
       // Just update the view and adjust widgets
@@ -565,7 +563,7 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoin
                          GetPosition() - topLeft, aP2A, PR_FALSE);
       // We should call this after fixing up the widget positions to be
       // consistent with the view hierarchy.
-      mViewManager->UpdateView(this, 0);
+      mViewManager->UpdateView(this, NS_VMREFRESH_DEFERRED);
     } else { // if we can blit and have a scrollwidget then scroll.
       nsRect* toScrollPtr = nsnull;
 
@@ -655,6 +653,18 @@ NS_IMETHODIMP nsScrollPortView::ScrollToImpl(nscoord aX, nscoord aY, PRUint32 aU
   // so don't update their positions
   scrolledView->SetPositionIgnoringChildWidgets(-aX, -aY);
       
+  // notify the listeners.
+  if (nsnull != mListeners) {
+    if (NS_SUCCEEDED(mListeners->Count(&listenerCount))) {
+      for (PRUint32 i = 0; i < listenerCount; i++) {
+        if (NS_SUCCEEDED(mListeners->QueryElementAt(i, kScrollPositionListenerIID, (void**)&listener))) {
+          listener->ViewPositionDidChange(this);
+          NS_RELEASE(listener);
+        }
+      }
+    }
+  }
+
   nsPoint twipsDelta(aX - mOffsetX, aY - mOffsetY);
 
   // store the new position

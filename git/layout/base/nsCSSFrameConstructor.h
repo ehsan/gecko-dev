@@ -67,6 +67,7 @@ class nsIDOMHTMLSelectElement;
 class nsPresContext;
 class nsStyleChangeList;
 class nsIFrame;
+struct nsGenConInitializer;
 
 struct nsFindFrameHint
 {
@@ -248,7 +249,13 @@ public:
 
   nsresult RemoveMappingsForFrameSubtree(nsIFrame* aRemovedFrame);
 
+  // This is misnamed! This returns the outermost frame for the root element
   nsIFrame* GetInitialContainingBlock() { return mInitialContainingBlock; }
+  // This returns the outermost frame for the root element
+  nsIFrame* GetRootElementFrame() { return mInitialContainingBlock; }
+  // This returns the frame for the root element that does not
+  // have a psuedo-element style
+  nsIFrame* GetRootElementStyleFrame() { return mRootElementStyleFrame; }
   nsIFrame* GetPageSequenceFrame() { return mPageSequenceFrame; }
 
 private:
@@ -263,7 +270,7 @@ private:
                               nsIFrame*      aParentFrame,
                               nsIFrame*      aPrevPageFrame,
                               nsIFrame*&     aPageFrame,
-                              nsIFrame*&     aPageContentFrame);
+                              nsIFrame*&     aCanvasFrame);
 
   void DoContentStateChanged(nsIContent*     aContent,
                              PRInt32         aStateMask);
@@ -323,21 +330,34 @@ private:
                                   nsCOMArray<nsIContent>& aGeneratedContent,
                                   nsIContent** aNewContent,
                                   nsIFrame** aNewFrame);
-  
-  nsresult CreateGeneratedFrameFor(nsIFrame*             aParentFrame,
-                                   nsIContent*           aContent,
-                                   nsStyleContext*       aStyleContext,
-                                   const nsStyleContent* aStyleContent,
-                                   PRUint32              aContentIndex,
-                                   nsCOMArray<nsIContent>& aGeneratedContent,
-                                   nsIFrame**            aFrame);
 
-  PRBool CreateGeneratedContentFrame(nsFrameConstructorState& aState,
-                                     nsIFrame*                aFrame,
-                                     nsIContent*              aContent,
-                                     nsStyleContext*          aStyleContext,
-                                     nsIAtom*                 aPseudoElement,
-                                     nsIFrame**               aResult);
+  /**
+   * Create a text node containing the given string. If aText is non-null
+   * then we also set aText to the returned node.
+   */
+  already_AddRefed<nsIContent> CreateGenConTextNode(const nsString& aString,  
+                                                    nsCOMPtr<nsIDOMCharacterData>* aText,
+                                                    nsGenConInitializer* aInitializer);
+
+  /**
+   * Create a content node for the given generated content style.
+   * The caller takes care of making it SetNativeAnonymous, binding it
+   * to the document, and creating frames for it.
+   * @param aParentContent is the node that has the before/after style
+   * @param aStyleContext is the 'before' or 'after' pseudo-element
+   * style context
+   * @param aContentIndex is the index of the content item to create
+   */
+  already_AddRefed<nsIContent> CreateGeneratedContent(nsIContent*     aParentContent,
+                                                      nsStyleContext* aStyleContext,
+                                                      PRUint32        aContentIndex);
+
+  void CreateGeneratedContentFrame(nsFrameConstructorState& aState,
+                                   nsIFrame*                aFrame,
+                                   nsIContent*              aContent,
+                                   nsStyleContext*          aStyleContext,
+                                   nsIAtom*                 aPseudoElement,
+                                   nsFrameItems&            aFrameItems);
 
   // This method can change aFrameList: it can chop off the end and
   // put it in a special sibling of aParentFrame.  It can also change
@@ -673,16 +693,6 @@ private:
 
 // SVG - rods
 #ifdef MOZ_SVG
-  nsresult TestSVGConditions(nsIContent* aContent,
-                             PRBool&     aHasRequiredExtensions,
-                             PRBool&     aHasRequiredFeatures,
-                             PRBool&     aHasSystemLanguage);
- 
-  nsresult SVGSwitchProcessChildren(nsFrameConstructorState& aState,
-                                    nsIContent*              aContent,
-                                    nsIFrame*                aFrame,
-                                    nsFrameItems&            aFrameItems);
-
   nsresult ConstructSVGFrame(nsFrameConstructorState& aState,
                              nsIContent*              aContent,
                              nsIFrame*                aParentFrame,
@@ -1039,7 +1049,8 @@ private:
                                  nsIFrame*                aPrevSibling,
                                  nsFrameItems&            aFrameItems);
 
-  nsresult RemoveFixedItems(const nsFrameConstructorState& aState);
+  nsresult RemoveFixedItems(const nsFrameConstructorState& aState,
+                            nsIFrame*                      aRootElementFrame);
 
   // Find the right frame to use for aContent when looking for sibling
   // frames for aTargetContent.  If aPrevSibling is true, this
@@ -1154,8 +1165,18 @@ private:
   nsIDocument*        mDocument;  // Weak ref
   nsIPresShell*       mPresShell; // Weak ref
 
+  // See the comment at the start of ConstructRootFrame for more details
+  // about the following frames.
+  
+  // This is not the real CSS 2.1 "initial containing block"! It is just
+  // the outermost frame for the root element.
   nsIFrame*           mInitialContainingBlock;
+  // This is the frame for the root element that has no pseudo-element style.
+  nsIFrame*           mRootElementStyleFrame;
+  // This is the containing block for fixed-pos frames --- the viewport
   nsIFrame*           mFixedContainingBlock;
+  // This is the containing block that contains the root element ---
+  // the real "initial containing block" according to CSS 2.1.
   nsIFrame*           mDocElementContainingBlock;
   nsIFrame*           mGfxScrollFrame;
   nsIFrame*           mPageSequenceFrame;
@@ -1164,9 +1185,10 @@ private:
   PRUint16            mUpdateCount;
   PRPackedBool        mQuotesDirty : 1;
   PRPackedBool        mCountersDirty : 1;
-  PRPackedBool        mInitialContainingBlockIsAbsPosContainer : 1;
   PRPackedBool        mIsDestroyingFrameTree : 1;
   PRPackedBool        mRebuildAllStyleData : 1;
+  // This is true if mDocElementContainingBlock supports absolute positioning
+  PRPackedBool        mHasRootAbsPosContainingBlock : 1;
 
   nsRevocableEventPtr<RestyleEvent> mRestyleEvent;
 

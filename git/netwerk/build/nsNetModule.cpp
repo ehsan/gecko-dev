@@ -56,6 +56,7 @@
 #include "nsMIMEInputStream.h"
 #include "nsSOCKSSocketProvider.h"
 #include "nsCacheService.h"
+#include "nsDiskCacheDeviceSQL.h"
 #include "nsMimeTypes.h"
 #include "nsNetStrings.h"
 
@@ -187,7 +188,12 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafeAboutProtocolHandler)
 #include "nsAboutCacheEntry.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutCacheEntry)
 #endif
-  
+
+#ifdef NECKO_OFFLINE_CACHE
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsOfflineCacheDevice, nsOfflineCacheDevice::GetInstance)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCacheNamespace)
+#endif
+
 #ifdef NECKO_PROTOCOL_file
 // file
 #include "nsFileProtocolHandler.h"
@@ -266,6 +272,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsIDNService, Init)
 #if defined(XP_WIN) && !defined(WINCE)
 #include "nsNotifyAddrListener.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNotifyAddrListener, Init)
+#elif defined(MOZ_WIDGET_COCOA)
+#include "nsNetworkLinkService.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNetworkLinkService, Init)
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1045,6 +1054,19 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
        nsCacheService::Create
     },
 
+#ifdef NECKO_OFFLINE_CACHE
+    {  NS_APPLICATIONCACHESERVICE_CLASSNAME,
+       NS_APPLICATIONCACHESERVICE_CID,
+       NS_APPLICATIONCACHESERVICE_CONTRACTID,
+       nsOfflineCacheDeviceConstructor
+    },
+    {  NS_APPLICATIONCACHENAMESPACE_CLASSNAME,
+       NS_APPLICATIONCACHENAMESPACE_CID,
+       NS_APPLICATIONCACHENAMESPACE_CONTRACTID,
+       nsApplicationCacheNamespaceConstructor
+    },
+#endif
+
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CLASSNAME,
       NS_COOKIEMANAGER_CID,
@@ -1090,6 +1112,12 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
       NS_NETWORK_LINK_SERVICE_CID,
       NS_NETWORK_LINK_SERVICE_CONTRACTID,
       nsNotifyAddrListenerConstructor
+    },
+#elif defined(MOZ_WIDGET_COCOA)
+    { NS_NETWORK_LINK_SERVICE_CLASSNAME,
+      NS_NETWORK_LINK_SERVICE_CID,
+      NS_NETWORK_LINK_SERVICE_CONTRACTID,
+      nsNetworkLinkServiceConstructor
     },
 #endif
 };

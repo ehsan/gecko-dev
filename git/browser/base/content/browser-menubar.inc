@@ -186,7 +186,9 @@
 #else
                           key="key_stop"/>
 #endif
-                <menuitem label="&reloadCmd.label;" accesskey="&reloadCmd.accesskey;" command="Browser:Reload" key="key_reload"/>
+                <menuitem label="&reloadCmd.label;" accesskey="&reloadCmd.accesskey;" key="key_reload"
+                          command="Browser:ReloadOrDuplicate"
+                          onclick="checkForMiddleClick(this, event);"/>
                 <menuseparator/>
                 <menu id="viewFullZoomMenu" label="&fullZoom.label;" accesskey="&fullZoom.accesskey;" onpopupshowing="FullZoom.updateMenu();">
                   <menupopup>
@@ -360,10 +362,8 @@
                           key="goBackKb"
 #endif
                           chromedir="&locale.dir;"
-                          oncommand="BrowserBack(event, true)"
-                          onclick="checkForMiddleClick(this, event);">
-                  <observes element="Browser:Back" attribute="disabled" />
-                </menuitem>
+                          command="Browser:BackOrBackDuplicate"
+                          onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuForward"
                           label="&forwardCmd.label;"
 #ifdef XP_MACOSX
@@ -372,11 +372,8 @@
                           key="goForwardKb"
 #endif
                           chromedir="&locale.dir;"
-                          oncommand="BrowserForward(event, true)"
-                          onclick="checkForMiddleClick(this, event);">
-                  <observes element="Browser:Forward" attribute="disabled" />
-                </menuitem>
-
+                          command="Browser:ForwardOrForwardDuplicate"
+                          onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuHome"
                           label="&historyHomeCmd.label;"
                           oncommand="BrowserGoHome(event);"
@@ -387,7 +384,7 @@
                           key="showAllHistoryKb"
 #endif
                           command="Browser:ShowAllHistory"/>
-                <menuseparator id="startHistorySeparator" builder="start"/>
+                <menuseparator id="startHistorySeparator"/>
                 <menuseparator id="endHistorySeparator" builder="end"/>
                 <menu id="historyUndoMenu" label="&historyUndoMenu.label;" disabled="true">
                   <menupopup id="historyUndoPopup" onpopupshowing="HistoryMenu.populateUndoSubmenu();"/>
@@ -399,10 +396,11 @@
         label="&bookmarksMenu.label;" accesskey="&bookmarksMenu.accesskey;"
         ondragenter="PlacesMenuDNDController.onBookmarksMenuDragEnter(event);"
         ondragdrop="nsDragAndDrop.drop(event, BookmarksMenuDropHandler);"
-        ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);">
+        ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);"
+        ondragexit="nsDragAndDrop.dragExit(event, BookmarksMenuDropHandler);">
     <menupopup id="bookmarksMenuPopup"
                type="places"
-               place="place:folder=BOOKMARKS_MENU&amp;expandQueries=1"
+               place="place:folder=BOOKMARKS_MENU"
                context="placesContext"
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
@@ -432,13 +430,15 @@
       <menuseparator id="organizeBookmarksSeparator"/>
       <menu id="bookmarksToolbarFolderMenu"
             class="menu-iconic bookmark-item"
+            label="&personalbarCmd.label;"
             container="true">
         <menupopup id="bookmarksToolbarFolderPopup"
                    type="places"
+                   place="place:folder=TOOLBAR"
                    context="placesContext"
                    onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"/>
       </menu>
-      <menuseparator builder="start"/>
+      <menuseparator/>
     </menupopup>
   </menu>
 

@@ -51,6 +51,7 @@ _TEST_FILES = \
 		test_bug336682_1.html \
 		test_bug336682_2.xul \
 		test_bug336682.js \
+		test_bug350471.xul \
 		test_bug367781.html \
 		test_bug368835.html \
 		test_bug379120.html \
@@ -59,6 +60,10 @@ _TEST_FILES = \
 		test_bug405632.html \
 		test_bug409604.html \
 		test_bug412567.html \
+		test_bug443985.html \
+		test_bug447736.html \
+		test_draggableprop.html \
+		test_dragstart.html \
 		$(NULL)
 
 _CHROME_FILES = \

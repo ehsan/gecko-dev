@@ -49,6 +49,7 @@ DIRS	= \
 		obsolete \
 		profile \
 		themes \
+		spatial-navigation \
 		$(NULL)
 
 ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
@@ -57,6 +58,10 @@ endif
 
 ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
 DIRS += system/osxproxy
+endif
+
+ifneq (,$(filter qt,$(MOZ_WIDGET_TOOLKIT)))
+DIRS += system/unixproxy
 endif
 
 ifdef MOZ_CRASHREPORTER

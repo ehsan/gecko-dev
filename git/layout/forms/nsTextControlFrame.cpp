@@ -49,7 +49,7 @@
 #include "nsEditorCID.h"
 #include "nsLayoutCID.h"
 #include "nsIDocumentEncoder.h"
-#include "nsICaret.h"
+#include "nsCaret.h"
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIController.h"
@@ -134,6 +134,15 @@ static const PRInt32 DEFAULT_UNDO_CAP = 1000;
 
 static nsINativeKeyBindings *sNativeInputBindings = nsnull;
 static nsINativeKeyBindings *sNativeTextAreaBindings = nsnull;
+
+static PRBool
+IsFocusedContent(nsPresContext* aPresContext, nsIContent* aContent)
+{
+  nsCOMPtr<nsIContent> focusedContent;
+  aPresContext->EventStateManager()->
+    GetFocusedContent(getter_AddRefs(focusedContent));
+  return focusedContent == aContent;
+}
 
 static void
 PlatformToDOMLineBreaks(nsString &aString)
@@ -486,8 +495,8 @@ nsTextInputListener::EditAction()
   PRInt32 numRedoItems = 0;
   manager->GetNumberOfUndoItems(&numUndoItems);
   manager->GetNumberOfRedoItems(&numRedoItems);
-  if (numUndoItems && !mHadUndoItems || !numUndoItems && mHadUndoItems ||
-      numRedoItems && !mHadRedoItems || !numRedoItems && mHadRedoItems) {
+  if ((numUndoItems && !mHadUndoItems) || (!numUndoItems && mHadUndoItems) ||
+      (numRedoItems && !mHadRedoItems) || (!numRedoItems && mHadRedoItems)) {
     // Modify the menu if undo or redo items are different
     UpdateTextInputCommands(NS_LITERAL_STRING("undo"));
 
@@ -740,13 +749,14 @@ nsTextInputSelectionImpl::SetCaretReadOnly(PRBool aReadOnly)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsCOMPtr<nsICaret> caret;
+    nsRefPtr<nsCaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
         GetSelection(nsISelectionController::SELECTION_NORMAL);
       if (domSel)
-        return caret->SetCaretReadOnly(aReadOnly);
+        caret->SetCaretReadOnly(aReadOnly);
+      return NS_OK;
     }
   }
   return NS_ERROR_FAILURE;
@@ -766,7 +776,7 @@ nsTextInputSelectionImpl::GetCaretVisible(PRBool *_retval)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsCOMPtr<nsICaret> caret;
+    nsRefPtr<nsCaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
@@ -786,13 +796,14 @@ nsTextInputSelectionImpl::SetCaretVisibilityDuringSelection(PRBool aVisibility)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsCOMPtr<nsICaret> caret;
+    nsRefPtr<nsCaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
         GetSelection(nsISelectionController::SELECTION_NORMAL);
       if (domSel)
-        return caret->SetVisibilityDuringSelection(aVisibility);
+        caret->SetVisibilityDuringSelection(aVisibility);
+      return NS_OK;
     }
   }
   return NS_ERROR_FAILURE;
@@ -1131,10 +1142,10 @@ nsTextControlFrame::PreDestroy()
   }
 
 //unregister self from content
-  mTextListener->SetFrame(nsnull);
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   if (mTextListener)
   {
+    mTextListener->SetFrame(nsnull);
     if (mContent)
     {
       mContent->RemoveEventListenerByIID(static_cast<nsIDOMFocusListener  *>(mTextListener), NS_GET_IID(nsIDOMFocusListener));
@@ -1308,8 +1319,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   NS_ENSURE_SUCCESS(rv, rv);
   aRenderingContext->SetFont(fontMet);
 
-  lineHeight = nsHTMLReflowState::CalcLineHeight(aRenderingContext,
-                                                 this);
+  lineHeight = nsHTMLReflowState::CalcLineHeight(this);
   fontMet->GetAveCharWidth(charWidth);
   fontMet->GetMaxAdvance(charMaxAdvance);
 
@@ -1386,8 +1396,15 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   return NS_OK;
 }
 
-void nsTextControlFrame::PostCreateFrames() {
+void
+nsTextControlFrame::PostCreateFrames()
+{
   InitEditor();
+  // Notify the text listener we have focus and setup the caret etc (bug 446663).
+  if (IsFocusedContent(PresContext(), GetContent())) {
+    mTextListener->Focus(nsnull);
+    SetFocus(PR_TRUE, PR_FALSE);
+  }
 }
 
 nsIFrame*
@@ -1540,12 +1557,12 @@ nsTextControlFrame::CreateFrameFor(nsIContent*      aContent)
     
   // Get the caret and make it a selection listener.
 
-  nsCOMPtr<nsISelection> domSelection;
+  nsRefPtr<nsISelection> domSelection;
   if (NS_SUCCEEDED(mSelCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                                          getter_AddRefs(domSelection))) &&
       domSelection) {
     nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(domSelection));
-    nsCOMPtr<nsICaret> caret;
+    nsRefPtr<nsCaret> caret;
     nsCOMPtr<nsISelectionListener> listener;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))) && caret) {
       listener = do_QueryInterface(caret);
@@ -1695,12 +1712,11 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Now create a DIV and add it to the anonymous content child list.
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nsresult rv = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                                    kNameSpaceID_XHTML,
-                                                    getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
+                                                 kNameSpaceID_XHTML);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = NS_NewHTMLElement(getter_AddRefs(mAnonymousDiv), nodeInfo, PR_FALSE);
+  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mAnonymousDiv), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the div native anonymous, so CSS will be its style language
@@ -1870,15 +1886,6 @@ nsTextControlFrame::IsLeaf() const
   return PR_TRUE;
 }
 
-static PRBool
-IsFocusedContent(nsPresContext* aPresContext, nsIContent* aContent)
-{
-  nsCOMPtr<nsIContent> focusedContent;
-  aPresContext->EventStateManager()->
-    GetFocusedContent(getter_AddRefs(focusedContent));
-  return focusedContent == aContent;
-}
-
 //IMPLEMENTING NS_IFORMCONTROLFRAME
 void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
@@ -1899,7 +1906,7 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   if (!ourSel) return;
 
   nsIPresShell* presShell = PresContext()->GetPresShell();
-  nsCOMPtr<nsICaret> caret;
+  nsRefPtr<nsCaret> caret;
   presShell->GetCaret(getter_AddRefs(caret));
   if (!caret) return;
   caret->SetCaretDOMSelection(ourSel);

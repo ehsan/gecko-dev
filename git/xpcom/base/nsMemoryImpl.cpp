@@ -55,6 +55,11 @@
 #if defined(XP_WIN)
 #include <windows.h>
 #define NS_MEMORY_FLUSHER
+#elif defined (NS_OSSO)
+#include <osso-mem.h>
+#include <fcntl.h>
+#include <unistd.h>
+const char* kHighMark = "/sys/kernel/high_watermark";
 #else
 // Need to implement the nsIMemory::IsLowMemory() predicate
 #undef NS_MEMORY_FLUSHER
@@ -189,6 +194,16 @@ nsMemoryImpl::IsLowMemory(PRBool *result)
     MEMORYSTATUS stat;
     GlobalMemoryStatus(&stat);
     *result = ((float)stat.dwAvailPageFile / stat.dwTotalPageFile) < 0.1;
+#elif defined(NS_OSSO)
+    int fd = open (kHighMark, O_RDONLY);
+    if (fd == -1) {
+        *result = PR_FALSE;
+        return NS_OK;
+    }
+    int c = 0;
+    read (fd, &c, 1);
+    close(fd);
+    *result = (c == '1');
 #else
     *result = PR_FALSE;
 #endif

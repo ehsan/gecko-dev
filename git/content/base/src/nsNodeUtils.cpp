@@ -53,6 +53,7 @@
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif
+#include "nsBindingManager.h"
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
@@ -323,10 +324,11 @@ nsNodeUtils::GetUserData(nsINode *aNode, const nsAString &aKey,
   return NS_OK;
 }
 
-struct nsHandlerData
+struct NS_STACK_CLASS nsHandlerData
 {
   PRUint16 mOperation;
-  nsCOMPtr<nsIDOMNode> mSource, mDest;
+  nsCOMPtr<nsIDOMNode> mSource;
+  nsCOMPtr<nsIDOMNode> mDest;
 };
 
 static void
@@ -514,11 +516,10 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   nsINodeInfo *nodeInfo = aNode->mNodeInfo;
   nsCOMPtr<nsINodeInfo> newNodeInfo;
   if (nodeInfoManager) {
-    rv = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
-                                      nodeInfo->GetPrefixAtom(),
-                                      nodeInfo->NamespaceID(),
-                                      getter_AddRefs(newNodeInfo));
-    NS_ENSURE_SUCCESS(rv, rv);
+    newNodeInfo = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
+                                               nodeInfo->GetPrefixAtom(),
+                                               nodeInfo->NamespaceID());
+    NS_ENSURE_TRUE(newNodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
     nodeInfo = newNodeInfo;
   }

@@ -47,6 +47,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsWidgetAtoms.h"
 #include "nsWindowAPI.h"
+#include "nsUXThemeData.h"
 #include <objbase.h>
 #include <initguid.h>
 
@@ -264,17 +265,20 @@ nsToolkit::Startup(HMODULE hModule)
     typedef BOOL (*SetProcessDPIAwareFunc)(VOID);
 
     SetProcessDPIAwareFunc setDPIAware = (SetProcessDPIAwareFunc)
-      GetProcAddress(LoadLibrary("user32.dll"),
-                     "SetProcessDPIAware");
+      GetProcAddress(LoadLibraryW(L"user32.dll"), "SetProcessDPIAware");
 
     if (setDPIAware)
       setDPIAware();
+
+    nsUXThemeData::Initialize();
 }
 
 
 void
 nsToolkit::Shutdown()
 {
+    // Crashes on certain XP machines/profiles - see bug 448104 for details
+    //nsUXThemeData::Teardown();
     //VERIFY(::UnregisterClass("nsToolkitClass", nsToolkit::mDllInstance));
     ::UnregisterClassW(L"nsToolkitClass", nsToolkit::mDllInstance);
 }
@@ -295,8 +299,8 @@ void nsToolkit::CreateInternalWindow(PRThread *aThread)
     // create the internal window
     //
 
-    mDispatchWnd = ::CreateWindow("nsToolkitClass",
-                                  "NetscapeDispatchWnd",
+    mDispatchWnd = ::CreateWindowW(L"nsToolkitClass",
+                                   L"NetscapeDispatchWnd",
                                   WS_DISABLED,
                                   -50, -50,
                                   10, 10,

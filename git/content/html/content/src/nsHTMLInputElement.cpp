@@ -825,7 +825,6 @@ nsHTMLInputElement::TakeTextFrameValue(const nsAString& aValue)
     nsMemory::Free(mValue);
   }
   mValue = ToNewUTF8String(aValue);
-  SetValueChanged(PR_TRUE);
   return NS_OK;
 }
 
@@ -1998,23 +1997,25 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
         newType = NS_FORM_INPUT_TEXT;
       }
 
-      // Make sure to do the check for newType being NS_FORM_INPUT_FILE and the
-      // corresponding SetValueInternal() call _before_ we set mType.  That way
-      // the logic in SetValueInternal() will work right (that logic makes
-      // assumptions about our frame based on mType, but we won't have had time
-      // to recreate frames yet -- that happens later in the SetAttr()
-      // process).
-      if (newType == NS_FORM_INPUT_FILE) {
-        // These calls aren't strictly needed any more since we'll never
-        // confuse values and filenames. However they're there for backwards
-        // compat.
-        SetFileName(EmptyString());
-        SetValueInternal(EmptyString(), nsnull, PR_FALSE);
-      } else if (mType == NS_FORM_INPUT_FILE) {
-        SetFileName(EmptyString());
-      }
+      if (newType != mType) {
+        // Make sure to do the check for newType being NS_FORM_INPUT_FILE and
+        // the corresponding SetValueInternal() call _before_ we set mType.
+        // That way the logic in SetValueInternal() will work right (that logic
+        // makes assumptions about our frame based on mType, but we won't have
+        // had time to recreate frames yet -- that happens later in the
+        // SetAttr() process).
+        if (newType == NS_FORM_INPUT_FILE) {
+          // These calls aren't strictly needed any more since we'll never
+          // confuse values and filenames. However they're there for backwards
+          // compat.
+          SetFileName(EmptyString());
+          SetValueInternal(EmptyString(), nsnull, PR_FALSE);
+        } else if (mType == NS_FORM_INPUT_FILE) {
+          SetFileName(EmptyString());
+        }
 
-      mType = newType;
+        mType = newType;
+      }
 
       return success;
     }
@@ -2824,7 +2825,7 @@ nsHTMLInputElement::AddedToRadioGroup(PRBool aNotify)
   // For integrity purposes, we have to ensure that "checkedChanged" is
   // the same for this new element as for all the others in the group
   //
-  PRBool checkedChanged = PR_FALSE;
+  PRBool checkedChanged = GET_BOOLBIT(mBitField, BF_CHECKED_CHANGED);
   nsCOMPtr<nsIRadioVisitor> visitor;
   nsresult rv = NS_GetRadioGetCheckedChangedVisitor(&checkedChanged, this,
                                            getter_AddRefs(visitor));

@@ -45,6 +45,8 @@
 #include "nsRegion.h"
 #include "nsIPresShell.h"
 
+class nsSVGOuterSVGFrame;
+
 typedef nsContainerFrame nsSVGForeignObjectFrameBase;
 
 class nsSVGForeignObjectFrame : public nsSVGForeignObjectFrameBase,
@@ -75,12 +77,23 @@ public:
     return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
-  NS_IMETHOD DidSetStyleContext();
-
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
+
+  /**
+   * Foreign objects are always transformed.
+   */
+  virtual PRBool IsTransformed() const
+  {
+    return PR_TRUE;
+  }
+
+  /**
+   * Foreign objects can return a transform matrix.
+   */
+  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Get the "type" of the frame
@@ -97,7 +110,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate);
+                                  PRUint32 aFlags);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
@@ -107,8 +120,8 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
-  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);  
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
@@ -116,6 +129,7 @@ public:
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
+  virtual PRBool GetMatrixPropagation();
   NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
   virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
@@ -124,8 +138,8 @@ public:
 
   // foreignobject public methods
   /**
-   * @param aPt a point in the twips coordinate system of the SVG outer frame
-   * Transforms the point to a point in this frame's twips coordinate system
+   * @param aPt a point in the app unit coordinate system of the SVG outer frame
+   * Transforms the point to a point in this frame's app unit coordinate system
    */
   nsPoint TransformPointFromOuter(nsPoint aPt);
 
@@ -140,7 +154,9 @@ protected:
   void RequestReflow(nsIPresShell::IntrinsicDirty aType);
   void UpdateGraphic();
   already_AddRefed<nsIDOMSVGMatrix> GetTMIncludingOffset();
-  nsresult TransformPointFromOuterPx(float aX, float aY, nsPoint* aOut);
+  nsresult TransformPointFromOuterPx(const nsPoint &aIn, nsPoint* aOut);
+  void InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
+                           const nsRect& aRect, PRUint32 aFlags);
   void FlushDirtyRegion();
 
   // If width or height is less than or equal to zero we must disable rendering
@@ -148,7 +164,10 @@ protected:
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
   nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
-  nsRegion                  mDirtyRegion;
+  // Damage area due to in-this-doc invalidation
+  nsRegion mSameDocDirtyRegion;
+  // Damage area due to cross-doc invalidation
+  nsRegion mCrossDocDirtyRegion;
 
   PRPackedBool mPropagateTransform;
   PRPackedBool mInReflow;

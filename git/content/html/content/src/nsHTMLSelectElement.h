@@ -53,6 +53,7 @@
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMNSHTMLOptionCollectn.h"
 #include "nsISelectControlFrame.h"
+#include "nsContentUtils.h"
 
 // PresState
 #include "nsXPCOM.h"
@@ -190,7 +191,7 @@ private:
   nsCheapInt32Set mIndices;
 };
 
-class nsSafeOptionListMutation
+class NS_STACK_CLASS nsSafeOptionListMutation
 {
 public:
   /**
@@ -348,11 +349,6 @@ protected:
    * @param aNewSelected the state string to restore to
    */
   void RestoreStateTo(nsSelectState* aNewSelected);
-
-#ifdef DEBUG_john
-  // Don't remove these, por favor.  They're very useful in debugging
-  nsresult PrintOptions(nsIContent* aOptions, PRInt32 tabs);
-#endif
 
   // Adding options
   /**

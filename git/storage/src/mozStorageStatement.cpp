@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: sw=4 ts=4 sts=4
+ * vim: sw=4 ts=4 sts=4 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -41,20 +41,106 @@
 
 #include <stdio.h>
 
+#include "nsAutoLock.h"
 #include "nsError.h"
 #include "nsISimpleEnumerator.h"
 #include "nsMemory.h"
+#include "nsIClassInfoImpl.h"
+#include "nsIProgrammingLanguage.h"
 
 #include "mozStorageConnection.h"
 #include "mozStorageStatement.h"
+#include "mozStorageStatementJSHelper.h"
 #include "mozStorageValueArray.h"
 #include "mozStorage.h"
+#include "mozStorageEvents.h"
 
 #include "prlog.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gStorageLog;
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsIClassInfo
+
+NS_IMPL_CI_INTERFACE_GETTER2(
+    mozStorageStatement
+,   mozIStorageStatement
+,   mozIStorageValueArray
+)
+
+class mozStorageStatementClassInfo : public nsIClassInfo
+{
+public:
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHODIMP
+    GetInterfaces(PRUint32 *_count, nsIID ***_array)
+    {
+        return NS_CI_INTERFACE_GETTER_NAME(mozStorageStatement)(_count, _array);
+    }
+
+    NS_IMETHODIMP
+    GetHelperForLanguage(PRUint32 aLanguage, nsISupports **_helper)
+    {
+        if (aLanguage == nsIProgrammingLanguage::JAVASCRIPT) {
+            static mozStorageStatementJSHelper sJSHelper;
+            *_helper = &sJSHelper;
+            return NS_OK;
+        }
+
+        *_helper = nsnull;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetContractID(char **_contractID)
+    {
+        *_contractID = nsnull;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetClassDescription(char **_desc)
+    {
+        *_desc = nsnull;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetClassID(nsCID **_id)
+    {
+        *_id = nsnull;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetImplementationLanguage(PRUint32 *_language)
+    {
+        *_language = nsIProgrammingLanguage::CPLUSPLUS;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetFlags(PRUint32 *_flags)
+    {
+        *_flags = nsnull;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP
+    GetClassIDNoAlloc(nsCID *_cid)
+    {
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+};
+
+NS_IMETHODIMP_(nsrefcnt) mozStorageStatementClassInfo::AddRef() { return 2; }
+NS_IMETHODIMP_(nsrefcnt) mozStorageStatementClassInfo::Release() { return 1; }
+NS_IMPL_QUERY_INTERFACE1(mozStorageStatementClassInfo, nsIClassInfo)
+
+static mozStorageStatementClassInfo sStatementClassInfo;
 
 /**
  ** mozStorageStatementRowEnumerator
@@ -85,7 +171,17 @@ protected:
  ** mozStorageStatement
  **/
 
-NS_IMPL_ISUPPORTS2(mozStorageStatement, mozIStorageStatement, mozIStorageValueArray)
+NS_IMPL_THREADSAFE_ADDREF(mozStorageStatement)
+NS_IMPL_THREADSAFE_RELEASE(mozStorageStatement)
+
+NS_INTERFACE_MAP_BEGIN(mozStorageStatement)
+    NS_INTERFACE_MAP_ENTRY(mozIStorageStatement)
+    NS_INTERFACE_MAP_ENTRY(mozIStorageValueArray)
+    if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
+        foundInterface = static_cast<nsIClassInfo *>(&sStatementClassInfo);
+    } else
+    NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 mozStorageStatement::mozStorageStatement()
     : mDBConnection (nsnull), mDBStatement(nsnull), mColumnNames(nsnull), mExecuting(PR_FALSE)
@@ -99,28 +195,22 @@ mozStorageStatement::Initialize(mozStorageConnection *aDBConnection,
     NS_ASSERTION(aDBConnection, "No database connection given!");
     NS_ASSERTION(!mDBStatement, "Calling Initialize on an already initialized statement!");
 
+#ifdef PR_LOGGING
+    PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Initializing statement '%s'",
+                                        nsPromiseFlatCString(aSQLStatement).get()));
+#endif
+
     sqlite3 *db = aDBConnection->GetNativeConnection();
     NS_ENSURE_TRUE(db != nsnull, NS_ERROR_NULL_POINTER);
 
-    int nRetries = 0;
-    int srv;
-    while (nRetries < 2) {
-        srv = sqlite3_prepare_v2(db, nsPromiseFlatCString(aSQLStatement).get(),
-                                 aSQLStatement.Length(), &mDBStatement, NULL);
-        if ((srv == SQLITE_SCHEMA && nRetries != 0) ||
-            (srv != SQLITE_SCHEMA && srv != SQLITE_OK))
-        {
+    int srv = sqlite3_prepare_v2(db, PromiseFlatCString(aSQLStatement).get(),
+                                 -1, &mDBStatement, NULL);
+    if (srv != SQLITE_OK) {
 #ifdef PR_LOGGING
-            PR_LOG(gStorageLog, PR_LOG_ERROR, ("Sqlite statement prepare error: %d '%s'", srv, sqlite3_errmsg(db)));
-            PR_LOG(gStorageLog, PR_LOG_ERROR, ("Statement was: '%s'", nsPromiseFlatCString(aSQLStatement).get()));
+        PR_LOG(gStorageLog, PR_LOG_ERROR, ("Sqlite statement prepare error: %d '%s'", srv, sqlite3_errmsg(db)));
+        PR_LOG(gStorageLog, PR_LOG_ERROR, ("Statement was: '%s'", nsPromiseFlatCString(aSQLStatement).get()));
 #endif
-            return NS_ERROR_FAILURE;
-        }
-
-        if (srv == SQLITE_OK)
-            break;
-
-        nRetries++;
+        return NS_ERROR_FAILURE;
     }
 
     mDBConnection = aDBConnection;
@@ -168,12 +258,6 @@ mozStorageStatement::Initialize(mozStorageConnection *aDBConnection,
     }
 #endif
 
-    // doing a sqlite3_prepare sets up the execution engine
-    // for that statement; doing a create_function after that
-    // results in badness, because there's a selected statement.
-    // use this hack to clear it out -- this may be a bug.
-    sqlite3_exec (db, "", 0, 0, 0);
-
     return NS_OK;
 }
 
@@ -181,6 +265,9 @@ mozStorageStatement::~mozStorageStatement()
 {
     (void)Finalize();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+//// mozIStorageStatement
 
 /* mozIStorageStatement clone (); */
 NS_IMETHODIMP
@@ -203,6 +290,11 @@ NS_IMETHODIMP
 mozStorageStatement::Finalize()
 {
     if (mDBStatement) {
+#ifdef PR_LOGGING
+        PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Finalizing statement '%s'",
+                                            sqlite3_sql(mDBStatement)));
+#endif
+
         int srv = sqlite3_finalize(mDBStatement);
         mDBStatement = NULL;
         return ConvertResultCode(srv);
@@ -446,8 +538,6 @@ mozStorageStatement::ExecuteStep(PRBool *_retval)
     if (!mDBConnection || !mDBStatement)
         return NS_ERROR_NOT_INITIALIZED;
 
-    nsresult rv;
-
     int srv = sqlite3_step (mDBStatement);
 
 #ifdef PR_LOGGING
@@ -481,6 +571,35 @@ mozStorageStatement::ExecuteStep(PRBool *_retval)
     }
 
     return ConvertResultCode(srv);
+}
+
+/* nsICancelable executeAsync([optional] in storageIStatementCallback aCallback); */
+nsresult
+mozStorageStatement::ExecuteAsync(mozIStorageStatementCallback *aCallback,
+                                  mozIStoragePendingStatement **_stmt)
+{
+    // Clone this statement
+    nsRefPtr<mozStorageStatement> stmt(new mozStorageStatement());
+    NS_ENSURE_TRUE(stmt, NS_ERROR_OUT_OF_MEMORY);
+
+    nsCAutoString sql(sqlite3_sql(mDBStatement));
+    nsresult rv = stmt->Initialize(mDBConnection, sql);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Transfer the bindings
+    int rc = sqlite3_transfer_bindings(mDBStatement, stmt->mDBStatement);
+    if (rc != SQLITE_OK)
+        return ConvertResultCode(rc);
+
+    // Dispatch to the background.
+    rv = NS_executeAsync(stmt, aCallback, _stmt);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Reset this statement.
+    rv = Reset();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
 }
 
 /* [noscript,notxpcom] sqlite3stmtptr getNativeStatementPointer(); */

@@ -50,12 +50,15 @@ const NS_SCRIPTSECURITYMANAGER_CONTRACTID =
           "@mozilla.org/scriptsecuritymanager;1";
 const NS_REFTESTHELPER_CONTRACTID =
           "@mozilla.org/reftest-helper;1";
+const NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX =
+          "@mozilla.org/network/protocol;1?name=";
 
 const LOAD_FAILURE_TIMEOUT = 10000; // ms
 
 var gBrowser;
 var gCanvas1, gCanvas2;
 var gURLs;
+var gTotalTests = 0;
 var gState;
 var gFailureTimeout;
 var gServer;
@@ -107,16 +110,22 @@ function OnRefTestLoad()
             gServer.registerContentType("sjs", "sjs");
             gServer.start(HTTP_SERVER_PORT);
         }
+        gTotalTests = gURLs.length;
         StartCurrentTest();
     } catch (ex) {
         //gBrowser.loadURI('data:text/plain,' + ex);
-        dump("REFTEST EXCEPTION: " + ex + "\n");
+        dump("REFTEST TEST-FAIL | | EXCEPTION: " + ex + "\n");
         DoneTests();
     }
 }
 
 function OnRefTestUnload()
 {
+    /* Clear the sRGB forcing pref to leave the profile as we found it. */
+    var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+                getService(Components.interfaces.nsIPrefBranch2);
+    prefs.clearUserPref("gfx.color_management.force_srgb");
+
     gBrowser.removeEventListener("load", OnDocumentLoad, true);
 }
 
@@ -141,9 +150,18 @@ function ReadManifest(aURL)
     fis.init(listURL.file, -1, -1, false);
     var lis = fis.QueryInterface(CI.nsILineInputStream);
 
+    // Build the sandbox for fails-if(), etc., condition evaluation.
     var sandbox = new Components.utils.Sandbox(aURL.spec);
     for (var prop in gAutoconfVars)
         sandbox[prop] = gAutoconfVars[prop];
+    var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
+                 getService(CI.nsIHttpProtocolHandler);
+    sandbox.http = {};
+    for each (var prop in [ "userAgent", "appName", "appVersion", 
+                            "vendor", "vendorSub", "vendorComment",
+                            "product", "productSub", "productComment",
+                            "platform", "oscpu", "language", "misc" ])
+        sandbox.http[prop] = hh[prop];
 
     var line = {value:null};
     var lineNo = 0;
@@ -281,14 +299,19 @@ function StartCurrentTest()
 {
     // make sure we don't run tests that are expected to kill the browser
     while (gURLs.length > 0 && gURLs[0].expected == EXPECTED_DEATH) {
-        dump("REFTEST KNOWN FAIL (SKIP): " + gURLs[0].url1.spec + "\n");
+        dump("REFTEST TEST-KNOWN-FAIL | " + gURLs[0].url1.spec + " | (SKIP)\n");
         gURLs.shift();
     }
 
-    if (gURLs.length == 0)
+    if (gURLs.length == 0) {
         DoneTests();
-    else
+    }
+    else {
+        var currentTest = gTotalTests - gURLs.length;
+        document.title = "reftest: " + currentTest + " / " + gTotalTests +
+            " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)";
         StartCurrentURI(1);
+    }
 }
 
 function StartCurrentURI(aState)
@@ -338,6 +361,28 @@ function OnDocumentLoad(event)
                                  .indexOf("reftest-print") != -1;
     }
 
+    function setupPrintMode() {
+       var PSSVC = Components.classes["@mozilla.org/gfx/printsettings-service;1"]
+                  .getService(Components.interfaces.nsIPrintSettingsService);
+       var ps = PSSVC.newPrintSettings;
+       ps.paperWidth = 5;
+       ps.paperHeight = 3;
+
+       // Override any os-specific unwriteable margins
+       ps.unwriteableMarginTop = 0;
+       ps.unwriteableMarginLeft = 0;
+       ps.unwriteableMarginBottom = 0;
+       ps.unwriteableMarginRight = 0;
+
+       ps.headerStrLeft = "";
+       ps.headerStrCenter = "";
+       ps.headerStrRight = "";
+       ps.footerStrLeft = "";
+       ps.footerStrCenter = "";
+       ps.footerStrRight = "";
+       gBrowser.docShell.contentViewer.setPageMode(true, ps);
+    }
+
     if (shouldWait()) {
         // The testcase will let us know when the test snapshot should be made.
         // Register a mutation listener to know when the 'reftest-wait' class
@@ -350,31 +395,14 @@ function OnDocumentLoad(event)
                         "DOMAttrModified",
                         arguments.callee,
                         false);
+                    if (doPrintMode())
+                        setupPrintMode();
                     setTimeout(DocumentLoaded, 0);
                 }
             }, false);
     } else {
-        if (doPrintMode()) {
-            var PSSVC = Components.classes["@mozilla.org/gfx/printsettings-service;1"]
-                    .getService(Components.interfaces.nsIPrintSettingsService);
-            var ps = PSSVC.newPrintSettings;
-            ps.paperWidth = 5;
-            ps.paperHeight = 3;
-
-            // Override any os-specific unwriteable margins
-            ps.unwriteableMarginTop = 0;
-            ps.unwriteableMarginLeft = 0;
-            ps.unwriteableMarginBottom = 0;
-            ps.unwriteableMarginRight = 0;
-
-            ps.headerStrLeft = "";
-            ps.headerStrCenter = "";
-            ps.headerStrRight = "";
-            ps.footerStrLeft = "";
-            ps.footerStrCenter = "";
-            ps.footerStrRight = "";
-            gBrowser.docShell.contentViewer.setPageMode(true, ps);
-        }
+        if (doPrintMode())
+            setupPrintMode();
 
         // Since we can't use a bubbling-phase load listener from chrome,
         // this is a capturing phase listener.  So do setTimeout twice, the
@@ -396,7 +424,7 @@ function DocumentLoaded()
     clearTimeout(gFailureTimeout);
 
     if (gURLs[0].expected == EXPECTED_LOAD) {
-        dump("REFTEST PASS (LOAD ONLY): " + gURLs[0].prettyPath + "\n");
+        dump("REFTEST TEST-PASS | " + gURLs[0].prettyPath + "| (LOAD ONLY)\n");
         gURLs.shift();
         StartCurrentTest();
         return;
@@ -449,19 +477,19 @@ function DocumentLoaded()
             var expected = gURLs[0].expected;
             
             var outputs = {};
-            const randomMsg = " (RESULT EXPECTED TO BE RANDOM)";
-            outputs[EXPECTED_PASS] = {true: "PASS",
-                                      false: "UNEXPECTED FAIL"};
-            outputs[EXPECTED_FAIL] = {true: "UNEXPECTED PASS",
-                                      false: "KNOWN FAIL"};
-            outputs[EXPECTED_RANDOM] = {true: "PASS" + randomMsg,
-                                        false: "KNOWN FAIL" + randomMsg};
+            const randomMsg = "(EXPECTED RANDOM)";
+            outputs[EXPECTED_PASS] = {true: "TEST-PASS",
+                                      false: "TEST-UNEXPECTED-FAIL"};
+            outputs[EXPECTED_FAIL] = {true: "TEST-UNEXPECTED-PASS",
+                                      false: "TEST-KNOWN-FAIL"};
+            outputs[EXPECTED_RANDOM] = {true: "TEST-PASS" + randomMsg,
+                                        false: "TEST-KNOWN-FAIL" + randomMsg};
             
-            var result = "REFTEST " + outputs[expected][test_passed] + ": ";
+            var result = "REFTEST " + outputs[expected][test_passed] + " | ";
+            result += gURLs[0].prettyPath + " | "; // the URL being tested
             if (!gURLs[0].equal) {
                 result += "(!=) ";
             }
-            result += gURLs[0].prettyPath; // the URL being tested
             dump(result + "\n");
             if (!test_passed && expected == EXPECTED_PASS ||
                 test_passed && expected == EXPECTED_FAIL) {
@@ -484,8 +512,8 @@ function DocumentLoaded()
 
 function LoadFailed()
 {
-    dump("REFTEST UNEXPECTED FAIL (LOADING): " +
-         gURLs[0]["url" + gState].spec + "\n");
+    dump("REFTEST TEST-UNEXPECTED-FAIL | " +
+         gURLs[0]["url" + gState].spec + "| Failed to load\n");
     gURLs.shift();
     StartCurrentTest();
 }

@@ -63,7 +63,7 @@ XPCThrower::Throw(nsresult rv, JSContext* cx)
  */
 // static
 JSBool
-XPCThrower::CheckForPendingException(nsresult result, XPCCallContext &ccx)
+XPCThrower::CheckForPendingException(nsresult result, JSContext *cx)
 {
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
     if(!xpc)
@@ -79,8 +79,8 @@ XPCThrower::CheckForPendingException(nsresult result, XPCCallContext &ccx)
     if(NS_FAILED(e->GetResult(&e_result)) || e_result != result)
         return JS_FALSE;
 
-    if(!ThrowExceptionObject(ccx, e))
-        JS_ReportOutOfMemory(ccx);
+    if(!ThrowExceptionObject(cx, e))
+        JS_ReportOutOfMemory(cx);
     return JS_TRUE;
 }
 
@@ -259,6 +259,16 @@ XPCThrower::BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz)
         JS_ReportOutOfMemory(cx);
 }
 
+static PRBool
+IsCallerChrome()
+{
+    PRBool isChrome = PR_FALSE;
+    nsCOMPtr<nsIScriptSecurityManager> securityManager =
+        do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+    nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
+    return NS_SUCCEEDED(rv) && isChrome;
+}
+
 // static
 JSBool
 XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
@@ -266,8 +276,21 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
     JSBool success = JS_FALSE;
     if(e)
     {
-        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-        if(xpc)
+        nsCOMPtr<nsXPCException> xpcEx;
+        jsval thrown;
+        nsXPConnect* xpc;
+
+        // If we stored the original thrown JS value in the exception
+        // (see XPCConvert::ConstructException) and we are in a web
+        // context (i.e., not chrome), rethrow the original value.
+        if((xpcEx = do_QueryInterface(e)) &&
+           xpcEx->GetThrownJSVal(&thrown) &&
+           !IsCallerChrome())
+        {
+            JS_SetPendingException(cx, thrown);
+            success = JS_TRUE;
+        }
+        else if((xpc = nsXPConnect::GetXPConnect()))
         {
             JSObject* glob = JS_GetScopeChain(cx);
             if(!glob)

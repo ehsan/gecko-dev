@@ -128,8 +128,14 @@ pref("browser.chrome.image_icons.max_size", 1024);
 
 pref("browser.triple_click_selects_paragraph", true);
 
-pref("gfx.color_management.enabled", false);
+// 0 = Off, 1 = Full, 2 = Tagged Images Only. 
+// See eCMSMode in gfx/thebes/public/gfxPlatform.h
+pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
+pref("gfx.color_management.rendering_intent", 0);
+
+pref("gfx.downloadable_fonts.enabled", true);
+pref("gfx.downloadable_fonts.enforce_same_site_origin", true);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -193,6 +199,11 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 // view source
 pref("view_source.syntax_highlight", true);
 pref("view_source.wrap_long_lines", false);
+pref("view_source.editor.external", false);
+pref("view_source.editor.path", "");
+// allows to add further arguments to the editor; use the %LINE% placeholder
+// for jumping to a specific line (e.g. "/line:%LINE%" or "--goto %LINE%")
+pref("view_source.editor.args", "");
 
 // dispatch left clicks only to content in browser (still allows clicks to chrome/xul)
 pref("nglayout.events.dispatchLeftClickOnly", true);
@@ -240,9 +251,6 @@ pref("print.show_print_progress", true);
 // and a change in one window does not affect the others
 pref("print.use_global_printsettings", true);
 
-// Use the native dialog or the XP dialog?
-pref("print.use_native_print_dialog", false);
-
 // Save the Printings after each print job
 pref("print.save_print_settings", true);
 
@@ -278,7 +286,7 @@ pref("print.print_edge_bottom", 0);
 pref("extensions.spellcheck.inline.max-misspellings", 500);
 
 // Prefs used by libeditor. Prefs specific to seamonkey composer
-// belong in mozilla/editor/ui/composer.js
+// belong in comm-central/editor/ui/composer.js
 
 pref("editor.use_custom_colors", false);
 pref("editor.htmlWrapColumn", 72);
@@ -497,6 +505,8 @@ pref("javascript.enabled",                  true);
 pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
+pref("javascript.options.jit.content",      false);
+pref("javascript.options.jit.chrome",       false);
 
 // advanced prefs
 pref("security.enable_java",                true);
@@ -779,11 +789,6 @@ pref("network.automatic-ntlm-auth.trusted-uris", "");
 //       implementation will not be affected by this preference.
 pref("network.ntlm.send-lm-response", false);
 
-// sspitzer:  change this back to "news" when we get to beta.
-// for now, set this to news.mozilla.org because you can only
-// post to the server specified by this pref.
-pref("network.hosts.nntp_server",           "news.mozilla.org");
-
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
 #ifndef XP_MACOSX
@@ -899,6 +904,9 @@ pref("clipboard.autocopy", false);
 pref("mousewheel.transaction.timeout", 1500);
 // mouse wheel scroll transaction is held even if the mouse cursor is moved.
 pref("mousewheel.transaction.ignoremovedelay", 100);
+
+// Macbook touchpad two finger pixel scrolling
+pref("mousewheel.enable_pixel_scrolling", true);
 
 // 0=lines, 1=pages, 2=history , 3=text size
 pref("mousewheel.withnokey.action",0);
@@ -1169,10 +1177,10 @@ pref("font.name-list.sans-serif.ko", "Gulim, 굴림");
 pref("font.name-list.monospace.ko", "GulimChe, 굴림체"); 
 pref("font.name-list.cursive.ko", "Gungseo, 궁서"); 
 
-pref("font.name.serif.th", "Times New Roman");
-pref("font.name.sans-serif.th", "Arial");
-pref("font.name.monospace.th", "Courier New");
-pref("font.name.cursive.th", "Comic Sans MS");
+pref("font.name.serif.th", "Tahoma");
+pref("font.name.sans-serif.th", "Tahoma");
+pref("font.name.monospace.th", "Tahoma");
+pref("font.name.cursive.th", "Tahoma");
 
 pref("font.name.serif.tr", "Times New Roman");
 pref("font.name.sans-serif.tr", "Arial");
@@ -1351,6 +1359,7 @@ pref("font.size.fixed.ko", 16);
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
 pref("font.size.fixed.th", 13);
+pref("font.minimum-size.th", 10);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -1463,9 +1472,6 @@ pref("slider.snapMultiplier", 6);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 
-// This indicates whether it should use the native dialog or the XP Dialog
-pref("print.use_native_print_dialog", true);
-
 // Whether to extend the native dialog with information on printing frames.
 pref("print.extend_native_print_dialog", true);
 
@@ -1508,6 +1514,9 @@ pref("intl.jis0208.map", "CP932");
 
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
+
+// See bug 448927, on topmost panel, some IMEs are not usable on Windows.
+pref("ui.panel.default_level_parent", false);
 
 # WINNT
 #endif
@@ -1571,10 +1580,10 @@ pref("font.name-list.sans-serif.ko", "AppleGothic");
 pref("font.name-list.monospace.ko", "AppleGothic"); 
 
 pref("font.name.serif.th", "Thonburi");
-pref("font.name.sans-serif.th", "Krungthep");
+pref("font.name.sans-serif.th", "Thonburi");
 pref("font.name.monospace.th", "Ayuthaya");
 pref("font.name-list.serif.th", "Thonburi");
-pref("font.name-list.sans-serif.th", "Krungthep");
+pref("font.name-list.sans-serif.th", "Thonburi");
 pref("font.name-list.monospace.th", "Ayuthaya");
 
 pref("font.name.serif.tr", "Times");
@@ -1792,6 +1801,7 @@ pref("font.size.fixed.ko", 16);
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
 pref("font.size.fixed.th", 13);
+pref("font.minimum-size.th", 10);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -1922,8 +1932,8 @@ pref("ui.key.contentAccess", 2);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 
-// This indicates whether it should use the native dialog or the XP Dialog
-pref("print.use_native_print_dialog", true);
+// See bug 404131, topmost <panel> element wins to Dashboard on MacOSX.
+pref("ui.panel.default_level_parent", false);
 
 # XP_MACOSX
 #endif
@@ -2122,6 +2132,11 @@ pref("intl.jis0208.map", "IBM943");
 // This is because OS/2 doesn't support IPv6
 pref("network.dns.disableIPv6", true);
 
+// IMEs of OS/2 might use non-topmost windows for topmost <panel> element,
+// see bug 451015. If there are other problems by this value, we may need to
+// change this value.
+pref("ui.panel.default_level_parent", false);
+
 # OS2
 #endif
 
@@ -2213,6 +2228,11 @@ pref("ui.key.contentAccess", 3);
 // xxx toolkit?
 pref("browser.download.dir", "/boot/home/Downloads");
 
+// IMEs of BeOS might use non-topmost windows for topmost <panel> element,
+// see bug 451015. If there are other problems by this value, we may need to
+// change this value.
+pref("ui.panel.default_level_parent", false);
+
 # BeOS
 #endif
 
@@ -2250,6 +2270,9 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
 
+// should NetworkManager be authoritative for online/offline status?
+pref("toolkit.networkmanager.disable", true);
+
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
@@ -2274,8 +2297,6 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
-pref("print.whileInPrintPreview", false);
-
 pref("font.allow_double_byte_special_chars", true);
 // font names
 
@@ -2299,7 +2320,9 @@ pref("font.name.serif.ko", "serif");
 pref("font.name.sans-serif.ko", "sans-serif");
 pref("font.name.monospace.ko", "monospace");
 
-// th
+pref("font.name.serif.th", "serif");
+pref("font.name.sans-serif.th", "sans-serif");
+pref("font.name.monospace.th", "monospace");
 
 pref("font.name.serif.tr", "serif");
 pref("font.name.sans-serif.tr", "sans-serif");
@@ -2363,7 +2386,8 @@ pref("font.size.fixed.ko", 16);
 
 pref("font.default.th", "serif");
 pref("font.size.variable.th", 16);
-pref("font.size.fixed.th", 12);
+pref("font.size.fixed.th", 13);
+pref("font.minimum-size.th", 13);
 
 pref("font.default.tr", "serif");
 pref("font.size.variable.tr", 16);
@@ -2470,6 +2494,17 @@ pref("font.size.fixed.x-sinh", 13);
 pref("print.postscript.paper_size",    "letter");
 pref("print.postscript.orientation",   "portrait");
 pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
+
+// On GTK2 platform, we should use topmost window level for the default window
+// level of <panel> element of XUL. GTK2 has only two window types. One is
+// normal top level window, other is popup window. The popup window is always
+// topmost window level, therefore, we are using normal top level window for
+// non-topmost panel, but it is pretty hacky. On some Window Managers, we have
+// 2 problems:
+// 1. The non-topmost panel steals focus from its parent window at showing.
+// 2. The parent of non-topmost panel is not activated when the panel is hidden.
+// So, we have no reasons we should use non-toplevel window for popup.
+pref("ui.panel.default_level_parent", true);
 
 # XP_UNIX
 #endif
@@ -2602,7 +2637,7 @@ pref("signon.rememberSignons",              true);
 pref("signon.expireMasterPassword",         false);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
-pref("signon.SignonFileName3",              "signons3.txt");
+pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
 pref("signon.autofillForms",                true); 
 pref("signon.debug",                        false); // logs to Error Console
 
@@ -2611,3 +2646,10 @@ pref("browser.zoom.full", false);
 pref("zoom.minPercent", 30);
 pref("zoom.maxPercent", 300);
 pref("toolkit.zoomManager.zoomValues", ".3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2,2.4,3");
+
+// Image cache prefs
+// The maximum size, in bytes, of the decoded images we cache
+pref("image.cache.size", 5242880);
+// A weight, from 0-1000, to place on time when comparing to size.
+// Size is given a weight of 1000 - timeweight.
+pref("image.cache.timeweight", 500);

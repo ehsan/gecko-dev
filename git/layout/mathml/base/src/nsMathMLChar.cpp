@@ -1930,12 +1930,10 @@ void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   const nsStyleBorder* border = mStyleContext->GetStyleBorder();
-  const nsStylePadding* padding = mStyleContext->GetStylePadding();
   const nsStyleBackground* backg = mStyleContext->GetStyleBackground();
+  nsRect rect(mRect + aBuilder->ToReferenceFrame(mFrame));
   nsCSSRendering::PaintBackgroundWithSC(mFrame->PresContext(), *aCtx, mFrame,
-                                        aDirtyRect,
-                                        mRect + aBuilder->ToReferenceFrame(mFrame),
-                                        *backg, *border, *padding,
+                                        aDirtyRect, rect, *backg, *border,
                                         PR_TRUE);
 }
 
@@ -2007,10 +2005,11 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              aDirtyRect, rect, *border, styleContext, skipSides);
+                              aDirtyRect, rect, *border, styleContext,
+                              skipSides);
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
                                aDirtyRect, rect, *border,
-                               *mFrame->GetStyleOutline(), styleContext, 0);
+                               *mFrame->GetStyleOutline(), styleContext);
 }
 #endif
 
@@ -2046,16 +2045,13 @@ nsMathMLChar::Display(nsDisplayListBuilder*   aBuilder,
   else if (mRect.width && mRect.height) {
     const nsStyleBackground* backg = styleContext->GetStyleBackground();
     if (styleContext != parentContext &&
-        0 == (backg->mBackgroundFlags & NS_STYLE_BG_COLOR_TRANSPARENT)) {
+        NS_GET_A(backg->mBackgroundColor) > 0) {
       rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
           nsDisplayMathMLCharBackground(aForFrame, mRect, styleContext));
       NS_ENSURE_SUCCESS(rv, rv);
     }
-
     //else
     //  our container frame will take care of painting its background
-    //  nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, aForFrame,
-    //                                  aDirtyRect, rect, *border, *padding, PR_TRUE);
 
 #if defined(NS_DEBUG) && defined(SHOW_BOUNDING_BOX)
     // for visual debug

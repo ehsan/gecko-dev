@@ -51,7 +51,7 @@
 #include "nsITransferable.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
-#include "IENUMFE.H"
+#include "IEnumFE.h"
 #include "nsCOMPtr.h"
 #include "nsIComponentManager.h"
 #include "nsPrimitiveHelpers.h"
@@ -190,10 +190,16 @@ STDMETHODIMP nsDataObj::CStream::Read(void* pvBuffer,
   NS_ENSURE_TRUE(mInputStream, E_FAIL);
 
   nsresult rv;
-  PRUint32 read = 0;
-  rv = mInputStream->Read((char*)pvBuffer, nBytesToRead, &read);
-  *nBytesRead = read;
-  NS_ENSURE_SUCCESS(rv, S_FALSE);
+  PRUint32 read;
+  *nBytesRead = 0;
+
+  do {
+    read = 0;
+    rv = mInputStream->Read((char*)pvBuffer + *nBytesRead, nBytesToRead - *nBytesRead, &read);
+    NS_ENSURE_SUCCESS(rv, S_FALSE);
+
+    *nBytesRead += read;
+  } while ((*nBytesRead < nBytesToRead) && read);
 
   return S_OK;
 }
@@ -362,7 +368,6 @@ nsDataObj::nsDataObj(nsIURI * uri)
   m_enumFE->AddRef();
 
   if (uri) {
-
     // A URI was obtained, so pass this through to the DataObject
     // so it can create a SourceURL for CF_HTML flavour
     uri->GetSpec(mSourceURL);
@@ -377,12 +382,11 @@ nsDataObj::nsDataObj(nsIURI * uri)
 nsDataObj::~nsDataObj()
 {
   NS_IF_RELEASE(mTransferable);
-  PRInt32 i;
-  for (i=0;i<mDataFlavors->Count();i++) {
-    nsCAutoString* df = reinterpret_cast<nsCAutoString *>(mDataFlavors->ElementAt(i));
+
+  for (PRInt32 i = 0; i < mDataFlavors->Count(); ++i) {
+    nsCString* df = reinterpret_cast<nsCString *>(mDataFlavors->ElementAt(i));
     delete df;
   }
-
   delete mDataFlavors;
 
   m_cRef = 0;
@@ -490,7 +494,7 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   FORMATETC fe;
   m_enumFE->Reset();
   while (NOERROR == m_enumFE->Next(1, &fe, &count)) {
-    nsCAutoString * df = reinterpret_cast<nsCAutoString*>(mDataFlavors->SafeElementAt(dfInx));
+    nsCString * df = reinterpret_cast<nsCString*>(mDataFlavors->SafeElementAt(dfInx));
     if ( df ) {
       if (FormatsMatch(fe, *pFE)) {
         pSTM->pUnkForRelease = NULL;        // caller is responsible for deleting this data
@@ -1435,25 +1439,25 @@ CLSID nsDataObj::GetClassID() const
 }
 
 //-----------------------------------------------------
-// Registers a the DataFlavor/FE pair
+// Registers the DataFlavor/FE pair.
 //-----------------------------------------------------
 void nsDataObj::AddDataFlavor(const char* aDataFlavor, LPFORMATETC aFE)
 {
-  // These two lists are the mapping to and from data flavors and FEs
-  // Later, OLE will tell us it's needs a certain type of FORMATETC (text, unicode, etc)
-  // so we will look up data flavor that corresponds to the FE
-  // and then ask the transferable for that type of data
+  // These two lists are the mapping to and from data flavors and FEs.
+  // Later, OLE will tell us it needs a certain type of FORMATETC (text,
+  // unicode, etc), so we will look up the data flavor that corresponds to
+  // the FE and then ask the transferable for that type of data.
 
-  // Just ignore the CF_HDROP here
-  // all file drags are now hangled by CFSTR_FileContents format
 #ifndef WINCE
+  // Just ignore the CF_HDROP here
+  // all file drags are now handled by CFSTR_FileContents format
   if (aFE->cfFormat == CF_HDROP) {
     return;
   }  
   else 
 #endif
   {
-    mDataFlavors->AppendElement(new nsCAutoString(aDataFlavor));
+    mDataFlavors->AppendElement(new nsCString(aDataFlavor));
     m_enumFE->AddFE(aFE);
   }
 }

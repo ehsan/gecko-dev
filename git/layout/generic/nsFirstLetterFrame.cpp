@@ -111,14 +111,14 @@ nsFirstLetterFrame::SetInitialChildList(nsIAtom*  aListName,
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread)
+nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType)
 {
   if (aSelected && ParentDisablesSelection())
     return NS_OK;
   nsIFrame *child = GetFirstChild(nsnull);
   while (child)
   {
-    child->SetSelected(aPresContext, aRange, aSelected, aSpread);
+    child->SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
     // don't worry about result. there are more frames to come
     child = child->GetNextSibling();
   }
@@ -236,6 +236,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
+    NS_ASSERTION(ll->GetFirstLetterStyleOK() || GetPrevContinuation(),
+                 "First-continuation first-letter should have first-letter style enabled in nsLineLayout!");
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);

@@ -210,13 +210,14 @@ public:
   NS_IMETHOD IsEnabled(PRInt32 aTag, PRBool* aReturn);
   NS_IMETHOD_(PRBool) IsFormOnStack();
 
+  virtual nsresult ProcessMETATag(nsIContent* aContent);
+
 #ifdef DEBUG
   // nsIDebugDumpContent
   NS_IMETHOD DumpContentModel();
 #endif
 
 protected:
-  nsresult UpdateDocumentTitle();
   // If aCheckIfPresent is true, will only set an attribute in cases
   // when it's not already set.
   nsresult AddAttributes(const nsIParserNode& aNode, nsIContent* aContent,
@@ -243,7 +244,6 @@ protected:
   nsRefPtr<nsGenericHTMLElement> mFrameset;
   nsGenericHTMLElement* mHead;
 
-  nsString mTitleString;
   nsRefPtr<nsGenericHTMLElement> mCurrentForm;
 
   nsAutoVoidArray mContextStack;
@@ -382,6 +382,9 @@ public:
   PRUnichar* mText;
   PRInt32 mTextLength;
   PRInt32 mTextSize;
+
+private:
+  PRBool mLastTextCharWasCR;
 };
 
 //----------------------------------------------------------------------
@@ -520,10 +523,10 @@ MaybeSetForm(nsGenericHTMLElement* aContent, nsHTMLTag aNodeType,
   NS_ASSERTION(formControl,
                "nsGenericHTMLElement didn't implement nsIFormControl");
   nsCOMPtr<nsIDOMHTMLFormElement> formElement(do_QueryInterface(form));
-  NS_ASSERTION(!form || formElement,
+  NS_ASSERTION(formElement,
                "nsGenericHTMLElement didn't implement nsIDOMHTMLFormElement");
 
-  formControl->SetForm(formElement, PR_TRUE, PR_FALSE);
+  formControl->SetForm(formElement);
 }
 
 /**
@@ -542,8 +545,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     ToLowerCase(tmp);
 
     nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
-    mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None,
-                                  getter_AddRefs(nodeInfo));
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
   }
   else if (mNodeInfoCache[aNodeType]) {
     nodeInfo = mNodeInfoCache[aNodeType];
@@ -556,8 +558,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
     nsIAtom *name = parserService->HTMLIdToAtomTag(aNodeType);
     NS_ASSERTION(name, "What? Reverse mapping of id to string broken!!!");
 
-    mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None,
-                                  getter_AddRefs(nodeInfo));
+    nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
     NS_IF_ADDREF(mNodeInfoCache[aNodeType] = nodeInfo);
   }
 
@@ -625,7 +626,8 @@ SinkContext::SinkContext(HTMLContentSink* aSink)
     mStackPos(0),
     mText(nsnull),
     mTextLength(0),
-    mTextSize(0)
+    mTextSize(0),
+    mLastTextCharWasCR(PR_FALSE)
 {
   MOZ_COUNT_CTOR(SinkContext);
 }
@@ -876,13 +878,6 @@ SinkContext::OpenContainer(const nsIParserNode& aNode)
       }
       break;
 
-    case eHTMLTag_title:
-      if (mSink->mDocument->GetDocumentTitle().IsVoid()) {
-        // The first title wins.
-        mSink->mInTitle = PR_TRUE;
-      }
-      break;
-
     case eHTMLTag_button:
       content->DoneCreatingElement();
       break;
@@ -1000,10 +995,15 @@ SinkContext::CloseContainer(const nsHTMLTag aTag, PRBool aMalformed)
 
     break;
 
+#ifdef MOZ_MEDIA
+  case eHTMLTag_video:
+  case eHTMLTag_audio:
+#endif
   case eHTMLTag_select:
   case eHTMLTag_textarea:
   case eHTMLTag_object:
   case eHTMLTag_applet:
+  case eHTMLTag_title:
     content->DoneAddingChildren(HaveNotifiedForCurrentContent());
     break;
 
@@ -1014,13 +1014,6 @@ SinkContext::CloseContainer(const nsHTMLTag aTag, PRBool aMalformed)
 
   case eHTMLTag_style:
     result = mSink->ProcessSTYLEEndTag(content);
-    break;
-
-  case eHTMLTag_title:
-    if (mSink->mInTitle) {
-      mSink->UpdateDocumentTitle();
-      mSink->mInTitle = PR_FALSE;
-    }
     break;
 
   default:
@@ -1288,11 +1281,6 @@ SinkContext::AddText(const nsAString& aText)
     return NS_OK;
   }
   
-  if (mSink->mInTitle) {
-    // Hang onto the title text specially.
-    mSink->mTitleString.Append(aText);
-  }
-
   // Create buffer when we first need it
   if (mTextSize == 0) {
     mText = new PRUnichar[4096];
@@ -1304,7 +1292,6 @@ SinkContext::AddText(const nsAString& aText)
 
   // Copy data from string into our buffer; flush buffer when it fills up
   PRInt32 offset = 0;
-  PRBool  isLastCharCR = PR_FALSE;
 
   while (addLen != 0) {
     PRInt32 amount = mTextSize - mTextLength;
@@ -1319,12 +1306,18 @@ SinkContext::AddText(const nsAString& aText)
       if (NS_FAILED(rv)) {
         return rv;
       }
+
+      // Go back to the top of the loop so we re-calculate amount and
+      // don't fall through to CopyNewlineNormalizedUnicodeTo with a
+      // zero-length amount (which invalidates mLastTextCharWasCR).
+      continue;
     }
 
     mTextLength +=
       nsContentUtils::CopyNewlineNormalizedUnicodeTo(aText, offset,
                                                      &mText[mTextLength],
-                                                     amount, isLastCharCR);
+                                                     amount,
+                                                     mLastTextCharWasCR);
     offset += amount;
     addLen -= amount;
   }
@@ -1516,6 +1509,7 @@ SinkContext::FlushText(PRBool* aDidFlush, PRBool aReleaseLast)
   if (aReleaseLast) {
     mLastTextNodeSize = 0;
     mLastTextNode = nsnull;
+    mLastTextCharWasCR = PR_FALSE;
   }
 
 #ifdef DEBUG
@@ -1708,10 +1702,9 @@ HTMLContentSink::Init(nsIDocument* aDoc,
   mMaxTextRun = nsContentUtils::GetIntPref("content.maxtextrun", 8191);
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  rv = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
-                                     kNameSpaceID_None,
-                                     getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
+                                           kNameSpaceID_None);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Make root part
   nsIContent *doc_root = mDocument->GetRootContent();
@@ -1737,10 +1730,9 @@ HTMLContentSink::Init(nsIDocument* aDoc,
   }
 
   // Make head part
-  rv = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head,
-                                     nsnull, kNameSpaceID_None,
-                                     getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head,
+                                           nsnull, kNameSpaceID_None);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mHead = NS_NewHTMLHeadElement(nodeInfo);
   if (NS_FAILED(rv)) {
@@ -2080,12 +2072,18 @@ HTMLContentSink::OpenBody(const nsIParserNode& aNode)
     // insertionPoint is not -1, but this code will try to handle
     // those cases too.
 
+    PRBool oldUpdates = mUpdatesInNotification;
+    mUpdatesInNotification = 0;
     if (insertionPoint != -1) {
       NotifyInsert(parent, mBody, insertionPoint - 1);
     } else {
       NotifyAppend(parent, numFlushed);
     }
     mCurrentContext->mStack[parentIndex].mNumFlushed = childCount;
+    if (mUpdatesInNotification > 1) {
+      UpdateChildCounts();
+    }
+    mUpdatesInNotification = oldUpdates;
   }
 
   StartLayout(PR_FALSE);
@@ -2236,12 +2234,18 @@ HTMLContentSink::OpenFrameset(const nsIParserNode& aNode)
     // insertionPoint is not -1, but this code will try to handle
     // those cases too.
 
+    PRBool oldUpdates = mUpdatesInNotification;
+    mUpdatesInNotification = 0;
     if (insertionPoint != -1) {
       NotifyInsert(parent, mFrameset, insertionPoint - 1);
     } else {
       NotifyAppend(parent, numFlushed);
     }
     mCurrentContext->mStack[parentIndex].mNumFlushed = childCount;
+    if (mUpdatesInNotification > 1) {
+      UpdateChildCounts();
+    }
+    mUpdatesInNotification = oldUpdates;
   }
   
   return rv;
@@ -2421,33 +2425,6 @@ HTMLContentSink::AddLeaf(const nsIParserNode& aNode)
   MOZ_TIMER_STOP(mWatch);
 
   return rv;
-}
-
-nsresult 
-HTMLContentSink::UpdateDocumentTitle()
-{
-  MOZ_TIMER_DEBUGLOG(("Start: nsHTMLContentSink::UpdateDocumentTitle()\n"));
-  MOZ_TIMER_START(mWatch);
-  NS_ASSERTION(mCurrentContext == mHeadContext, "title not in head");
-
-  if (!mDocument->GetDocumentTitle().IsVoid()) {
-    MOZ_TIMER_DEBUGLOG(("Stop: nsHTMLContentSink::UpdateDocumentTitle()\n"));
-    MOZ_TIMER_STOP(mWatch);
-    return NS_OK;
-  }
-
-  // Use mTitleString.
-  mTitleString.CompressWhitespace(PR_TRUE, PR_TRUE);
-
-  nsCOMPtr<nsIDOMNSDocument> domDoc(do_QueryInterface(mDocument));
-  domDoc->SetTitle(mTitleString);
-
-  mTitleString.Truncate();
-
-  MOZ_TIMER_DEBUGLOG(("Stop: nsHTMLContentSink::UpdateDocumentTitle()\n"));
-  MOZ_TIMER_STOP(mWatch);
-
-  return NS_OK;
 }
 
 /**
@@ -2936,8 +2913,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     // Create content object
     nsCOMPtr<nsIContent> element;
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_None,
-                                  getter_AddRefs(nodeInfo));
+    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_None);
 
     result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(result, result);
@@ -2993,6 +2969,33 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
   }
 
   return result;
+}
+
+/* 
+ * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
+ * information is ignored by the generic content sink because it only stores
+ * http-equiv meta tags.
+ *
+ * Initially implemented for bug #436083
+ */
+nsresult
+HTMLContentSink::ProcessMETATag(nsIContent *aContent) {
+
+  /* Call the superclass method. */
+  nsContentSink::ProcessMETATag(aContent);
+
+  nsresult rv = NS_OK;
+
+  /* Look for the viewport meta tag. If we find it, process it and put the
+   * data into the document header. */
+  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                            nsGkAtoms::viewport, eIgnoreCase)) {
+    nsAutoString value;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
+    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
+  }
+
+  return rv;
 }
 
 #ifdef DEBUG

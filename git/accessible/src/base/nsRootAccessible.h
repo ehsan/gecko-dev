@@ -42,7 +42,9 @@
 #include "nsDocAccessibleWrap.h"
 
 #include "nsIAccessibleDocument.h"
+#ifdef MOZ_XUL
 #include "nsIAccessibleTreeCache.h"
+#endif
 
 #include "nsHashtable.h"
 #include "nsCaretAccessible.h"
@@ -107,6 +109,11 @@ class nsRootAccessible : public nsDocAccessibleWrap,
                                     nsIDOMEvent *aFocusEvent,
                                     PRBool aForceEvent = PR_FALSE,
                                     PRBool aIsAsynch = PR_FALSE);
+    /**
+      * Fire an accessible focus event for the current focused node,
+      * if there is a focus.
+      */
+    void FireCurrentFocusEvent();
 
     nsCaretAccessible *GetCaretAccessible();
 
@@ -121,12 +128,12 @@ class nsRootAccessible : public nsDocAccessibleWrap,
                                    nsIDOMNode* aTargetNode);
     static void GetTargetNode(nsIDOMEvent *aEvent, nsIDOMNode **aTargetNode);
     void TryFireEarlyLoadEvent(nsIDOMNode *aDocNode);
-    void FireCurrentFocusEvent();
     void GetChromeEventHandler(nsIDOMEventTarget **aChromeTarget);
 
     /**
      * Handles 'TreeRowCountChanged' event. Used in HandleEventWithTarget().
      */
+#ifdef MOZ_XUL
     nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
                                             nsIAccessibleTreeCache *aAccessible);
 
@@ -136,7 +143,6 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
                                         nsIAccessibleTreeCache *aAccessible);
 
-#ifdef MOZ_XUL
     PRUint32 GetChromeFlags();
 #endif
     already_AddRefed<nsIDocShellTreeItem>

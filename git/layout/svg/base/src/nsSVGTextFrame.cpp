@@ -99,14 +99,6 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
  return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSVGTextFrame::DidSetStyleContext()
-{
-  nsSVGUtils::StyleEffects(this);
-
-  return NS_OK;
-}
-
 nsIAtom *
 nsSVGTextFrame::GetType() const
 {
@@ -221,13 +213,6 @@ nsSVGTextFrame::NotifyRedrawUnsuspended()
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::SetMatrixPropagation(PRBool aPropagate)
-{
-  mPropagateTransform = aPropagate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsSVGTextFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
 {
   mOverrideCTM = aCTM;
@@ -243,19 +228,19 @@ nsSVGTextFrame::GetOverrideCTM()
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext, nsRect *aDirtyRect)
+nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext, nsIntRect *aDirtyRect)
 {
   UpdateGlyphPositioning(PR_TRUE);
   
   return nsSVGTextFrameBase::PaintSVG(aContext, aDirtyRect);
 }
 
-NS_IMETHODIMP
-nsSVGTextFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
+NS_IMETHODIMP_(nsIFrame*)
+nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   UpdateGlyphPositioning(PR_TRUE);
   
-  return nsSVGTextFrameBase::GetFrameForPointSVG(x, y, hit);
+  return nsSVGTextFrameBase::GetFrameForPoint(aPoint);
 }
 
 NS_IMETHODIMP
@@ -265,6 +250,16 @@ nsSVGTextFrame::UpdateCoveredRegion()
   
   return nsSVGTextFrameBase::UpdateCoveredRegion();
 }
+
+NS_IMETHODIMP
+nsSVGTextFrame::InitialUpdate()
+{
+  nsresult rv = nsSVGTextFrameBase::InitialUpdate();
+  
+  UpdateGlyphPositioning(PR_FALSE);
+
+  return rv;
+}  
 
 NS_IMETHODIMP
 nsSVGTextFrame::GetBBox(nsIDOMSVGRect **_retval)
@@ -280,7 +275,7 @@ nsSVGTextFrame::GetBBox(nsIDOMSVGRect **_retval)
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGTextFrame::GetCanvasTM()
 {
-  if (!mPropagateTransform) {
+  if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
     if (mOverrideCTM) {
       retval = mOverrideCTM;

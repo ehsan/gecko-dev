@@ -51,6 +51,11 @@
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
 
+#if defined(MOZ_WIDGET_QT)
+#include <qwidget.h>
+#include <qapplication.h>
+#endif
+
 #ifdef XP_MACOSX
 #include "MacLaunchHelper.h"
 #include "MacApplicationDelegate.h"
@@ -268,8 +273,16 @@ static int    gRestartArgc;
 static char **gRestartArgv;
 
 #if defined(MOZ_WIDGET_GTK2)
+#if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) \
+  || defined(NS_TRACE_MALLOC)
+#define CLEANUP_MEMORY 1
+#define PANGO_ENABLE_BACKEND
+#include <pango/pangofc-fontmap.h>
+#endif
 #include <gtk/gtk.h>
+#ifdef MOZ_X11
 #include <gdk/gdkx.h>
+#endif /* MOZ_X11 */
 #include "nsGTKToolkit.h"
 #endif
 
@@ -388,7 +401,16 @@ static void Output(PRBool isError, const char *fmt, ... )
       flags |= MB_ICONERROR;
     else 
       flags |= MB_ICONINFORMATION;
-    MessageBoxA(NULL, msg, "XULRunner", flags);
+
+    wchar_t wide_msg[1024];
+    MultiByteToWideChar(CP_ACP,
+                        0,
+                        msg,
+                        -1,
+                        wide_msg,
+                        sizeof(wide_msg) / sizeof(wchar_t));
+
+    MessageBoxW(NULL, wide_msg, L"XULRunner", flags);
     PR_smprintf_free(msg);
   }
 #else
@@ -524,13 +546,14 @@ CheckArgShell(const char* aArg)
 }
 
 /**
- * Spins up Windows DDE when the app needs to restart or the profile manager
- * will be displayed during startup and the app has been launched by the Windows
- * shell to open an url. This prevents Windows from displaying an error message
- * due to the DDE message not being acknowledged.
+ * Enabled Native App Support to process DDE messages when the app needs to
+ * restart and the app has been launched by the Windows shell to open an url.
+ * When aWait is false this will process the DDE events manually. This prevents
+ * Windows from displaying an error message due to the DDE message not being
+ * acknowledged.
  */
 static void
-ProcessDDE(nsINativeAppSupport* aNative)
+ProcessDDE(nsINativeAppSupport* aNative, PRBool aWait)
 {
   // When the app is launched by the windows shell the windows shell
   // expects the app to be available for DDE messages and if it isn't
@@ -544,13 +567,15 @@ ProcessDDE(nsINativeAppSupport* aNative)
   ar = CheckArgShell("requestpending");
   if (ar == ARG_FOUND) {
     aNative->Enable(); // enable win32 DDE responses
-    nsIThread *thread = NS_GetCurrentThread();
-    // This is just a guesstimate based on testing different values.
-    // If count is 8 or less windows will display an error dialog.
-    PRInt32 count = 20;
-    while(--count >= 0) {
-      NS_ProcessNextEvent(thread);
-      PR_Sleep(PR_MillisecondsToInterval(1));
+    if (aWait) {
+      nsIThread *thread = NS_GetCurrentThread();
+      // This is just a guesstimate based on testing different values.
+      // If count is 8 or less windows will display an error dialog.
+      PRInt32 count = 20;
+      while(--count >= 0) {
+        NS_ProcessNextEvent(thread);
+        PR_Sleep(PR_MillisecondsToInterval(1));
+      }
     }
   }
 }
@@ -834,10 +859,26 @@ nsXULAppInfo::AnnotateCrashReport(const nsACString& key,
 }
 
 NS_IMETHODIMP
+nsXULAppInfo::AppendAppNotesToCrashReport(const nsACString& data)
+{
+  return CrashReporter::AppendAppNotesToCrashReport(data);
+}
+
+NS_IMETHODIMP
 nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
 {
 #ifdef XP_WIN32
   return CrashReporter::WriteMinidumpForException(static_cast<EXCEPTION_POINTERS*>(aExceptionInfo));
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
+
+NS_IMETHODIMP
+nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
+{
+#ifdef XP_MACOSX
+  return CrashReporter::AppendObjCExceptionInfoToAppNotes(aException);
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
@@ -1146,17 +1187,16 @@ DumpHelp()
 #endif
 #ifdef XP_UNIX
   printf("\t--g-fatal-warnings\t\tMake all warnings fatal\n"
-         "\nMozilla options\n");
+         "\n%s options\n", gAppData->name);
 #endif
 
-  printf("\t-height <value>\t\tSet height of startup window to <value>.\n"
-         "\t-h or -help\t\tPrint this message.\n"
-         "\t-width <value>\t\tSet width of startup window to <value>.\n"
+  printf("\t-h or -help\t\tPrint this message.\n"
          "\t-v or -version\t\tPrint %s version.\n"
          "\t-P <profile>\t\tStart with <profile>.\n"
+         "\t-migration\t\tStart with migration wizard.\n"
          "\t-ProfileManager\t\tStart with ProfileManager.\n"
          "\t-no-remote\t\tOpen new instance, not a new window in running instance.\n"
-         "\t-UILocale <locale>\t\tStart with <locale> resources as UI Locale.\n"
+         "\t-UILocale <locale>\tStart with <locale> resources as UI Locale.\n"
          "\t-safe-mode\t\tDisables extensions and themes for this session.\n", gAppData->name);
 
 #if defined(XP_WIN) || defined(XP_OS2)
@@ -1541,8 +1581,7 @@ int OS2LaunchChild(const char *aExePath, int aArgc, char **aArgv)
 // blank command line instead of being launched with the same command line that
 // it was initially started with.
 static nsresult LaunchChild(nsINativeAppSupport* aNative,
-                            PRBool aBlankCommandLine = PR_FALSE,
-                            int needElevation = 0)
+                            PRBool aBlankCommandLine = PR_FALSE)
 {
   aNative->Quit(); // release DDE mutex, if we're holding it
 
@@ -1570,7 +1609,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
-  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, needElevation))
+  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, 0))
     return NS_ERROR_FAILURE;
 
 #else
@@ -1717,7 +1756,9 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
 #endif
 
 #ifdef XP_WIN
-    ProcessDDE(aNative);
+    // we don't have to wait here because profile manager window will pump
+    // and DDE message will be handled
+    ProcessDDE(aNative, PR_FALSE);
 #endif
 
     { //extra scoping is needed so we release these components before xpcom shutdown
@@ -2376,6 +2417,7 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
   // gdk_display_manager_set_default_display (gdk_display_manager_get(), NULL)
   // was also broken.
   if (gtk_check_version(2,10,0) != NULL) {
+#ifdef MOZ_X11
     // Version check failed - broken gdk_display_close.
     //
     // Let the gdk structures leak but at least close the Display,
@@ -2383,14 +2425,47 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     Display* dpy = GDK_DISPLAY_XDISPLAY(display);
     if (!theme_is_qt)
       XCloseDisplay(dpy);
+#else
+    gdk_display_close(display);
+#endif /* MOZ_X11 */
   }
   else {
+#if CLEANUP_MEMORY
+    // Get a (new) Pango context that holds a reference to the fontmap that
+    // GTK has been using.  gdk_pango_context_get() must be called while GTK
+    // has a default display.
+    PangoContext *pangoContext = gdk_pango_context_get();
+#endif
+
     if (!theme_is_qt)
       gdk_display_close(display);
-#if GTK_CHECK_VERSION(2,8,0) && \
-  (defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) || defined(NS_TRACE_MALLOC))
-    cairo_debug_reset_static_data();
+
+#if CLEANUP_MEMORY
+    // This doesn't take a reference.
+    PangoFontMap *fontmap = pango_context_get_font_map(pangoContext);
+    // Do some shutdown of the fontmap, which releases the fonts, clearing a
+    // bunch of circular references from the fontmap through the fonts back to
+    // itself.  The shutdown that this does is much less than what's done by
+    // the fontmap's finalize, though.
+    if (PANGO_IS_FC_FONT_MAP(fontmap))
+        pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(fontmap));
+    g_object_unref(pangoContext);
+    // PangoCairo still holds a reference to the fontmap.
+    // Now that we have finished with GTK and Pango, we could unref fontmap,
+    // which would allow us to call FcFini, but removing what is really
+    // Pango's ref feels a bit evil.  Pango-1.22 will have support for
+    // pango_cairo_font_map_set_default(NULL), which would release the
+    // reference on the old fontmap.
+
+#if GTK_CHECK_VERSION(2,8,0)
+    // cairo_debug_reset_static_data() is prototyped through cairo.h included
+    // by gtk.h.
+#ifdef cairo_debug_reset_static_data
+#error "Looks like we're including Mozilla's cairo instead of system cairo"
 #endif
+    cairo_debug_reset_static_data();
+#endif // 2.8.0
+#endif // CLEANUP_MEMORY
   }
 }
 #endif // MOZ_WIDGET_GTK2
@@ -2683,14 +2758,22 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   PR_SetEnv("MOZ_LAUNCHED_CHILD=");
 
   gRestartArgc = gArgc;
-  gRestartArgv = (char**) malloc(sizeof(char*) * (gArgc + 1));
+  gRestartArgv = (char**) malloc(sizeof(char*) * (gArgc + 1 + (override ? 2 : 0)));
   if (!gRestartArgv) return 1;
 
   int i;
   for (i = 0; i < gArgc; ++i) {
     gRestartArgv[i] = gArgv[i];
   }
-  gRestartArgv[gArgc] = nsnull;
+  
+  // Add the -override argument back (it is removed automatically be CheckArg) if there is one
+  if (override) {
+    gRestartArgv[gRestartArgc++] = const_cast<char*>("-override");
+    gRestartArgv[gRestartArgc++] = const_cast<char*>(override);
+  }
+
+  gRestartArgv[gRestartArgc] = nsnull;
+  
 
 #if defined(XP_OS2)
   PRBool StartOS2App(int aArgc, char **aArgv);
@@ -2774,7 +2857,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     }
 #endif
 
+#if defined(MOZ_WIDGET_QT)
+    QApplication app(gArgc, gArgv);
+#endif
 #if defined(MOZ_WIDGET_GTK2)
+#ifdef MOZ_MEMORY
+    // Disable the slice allocator, since jemalloc already uses similar layout
+    // algorithms, and using a sub-allocator tends to increase fragmentation.
+    // This must be done before g_thread_init() is called.
+    g_slice_set_config(G_SLICE_CONFIG_ALWAYS_MALLOC, 1);
+#endif
     g_thread_init(NULL);
     // setup for private colormap.  Ideally we'd like to do this
     // in nsAppShell::Create, but we need to get in before gtk
@@ -2791,22 +2883,50 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (!gtk_parse_args(&gArgc, &gArgv))
       return 1;
 
-    GdkDisplay* display = nsnull;
-    {
-      // display_name is owned by gdk.
-      const char *display_name = gdk_get_display_arg_name();
+    // display_name is owned by gdk.
+    const char *display_name = gdk_get_display_arg_name();
+    if (display_name) {
+      SaveWordToEnv("DISPLAY", nsDependentCString(display_name));
+    } else {
+      display_name = PR_GetEnv("DISPLAY");
       if (!display_name) {
-        display_name = PR_GetEnv("DISPLAY");
-        if (!display_name) {
-          PR_fprintf(PR_STDERR, "Error: no display specified\n");
-          return 1;
-        }
-      }
-      display = gdk_display_open(display_name);
-      if (!display) {
-        PR_fprintf(PR_STDERR, "Error: cannot open display: %s\n", display_name);
+        PR_fprintf(PR_STDERR, "Error: no display specified\n");
         return 1;
       }
+    }
+#endif /* MOZ_WIDGET_GTK2 */
+
+#ifdef MOZ_ENABLE_XREMOTE
+    // handle -remote now that xpcom is fired up
+
+    const char* xremotearg;
+    ar = CheckArg("remote", PR_TRUE, &xremotearg);
+    if (ar == ARG_BAD) {
+      PR_fprintf(PR_STDERR, "Error: -remote requires an argument\n");
+      return 1;
+    }
+    const char* desktopStartupIDPtr =
+      desktopStartupID.IsEmpty() ? nsnull : desktopStartupID.get();
+    if (ar) {
+      return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
+    }
+
+    if (!PR_GetEnv("MOZ_NO_REMOTE")) {
+      // Try to remote the entire command line. If this fails, start up normally.
+      RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
+      if (rr == REMOTE_FOUND)
+        return 0;
+      else if (rr == REMOTE_ARG_BAD)
+        return 1;
+    }
+#endif
+
+#if defined(MOZ_WIDGET_GTK2)
+    GdkDisplay* display = nsnull;
+    display = gdk_display_open(display_name);
+    if (!display) {
+      PR_fprintf(PR_STDERR, "Error: cannot open display: %s\n", display_name);
+      return 1;
     }
     gdk_display_manager_set_default_display (gdk_display_manager_get(),
                                              display);
@@ -2843,31 +2963,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (NS_FAILED(rv) || !canRun) {
       return 1;
     }
-
-#ifdef MOZ_ENABLE_XREMOTE
-    // handle -remote now that xpcom is fired up
-
-    const char* xremotearg;
-    ar = CheckArg("remote", PR_TRUE, &xremotearg);
-    if (ar == ARG_BAD) {
-      PR_fprintf(PR_STDERR, "Error: -remote requires an argument\n");
-      return 1;
-    }
-    const char* desktopStartupIDPtr =
-      desktopStartupID.IsEmpty() ? nsnull : desktopStartupID.get();
-    if (ar) {
-      return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
-    }
-
-    if (!PR_GetEnv("MOZ_NO_REMOTE")) {
-      // Try to remote the entire command line. If this fails, start up normally.
-      RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
-      if (rr == REMOTE_FOUND)
-        return 0;
-      else if (rr == REMOTE_ARG_BAD)
-        return 1;
-    }
-#endif
 
 #if defined(MOZ_UPDATER)
   // Check for and process any available updates
@@ -3201,7 +3296,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           needsRestart = PR_TRUE;
 
 #ifdef XP_WIN
-          ProcessDDE(nativeApp);
+          ProcessDDE(nativeApp, PR_TRUE);
 #endif
 
 #ifdef XP_MACOSX
@@ -3264,7 +3359,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       MOZ_gdk_display_close(display);
 #endif
 
-      rv = LaunchChild(nativeApp, appInitiatedRestart, upgraded ? -1 : 0);
+      rv = LaunchChild(nativeApp, appInitiatedRestart);
 
 #ifdef MOZ_CRASHREPORTER
       if (appData.flags & NS_XRE_ENABLE_CRASH_REPORTER)

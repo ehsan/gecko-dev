@@ -10,6 +10,7 @@
   -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
   margin: 0;
+  min-width: 245px;
 }
 
 #resizerBox {
@@ -104,8 +105,12 @@ richlistitem[selected="true"]:not([opType]) .descriptionCrop {
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
   background-color: -moz-Field;
   color: -moz-FieldText;
+  min-width: 65px;
   overflow: auto;
-  width: 0px;
+}
+
+#previewImageDeck {
+  min-width: 220px;
 }
 
 #themeSplitter {
@@ -328,37 +333,6 @@ vbox[typeName="status"][type="footer-search"] {
 vbox[typeName="status"][type="header-recommended"] {
   font-size: 150%;
   background: -moz-dialog;
-}
-
-#searchbox {
-  padding: 2px;
-}
-
-.searchbox-search, .searchbox-cancel {
-  -moz-appearance: none;
-  cursor: default;
-  margin: 0;
-  border: 0;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  list-style-image: url("chrome://mozapps/skin/extensions/searchIcons.png");
-  background-color: -moz-field;
-}
-
-.searchbox-search {
-  -moz-image-region: rect(0px 16px 16px 0px);
-}
-
-.searchbox-cancel {
-  -moz-image-region: rect(0px 32px 16px 16px);
-}
-
-.searchbox-search .button-box,
-.searchbox-cancel .button-box {
-  border: 0px;
-  padding: 0px;
 }
 
 #progressBox {

@@ -50,6 +50,7 @@
 #include "nsDataObj.h"
 #include "nsIClipboardOwner.h"
 #include "nsString.h"
+#include "nsNativeCharsetUtils.h"
 #include "nsIFormatConverter.h"
 #include "nsITransferable.h"
 #include "nsCOMPtr.h"
@@ -65,12 +66,13 @@
 #include "nsWidgetsCID.h"
 #include "nsCRT.h"
 #include "nsNetUtil.h"
+#include "nsEscape.h"
 
 #include "nsIImage.h"
 
 
 // oddly, this isn't in the MSVC headers anywhere.
-UINT nsClipboard::CF_HTML = ::RegisterClipboardFormat("HTML Format");
+UINT nsClipboard::CF_HTML = ::RegisterClipboardFormatW(L"HTML Format");
 
 
 //-------------------------------------------------------------------------
@@ -111,7 +113,9 @@ UINT nsClipboard::GetFormat(const char* aMimeStr)
   else if (strcmp(aMimeStr, kNativeHTMLMime) == 0)
     format = CF_HTML;
   else
-    format = ::RegisterClipboardFormat(aMimeStr);
+    format = ::RegisterClipboardFormatW(NS_ConvertASCIItoUTF16(aMimeStr).get());
+
+
 
   return format;
 }
@@ -263,6 +267,7 @@ NS_IMETHODIMP nsClipboard::SetNativeClipboardData ( PRInt32 aWhichClipboard )
   IDataObject * dataObj;
   if ( NS_SUCCEEDED(CreateNativeDataObject(mTransferable, &dataObj, NULL)) ) { // this add refs dataObj
     ::OleSetClipboard(dataObj);
+    ::OleFlushClipboard();
     dataObj->Release();
   } else {
     // Clear the native clipboard
@@ -305,18 +310,18 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, PRUint32 * aLe
     *aLen  = 0;
     LPVOID lpMsgBuf;
 
-    FormatMessage( 
+    FormatMessageW( 
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
         NULL,
         GetLastError(),
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-        (LPTSTR) &lpMsgBuf,
+        (LPWSTR) &lpMsgBuf,
         0,
         NULL 
     );
 
     // Display the string.
-    MessageBox( NULL, (const char *)lpMsgBuf, "GetLastError", MB_OK|MB_ICONINFORMATION );
+    MessageBoxW( NULL, (LPCWSTR) lpMsgBuf, L"GetLastError", MB_OK|MB_ICONINFORMATION );
 
     // Free the buffer.
     LocalFree( lpMsgBuf );    
@@ -815,6 +820,29 @@ nsClipboard :: FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, v
     *outDataLen = nsCRT::strlen(static_cast<PRUnichar*>(*outData)) * sizeof(PRUnichar);
     nsMemory::Free(tempOutData);
     dataFound = PR_TRUE;
+  }
+  else {
+    loadResult = GetNativeDataOffClipboard(inDataObject, inIndex, ::RegisterClipboardFormat(CFSTR_INETURLA), &tempOutData, &tempDataLen);
+    if ( NS_SUCCEEDED(loadResult) && tempOutData ) {
+      // CFSTR_INETURLA is (currently) equal to CFSTR_SHELLURL which is equal to CF_TEXT
+      // which is by definition ANSI encoded.
+      nsCString urlUnescapedA;
+      PRBool unescaped = NS_UnescapeURL(static_cast<char*>(tempOutData), tempDataLen, esc_OnlyNonASCII | esc_SkipControl, urlUnescapedA);
+
+      nsString urlString;
+      if (unescaped)
+        NS_CopyNativeToUnicode(urlUnescapedA, urlString);
+      else
+        NS_CopyNativeToUnicode(nsDependentCString(static_cast<char*>(tempOutData), tempDataLen), urlString);
+
+      // the internal mozilla URL format, text/x-moz-url, contains
+      // URL\ntitle.  Since we don't actually have a title here,
+      // just repeat the URL to fake it.
+      *outData = ToNewUnicode(urlString + NS_LITERAL_STRING("\n") + urlString);
+      *outDataLen = nsCRT::strlen(static_cast<PRUnichar*>(*outData)) * sizeof(PRUnichar);
+      nsMemory::Free(tempOutData);
+      dataFound = PR_TRUE;
+    }
   }
 
   return dataFound;

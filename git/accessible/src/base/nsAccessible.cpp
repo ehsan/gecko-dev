@@ -140,9 +140,23 @@ nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
  * Class nsAccessible
  */
 
-//-----------------------------------------------------
-// construction 
-//-----------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessible. nsISupports
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsAccessible)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsAccessible, nsAccessNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstChild)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNextSibling)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsAccessible, nsAccessNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstChild)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNextSibling)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
 NS_IMPL_ADDREF_INHERITED(nsAccessible, nsAccessNode)
 NS_IMPL_RELEASE_INHERITED(nsAccessible, nsAccessNode)
 
@@ -188,7 +202,12 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   // Custom-built QueryInterface() knows when we support nsIAccessibleSelectable
   // based on role attribute and aria-multiselectable
   *aInstancePtr = nsnull;
-  
+
+  if (aIID.Equals(NS_GET_IID(nsXPCOMCycleCollectionParticipant))) {
+    *aInstancePtr = &NS_CYCLE_COLLECTION_NAME(nsAccessible);
+    return NS_OK;
+  }
+
   if (aIID.Equals(NS_GET_IID(nsIAccessible))) {
     *aInstancePtr = static_cast<nsIAccessible*>(this);
     NS_ADDREF_THIS();
@@ -483,7 +502,7 @@ NS_IMETHODIMP nsAccessible::SetFirstChild(nsIAccessible *aFirstChild)
 
 NS_IMETHODIMP nsAccessible::SetNextSibling(nsIAccessible *aNextSibling)
 {
-  mNextSibling = aNextSibling? aNextSibling: DEAD_END_ACCESSIBLE;
+  mNextSibling = aNextSibling;
   return NS_OK;
 }
 
@@ -538,15 +557,13 @@ NS_IMETHODIMP nsAccessible::InvalidateChildren()
   // CacheChildren() is called.
   // Note: we don't want to start creating accessibles at this point,
   // so don't use GetNextSibling() here. (bug 387252)
-  nsAccessible* child = static_cast<nsAccessible*>(mFirstChild);
+  nsAccessible* child = static_cast<nsAccessible*>(mFirstChild.get());
   while (child) {
     child->mParent = nsnull;
-    if (child->mNextSibling == DEAD_END_ACCESSIBLE) {
-      break;
-    }
-    nsIAccessible *next = child->mNextSibling;
+
+    nsCOMPtr<nsIAccessible> next = child->mNextSibling;
     child->mNextSibling = nsnull;
-    child = static_cast<nsAccessible*>(next);
+    child = static_cast<nsAccessible*>(next.get());
   }
 
   mAccChildCount = eChildCountUninitialized;
@@ -608,9 +625,8 @@ NS_IMETHODIMP nsAccessible::GetNextSibling(nsIAccessible * *aNextSibling)
   if (mNextSibling || !mParent) {
     // If no parent, don't try to calculate a new sibling
     // It either means we're at the root or shutting down the parent
-    if (mNextSibling != DEAD_END_ACCESSIBLE) {
-      NS_IF_ADDREF(*aNextSibling = mNextSibling);
-    }
+    NS_IF_ADDREF(*aNextSibling = mNextSibling);
+
     return NS_OK;
   }
 
@@ -1088,10 +1104,10 @@ NS_IMETHODIMP nsAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
   return NS_OK;
 }
 
-  /* nsIAccessible getChildAtPoint (in long x, in long y); */
+// nsIAccessible getDeepestChildAtPoint(in long x, in long y)
 NS_IMETHODIMP
-nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                              nsIAccessible **aAccessible)
+nsAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                     nsIAccessible **aAccessible)
 {
   NS_ENSURE_ARG_POINTER(aAccessible);
   *aAccessible = nsnull;
@@ -1189,26 +1205,49 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
     // Fall through -- the point is in this accessible but not in a child
     // We are allowed to return |this| as the answer
   }
-  else {
-    nsCOMPtr<nsIAccessible> parent;
-    while (PR_TRUE) {
-      accessible->GetParent(getter_AddRefs(parent));
-      if (!parent) {
-        // Reached the top of the hierarchy
-        // these bounds were inside an accessible that is not a descendant of this one
-        NS_IF_ADDREF(*aAccessible = fallbackAnswer);
-        return NS_OK;
-      }
-      if (parent == this) {
-        // We reached |this|, so |accessible| is the
-        // child we want to return
-        break;
-      }
-      accessible.swap(parent);
-    }
-  }
 
   NS_IF_ADDREF(*aAccessible = accessible);
+  return NS_OK;
+}
+
+// nsIAccessible getChildAtPoint(in long x, in long y)
+NS_IMETHODIMP
+nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                              nsIAccessible **aAccessible)
+{
+  nsresult rv = GetDeepestChildAtPoint(aX, aY, aAccessible);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!*aAccessible)
+    return NS_OK;
+
+  nsCOMPtr<nsIAccessible> parent, accessible(*aAccessible);
+  while (PR_TRUE) {
+    accessible->GetParent(getter_AddRefs(parent));
+    if (!parent) {
+      NS_ASSERTION(PR_FALSE,
+                   "Obtained accessible isn't a child of this accessible.");
+      // Reached the top of the hierarchy. These bounds were inside an
+      // accessible that is not a descendant of this one.
+
+      // If we can't find the point in a child, we will return the fallback
+      // answer: we return |this| if the point is within it, otherwise nsnull.
+      PRInt32 x, y, width, height;
+      GetBounds(&x, &y, &width, &height);
+      if (aX >= x && aX < x + width && aY >= y && aY < y + height)
+        NS_ADDREF(*aAccessible = this);
+
+      return NS_OK;
+    }
+
+    if (parent == this) {
+      // We reached |this|, so |accessible| is the child we want to return.
+      NS_ADDREF(*aAccessible = accessible);
+      return NS_OK;
+    }
+    accessible.swap(parent);
+  }
+
   return NS_OK;
 }
 
@@ -1593,15 +1632,6 @@ nsresult nsAccessible::AppendFlatStringFromContentNode(nsIContent *aContent, nsA
   nsAutoString textEquivalent;
   if (!aContent->IsNodeOfType(nsINode::eHTML)) {
     if (aContent->IsNodeOfType(nsINode::eXUL)) {
-      nsCOMPtr<nsIPresShell> shell = GetPresShell();
-      if (!shell) {
-        return NS_ERROR_FAILURE;  
-      }
-      nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
-      if (!frame || !frame->GetStyleVisibility()->IsVisible()) {
-        return NS_OK;
-      }
-
       nsCOMPtr<nsIDOMXULLabeledControlElement> labeledEl(do_QueryInterface(aContent));
       if (labeledEl) {
         labeledEl->GetLabel(textEquivalent);
@@ -1661,8 +1691,17 @@ nsresult nsAccessible::AppendFlatStringFromSubtree(nsIContent *aContent, nsAStri
   if (isAlreadyHere) {
     return NS_OK;
   }
+
   isAlreadyHere = PR_TRUE;
-  nsresult rv = AppendFlatStringFromSubtreeRecurse(aContent, aFlatString);
+
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+
+  nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
+  PRBool isHidden = (!frame || !frame->GetStyleVisibility()->IsVisible());
+  nsresult rv = AppendFlatStringFromSubtreeRecurse(aContent, aFlatString,
+                                                   isHidden);
+
   isAlreadyHere = PR_FALSE;
 
   if (NS_SUCCEEDED(rv) && !aFlatString->IsEmpty()) {
@@ -1681,13 +1720,20 @@ nsresult nsAccessible::AppendFlatStringFromSubtree(nsIContent *aContent, nsAStri
   return rv;
 }
 
-nsresult nsAccessible::AppendFlatStringFromSubtreeRecurse(nsIContent *aContent, nsAString *aFlatString)
+nsresult
+nsAccessible::AppendFlatStringFromSubtreeRecurse(nsIContent *aContent,
+                                                 nsAString *aFlatString,
+                                                 PRBool aIsRootHidden)
 {
   // Depth first search for all text nodes that are decendants of content node.
   // Append all the text into one flat string
   PRUint32 numChildren = 0;
   nsCOMPtr<nsIDOMXULSelectControlElement> selectControlEl(do_QueryInterface(aContent));
-  if (!selectControlEl) {  // Don't walk children of elements with options, just get label directly
+  
+  if (!selectControlEl && aContent->Tag() != nsAccessibilityAtoms::textarea) {
+    // Don't walk children of elements with options, just get label directly.
+    // Don't traverse the children of a textarea, we want the value, not the
+    // static text node.
     numChildren = aContent->GetChildCount();
   }
 
@@ -1698,10 +1744,25 @@ nsresult nsAccessible::AppendFlatStringFromSubtreeRecurse(nsIContent *aContent, 
   }
 
   // There are relevant children: use them to get the text.
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+
   PRUint32 index;
   for (index = 0; index < numChildren; index++) {
-    AppendFlatStringFromSubtreeRecurse(aContent->GetChildAt(index), aFlatString);
+    nsCOMPtr<nsIContent> childContent = aContent->GetChildAt(index);
+
+    // Walk into hidden subtree if the the root parent is also hidden. This
+    // happens when the author explictly uses a hidden label or description.
+    if (!aIsRootHidden) {
+      nsIFrame *childFrame = shell->GetPrimaryFrameFor(childContent);
+      if (!childFrame || !childFrame->GetStyleVisibility()->IsVisible())
+        continue;
+    }
+
+    AppendFlatStringFromSubtreeRecurse(childContent, aFlatString,
+                                       aIsRootHidden);
   }
+
   return NS_OK;
 }
 
@@ -1809,8 +1870,14 @@ nsresult nsAccessible::GetHTMLName(nsAString& aLabel, PRBool aCanAggregateSubtre
     return NS_ERROR_FAILURE;   // Node shut down
   }
 
-  // Check for DHTML accessibility labelledby relationship property
+  // Check for aria-label property
   nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
+    return NS_OK;
+  }
+
+  // Check for aria-labelledby relationship property
   nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
   if (NS_SUCCEEDED(rv)) {
     aLabel = label;
@@ -1860,8 +1927,14 @@ nsresult nsAccessible::GetXULName(nsAString& aLabel, PRBool aCanAggregateSubtree
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   NS_ASSERTION(content, "No nsIContent for DOM node");
 
-  // First check for label override via accessibility labelledby relationship
+  // First check for label override via aria-label property
   nsAutoString label;
+  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label, label)) {
+    aLabel = label;
+    return NS_OK;
+  }
+
+  // Second check for label override via aria-labelledby relationship
   nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, label);
   if (NS_SUCCEEDED(rv)) {
     aLabel = label;
@@ -2045,6 +2118,9 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);  // In/out param. Created if necessary.
   
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
   if (!content) {
     return NS_ERROR_FAILURE;
@@ -2114,13 +2190,21 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
     // If accessible is invisible we don't want to calculate group ARIA
     // attributes for it.
     if ((role == nsIAccessibleRole::ROLE_LISTITEM ||
-        role == nsIAccessibleRole::ROLE_MENUITEM ||
-        role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
-        role == nsIAccessibleRole::ROLE_PAGETAB ||
-        role == nsIAccessibleRole::ROLE_OPTION ||
-        role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
-        role == nsIAccessibleRole::ROLE_OUTLINEITEM) &&
+         role == nsIAccessibleRole::ROLE_MENUITEM ||
+         role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+         role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM ||
+         role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
+         role == nsIAccessibleRole::ROLE_PAGETAB ||
+         role == nsIAccessibleRole::ROLE_OPTION ||
+         role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
+         role == nsIAccessibleRole::ROLE_OUTLINEITEM) &&
         0 == (State(this) & nsIAccessibleStates::STATE_INVISIBLE)) {
+
+      PRUint32 baseRole = role;
+      if (role == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+          role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+        baseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
       nsCOMPtr<nsIAccessible> parent = GetParent();
       NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
 
@@ -2132,10 +2216,17 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
       NS_ENSURE_TRUE(sibling, NS_ERROR_FAILURE);
 
       PRBool foundCurrent = PR_FALSE;
-      PRUint32 siblingRole;
+      PRUint32 siblingRole, siblingBaseRole;
       while (sibling) {
         sibling->GetFinalRole(&siblingRole);
-        if (siblingRole == role &&
+
+        siblingBaseRole = siblingRole;
+        if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
+            siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
+          siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
+
+        // If sibling is visible and has the same base role.
+        if (siblingBaseRole == baseRole &&
             !(State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
           ++ setSize;
           if (!foundCurrent) {
@@ -2144,6 +2235,17 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
               foundCurrent = PR_TRUE;
           }
         }
+
+        // If the sibling is separator
+        if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR) {
+          if (foundCurrent) // the our group is ended
+            break;
+
+          // not our group, continue the searching
+          positionInGroup = 0;
+          setSize = 0;
+        }
+
         sibling->GetNextSibling(getter_AddRefs(nextSibling));
         sibling = nextSibling;
       }
@@ -2250,6 +2352,14 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
     startContent = parentDoc->FindContentForSubDocument(doc);      
   }
 
+  // Expose 'display' attribute.
+  nsAutoString displayValue;
+  nsresult rv = GetComputedStyleValue(EmptyString(),
+                                      NS_LITERAL_STRING("display"),
+                                      displayValue);
+  if (NS_SUCCEEDED(rv))
+    nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::display,
+                           displayValue);
   return NS_OK;
 }
 
@@ -3082,40 +3192,30 @@ NS_IMETHODIMP nsAccessible::GetNativeInterface(void **aOutAccessible)
 
 void nsAccessible::DoCommandCallback(nsITimer *aTimer, void *aClosure)
 {
-  NS_ASSERTION(gDoCommandTimer, "How did we get here if there was no gDoCommandTimer?");
+  NS_ASSERTION(gDoCommandTimer,
+               "How did we get here if there was no gDoCommandTimer?");
   NS_RELEASE(gDoCommandTimer);
 
-  nsIContent *content = reinterpret_cast<nsIContent*>(aClosure);
-  nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(content));
-  if (xulElement) {
-    xulElement->Click();
-  }
-  else {
-    nsIDocument *doc = content->GetDocument();
-    if (!doc) {
-      return;
-    }
-    nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
-    nsPIDOMWindow *outerWindow = doc->GetWindow();
-    if (presShell && outerWindow) {
-      nsAutoPopupStatePusher popupStatePusher(outerWindow, openAllowed);
+  nsCOMPtr<nsIContent> content =
+    reinterpret_cast<nsIContent*>(aClosure);
 
-      nsMouseEvent downEvent(PR_TRUE, NS_MOUSE_BUTTON_DOWN, nsnull,
-                             nsMouseEvent::eSynthesized);
-      nsMouseEvent upEvent(PR_TRUE, NS_MOUSE_BUTTON_UP, nsnull,
-                           nsMouseEvent::eSynthesized);
-      nsMouseEvent clickEvent(PR_TRUE, NS_MOUSE_CLICK, nsnull,
-                              nsMouseEvent::eSynthesized);
+  nsIDocument *doc = content->GetDocument();
+  if (!doc)
+    return;
 
-      nsEventStatus eventStatus = nsEventStatus_eIgnore;
-      content->DispatchDOMEvent(&downEvent, nsnull,
-                                 presShell->GetPresContext(), &eventStatus);
-      content->DispatchDOMEvent(&upEvent, nsnull,
-                                 presShell->GetPresContext(), &eventStatus);
-      content->DispatchDOMEvent(&clickEvent, nsnull,
-                                 presShell->GetPresContext(), &eventStatus);
-    }
-  }
+  nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
+
+  // Scroll into view.
+  presShell->ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                   NS_PRESSHELL_SCROLL_ANYWHERE);
+
+  // Fire mouse down and mouse up events.
+  PRBool res = nsAccUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
+                                              content);
+  if (!res)
+    return;
+
+  nsAccUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, content);
 }
 
 /*

@@ -36,8 +36,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsJSNPRuntime.h"
-#include "ns4xPlugin.h"
-#include "ns4xPluginInstance.h"
+#include "nsNPAPIPlugin.h"
+#include "nsNPAPIPluginInstance.h"
 #include "nsIPluginInstancePeer2.h"
 #include "nsPIPluginInstancePeer.h"
 #include "nsIScriptGlobalObject.h"
@@ -118,37 +118,37 @@ NPClass nsJSObjWrapper::sJSObjWrapperNPClass =
     nsJSObjWrapper::NP_Construct
   };
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_newEnumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                           jsval *statep, jsid *idp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                         JSObject **objp);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 NPObjWrapper_Finalize(JSContext *cx, JSObject *obj);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                   jsval *rval);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                        jsval *rval);
 
@@ -175,17 +175,17 @@ typedef struct NPObjectMemberPrivate {
     NPP   npp;
 } NPObjectMemberPrivate;
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 NPObjectMember_Finalize(JSContext *cx, JSObject *obj);
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjectMember_Call(JSContext *cx, JSObject *obj, uintN argc,
                     jsval *argv, jsval *rval);
 
-JS_STATIC_DLL_CALLBACK(uint32)
+static uint32
 NPObjectMember_Mark(JSContext *cx, JSObject *obj, void *arg);
 
 static JSClass sNPObjectMemberClass =
@@ -292,7 +292,7 @@ GetJSContext(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nsnull);
 
-  ns4xPluginInstance *inst = (ns4xPluginInstance *)npp->ndata;
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   NS_ENSURE_TRUE(inst, nsnull);
 
   nsCOMPtr<nsPIPluginInstancePeer> pp(do_QueryInterface(inst->Peer()));
@@ -1136,7 +1136,7 @@ GetNPObject(JSContext *cx, JSObject *obj)
   return (NPObject *)::JS_GetPrivate(cx, obj);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1161,7 +1161,7 @@ NPObjWrapper_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1182,7 +1182,7 @@ NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1233,7 +1233,7 @@ NPObjWrapper_SetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1286,7 +1286,7 @@ NPObjWrapper_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval, PRBool ctorCall)
 {
@@ -1418,7 +1418,7 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 CallNPMethod(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
              jsval *rval)
 {
@@ -1431,7 +1431,7 @@ struct NPObjectEnumerateState {
   NPIdentifier *value;
 };
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_newEnumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                           jsval *statep, jsid *idp)
 {
@@ -1502,7 +1502,7 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
   return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                         JSObject **objp)
 {
@@ -1564,7 +1564,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 {
   // The sole reason we implement this hook is to prevent the JS
@@ -1576,7 +1576,7 @@ NPObjWrapper_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
   return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 NPObjWrapper_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObject *npobj = (NPObject *)::JS_GetPrivate(cx, obj);
@@ -1593,7 +1593,7 @@ NPObjWrapper_Finalize(JSContext *cx, JSObject *obj)
   OnWrapperDestroyed();
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                   jsval *rval)
 {
@@ -1601,7 +1601,7 @@ NPObjWrapper_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                               PR_FALSE);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjWrapper_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                        jsval *rval)
 {
@@ -1717,9 +1717,21 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 
   JSAutoRequest ar(cx);
 
+  PRUint32 generation = sNPObjWrappers.generation;
+
   // No existing JSObject, create one.
 
   JSObject *obj = ::JS_NewObject(cx, &sNPObjectJSWrapperClass, nsnull, nsnull);
+
+  if (generation != sNPObjWrappers.generation) {
+      // Reload entry if the JS_NewObject call caused a GC and reallocated
+      // the table (see bug 445229). This is guaranteed to succeed.
+
+      entry = static_cast<NPObjWrapperHashEntry *>
+        (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_LOOKUP));
+      NS_ASSERTION(entry && PL_DHASH_ENTRY_IS_BUSY(entry),
+                   "Hashtable didn't find what we just added?");
+  }
 
   if (!obj) {
     // OOM? Remove the stale entry from the hash.
@@ -1788,6 +1800,11 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
   NppAndCx *nppcx = reinterpret_cast<NppAndCx *>(arg);
 
   if (entry->mNpp == nppcx->npp) {
+    // Prevent invalidate() and deallocate() from touching the hash
+    // we're enumerating.
+    const PLDHashTableOps *ops = table->ops;
+    table->ops = nsnull;
+
     NPObject *npobj = entry->mNPObj;
 
     if (npobj->_class && npobj->_class->invalidate) {
@@ -1803,6 +1820,8 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
     }
 
     ::JS_SetPrivate(nppcx->cx, entry->mJSObj, nsnull);
+
+    table->ops = ops;    
 
     return PL_DHASH_REMOVE;
   }
@@ -1856,7 +1875,7 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
 
   // Find the plugin instance so that we can (eventually) get to the
   // DOM element
-  ns4xPluginInstance *inst = (ns4xPluginInstance *)npp->ndata;
+  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   if (!inst) {
     return;
   }
@@ -2016,7 +2035,7 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj,
   return true;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 {
   NPObjectMemberPrivate *memberPrivate =
@@ -2042,7 +2061,7 @@ NPObjectMember_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
   }
 }
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 NPObjectMember_Finalize(JSContext *cx, JSObject *obj)
 {
   NPObjectMemberPrivate *memberPrivate;
@@ -2054,7 +2073,7 @@ NPObjectMember_Finalize(JSContext *cx, JSObject *obj)
   PR_Free(memberPrivate);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 NPObjectMember_Call(JSContext *cx, JSObject *obj,
                     uintN argc, jsval *argv, jsval *rval)
 {
@@ -2132,7 +2151,7 @@ NPObjectMember_Call(JSContext *cx, JSObject *obj,
   return ReportExceptionIfPending(cx);
 }
 
-JS_STATIC_DLL_CALLBACK(uint32)
+static uint32
 NPObjectMember_Mark(JSContext *cx, JSObject *obj, void *arg)
 {
   NPObjectMemberPrivate *memberPrivate =

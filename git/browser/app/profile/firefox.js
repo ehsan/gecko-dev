@@ -216,6 +216,7 @@ pref("browser.urlbar.matchOnlyTyped", false);
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
+// 3: Match at the beginning of the url or title
 pref("browser.urlbar.matchBehavior", 1);
 pref("browser.urlbar.filter.javascript", true);
 
@@ -226,6 +227,15 @@ pref("browser.urlbar.maxRichResults", 12);
 // be waiting on the timeout too often without many results.
 pref("browser.urlbar.search.chunkSize", 1000);
 pref("browser.urlbar.search.timeout", 100);
+
+// The special characters below can be typed into the urlbar to either restrict
+// the search to visited history, bookmarked, tagged pages; or force a match on
+// just the title text or url.
+pref("browser.urlbar.restrict.history", "^");
+pref("browser.urlbar.restrict.bookmark", "*");
+pref("browser.urlbar.restrict.tag", "+");
+pref("browser.urlbar.match.title", "#");
+pref("browser.urlbar.match.url", "@");
 
 // Number of milliseconds to wait for the http headers (and thus
 // the Content-Disposition filename) before giving up and falling back to 
@@ -239,9 +249,7 @@ pref("browser.download.manager.showAlertOnComplete", true);
 pref("browser.download.manager.showAlertInterval", 2000);
 pref("browser.download.manager.retention", 2);
 pref("browser.download.manager.showWhenStarting", true);
-pref("browser.download.manager.useWindow", true);
 pref("browser.download.manager.closeWhenDone", false);
-pref("browser.download.manager.openDelay", 0);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.addToRecentDocs", true);
@@ -301,8 +309,8 @@ pref("browser.link.open_newwindow", 3);
 pref("browser.link.open_newwindow.restriction", 2);
 
 // Tabbed browser
-pref("browser.tabs.autoHide", true);
-pref("browser.tabs.forceHide", false);
+pref("browser.tabs.autoHide", false);
+pref("browser.tabs.closeWindowWithLastTab", true);
 pref("browser.tabs.warnOnClose", true);
 pref("browser.tabs.warnOnOpen", true);
 pref("browser.tabs.maxOpenBeforeWarn", 15);
@@ -328,6 +336,10 @@ pref("browser.tabs.closeButtons", 1);
 // true   return to the tab that opened this tab (its owner)
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
+
+pref("browser.ctrlTab.mostRecentlyUsed", true);
+pref("browser.ctrlTab.recentlyUsedLimit", 7);
+pref("browser.ctrlTab.smoothScroll", true);
 
 // Default bookmark sorting
 pref("browser.bookmarks.sort.direction", "descending");
@@ -524,9 +536,6 @@ pref("browser.backspace_action", 0);
 // 2 = check multi/single line controls
 pref("layout.spellcheckDefault", 1);
 
-pref("view_source.editor.path", "");
-pref("view_source.editor.external", false);
-
 pref("browser.send_pings", false);
 
 /* initial web feed readers list */
@@ -635,8 +644,15 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // the database.
 pref("urlclassifier.confirm-age", 2700);
 
-// Maximum size of the sqlite3 cache during an update, in bytes
 #ifdef MOZ_WIDGET_GTK2
+#define RESTRICT_CACHEMAX
+#endif
+#ifdef XP_OS2
+#define RESTRICT_CACHEMAX
+#endif
+
+// Maximum size of the sqlite3 cache during an update, in bytes
+#ifdef RESTRICT_CACHEMAX
 pref("urlclassifier.updatecachemax", 104857600);
 #else
 pref("urlclassifier.updatecachemax", -1);
@@ -663,7 +679,6 @@ pref("browser.EULA.version", 3);
 pref("browser.EULA.override", true);
 #endif
 
-pref("browser.sessionstore.enabled", true);
 pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_session_once", false);
 
@@ -680,15 +695,6 @@ pref("browser.sessionstore.max_tabs_undo", 10);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
-
-// If true, will migrate uri post-data annotations to
-// bookmark post-data annotations (bug 398914)
-// XXX to be removed after beta 2 (bug 391419)
-pref("browser.places.migratePostDataAnnotations", true);
-
-// If true, will update the Smart Bookmarks uri for
-// recent tags (bug 385245). Useful just for FX3 beta users.
-pref("browser.places.updateRecentTagsUri", true);
 
 // the (maximum) number of the recent visits to sample
 // when calculating frecency

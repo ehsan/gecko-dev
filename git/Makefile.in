@@ -49,6 +49,7 @@ default alldep all::
 	$(RM) -rf $(DIST)/include
 	$(RM) -rf $(DIST)/private
 	$(RM) -rf $(DIST)/public
+	$(RM) -rf $(DIST)/bin/components
 	$(RM) -rf _tests
 
 TIERS += base
@@ -64,6 +65,11 @@ tier_base_dirs = \
 
 ifdef MOZ_MEMORY
 tier_base_dirs += memory/jemalloc
+endif
+
+ifdef ENABLE_TESTS
+# Additional makefile targets to call automated test suites
+include $(topsrcdir)/testing/testsuite-targets.mk
 endif
 
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk

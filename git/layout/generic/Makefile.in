@@ -41,7 +41,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS		+= test
 endif
 
@@ -80,11 +80,6 @@ REQUIRES	= xpcom \
 
 ifdef ACCESSIBILITY
 REQUIRES	+= accessibility
-endif
-
-# Sun's Complex Text Layout support
-ifdef SUNCTL
-REQUIRES	+= ctl
 endif
 
 EXPORTS		= \
@@ -159,6 +154,12 @@ CPPSRCS		= \
 		nsViewportFrame.cpp \
 		$(NULL)
 
+ifdef MOZ_MEDIA
+CPPSRCS		+= \
+		nsVideoFrame.cpp \
+		$(NULL)
+endif
+
 ifdef IBMBIDI
 CPPSRCS		+= \
 		nsBidiFrames.cpp \
@@ -193,6 +194,10 @@ LOCAL_INCLUDES += \
 
 ifdef MOZ_ENABLE_GTK2
 CXXFLAGS += $(MOZ_GTK2_CFLAGS)
+endif
+
+ifdef MOZ_ENABLE_QT
+CXXFLAGS += $(MOZ_QT_CFLAGS)
 endif
 
 libs::

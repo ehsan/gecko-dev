@@ -64,19 +64,26 @@ static const char* const sEventNames[] = {
   "compositionstart", "compositionend", "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
-  "drag", "dragend", "resize",
+  "drag", "dragend", "dragstart", "dragleave", "drop", "resize",
   "scroll", "overflow", "underflow", "overflowchanged",
   "DOMSubtreeModified", "DOMNodeInserted", "DOMNodeRemoved", 
   "DOMNodeRemovedFromDocument", "DOMNodeInsertedIntoDocument",
   "DOMAttrModified", "DOMCharacterDataModified",
   "DOMActivate", "DOMFocusIn", "DOMFocusOut",
-  "pageshow", "pagehide", "DOMMouseScroll", "offline", "online",
-  "copy", "cut", "paste"
+  "pageshow", "pagehide", "DOMMouseScroll", "MozMousePixelScroll",
+  "offline", "online", "copy", "cut", "paste",
 #ifdef MOZ_SVG
- ,
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
-  "SVGZoom"
+  "SVGZoom",
 #endif // MOZ_SVG
+#ifdef MOZ_MEDIA
+  "loadstart", "progress", "loadedmetadata", "loadedfirstframe",
+  "emptied", "stalled", "play", "pause",
+  "waiting", "seeking", "seeked", "timeupdate", "ended", "dataunavailable",
+  "canshowcurrentframe", "canplay", "canplaythrough", "ratechange",
+  "durationchange", "volumechange",
+#endif // MOZ_MEDIA
+  "MozAfterPaint"
 };
 
 static char *sPopupAllowedEvents;
@@ -126,10 +133,8 @@ nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
     mExplicitOriginalTarget = GetTargetFromFrame();
     mTmpRealOriginalTarget = mExplicitOriginalTarget;
     nsCOMPtr<nsIContent> content = do_QueryInterface(mExplicitOriginalTarget);
-    if (content) {
-      if (content->IsNativeAnonymous() || content->GetBindingParent()) {
-        mExplicitOriginalTarget = nsnull;
-      }
+    if (content && content->IsInAnonymousSubtree()) {
+      mExplicitOriginalTarget = nsnull;
     }
   }
 }
@@ -166,6 +171,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
       case NS_MOUSE_SCROLL_EVENT:
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
+      case NS_DRAG_EVENT:
+        static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer = nsnull;
+        break;
       case NS_XUL_COMMAND_EVENT:
         static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent = nsnull;
         break;
@@ -183,20 +191,28 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
   if (tmp->mEventIsInternal) {
-    cb.NoteXPCOMChild(tmp->mEvent->target);
-    cb.NoteXPCOMChild(tmp->mEvent->currentTarget);
-    cb.NoteXPCOMChild(tmp->mEvent->originalTarget);
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEvent->target)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEvent->currentTarget)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEvent->originalTarget)
     switch (tmp->mEvent->eventStructType) {
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
+      case NS_DRAG_EVENT:
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->dataTransfer");
+        cb.NoteXPCOMChild(
+          static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer);
+        break;
       case NS_XUL_COMMAND_EVENT:
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->sourceEvent");
         cb.NoteXPCOMChild(
           static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent);
         break;
       case NS_MUTATION_EVENT:
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->mRelatedNode");
         cb.NoteXPCOMChild(
           static_cast<nsMutationEvent*>(tmp->mEvent)->mRelatedNode);
         break;
@@ -462,6 +478,29 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
   } else if (mEvent->eventStructType == NS_MOUSE_SCROLL_EVENT) {
     if (atom == nsGkAtoms::onDOMMouseScroll)
       mEvent->message = NS_MOUSE_SCROLL;
+    else if (atom == nsGkAtoms::onMozMousePixelScroll)
+      mEvent->message = NS_MOUSE_PIXEL_SCROLL;
+  } else if (mEvent->eventStructType == NS_DRAG_EVENT) {
+    if (atom == nsGkAtoms::ondragstart)
+      mEvent->message = NS_DRAGDROP_START;
+    else if (atom == nsGkAtoms::ondraggesture)
+      mEvent->message = NS_DRAGDROP_GESTURE;
+    else if (atom == nsGkAtoms::ondragenter)
+      mEvent->message = NS_DRAGDROP_ENTER;
+    else if (atom == nsGkAtoms::ondragover)
+      mEvent->message = NS_DRAGDROP_OVER_SYNTH;
+    else if (atom == nsGkAtoms::ondragleave)
+      mEvent->message = NS_DRAGDROP_LEAVE_SYNTH;
+    else if (atom == nsGkAtoms::ondragexit)
+      mEvent->message = NS_DRAGDROP_EXIT;
+    else if (atom == nsGkAtoms::ondrag)
+      mEvent->message = NS_DRAGDROP_DRAG;
+    else if (atom == nsGkAtoms::ondrop)
+      mEvent->message = NS_DRAGDROP_DROP;
+    else if (atom == nsGkAtoms::ondragdrop)
+      mEvent->message = NS_DRAGDROP_DRAGDROP;
+    else if (atom == nsGkAtoms::ondragend)
+      mEvent->message = NS_DRAGDROP_END;
   } else if (mEvent->eventStructType == NS_KEY_EVENT) {
     if (atom == nsGkAtoms::onkeydown)
       mEvent->message = NS_KEY_DOWN;
@@ -557,6 +596,61 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_SVG_ZOOM;
   }
 #endif // MOZ_SVG
+
+#ifdef MOZ_MEDIA
+  else if (mEvent->eventStructType == NS_MEDIA_EVENT) {
+    if (atom == nsGkAtoms::onloadstart)
+      mEvent->message = NS_LOADSTART;
+    else if (atom == nsGkAtoms::onprogress)
+      mEvent->message = NS_PROGRESS;
+    else if (atom == nsGkAtoms::onloadedmetadata)
+      mEvent->message = NS_LOADEDMETADATA;
+    else if (atom == nsGkAtoms::onloadedfirstframe)
+      mEvent->message = NS_LOADEDFIRSTFRAME;
+    else if (atom == nsGkAtoms::onemptied)
+      mEvent->message = NS_EMPTIED;
+    else if (atom == nsGkAtoms::onstalled)
+      mEvent->message = NS_STALLED;
+    else if (atom == nsGkAtoms::onplay)
+      mEvent->message = NS_PLAY;
+    else if (atom == nsGkAtoms::onpause)
+      mEvent->message = NS_PAUSE;
+    else if (atom == nsGkAtoms::onwaiting)
+      mEvent->message = NS_WAITING;
+    else if (atom == nsGkAtoms::onwaiting)
+      mEvent->message = NS_SEEKING;
+    else if (atom == nsGkAtoms::onseeking)
+      mEvent->message = NS_SEEKED;
+    else if (atom == nsGkAtoms::onseeked)
+      mEvent->message = NS_TIMEUPDATE;
+    else if (atom == nsGkAtoms::onended)
+      mEvent->message = NS_ENDED;
+    else if (atom == nsGkAtoms::ondataunavailable)
+      mEvent->message = NS_DATAUNAVAILABLE;
+    else if (atom == nsGkAtoms::oncanshowcurrentframe)
+      mEvent->message = NS_CANSHOWCURRENTFRAME;
+    else if (atom == nsGkAtoms::oncanplay)
+      mEvent->message = NS_CANPLAY;
+    else if (atom == nsGkAtoms::oncanplaythrough)
+      mEvent->message = NS_CANPLAYTHROUGH;
+    else if (atom == nsGkAtoms::onratechange)
+      mEvent->message = NS_RATECHANGE;
+    else if (atom == nsGkAtoms::ondurationchange)
+      mEvent->message = NS_DURATIONCHANGE;
+    else if (atom == nsGkAtoms::onvolumechange)
+      mEvent->message = NS_VOLUMECHANGE;
+    else if (atom == nsGkAtoms::onload)
+      mEvent->message = NS_LOAD;
+    else if (atom == nsGkAtoms::onabort)
+      mEvent->message = NS_MEDIA_ABORT;
+    else if (atom == nsGkAtoms::onerror)
+      mEvent->message = NS_MEDIA_ERROR;
+  }
+#endif // MOZ_MEDIA
+  else if (mEvent->eventStructType == NS_NOTIFYPAINT_EVENT) {
+    if (atom == nsGkAtoms::onMozAfterPaint)
+      mEvent->message = NS_AFTERPAINT;
+  }
 
   if (mEvent->message == NS_USER_DEFINED_EVENT)
     mEvent->userType = atom;
@@ -704,6 +798,21 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent = mouseEvent;
       break;
     }
+    case NS_DRAG_EVENT:
+    {
+      nsDragEvent* oldDragEvent = static_cast<nsDragEvent*>(mEvent);
+      nsDragEvent* dragEvent =
+        new nsDragEvent(PR_FALSE, msg, nsnull);
+      NS_ENSURE_TRUE(dragEvent, NS_ERROR_OUT_OF_MEMORY);
+      isInputEvent = PR_TRUE;
+      dragEvent->dataTransfer = oldDragEvent->dataTransfer;
+      dragEvent->clickCount = oldDragEvent->clickCount;
+      dragEvent->acceptActivation = oldDragEvent->acceptActivation;
+      dragEvent->relatedTarget = oldDragEvent->relatedTarget;
+      dragEvent->button = oldDragEvent->button;
+      newEvent = dragEvent;
+      break;
+    }
     case NS_MENU_EVENT:
     {
       newEvent = new nsMenuEvent(PR_FALSE, msg, nsnull);
@@ -729,12 +838,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     case NS_COMPOSITION_EVENT:
     {
       newEvent = new nsCompositionEvent(PR_FALSE, msg, nsnull);
-      isInputEvent = PR_TRUE;
-      break;
-    }
-    case NS_RECONVERSION_EVENT:
-    {
-      newEvent = new nsReconversionEvent(PR_FALSE, msg, nsnull);
       isInputEvent = PR_TRUE;
       break;
     }
@@ -829,12 +932,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
                                static_cast<nsUIEvent*>(mEvent)->detail);
       break;
     }
-    case NS_QUERYCARETRECT_EVENT:
-    {
-      newEvent = new nsQueryCaretRectEvent(PR_FALSE, msg, nsnull);
-      isInputEvent = PR_TRUE;
-      break;
-    }
     case NS_PAGETRANSITION_EVENT:
     {
       newEvent =
@@ -866,6 +963,14 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent->eventStructType = NS_XUL_COMMAND_EVENT;
        static_cast<nsXULCommandEvent*>(newEvent)->sourceEvent =
          static_cast<nsXULCommandEvent*>(mEvent)->sourceEvent;
+      break;
+    }
+    case NS_NOTIFYPAINT_EVENT:
+    {
+      nsNotifyPaintEvent* event = static_cast<nsNotifyPaintEvent*>(mEvent);
+      newEvent =
+        new nsNotifyPaintEvent(PR_FALSE, msg,
+                               event->sameDocRegion, event->crossDocRegion);
       break;
     }
     default:
@@ -1254,7 +1359,7 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_dragover];
   case NS_DRAGDROP_EXIT_SYNTH:
     return sEventNames[eDOMEvents_dragexit];
-  case NS_DRAGDROP_DROP:
+  case NS_DRAGDROP_DRAGDROP:
     return sEventNames[eDOMEvents_dragdrop];
   case NS_DRAGDROP_GESTURE:
     return sEventNames[eDOMEvents_draggesture];
@@ -1262,6 +1367,12 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_drag];
   case NS_DRAGDROP_END:
     return sEventNames[eDOMEvents_dragend];
+  case NS_DRAGDROP_START:
+    return sEventNames[eDOMEvents_dragstart];
+  case NS_DRAGDROP_LEAVE_SYNTH:
+    return sEventNames[eDOMEvents_dragleave];
+  case NS_DRAGDROP_DROP:
+    return sEventNames[eDOMEvents_drop];
   case NS_SCROLLPORT_OVERFLOW:
     return sEventNames[eDOMEvents_overflow];
   case NS_SCROLLPORT_UNDERFLOW:
@@ -1296,6 +1407,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_pagehide];
   case NS_MOUSE_SCROLL:
     return sEventNames[eDOMEvents_DOMMouseScroll];
+  case NS_MOUSE_PIXEL_SCROLL:
+    return sEventNames[eDOMEvents_MozMousePixelScroll];
   case NS_OFFLINE:
     return sEventNames[eDOMEvents_offline];
   case NS_ONLINE:
@@ -1322,6 +1435,50 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   case NS_SVG_ZOOM:
     return sEventNames[eDOMEvents_SVGZoom];
 #endif // MOZ_SVG
+#ifdef MOZ_MEDIA
+  case NS_LOADSTART:
+    return sEventNames[eDOMEvents_loadstart];
+  case NS_PROGRESS:
+    return sEventNames[eDOMEvents_progress];
+  case NS_LOADEDMETADATA:
+    return sEventNames[eDOMEvents_loadedmetadata];
+  case NS_LOADEDFIRSTFRAME:
+    return sEventNames[eDOMEvents_loadedfirstframe];
+  case NS_EMPTIED:
+    return sEventNames[eDOMEvents_emptied];
+  case NS_STALLED:
+    return sEventNames[eDOMEvents_stalled];
+  case NS_PLAY:
+    return sEventNames[eDOMEvents_play];
+  case NS_PAUSE:
+    return sEventNames[eDOMEvents_pause];
+  case NS_WAITING:
+    return sEventNames[eDOMEvents_waiting];
+  case NS_SEEKING:
+    return sEventNames[eDOMEvents_seeking];
+  case NS_SEEKED:
+    return sEventNames[eDOMEvents_seeked];
+  case NS_TIMEUPDATE:
+    return sEventNames[eDOMEvents_timeupdate];
+  case NS_ENDED:
+    return sEventNames[eDOMEvents_ended];
+  case NS_DATAUNAVAILABLE:
+    return sEventNames[eDOMEvents_dataunavailable];
+  case NS_CANSHOWCURRENTFRAME:
+    return sEventNames[eDOMEvents_canshowcurrentframe];
+  case NS_CANPLAY:
+    return sEventNames[eDOMEvents_canplay];
+  case NS_CANPLAYTHROUGH:
+    return sEventNames[eDOMEvents_canplaythrough];
+  case NS_RATECHANGE:
+    return sEventNames[eDOMEvents_ratechange];
+  case NS_DURATIONCHANGE:
+    return sEventNames[eDOMEvents_durationchange];
+  case NS_VOLUMECHANGE:
+    return sEventNames[eDOMEvents_volumechange];
+#endif
+  case NS_AFTERPAINT:
+    return sEventNames[eDOMEvents_afterpaint];
   default:
     break;
   }

@@ -709,12 +709,12 @@ public:
         return mStrings[index];
     }
 
-    static void JS_DLL_CALLBACK TraceJS(JSTracer* trc, void* data);
+    static void TraceJS(JSTracer* trc, void* data);
     void TraceXPConnectRoots(JSTracer *trc);
     void AddXPConnectRoots(JSContext* cx,
                            nsCycleCollectionTraversalCallback& cb);
 
-    static JSBool JS_DLL_CALLBACK GCCallback(JSContext *cx, JSGCStatus status);
+    static JSBool GCCallback(JSContext *cx, JSGCStatus status);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
@@ -959,8 +959,6 @@ public:
     NS_IMETHOD GetArgc(PRUint32 *aResult);
     NS_IMETHOD GetArgvPtr(jsval **aResult);
     NS_IMETHOD GetRetValPtr(jsval **aResult);
-    NS_IMETHOD GetExceptionWasThrown(PRBool *aResult);
-    NS_IMETHOD SetExceptionWasThrown(PRBool aValue);
     NS_IMETHOD GetReturnValueWasSet(PRBool *aResult);
     NS_IMETHOD SetReturnValueWasSet(PRBool aValue);
     NS_IMETHOD GetCalleeInterface(nsIInterfaceInfo **aResult);
@@ -1014,7 +1012,6 @@ public:
     inline uintN                        GetArgc() const ;
     inline jsval*                       GetArgv() const ;
     inline jsval*                       GetRetVal() const ;
-    inline JSBool                       GetExceptionWasThrown() const ;
     inline JSBool                       GetReturnValueWasSet() const ;
 
     inline PRUint16                     GetMethodIndex() const ;
@@ -1120,7 +1117,6 @@ private:
     jsval*                          mArgv;
     jsval*                          mRetVal;
 
-    JSBool                          mExceptionWasThrown;
     JSBool                          mReturnValueWasSet;
 #ifdef XPC_IDISPATCH_SUPPORT
     void*                           mIDispatchMember;
@@ -1175,20 +1171,20 @@ extern JSClass XPC_WN_ModsAllowed_NoCall_Proto_JSClass;
 extern JSClass XPC_WN_Tearoff_JSClass;
 extern JSClass XPC_WN_NoHelper_Proto_JSClass;
 
-extern JSObjectOps * JS_DLL_CALLBACK
+extern JSObjectOps *
 XPC_WN_GetObjectOpsNoCall(JSContext *cx, JSClass *clazz);
 
-extern JSObjectOps * JS_DLL_CALLBACK
+extern JSObjectOps *
 XPC_WN_GetObjectOpsWithCall(JSContext *cx, JSClass *clazz);
 
-extern JSObjectOps * JS_DLL_CALLBACK
+extern JSObjectOps *
 XPC_WN_Proto_GetObjectOps(JSContext *cx, JSClass *clazz);
 
-extern JSBool JS_DLL_CALLBACK
+extern JSBool
 XPC_WN_CallMethod(JSContext *cx, JSObject *obj,
                   uintN argc, jsval *argv, jsval *vp);
 
-extern JSBool JS_DLL_CALLBACK
+extern JSBool
 XPC_WN_GetterSetter(JSContext *cx, JSObject *obj,
                     uintN argc, jsval *argv, jsval *vp);
 
@@ -1900,7 +1896,7 @@ public:
 #ifdef GET_IT
 #undef GET_IT
 #endif
-#define GET_IT(f_) const {return (JSBool)(mClassInfoFlags & nsIClassInfo:: f_ );}
+#define GET_IT(f_) const {return !!(mClassInfoFlags & nsIClassInfo:: f_ );}
 
     JSBool ClassIsSingleton()           GET_IT(SINGLETON)
     JSBool ClassIsThreadSafe()          GET_IT(THREADSAFE)
@@ -2721,6 +2717,7 @@ public:
                                            const nsID* iid,
                                            nsISupports* aOuter,
                                            nsresult* pErr);
+    static JSBool GetISupportsFromJSObject(JSObject* obj, nsISupports** iface);
 
     /**
      * Convert a native array into a jsval.
@@ -2775,8 +2772,9 @@ public:
     static nsresult ConstructException(nsresult rv, const char* message,
                                        const char* ifaceName,
                                        const char* methodName,
-                                       nsISupports* data,                                       
-                                       nsIException** exception);
+                                       nsISupports* data,
+                                       nsIException** exception,
+                                       const jsval *jsExceptionPtr);
 
     static void RemoveXPCOMUCStringFinalizer();
 
@@ -2804,7 +2802,7 @@ private:
     XPCStringConvert();         // not implemented
 };
 
-extern JSBool JS_DLL_CALLBACK
+extern JSBool
 XPC_JSArgumentFormatter(JSContext *cx, const char *format,
                         JSBool fromJS, jsval **vpp, va_list *app);
 
@@ -2827,13 +2825,14 @@ public:
     static JSBool SetVerbosity(JSBool state)
         {JSBool old = sVerbose; sVerbose = state; return old;}
 
+    static void BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz);
+    static JSBool CheckForPendingException(nsresult result, JSContext *cx);
+
 private:
     static void Verbosify(XPCCallContext& ccx,
                           char** psz, PRBool own);
 
-    static void BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz);
     static JSBool ThrowExceptionObject(JSContext* cx, nsIException* e);
-    static JSBool CheckForPendingException(nsresult result, XPCCallContext &ccx);
 
 private:
     static JSBool sVerbose;
@@ -2860,6 +2859,8 @@ private:
 };
 
 /***************************************************************************/
+
+class XPCVariant;
 
 class nsXPCException :
             public nsIXPCException
@@ -2893,6 +2894,9 @@ public:
 
     static void InitStatics() { sEverMadeOneFromFactory = JS_FALSE; }
 
+    PRBool GetThrownJSVal(jsval *vp) const;
+    void   SetThrownJSVal(jsval v);
+
 protected:
     void Reset();
 private:
@@ -2905,6 +2909,8 @@ private:
     int             mLineNumber;
     nsIException*   mInner;
     PRBool          mInitialized;
+
+    nsCOMPtr<XPCVariant> mThrownJSVal;
 
     static JSBool sEverMadeOneFromFactory;
 };
@@ -3091,6 +3097,10 @@ public:
             if(cx->thread == sMainJSThread)
                 return sMainThreadData;
         }
+        else if(sMainThreadData && sMainThreadData->mThread == PR_GetCurrentThread())
+        {
+            return sMainThreadData;
+        }
 
         return GetDataImpl(cx);
     }
@@ -3199,6 +3209,9 @@ public:
     static void ShutDown()
         {sMainJSThread = nsnull; sMainThreadData = nsnull;}
 
+    static PRBool IsMainThread(JSContext *cx)
+        { return cx->thread == sMainJSThread; }
+
 private:
     XPCPerThreadData();
     static XPCPerThreadData* GetDataImpl(JSContext *cx);
@@ -3228,8 +3241,6 @@ private:
     static PRLock*           gLock;
     static XPCPerThreadData* gThreads;
     static PRUintn           gTLSIndex;
-
-    friend class AutoJSSuspendNonMainThreadRequest;
 
     // Cached value of cx->thread on the main thread. 
     static void *sMainJSThread;
@@ -3569,7 +3580,7 @@ public:
 
 private:
     void SuspendRequest() {
-        if (mCX && mCX->thread != XPCPerThreadData::sMainJSThread)
+        if (mCX && !XPCPerThreadData::IsMainThread(mCX))
             mDepth = JS_SuspendRequest(mCX);
         else
             mCX = nsnull;

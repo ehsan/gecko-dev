@@ -195,7 +195,7 @@ GetBorderPadding(nsStyleContext* aContext, nsMargin& aMargin)
   if (!aContext->GetStylePadding()->GetPadding(aMargin)) {
     NS_NOTYETIMPLEMENTED("percentage padding");
   }
-  aMargin += aContext->GetStyleBorder()->GetBorder();
+  aMargin += aContext->GetStyleBorder()->GetActualBorder();
 }
 
 static void
@@ -544,7 +544,9 @@ NS_IMETHODIMP nsTreeBodyFrame::SetView(nsITreeView * aView)
     }
 
     // View, meet the tree.
+    nsWeakFrame weakFrame(this);
     mView->SetTree(mTreeBoxObject);
+    NS_ENSURE_STATE(weakFrame.IsAlive());
     mView->GetRowCount(&mRowCount);
  
     PRBool isInReflow;
@@ -643,12 +645,54 @@ nsTreeBodyFrame::GetPageLength(PRInt32 *_retval)
 }
 
 NS_IMETHODIMP
+nsTreeBodyFrame::GetSelectionRegion(nsIScriptableRegion **aRegion)
+{
+  *aRegion = nsnull;
+
+  nsCOMPtr<nsITreeSelection> selection;
+  mView->GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_TRUE(selection, NS_OK);
+
+  nsCOMPtr<nsIScriptableRegion> region = do_CreateInstance("@mozilla.org/gfx/region;1");
+  NS_ENSURE_TRUE(region, NS_ERROR_FAILURE);
+  region->Init();
+
+  nsRefPtr<nsPresContext> presContext = PresContext();
+  nsRect rect = mRect;
+  rect.ScaleRoundOut(1.0 / presContext->AppUnitsPerCSSPixel());
+
+  nsIFrame* rootFrame = presContext->PresShell()->GetRootFrame();
+  nsPoint origin = GetOffsetTo(rootFrame);
+
+  // iterate through the visible rows and add the selected ones to the
+  // drag region
+  PRInt32 x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
+  PRInt32 y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+  PRInt32 top = y;
+  PRInt32 end = GetLastVisibleRow();
+  PRInt32 rowHeight = nsPresContext::AppUnitsToIntCSSPixels(mRowHeight);
+  for (PRInt32 i = mTopRowIndex; i <= end; i++) {
+    PRBool isSelected;
+    selection->IsSelected(i, &isSelected);
+    if (isSelected)
+      region->UnionRect(x, y, rect.width, rowHeight);
+    y += rowHeight;
+  }
+
+  // clip to the tree boundary in case one row extends past it
+  region->IntersectRect(x, top, rect.width, rect.height);
+
+  NS_ADDREF(*aRegion = region);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsTreeBodyFrame::Invalidate()
 {
   if (mUpdateBatchNest)
     return NS_OK;
 
-  nsIFrame::Invalidate(GetOverflowRect(), PR_FALSE);
+  InvalidateOverflowRect();
 
   return NS_OK;
 }
@@ -675,7 +719,7 @@ nsTreeBodyFrame::InvalidateColumn(nsITreeColumn* aCol)
 
   // When false then column is out of view
   if (OffsetForHorzScroll(columnRect, PR_TRUE))
-      nsIFrame::Invalidate(columnRect, PR_FALSE);
+      nsIFrame::Invalidate(columnRect);
 
   return NS_OK;
 }
@@ -697,7 +741,7 @@ nsTreeBodyFrame::InvalidateRow(PRInt32 aIndex)
     return NS_OK;
 
   nsRect rowRect(mInnerBox.x, mInnerBox.y+mRowHeight*aIndex, mInnerBox.width, mRowHeight);
-  nsLeafBoxFrame::Invalidate(rowRect, PR_FALSE);
+  nsLeafBoxFrame::Invalidate(rowRect);
 
   return NS_OK;
 }
@@ -728,7 +772,7 @@ nsTreeBodyFrame::InvalidateCell(PRInt32 aIndex, nsITreeColumn* aCol)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (OffsetForHorzScroll(cellRect, PR_TRUE))
-    nsIFrame::Invalidate(cellRect, PR_FALSE);
+    nsIFrame::Invalidate(cellRect);
 
   return NS_OK;
 }
@@ -762,7 +806,7 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
 #endif
 
   nsRect rangeRect(mInnerBox.x, mInnerBox.y+mRowHeight*(aStart-mTopRowIndex), mInnerBox.width, mRowHeight*(aEnd-aStart+1));
-  nsIFrame::Invalidate(rangeRect, PR_FALSE);
+  nsIFrame::Invalidate(rangeRect);
 
   return NS_OK;
 }
@@ -806,7 +850,7 @@ nsTreeBodyFrame::InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd, nsITreeColu
                              &rangeRect);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIFrame::Invalidate(rangeRect, PR_FALSE);
+  nsIFrame::Invalidate(rangeRect);
 
   return NS_OK;
 }
@@ -1126,7 +1170,10 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
 
     // The Rect for the current cell.
     nscoord colWidth;
-    nsresult rv = currCol->GetWidthInTwips(this, &colWidth);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      currCol->GetWidthInTwips(this, &colWidth);
     NS_ASSERTION(NS_SUCCEEDED(rv), "invalid column");
 
     nsRect cellRect(currX, mInnerBox.y + mRowHeight * (aRow - mTopRowIndex),
@@ -2570,6 +2617,8 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
       mSlots->mDragSession->GetDragAction(&mSlots->mDragAction);
     else
       mSlots->mDragAction = 0;
+    mSlots->mDropRow = -1;
+    mSlots->mDropOrient = -1;
   }
   else if (aEvent->message == NS_DRAGDROP_OVER) {
     // The mouse is hovering over this tree. If we determine things are
@@ -2694,6 +2743,9 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     }
 
     mView->Drop(mSlots->mDropRow, mSlots->mDropOrient);
+    mSlots->mDropRow = -1;
+    mSlots->mDropOrient = -1;
+    *aEventStatus = nsEventStatus_eConsumeNoDefault; // already handled the drop
   }
   else if (aEvent->message == NS_DRAGDROP_EXIT) {
     // this event was meant for another frame, so ignore it
@@ -2708,11 +2760,11 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     }
     else
       mSlots->mDropAllowed = PR_FALSE;
-    mSlots->mDropRow = -1;
-    mSlots->mDropOrient = -1;
     mSlots->mDragSession = nsnull;
     mSlots->mScrollLines = 0;
-
+    // If a drop is occuring, the exit event will fire just before the drop
+    // event, so don't reset mDropRow or mDropOrient as these fields are used
+    // by the drop event.
     if (mSlots->mTimer) {
       mSlots->mTimer->Cancel();
       mSlots->mTimer = nsnull;
@@ -3150,9 +3202,12 @@ nsTreeBodyFrame::PaintCell(PRInt32              aRowIndex,
 
       const nsStyleBorder* borderStyle = lineContext->GetStyleBorder();
       nscolor color;
-      PRBool transparent; PRBool foreground;
-      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, transparent, foreground);
-
+      PRBool foreground;
+      borderStyle->GetBorderColor(NS_SIDE_LEFT, color, foreground);
+      if (foreground) {
+        // GetBorderColor didn't touch color, thus grab it from the treeline context
+        color = lineContext->GetStyleColor()->mColor;
+      }
       aRenderingContext.SetColor(color);
       PRUint8 style;
       style = borderStyle->GetBorderStyle(NS_SIDE_LEFT);
@@ -3690,7 +3745,10 @@ nsTreeBodyFrame::PaintDropFeedback(const nsRect&        aDropFeedbackRect,
   nsTreeColumn* primaryCol = mColumns->GetPrimaryColumn();
 
   if (primaryCol) {
-    nsresult rv = primaryCol->GetXInTwips(this, &currX);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      primaryCol->GetXInTwips(this, &currX);
     NS_ASSERTION(NS_SUCCEEDED(rv), "primary column is invalid?");
 
     currX += aPt.x - mHorzPosition;
@@ -3784,20 +3842,18 @@ nsTreeBodyFrame::PaintBackgroundLayer(nsStyleContext*      aStyleContext,
 {
   const nsStyleBackground* myColor = aStyleContext->GetStyleBackground();
   const nsStyleBorder* myBorder = aStyleContext->GetStyleBorder();
-  const nsStylePadding* myPadding = aStyleContext->GetStylePadding();
   const nsStyleOutline* myOutline = aStyleContext->GetStyleOutline();
   
   nsCSSRendering::PaintBackgroundWithSC(aPresContext, aRenderingContext,
                                         this, aDirtyRect, aRect,
-                                        *myColor, *myBorder, *myPadding,
-                                        PR_TRUE);
+                                        *myColor, *myBorder, PR_TRUE);
 
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, this,
-                              aDirtyRect, aRect, *myBorder, mStyleContext, 0);
+                              aDirtyRect, aRect, *myBorder, mStyleContext);
 
   nsCSSRendering::PaintOutline(aPresContext, aRenderingContext, this,
                                aDirtyRect, aRect, *myBorder, *myOutline,
-                               aStyleContext, 0);
+                               aStyleContext);
 }
 
 // Scrolling

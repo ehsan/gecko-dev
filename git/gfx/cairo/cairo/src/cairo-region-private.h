@@ -40,11 +40,12 @@
 #include <pixman.h>
 
 #include "cairo-compiler-private.h"
+#include "cairo-types-private.h"
 
 /* #cairo_region_t is defined in cairoint.h */
 
 struct _cairo_region {
-    pixman_region16_t rgn;
+    pixman_region32_t rgn;
 };
 
 cairo_private void

@@ -84,7 +84,7 @@
 
 #include "nsIJSContextStack.h"
 
-#ifdef MOZ_SHARK
+#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND)
 #include "jsdbgapi.h"
 #endif
 
@@ -113,7 +113,7 @@ static JSBool compileOnly = JS_FALSE;
 
 JSPrincipals *gJSPrincipals = nsnull;
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 {
     int i, j, k, n;
@@ -180,7 +180,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
     JS_free(cx, prefix);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i, n;
@@ -198,7 +198,7 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Dump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
@@ -217,7 +217,7 @@ Dump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
@@ -251,7 +251,7 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Version(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     if (argc > 0 && JSVAL_IS_INT(argv[0]))
@@ -261,14 +261,14 @@ Version(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 BuildDate(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     fprintf(gOutFile, "built on %s at %s\n", __DATE__, __TIME__);
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
 #ifdef LIVECONNECT
@@ -283,7 +283,7 @@ Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_FALSE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 depth = 2;
@@ -302,7 +302,7 @@ DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 /* XXX needed only by GC() */
 #include "jscntxt.h"
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSRuntime *rt;
@@ -408,7 +408,7 @@ DumpHeap(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
 #endif /* DEBUG */
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Clear(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     if (argc > 0 && !JSVAL_IS_PRIMITIVE(argv[0])) {
@@ -438,6 +438,11 @@ static JSFunctionSpec glob_functions[] = {
     {"stopShark",       js_StopShark,       0,0,0},
     {"connectShark",    js_ConnectShark,    0,0,0},
     {"disconnectShark", js_DisconnectShark, 0,0,0},
+#endif
+#ifdef MOZ_CALLGRIND
+    {"startCallgrind",  js_StartCallgrind,  0,0,0},
+    {"stopCallgrind",   js_StopCallgrind,   0,0,0},
+    {"dumpCallgrind",   js_DumpCallgrind,   1,0,0},
 #endif
     {nsnull,nsnull,0,0,0}
 };
@@ -575,18 +580,13 @@ typedef enum JSShellErrNum {
 } JSShellErrNum;
 
 JSErrorFormatString jsShell_ErrorFormatString[JSErr_Limit] = {
-#if JS_HAS_DFLT_MSG_STRINGS
 #define MSG_DEF(name, number, count, exception, format) \
     { format, count } ,
-#else
-#define MSG_DEF(name, number, count, exception, format) \
-    { NULL, count } ,
-#endif
 #include "jsshell.msg"
 #undef MSG_DEF
 };
 
-JS_STATIC_DLL_CALLBACK(const JSErrorFormatString *)
+static const JSErrorFormatString *
 my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 {
     if ((errorNumber > 0) && (errorNumber < JSShellErr_Limit))
@@ -756,7 +756,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-PswWxCi] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-PswWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
@@ -896,6 +896,9 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'C':
             compileOnly = JS_TRUE;
             isInteractive = JS_FALSE;
+            break;
+        case 'j':
+            JS_ToggleOptions(cx, JSOPTION_JIT);
             break;
 #ifdef MOZ_SHARK
         case 'k':
@@ -1300,7 +1303,7 @@ nsXPCFunctionThisTranslator::TranslateThis(nsISupports *aInitialThis,
 
 #endif
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 ContextCallback(JSContext *cx, uintN contextOp)
 {
     if (contextOp == JSCONTEXT_NEW) {

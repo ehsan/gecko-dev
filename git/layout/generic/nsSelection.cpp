@@ -89,7 +89,7 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 //included for desired x position;
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsICaret.h"
+#include "nsCaret.h"
 
 
 // included for view scrolling
@@ -381,7 +381,7 @@ private:
 };
 
 // Stack-class to turn on/off selection batching for table selection
-class nsSelectionBatcher
+class NS_STACK_CLASS NS_FINAL_CLASS nsSelectionBatcher
 {
 private:
   nsCOMPtr<nsISelectionPrivate> mSelection;
@@ -390,7 +390,7 @@ public:
   {
     if (mSelection) mSelection->StartBatchChanges();
   }
-  virtual ~nsSelectionBatcher() 
+  ~nsSelectionBatcher() 
   { 
     if (mSelection) mSelection->EndBatchChanges();
   }
@@ -610,7 +610,9 @@ GetIndexFromSelectionType(SelectionType aType)
     case nsISelectionController::SELECTION_IME_CONVERTEDTEXT: return 4; break;
     case nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT: return 5; break;
     case nsISelectionController::SELECTION_ACCESSIBILITY: return 6; break;
-    default:return -1;break;
+    case nsISelectionController::SELECTION_FIND: return 7; break;
+    default:
+      return -1; break;
     }
     /* NOTREACHED */
     return 0;
@@ -621,15 +623,16 @@ GetSelectionTypeFromIndex(PRInt8 aIndex)
 {
   switch (aIndex)
   {
-    case 0: return nsISelectionController::SELECTION_NORMAL;break;
-    case 1: return nsISelectionController::SELECTION_SPELLCHECK;break;
-    case 2: return nsISelectionController::SELECTION_IME_RAWINPUT;break;
-    case 3: return nsISelectionController::SELECTION_IME_SELECTEDRAWTEXT;break;
-    case 4: return nsISelectionController::SELECTION_IME_CONVERTEDTEXT;break;
-    case 5: return nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT;break;
-    case 6: return nsISelectionController::SELECTION_ACCESSIBILITY;break;
+    case 0: return nsISelectionController::SELECTION_NORMAL; break;
+    case 1: return nsISelectionController::SELECTION_SPELLCHECK; break;
+    case 2: return nsISelectionController::SELECTION_IME_RAWINPUT; break;
+    case 3: return nsISelectionController::SELECTION_IME_SELECTEDRAWTEXT; break;
+    case 4: return nsISelectionController::SELECTION_IME_CONVERTEDTEXT; break;
+    case 5: return nsISelectionController::SELECTION_IME_SELECTEDCONVERTEDTEXT; break;
+    case 6: return nsISelectionController::SELECTION_ACCESSIBILITY; break;
+    case 7: return nsISelectionController::SELECTION_FIND; break;
     default:
-      return nsISelectionController::SELECTION_NORMAL;break;
+      return nsISelectionController::SELECTION_NORMAL; break;
   }
   /* NOTREACHED */
   return 0;
@@ -893,7 +896,7 @@ nsFrameSelection::FetchDesiredX(nscoord &aDesiredX) //the x position requested b
     return NS_OK;
   }
 
-  nsCOMPtr<nsICaret> caret;
+  nsRefPtr<nsCaret> caret;
   nsresult result = mShell->GetCaret(getter_AddRefs(caret));
   if (NS_FAILED(result))
     return result;
@@ -907,7 +910,7 @@ nsFrameSelection::FetchDesiredX(nscoord &aDesiredX) //the x position requested b
   if (NS_FAILED(result))
     return result;
 
-  result = caret->GetCaretCoordinates(nsICaret::eClosestViewCoordinates, mDomSelections[index], &coord, &collapsed, nsnull);
+  result = caret->GetCaretCoordinates(nsCaret::eClosestViewCoordinates, mDomSelections[index], &coord, &collapsed, nsnull);
   if (NS_FAILED(result))
     return result;
    
@@ -2533,6 +2536,7 @@ nsFrameSelection::SetMouseDownState(PRBool aState)
     
   if (!mMouseDownState)
   {
+    mDragSelectingCells = PR_FALSE;
     PostReason(nsISelectionListener::MOUSEUP_REASON);
     NotifySelectionListeners(nsISelectionController::SELECTION_NORMAL); //notify that reason is mouse up please.
   }
@@ -2719,7 +2723,7 @@ nsFrameSelection::CommonPageMove(PRBool aForward,
   if (!domSel) 
     return;
   
-  nsCOMPtr<nsICaret> caret;
+  nsRefPtr<nsCaret> caret;
   nsRect caretPos;
   PRBool isCollapsed;
   result = mShell->GetCaret(getter_AddRefs(caret));
@@ -2728,7 +2732,7 @@ nsFrameSelection::CommonPageMove(PRBool aForward,
     return;
   
   nsIView *caretView;
-  result = caret->GetCaretCoordinates(nsICaret::eClosestViewCoordinates, domSel, &caretPos, &isCollapsed, &caretView);
+  result = caret->GetCaretCoordinates(nsCaret::eClosestViewCoordinates, domSel, &caretPos, &isCollapsed, &caretView);
   
   if (NS_FAILED(result)) 
     return;
@@ -4696,6 +4700,15 @@ nsTypedSelection::MoveIndexToNextMismatch(PRInt32* aIndex, nsIDOMNode* aNode,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsTypedSelection::GetType(PRInt16 *aType)
+{
+  NS_ENSURE_ARG_POINTER(aType);
+  *aType = mType;
+
+  return NS_OK;
+}
+
 // nsTypedSelection::GetRangesForInterval
 //
 //    XPCOM wrapper for the COMArray version
@@ -5001,7 +5014,7 @@ nsTypedSelection::GetPrimaryFrameForFocusNode(nsIFrame **aReturnFrame, PRInt32 *
   nsFrameSelection::HINT hint = mFrameSelection->GetHint();
 
   if (aVisual) {
-    nsCOMPtr<nsICaret> caret;
+    nsRefPtr<nsCaret> caret;
     nsresult result = presShell->GetCaret(getter_AddRefs(caret));
     if (NS_FAILED(result) || !caret)
       return NS_ERROR_FAILURE;
@@ -5046,7 +5059,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext,
     if (frame)
     {
       //NOTE: eSpreadDown is now IGNORED. Selected state is set only for given frame
-      frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown);
+      frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
 #ifndef OLD_TABLE_SELECTION
       if (mFrameSelection->GetTableCellSelection())
       {
@@ -5071,7 +5084,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext,
         //for given frame
 
         //spread from here to hit all frames in flow
-        frame->SetSelected(aPresContext, nsnull,aFlags,eSpreadDown);
+        frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
         nsRect frameRect = frame->GetRect();
 
         //if a rect is 0 height/width then try to notify next
@@ -5083,7 +5096,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext,
           if (frame)
           {
             frameRect = frame->GetRect();
-            frame->SetSelected(aPresContext, nsnull,aFlags,eSpreadDown);
+            frame->SetSelected(aPresContext, nsnull, aFlags, eSpreadDown, mType);
           }
           else
             break;
@@ -5149,7 +5162,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIDOMRange *aRange,
     {
       frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(content);
       if (frame)
-        frame->SetSelected(aPresContext, aRange,aFlags,eSpreadDown);//spread from here to hit all frames in flow
+        frame->SetSelected(aPresContext, aRange, aFlags, eSpreadDown, mType);//spread from here to hit all frames in flow
     }
 //end start content
     iter->First();
@@ -5173,7 +5186,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIDOMRange *aRange,
       {
         frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(content);
         if (frame)
-           frame->SetSelected(aPresContext, aRange,aFlags,eSpreadDown);//spread from here to hit all frames in flow
+           frame->SetSelected(aPresContext, aRange, aFlags, eSpreadDown, mType);//spread from here to hit all frames in flow
       }
     }
 //end end parent
@@ -7365,7 +7378,7 @@ nsTypedSelection::ScrollIntoView(SelectionRegion aRegion,
   result = GetPresShell(getter_AddRefs(presShell));
   if (NS_FAILED(result) || !presShell)
     return result;
-  nsCOMPtr<nsICaret> caret;
+  nsRefPtr<nsCaret> caret;
   presShell->GetCaret(getter_AddRefs(caret));
   if (caret)
   {

@@ -89,7 +89,8 @@ class nsTableColFrame;
 nsIFrame*
 NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags = 0);
 
-// Special Generated Content Frame
+// Special Generated Content Node. It contains text taken from an
+// attribute of its *grandparent* content node. 
 nsresult
 NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
                        PRInt32 aNameSpaceID, nsIAtom* aAttrName,
@@ -112,31 +113,24 @@ NS_NewTableCellInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
   return NS_NewBlockFrame(aPresShell, aContext);
 }
 
-// This type of AreaFrame is the document root, a margin root, and the
-// initial containing block for absolutely positioned elements
-inline nsIFrame*
-NS_NewDocumentElementFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
-  return NS_NewAreaFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
-}
-
-// This type of AreaFrame is a margin root, but does not shrink wrap
+// This type of BlockFrame is a margin root, but does not shrink wrap
 inline nsIFrame*
 NS_NewAbsoluteItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
-  return NS_NewAreaFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+  return NS_NewBlockFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
 }
 
-// This type of AreaFrame shrink wraps
+// This type of BlockFrame shrink wraps
 inline nsIFrame*
 NS_NewFloatingItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
-  return NS_NewAreaFrame(aPresShell, aContext,
+  return NS_NewBlockFrame(aPresShell, aContext,
     NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
 }
 
-// This type of AreaFrame doesn't use its own space manager and
+// This type of BlockFrame doesn't use its own space manager and
 // doesn't shrink wrap.
 inline nsIFrame*
 NS_NewRelativeItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags) {
-  return NS_NewAreaFrame(aPresShell, aContext, aFlags);
+  return NS_NewBlockFrame(aPresShell, aContext, aFlags);
 }
 
 nsIFrame*

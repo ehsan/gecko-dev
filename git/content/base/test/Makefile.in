@@ -76,11 +76,13 @@ include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = 	test_bug5141.html \
 		test_bug51034.html \
+		test_bug199959.html \
 		test_bug218236.html \
 		file_bug218236_multipart.txt \
 		file_bug218236_multipart.txt^headers^ \
 		test_bug218277.html \
 		test_bug238409.html \
+		test_bug254337.html \
 		test_bug276037-1.html \
 		test_bug276037-2.xhtml \
 		test_bug308484.html \
@@ -116,10 +118,13 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug371576-4.html \
 		test_bug371576-5.html \
 		test_bug372086.html \
+		test_bug372964.html \
+		test_bug372964-2.html \
 		test_bug373181.xhtml \
 		test_bug375314.html \
 		test_bug378969.html \
 		test_bug382113.html \
+		test_bug382871.html \
 		test_bug383430.html \
 		test_bug390219.html \
 		test_bug390735.html \
@@ -150,6 +155,9 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug415860.html \
 		test_bug414190.html \
 		test_bug414796.html \
+		test_bug416317-1.html \
+		test_bug416317-2.html \
+		file_bug416317.xhtml \
 		test_bug416383.html \
 		test_bug417255.html \
 		test_bug417384.html \
@@ -177,12 +185,42 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug428847.html \
 		file_bug428847-1.xhtml \
 		file_bug428847-2.xhtml \
-		test_bug425201.html \
+		test_bug431701.html \
 		test_bug431833.html \
+		test_bug435425.html \
+		bug435425.sjs \
+		bug435425_redirect.sjs \
 		test_bug438519.html \
+		test_bug444722.html \
+		test_bug451376.html \
 		test_text_replaceWholeText.html \
 		test_text_wholeText.html \
+		test_bug433533.html \
 		wholeTexty-helper.xml \
+		test_bug444030.xhtml \
+		test_NodeIterator_basics_filters.xhtml \
+		test_NodeIterator_mutations_1.xhtml \
+		test_NodeIterator_mutations_2.html \
+		test_bug28293.html \
+		file_bug28293.sjs \
+		test_bug445225.html \
+		file_bug445225_multipart.txt \
+		file_bug445225_multipart.txt^headers^ \
+		test_title.html \
+		test_bug453521.html \
+		test_bug391728.html \
+		file_bug391728.html \
+		file_bug391728_2.html \
+		test_bug368972.html \
+		test_bug450160.html \
+		test_bug454326.html \
+		test_bug457746.html \
+		bug457746.sjs \
+		test_CrossSiteXHR.html \
+		file_CrossSiteXHR_inner.html \
+		file_CrossSiteXHR_server.sjs \
+		test_CrossSiteXHR_cache.html \
+		file_CrossSiteXHR_cache_server.sjs \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

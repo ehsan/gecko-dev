@@ -384,10 +384,9 @@ nsDOMAttributeMap::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
     // Don't use the nodeinfo even if one exists since it can
     // have the wrong owner document.
     nsCOMPtr<nsINodeInfo> ni;
-    mContent->NodeInfo()->NodeInfoManager()->
-      GetNodeInfo(name->LocalName(), name->GetPrefix(), name->NamespaceID(),
-                  getter_AddRefs(ni));
-    NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
+    ni = mContent->NodeInfo()->NodeInfoManager()->
+      GetNodeInfo(name->LocalName(), name->GetPrefix(), name->NamespaceID());
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     return GetAttribute(ni, aReturn);
   }
@@ -454,10 +453,9 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
     if (nameSpaceID == attrNS &&
         nameAtom->EqualsUTF8(utf8Name)) {
       nsCOMPtr<nsINodeInfo> ni;
-      mContent->NodeInfo()->NodeInfoManager()->
-        GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID,
-                    getter_AddRefs(ni));
-      NS_ENSURE_TRUE(ni, NS_ERROR_FAILURE);
+      ni = mContent->NodeInfo()->NodeInfoManager()->
+        GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID);
+      NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
       return GetAttribute(ni, aReturn, aRemove);
     }

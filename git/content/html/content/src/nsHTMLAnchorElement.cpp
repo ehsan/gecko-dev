@@ -103,6 +103,9 @@ public:
   NS_IMETHOD LinkAdded() { return NS_OK; }
   NS_IMETHOD LinkRemoved() { return NS_OK; }
 
+  // override from nsGenericHTMLElement
+  NS_IMETHOD GetDraggable(PRBool* aDraggable);
+
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -178,6 +181,20 @@ NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLAnchorElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, AccessKey, accesskey)
 
+NS_IMETHODIMP
+nsHTMLAnchorElement::GetDraggable(PRBool* aDraggable)
+{
+  // links can be dragged as long as there is an href and the
+  // draggable attribute isn't false
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
+    *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                               nsGkAtoms::_false, eIgnoreCase);
+    return NS_OK;
+  }
+
+  // no href, so just use the same behavior as other elements
+  return nsGenericHTMLElement::GetDraggable(aDraggable);
+}
 
 nsresult
 nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -647,6 +664,10 @@ nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                PRBool aNotify)
 {
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
     SetLinkState(eLinkState_Unknown);
   }
 

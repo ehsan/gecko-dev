@@ -231,7 +231,7 @@ STDMETHODIMP XPCDispatchTearOff::GetIDsOfNames(REFIID riid,
     return S_OK;
 }
 
-void JS_DLL_CALLBACK
+void
 xpcWrappedJSErrorReporter(JSContext *cx, const char *message,
                           JSErrorReport *report);
 
@@ -465,7 +465,7 @@ pre_call_clean_up:
             nsCOMPtr<nsIException> e;
 
             XPCConvert::ConstructException(code, sz, "IDispatch", name.get(),
-                                           nsnull, getter_AddRefs(e));
+                                           nsnull, getter_AddRefs(e), nsnull);
             xpcc->SetException(e);
             if(sz)
                 JS_smprintf_free(sz);

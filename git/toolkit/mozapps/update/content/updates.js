@@ -47,6 +47,7 @@ const PREF_UPDATE_NAGTIMER_RESTART  = "app.update.nagTimer.restart";
 const PREF_APP_UPDATE_LOG_BRANCH    = "app.update.log.";
 const PREF_UPDATE_TEST_LOOP         = "app.update.test.loop";
 const PREF_UPDATE_NEVER_BRANCH      = "app.update.never.";
+const PREF_AUTO_UPDATE_ENABLED      = "app.update.enabled";
 
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
@@ -584,7 +585,13 @@ var gCheckingPage = {
             "Could not select an appropriate update, either because there " +
             "were none, or |selectUpdate| failed.");
         var checking = document.getElementById("checking");
-        checking.setAttribute("next", "noupdatesfound");
+        
+        // is auto update enabled?
+        
+        if (getPref("getBoolPref", PREF_AUTO_UPDATE_ENABLED, true))
+          checking.setAttribute("next", "noupdatesautoenabled");
+        else
+          checking.setAttribute("next", "noupdatesautodisabled");
       }
       gUpdates.wiz.canAdvance = true;
       gUpdates.wiz.advance();
@@ -855,6 +862,12 @@ var gLicensePage = {
    * When the user changes the state of the accept / decline radio group
    */
   onAcceptDeclineRadio: function() {
+    // Return early if this page hasn't been loaded (bug 405257). This event is
+    // fired during the construction of the wizard before gUpdates has received
+    // its onload event (bug 452389).
+    if (!this._licenseContent)
+      return;
+
     var selectedIndex = document.getElementById("acceptDeclineLicense")
                                 .selectedIndex;
     // 0 == Accept, 1 == Decline
@@ -1157,6 +1170,10 @@ var gDownloadingPage = {
     this._pauseButton = document.getElementById("pauseButton");
     this._label_downloadStatus = this._downloadStatus.textContent;
 
+    // move focus to the pause/resume button and then disable it (bug #353177)
+    this._pauseButton.focus();
+    this._pauseButton.disabled = true;
+
     var updates =
         Components.classes["@mozilla.org/updates/update-service;1"].
         getService(Components.interfaces.nsIApplicationUpdateService);
@@ -1431,7 +1448,6 @@ var gDownloadingPage = {
       this._downloadProgress.mode = "normal";
 
     var u = gUpdates.update;
-    const NS_BINDING_ABORTED = 0x804b0002;
     switch (status) {
     case Components.results.NS_ERROR_UNEXPECTED:
       if (u.selectedPatch.state == STATE_DOWNLOAD_FAILED &&
@@ -1456,7 +1472,7 @@ var gDownloadingPage = {
         return;
       }
       break;
-    case NS_BINDING_ABORTED:
+    case Components.results.NS_BINDING_ABORTED:
       LOG("UI:DownloadingPage", "onStopRequest: Pausing Download");
       // Return early, do not remove UI listener since the user may resume
       // downloading again.

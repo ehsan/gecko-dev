@@ -54,6 +54,7 @@ class nsSVGFilterElement : public nsSVGFilterElementBase,
                            public nsIDOMSVGUnitTypes
 {
   friend class nsSVGFilterFrame;
+  friend class nsAutoFilterInstance;
 
 protected:
   friend nsresult NS_NewSVGFilterElement(nsIContent **aResult,
@@ -84,10 +85,6 @@ public:
   void Invalidate();
 
 protected:
-
-  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAString& aValue,
-                                nsAttrValue& aResult);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();

@@ -153,6 +153,12 @@ FINAL_LINK_COMP_NAMES = $(DEPTH)/config/final-link-comp-names
 MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFIX)
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
+ifdef MOZ_MEMORY
+ifneq ($(OS_ARCH),WINNT)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
+endif
+endif
+
 # determine debug-related options
 _DEBUG_CFLAGS :=
 _DEBUG_LDFLAGS :=
@@ -428,28 +434,12 @@ endif
 # Flags passed to make-jars.pl
 
 MAKE_JARS_FLAGS = \
-	-s $(srcdir) -t $(topsrcdir) -z $(ZIP) -p $(MOZILLA_DIR)/config/preprocessor.pl \
+	-t $(topsrcdir) \
 	-f $(MOZ_CHROME_FILE_FORMAT) \
 	$(NULL)
 
-ifdef NO_JAR_AUTO_REG
-MAKE_JARS_FLAGS += -a
-endif
-
 ifdef USE_EXTENSION_MANIFEST
 MAKE_JARS_FLAGS += -e
-endif
-
-ifeq ($(OS_TARGET),WIN95)
-MAKE_JARS_FLAGS += -l
-endif
-
-ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-MAKE_JARS_FLAGS += -x
-endif
-
-ifdef CROSS_COMPILE
-MAKE_JARS_FLAGS += -o $(OS_ARCH)
 endif
 
 TAR_CREATE_FLAGS = -cvhf
@@ -505,11 +495,13 @@ endif
 DEHYDRA_SCRIPT = $(topsrcdir)/xpcom/analysis/static-checking.js
 
 DEHYDRA_MODULES = \
-  $(topsrcdir)/xpcom/analysis/stack.js \
+  $(topsrcdir)/xpcom/analysis/final.js \
   $(NULL)
 
 TREEHYDRA_MODULES = \
   $(topsrcdir)/xpcom/analysis/outparams.js \
+  $(topsrcdir)/xpcom/analysis/stack.js \
+  $(topsrcdir)/xpcom/analysis/flow.js \
   $(NULL)
 
 DEHYDRA_ARGS = \
@@ -867,7 +859,11 @@ endif
 # overridden by the command line. (Besides, AB_CD is prettier).
 AB_CD = $(MOZ_UI_LOCALE)
 
-EXPAND_LOCALE_SRCDIR = $(if $(filter en-US,$(AB_CD)),$(topsrcdir)/$(1)/en-US,$(topsrcdir)/../l10n/$(AB_CD)/$(subst /locales,,$(1)))
+ifndef L10NBASEDIR
+L10NBASEDIR = $(error L10NBASEDIR not defined by configure)
+endif
+
+EXPAND_LOCALE_SRCDIR = $(if $(filter en-US,$(AB_CD)),$(topsrcdir)/$(1)/en-US,$(L10NBASEDIR)/$(AB_CD)/$(subst /locales,,$(1)))
 
 ifdef relativesrcdir
 LOCALE_SRCDIR = $(call EXPAND_LOCALE_SRCDIR,$(relativesrcdir))

@@ -112,12 +112,23 @@ nsIAccessibilityService *nsAccessNode::GetAccService()
  * Class nsAccessNode
  */
  
-//-----------------------------------------------------
-// construction 
-//-----------------------------------------------------
-NS_IMPL_QUERY_INTERFACE2(nsAccessNode, nsIAccessNode, nsPIAccessNode)
-NS_IMPL_ADDREF(nsAccessNode)
-NS_IMPL_RELEASE_WITH_DESTROY(nsAccessNode, LastRelease())
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessible. nsISupports
+
+NS_IMPL_CYCLE_COLLECTION_0(nsAccessNode)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccessNode)
+  NS_INTERFACE_MAP_ENTRY(nsIAccessNode)
+  NS_INTERFACE_MAP_ENTRY(nsPIAccessNode)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessNode)
+NS_INTERFACE_MAP_END
+ 
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsAccessNode, nsIAccessNode)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(nsAccessNode, nsIAccessNode,
+                                      LastRelease())
+
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessible. Constructor
 
 nsAccessNode::nsAccessNode(nsIDOMNode *aNode, nsIWeakReference* aShell): 
   mDOMNode(aNode), mWeakShell(aShell)
@@ -191,8 +202,7 @@ NS_IMETHODIMP nsAccessNode::Init()
   // so that nsDocAccessible::RefreshNodes() can find the anonymous subtree to release when
   // the root node goes away
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
-  if (content && (content->IsNativeAnonymous() ||
-                  content->GetBindingParent())) {
+  if (content && content->IsInAnonymousSubtree()) {
     // Specific examples of where this is used: <input type="file"> and <xul:findbar>
     nsCOMPtr<nsIAccessible> parentAccessible;
     docAccessible->GetAccessibleInParentChain(mDOMNode, PR_TRUE, getter_AddRefs(parentAccessible));
@@ -598,16 +608,17 @@ nsAccessNode::GetChildNodeAt(PRInt32 aChildNum, nsIAccessNode **aAccessNode)
 }
 
 NS_IMETHODIMP
-nsAccessNode::GetComputedStyleValue(const nsAString& aPseudoElt, const nsAString& aPropertyName, nsAString& aValue)
+nsAccessNode::GetComputedStyleValue(const nsAString& aPseudoElt,
+                                    const nsAString& aPropertyName,
+                                    nsAString& aValue)
 {
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
-  if (!domElement) {
+  if (IsDefunct())
     return NS_ERROR_FAILURE;
-  }
+
   nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
-  GetComputedStyleDeclaration(aPseudoElt, domElement, getter_AddRefs(styleDecl));
+  GetComputedStyleDeclaration(aPseudoElt, mDOMNode, getter_AddRefs(styleDecl));
   NS_ENSURE_TRUE(styleDecl, NS_ERROR_FAILURE);
-  
+
   return styleDecl->GetPropertyValue(aPropertyName, aValue);
 }
 
@@ -617,15 +628,13 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
                                        nsIDOMCSSPrimitiveValue **aCSSValue)
 {
   NS_ENSURE_ARG_POINTER(aCSSValue);
-
   *aCSSValue = nsnull;
 
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
-  if (!domElement)
+  if (IsDefunct())
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
-  GetComputedStyleDeclaration(aPseudoElt, domElement,
+  GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
                               getter_AddRefs(styleDecl));
   NS_ENSURE_STATE(styleDecl);
 
@@ -636,28 +645,29 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
   return CallQueryInterface(cssValue, aCSSValue);
 }
 
-void nsAccessNode::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
-                                               nsIDOMElement *aElement,
-                                               nsIDOMCSSStyleDeclaration **aCssDecl)
+void
+nsAccessNode::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
+                                          nsIDOMNode *aNode,
+                                          nsIDOMCSSStyleDeclaration **aCssDecl)
 {
   *aCssDecl = nsnull;
+
+  nsCOMPtr<nsIDOMElement> domElement = nsAccUtils::GetDOMElementFor(aNode);
+  if (!domElement)
+    return;
+
   // Returns number of items in style declaration
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  if (!content) {
-    return;
-  }
+  nsCOMPtr<nsIContent> content = do_QueryInterface(domElement);
   nsCOMPtr<nsIDocument> doc = content->GetDocument();
-  if (!doc) {
+  if (!doc)
     return;
-  }
 
   nsCOMPtr<nsIDOMViewCSS> viewCSS(do_QueryInterface(doc->GetWindow()));
-  if (!viewCSS) {
+  if (!viewCSS)
     return;
-  }
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  viewCSS->GetComputedStyle(aElement, aPseudoElt, getter_AddRefs(cssDecl));
+  viewCSS->GetComputedStyle(domElement, aPseudoElt, getter_AddRefs(cssDecl));
   NS_IF_ADDREF(*aCssDecl = cssDecl);
 }
 
@@ -876,10 +886,7 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
     }
   }
 
-  nsIContent *walkUp = content;
-  while (walkUp && !walkUp->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::lang, aLanguage)) {
-    walkUp = walkUp->GetParent();
-  }
+  nsAccUtils::GetLanguageFor(content, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     nsIDocument *doc = content->GetOwnerDoc();

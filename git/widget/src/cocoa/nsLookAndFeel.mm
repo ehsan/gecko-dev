@@ -40,8 +40,10 @@
 #include "nsObjCExceptions.h"
 #include "nsIInternetConfigService.h"
 #include "nsIServiceManager.h"
+#include "nsNativeThemeColors.h"
 
 #import <Carbon/Carbon.h>
+#import <Cocoa/Cocoa.h>
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
@@ -285,6 +287,12 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       //default to lavender if not available
       res = GetMacBrushColor(kThemeBrushDragHilite, aColor, NS_RGB(0x63,0x63,0xCE));
       break;
+    case eColor__moz_mac_chrome_active:
+    case eColor__moz_mac_chrome_inactive: {
+      int grey = NativeGreyColorAsInt(headerEndGrey, (aID == eColor__moz_mac_chrome_active));
+      aColor = NS_RGB(grey, grey, grey);
+    }
+      break;
     case eColor__moz_mac_focusring:
       //default to lavender if not available
       res = GetMacBrushColor(kThemeBrushFocusHighlight, aColor, NS_RGB(0x63,0x63,0xCE));
@@ -349,6 +357,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor__moz_oddtreerow:
       // Background color of odd list rows.
       res = GetMacBrushColor(kThemeBrushListViewEvenRowBackground, aColor, NS_RGB(0xF0,0xF0,0xF0));
+      break;
+    case eColor__moz_nativehyperlinktext:
+      // There appears to be no available system defined color. HARDCODING to the appropriate color.
+      aColor = NS_RGB(0x14,0x4F,0xAE);
       break;
     default:
       NS_WARNING("Someone asked nsILookAndFeel for a color I don't know about");
@@ -596,9 +608,14 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
       aMetric = 3;
       break;
+    case eMetric_DWMCompositor:
+    case eMetric_WindowsClassic:
     case eMetric_WindowsDefaultTheme:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
+      break;
+    case eMetric_MacGraphiteTheme:
+      aMetric = [NSColor currentControlTint] == NSGraphiteControlTint;
       break;
     case eMetric_TabFocusModel:
     {

@@ -45,6 +45,7 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsIRenderingContext.h"
+#include "nsIDOMDataTransfer.h"
 
 #include "gfxImageSurface.h"
 
@@ -55,6 +56,7 @@ class nsIDOMNode;
 class nsIFrame;
 class nsPresContext;
 class nsIImageLoadingContent;
+class nsICanvasElement;
 
 /**
  * XP DragService wrapper base class
@@ -106,10 +108,12 @@ protected:
                     nsPresContext **aPresContext);
 
   /**
-   * Draw a drag image for an image node. This is called by DrawDrag.
+   * Draw a drag image for an image node specified by aImageLoader or aCanvas.
+   * This is called by DrawDrag.
    */
   nsresult DrawDragForImage(nsPresContext* aPresContext,
                             nsIImageLoadingContent* aImageLoader,
+                            nsICanvasElement* aCanvas,
                             PRInt32 aScreenX, PRInt32 aScreenY,
                             nsRect* aScreenDragRect,
                             gfxASurface** aSurface);
@@ -131,6 +135,7 @@ protected:
   nsCOMPtr<nsIDOMNode> mSourceNode;
   nsCOMPtr<nsIDOMDocument> mSourceDocument;       // the document at the drag source. will be null
                                                   //  if it came from outside the app.
+  nsCOMPtr<nsIDOMDataTransfer> mDataTransfer;
 
   // used to determine the image to appear on the cursor while dragging
   nsCOMPtr<nsIDOMNode> mImage;

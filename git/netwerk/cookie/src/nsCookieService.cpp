@@ -467,13 +467,13 @@ nsCookieService::InitDB()
     return NS_ERROR_UNEXPECTED;
 
   // cache a connection to the cookie database
-  rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
+  rv = storage->OpenUnsharedDatabase(cookieFile, getter_AddRefs(mDBConn));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     // delete and try again
     rv = cookieFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
+    rv = storage->OpenUnsharedDatabase(cookieFile, getter_AddRefs(mDBConn));
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -553,6 +553,9 @@ nsCookieService::InitDB()
   // make operations on the table asynchronous, for performance
   mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA synchronous = OFF"));
 
+  // open in exclusive mode for performance
+  mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA locking_mode = EXCLUSIVE"));
+
   // cache frequently used statements (for insertion, deletion, and updating)
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "INSERT INTO moz_cookies "
@@ -615,11 +618,17 @@ nsCookieService::Observe(nsISupports     *aSubject,
     // or is going away because the application is shutting down.
     RemoveAllFromMemory();
 
-    if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get()) && mDBConn) {
-      // clear the cookie file
-      nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_cookies"));
-      if (NS_FAILED(rv))
-        NS_WARNING("db delete failed");
+    if (mDBConn) {
+      if (!nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
+        // clear the cookie file
+        nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_cookies"));
+        if (NS_FAILED(rv))
+          NS_WARNING("db delete failed");
+      }
+
+      // Close the DB connection before changing
+      mDBConn->Close();
+      mDBConn = nsnull;
     }
 
   } else if (!strcmp(aTopic, "profile-do-change")) {
@@ -773,15 +782,21 @@ NS_IMETHODIMP
 nsCookieService::RemoveAll()
 {
   RemoveAllFromMemory();
-  NotifyChanged(nsnull, NS_LITERAL_STRING("cleared").get());
 
   // clear the cookie file
   if (mDBConn) {
     nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_cookies"));
-    if (NS_FAILED(rv))
-      NS_WARNING("db delete failed");
+    if (NS_FAILED(rv)) {
+      // Database must be corrupted, so remove it completely.
+      nsCOMPtr<nsIFile> dbFile;
+      mDBConn->GetDatabaseFile(getter_AddRefs(dbFile));
+      mDBConn->Close();
+      dbFile->Remove(PR_FALSE);
+      InitDB();
+    }
   }
 
+  NotifyChanged(nsnull, NS_LITERAL_STRING("cleared").get());
   return NS_OK;
 }
 
@@ -2034,10 +2049,16 @@ nsCookieService::CookieExists(nsICookie2 *aCookie,
 
   // just a placeholder
   nsListIter iter;
-  nsCookie *cookie = static_cast<nsCookie*>(aCookie);
+  nsCAutoString host, name, path;
+  nsresult rv = aCookie->GetHost(host);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = aCookie->GetName(name);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = aCookie->GetPath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  *aFoundCookie = FindCookie(cookie->Host(), cookie->Name(), cookie->Path(),
-                             iter, PR_Now() / PR_USEC_PER_SEC);
+  *aFoundCookie = FindCookie(host, name, path, iter,
+                             PR_Now() / PR_USEC_PER_SEC);
   return NS_OK;
 }
 

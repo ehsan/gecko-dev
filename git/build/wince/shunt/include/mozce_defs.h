@@ -102,6 +102,7 @@
 #define ENODEV          19
 #define ENOTDIR         20
 #define EISDIR          21
+#define EINVAL          22
 #define ENFILE          23
 #define EMFILE          24
 #define ENOTTY          25
@@ -112,6 +113,7 @@
 #define EMLINK          31
 #define EPIPE           32
 #define EDOM            33
+#define ERANGE          34
 #define EDEADLK         36
 #ifndef ENAMETOOLONG
 #define ENAMETOOLONG    38
@@ -165,6 +167,9 @@ typedef int ptrdiff_t;
 typedef long _off_t;
 typedef long off_t;
 
+// Not defined anywhere
+typedef INT_PTR intptr_t; 
+
 // From sys/stat.h
 #if !defined(_STAT_DEFINED)
 #define _STAT_DEFINED
@@ -172,7 +177,9 @@ typedef long off_t;
 #define _S_IFREG    0100000 /* stat, is a normal file */
 #define _S_IREAD    0000400 /* stat, can read */
 #define _S_IWRITE   0000200 /* stat, can write */
-#define	_S_IEXEC	0000100
+#define _S_IEXEC    0000100
+
+#define S_IFREG     0x8000
 
 struct stat
 {
@@ -266,14 +273,6 @@ typedef struct tagGLYPHSET {
 #define MA_ACTIVATE 1
 #endif
 
-#ifndef WM_ACTIVATEAPP
-#define WM_ACTIVATEAPP WM_ACTIVATE
-#endif
-
-#ifndef WM_MOUSEACTIVATE
-#define WM_MOUSEACTIVATE WM_ACTIVATE
-#endif
-
 typedef struct WINDOWPLACEMENT
 {
   UINT  length;
@@ -309,18 +308,18 @@ typedef struct MAT2 {
 
   
 struct color{
-	unsigned char Red;
-	unsigned char Green;
-	unsigned char Blue;
-	double Alpha;
+    unsigned char Red;
+    unsigned char Green;
+    unsigned char Blue;
+    double Alpha;
 };
 
 #ifndef SEE_MASK_FLAG_DDEWAIT
-#define SEE_MASK_FLAG_DDEWAIT	0
+#define SEE_MASK_FLAG_DDEWAIT   0
 #endif
 
 #ifndef SEE_MASK_INVOKEIDLIST
-#define SEE_MASK_INVOKEIDLIST	0
+#define SEE_MASK_INVOKEIDLIST   0
 #endif
 
 
@@ -791,6 +790,7 @@ typedef struct
 #endif
 
 #define SHGetSpecialFolderPathW SHGetSpecialFolderPath
+#define SHGetFileInfoW SHGetFileInfo
 
 // On Windows CE, there are some functions that are wide, but there
 // isn't a function named "functionW".
@@ -802,4 +802,29 @@ typedef struct
 #define SetPropW             SetProp
 #define FONTENUMPROCW        FONTENUMPROC
 #define GetLongPathNameW     GetLongPathName
+
+// ACL Defines
+
+
+typedef enum _SE_OBJECT_TYPE {
+  SE_UNKNOWN_OBJECT_TYPE       = 0,
+  SE_FILE_OBJECT,
+  SE_SERVICE,
+  SE_PRINTER,
+  SE_REGISTRY_KEY,
+  SE_LMSHARE,
+  SE_KERNEL_OBJECT,
+  SE_WINDOW_OBJECT,
+  SE_DS_OBJECT,
+  SE_DS_OBJECT_ALL,
+  SE_PROVIDER_DEFINED_OBJECT,
+  SE_WMIGUID_OBJECT,
+  SE_REGISTRY_WOW64_32KEY 
+} SE_OBJECT_TYPE;
+
+typedef DWORD SECURITY_INFORMATION, *PSECURITY_INFORMATION;
+
+#define UNPROTECTED_DACL_SECURITY_INFORMATION 0x0
+
+
 #endif // _MOZCE_DEFS

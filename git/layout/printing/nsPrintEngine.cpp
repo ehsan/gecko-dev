@@ -112,6 +112,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLElement.h"
@@ -228,7 +229,6 @@ nsPrintEngine::nsPrintEngine() :
   mIsDoingPrinting(PR_FALSE),
   mIsDoingPrintPreview(PR_FALSE),
   mProgressDialogIsShown(PR_FALSE),
-  mDocViewerPrint(nsnull),
   mContainer(nsnull),
   mDeviceContext(nsnull),
   mPrt(nsnull),
@@ -268,7 +268,7 @@ void nsPrintEngine::Destroy()
   }
 
 #endif
-
+  mDocViewerPrint = nsnull;
 }
 
 //-------------------------------------------------------
@@ -298,7 +298,7 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
   NS_ENSURE_ARG_POINTER(aDevContext);
   NS_ENSURE_ARG_POINTER(aParentWidget);
 
-  mDocViewerPrint = aDocViewerPrint; // weak reference
+  mDocViewerPrint = aDocViewerPrint;
   mContainer      = aContainer;      // weak reference
   mDocument       = aDocument;
   mDeviceContext  = aDevContext;     // weak reference
@@ -1153,7 +1153,9 @@ nsPrintEngine::GetDocumentTitleAndURL(nsIDocument* aDoc,
   *aTitle  = nsnull;
   *aURLStr = nsnull;
 
-  const nsAString &docTitle = aDoc->GetDocumentTitle();
+  nsAutoString docTitle;
+  nsCOMPtr<nsIDOMNSDocument> doc = do_QueryInterface(aDoc);
+  doc->GetTitle(docTitle);
   if (!docTitle.IsEmpty()) {
     *aTitle = ToNewUnicode(docTitle);
   }
@@ -1190,7 +1192,12 @@ nsPrintEngine::MapContentToWebShells(nsPrintObject* aRootPO,
   // Recursively walk the content from the root item
   // XXX Would be faster to enumerate the subdocuments, although right now
   //     nsIDocument doesn't expose quite what would be needed.
-  MapContentForPO(aPO, aPO->mDocument->GetRootContent());
+  nsIContent *rootContent = aPO->mDocument->GetRootContent();
+  if (rootContent) {
+    MapContentForPO(aPO, rootContent);
+  } else {
+    NS_WARNING("Null root content on (sub)document.");
+  }
 
   // Continue recursively walking the chilren of this PO
   for (PRInt32 i=0;i<aPO->mKids.Count();i++) {
@@ -1421,6 +1428,9 @@ nsPrintEngine::GetDisplayTitleAndURL(nsPrintObject*    aPO,
         } else if (mPrt->mBrandName) {
           *aTitle = NS_strdup(mPrt->mBrandName);
         }
+        break;
+      case eDocTitleDefNone:
+        // *aTitle defaults to nsnull
         break;
     }
   }

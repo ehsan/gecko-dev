@@ -216,13 +216,8 @@ var gAdvancedPane = {
   // XXX: duplicated in browser.js
   _getOfflineAppUsage: function (host)
   {
-    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"].
-                       getService(Components.interfaces.nsICacheService);
-    var cacheSession = cacheService.createSession("HTTP-offline",
-                                                  Components.interfaces.nsICache.STORE_OFFLINE,
-                                                  true).
-                       QueryInterface(Components.interfaces.nsIOfflineCacheSession);
-    var usage = cacheSession.getDomainUsage(host);
+    // XXX Bug 442710: include offline cache usage.
+    var usage = 0;
 
     var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
                          getService(Components.interfaces.nsIDOMStorageManager);
@@ -522,7 +517,7 @@ var gAdvancedPane = {
    */
   showCRLs: function ()
   {
-    document.documentElement.openWindow("Mozilla:CRLManager", 
+    document.documentElement.openWindow("mozilla:crlmanager", 
                                         "chrome://pippki/content/crlManager.xul",
                                         "", null);
   },

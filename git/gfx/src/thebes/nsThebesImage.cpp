@@ -92,6 +92,17 @@ nsThebesImage::Init(PRInt32 aWidth, PRInt32 aHeight, PRInt32 aDepth, nsMaskRequi
     if (!AllowedImageSize(aWidth, aHeight))
         return NS_ERROR_FAILURE;
 
+    // Check to see if we are running OOM
+    nsCOMPtr<nsIMemory> mem;
+    NS_GetMemoryManager(getter_AddRefs(mem));
+    if (!mem)
+        return NS_ERROR_UNEXPECTED;
+
+    PRBool lowMemory;
+    mem->IsLowMemory(&lowMemory);
+    if (lowMemory)
+        return NS_ERROR_OUT_OF_MEMORY;
+
     gfxImageSurface::gfxImageFormat format;
     switch(aMaskRequirements)
     {
@@ -208,14 +219,26 @@ nsThebesImage::GetAlphaLineStride()
     return (mAlphaDepth > 0) ? mStride : 0;
 }
 
-void
+nsresult
 nsThebesImage::ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsRect *aUpdateRect)
 {
+    // Check to see if we are running OOM
+    nsCOMPtr<nsIMemory> mem;
+    NS_GetMemoryManager(getter_AddRefs(mem));
+    if (!mem)
+        return NS_ERROR_UNEXPECTED;
+
+    PRBool lowMemory;
+    mem->IsLowMemory(&lowMemory);
+    if (lowMemory)
+        return NS_ERROR_OUT_OF_MEMORY;
+
     mDecoded.UnionRect(mDecoded, *aUpdateRect);
 #ifdef XP_MACOSX
     if (mQuartzSurface)
         mQuartzSurface->Flush();
 #endif
+    return NS_OK;
 }
 
 PRBool

@@ -62,6 +62,8 @@
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "mozStorageHelper.h"
+#include "plbase64.h"
+#include "nsPlacesTables.h"
 
 // For favicon optimization
 #include "imgITools.h"
@@ -74,6 +76,15 @@
 
 #define CONTENT_SNIFFING_SERVICES "content-sniffing-services"
 
+// If favicon is bigger than this size we will try to optimize it into a
+// 16x16 png. An uncompressed 16x16 RGBA image is 1024 bytes, and almost all
+// sensible 16x16 icons are under 1024 bytes.
+#define OPTIMIZED_FAVICON_SIZE 1024
+
+// Favicons bigger than this size should not be saved to the db to avoid
+// bloating it with large image blobs.
+// This still allows us to accept a favicon even if we cannot optimize it.
+#define MAX_FAVICON_SIZE 10240
 
 class FaviconLoadListener : public nsIStreamListener,
                             public nsIInterfaceRequestor,
@@ -193,12 +204,7 @@ nsFaviconService::InitTables(mozIStorageConnection* aDBConn)
   PRBool exists = PR_FALSE;
   aDBConn->TableExists(NS_LITERAL_CSTRING("moz_favicons"), &exists);
   if (! exists) {
-    rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "CREATE TABLE moz_favicons (id INTEGER PRIMARY KEY, "
-                                  "url LONGVARCHAR UNIQUE, "
-                                  "data BLOB, "
-                                  "mime_type VARCHAR(32), "
-                                  "expiration LONG)"));
+    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_FAVICONS);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -302,8 +308,18 @@ nsFaviconService::SetFaviconUrlForPageInternal(nsIURI* aPageURI,
     rv = mDBInsertIcon->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mDBConn->GetLastInsertRowID(&iconId);
-    NS_ENSURE_SUCCESS(rv, rv);
+    {
+      mozStorageStatementScoper scoper(mDBGetIconInfo);
+
+      rv = BindStatementURI(mDBGetIconInfo, 0, aFaviconURI);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      PRBool hasResult;
+      rv = mDBGetIconInfo->ExecuteStep(&hasResult);
+      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ASSERTION(hasResult, "hasResult is false but the call succeeded?");
+      iconId = mDBGetIconInfo->AsInt64(0);
+    }
   }
 
   // now link our icon entry with the page
@@ -585,14 +601,18 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
 
   // If the page provided a large image for the favicon (eg, a highres image
   // or a multiresolution .ico file), we don't want to store more data than
-  // needed. An uncompressed 16x16 RGBA image is 1024 bytes, and almost all
-  // sensible 16x16 icons are under 1024 bytes.
-  if (aDataLen > 1024) {
+  // needed.
+  if (aDataLen > OPTIMIZED_FAVICON_SIZE) {
     rv = OptimizeFaviconImage(aData, aDataLen, aMimeType, newData, newMimeType);
     if (NS_SUCCEEDED(rv) && newData.Length() < aDataLen) {
       data = reinterpret_cast<PRUint8*>(const_cast<char*>(newData.get())),
       dataLen = newData.Length();
       mimeType = &newMimeType;
+    }
+    else if (aDataLen > MAX_FAVICON_SIZE) {
+      // We cannot optimize this favicon size and we are over the maximum size
+      // allowed, so we will not save data to the db to avoid bloating it.
+      return NS_ERROR_FAILURE;
     }
   }
 
@@ -636,6 +656,66 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
 }
 
 
+// nsFaviconService::SetFaviconDataFromDataURL
+
+NS_IMETHODIMP
+nsFaviconService::SetFaviconDataFromDataURL(nsIURI* aFaviconURI,
+                                            const nsAString& aDataURL,
+                                            PRTime aExpiration)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIURI> dataURI;
+  rv = NS_NewURI(getter_AddRefs(dataURI), aDataURL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // use the data: protocol handler to convert the data
+  nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIProtocolHandler> protocolHandler;
+  rv = ioService->GetProtocolHandler("data", getter_AddRefs(protocolHandler));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIChannel> channel;
+  rv = protocolHandler->NewChannel(dataURI, getter_AddRefs(channel));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // blocking stream is OK for data URIs
+  nsCOMPtr<nsIInputStream> stream;
+  rv = channel->Open(getter_AddRefs(stream));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint32 available;
+  rv = stream->Available(&available);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (available == 0)
+    return NS_ERROR_FAILURE;
+
+  // read all the decoded data
+  PRUint8* buffer = static_cast<PRUint8*>
+                               (nsMemory::Alloc(sizeof(PRUint8) * available));
+  if (!buffer)
+    return NS_ERROR_OUT_OF_MEMORY;
+  PRUint32 numRead;
+  rv = stream->Read(reinterpret_cast<char*>(buffer), available, &numRead);
+  if (NS_FAILED(rv) || numRead != available) {
+    nsMemory::Free(buffer);
+    return rv;
+  }
+
+  nsCAutoString mimeType;
+  rv = channel->GetContentType(mimeType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // SetFaviconData can now do the dirty work 
+  rv = SetFaviconData(aFaviconURI, buffer, available, mimeType, aExpiration);
+  nsMemory::Free(buffer);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
 // nsFaviconService::GetFaviconData
 
 NS_IMETHODIMP
@@ -654,6 +734,43 @@ nsFaviconService::GetFaviconData(nsIURI* aFaviconURI, nsACString& aMimeType,
     return mDBGetData->GetBlob(0, aDataLen, aData);
   }
   return NS_ERROR_NOT_AVAILABLE;
+}
+
+
+// nsFaviconService::GetFaviconDataAsDataURL
+
+NS_IMETHODIMP
+nsFaviconService::GetFaviconDataAsDataURL(nsIURI* aFaviconURI,
+                                          nsAString& aDataURL)
+{
+  nsresult rv;
+
+  PRUint8* data;
+  PRUint32 dataLen;
+  nsCAutoString mimeType;
+
+  rv = GetFaviconData(aFaviconURI, mimeType, &dataLen, &data);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!data) {
+    aDataURL.SetIsVoid(PR_TRUE);
+    return NS_OK;
+  }
+
+  char* encoded = PL_Base64Encode(reinterpret_cast<const char*>(data),
+                                  dataLen, nsnull);
+  nsMemory::Free(data);
+
+  if (!encoded)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  aDataURL.AssignLiteral("data:");
+  AppendUTF8toUTF16(mimeType, aDataURL);
+  aDataURL.AppendLiteral(";base64,");
+  AppendUTF8toUTF16(encoded, aDataURL);
+
+  nsMemory::Free(encoded);
+  return NS_OK;
 }
 
 
@@ -983,10 +1100,11 @@ FaviconLoadListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
                       (PRInt64)(24 * 60 * 60) * (PRInt64)PR_USEC_PER_SEC;
 
   // save the favicon data
-  rv = mFaviconService->SetFaviconData(mFaviconURI,
+  // This could fail if the favicon is bigger than defined limit, in such a
+  // case data will not be saved to the db but we will still continue.
+  (void) mFaviconService->SetFaviconData(mFaviconURI,
                reinterpret_cast<PRUint8*>(const_cast<char*>(mData.get())),
                mData.Length(), mimeType, expiration);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // set the favicon for the page
   PRBool hasData;

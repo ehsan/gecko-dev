@@ -49,9 +49,7 @@
 #include "nsToolkit.h"
 
 #include "nsIWidget.h"
-#include "nsIKBStateControl.h"
 
-#include "nsIMouseListener.h"
 #include "nsIEventListener.h"
 #include "nsString.h"
 
@@ -61,7 +59,6 @@
 class nsNativeDragTarget;
 class nsIRollupListener;
 
-class nsIMenuBar;
 class nsIFile;
 
 class imgIContainer;
@@ -110,13 +107,19 @@ const LPCSTR kClassNameContentFrame   = "MozillaContentFrameWindowClass";
 const LPCSTR kClassNameGeneral        = "MozillaWindowClass";
 const LPCSTR kClassNameDialog         = "MozillaDialogClass";
 
+typedef enum
+{
+    TRI_UNKNOWN = -1,
+    TRI_FALSE = 0,
+    TRI_TRUE = 1
+} TriStateBool;
+
 /**
  * Native WIN32 window wrapper.
  */
 
 class nsWindow : public nsSwitchToUIThread,
-                 public nsBaseWidget,
-                 public nsIKBStateControl
+                 public nsBaseWidget
 {
 public:
   nsWindow();
@@ -190,7 +193,7 @@ public:
   NS_IMETHOD              ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
-  NS_IMETHOD              SetMenuBar(nsIMenuBar * aMenuBar) { return NS_ERROR_FAILURE; }
+  NS_IMETHOD              SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; }
   NS_IMETHOD              ShowMenuBar(PRBool aShow)         { return NS_ERROR_FAILURE; }
   NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
@@ -208,23 +211,26 @@ public:
 
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
-  nsWindow*               GetTopLevelWindow();
+
+  // Note that the result of GetTopLevelWindow method can be different from the
+  // result of GetTopLevelHWND method.  The result can be non-floating window.
+  // Because our top level window may be contained in another window which is
+  // not managed by us.
+  nsWindow*               GetTopLevelWindow(PRBool aStopOnDialogOrPopup);
 
   gfxASurface             *GetThebesSurface();
 
 #ifdef MOZ_XUL
-  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
-  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
+  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
+  virtual nsTransparencyMode GetTransparencyMode();
 private:
-  nsresult                SetWindowTranslucencyInner(PRBool aTransparent);
-  PRBool                  GetWindowTranslucencyInner() { return mIsTransparent; }
+  void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
+  nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
-  nsresult                SetupTranslucentWindowMemoryBitmap(PRBool aTransparent);
+  void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
 public:
 #endif
-
-  // nsIKBStateControl interface
 
   NS_IMETHOD ResetInputState();
   NS_IMETHOD SetIMEOpenState(PRBool aState);
@@ -286,7 +292,7 @@ protected:
 
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
-  nsWindow*               GetParent(PRBool aStopOnFirstTopLevel);
+  nsWindow*               GetParentWindow();
 
   void                    DispatchPendingEvents();
   virtual PRBool          ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT *aRetValue);
@@ -332,9 +338,26 @@ protected:
   BOOL                    OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult);
 
   void                    GetCompositionString(HIMC aHIMC, DWORD aIndex, nsString* aStrUnicode);
-  void                    ResolveIMECaretPos(nsWindow* aClient,
-                                             nsRect&   aEventResult,
-                                             nsRect&   aResult);
+
+  /**
+   *  ResolveIMECaretPos
+   *  Convert the caret rect of a composition event to another widget's
+   *  coordinate system.
+   *
+   *  @param aReferenceWidget The origin widget of aCursorRect.
+   *                          Typically, this is mReferenceWidget of the
+   *                          composing events. If the aCursorRect is in screen
+   *                          coordinates, set nsnull.
+   *  @param aCursorRect      The cursor rect.
+   *  @param aNewOriginWidget aOutRect will be in this widget's coordinates. If
+   *                          this is nsnull, aOutRect will be in screen
+   *                          coordinates.
+   *  @param aOutRect         The converted cursor rect.
+   */
+  void                    ResolveIMECaretPos(nsIWidget* aReferenceWidget,
+                                             nsRect&    aCursorRect,
+                                             nsIWidget* aNewOriginWidget,
+                                             nsRect&    aOutRect);
 
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
@@ -400,13 +423,11 @@ protected:
   static PRInt32    sIMECompClauseArrayLength;
   static PRInt32    sIMECompClauseArraySize;
   static long       sIMECursorPosition;
-  static PRUnichar* sIMEReconvertUnicode; // reconvert string
 
   // For describing composing frame
   static RECT*      sIMECompCharPos;
-  static PRInt32    sIMECaretHeight;
 
-  static PRBool     sIsInEndSession;
+  static TriStateBool sCanQuit;
 
   nsSize        mLastSize;
   static        nsWindow* gCurrentWindow;
@@ -424,13 +445,8 @@ protected:
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
 
   HDC           mMemoryDC;
-  HBITMAP       mMemoryBitmap;
-  PRUint8*      mMemoryBits;
-  PRUint8*      mAlphaMask;
-  PRPackedBool  mIsTransparent;
-  PRPackedBool  mIsTopTransparent;     // Topmost window itself or any of it's child windows has tranlucency enabled
+  nsTransparencyMode mTransparencyMode;
 #endif
-  PRPackedBool  mHasAeroGlass;
   PRPackedBool  mIsTopWidgetWindow;
   PRPackedBool  mHas3DBorder;
   PRPackedBool  mIsShiftDown;
@@ -509,7 +525,12 @@ protected:
 
 public:
   static void GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  static HWND GetTopLevelHWND(HWND aWnd, PRBool aStopOnFirstTopLevel = PR_FALSE);
+  // Note that the result of GetTopLevelHWND can be different from the result
+  // of GetTopLevelWindow method.  Because this is checking whether the window
+  // is top level only in Win32 window system.  Therefore, the result window
+  // may not be managed by us.
+  static HWND GetTopLevelHWND(HWND aWnd,
+                              PRBool aStopOnDialogOrPopup = PR_FALSE);
 };
 
 //

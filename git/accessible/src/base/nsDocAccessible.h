@@ -65,6 +65,8 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
                         public nsSupportsWeakReference
 {  
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDocAccessible, nsAccessible)
+
   NS_DECL_NSIACCESSIBLEDOCUMENT
   NS_DECL_NSPIACCESSIBLEDOCUMENT
   NS_DECL_NSIOBSERVER
@@ -86,6 +88,7 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
 
     // ----- nsIScrollPositionListener ---------------------------
     NS_IMETHOD ScrollPositionWillChange(nsIScrollableView *aView, nscoord aX, nscoord aY);
+    virtual void ViewPositionDidChange(nsIScrollableView* aScrollable) {}
     NS_IMETHOD ScrollPositionDidChange(nsIScrollableView *aView, nscoord aX, nscoord aY);
 
     // nsIDocumentObserver

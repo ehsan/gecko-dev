@@ -62,8 +62,8 @@ class nsIDocShell;
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x0acd0482, 0x09a2, 0x42fd, \
-  { 0xb6, 0x1b, 0x95, 0xa2, 0x01, 0x6a, 0x55, 0xd3 } }
+{ 0x2813b1d9, 0x7fe1, 0x496f, \
+ { 0x85, 0x52, 0xa2, 0xc1, 0xc5, 0x6b, 0x15, 0x40 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -146,7 +146,7 @@ public:
    * @see nsIAnonymousContentCreator
    * @return whether this content is anonymous
    */
-  PRBool IsNativeAnonymous() const
+  PRBool IsRootOfNativeAnonymousSubtree() const
   {
     return HasFlag(NODE_IS_ANONYMOUS);
   }
@@ -177,7 +177,7 @@ public:
     }
     nsIContent* content = GetBindingParent();
     while (content) {
-      if (content->IsNativeAnonymous()) {
+      if (content->IsRootOfNativeAnonymousSubtree()) {
         NS_ERROR("Element not marked to be in native anonymous subtree!");
         break;
       }
@@ -187,6 +187,31 @@ public:
 #else
     return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
 #endif
+  }
+
+  /**
+   * Returns true if and only if this node has a parent, but is not in
+   * its parent's child list.
+   */
+  PRBool IsRootOfAnonymousSubtree() const
+  {
+    NS_ASSERTION(!IsRootOfNativeAnonymousSubtree() ||
+                 (GetParent() && GetBindingParent() == GetParent()),
+                 "root of native anonymous subtree must have parent equal "
+                 "to binding parent");
+    nsIContent *bindingParent = GetBindingParent();
+    return bindingParent && bindingParent == GetParent();
+  }
+
+  /**
+   * Returns true if and only if there is NOT a path through child lists
+   * from the top of this node's parent chain back to this node.
+   */
+  PRBool IsInAnonymousSubtree() const
+  {
+    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent(),
+                 "must have binding parent when in native anonymous subtree");
+    return GetBindingParent() != nsnull;
   }
 
   /**
@@ -563,9 +588,12 @@ public:
   }
 
   /**
-   * Gets content node with the binding responsible for our construction (and
-   * existence).  Used by anonymous content (XBL-generated). null for all
-   * explicit content.
+   * Gets content node with the binding (or native code, possibly on the
+   * frame) responsible for our construction (and existence).  Used by
+   * anonymous content (both XBL-generated and native-anonymous).
+   *
+   * null for all explicit content (i.e., content reachable from the top
+   * of its GetParent() chain via child lists).
    *
    * @return the binding parent
    */
@@ -756,10 +784,15 @@ public:
   /**
    * Get the class list of this content node (this corresponds to the
    * value of the null-namespace attribute whose name is given by
-   * GetClassAttributeName().  This may be null if there are no
+   * GetClassAttributeName()).  This may be null if there are no
    * classes, but that's not guaranteed.
    */
-  virtual const nsAttrValue* GetClasses() const = 0;
+  const nsAttrValue* GetClasses() const {
+    if (HasFlag(NODE_MAY_HAVE_CLASS)) {
+      return DoGetClasses();
+    }
+    return nsnull;
+  }
 
   /**
    * Walk aRuleWalker over the content style rules (presentational
@@ -821,6 +854,14 @@ public:
    */
   virtual void SaveSubtreeState() = 0;
 
+private:
+  /**
+   * Hook for implementing GetClasses.  This is guaranteed to only be
+   * called if the NODE_MAY_HAVE_CLASS flag is set.
+   */
+  virtual const nsAttrValue* DoGetClasses() const = 0;
+
+public:
 #ifdef DEBUG
   /**
    * List the content (and anything it contains) out to the given

@@ -365,14 +365,7 @@ void nsListControlFrame::PaintFocus(nsIRenderingContext& aRC, nsPoint aPt)
              nsILookAndFeel::eColor_WidgetSelectForeground :
              nsILookAndFeel::eColor_WidgetSelectBackground, color);
 
-  nscoord onePixelInTwips = nsPresContext::CSSPixelsToAppUnits(1);
-
-  nsRect dirty;
-  nscolor colors[] = {color, color, color, color};
-  PRUint8 borderStyle[] = {NS_STYLE_BORDER_STYLE_DOTTED, NS_STYLE_BORDER_STYLE_DOTTED, NS_STYLE_BORDER_STYLE_DOTTED, NS_STYLE_BORDER_STYLE_DOTTED};
-  nsRect innerRect = fRect;
-  innerRect.Deflate(nsSize(onePixelInTwips, onePixelInTwips));
-  nsCSSRendering::DrawDashedSides(0, aRC, dirty, borderStyle, colors, fRect, innerRect, 0, nsnull);
+  nsCSSRendering::PaintFocus(presContext, aRC, fRect, color);
 }
 
 void
@@ -678,7 +671,9 @@ nsListControlFrame::ReflowAsDropdown(nsPresContext*           aPresContext,
   mMightNeedSecondPass = NS_SUBTREE_DIRTY(this) ||
     aReflowState.ShouldReflowAllKids();
 
+#ifdef DEBUG
   nscoord oldHeightOfARow = HeightOfARow();
+#endif
 
   nsHTMLReflowState state(aReflowState);
 
@@ -1552,13 +1547,16 @@ nsListControlFrame::SetOptionsSelectedFromFrame(PRInt32 aStartIndex,
 {
   nsCOMPtr<nsISelectElement> selectElement(do_QueryInterface(mContent));
   PRBool wasChanged = PR_FALSE;
-  nsresult rv = selectElement->SetOptionsSelectedByIndex(aStartIndex,
-                                                         aEndIndex,
-                                                         aValue,
-                                                         aClearAll,
-                                                         PR_FALSE,
-                                                         PR_TRUE,
-                                                         &wasChanged);
+#ifdef DEBUG
+  nsresult rv = 
+#endif
+    selectElement->SetOptionsSelectedByIndex(aStartIndex,
+                                             aEndIndex,
+                                             aValue,
+                                             aClearAll,
+                                             PR_FALSE,
+                                             PR_TRUE,
+                                             &wasChanged);
   NS_ASSERTION(NS_SUCCEEDED(rv), "SetSelected failed");
   return wasChanged;
 }
@@ -1825,11 +1823,13 @@ nsListControlFrame::IsContainingBlock() const
 void
 nsListControlFrame::InvalidateInternal(const nsRect& aDamageRect,
                                        nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                       PRBool aImmediate)
+                                       PRUint32 aFlags)
 {
-  if (!IsInDropDownMode())
-    nsHTMLScrollFrame::InvalidateInternal(aDamageRect, aX, aY, this, aImmediate);
-  InvalidateRoot(aDamageRect, aX, aY, aImmediate);
+  if (!IsInDropDownMode()) {
+    nsHTMLScrollFrame::InvalidateInternal(aDamageRect, aX, aY, this, aFlags);
+    return;
+  }
+  InvalidateRoot(aDamageRect + nsPoint(aX, aY), aFlags);
 }
 
 #ifdef DEBUG

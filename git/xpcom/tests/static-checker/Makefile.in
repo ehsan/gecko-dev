@@ -55,12 +55,18 @@ FINAL_FAILURE_TESTCASES = \
 STACK_FAILURE_TESTCASES = \
   TestStack.cpp \
   TestStackTemplate.cpp \
+  StackNoConstructor.cpp \
+  StackVector.cpp \
+  StackConditional.cpp \
+  $(NULL)
+
+STACK_PASS_TESTCASES = \
+  StackPlacementNewOK.cpp \
   $(NULL)
 
 OUTPARAMS_WARNING_TESTCASES = \
   e1.cpp \
   e2.cpp \
-  e3.cpp \
   e4.cpp \
   e5.cpp \
   e6.cpp \
@@ -87,11 +93,23 @@ OUTPARAMS_PASS_TESTCASES = \
   o11.cpp \
   o12.cpp \
   o13.cpp \
+  o14.cpp \
+  o15.cpp \
+  o16.cpp \
+  onull.cpp \
+  onull2.cpp \
   $(NULL)
+
+FLOW_PASS_TESTCASES = \
+ flow_through_pass.cpp
+
+FLOW_FAILURE_TESTCASES = \
+ flow_through_fail.cpp
 
 STATIC_FAILURE_TESTCASES = \
   $(FINAL_FAILURE_TESTCASES) \
   $(STACK_FAILURE_TESTCASES) \
+  $(FLOW_FAILURE_TESTCASES)
   $(NULL)
 
 STATIC_WARNING_TESTCASES = \
@@ -100,6 +118,8 @@ STATIC_WARNING_TESTCASES = \
 
 STATIC_PASS_TESTCASES = \
   $(OUTPARAMS_PASS_TESTCASES) \
+  $(STACK_PASS_TESTCASES) \
+  $(FLOW_PASS_TESTCASES) \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -58,6 +58,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMEvent.h"
 #include "nsTArray.h"
+#include "nsTextFragment.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -66,6 +67,7 @@ class nsIXPConnect;
 class nsINode;
 class nsIContent;
 class nsIDOMNode;
+class nsIDOMKeyEvent;
 class nsIDocument;
 class nsIDocShell;
 class nsINameSpaceManager;
@@ -93,12 +95,15 @@ class nsIJSRuntimeService;
 class nsIEventListenerManager;
 class nsIScriptContext;
 class nsIRunnable;
+class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
 class nsIPref;
 class nsVoidArray;
 struct JSRuntime;
 class nsICaseConversion;
+class nsIUGenCategory;
 class nsIWidget;
+class nsIDragSession;
 class nsPIDOMWindow;
 #ifdef MOZ_XTF
 class nsIXTFService;
@@ -364,10 +369,16 @@ public:
                                                    PRBool aTrimTrailing = PR_TRUE);
 
   /**
-   * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe. (Does not
-   * currently handle non-BMP characters.)
+   * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe.
    */
-  static PRBool IsPunctuationMark(PRUnichar aChar);
+  static PRBool IsPunctuationMark(PRUint32 aChar);
+  static PRBool IsPunctuationMarkAt(const nsTextFragment* aFrag, PRUint32 aOffset);
+ 
+  /**
+   * Returns true if aChar is of class Lu, Ll, Lt, Lm, Lo, Nd, Nl or No
+   */
+  static PRBool IsAlphanumeric(PRUint32 aChar);
+  static PRBool IsAlphanumericAt(const nsTextFragment* aFrag, PRUint32 aOffset);
 
   /*
    * Is the character an HTML whitespace character?
@@ -577,6 +588,11 @@ public:
     return sCaseConv;
   }
 
+  static nsIUGenCategory* GetGenCat()
+  {
+    return sGenCat;
+  }
+
   /**
    * @return PR_TRUE if aContent has an attribute aName in namespace aNameSpaceID,
    * and the attribute value is non-empty.
@@ -650,9 +666,7 @@ public:
    * @param aContent The content node to test.
    * @return whether it's draggable
    */
-  static PRBool ContentIsDraggable(nsIContent* aContent) {
-    return IsDraggableImage(aContent) || IsDraggableLink(aContent);
-  }
+  static PRBool ContentIsDraggable(nsIContent* aContent);
 
   /**
    * Method that decides whether a content node is a draggable image
@@ -679,8 +693,9 @@ public:
   {
     nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
-    return niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
-                              aNodeInfo->NamespaceID(), aResult);
+    *aResult = niMgr->GetNodeInfo(aName, aNodeInfo->GetPrefixAtom(),
+                                  aNodeInfo->NamespaceID()).get();
+    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
 
   /**
@@ -692,8 +707,9 @@ public:
   {
     nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
-    return niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
-                              aNodeInfo->NamespaceID(), aResult);
+    *aResult = niMgr->GetNodeInfo(aNodeInfo->NameAtom(), aPrefix,
+                                  aNodeInfo->NamespaceID()).get();
+    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
 
   /**
@@ -792,9 +808,11 @@ public:
   static PRBool IsChromeDoc(nsIDocument *aDocument);
 
   /**
-   * Notify XPConnect if an exception is pending on aCx.
+   * Returns true if aDocument belongs to a chrome docshell for
+   * display purposes.  Returns false for null documents or documents
+   * which do not belong to a docshell.
    */
-  static void NotifyXPCIfExceptionPending(JSContext *aCx);
+  static PRBool IsInChromeDocshell(nsIDocument *aDocument);
 
   /**
    * Release *aSupportsPtr when the shutdown notification is received
@@ -1097,9 +1115,9 @@ public:
   static nsresult DropJSObjects(void* aScriptObjectHolder);
 
   /**
-   * Convert nsIContent::IME_STATUS_* to nsIKBStateControll::IME_STATUS_*
+   * Convert nsIContent::IME_STATUS_* to nsIWidget::IME_STATUS_*
    */
-  static PRUint32 GetKBStateControlStatusFromIMEStatus(PRUint32 aState);
+  static PRUint32 GetWidgetStatusFromIMEStatus(PRUint32 aState);
 
   /*
    * Notify when the first XUL menu is opened and when the all XUL menus are
@@ -1180,19 +1198,19 @@ public:
                                          PRBool aGetCharCode);
 
   /**
-   * Get the candidates for accelkeys for aDOMEvent.
+   * Get the candidates for accelkeys for aDOMKeyEvent.
    *
-   * @param aDOMEvent [in] the input event for accelkey handling.
+   * @param aDOMKeyEvent [in] the key event for accelkey handling.
    * @param aCandidates [out] the candidate shortcut key combination list.
    *                          the first item is most preferred.
    */
-  static void GetAccelKeyCandidates(nsIDOMEvent* aDOMEvent,
+  static void GetAccelKeyCandidates(nsIDOMKeyEvent* aDOMKeyEvent,
                                     nsTArray<nsShortcutCandidate>& aCandidates);
 
   /**
-   * Get the candidates for accesskeys for aDOMEvent.
+   * Get the candidates for accesskeys for aNativeKeyEvent.
    *
-   * @param aNativeKeyEvent [in] the input event for accesskey handling.
+   * @param aNativeKeyEvent [in] the key event for accesskey handling.
    * @param aCandidates [out] the candidate access key list.
    *                          the first item is most preferred.
    */
@@ -1206,9 +1224,20 @@ public:
   static void HidePopupsInDocument(nsIDocument* aDocument);
 
   /**
+   * Retrieve the current drag session, or null if no drag is currently occuring
+   */
+  static already_AddRefed<nsIDragSession> GetDragSession();
+
+  /**
    * Return true if aURI is a local file URI (i.e. file://).
    */
   static PRBool URIIsLocalFile(nsIURI *aURI);
+
+  /**
+   * If aContent is an HTML element with a DOM level 0 'name', then
+   * return the name. Otherwise return null.
+   */
+  static nsIAtom* IsNamedItem(nsIContent* aContent);
 
   /**
    * Get the application manifest URI for this context.  The manifest URI
@@ -1224,6 +1253,11 @@ public:
    * Check whether an application should be allowed to use offline APIs.
    */
   static PRBool OfflineAppAllowed(nsIURI *aURI);
+
+  /**
+   * Check whether an application should be allowed to use offline APIs.
+   */
+  static PRBool OfflineAppAllowed(nsIPrincipal *aPrincipal);
 
   /**
    * Increases the count of blockers preventing scripts from running.
@@ -1287,6 +1321,23 @@ public:
     return sRemovableScriptBlockerCount;
   }
 
+  /* Process viewport META data. This gives us information for the scale
+   * and zoom of a page on mobile devices. We stick the information in
+   * the document header and use it later on after rendering.
+   *
+   * See Bug #436083
+   */
+  static nsresult ProcessViewportInfo(nsIDocument *aDocument,
+                                      const nsAString &viewportInfo);
+
+  static nsresult GetContextForEventHandlers(nsINode* aNode,
+                                             nsIScriptContext** aContext);
+
+  static JSContext *GetCurrentJSContext();
+
+                                             
+  static nsIInterfaceRequestor* GetSameOriginChecker();
+                                           
 private:
 
   static PRBool InitializeEventTable();
@@ -1346,6 +1397,7 @@ private:
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
   static nsICaseConversion* sCaseConv;
+  static nsIUGenCategory* sGenCat;
 
   // Holds pointers to nsISupports* that should be released at shutdown
   static nsVoidArray* sPtrsToPtrsToRelease;
@@ -1363,6 +1415,8 @@ private:
   static PRUint32 sRemovableScriptBlockerCount;
   static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
   static PRUint32 sRunnersCountAtFirstBlocker;
+
+  static nsIInterfaceRequestor* sSameOriginChecker;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
@@ -1373,7 +1427,7 @@ private:
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class nsCxPusher
+class NS_STACK_CLASS nsCxPusher
 {
 public:
   nsCxPusher();
@@ -1466,6 +1520,78 @@ public:
 
 private:
   PRUint32 mNestingLevel;
+};
+
+/**
+ * Class used to detect unexpected mutations. To use the class create an
+ * nsMutationGuard on the stack before unexpected mutations could occur.
+ * You can then at any time call Mutated to check if any unexpected mutations
+ * have occured.
+ *
+ * When a guard is instantiated sMutationCount is set to 300. It is then
+ * decremented by every mutation (capped at 0). This means that we can only
+ * detect 300 mutations during the lifetime of a single guard, however that
+ * should be more then we ever care about as we usually only care if more then
+ * one mutation has occured.
+ *
+ * When the guard goes out of scope it will adjust sMutationCount so that over
+ * the lifetime of the guard the guard itself has not affected sMutationCount,
+ * while mutations that happened while the guard was alive still will. This
+ * allows a guard to be instantiated even if there is another guard higher up
+ * on the callstack watching for mutations.
+ *
+ * The only thing that has to be avoided is for an outer guard to be used
+ * while an inner guard is alive. This can be avoided by only ever
+ * instantiating a single guard per scope and only using the guard in the
+ * current scope.
+ */
+class nsMutationGuard {
+public:
+  nsMutationGuard()
+  {
+    mDelta = eMaxMutations - sMutationCount;
+    sMutationCount = eMaxMutations;
+  }
+  ~nsMutationGuard()
+  {
+    sMutationCount =
+      mDelta > sMutationCount ? 0 : sMutationCount - mDelta;
+  }
+
+  /**
+   * Returns true if any unexpected mutations have occured. You can pass in
+   * an 8-bit ignore count to ignore a number of expected mutations.
+   */
+  PRBool Mutated(PRUint8 aIgnoreCount)
+  {
+    return sMutationCount < static_cast<PRUint32>(eMaxMutations - aIgnoreCount);
+  }
+
+  // This function should be called whenever a mutation that we want to keep
+  // track of happen. For now this is only done when children are added or
+  // removed, but we might do it for attribute changes too in the future.
+  static void DidMutate()
+  {
+    if (sMutationCount) {
+      --sMutationCount;
+    }
+  }
+
+private:
+  // mDelta is the amount sMutationCount was adjusted when the guard was
+  // initialized. It is needed so that we can undo that adjustment once
+  // the guard dies.
+  PRUint32 mDelta;
+
+  // The value 300 is not important, as long as it is bigger then anything
+  // ever passed to Mutated().
+  enum { eMaxMutations = 300 };
+
+  
+  // sMutationCount is a global mutation counter which is decreased by one at
+  // every mutation. It is capped at 0 to avoid wrapping.
+  // It's value is always between 0 and 300, inclusive.
+  static PRUint32 sMutationCount;
 };
 
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line

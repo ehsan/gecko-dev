@@ -54,7 +54,6 @@ include $(topsrcdir)/config/rules.mk
 
 # files that get copied into $objdir/_tests/
 _SERV_FILES = 	\
-		runtests.pl \
 		runtests.py \
 		automation.py \
 		gen_template.pl \
@@ -70,10 +69,12 @@ _SERV_FILES = 	\
 		redirect.js \
 		$(topsrcdir)/build/pgo/server-locations.txt \
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
+		mozprefs.js \
 		$(NULL)	
 
 
 _DEST_DIR = $(DEPTH)/_tests/$(relativesrcdir)
+_CERTS_DIR = $(DEPTH)/_profile/pgo/certs
 
 ifeq ($(USE_SHORT_LIBNAME), 1)
 PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
@@ -99,6 +100,8 @@ endif
 TEST_DRIVER_PPARGS = 	\
 			-DBROWSER_PATH=$(browser_path) \
 			-DXPC_BIN_PATH=\"../$(DIST)/bin\" \
+			-DBIN_SUFFIX=\"$(BIN_SUFFIX)\" \
+			-DCERTS_DIR=\"../$(_CERTS_DIR)\" \
 			$(NULL)
 
 ifeq ($(OS_ARCH),Darwin)
@@ -117,9 +120,11 @@ ifeq ($(host_os), cygwin)
 TEST_DRIVER_PPARGS += -DIS_CYGWIN=1
 endif
 
-runtests.pl: runtests.pl.in
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
+ifeq ($(ENABLE_TESTS), 1)
+TEST_DRIVER_PPARGS += -DIS_TEST_BUILD=1
+else
+TEST_DRIVER_PPARGS += -DIS_TEST_BUILD=0
+endif
 
 runtests.py: runtests.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
@@ -129,7 +134,10 @@ automation.py: $(topsrcdir)/build/pgo/automation.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
 
-GARBAGE += runtests.pl runtests.py automation.py
+GARBAGE += runtests.py automation.py
 
 libs:: $(_SERV_FILES)
 	$(INSTALL) $^ $(_DEST_DIR)
+
+libs::
+	$(PYTHON) $(DEPTH)/_profile/pgo/genpgocert.py --gen-server

@@ -49,7 +49,9 @@ DIRS	+= \
 	ajax \
 	bugs \
 	chrome \
+	general \
 	whatwg \
+	geolocation \
 	$(NULL)
 
 # dom-level2-html disabled due to failures on multiple platforms

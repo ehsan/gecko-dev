@@ -53,6 +53,7 @@
 #include "nsStyleContext.h"
 #include "nsIContent.h"
 #include "nsHTMLReflowMetrics.h"
+#include "gfxMatrix.h"
 
 /**
  * New rules of reflow:
@@ -104,10 +105,10 @@ struct nsMargin;
 typedef class nsIFrame nsIBox;
 
 // IID for the nsIFrame interface
-// 04a7dee5-3435-47dc-bd42-a36c0f66a42c
-  #define NS_IFRAME_IID \
-{ 0x04a7dee5, 0x3435, 0x47dc, \
-  { 0xbd, 0x42, 0xa3, 0x6c, 0x0f, 0x66, 0xa4, 0x2c } }
+// 3459e7bb-2b22-4eb3-b60d-27d9f851b919
+#define NS_IFRAME_IID \
+  { 0x3459e7bb, 0x2b22, 0x4eb3, \
+    { 0xb6, 0x0d, 0x27, 0xd9, 0xf8, 0x51, 0xb9, 0x19 } }
 
 /**
  * Indication of how the frame can be split. This is used when doing runaround
@@ -231,12 +232,13 @@ enum {
   // results when an inline has been split because of a nested block.
   NS_FRAME_IS_SPECIAL =                         0x00008000,
 
-  // If this bit is set, the frame doesn't allow ignorable whitespace as
-  // children. For example, the whitespace between <table>\n<tr>\n<td>
-  // will be excluded during the construction of children. 
-  // The bit is set when the frame is first created and remain
-  // unchanged during the life-time of the frame.
-  NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE =       0x00010000,
+  // If this bit is set, the frame may have a transform that it applies
+  // to its coordinate system (e.g. CSS transform, SVG foreignObject).
+  // This is used primarily in GetTransformMatrix to optimize for the
+  // common case.
+  // ALSO, if this bit is set, the frame's first-continuation may
+  // have an associated nsSVGRenderingObserverList.
+  NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS = 0x00010000,
 
 #ifdef IBMBIDI
   // If this bit is set, the frame itself is a bidi continuation,
@@ -353,10 +355,10 @@ typedef PRUint32 nsReflowStatus;
 // These macros set or switch incompete statuses without touching th
 // NS_FRAME_REFLOW_NEXTINFLOW bit.
 #define NS_FRAME_SET_INCOMPLETE(status) \
-  status = status & ~NS_FRAME_OVERFLOW_INCOMPLETE | NS_FRAME_NOT_COMPLETE
+  status = (status & ~NS_FRAME_OVERFLOW_INCOMPLETE) | NS_FRAME_NOT_COMPLETE
 
 #define NS_FRAME_SET_OVERFLOW_INCOMPLETE(status) \
-  status = status & ~NS_FRAME_NOT_COMPLETE | NS_FRAME_OVERFLOW_INCOMPLETE
+  status = (status & ~NS_FRAME_NOT_COMPLETE) | NS_FRAME_OVERFLOW_INCOMPLETE
 
 // This macro tests to see if an nsReflowStatus is an error value
 // or just a regular return value
@@ -378,6 +380,9 @@ typedef PRUint32 nsReflowStatus;
 
 // The type of break requested can be found in these bits.
 #define NS_INLINE_BREAK_TYPE_MASK    0xF000
+
+// Set when a break was induced by completion of a first-letter
+#define NS_INLINE_BREAK_FIRST_LETTER_COMPLETE 0x10000
 
 //----------------------------------------
 // Macros that use those bits
@@ -904,6 +909,12 @@ public:
   virtual PRBool NeedsView() { return PR_FALSE; }
 
   /**
+   * Returns whether this frame has a transform matrix applied to it.  This is true
+   * if we have the -moz-transform property or if we're an SVGForeignObjectFrame.
+   */
+  virtual PRBool IsTransformed() const;
+
+  /**
    * This frame needs a view with a widget (e.g. because it's fixed
    * positioned), so we call this to create the widget. If widgets for
    * this frame type need to be of a certain type or require special
@@ -945,7 +956,7 @@ public:
   // Note that the primary offset can be after the secondary offset; for places
   // that need the beginning and end of the object, the StartOffset and 
   // EndOffset helpers can be used.
-  struct ContentOffsets {
+  struct NS_STACK_CLASS ContentOffsets {
     nsCOMPtr<nsIContent> content;
     PRBool IsNull() { return !content; }
     PRInt32 offset;
@@ -978,7 +989,7 @@ public:
    * loaded image that should be preferred. If it is not possible to use it, or
    * if it is null, mCursor should be used.
    */
-  struct Cursor {
+  struct NS_STACK_CLASS Cursor {
     nsCOMPtr<imgIContainer> mContainer;
     PRInt32                 mCursor;
     PRBool                  mHaveHotspot;
@@ -1128,6 +1139,8 @@ public:
    *
    * It is not acceptable for a frame to mark itself dirty when this
    * method is called.
+   *
+   * This method must not return a negative value.
    */
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext) = 0;
 
@@ -1530,17 +1543,6 @@ public:
                                 nsIView** aView) const = 0;
 
   /**
-   * Returns the offset from this frame's upper left corner to the upper
-   * left corner of the view returned by a call to GetView(). aOffset
-   * will contain the offset to the view or (0,0) if the frame has no
-   * view. aView will contain a pointer to the view returned by GetView().
-   * aView is optional, that is, you may pass null if you are not interested
-   * in getting a pointer to the view.
-   */
-  NS_IMETHOD  GetOriginToViewOffset(nsPoint&        aOffset,
-                                    nsIView**       aView) const = 0;
-
-  /**
    * Returns true if and only if all views, from |GetClosestView| up to
    * the top of the view hierarchy are visible.
    */
@@ -1561,7 +1563,19 @@ public:
    * @see nsGkAtoms
    */
   virtual nsIAtom* GetType() const = 0;
-  
+
+  /**
+   * Returns a transformation matrix that converts points in this frame's coordinate space
+   * to points in some ancestor frame's coordinate space.  The frame decides which ancestor
+   * it will use as a reference point.  If this frame has no ancestor, aOutAncestor will be
+   * set to null.
+   *
+   * @param aOutAncestor [out] The ancestor frame the frame has chosen.  If this frame has no
+   *        ancestor, aOutAncestor will be nsnull.
+   * @return A gfxMatrix that converts points in this frame's coordinate space into
+   *         points in aOutAncestor's coordinate space.
+   */
+  virtual gfxMatrix GetTransformMatrix(nsIFrame **aOutAncestor);
 
   /**
    * Bit-flags to pass to IsFrameOfType()
@@ -1570,18 +1584,23 @@ public:
     eMathML =                           1 << 0,
     eSVG =                              1 << 1,
     eSVGForeignObject =                 1 << 2,
-    eBidiInlineContainer =              1 << 3,
+    eSVGContainer =                     1 << 3,
+    eBidiInlineContainer =              1 << 4,
     // the frame is for a replaced element, such as an image
-    eReplaced =                         1 << 4,
+    eReplaced =                         1 << 5,
     // Frame that contains a block but looks like a replaced element
     // from the outside
-    eReplacedContainsBlock =            1 << 5,
+    eReplacedContainsBlock =            1 << 6,
     // A frame that participates in inline reflow, i.e., one that
     // requires nsHTMLReflowState::mLineLayout.
-    eLineParticipant =                  1 << 6,
-    eXULBox =                           1 << 7,
-    eCanContainOverflowContainers =     1 << 8,
-    eBlockFrame =                       1 << 9,
+    eLineParticipant =                  1 << 7,
+    eXULBox =                           1 << 8,
+    eCanContainOverflowContainers =     1 << 9,
+    eBlockFrame =                       1 << 10,
+    // If this bit is set, the frame doesn't allow ignorable whitespace as
+    // children. For example, the whitespace between <table>\n<tr>\n<td>
+    // will be excluded during the construction of children. 
+    eExcludesIgnorableWhitespace =      1 << 11,
 
     // These are to allow nsFrame::Init to assert that IsFrameOfType
     // implementations all call the base class method.  They are only
@@ -1637,6 +1656,11 @@ public:
   virtual nsIView* GetMouseCapturer() const { return nsnull; }
 
   /**
+   * @param aFlags see InvalidateInternal below
+   */
+  void InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags);
+
+  /**
    * Invalidate part of the frame by asking the view manager to repaint.
    * aDamageRect is allowed to extend outside the frame's bounds. We'll do the right
    * thing.
@@ -1645,11 +1669,9 @@ public:
    * need to be repainted.
    *
    * @param aDamageRect is in the frame's local coordinate space
-   * @param aImmediate repaint now if true, repaint later if false.
-   *   In case it's true, pending notifications will be flushed which
-   *   could cause frames to be deleted (including |this|).
    */
-  void Invalidate(const nsRect& aDamageRect, PRBool aImmediate = PR_FALSE);
+  void Invalidate(const nsRect& aDamageRect)
+  { return InvalidateWithFlags(aDamageRect, 0); }
 
   /**
    * Helper function that can be overridden by frame classes. The rectangle
@@ -1665,13 +1687,34 @@ public:
    * 
    * @param aForChild if the invalidation is coming from a child frame, this
    * is the frame; otherwise, this is null.
-   * @param aImmediate repaint now if true, repaint later if false.
+   * @param aFlags INVALIDATE_IMMEDIATE: repaint now if true, repaint later if false.
    *   In case it's true, pending notifications will be flushed which
    *   could cause frames to be deleted (including |this|).
-   */  
+   * @param aFlags INVALIDATE_CROSS_DOC: true if the invalidation
+   *   originated in a subdocument
+   */
+  enum {
+  	INVALIDATE_IMMEDIATE = 0x1,
+  	INVALIDATE_CROSS_DOC = 0x2,
+  	INVALIDATE_NOTIFY_ONLY = 0x4
+  };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
-                                  nsIFrame* aForChild, PRBool aImmediate);
+                                  nsIFrame* aForChild, PRUint32 aFlags);
+
+  /**
+   * Helper function that funnels an InvalidateInternal request up to the
+   * parent.  This function is used so that if MOZ_SVG is not defined, we still
+   * have unified control paths in the InvalidateInternal chain.
+   *
+   * @param aDamageRect The rect to invalidate.
+   * @param aX The x offset from the origin of this frame to the rectangle.
+   * @param aY The y offset from the origin of this frame to the rectangle.
+   * @param aImmediate Whether to redraw immediately.
+   * @return None, though this funnels the request up to the parent frame.
+   */
+  void InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
+                                     nscoord aY, PRUint32 aFlags);
 
   /**
    * Take two rectangles in the coordinate system of this frame which
@@ -1701,9 +1744,41 @@ public:
    * FinishAndStoreOverflow has been called but mRect hasn't yet been
    * updated yet.
    *
-   * @return the rect relative to this frame's origin
+   * @return the rect relative to this frame's origin, but after
+   * CSS transforms have been applied (i.e. not really this frame's coordinate
+   * system, and may not contain the frame's border-box, e.g. if there
+   * is a CSS transform scaling it down)
    */
   nsRect GetOverflowRect() const;
+
+  /**
+   * Computes a rect that encompasses everything that might be painted by
+   * this frame.  This includes this frame, all its descendent frames, this
+   * frame's outline, and descentant frames' outline, but does not include
+   * areas clipped out by the CSS "overflow" and "clip" properties.
+   *
+   * The NS_FRAME_OUTSIDE_CHILDREN state bit is set when this overflow rect
+   * is different from nsRect(0, 0, GetRect().width, GetRect().height).
+   * XXX Note: because of a space optimization using the formula above,
+   * during reflow this function does not give accurate data if
+   * FinishAndStoreOverflow has been called but mRect hasn't yet been
+   * updated yet.
+   *
+   * @return the rect relative to the parent frame, in the parent frame's
+   * coordinate system
+   */
+  nsRect GetOverflowRectRelativeToParent() const;
+
+  /**
+   * Computes a rect that encompasses everything that might be painted by
+   * this frame.  This includes this frame, all its descendent frames, this
+   * frame's outline, and descentant frames' outline, but does not include
+   * areas clipped out by the CSS "overflow" and "clip" properties.
+   *
+   * @return the rect relative to this frame, before any CSS transforms have
+   * been applied, i.e. in this frame's coordinate system
+   */
+  nsRect GetOverflowRectRelativeToSelf() const;
 
   /**
    * Set/unset the NS_FRAME_OUTSIDE_CHILDREN flag and store the overflow area
@@ -1731,11 +1806,13 @@ public:
    *  @param aRange is the range that will dictate if the frames need to be redrawn null means the whole content needs to be redrawn
    *  @param aSelected is it selected?
    *  @param aSpread should it spread the selection to flow elements around it? or go down to its children?
+   *  @param aType the selection type of the selection that you are setting on the frame
    */
   NS_IMETHOD  SetSelected(nsPresContext* aPresContext,
                           nsIDOMRange*    aRange,
                           PRBool          aSelected,
-                          nsSpread        aSpread) = 0;
+                          nsSpread        aSpread,
+                          SelectionType   aType) = 0;
 
   NS_IMETHOD  GetSelected(PRBool *aSelected) const = 0;
 
@@ -2132,6 +2209,17 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
    */
   nsPeekOffsetStruct GetExtremeCaretPosition(PRBool aStart);
 
+  /**
+   * Same thing as nsFrame::CheckInvalidateSizeChange, but more flexible.  The
+   * implementation of this method must not depend on the mRect or
+   * GetOverflowRect() of the frame!  Note that it's safe to assume in this
+   * method that the frame origin didn't change.  If it did, whoever moved the
+   * frame will invalidate as needed anyway.
+   */
+  void CheckInvalidateSizeChange(const nsRect& aOldRect,
+                                 const nsRect& aOldOverflowRect,
+                                 nsHTMLReflowMetrics& aNewDesiredSize);
+
 protected:
   // Members
   nsRect           mRect;
@@ -2146,9 +2234,13 @@ protected:
    * For frames that have top-level windows (top-level viewports,
    * comboboxes, menupoups) this function will invalidate the window.
    */
-  void InvalidateRoot(const nsRect& aDamageRect,
-                      nscoord aOffsetX, nscoord aOffsetY,
-                      PRBool aImmediate);
+  void InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags);
+
+  /**
+   * Gets the overflow area for any properties that are common to all types of frames
+   * e.g. outlines.
+   */
+  nsRect GetAdditionalOverflow(const nsRect& aOverflowArea, const nsSize& aNewSize);
 
   /**
    * Can we stop inside this frame when we're skipping non-rendered whitespace?

@@ -335,7 +335,7 @@ nsHTMLSelectListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
   nsCOMPtr<nsIDOMHTMLSelectElement> select (do_QueryInterface(mDOMNode));
   if (select) {
-    if (*aState | nsIAccessibleStates::STATE_FOCUSED) {
+    if (*aState & nsIAccessibleStates::STATE_FOCUSED) {
       // Treat first focusable option node as actual focus, in order
       // to avoid confusing JAWS, which needs focus on the option
       nsCOMPtr<nsIDOMNode> focusedOption;
@@ -513,8 +513,11 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
 /**
   * Get our Name from our Content's subtree
   */
-NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP
+nsHTMLSelectOptionAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   // CASE #1 -- great majority of the cases
   // find the label attribute - this is what the W3C says we should use
   nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
@@ -1383,8 +1386,11 @@ NS_IMETHODIMP nsHTMLComboboxButtonAccessible::GetParent(nsIAccessible **aParent)
 /** 
   * Gets the name from GetActionName()
   */
-NS_IMETHODIMP nsHTMLComboboxButtonAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP
+nsHTMLComboboxButtonAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   return GetActionName(eAction_Click, aName);
 }
 

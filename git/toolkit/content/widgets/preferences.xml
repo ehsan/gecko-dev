@@ -151,7 +151,7 @@
         <parameter name="aUpdate"/>
         <body>
         <![CDATA[
-          if (aUpdate && this.value != aValue) {
+          if (aUpdate && this.value !== aValue) {
             this._value = aValue;
             if (this.instantApply)
               this.valueFromPreferences = aValue;
@@ -231,7 +231,10 @@
 
       <property name="hasUserValue">
         <getter>
-          return this.preferences.rootBranch.prefHasUserValue(this.name);
+        <![CDATA[
+          return this.preferences.rootBranch.prefHasUserValue(this.name) &&
+                 this.value !== undefined;
+        ]]>
         </getter>
       </property>
       
@@ -474,8 +477,7 @@
 
           switch (this.type) {
           case "int":
-            var intValue = parseInt(value, 10) + '';
-            return intValue != "NaN" ? intValue : 0;
+            return parseInt(value, 10) || 0;
           case "bool":
             return typeof(value) == "boolean" ? value : value == "true";
           }

@@ -63,6 +63,8 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIScriptSecurityManager.h"
 
+#include "nsICacheVisitor.h"
+
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "plstr.h" // PL_strcasestr(...)
@@ -92,7 +94,7 @@ imgRequest::~imgRequest()
 
 nsresult imgRequest::Init(nsIURI *aURI,
                           nsIRequest *aRequest,
-                          nsICacheEntryDescriptor *aCacheEntry,
+                          imgCacheEntry *aCacheEntry,
                           void *aCacheId,
                           void *aLoadId)
 {
@@ -321,12 +323,22 @@ nsresult imgRequest::GetPrincipal(nsIPrincipal **aPrincipal)
   return NS_ERROR_FAILURE;
 }
 
+nsresult imgRequest::GetSecurityInfo(nsISupports **aSecurityInfo)
+{
+  LOG_FUNC(gImgLog, "imgRequest::GetSecurityInfo");
+
+  // Missing security info means this is not a security load
+  // i.e. it is not an error when security info is missing
+  NS_IF_ADDREF(*aSecurityInfo = mSecurityInfo);
+  return NS_OK;
+}
+
 void imgRequest::RemoveFromCache()
 {
   LOG_SCOPE(gImgLog, "imgRequest::RemoveFromCache");
 
   if (mCacheEntry) {
-    mCacheEntry->Doom();
+    imgLoader::RemoveFromCache(mURI);
     mCacheEntry = nsnull;
   }
 }
@@ -513,13 +525,19 @@ NS_IMETHODIMP imgRequest::OnStopFrame(imgIRequest *request,
   mImageStatus |= imgIRequest::STATUS_FRAME_COMPLETE;
 
   if (mCacheEntry) {
-    PRUint32 cacheSize = 0;
-    mCacheEntry->GetDataSize(&cacheSize);
+    PRUint32 cacheSize = mCacheEntry->GetDataSize();
 
     PRUint32 imageSize = 0;
     frame->GetImageDataLength(&imageSize);
 
     mCacheEntry->SetDataSize(cacheSize + imageSize);
+
+#ifdef DEBUG_joe
+    nsCAutoString url;
+    mURI->GetSpec(url);
+
+    printf("CACHEPUT: %d %s %d\n", time(NULL), url.get(), cacheSize + imageSize);
+#endif
   }
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
@@ -591,10 +609,29 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
   if (mpchan)
       mIsMultiPartChannel = PR_TRUE;
 
+  /*
+   * If mRequest is null here, then we need to set it so that we'll be able to
+   * cancel it if our Cancel() method is called.  Note that this can only
+   * happen for multipart channels.  We could simply not null out mRequest for
+   * non-last parts, if GetIsLastPart() were reliable, but it's not.  See
+   * https://bugzilla.mozilla.org/show_bug.cgi?id=339610
+   */
+  if (!mRequest) {
+    NS_ASSERTION(mpchan,
+                 "We should have an mRequest here unless we're multipart");
+    nsCOMPtr<nsIChannel> chan;
+    mpchan->GetBaseChannel(getter_AddRefs(chan));
+    mRequest = chan;
+  }
+
   /* set our state variables to their initial values, but advance mState
      to onStartRequest. */
   mImageStatus = imgIRequest::STATUS_NONE;
   mState = onStartRequest;
+
+  nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
+  if (channel)
+    channel->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
 
   /* set our loading flag to true */
   mLoading = PR_TRUE;
@@ -633,7 +670,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
           entryDesc->GetExpirationTime(&expiration);
 
           /* set the expiration time on our entry */
-          mCacheEntry->SetExpirationTime(expiration);
+          mCacheEntry->SetExpiryTime(expiration);
         }
       }
     }
@@ -664,9 +701,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
         }
       }
 
-      if (bMustRevalidate) {
-        mCacheEntry->SetMetaDataElement("MustValidateIfExpired", "true");
-      }
+      mCacheEntry->SetMustValidateIfExpired(bMustRevalidate);
     }
   }
 
@@ -738,9 +773,6 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
 
   return NS_OK;
 }
-
-
-
 
 /* prototype for this defined below */
 static NS_METHOD sniff_mimetype_callback(nsIInputStream* in, void* closure, const char* fromRawSegment,

@@ -26,7 +26,7 @@
  *   Dean Tessman (dean_tessman@hotmail.com)
  *   Blake Ross (blake@cs.stanford.edu)
  *   Pamela Greene (pamg.bugs@gmail.com)
- *   Dao Gottwald (dao@design-noir.de)
+ *   Dão Gottwald (dao@mozilla.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,6 +47,7 @@
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+@namespace svg url("http://www.w3.org/2000/svg");
 
 #menubar-items {
   -moz-box-orient: vertical; /* for flex hack */
@@ -369,13 +370,13 @@ menuitem[command="Browser:Stop"][disabled],
 
 #placesContext_reload,
 #placesContext_reloadMicrosummary,
-menuitem[command="Browser:Reload"],
+menuitem[command="Browser:ReloadOrDuplicate"],
 #context-reload,
 #context-reloadframe {
   list-style-image: url("moz-icon://stock/gtk-refresh?size=menu");
 }
 
-menuitem[command="Browser:Reload"][disabled],
+menuitem[command="Browser:ReloadOrDuplicate"][disabled],
 #context-reload[disabled] {
   list-style-image: url("moz-icon://stock/gtk-refresh?size=menu&state=disabled");
 }
@@ -593,13 +594,6 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
   list-style-image: url("moz-icon://stock/gtk-print?size=toolbar&state=disabled");
 }
 
-#new-tab-button {
-  -moz-image-region: rect(0px 96px 24px 72px);
-}
-#new-tab-button[disabled="true"] {
-  -moz-image-region: rect(24px 96px 48px 72px);
-}
-
 #new-window-button {
   -moz-image-region: rect(0px 120px 24px 96px);
 }
@@ -728,13 +722,6 @@ toolbar[iconsize="small"] #print-button {
 }
 toolbar[iconsize="small"] #print-button[disabled="true"] {
   list-style-image: url("moz-icon://stock/gtk-print?size=menu&state=disabled");
-}
-
-toolbar[iconsize="small"] #new-tab-button {
-  -moz-image-region: rect(0px 64px 16px 48px);
-}
-toolbar[iconsize="small"] #new-tab-button[disabled="true"] {
-  -moz-image-region: rect(16px 64px 32px 48px);
 }
 
 toolbar[iconsize="small"] #new-window-button {
@@ -1038,6 +1025,13 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   height: 16px;
 }
 
+.ac-result-type-keyword,
+.autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage) {
+  list-style-image: url(chrome://browser/skin/Search-glass.png);
+  width: 16px;
+  height: 16px;
+}
+
 .ac-result-type-tag,
 .autocomplete-treebody::-moz-tree-image(tag, treecolAutoCompleteImage) {
   list-style-image: url("chrome://browser/skin/places/tag.png");
@@ -1054,7 +1048,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 .ac-url-text {
-  color: GrayText;
+  color: -moz-nativehyperlinktext;
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1124,21 +1118,17 @@ statusbarpanel#statusbar-display {
 }
 
 #security-button {
-  list-style-image: none;
   min-width: 20px;
   -moz-box-direction: reverse;
-  display: none;
 }
 
 #security-button[level="high"],
 #security-button[level="low"] {
   list-style-image: url("chrome://browser/skin/Secure.png");
-  display: -moz-box;
 }
 
 #security-button[level="broken"] {
   list-style-image: url("chrome://browser/skin/Security-broken.png");
-  display: -moz-box;
 }
 
 /* XXXsw prevent margins of a value-less label from shifting the image */
@@ -1299,6 +1289,16 @@ tabpanels {
   outline: none !important;
 }
 
+/* New tab button */
+.tabs-newtab-button {
+  list-style-image: url(chrome://browser/skin/tabbrowser/newtab.png);
+  border: none;
+}
+
+.tabs-newtab-button > .toolbarbutton-icon {
+  margin: -1px 0 0;
+}
+
 /* Tabstrip close button */
 .tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
@@ -1306,7 +1306,7 @@ tabpanels {
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
-  margin: -3px !important;
+  margin: 0;
 }
 
 /* Tabbrowser arrowscrollbox arrows */
@@ -1394,4 +1394,27 @@ toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
 #download-monitor {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 16px 16px 0px);
+}
+
+/* ::::: Ctrl-Tab Panel ::::: */
+#ctrlTab-label {
+  font-weight: bold;
+  text-align: center;
+  margin-top: .5em;
+  margin-bottom: .7em;
+}
+
+svg|*.ctrlTab-thumbnailborder {
+  stroke: ThreeDDarkShadow;
+  stroke-width: .7px;
+}
+
+svg|*#ctrlTab-fadeGradientTop {
+  stop-color: ThreeDShadow;
+  stop-opacity: .75;
+}
+
+svg|*#ctrlTab-fadeGradientBottom {
+  stop-color: -moz-dialog;
+  stop-opacity: 1;
 }

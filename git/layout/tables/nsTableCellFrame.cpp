@@ -61,6 +61,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
+#include "nsTextFrame.h"
 
 //TABLECELL SELECTION
 #include "nsFrameSelection.h"
@@ -344,8 +345,7 @@ nsTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
 {
   nsRect rect(aPt, GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  aDirtyRect, rect, *GetStyleBorder(),
-                                  *GetStylePadding(), PR_TRUE);
+                                  aDirtyRect, rect, PR_TRUE);
 }
 
 // Called by nsTablePainter
@@ -354,9 +354,6 @@ nsTableCellFrame::PaintCellBackground(nsIRenderingContext& aRenderingContext,
                                       const nsRect& aDirtyRect, nsPoint aPt)
 {
   if (!GetStyleVisibility()->IsVisible())
-    return;
-  if (GetContentEmpty() &&
-      NS_STYLE_TABLE_EMPTY_CELLS_HIDE == GetStyleTableBorder()->mEmptyCells)
     return;
 
   PaintBackground(aRenderingContext, aDirtyRect, aPt);
@@ -413,13 +410,15 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTableCellFrame");
-
-  PRInt32 emptyCellStyle = GetContentEmpty() ? GetStyleTableBorder()->mEmptyCells
-      : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  
+  PRInt32 emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
+                              GetStyleTableBorder()->mEmptyCells
+                              : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
   // take account of 'empty-cells'
   if (GetStyleVisibility()->IsVisible() &&
       (NS_STYLE_TABLE_EMPTY_CELLS_HIDE != emptyCellStyle)) {
-    nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+    
 
     PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
     if (!isRoot) {
@@ -494,7 +493,8 @@ NS_IMETHODIMP
 nsTableCellFrame::SetSelected(nsPresContext* aPresContext,
                               nsIDOMRange*    aRange,
                               PRBool          aSelected,
-                              nsSpread        aSpread)
+                              nsSpread        aSpread,
+                              SelectionType   aType)
 {
   //traverse through children unselect tables
 #if 0
@@ -510,13 +510,13 @@ nsTableCellFrame::SetSelected(nsPresContext* aPresContext,
   // Must call base class to set mSelected state and trigger repaint of frame
   // Note that in current version, aRange and aSpread are ignored,
   //   only this frame is considered
-  nsFrame::SetSelected(aPresContext, aRange, aSelected, aSpread);
+  nsFrame::SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
 
   nsCOMPtr<nsFrameSelection> frameSelection =
     aPresContext->PresShell()->FrameSelection();
   if (frameSelection->GetTableCellSelection()) {
     // Selection can affect content, border and outline
-    Invalidate(GetOverflowRect(), PR_FALSE);
+    InvalidateOverflowRect();
   }
   return NS_OK;
 }
@@ -657,6 +657,37 @@ nsTableCellFrame::HasVerticalAlignBaseline()
     }
   }
   return PR_TRUE;
+}
+
+PRBool 
+nsTableCellFrame::CellHasVisibleContent(nscoord       height,
+                                        nsTableFrame* tableFrame,
+                                        nsIFrame* kidFrame)
+{
+  // see  http://www.w3.org/TR/CSS21/tables.html#empty-cells
+  if (height > 0)
+    return PR_TRUE;
+  if (tableFrame->IsBorderCollapse())
+    return PR_TRUE;
+  nsIFrame* innerFrame = kidFrame->GetFirstChild(nsnull);
+  while(innerFrame) {
+    nsIAtom* frameType = innerFrame->GetType();
+    if (nsGkAtoms::textFrame == frameType) {
+       nsTextFrame* textFrame = static_cast<nsTextFrame*>(innerFrame);
+       if (textFrame->HasNoncollapsedCharacters())
+         return PR_TRUE;
+    }
+    else if (nsGkAtoms::placeholderFrame != frameType) {
+      return PR_TRUE;
+    }
+    else {
+      nsIFrame *floatFrame = nsLayoutUtils::GetFloatFromPlaceholder(innerFrame);
+      if (floatFrame)
+        return PR_TRUE;
+    }
+    innerFrame = innerFrame->GetNextSibling();
+  }	 
+  return PR_FALSE;
 }
 
 nscoord
@@ -902,7 +933,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*          aPresContext,
 
   // XXXbz is this invalidate actually needed, really?
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
-    Invalidate(GetOverflowRect(), PR_FALSE);
+    InvalidateOverflowRect();
   }
 
 #ifdef NS_DEBUG
@@ -916,12 +947,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*          aPresContext,
   if (prevInFlow) {
     isEmpty = static_cast<nsTableCellFrame*>(prevInFlow)->GetContentEmpty();
   } else {
-    // XXX this is a bad way to check for empty content. There are various
-    // ways the cell could have content but the kid could end up with zero
-    // height. See
-    // http://www.w3.org/TR/CSS21/tables.html#empty-cells
-    // and bug 76331.
-    isEmpty = kidSize.height == 0;
+    isEmpty = !CellHasVisibleContent(kidSize.height, tableFrame, firstKid);
   }
   SetContentEmpty(isEmpty);
 
@@ -967,7 +993,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*          aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
+    CheckInvalidateSizeChange(aDesiredSize);
   }
 
   // remember the desired size for this reflow
@@ -1040,7 +1066,7 @@ NS_NewTableCellFrame(nsIPresShell*   aPresShell,
 nsMargin* 
 nsTableCellFrame::GetBorderWidth(nsMargin&  aBorder) const
 {
-  aBorder = GetStyleBorder()->GetBorder();
+  aBorder = GetStyleBorder()->GetActualBorder();
   return &aBorder;
 }
 
@@ -1176,7 +1202,10 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
   }
 
   nsRect rect(aPt, GetSize());
-  nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  aDirtyRect, rect, myBorder, *GetStylePadding(),
-                                  PR_TRUE);
+  // bypassing nsCSSRendering::PaintBackground is safe because this kind
+  // of frame cannot be used for the root element
+  nsCSSRendering::PaintBackgroundWithSC(PresContext(), aRenderingContext, this,
+                                        aDirtyRect, rect,
+                                        *GetStyleBackground(), myBorder,
+                                        PR_TRUE, nsnull);
 }

@@ -887,9 +887,9 @@ PlacesTreeView.prototype = {
 
     if (!properties) {
       properties = new Array();
+      var itemId = node.itemId;
       var nodeType = node.type;
       if (PlacesUtils.containerTypes.indexOf(nodeType) != -1) {
-        var itemId = node.itemId;
         if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
           properties.push(this._getAtomFor("query"));
           if (PlacesUtils.nodeIsTagQuery(node))
@@ -909,7 +909,9 @@ PlacesTreeView.prototype = {
         if (itemId != -1) {
           var oqAnno;
           try {
-            oqAnno = PlacesUtils.annotations.getItemAnnotation(itemId, ORGANIZER_QUERY_ANNO);
+            oqAnno = PlacesUtils.annotations
+                                .getItemAnnotation(itemId,
+                                                   ORGANIZER_QUERY_ANNO);
             properties.push(this._getAtomFor("OrganizerQuery_" + oqAnno));
           }
           catch (ex) { /* not a special query */ }
@@ -937,6 +939,11 @@ PlacesTreeView.prototype = {
     if (PlacesUtils.nodeIsContainer(node)) {
       // the root node is always expandable
       if (!node.parent)
+        return true;
+
+      // Flat-lists may ignore expandQueries and other query options when
+      // they are asked to open a container.
+      if (this._flatList)
         return true;
 
       // treat non-expandable childless queries as non-containers
@@ -989,33 +996,12 @@ PlacesTreeView.prototype = {
     if (!this._result)
       throw Cr.NS_ERROR_UNEXPECTED;
 
-    var node = aRow != -1 ? this.nodeForTreeIndex(aRow) : this._result.root;
+    // drop position into a sorted treeview would be wrong
+    if (this.isSorted())
+      return false;
 
-    if (aOrientation == Ci.nsITreeView.DROP_ON) {
-      // The user cannot drop an item into itself or a read-only container
-      var dragService =  Cc["@mozilla.org/widget/dragservice;1"].
-                         getService(Ci.nsIDragService);
-      var dragSession = dragService.getCurrentSession();
-      var elt = dragSession.sourceNode.parentNode;
-      if (elt.localName == "tree" && elt.view == this &&
-          this.selection.isSelected(aRow))
-        return false;
-    }
-  
     var ip = this._getInsertionPoint(aRow, aOrientation);
     return ip && PlacesControllerDragHelper.canDrop(ip);
-  },
-
-  // XXXmano: these two are copied over from tree.xml, to fix this we need to
-  // either add a helper to PlacesUtils or keep it here and add insertionPoint
-  // to the view interface.
-  _disallowInsertion: function PTV__disallowInsertion(aContainer) {
-    // allow dropping into Tag containers
-    if (PlacesUtils.nodeIsTagQuery(aContainer))
-      return false;
-    // Disallow insertion of items under readonly folders
-    return (!PlacesUtils.nodeIsFolder(aContainer) ||
-            PlacesUtils.nodeIsReadOnly(aContainer));
   },
 
   _getInsertionPoint: function PTV__getInsertionPoint(index, orientation) {
@@ -1031,14 +1017,13 @@ PlacesTreeView.prototype = {
         container = lastSelected;
         index = -1;
       }
-      else if (!this._disallowInsertion(lastSelected) &&
-               lastSelected.containerOpen &&
+      else if (lastSelected.containerOpen &&
                orientation == Ci.nsITreeView.DROP_AFTER &&
                lastSelected.hasChildren) {
         // If the last selected item is an open container and the user is
         // trying to drag into it as a first item, really insert into it.
         container = lastSelected;
-        orientation = Ci.nsITreeView.DROP_BEFORE;
+        orientation = Ci.nsITreeView.DROP_ON;
         index = 0;
       }
       else {
@@ -1049,12 +1034,13 @@ PlacesTreeView.prototype = {
 
         // avoid the potentially expensive call to getIndexOfNode() 
         // if we know this container doesn't allow insertion
-        if (this._disallowInsertion(container))
+        if (PlacesControllerDragHelper.disallowInsertion(container))
           return null;
 
         var queryOptions = asQuery(this._result.root).queryOptions;
-        if (queryOptions.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
-          // If we are within a sorted view, insert at the end
+        if (queryOptions.sortingMode !=
+              Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
+          // If we are within a sorted view, insert at the ends
           index = -1;
         }
         else if (queryOptions.excludeItems ||
@@ -1073,7 +1059,7 @@ PlacesTreeView.prototype = {
       }
     }
 
-    if (this._disallowInsertion(container))
+    if (PlacesControllerDragHelper.disallowInsertion(container))
       return null;
 
     return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
@@ -1088,7 +1074,7 @@ PlacesTreeView.prototype = {
     // since this information is specific to the tree view.
     var ip = this._getInsertionPoint(aRow, aOrientation);
     if (!ip)
-      throw Cr.NS_ERROR_NOT_AVAILABLE;
+      return;
     PlacesControllerDragHelper.onDrop(ip);
   },
 

@@ -260,9 +260,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
 {
   PRIntn skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
-  const nsStylePadding* paddingStyle = GetStylePadding();
        
-  nscoord topBorder = borderStyle->GetBorderWidth(NS_SIDE_TOP);
+  nscoord topBorder = borderStyle->GetActualBorderWidth(NS_SIDE_TOP);
   nscoord yoff = 0;
   nsPresContext* presContext = PresContext();
      
@@ -274,8 +273,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, *borderStyle,
-                                  *paddingStyle, PR_TRUE);
+                                  aDirtyRect, rect, PR_TRUE);
 
    if (mLegendFrame) {
 
@@ -294,7 +292,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -308,7 +307,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -321,7 +321,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
   } else {
@@ -418,7 +419,6 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     reflowLegend = mLegendFrame != nsnull;
   } else {
     reflowContent = mContentFrame && NS_SUBTREE_DIRTY(mContentFrame);
-
     reflowLegend = mLegendFrame && NS_SUBTREE_DIRTY(mLegendFrame);
   }
 
@@ -438,17 +438,13 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
 
   // get our border and padding
   const nsMargin &borderPadding = aReflowState.mComputedBorderPadding;
-  const nsMargin &padding       = aReflowState.mComputedPadding;
-  nsMargin border = borderPadding - padding;  
+  nsMargin border = borderPadding - aReflowState.mComputedPadding;  
 
   // Figure out how big the legend is if there is one. 
   // get the legend's margin
   nsMargin legendMargin(0,0,0,0);
   // reflow the legend only if needed
   if (reflowLegend) {
-    const nsStyleMargin* marginStyle = mLegendFrame->GetStyleMargin();
-    marginStyle->GetMargin(legendMargin);
-
     nsHTMLReflowState legendReflowState(aPresContext, aReflowState,
                                         mLegendFrame, availSize);
 
@@ -460,6 +456,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     printf("  returned (%d, %d)\n", legendDesiredSize.width, legendDesiredSize.height);
 #endif
     // figure out the legend's rectangle
+    legendMargin = mLegendFrame->GetUsedMargin();
     mLegendRect.width  = legendDesiredSize.width + legendMargin.left + legendMargin.right;
     mLegendRect.height = legendDesiredSize.height + legendMargin.top + legendMargin.bottom;
     mLegendRect.x = borderPadding.left;
@@ -491,7 +488,11 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   } else if (!mLegendFrame) {
     mLegendRect.Empty();
     mLegendSpace = 0;
-  } // else mLegendSpace and mLegendRect haven't changed... 
+  } else {
+    // mLegendSpace and mLegendRect haven't changed, but we need
+    // the used margin when placing the legend.
+    legendMargin = mLegendFrame->GetUsedMargin();
+  }
 
   // reflow the content frame only if needed
   if (reflowContent) {
@@ -502,6 +503,14 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // height is unconstrained (in which case the child's will be too).
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
       kidReflowState.SetComputedHeight(PR_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
+    }
+
+    kidReflowState.mComputedMinHeight =
+      PR_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
+
+    if (aReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE) {
+      kidReflowState.mComputedMaxHeight =
+        PR_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
     }
 
     nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
@@ -519,7 +528,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
 
   nsRect contentRect(0,0,0,0);
   if (mContentFrame) {
-    // We don't support margins on mContentFrame, so our "content rect" is jut
+    // We don't support margins on mContentFrame, so our "content rect" is just
     // its rect.
     contentRect = mContentFrame->GetRect();
   }
@@ -532,7 +541,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   if (mLegendFrame) {
     // if the content rect is larger then the  legend we can align the legend
     if (contentRect.width > mLegendRect.width) {
-      PRInt32 align = ((nsLegendFrame*)mLegendFrame)->GetAlign();
+      PRInt32 align = static_cast<nsLegendFrame*>(mLegendFrame)->GetAlign();
 
       switch(align) {
         case NS_STYLE_TEXT_ALIGN_RIGHT:
@@ -545,7 +554,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
       }
   
     } else {
-      //otherwise make place for the legend
+      // otherwise make place for the legend
       contentRect.width = mLegendRect.width;
     }
     // place the legend

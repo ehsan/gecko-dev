@@ -63,6 +63,14 @@
 
 struct SelectionDetails
 {
+#ifdef NS_BUILD_REFCNT_LOGGING
+  SelectionDetails() {
+    MOZ_COUNT_CTOR(SelectionDetails);
+  }
+  ~SelectionDetails() {
+    MOZ_COUNT_DTOR(SelectionDetails);
+  }
+#endif
   PRInt32 mStart;
   PRInt32 mEnd;
   SelectionType mType;
@@ -77,7 +85,7 @@ enum EWordMovementType { eStartWord, eEndWord, eDefaultBehavior };
  *  that are passed to nsFrame::PeekOffset(). See below for the description of
  *  individual arguments.
  */
-struct nsPeekOffsetStruct
+struct NS_STACK_CLASS nsPeekOffsetStruct
 {
   void SetData(nsSelectionAmount aAmount,
                nsDirection aDirection,

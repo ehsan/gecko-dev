@@ -131,7 +131,16 @@ nsContextMenu.prototype = {
   },
 
   initOpenItems: function CM_initOpenItems() {
-    var shouldShow = this.onSaveableLink ||
+    var isMailtoInternal = false;
+    if (this.onMailtoLink) {
+      var mailtoHandler = Cc["@mozilla.org/uriloader/external-protocol-service;1"].
+                          getService(Ci.nsIExternalProtocolService).
+                          getProtocolHandlerInfo("mailto");
+      isMailtoInternal = (!mailtoHandler.alwaysAskBeforeHandling &&
+                          mailtoHandler.preferredAction == Ci.nsIHandlerInfo.useHelperApp &&
+                          (mailtoHandler.preferredApplicationHandler instanceof Ci.nsIWebHandlerApp));
+    }
+    var shouldShow = this.onSaveableLink || isMailtoInternal ||
                      (this.inDirList && this.onLink);
     this.showItem("context-openlink", shouldShow);
     this.showItem("context-openlinkintab", shouldShow);
@@ -1189,6 +1198,8 @@ nsContextMenu.prototype = {
                                                         [engineName,
                                                          selectedText]);
     document.getElementById("context-searchselect").label = menuLabel;
+    document.getElementById("context-searchselect").accessKey =
+             gNavigatorBundle.getString("contextMenuSearchText.accesskey"); 
 
     return true;
   },

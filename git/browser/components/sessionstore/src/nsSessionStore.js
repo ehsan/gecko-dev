@@ -57,7 +57,6 @@ const Cu = Components.utils;
 const STATE_STOPPED = 0;
 const STATE_RUNNING = 1;
 const STATE_QUITTING = -1;
-const STATE_DISABLED = -2;
 
 const STATE_STOPPED_STR = "stopped";
 const STATE_RUNNING_STR = "running";
@@ -145,13 +144,11 @@ SessionStoreService.prototype = {
   _windows: {},
 
   // in case the last closed window ain't a navigator:browser one
-  _lastWindowClosed: null,
+  // (also contains browser popup windows closed after the last non-popup one)
+  _lastClosedWindows: null,
 
   // not-"dirty" windows usually don't need to have their data updated
   _dirtyWindows: {},
-
-  // flag all windows as dirty
-  _dirty: false,
 
 /* ........ Global Event Handlers .............. */
 
@@ -159,9 +156,6 @@ SessionStoreService.prototype = {
    * Initialize the component
    */
   init: function sss_init(aWindow) {
-    if (this._loadState == STATE_DISABLED)
-      return;
-
     if (!aWindow || this._loadState == STATE_RUNNING) {
       // make sure that all browser windows which try to initialize
       // SessionStore are really tracked by it
@@ -176,15 +170,6 @@ SessionStoreService.prototype = {
 
     var observerService = Cc["@mozilla.org/observer-service;1"].
                           getService(Ci.nsIObserverService);
-
-    // if the service is disabled, do not init 
-    if (!this._prefBranch.getBoolPref("sessionstore.enabled")) {
-      // Notify observers that the sessionstore has done everything it is going to.
-      observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
-      // Mark as disabled so we don't even try to initialise again.
-      this._loadState = STATE_DISABLED;
-      return;
-    }
 
     OBSERVING.forEach(function(aTopic) {
       observerService.addObserver(this, aTopic, true);
@@ -208,7 +193,7 @@ SessionStoreService.prototype = {
     this._sessionFileBackup = this._sessionFile.clone();
     this._sessionFile.append("sessionstore.js");
     this._sessionFileBackup.append("sessionstore.bak");
-   
+
     // get string containing session state
     var iniString;
     try {
@@ -223,31 +208,33 @@ SessionStoreService.prototype = {
       try {
         // parse the session state into JS objects
         this._initialState = this._safeEval(iniString);
-        // set bool detecting crash
-        this._lastSessionCrashed =
+        
+        // if last session crashed, backup the session
+        let lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
           this._initialState.session.state == STATE_RUNNING_STR;
+        if (lastSessionCrashed) {
+          try {
+            this._writeFile(this._sessionFileBackup, iniString);
+          }
+          catch (ex) { } // nothing else we can do here
+        }
         
-        // restore the features of the first window from localstore.rdf
-        WINDOW_ATTRIBUTES.forEach(function(aAttr) {
-          delete this._initialState.windows[0][aAttr];
-        }, this);
+        // make sure that at least the first window doesn't have anything hidden
         delete this._initialState.windows[0].hidden;
       }
       catch (ex) { debug("The session file is invalid: " + ex); }
-    }
-    
-    // if last session crashed, backup the session
-    if (this._lastSessionCrashed) {
-      try {
-        this._writeFile(this._sessionFileBackup, iniString);
-      }
-      catch (ex) { } // nothing else we can do here
     }
 
     // remove the session data files if crash recovery is disabled
     if (!this._resume_from_crash)
       this._clearDisk();
+    
+    // at this point, we've as good as resumed the session, so we can
+    // clear the resume_session_once flag, if it's set
+    if (this._loadState != STATE_QUITTING &&
+        this._prefBranch.getBoolPref("sessionstore.resume_session_once"))
+      this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
     
     // As this is called at delayedStartup, restoration must be initiated here
     this.onLoad(aWindow);
@@ -294,7 +281,6 @@ SessionStoreService.prototype = {
         this._collectWindowData(aWindow);
       });
       this._dirtyWindows = [];
-      this._dirty = false;
       break;
     case "quit-application-granted":
       // freeze the data at what we've got (ignoring closing windows)
@@ -307,22 +293,27 @@ SessionStoreService.prototype = {
       this._uninit();
       break;
     case "browser:purge-session-history": // catch sanitization 
+      let openWindows = {};
       this._forEachBrowserWindow(function(aWindow) {
         Array.forEach(aWindow.getBrowser().browsers, function(aBrowser) {
           delete aBrowser.parentNode.__SS_data;
         });
+        openWindows[aWindow.__SSi] = true;
       });
-      this._lastWindowClosed = null;
-      this._clearDisk();
-      // also clear all data about closed tabs
+      // also clear all data about closed tabs and windows
       for (ix in this._windows) {
-        this._windows[ix]._closedTabs = [];
+        if (ix in openWindows)
+          this._windows[ix]._closedTabs = [];
+        else
+          delete this._windows[ix];
       }
+      this._lastClosedWindows = null;
+      this._clearDisk();
       // give the tabbrowsers a chance to clear their histories first
       var win = this._getMostRecentBrowserWindow();
       if (win)
         win.setTimeout(function() { _this.saveState(true); }, 0);
-      else
+      else if (this._loadState == STATE_RUNNING)
         this.saveState(true);
       break;
     case "nsPref:changed": // catch pref changes
@@ -373,9 +364,13 @@ SessionStoreService.prototype = {
       case "pageshow":
         this.onTabLoad(aEvent.currentTarget.ownerDocument.defaultView, aEvent.currentTarget, aEvent);
         break;
+      case "change":
       case "input":
       case "DOMAutoComplete":
-        this.onTabInput(aEvent.currentTarget.ownerDocument.defaultView, aEvent.currentTarget, aEvent);
+        this.onTabInput(aEvent.currentTarget.ownerDocument.defaultView, aEvent.currentTarget);
+        break;
+      case "scroll":
+        this.onTabScroll(aEvent.currentTarget.ownerDocument.defaultView);
         break;
       case "TabOpen":
       case "TabClose":
@@ -420,6 +415,8 @@ SessionStoreService.prototype = {
 
     // and create its data object
     this._windows[aWindow.__SSi] = { tabs: [], selected: 0, _closedTabs: [] };
+    if (!aWindow.toolbar.visible)
+      this._windows[aWindow.__SSi].isPopup = true;
     
     // perform additional initialization when the first window is loading
     if (this._loadState == STATE_STOPPED) {
@@ -488,9 +485,16 @@ SessionStoreService.prototype = {
       this._collectWindowData(aWindow);
       
       // preserve this window's data (in case it was the last navigator:browser)
-      this._lastWindowClosed = this._windows[aWindow.__SSi];
-      this._lastWindowClosed.title = aWindow.content.document.title;
-      this._updateCookies([this._lastWindowClosed]);
+      var winData = this._windows[aWindow.__SSi];
+      winData.title = aWindow.content.document.title;
+      
+      // if this is a popup window, append it to what we've already got (cf. bug 368677)
+      if (!this._lastClosedWindows || !winData.isPopup)
+        this._lastClosedWindows = [winData];
+      else
+        this._lastClosedWindows.push(winData);
+      
+      this._updateCookies(this._lastClosedWindows);
       
       // clear this window from the list
       delete this._windows[aWindow.__SSi];
@@ -504,7 +508,7 @@ SessionStoreService.prototype = {
     }
     
     // cache the window state until the window is completely gone
-    aWindow.__SS_dyingCache = this._windows[aWindow.__SSi] || this._lastWindowClosed;
+    aWindow.__SS_dyingCache = this._windows[aWindow.__SSi] || winData;
     
     // reset the _tab property to avoid keeping the tab's XUL element alive
     // longer than we need it
@@ -528,8 +532,10 @@ SessionStoreService.prototype = {
   onTabAdd: function sss_onTabAdd(aWindow, aPanel, aNoNotification) {
     aPanel.addEventListener("load", this, true);
     aPanel.addEventListener("pageshow", this, true);
+    aPanel.addEventListener("change", this, true);
     aPanel.addEventListener("input", this, true);
     aPanel.addEventListener("DOMAutoComplete", this, true);
+    aPanel.addEventListener("scroll", this, true);
     
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
@@ -548,11 +554,12 @@ SessionStoreService.prototype = {
   onTabRemove: function sss_onTabRemove(aWindow, aPanel, aNoNotification) {
     aPanel.removeEventListener("load", this, true);
     aPanel.removeEventListener("pageshow", this, true);
+    aPanel.removeEventListener("change", this, true);
     aPanel.removeEventListener("input", this, true);
     aPanel.removeEventListener("DOMAutoComplete", this, true);
+    aPanel.removeEventListener("scroll", this, true);
     
     delete aPanel.__SS_data;
-    delete aPanel.__SS_text;
     
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
@@ -588,10 +595,18 @@ SessionStoreService.prototype = {
     delete tabState._tab;
     
     // store closed-tab data for undo
-    if (tabState.entries.length > 1 || tabState.entries[0].url != "about:blank") {
+    if (tabState.entries.length > 0) {
+      let tabTitle = aTab.label;
+      let tabbrowser = aWindow.gBrowser;
+      // replace "Loading..." with the document title (with minimal side-effects)
+      if (tabTitle == tabbrowser.mStringBundle.getString("tabs.loading")) {
+        tabbrowser.setTabTitle(aTab);
+        [tabTitle, aTab.label] = [aTab.label, tabTitle];
+      }
+      
       this._windows[aWindow.__SSi]._closedTabs.unshift({
         state: tabState,
-        title: aTab.getAttribute("label"),
+        title: tabTitle,
         image: aTab.getAttribute("image"),
         pos: aTab._tPos
       });
@@ -618,7 +633,6 @@ SessionStoreService.prototype = {
     }
     
     delete aPanel.__SS_data;
-    delete aPanel.__SS_text;
     this.saveStateDelayed(aWindow);
     
     // attempt to update the current URL we send in a crash report
@@ -627,18 +641,25 @@ SessionStoreService.prototype = {
 
   /**
    * Called when a tabpanel sends the "input" notification 
-   * stores textarea data
    * @param aWindow
    *        Window reference
    * @param aPanel
    *        TabPanel reference
-   * @param aEvent
-   *        Event obj
    */
-  onTabInput: function sss_onTabInput(aWindow, aPanel, aEvent) {
-    if (this._saveTextData(aPanel, aEvent.originalTarget)) {
-      this.saveStateDelayed(aWindow, 3000);
-    }
+  onTabInput: function sss_onTabInput(aWindow, aPanel) {
+    if (aPanel.__SS_data)
+      delete aPanel.__SS_data._formDataSaved;
+    
+    this.saveStateDelayed(aWindow, 3000);
+  },
+
+  /**
+   * Called when a tabpanel sends a "scroll" notification 
+   * @param aWindow
+   *        Window reference
+   */
+  onTabScroll: function sss_onTabScroll(aWindow) {
+    this.saveStateDelayed(aWindow, 3000);
   },
 
   /**
@@ -704,7 +725,7 @@ SessionStoreService.prototype = {
 
   setTabState: function sss_setTabState(aTab, aState) {
     var tabState = this._safeEval("(" + aState + ")");
-    if (!tabState.entries || !tabState.entries.length) {
+    if (!tabState.entries) {
       Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
       return;
     }
@@ -756,6 +777,7 @@ SessionStoreService.prototype = {
   },
 
   undoCloseTab: function sss_undoCloseTab(aWindow, aIndex) {
+    var tab = null;
     var closedTabs = this._windows[aWindow.__SSi]._closedTabs;
 
     // default to the most-recently closed tab
@@ -769,21 +791,23 @@ SessionStoreService.prototype = {
       var closedTabState = closedTab.state;
 
       // create a new tab
-      closedTabState._tab = browser.addTab();
+      tab = closedTabState._tab = browser.addTab();
         
       // restore the tab's position
-      browser.moveTabTo(closedTabState._tab, closedTab.pos);
+      browser.moveTabTo(tab, closedTab.pos);
   
       // restore tab content
       this.restoreHistoryPrecursor(aWindow, [closedTabState], 1, 0, 0);
 
       // focus the tab's content area
-      var content = browser.getBrowserForTab(closedTabState._tab).contentWindow;
+      var content = browser.getBrowserForTab(tab).contentWindow;
       aWindow.setTimeout(function() { content.focus(); }, 0);
     }
     else {
       Components.returnCode = Cr.NS_ERROR_INVALID_ARG;
     }
+    
+    return tab;
   },
 
   getWindowValue: function sss_getWindowValue(aWindow, aKey) {
@@ -873,7 +897,7 @@ SessionStoreService.prototype = {
    * @returns object
    */
   _collectTabData: function sss_collectTabData(aTab, aFullData) {
-    var tabData = { entries: [], index: 0 };
+    var tabData = { entries: [] };
     var browser = aTab.linkedBrowser;
     
     if (!browser || !browser.currentURI)
@@ -904,7 +928,8 @@ SessionStoreService.prototype = {
       if (!aFullData)
         browser.parentNode.__SS_data = tabData;
     }
-    else {
+    else if (browser.currentURI.spec != "about:blank" ||
+             browser.contentDocument.body.hasChildNodes()) {
       tabData.entries[0] = { url: browser.currentURI.spec };
       tabData.index = 1;
     }
@@ -919,18 +944,20 @@ SessionStoreService.prototype = {
       delete tabData.disallow;
     
     if (this.xulAttributes.length > 0) {
-      var xulattr = Array.filter(aTab.attributes, function(aAttr) {
-        return this.xulAttributes.indexOf(aAttr.name) > -1;
-      }, this).map(function(aAttr) {
-        return aAttr.name + "=" + encodeURI(aAttr.value);
-      });
-      tabData.xultab = xulattr.join(" ");
+      tabData.attributes = {};
+      Array.forEach(aTab.attributes, function(aAttr) {
+        if (this.xulAttributes.indexOf(aAttr.name) > -1)
+          tabData.attributes[aAttr.name] = aAttr.value;
+      }, this);
     }
     
     if (aTab.__SS_extdata)
       tabData.extData = aTab.__SS_extdata;
     else if (tabData.extData)
       delete tabData.extData;
+    
+    if (history && browser.docShell instanceof Ci.nsIDocShell)
+      this._serializeSessionStorage(tabData, history, browser.docShell, aFullData);
     
     return tabData;
   },
@@ -1037,6 +1064,11 @@ SessionStoreService.prototype = {
         else { // to maintain the correct frame order, insert a dummy entry 
           entry.children.push({ url: "about:blank" });
         }
+        // don't try to restore framesets containing wyciwyg URLs (cf. bug 424689 and bug 450595)
+        if (/^wyciwyg:\/\//.test(entry.children[i].url)) {
+          delete entry.children;
+          break;
+        }
       }
     }
     
@@ -1044,53 +1076,49 @@ SessionStoreService.prototype = {
   },
 
   /**
-   * Updates the current document's cache of user entered text data
-   * @param aPanel
-   *        TabPanel reference
-   * @param aTextarea
-   *        HTML content element
-   * @returns bool
+   * Updates all sessionStorage "super cookies"
+   * @param aTabData
+   *        The data object for a specific tab
+   * @param aHistory
+   *        That tab's session history
+   * @param aDocShell
+   *        That tab's docshell (containing the sessionStorage)
+   * @param aFullData
+   *        always return privacy sensitive data (use with care)
    */
-  _saveTextData: function sss_saveTextData(aPanel, aTextarea) {
-    var id = aTextarea.id ? "#" + aTextarea.id :
-                            aTextarea.name;
-    if (!id
-      || !(aTextarea instanceof Ci.nsIDOMHTMLTextAreaElement 
-      || aTextarea instanceof Ci.nsIDOMHTMLInputElement)) {
-      return false; // nothing to save
+  _serializeSessionStorage:
+    function sss_serializeSessionStorage(aTabData, aHistory, aDocShell, aFullData) {
+    let storageData = {};
+    let hasContent = false;
+
+    for (let i = 0; i < aHistory.count; i++) {
+      let uri = aHistory.getEntryAtIndex(i, false).URI.clone();
+      // sessionStorage is saved per domain (cf. nsDocShell::GetSessionStorageForURI)
+      if (uri instanceof Ci.nsIURL)
+        uri.path = "";
+      if (storageData[uri.spec] || !(aFullData || this._checkPrivacyLevel(uri.schemeIs("https"))))
+        continue;
+
+      let storage = aDocShell.getSessionStorageForURI(uri);
+      if (!storage || storage.length == 0)
+        continue;
+
+      let data = storageData[uri.spec] = {};
+      for (let j = 0; j < storage.length; j++) {
+        try {
+          let key = storage.key(j);
+          let item = storage.getItem(key);
+          data[key] = { value: item.value };
+          if (uri.schemeIs("https") && item.secure)
+            data[key].secure = true;
+        }
+        catch (ex) { /* XXXzeniko this currently throws for secured items (cf. bug 442048) */ }
+      }
+      hasContent = true;
     }
-    
-    if (!aPanel.__SS_text) {
-      aPanel.__SS_text = [];
-      aPanel.__SS_text._refs = [];
-    }
-    
-    // get the index of the reference to the text element
-    var ix = aPanel.__SS_text._refs.indexOf(aTextarea);
-    if (ix == -1) {
-      // we haven't registered this text element yet - do so now
-      aPanel.__SS_text._refs.push(aTextarea);
-      ix = aPanel.__SS_text.length;
-    }
-    else if (!aPanel.__SS_text[ix].cache) {
-      // we've already marked this text element for saving (the cache is
-      // added during save operations and would have to be updated here)
-      return false;
-    }
-    
-    // determine the frame we're in and encode it into the textarea's ID
-    var content = aTextarea.ownerDocument.defaultView;
-    while (content != content.top) {
-      var frames = content.parent.frames;
-      for (var i = 0; i < frames.length && frames[i] != content; i++);
-      id = i + "|" + id;
-      content = content.parent;
-    }
-    
-    // mark this element for saving
-    aPanel.__SS_text[ix] = { id: id, element: aTextarea };
-    
-    return true;
+
+    if (hasContent)
+      aTabData.storage = storageData;
   },
 
   /**
@@ -1104,8 +1132,7 @@ SessionStoreService.prototype = {
     for (var i = 0; i < browsers.length; i++) {
       try {
         var tabData = this._windows[aWindow.__SSi].tabs[i];
-        if (tabData.entries.length == 0 ||
-            browsers[i].parentNode.__SS_data && browsers[i].parentNode.__SS_data._tab)
+        if (browsers[i].parentNode.__SS_data && browsers[i].parentNode.__SS_data._tab)
           continue; // ignore incompletely initialized tabs
         this._updateTextAndScrollDataForTab(aWindow, browsers[i], tabData);
       }
@@ -1127,65 +1154,130 @@ SessionStoreService.prototype = {
    */
   _updateTextAndScrollDataForTab:
     function sss_updateTextAndScrollDataForTab(aWindow, aBrowser, aTabData, aFullData) {
-    var text = [];
-    if (aBrowser.parentNode.__SS_text &&
-        (aFullData || this._checkPrivacyLevel(aBrowser.currentURI.schemeIs("https")))) {
-      for (var ix = aBrowser.parentNode.__SS_text.length - 1; ix >= 0; ix--) {
-        var data = aBrowser.parentNode.__SS_text[ix];
-        if (!data.cache)
-          // update the text element's value before adding it to the data structure
-          data.cache = encodeURI(data.element.value);
-        text.push(data.id + "=" + data.cache);
-      }
-    }
-    if (aBrowser.currentURI.spec == "about:config")
-      text = ["#textbox=" + encodeURI(aBrowser.contentDocument.getElementById("textbox").
-                                               wrappedJSObject.value)];
-    if (text.length > 0)
-      aTabData.text = text.join(" ");
-    else if (aTabData.text)
-      delete aTabData.text;
-    
     var tabIndex = (aTabData.index || aTabData.entries.length) - 1;
     // entry data needn't exist for tabs just initialized with an incomplete session state
-    if (aTabData.entries[tabIndex])
-      this._updateTextAndScrollDataForFrame(aWindow, aBrowser.contentWindow,
-                                            aTabData.entries[tabIndex], aFullData);
+    if (!aTabData.entries[tabIndex])
+      return;
+    
+    let selectedPageStyle = aBrowser.markupDocumentViewer.authorStyleDisabled ? "_nostyle" :
+                            this._getSelectedPageStyle(aBrowser.contentWindow);
+    if (selectedPageStyle)
+      aTabData.pageStyle = selectedPageStyle;
+    else if (aTabData.pageStyle)
+      delete aTabData.pageStyle;
+    
+    this._updateTextAndScrollDataForFrame(aWindow, aBrowser.contentWindow,
+                                          aTabData.entries[tabIndex],
+                                          !aTabData._formDataSaved, aFullData);
+    aTabData._formDataSaved = true;
+    if (aBrowser.currentURI.spec == "about:config")
+      aTabData.entries[tabIndex].formdata = {
+        "#textbox": aBrowser.contentDocument.getElementById("textbox").wrappedJSObject.value
+      };
   },
 
   /**
-   * go through all subframes and store the current scroll positions
-   * and innerHTML content of WYSIWYG editors
+   * go through all subframes and store all form data, the current
+   * scroll positions and innerHTML content of WYSIWYG editors
    * @param aWindow
    *        Window reference
    * @param aContent
    *        frame reference
    * @param aData
    *        part of a tabData object to add the information to
+   * @param aUpdateFormData
+   *        update all form data for this tab
    * @param aFullData
    *        always return privacy sensitive data (use with care)
    */
   _updateTextAndScrollDataForFrame:
-    function sss_updateTextAndScrollDataForFrame(aWindow, aContent, aData, aFullData) {
+    function sss_updateTextAndScrollDataForFrame(aWindow, aContent, aData,
+                                                 aUpdateFormData, aFullData) {
     for (var i = 0; i < aContent.frames.length; i++) {
       if (aData.children && aData.children[i])
-        this._updateTextAndScrollDataForFrame(aWindow, aContent.frames[i], aData.children[i], aFullData);
+        this._updateTextAndScrollDataForFrame(aWindow, aContent.frames[i],
+                                              aData.children[i], aUpdateFormData, aFullData);
     }
-    // designMode is undefined e.g. for XUL documents (as about:config)
     var isHTTPS = this._getURIFromString((aContent.parent || aContent).
                                          document.location.href).schemeIs("https");
-    if ((aContent.document.designMode || "") == "on" &&
-        (aFullData || this._checkPrivacyLevel(isHTTPS))) {
-      if (aData.innerHTML === undefined && !aFullData) {
-        // we get no "input" events from iframes - listen for keypress here
-        var _this = this;
-        aContent.addEventListener("keypress", function(aEvent) {
-          _this.saveStateDelayed(aWindow, 3000); }, true);
+    if (aFullData || this._checkPrivacyLevel(isHTTPS)) {
+      if (aFullData || aUpdateFormData) {
+        let formData = this._collectFormDataForFrame(aContent.document);
+        if (formData)
+          aData.formdata = formData;
+        else if (aData.formdata)
+          delete aData.formdata;
       }
-      aData.innerHTML = aContent.document.body.innerHTML;
+      
+      // designMode is undefined e.g. for XUL documents (as about:config)
+      if ((aContent.document.designMode || "") == "on") {
+        if (aData.innerHTML === undefined && !aFullData) {
+          // we get no "input" events from iframes - listen for keypress here
+          let _this = this;
+          aContent.addEventListener("keypress", function(aEvent) {
+            _this.saveStateDelayed(aWindow, 3000);
+          }, true);
+        }
+        aData.innerHTML = aContent.document.body.innerHTML;
+      }
     }
     aData.scroll = aContent.scrollX + "," + aContent.scrollY;
-   },
+  },
+
+  /**
+   * determine the title of the currently enabled style sheet (if any)
+   * and recurse through the frameset if necessary
+   * @param   aContent is a frame reference
+   * @returns the title style sheet determined to be enabled (empty string if none)
+   */
+  _getSelectedPageStyle: function sss_getSelectedPageStyle(aContent) {
+    const forScreen = /(?:^|,)\s*(?:all|screen)\s*(?:,|$)/i;
+    for (let i = 0; i < aContent.document.styleSheets.length; i++) {
+      let ss = aContent.document.styleSheets[i];
+      let media = ss.media.mediaText;
+      if (!ss.disabled && ss.title && (!media || forScreen.test(media)))
+        return ss.title
+    }
+    for (let i = 0; i < aContent.frames.length; i++) {
+      let selectedPageStyle = this._getSelectedPageStyle(aContent.frames[i]);
+      if (selectedPageStyle)
+        return selectedPageStyle;
+    }
+    return "";
+  },
+
+  /**
+   * collect the state of all form elements
+   * @param aDocument
+   *        document reference
+   */
+  _collectFormDataForFrame: function sss_collectFormDataForFrame(aDocument) {
+    let formNodesXPath = "//textarea|//select|//xhtml:textarea|//xhtml:select|" +
+      "//input[not(@type) or @type='text' or @type='checkbox' or @type='radio' or @type='file']|" +
+      "//xhtml:input[not(@type) or @type='text' or @type='checkbox' or @type='radio' or @type='file']";
+    let formNodes = aDocument.evaluate(formNodesXPath, aDocument, XPathHelper.resolveNS,
+                                       Ci.nsIDOMXPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
+    let node = formNodes.iterateNext();
+    if (!node)
+      return null;
+    
+    let data = {};
+    do {
+      let id = node.id ? "#" + node.id : XPathHelper.generate(node);
+      if (node instanceof Ci.nsIDOMHTMLInputElement)
+        data[id] = node.type == "checkbox" || node.type == "radio" ? node.checked : node.value;
+      else if (node instanceof Ci.nsIDOMHTMLTextAreaElement)
+        data[id] = node.value;
+      else if (!node.multiple)
+        data[id] = node.selectedIndex;
+      else {
+        let options = Array.map(node.options, function(aOpt, aIx) aOpt.selected ? aIx : -1);
+        data[id] = options.filter(function(aIx) aIx >= 0);
+      }
+    } while ((node = formNodes.iterateNext()));
+    
+    return data;
+  },
 
   /**
    * store all hosts for a URL
@@ -1289,15 +1381,17 @@ SessionStoreService.prototype = {
 
   /**
    * serialize session data as Ini-formatted string
+   * @param aUpdateAll
+   *        Bool update all windows 
    * @returns string
    */
-  _getCurrentState: function sss_getCurrentState() {
+  _getCurrentState: function sss_getCurrentState(aUpdateAll) {
     var activeWindow = this._getMostRecentBrowserWindow();
     
     if (this._loadState == STATE_RUNNING) {
       // update the data for all windows with activities since the last save operation
       this._forEachBrowserWindow(function(aWindow) {
-        if (this._dirty || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
+        if (aUpdateAll || this._dirtyWindows[aWindow.__SSi] || aWindow == activeWindow) {
           this._collectWindowData(aWindow);
         }
         else { // always update the window features (whose change alone never triggers a save operation)
@@ -1305,21 +1399,25 @@ SessionStoreService.prototype = {
         }
       }, this);
       this._dirtyWindows = [];
-      this._dirty = false;
     }
     
     // collect the data for all windows
     var total = [], windows = [];
+    var nonPopupCount = 0;
     var ix;
     for (ix in this._windows) {
       total.push(this._windows[ix]);
       windows.push(ix);
+      if (!this._windows[ix].isPopup)
+        nonPopupCount++;
     }
     this._updateCookies(total);
     
-    // if no browser window remains open, return the state of the last closed window
-    if (total.length == 0 && this._lastWindowClosed) {
-      total.push(this._lastWindowClosed);
+    // if no non-popup browser window remains open, return the state of the last closed window(s)
+    if (nonPopupCount == 0 && this._lastClosedWindows) {
+      // prepend the last non-popup browser window, so that if the user loads more tabs
+      // at startup we don't accidentally add them to a popup window
+      total = this._lastClosedWindows.concat(total);
     }
     if (activeWindow) {
       this.activeWindowSSiCache = activeWindow.__SSi || "";
@@ -1417,6 +1515,12 @@ SessionStoreService.prototype = {
     if (!winData.tabs) {
       winData.tabs = [];
     }
+    // don't restore a single blank tab when we've had an external
+    // URL passed in for loading at startup (cf. bug 357419)
+    else if (root._firstTabs && !aOverwriteTabs && winData.tabs.length == 1 &&
+             (!winData.tabs[0].entries || winData.tabs[0].entries.length == 0)) {
+      winData.tabs = [];
+    }
     
     var tabbrowser = aWindow.getBrowser();
     var openTabCount = aOverwriteTabs ? tabbrowser.browsers.length : -1;
@@ -1494,16 +1598,27 @@ SessionStoreService.prototype = {
     
     // mark the tabs as loading
     for (t = 0; t < aTabs.length; t++) {
-      if (!aTabs[t].entries || !aTabs[t].entries[0])
-        continue; // there won't be anything to load
-      
       var tab = aTabs[t]._tab;
       var browser = tabbrowser.getBrowserForTab(tab);
+      
+      if (!aTabs[t].entries || aTabs[t].entries.length == 0) {
+        // make sure to blank out this tab's content
+        // (just purging the tab's history won't be enough)
+        browser.contentDocument.location = "about:blank";
+        continue;
+      }
+      
       browser.stop(); // in case about:blank isn't done yet
       
       tab.setAttribute("busy", "true");
       tabbrowser.updateIcon(tab);
       tabbrowser.setTabTitleLoading(tab);
+      
+      // wall-paper fix for bug 439675: make sure that the URL to be loaded
+      // is always visible in the address bar
+      let activeIndex = (aTabs[t].index || aTabs[t].entries.length) - 1;
+      let activePageData = aTabs[t].entries[activeIndex] || null;
+      browser.userTypedValue = activePageData ? activePageData.url || null : null;
       
       // keep the data around to prevent dataloss in case
       // a tab gets closed before it's been properly restored
@@ -1570,32 +1685,47 @@ SessionStoreService.prototype = {
       return (_this.xulAttributes.indexOf(aAttr.name) > -1);
     }).forEach(tab.removeAttribute, tab);
     if (tabData.xultab) {
+      // restore attributes from the legacy Firefox 2.0/3.0 format
       tabData.xultab.split(" ").forEach(function(aAttr) {
         if (/^([^\s=]+)=(.*)/.test(aAttr)) {
           tab.setAttribute(RegExp.$1, decodeURI(RegExp.$2));
         }
       });
     }
+    for (let name in tabData.attributes)
+      tab.setAttribute(name, tabData.attributes[name]);
+    
+    if (tabData.storage && browser.docShell instanceof Ci.nsIDocShell)
+      this._deserializeSessionStorage(tabData.storage, browser.docShell);
     
     // notify the tabbrowser that the tab chrome has been restored
     var event = aWindow.document.createEvent("Events");
     event.initEvent("SSTabRestoring", true, false);
     tab.dispatchEvent(event);
     
-    var activeIndex = (tabData.index || tabData.entries.length) - 1;
+    let activeIndex = (tabData.index || tabData.entries.length) - 1;
+    if (activeIndex >= tabData.entries.length)
+      activeIndex = tabData.entries.length - 1;
     try {
-      browser.webNavigation.gotoIndex(activeIndex);
+      if (activeIndex >= 0)
+        browser.webNavigation.gotoIndex(activeIndex);
     }
-    catch (ex) { } // ignore an invalid tabData.index
+    catch (ex) {
+      // ignore page load errors
+      tab.removeAttribute("busy");
+    }
     
-    // restore those aspects of the currently active documents
-    // which are not preserved in the plain history entries
-    // (mainly scroll state and text data)
-    browser.__SS_restore_data = tabData.entries[activeIndex] || {};
-    browser.__SS_restore_text = tabData.text || "";
-    browser.__SS_restore_tab = tab;
-    browser.__SS_restore = this.restoreDocument_proxy;
-    browser.addEventListener("load", browser.__SS_restore, true);
+    if (tabData.entries.length > 0) {
+      // restore those aspects of the currently active documents
+      // which are not preserved in the plain history entries
+      // (mainly scroll state and text data)
+      browser.__SS_restore_data = tabData.entries[activeIndex] || {};
+      browser.__SS_restore_text = tabData.text || "";
+      browser.__SS_restore_pageStyle = tabData.pageStyle || "";
+      browser.__SS_restore_tab = tab;
+      browser.__SS_restore = this.restoreDocument_proxy;
+      browser.addEventListener("load", browser.__SS_restore, true);
+    }
     
     aWindow.setTimeout(function(){ _this.restoreHistory(aWindow, aTabs, aIdMap); }, 0);
   },
@@ -1689,6 +1819,29 @@ SessionStoreService.prototype = {
   },
 
   /**
+   * restores all sessionStorage "super cookies"
+   * @param aStorageData
+   *        Storage data to be restored
+   * @param aDocShell
+   *        A tab's docshell (containing the sessionStorage)
+   */
+  _deserializeSessionStorage: function sss_deserializeSessionStorage(aStorageData, aDocShell) {
+    let ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+    for (let url in aStorageData) {
+      let uri = ioService.newURI(url, null, null);
+      let storage = aDocShell.getSessionStorageForURI(uri);
+      for (let key in aStorageData[url]) {
+        try {
+          storage.setItem(key, aStorageData[url][key].value);
+          if (uri.schemeIs("https"))
+            storage.getItem(key).secure = aStorageData[url][key].secure || false;
+        }
+        catch (ex) { Cu.reportError(ex); } // throws e.g. for URIs that can't have sessionStorage
+      }
+    }
+  },
+
+  /**
    * Restore properties to a loaded document
    */
   restoreDocument_proxy: function sss_restoreDocument_proxy(aEvent) {
@@ -1697,6 +1850,7 @@ SessionStoreService.prototype = {
       return;
     }
     
+    // restore text data saved by Firefox 2.0/3.0
     var textArray = this.__SS_restore_text ? this.__SS_restore_text.split(" ") : [];
     function restoreTextData(aContent, aPrefix) {
       textArray.forEach(function(aEntry) {
@@ -1714,14 +1868,51 @@ SessionStoreService.prototype = {
       });
     }
     
+    function restoreFormData(aDocument, aData) {
+      for (let key in aData) {
+        let node = key.charAt(0) == "#" ? aDocument.getElementById(key.slice(1)) :
+                                          XPathHelper.resolve(aDocument, key);
+        if (!node)
+          continue;
+        
+        let value = aData[key];
+        if (typeof value == "string") {
+          node.value = value;
+          
+          let event = aDocument.createEvent("UIEvents");
+          event.initUIEvent("input", true, true, aDocument.defaultView, 0);
+          node.dispatchEvent(event);
+        }
+        else if (typeof value == "boolean")
+          node.checked = value;
+        else if (typeof value == "number")
+          try {
+            node.selectedIndex = value;
+          } catch (ex) { /* throws for invalid indices */ }
+        else if (value && typeof value.indexOf == "function" && node.options) {
+          Array.forEach(node.options, function(aOpt, aIx) {
+            aOpt.selected = value.indexOf(aIx) > -1;
+          });
+        }
+        // NB: dispatching "change" events might have unintended side-effects
+      }
+    }
+    
+    let selectedPageStyle = this.__SS_restore_pageStyle;
     function restoreTextDataAndScrolling(aContent, aData, aPrefix) {
-      restoreTextData(aContent, aPrefix);
+      if (aData.formdata)
+        restoreFormData(aContent.document, aData.formdata);
+      else
+        restoreTextData(aContent, aPrefix);
       if (aData.innerHTML) {
         aContent.setTimeout(function(aHTML) { if (this.document.designMode == "on") { this.document.body.innerHTML = aHTML; } }, 0, aData.innerHTML);
       }
       if (aData.scroll && /(\d+),(\d+)/.test(aData.scroll)) {
         aContent.scrollTo(RegExp.$1, RegExp.$2);
       }
+      Array.forEach(aContent.document.styleSheets, function(aSS) {
+        aSS.disabled = aSS.title && aSS.title != selectedPageStyle;
+      });
       for (var i = 0; i < aContent.frames.length; i++) {
         if (aData.children && aData.children[i]) {
           restoreTextDataAndScrolling(aContent.frames[i], aData.children[i], i + "|" + aPrefix);
@@ -1729,22 +1920,29 @@ SessionStoreService.prototype = {
       }
     }
     
-    var content = aEvent.originalTarget.defaultView;
-    if (this.currentURI.spec == "about:config") {
-      // unwrap the document for about:config because otherwise the properties
-      // of the XBL bindings - as the textbox - aren't accessible (see bug 350718)
-      content = content.wrappedJSObject;
+    // don't restore text data and scrolling state if the user has navigated
+    // away before the loading completed (except for in-page navigation)
+    if (!this.__SS_restore_data.url || this.currentURI.spec.replace(/#.*/, "") ==
+                                       this.__SS_restore_data.url.replace(/#.*/, "")) {
+      var content = aEvent.originalTarget.defaultView;
+      if (this.currentURI.spec == "about:config") {
+        // unwrap the document for about:config because otherwise the properties
+        // of the XBL bindings - as the textbox - aren't accessible (see bug 350718)
+        content = content.wrappedJSObject;
+      }
+      restoreTextDataAndScrolling(content, this.__SS_restore_data, "");
+      this.markupDocumentViewer.authorStyleDisabled = selectedPageStyle == "_nostyle";
+      
+      // notify the tabbrowser that this document has been completely restored
+      var event = this.ownerDocument.createEvent("Events");
+      event.initEvent("SSTabRestored", true, false);
+      this.__SS_restore_tab.dispatchEvent(event);
     }
-    restoreTextDataAndScrolling(content, this.__SS_restore_data, "");
-    
-    // notify the tabbrowser that this document has been completely restored
-    var event = this.ownerDocument.createEvent("Events");
-    event.initEvent("SSTabRestored", true, false);
-    this.__SS_restore_tab.dispatchEvent(event);
     
     this.removeEventListener("load", this.__SS_restore, true);
     delete this.__SS_restore_data;
     delete this.__SS_restore_text;
+    delete this.__SS_restore_pageStyle;
     delete this.__SS_restore_tab;
     delete this.__SS_restore;
   },
@@ -1761,6 +1959,11 @@ SessionStoreService.prototype = {
     WINDOW_HIDEABLE_FEATURES.forEach(function(aItem) {
       aWindow[aItem].visible = hidden.indexOf(aItem) == -1;
     });
+    
+    if (aWinData.isPopup)
+      this._windows[aWindow.__SSi].isPopup = true;
+    else
+      delete this._windows[aWindow.__SSi].isPopup;
     
     var _this = this;
     aWindow.setTimeout(function() {
@@ -1811,7 +2014,7 @@ SessionStoreService.prototype = {
     // since resizing/moving a window brings it to the foreground,
     // we might want to re-focus the last focused window
     if (this.windowToFocus) {
-      this.windowToFocus.focus();
+      this.windowToFocus.content.focus();
     }
   },
 
@@ -1890,10 +2093,21 @@ SessionStoreService.prototype = {
     if (!this._resume_from_crash && this._loadState == STATE_RUNNING)
       return;
     
-    this._dirty = aUpdateAll;
-    var oState = this._getCurrentState();
+    var oState = this._getCurrentState(aUpdateAll);
     oState.session = { state: ((this._loadState == STATE_RUNNING) ? STATE_RUNNING_STR : STATE_STOPPED_STR) };
-    this._writeFile(this._sessionFile, oState.toSource());
+    
+    var stateString = Cc["@mozilla.org/supports-string;1"].
+                        createInstance(Ci.nsISupportsString);
+    stateString.data = oState.toSource();
+    
+    var observerService = Cc["@mozilla.org/observer-service;1"].
+                          getService(Ci.nsIObserverService);
+    observerService.notifyObservers(stateString, "sessionstore-state-write", "");
+    
+    // don't touch the file if an observer has deleted all state data
+    if (stateString.data)
+      this._writeFile(this._sessionFile, stateString.data);
+    
     this._lastSaveTime = Date.now();
   },
 
@@ -2053,19 +2267,6 @@ SessionStoreService.prototype = {
   },
 
   /**
-   * Convenience method to get localized string bundles
-   * @param aURI
-   * @returns nsIStringBundle
-   */
-  _getStringBundle: function sss_getStringBundle(aURI) {
-     var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
-                         getService(Ci.nsIStringBundleService);
-     var appLocale = Cc["@mozilla.org/intl/nslocaleservice;1"].
-                     getService(Ci.nsILocaleService).getApplicationLocale();
-     return bundleService.createBundle(aURI, appLocale);
-  },
-
-  /**
    * Get nsIURI from string
    * @param string
    * @returns nsIURI
@@ -2086,9 +2287,15 @@ SessionStoreService.prototype = {
       return;
     }
     try {
-      var currentUrl = aWindow.getBrowser().currentURI.spec;
+      var currentURI = aWindow.getBrowser().currentURI.clone();
+      // if the current URI contains a username/password, remove it
+      try { 
+        currentURI.userPass = ""; 
+      } 
+      catch (ex) { } // ignore failures on about: URIs
+
       var cr = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsICrashReporter);
-      cr.annotateCrashReport("URL", currentUrl);
+      cr.annotateCrashReport("URL", currentURI.spec);
     }
     catch (ex) {
       // don't make noise when crashreporter is built but not enabled
@@ -2115,7 +2322,7 @@ SessionStoreService.prototype = {
    * @return the object's JSON representation
    */
   _toJSONString: function sss_toJSONString(aJSObject) {
-    var str = JSON.toString(aJSObject, ["_tab", "_hosts"] /* keys to drop */);
+    let str = JSON.toString(aJSObject, ["_tab", "_hosts", "_formDataSaved"] /* keys to drop */);
     
     // sanity check - so that API consumers can just eval this string
     if (!JSON.isMostlyHarmless(str))
@@ -2153,6 +2360,66 @@ SessionStoreService.prototype = {
     } else {
       stream.close();
     }
+  }
+};
+
+let XPathHelper = {
+  // these two hashes should be kept in sync
+  namespaceURIs:     { "xhtml": "http://www.w3.org/1999/xhtml" },
+  namespacePrefixes: { "http://www.w3.org/1999/xhtml": "xhtml" },
+
+  /**
+   * Generates an approximate XPath query to an (X)HTML node
+   */
+  generate: function sss_xph_generate(aNode) {
+    // have we reached the document node already?
+    if (!aNode.parentNode)
+      return "";
+    
+    let prefix = this.namespacePrefixes[aNode.namespaceURI] || null;
+    let tag = (prefix ? prefix + ":" : "") + aNode.localName;
+    
+    // stop once we've found a tag with an ID
+    if (aNode.id)
+      return "//" + tag + "[@id=" + this.quoteArgument(aNode.id) + "]";
+    
+    // count the number of previous sibling nodes of the same tag
+    // (and possible also the same name)
+    let count = 0;
+    let nName = aNode.name || null;
+    for (let n = aNode; (n = n.previousSibling); )
+      if (n.localName == aNode.localName && n.namespaceURI == aNode.namespaceURI &&
+          (!nName || n.name == nName))
+        count++;
+    
+    // recurse until hitting either the document node or an ID'd node
+    return this.generate(aNode.parentNode) + "/" + tag +
+           (nName ? "[@name=" + this.quoteArgument(nName) + "]" : "") +
+           (count ? "[" + (count + 1) + "]" : "");
+  },
+
+  /**
+   * Resolves an XPath query generated by XPathHelper.generate
+   */
+  resolve: function sss_xph_resolve(aDocument, aQuery) {
+    let xptype = Ci.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE;
+    return aDocument.evaluate(aQuery, aDocument, this.resolveNS, xptype, null).singleNodeValue;
+  },
+
+  /**
+   * Namespace resolver for the above XPath resolver
+   */
+  resolveNS: function sss_xph_resolveNS(aPrefix) {
+    return XPathHelper.namespaceURIs[aPrefix] || null;
+  },
+
+  /**
+   * @returns a properly quoted string to insert into an XPath query
+   */
+  quoteArgument: function sss_xph_quoteArgument(aArg) {
+    return !/'/.test(aArg) ? "'" + aArg + "'" :
+           !/"/.test(aArg) ? '"' + aArg + '"' :
+           "concat('" + aArg.replace(/'+/g, "',\"$&\",'") + "')";
   }
 };
 

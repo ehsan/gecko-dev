@@ -44,6 +44,8 @@
 #include "gfxQuartzFontCache.h"
 #elif defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
+#elif defined(MOZ_WIDGET_QT)
+#include "gfxQtPlatform.h"
 #elif defined(XP_BEOS)
 #include "gfxBeOSPlatform.h"
 #elif defined(XP_OS2)
@@ -54,13 +56,12 @@
 #include "gfxImageSurface.h"
 #include "gfxTextRunCache.h"
 #include "gfxTextRunWordCache.h"
+#include "gfxUserFontSet.h"
 
 #include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
 
-#ifdef MOZ_ENABLE_GLITZ
-#include <stdlib.h>
-#endif
+#include "nsWeakReference.h"
 
 #include "cairo.h"
 #include "lcms.h"
@@ -68,13 +69,55 @@
 #include "plstr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 
 gfxPlatform *gPlatform = nsnull;
-int gGlitzState = -1;
+
+// These two may point to the same profile
 static cmsHPROFILE gCMSOutputProfile = nsnull;
+static cmsHPROFILE gCMSsRGBProfile = nsnull;
+
 static cmsHTRANSFORM gCMSRGBTransform = nsnull;
 static cmsHTRANSFORM gCMSInverseRGBTransform = nsnull;
 static cmsHTRANSFORM gCMSRGBATransform = nsnull;
+
+static PRBool gCMSInitialized = PR_FALSE;
+static eCMSMode gCMSMode = eCMSMode_Off;
+static int gCMSIntent = -2;
+
+static const char *CMPrefName = "gfx.color_management.mode";
+static const char *CMPrefNameOld = "gfx.color_management.enabled";
+static const char *CMIntentPrefName = "gfx.color_management.rendering_intent";
+static const char *CMProfilePrefName = "gfx.color_management.display_profile";
+static const char *CMForceSRGBPrefName = "gfx.color_management.force_srgb";
+
+static void ShutdownCMS();
+static void MigratePrefs();
+
+/* Class to listen for pref changes so that chrome code can dynamically
+   force sRGB as an output profile. See Bug #452125. */
+class SRGBOverrideObserver : public nsIObserver,
+                             public nsSupportsWeakReference
+{
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIOBSERVER
+};
+
+NS_IMPL_ISUPPORTS2(SRGBOverrideObserver, nsIObserver, nsISupportsWeakReference)
+
+NS_IMETHODIMP
+SRGBOverrideObserver::Observe(nsISupports *aSubject,
+                              const char *aTopic,
+                              const PRUnichar *someData)
+{
+    NS_ASSERTION(NS_strcmp(someData,
+                   NS_LITERAL_STRING("gfx.color_mangement.force_srgb").get()),
+                 "Restarting CMS on wrong pref!");
+    ShutdownCMS();
+    return NS_OK;
+}
+
 
 // this needs to match the list of pref font.default.xx entries listed in all.js!
 // the order *must* match the order in eFontPrefLang
@@ -129,6 +172,8 @@ gfxPlatform::Init()
     gPlatform = new gfxPlatformMac;
 #elif defined(MOZ_WIDGET_GTK2)
     gPlatform = new gfxPlatformGtk;
+#elif defined(MOZ_WIDGET_QT)
+    gPlatform = new gfxQtPlatform;
 #elif defined(XP_BEOS)
     gPlatform = new gfxBeOSPlatform;
 #elif defined(XP_OS2)
@@ -169,6 +214,15 @@ gfxPlatform::Init()
         return rv;
     }
 
+    /* Pref migration hook. */
+    MigratePrefs();
+
+    /* Create and register our CMS Override observer. */
+    gPlatform->overrideObserver = new SRGBOverrideObserver();
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs)
+        prefs->AddObserver(CMForceSRGBPrefName, gPlatform->overrideObserver, PR_TRUE);
+
     return NS_OK;
 }
 
@@ -183,6 +237,15 @@ gfxPlatform::Shutdown()
 #if defined(XP_MACOSX)
     gfxQuartzFontCache::Shutdown();
 #endif
+
+    // Free the various non-null transforms and loaded profiles
+    ShutdownCMS();
+
+    /* Unregister our CMS Override callback. */
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs)
+        prefs->RemoveObserver(CMForceSRGBPrefName, gPlatform->overrideObserver);
+    
     delete gPlatform;
     gPlatform = nsnull;
 }
@@ -206,30 +269,6 @@ gfxPlatform::~gfxPlatform()
     // leaked, and we hit them.
     FcFini();
 #endif
-}
-
-PRBool
-gfxPlatform::UseGlitz()
-{
-#ifdef MOZ_ENABLE_GLITZ
-    if (gGlitzState == -1) {
-        if (getenv("MOZ_GLITZ"))
-            gGlitzState = 1;
-        else
-            gGlitzState = 0;
-    }
-
-    if (gGlitzState)
-        return PR_TRUE;
-#endif
-
-    return PR_FALSE;
-}
-
-void
-gfxPlatform::SetUseGlitz(PRBool use)
-{
-    gGlitzState = (use ? 1 : 0);
 }
 
 already_AddRefed<gfxASurface>
@@ -265,6 +304,29 @@ gfxPlatform::UpdateFontList()
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
+
+#define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
+
+PRBool
+gfxPlatform::DownloadableFontsEnabled()
+{
+    static PRBool initialized = PR_FALSE;
+    static PRBool allowDownloadableFonts = PR_FALSE;
+
+    if (initialized == PR_FALSE) {
+        initialized = PR_TRUE;
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRBool allow;
+            nsresult rv = prefs->GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, &allow);
+            if (NS_SUCCEEDED(rv))
+                allowDownloadableFonts = allow;
+        }
+    }
+
+    return allowDownloadableFonts;
+}
+
 
 static void
 AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
@@ -419,23 +481,82 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPre
     }
 }
 
-PRBool
-gfxPlatform::IsCMSEnabled()
+eCMSMode
+gfxPlatform::GetCMSMode()
 {
-    static PRBool sEnabled = -1;
-    if (sEnabled == -1) {
-        sEnabled = PR_TRUE;
+    if (gCMSInitialized == PR_FALSE) {
+        gCMSInitialized = PR_TRUE;
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
-            PRBool enabled;
+            PRInt32 mode;
             nsresult rv =
-                prefs->GetBoolPref("gfx.color_management.enabled", &enabled);
-            if (NS_SUCCEEDED(rv)) {
-                sEnabled = enabled;
+                prefs->GetIntPref(CMPrefName, &mode);
+            if (NS_SUCCEEDED(rv) && (mode >= 0) && (mode < eCMSMode_AllCount)) {
+                gCMSMode = static_cast<eCMSMode>(mode);
             }
         }
     }
-    return sEnabled;
+    return gCMSMode;
+}
+
+/* Chris Murphy (CM consultant) suggests this as a default in the event that we
+cannot reproduce relative + Black Point Compensation.  BPC brings an
+unacceptable performance overhead, so we go with perceptual. */
+#define INTENT_DEFAULT INTENT_PERCEPTUAL
+
+PRBool
+gfxPlatform::GetRenderingIntent()
+{
+    if (gCMSIntent == -2) {
+
+        /* Try to query the pref system for a rendering intent. */
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRInt32 pIntent;
+            nsresult rv = prefs->GetIntPref(CMIntentPrefName, &pIntent);
+            if (NS_SUCCEEDED(rv)) {
+              
+                /* If the pref is within range, use it as an override. */
+                if ((pIntent >= INTENT_MIN) && (pIntent <= INTENT_MAX))
+                    gCMSIntent = pIntent;
+
+                /* If the pref is out of range, use embedded profile. */
+                else
+                    gCMSIntent = -1;
+            }
+        }
+
+        /* If we didn't get a valid intent from prefs, use the default. */
+        if (gCMSIntent == -2) 
+            gCMSIntent = INTENT_DEFAULT;
+    }
+    return gCMSIntent;
+}
+
+void 
+gfxPlatform::TransformPixel(const gfxRGBA& in, gfxRGBA& out, cmsHTRANSFORM transform)
+{
+
+    if (transform) {
+#ifdef IS_LITTLE_ENDIAN
+        PRUint32 packed = in.Packed(gfxRGBA::PACKED_ABGR);
+        cmsDoTransform(transform,
+                       (PRUint8 *)&packed, (PRUint8 *)&packed,
+                       1);
+        out.~gfxRGBA();
+        new (&out) gfxRGBA(packed, gfxRGBA::PACKED_ABGR);
+#else
+        PRUint32 packed = in.Packed(gfxRGBA::PACKED_ARGB);
+        cmsDoTransform(transform,
+                       (PRUint8 *)&packed + 1, (PRUint8 *)&packed + 1,
+                       1);
+        out.~gfxRGBA();
+        new (&out) gfxRGBA(packed, gfxRGBA::PACKED_ARGB);
+#endif
+    }
+
+    else if (&out != &in)
+        out = in;
 }
 
 cmsHPROFILE
@@ -457,18 +578,31 @@ gfxPlatform::GetCMSOutputProfile()
 
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
-            nsXPIDLCString fname;
-            nsresult rv =
-                prefs->GetCharPref("gfx.color_management.display_profile",
-                                   getter_Copies(fname));
-            if (NS_SUCCEEDED(rv) && !fname.IsEmpty()) {
-                gCMSOutputProfile = cmsOpenProfileFromFile(fname, "r");
-#ifdef DEBUG_tor
-                if (gCMSOutputProfile)
-                    fprintf(stderr,
-                            "ICM profile read from %s successfully\n",
-                            fname.get());
-#endif
+
+            nsresult rv;
+
+            /* Determine if we're using the internal override to force sRGB as
+               an output profile for reftests. See Bug 452125. */
+            PRBool hasSRGBOverride, doSRGBOverride;
+            rv = prefs->PrefHasUserValue(CMForceSRGBPrefName, &hasSRGBOverride);
+            if (NS_SUCCEEDED(rv) && hasSRGBOverride) {
+                rv = prefs->GetBoolPref(CMForceSRGBPrefName, &doSRGBOverride);
+                if (NS_SUCCEEDED(rv) && doSRGBOverride)
+                    gCMSOutputProfile = GetCMSsRGBProfile();
+            }
+
+            if (!gCMSOutputProfile) {
+
+                nsXPIDLCString fname;
+                rv = prefs->GetCharPref(CMProfilePrefName,
+                                        getter_Copies(fname));
+                if (NS_SUCCEEDED(rv) && !fname.IsEmpty()) {
+                    gCMSOutputProfile = cmsOpenProfileFromFile(fname, "r");
+                    if (gCMSOutputProfile)
+                        fprintf(stderr,
+                                "ICM profile read from %s successfully\n",
+                                fname.get());
+                }
             }
         }
 
@@ -478,11 +612,30 @@ gfxPlatform::GetCMSOutputProfile()
         }
 
         if (!gCMSOutputProfile) {
-            gCMSOutputProfile = cmsCreate_sRGBProfile();
+            gCMSOutputProfile = GetCMSsRGBProfile();
         }
+
+        /* Precache the LUT16 Interpolations for the output profile. See 
+           bug 444661 for details. */
+        cmsPrecacheProfile(gCMSOutputProfile, CMS_PRECACHE_LI168_REVERSE);
     }
 
     return gCMSOutputProfile;
+}
+
+cmsHPROFILE
+gfxPlatform::GetCMSsRGBProfile()
+{
+    if (!gCMSsRGBProfile) {
+
+        /* Create the profile using lcms. */
+        gCMSsRGBProfile = cmsCreate_sRGBProfile();
+
+        /* Precache the Fixed-point Interpolations for sRGB as an input
+           profile. See bug 444661 for details. */
+        cmsPrecacheProfile(gCMSsRGBProfile, CMS_PRECACHE_LI16F_FORWARD);
+    }
+    return gCMSsRGBProfile;
 }
 
 cmsHTRANSFORM
@@ -491,14 +644,14 @@ gfxPlatform::GetCMSRGBTransform()
     if (!gCMSRGBTransform) {
         cmsHPROFILE inProfile, outProfile;
         outProfile = GetCMSOutputProfile();
-        inProfile = cmsCreate_sRGBProfile();
+        inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
 
         gCMSRGBTransform = cmsCreateTransform(inProfile, TYPE_RGB_8,
                                               outProfile, TYPE_RGB_8,
-                                              INTENT_PERCEPTUAL, 0);
+                                              INTENT_PERCEPTUAL, cmsFLAGS_FLOATSHAPER);
     }
 
     return gCMSRGBTransform;
@@ -510,14 +663,14 @@ gfxPlatform::GetCMSInverseRGBTransform()
     if (!gCMSInverseRGBTransform) {
         cmsHPROFILE inProfile, outProfile;
         inProfile = GetCMSOutputProfile();
-        outProfile = cmsCreate_sRGBProfile();
+        outProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
 
         gCMSInverseRGBTransform = cmsCreateTransform(inProfile, TYPE_RGB_8,
                                                      outProfile, TYPE_RGB_8,
-                                                     INTENT_PERCEPTUAL, 0);
+                                                     INTENT_PERCEPTUAL, cmsFLAGS_FLOATSHAPER);
     }
 
     return gCMSInverseRGBTransform;
@@ -529,15 +682,74 @@ gfxPlatform::GetCMSRGBATransform()
     if (!gCMSRGBATransform) {
         cmsHPROFILE inProfile, outProfile;
         outProfile = GetCMSOutputProfile();
-        inProfile = cmsCreate_sRGBProfile();
+        inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
 
         gCMSRGBATransform = cmsCreateTransform(inProfile, TYPE_RGBA_8,
                                                outProfile, TYPE_RGBA_8,
-                                               INTENT_PERCEPTUAL, 0);
+                                               INTENT_PERCEPTUAL, cmsFLAGS_FLOATSHAPER);
     }
 
     return gCMSRGBATransform;
+}
+
+/* Shuts down various transforms and profiles for CMS. */
+static void ShutdownCMS()
+{
+
+    if (gCMSRGBTransform) {
+        cmsDeleteTransform(gCMSRGBTransform);
+        gCMSRGBTransform = nsnull;
+    }
+    if (gCMSInverseRGBTransform) {
+        cmsDeleteTransform(gCMSInverseRGBTransform);
+        gCMSInverseRGBTransform = nsnull;
+    }
+    if (gCMSRGBATransform) {
+        cmsDeleteTransform(gCMSRGBATransform);
+        gCMSRGBATransform = nsnull;
+    }
+    if (gCMSOutputProfile) {
+        cmsCloseProfile(gCMSOutputProfile);
+
+        // handle the aliased case
+        if (gCMSsRGBProfile == gCMSOutputProfile)
+            gCMSsRGBProfile = nsnull;
+        gCMSOutputProfile = nsnull;
+    }
+    if (gCMSsRGBProfile) {
+        cmsCloseProfile(gCMSsRGBProfile);
+        gCMSsRGBProfile = nsnull;
+    }
+
+    // Reset the state variables
+    gCMSIntent = -2;
+    gCMSMode = eCMSMode_Off;
+    gCMSInitialized = PR_FALSE;
+}
+
+static void MigratePrefs()
+{
+
+    /* Load the pref service. If we don't get it die quietly since this isn't
+       critical code. */
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return;
+
+    /* Migrate from the boolean color_management.enabled pref - we now use
+       color_management.mode. */
+    PRBool hasOldCMPref;
+    nsresult rv =
+        prefs->PrefHasUserValue(CMPrefNameOld, &hasOldCMPref);
+    if (NS_SUCCEEDED(rv) && (hasOldCMPref == PR_TRUE)) {
+        PRBool CMWasEnabled;
+        rv = prefs->GetBoolPref(CMPrefNameOld, &CMWasEnabled);
+        if (NS_SUCCEEDED(rv) && (CMWasEnabled == PR_TRUE))
+            prefs->SetIntPref(CMPrefName, eCMSMode_All);
+        prefs->ClearUserPref(CMPrefNameOld);
+    }
+
 }

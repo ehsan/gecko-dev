@@ -334,8 +334,9 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
 
     JOCTET  *profile;
     PRUint32 profileLength;
+    eCMSMode cmsMode = gfxPlatform::GetCMSMode();
 
-    if (gfxPlatform::IsCMSEnabled() &&
+    if ((cmsMode != eCMSMode_Off) &&
         read_icc_profile(&mInfo, &profile, &profileLength) &&
         (mInProfile = cmsOpenProfileFromMem(profile, profileLength)) != NULL) {
       free(profile);
@@ -402,14 +403,23 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
         /* Adobe Photoshop writes YCCK/CMYK files with inverted data */
         if (mInfo.out_color_space == JCS_CMYK)
           type |= FLAVOR_SH(mInfo.saw_Adobe_marker ? 1 : 0);
+        
 
-        if (gfxPlatform::GetCMSOutputProfile())
+        if (gfxPlatform::GetCMSOutputProfile()) {
+
+          /* Calculate rendering intent. */
+          int intent = gfxPlatform::GetRenderingIntent();
+          if (intent == -1)
+              intent = cmsTakeRenderingIntent(mInProfile);
+
+          /* Create the color management transform. */
           mTransform = cmsCreateTransform(mInProfile,
                                           type,
                                           gfxPlatform::GetCMSOutputProfile(),
                                           TYPE_RGB_8,
-                                          cmsTakeRenderingIntent(mInProfile),
-                                          0);
+                                          intent,
+                                          cmsFLAGS_FLOATSHAPER);
+        }
       } else {
 #ifdef DEBUG_tor
         fprintf(stderr, "ICM profile colorspace mismatch\n");
@@ -538,7 +548,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     }
 
     /* Force to use our YCbCr to Packed RGB converter when possible */
-    if (!mTransform && !gfxPlatform::IsCMSEnabled() &&
+    if (!mTransform && (gfxPlatform::GetCMSMode() == eCMSMode_Off) &&
         mInfo.jpeg_color_space == JCS_YCbCr && mInfo.out_color_space == JCS_RGB) {
       /* Special case for the most common case: transform from YCbCr direct into packed ARGB */
       mInfo.out_color_components = 4; /* Packed ARGB pixels are always 4 bytes...*/
@@ -555,7 +565,12 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     {
       LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- JPEG_DECOMPRESS_SEQUENTIAL case");
       
-      if (!OutputScanlines()) {
+      PRBool suspend;
+      nsresult rv = OutputScanlines(&suspend);
+      if (NS_FAILED(rv))
+        return rv;
+      
+      if (suspend) {
         PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (I/O suspension after OutputScanlines() - SEQUENTIAL)"));
         return NS_OK; /* I/O suspension */
@@ -601,7 +616,12 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
         if (mInfo.output_scanline == 0xffffff)
           mInfo.output_scanline = 0;
 
-        if (!OutputScanlines()) {
+        PRBool suspend;
+        nsresult rv = OutputScanlines(&suspend);
+        if (NS_FAILED(rv))
+          return rv;
+
+        if (suspend) {
           if (mInfo.output_scanline == 0) {
             /* didn't manage to read any lines - flag so we don't call
                jpeg_start_output() multiple times for the same scan */
@@ -678,11 +698,13 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
 }
 
 
-PRBool
-nsJPEGDecoder::OutputScanlines()
+nsresult
+nsJPEGDecoder::OutputScanlines(PRBool* suspend)
 {
+  *suspend = PR_FALSE;
+
   const PRUint32 top = mInfo.output_scanline;
-  PRBool rv = PR_TRUE;
+  nsresult rv = NS_OK;
 
   mFrame->LockImageData();
   
@@ -699,7 +721,7 @@ nsJPEGDecoder::OutputScanlines()
       if (mInfo.cconvert->color_convert == ycc_rgb_convert_argb) {
         /* Special case: scanline will be directly converted into packed ARGB */
         if (jpeg_read_scanlines(&mInfo, (JSAMPARRAY)&imageRow, 1) != 1) {
-          rv = PR_FALSE; /* suspend */
+          *suspend = PR_TRUE; /* suspend */
           break;
         }
         continue; /* all done for this row! */
@@ -713,7 +735,7 @@ nsJPEGDecoder::OutputScanlines()
 
       /* Request one scanline.  Returns 0 or 1 scanlines. */    
       if (jpeg_read_scanlines(&mInfo, &sampleRow, 1) != 1) {
-        rv = PR_FALSE; /* suspend */
+        *suspend = PR_TRUE; /* suspend */
         break;
       }
 
@@ -740,7 +762,7 @@ nsJPEGDecoder::OutputScanlines()
           cmyk_convert_rgb((JSAMPROW)imageRow, mInfo.output_width);
           sampleRow += mInfo.output_width;
         }
-        if (gfxPlatform::IsCMSEnabled()) {
+        if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
           /* No embedded ICC profile - treat as sRGB */
           cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBTransform();
           if (transform) {
@@ -777,7 +799,7 @@ nsJPEGDecoder::OutputScanlines()
   if (top != mInfo.output_scanline) {
       nsIntRect r(0, top, mInfo.output_width, mInfo.output_scanline-top);
       nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-      img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+      rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
       mObserver->OnDataAvailable(nsnull, mFrame, &r);
   }
   

@@ -886,6 +886,18 @@ XPCWrappedNative::Init(XPCCallContext& ccx, JSObject* parent, JSBool isGlobal,
 
     JSClass* jsclazz = si ? si->GetJSClass() : &XPC_WN_NoHelper_JSClass.base;
 
+    if(isGlobal)
+    {
+        // Resolving a global object's class can cause us to create a global's
+        // JS class without the proper global flags. Notice that here and fix
+        // the problem.
+        if(!(jsclazz->flags & JSCLASS_IS_GLOBAL))
+            jsclazz->flags |= JSCLASS_GLOBAL_FLAGS;
+    }
+    else
+        NS_ASSERTION(!(jsclazz->flags & JSCLASS_IS_GLOBAL),
+                     "Non-global object has the wrong flags");
+
     NS_ASSERTION(jsclazz &&
                  jsclazz->name &&
                  jsclazz->flags &&
@@ -1889,7 +1901,7 @@ GetInterfaceTypeFromParam(XPCCallContext& ccx,
 /***************************************************************************/
 
 // static
-JSBool
+NS_SUPPRESS_STACK_CHECK JSBool
 XPCWrappedNative::CallMethod(XPCCallContext& ccx,
                              CallMode mode /*= CALL_METHOD */)
 {
@@ -2400,9 +2412,8 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
         ThrowBadResult(invokeResult, ccx);
         goto done;
     }
-    else if(ccx.GetExceptionWasThrown())
+    else if(JS_IsExceptionPending(ccx))
     {
-        // the native callee claims to have already set a JSException
         goto done;
     }
 
@@ -2893,7 +2904,7 @@ XPCWrappedNative::HandlePossibleNameCaseError(XPCCallContext& ccx,
         nsCRT::free(newStr);
         if(newJSStr && (set ?
              set->FindMember(STRING_TO_JSVAL(newJSStr), &member, &localIface) :
-                        (JSBool)NS_PTR_TO_INT32(iface->FindMember(STRING_TO_JSVAL(newJSStr)))))
+                        NS_PTR_TO_INT32(iface->FindMember(STRING_TO_JSVAL(newJSStr)))))
         {
             // found it!
             const char* ifaceName = set ?

@@ -269,26 +269,8 @@ nsListBoxBodyFrame::Destroy()
   }
 
   // Make sure we tell our listbox's box object we're being destroyed.
-  for (nsIFrame *a = mParent; a; a = a->GetParent()) {
-    nsIContent *content = a->GetContent();
-    nsIDocument *doc;
-
-    if (content &&
-        content->NodeInfo()->Equals(nsGkAtoms::listbox, kNameSpaceID_XUL) &&
-        (doc = content->GetDocument())) {
-      nsCOMPtr<nsIDOMElement> e(do_QueryInterface(content));
-      nsCOMPtr<nsIDOMNSDocument> nsdoc(do_QueryInterface(doc));
-
-      nsCOMPtr<nsIBoxObject> box;
-      nsdoc->GetBoxObjectFor(e, getter_AddRefs(box));
-
-      nsCOMPtr<nsPIBoxObject> piBox = do_QueryInterface(box);
-      if (piBox) {
-        piBox->ClearCachedValues();
-      }
-
-      break;
-    }
+  if (mBoxObject) {
+    mBoxObject->ClearCachedValues();
   }
 
   nsBoxFrame::Destroy();
@@ -397,7 +379,7 @@ nsListBoxBodyFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 NS_IMETHODIMP
 nsListBoxBodyFrame::PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex)
 { 
-  if (mScrolling)
+  if (mScrolling || mRowHeight == 0)
     return NS_OK;
 
   nscoord oldTwipIndex, newTwipIndex;
@@ -449,6 +431,9 @@ nsListBoxBodyFrame::PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, 
 NS_IMETHODIMP
 nsListBoxBodyFrame::VisibilityChanged(nsISupports* aScrollbar, PRBool aVisible)
 {
+  if (mRowHeight == 0)
+    return NS_OK;
+
   PRInt32 lastPageTopRow = GetRowCount() - (GetAvailableHeight() / mRowHeight);
   if (lastPageTopRow < 0)
     lastPageTopRow = 0;
@@ -514,14 +499,6 @@ nsListBoxBodyFrame::ReflowCallbackCanceled()
 }
 
 ///////// nsIListBoxObject ///////////////
-
-NS_IMETHODIMP
-nsListBoxBodyFrame::GetListboxBody(nsIListBoxObject * *aListboxBody)
-{
-  *aListboxBody = this;
-  NS_IF_ADDREF(*aListboxBody);
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsListBoxBodyFrame::GetRowCount(PRInt32* aResult)
@@ -773,7 +750,7 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
 
     if (styleContext->GetStylePadding()->GetPadding(margin))
       width += margin.LeftRight();
-    width += styleContext->GetStyleBorder()->GetBorder().LeftRight();
+    width += styleContext->GetStyleBorder()->GetActualBorder().LeftRight();
     if (styleContext->GetStyleMargin()->GetMargin(margin))
       width += margin.LeftRight();
 

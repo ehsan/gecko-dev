@@ -66,6 +66,7 @@
 #include "nsIPrefBranch.h"
 #include "nsIStringBundle.h"
 #include "nsAuthInformationHolder.h"
+#include "nsICharsetConverterManager.h"
 
 #if defined(PR_LOGGING)
 extern PRLogModuleInfo* gFTPLog;
@@ -93,6 +94,7 @@ nsFtpState::nsFtpState()
     , mAction(GET)
     , mAnonymous(PR_TRUE)
     , mRetryPass(PR_FALSE)
+    , mStorReplyReceived(PR_FALSE)
     , mInternalError(NS_OK)
     , mPort(21)
     , mAddressChecked(PR_FALSE)
@@ -870,15 +872,14 @@ nsFtpState::R_syst() {
             NS_ERROR("Server type list format unrecognized.");
             // Guessing causes crashes.
             // (Of course, the parsing code should be more robust...)
-            nsresult rv;
             nsCOMPtr<nsIStringBundleService> bundleService =
-                    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-            if (NS_FAILED(rv))
+                do_GetService(NS_STRINGBUNDLE_CONTRACTID);
+            if (!bundleService)
                 return FTP_ERROR;
 
             nsCOMPtr<nsIStringBundle> bundle;
-            rv = bundleService->CreateBundle(NECKO_MSGS_URL,
-                                             getter_AddRefs(bundle));
+            nsresult rv = bundleService->CreateBundle(NECKO_MSGS_URL,
+                                                      getter_AddRefs(bundle));
             if (NS_FAILED(rv))
                 return FTP_ERROR;
             
@@ -1117,6 +1118,7 @@ nsFtpState::R_list() {
     if (mResponseCode/100 == 2) {
         //(DONE)
         mNextState = FTP_COMPLETE;
+        mDoomCache = PR_FALSE;
         return FTP_COMPLETE;
     }
     return FTP_ERROR;
@@ -1227,6 +1229,12 @@ nsFtpState::R_stor() {
     if (mResponseCode/100 == 2) {
         //(DONE)
         mNextState = FTP_COMPLETE;
+        mStorReplyReceived = PR_TRUE;
+
+        // Call Close() if it was not called in nsFtpState::OnStoprequest()
+        if (!mUploadRequest && !IsClosed())
+            Close();
+
         return FTP_COMPLETE;
     }
 
@@ -1235,14 +1243,13 @@ nsFtpState::R_stor() {
         return FTP_READ_BUF;
     }
 
+   mStorReplyReceived = PR_TRUE;
    return FTP_ERROR;
 }
 
 
 nsresult
 nsFtpState::S_pasv() {
-    nsresult rv;
-
     if (!mAddressChecked) {
         // Find socket address
         mAddressChecked = PR_TRUE;
@@ -1253,7 +1260,7 @@ nsFtpState::S_pasv() {
         nsCOMPtr<nsISocketTransport> sTrans = do_QueryInterface(controlSocket);
         if (sTrans) {
             PRNetAddr addr;
-            rv = sTrans->GetPeerAddr(&addr);
+            nsresult rv = sTrans->GetPeerAddr(&addr);
             if (NS_SUCCEEDED(rv)) {
                 mServerIsIPv6 = addr.raw.family == PR_AF_INET6 &&
                                 !PR_IsNetAddrType(&addr, PR_IpAddrV4Mapped);
@@ -1375,12 +1382,14 @@ nsFtpState::R_pasv() {
     if (newDataConn) {
         // now we know where to connect our data channel
         nsCOMPtr<nsISocketTransportService> sts =
-            do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-        
+            do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID);
+        if (!sts)
+            return FTP_ERROR;
+       
         nsCOMPtr<nsISocketTransport> strans;
-        rv =  sts->CreateTransport(nsnull, 0, nsDependentCString(mServerAddress),
-                                   port, mChannel->ProxyInfo(),
-                                   getter_AddRefs(strans)); // the data socket
+        rv = sts->CreateTransport(nsnull, 0, nsDependentCString(mServerAddress),
+                                  port, mChannel->ProxyInfo(),
+                                  getter_AddRefs(strans)); // the data socket
         if (NS_FAILED(rv))
             return FTP_ERROR;
         mDataTransport = strans;
@@ -1406,8 +1415,8 @@ nsFtpState::R_pasv() {
             // because "output" is a socket output stream, so the result is that
             // all work will be done on the socket transport thread.
             nsCOMPtr<nsIEventTarget> stEventTarget =
-                do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-            if (NS_FAILED(rv))
+                do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID);
+            if (!stEventTarget)
                 return FTP_ERROR;
             
             nsCOMPtr<nsIAsyncStreamCopier> copier;
@@ -1612,6 +1621,12 @@ nsFtpState::Init(nsFtpChannel *channel)
         // now unescape it... %xx reduced inline to resulting character
         PRInt32 len = NS_UnescapeURL(fwdPtr);
         mPath.Assign(fwdPtr, len);
+        if (IsUTF8(mPath)) {
+    	    nsCAutoString originCharset;
+    	    rv = mChannel->URI()->GetOriginCharset(originCharset);
+    	    if (NS_SUCCEEDED(rv) && !originCharset.EqualsLiteral("UTF-8"))
+    	        ConvertUTF8PathToCharset(originCharset);
+        }
 
 #ifdef DEBUG
         if (mPath.FindCharInSet(CRLF) >= 0)
@@ -1940,6 +1955,7 @@ nsFtpState::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
     if (IsClosed())
         return NS_OK;
 
+    mDoomCache = PR_TRUE;
     mCacheEntry = entry;
     if (CanReadCacheEntry() && ReadCacheEntry()) {
         mState = FTP_READ_CACHE;
@@ -1954,6 +1970,7 @@ nsFtpState::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
 NS_IMETHODIMP
 nsFtpState::OnStartRequest(nsIRequest *request, nsISupports *context)
 {
+    mStorReplyReceived = PR_FALSE;
     return NS_OK;
 }
 
@@ -1962,6 +1979,11 @@ nsFtpState::OnStopRequest(nsIRequest *request, nsISupports *context,
                           nsresult status)
 {
     mUploadRequest = nsnull;
+
+    // Close() will be called when reply to STOR command is received
+    // see bug #389394
+    if (!mStorReplyReceived)
+      return NS_OK;
 
     // We're done uploading.  Let our consumer know that we're done.
     Close();
@@ -2020,6 +2042,8 @@ nsFtpState::CloseWithStatus(nsresult status)
     }
 
     mDataStream = nsnull;
+    if (mDoomCache && mCacheEntry)
+        mCacheEntry->Doom();
     mCacheEntry = nsnull;
 
     return nsBaseContentStream::CloseWithStatus(status);
@@ -2072,6 +2096,7 @@ nsFtpState::ReadCacheEntry()
     if (HasPendingCallback())
         mDataStream->AsyncWait(this, 0, 0, CallbackTarget());
 
+    mDoomCache = PR_FALSE;
     return PR_TRUE;
 }
 
@@ -2129,9 +2154,66 @@ nsFtpState::CheckCache()
 
     session->OpenCacheEntry(key, accessReq, PR_FALSE,
                             getter_AddRefs(mCacheEntry));
-    if (mCacheEntry)
+    if (mCacheEntry) {
+        mDoomCache = PR_TRUE;
         return PR_FALSE;  // great, we're ready to proceed!
+    }
 
     nsresult rv = session->AsyncOpenCacheEntry(key, accessReq, this);
     return NS_SUCCEEDED(rv);
+}
+
+nsresult
+nsFtpState::ConvertUTF8PathToCharset(const nsACString &aCharset)
+{
+    nsresult rv;
+    NS_ASSERTION(IsUTF8(mPath), "mPath isn't UTF8 string!");
+    NS_ConvertUTF8toUTF16 ucsPath(mPath);
+    nsCAutoString result;
+
+    nsCOMPtr<nsICharsetConverterManager> charsetMgr(
+        do_GetService("@mozilla.org/charset-converter-manager;1", &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIUnicodeEncoder> encoder;
+    rv = charsetMgr->GetUnicodeEncoder(PromiseFlatCString(aCharset).get(),
+                                       getter_AddRefs(encoder));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PRInt32 len = ucsPath.Length();
+    PRInt32 maxlen;
+
+    rv = encoder->GetMaxLength(ucsPath.get(), len, &maxlen);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    char buf[256], *p = buf;
+    if (PRUint32(maxlen) > sizeof(buf) - 1) {
+        p = (char *) malloc(maxlen + 1);
+        if (!p)
+            return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    rv = encoder->Convert(ucsPath.get(), &len, p, &maxlen);
+    if (NS_FAILED(rv))
+        goto end;
+    if (rv == NS_ERROR_UENC_NOMAPPING) {
+        NS_WARNING("unicode conversion failed");
+        rv = NS_ERROR_UNEXPECTED;
+        goto end;
+    }
+    p[maxlen] = 0;
+    result.Assign(p);
+
+    len = sizeof(buf) - 1;
+    rv = encoder->Finish(buf, &len);
+    if (NS_FAILED(rv))
+        goto end;
+    buf[len] = 0;
+    result.Append(buf);
+    mPath = result;
+
+end:
+    if (p != buf)
+        free(p);
+    return rv;
 }
