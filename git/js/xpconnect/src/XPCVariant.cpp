@@ -466,7 +466,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     JSBool success;
 
     JSContext* cx = lccx.GetJSContext();
-    NS_ABORT_IF_FALSE(js::IsObjectInContextCompartment(lccx.GetScopeForNewJSObjects(), cx),
+    NS_ABORT_IF_FALSE(js::GetObjectCompartment(lccx.GetScopeForNewJSObjects()) == cx->compartment,
                       "bad scope for new JSObjects");
 
     switch (type) {

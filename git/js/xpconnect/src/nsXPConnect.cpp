@@ -47,8 +47,11 @@
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
 #include "jsatom.h"
+#include "jsobj.h"
 #include "jsfriendapi.h"
+#include "jsfun.h"
 #include "jsgc.h"
+#include "jsscript.h"
 #include "nsThreadUtilsInternal.h"
 #include "dom_quickstubs.h"
 #include "nsNullPrincipal.h"
@@ -735,7 +738,7 @@ xpc_UnmarkGrayObjectRecursive(JSObject *obj)
     NS_ASSERTION(obj, "Don't pass me null!");
 
     // Unmark.
-    js::gc::AsCell(obj)->unmark(js::gc::GRAY);
+    obj->unmark(js::gc::GRAY);
 
     // Tracing requires a JSContext...
     JSContext *cx;
@@ -916,9 +919,9 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         }
 
         // Disable printing global for objects while we figure out ObjShrink fallout.
-        cb.DescribeGCedNode(isMarked, sizeof(js::shadow::Object), name);
+        cb.DescribeGCedNode(isMarked, sizeof(JSObject), name);
     } else {
-        cb.DescribeGCedNode(isMarked, sizeof(js::shadow::Object), "JS Object");
+        cb.DescribeGCedNode(isMarked, sizeof(JSObject), "JS Object");
     }
 
     // There's no need to trace objects that have already been marked by the JS
@@ -1112,7 +1115,7 @@ CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
         return false;
 
     *global = tempGlobal;
-    *compartment = js::GetObjectCompartment(tempGlobal);
+    *compartment = tempGlobal->compartment();
 
     js::AutoSwitchCompartment sc(cx, *compartment);
     JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());

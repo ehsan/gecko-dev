@@ -2408,12 +2408,7 @@ PresShell::CharacterExtendForBackspace()
 NS_IMETHODIMP 
 PresShell::WordMove(bool aForward, bool aExtend)
 {
-  nsresult result = mSelection->WordMove(aForward, aExtend);
-// if we can't go down/up any more we must then move caret completely to
-// end/beginning respectively.
-  if (NS_FAILED(result))
-    result = CompleteMove(aForward, aExtend);
-  return result;
+  return mSelection->WordMove(aForward, aExtend);  
 }
 
 NS_IMETHODIMP 

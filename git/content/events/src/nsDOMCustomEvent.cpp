@@ -37,7 +37,6 @@
 
 #include "nsDOMCustomEvent.h"
 #include "nsContentUtils.h"
-#include "DictionaryHelpers.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMCustomEvent)
 
@@ -80,13 +79,22 @@ nsDOMCustomEvent::InitCustomEvent(const nsAString& aType,
 }
 
 nsresult
-nsDOMCustomEvent::InitFromCtor(const nsAString& aType,
-                               JSContext* aCx, jsval* aVal)
+nsDOMCustomEvent::InitFromCtor(const nsAString& aType, nsISupports* aDict,
+                               JSContext* aCx, JSObject* aObj)
 {
-  mozilla::dom::CustomEventInit d;
-  nsresult rv = d.Init(aCx, aVal);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return InitCustomEvent(aType, d.bubbles, d.cancelable, d.detail);
+  nsCOMPtr<nsICustomEventInit> eventInit = do_QueryInterface(aDict);
+  bool bubbles = false;
+  bool cancelable = false;
+  nsCOMPtr<nsIVariant> detail;
+  if (eventInit) {
+    nsresult rv = eventInit->GetBubbles(&bubbles);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = eventInit->GetCancelable(&cancelable);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = eventInit->GetDetail(getter_AddRefs(detail));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  return InitCustomEvent(aType, bubbles, cancelable, detail);
 }
 
 nsresult

@@ -59,8 +59,6 @@
 #include "jsscope.h"
 #include "jsstr.h"
 
-#include "js/MemoryMetrics.h"
-
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
@@ -1450,22 +1448,4 @@ JSCompartment::sweepInitialShapeTable(JSContext *cx)
                 e.removeFront();
         }
     }
-}
-
-JS_PUBLIC_API(bool)
-JS::IsShapeInDictionary(const void *shape)
-{
-    return static_cast<const Shape*>(shape)->inDictionary();
-}
-
-JS_PUBLIC_API(size_t)
-JS::SizeOfShapePropertyTable(const void *shape, JSMallocSizeOfFun mallocSizeOf)
-{
-    return static_cast<const Shape*>(shape)->sizeOfPropertyTable(mallocSizeOf);
-}
-
-JS_PUBLIC_API(size_t)
-JS::SizeOfShapeKids(const void *shape, JSMallocSizeOfFun mallocSizeOf)
-{
-    return static_cast<const Shape*>(shape)->sizeOfKids(mallocSizeOf);
 }

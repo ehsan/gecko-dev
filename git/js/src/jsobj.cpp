@@ -82,7 +82,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
-#include "js/MemoryMetrics.h"
 
 #include "jsarrayinlines.h"
 #include "jsinterpinlines.h"
@@ -7129,12 +7128,6 @@ js::HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Native nat
 
     ReportIncompatibleMethod(cx, args, clasp);
     return false;
-}
-
-JS_PUBLIC_API(size_t)
-JS::SizeOfObjectDynamicSlots(JSObject *obj, JSMallocSizeOfFun mallocSizeOf)
-{
-    return obj->dynamicSlotSize(mallocSizeOf);
 }
 
 #ifdef DEBUG
