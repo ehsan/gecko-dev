@@ -2349,17 +2349,12 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // Since making new layers is expensive, only use nsDisplayScrollLayer
-  // if the area is scrollable and we're the content process (unless we're on
-  // B2G, where we support async scrolling for scrollable elements in the
-  // parent process as well).
+  // if the area is scrollable and we're the content process.
   // When a displayport is being used, force building of a layer so that
   // CompositorParent can always find the scrollable layer for the root content
   // document.
-  // If the element is marked 'scrollgrab', also force building of a layer
-  // so that APZ can implement scroll grabbing.
-  mShouldBuildScrollableLayer = usingDisplayport || nsContentUtils::HasScrollgrab(mOuter->GetContent());
   bool shouldBuildLayer = false;
-  if (mShouldBuildScrollableLayer) {
+  if (usingDisplayport) {
     shouldBuildLayer = true;
   } else {
     nsRect scrollRange = GetScrollRange();
@@ -2381,12 +2376,14 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument());
   }
 
+  mShouldBuildScrollableLayer = false;
   if (shouldBuildLayer) {
     // ScrollLayerWrapper must always be created because it initializes the
     // scroll layer count. The display lists depend on this.
     ScrollLayerWrapper wrapper(mOuter, mScrolledFrame);
 
-    if (mShouldBuildScrollableLayer) {
+    if (usingDisplayport) {
+      mShouldBuildScrollableLayer = true;
       DisplayListClipState::AutoSaveRestore clipState(aBuilder);
 
       // For root scrollframes in documents where the CSS viewport has been

@@ -100,6 +100,7 @@ exports.testBasic = function(options) {
           'Saluton', 'Sawubona'
         ],
         unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
         args: {
           command: { name: 'tsslow' },
           hello: {
@@ -122,6 +123,7 @@ exports.testBasic = function(options) {
         status: 'ERROR',
         predictions: [ 'Shalom', 'Saluton', 'Sawubona', 'Namasté' ],
         unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
         args: {
           command: { name: 'tsslow' },
           hello: {
@@ -145,6 +147,7 @@ exports.testBasic = function(options) {
         status: 'VALID',
         predictions: [ 'Shalom' ],
         unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
         args: {
           command: { name: 'tsslow' },
           hello: {

@@ -20,14 +20,7 @@ function IsD2DEnabled() {
 }
 
 function IsLinux() {
-    var os = "";
-
-    try {
-        os = Cc["@mozilla.org/xre/app-info;1"]
-          .getService(SpecialPowers.Ci.nsIXULRuntime).OS;
-    } catch (e) {}
-
-    return os.indexOf("Linux") == 0 &&
+    return navigator.platform.indexOf("Linux") == 0 &&
            navigator.appVersion.indexOf("Android") == -1;
 }
 

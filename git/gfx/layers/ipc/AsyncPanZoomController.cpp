@@ -839,8 +839,7 @@ void AsyncPanZoomController::UpdateWithTouchAtDevicePoint(const MultiTouchInput&
 }
 
 void AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
-                                           const ScreenPoint& aEndPoint,
-                                           int aOverscrollHandoffChainIndex) {
+                                           const ScreenPoint& aEndPoint) {
   // "start - end" rather than "end - start" because e.g. moving your finger
   // down (*positive* direction along y axis) causes the vertical scroll offset
   // to *decrease* as the page follows your finger.
@@ -879,8 +878,7 @@ void AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
     APZCTreeManager* treeManagerLocal = mTreeManager;
     if (treeManagerLocal) {
       // "+ overscroll" rather than "- overscroll" for the same reason as above.
-      treeManagerLocal->HandleOverscroll(this, aEndPoint + overscroll, aEndPoint,
-                                         aOverscrollHandoffChainIndex);
+      treeManagerLocal->HandleOverscroll(this, aEndPoint + overscroll, aEndPoint);
     }
   }
 }
