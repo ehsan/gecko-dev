@@ -6,10 +6,11 @@
 #ifndef mozilla_dom_battery_BatteryManager_h
 #define mozilla_dom_battery_BatteryManager_h
 
-#include "Types.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/Observer.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Observer.h"
+#include "Types.h"
+#include "nsDOMEventTargetHelper.h"
 
 class nsPIDOMWindow;
 class nsIScriptContext;
@@ -23,7 +24,7 @@ class BatteryInformation;
 namespace dom {
 namespace battery {
 
-class BatteryManager : public DOMEventTargetHelper
+class BatteryManager : public nsDOMEventTargetHelper
                      , public BatteryObserver
 {
 public:

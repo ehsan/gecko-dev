@@ -453,7 +453,7 @@ RunFile(JSContext *cx, Handle<JSObject*> obj, const char *filename, FILE *file, 
             AnalyzeEntrainedVariables(cx, script);
     #endif
     if (script && !compileOnly) {
-        if (!JS_ExecuteScript(cx, obj, script)) {
+        if (!JS_ExecuteScript(cx, obj, script, nullptr)) {
             if (!gQuitting && !gTimedOut)
                 gExitCode = EXITCODE_RUNTIME_ERROR;
         }
@@ -480,7 +480,7 @@ EvalAndPrint(JSContext *cx, Handle<JSObject*> global, const char *bytes, size_t 
     if (compileOnly)
         return true;
     RootedValue result(cx);
-    if (!JS_ExecuteScript(cx, global, script, &result))
+    if (!JS_ExecuteScript(cx, global, script, result.address()))
         return false;
 
     if (!result.isUndefined()) {
@@ -790,7 +790,7 @@ LoadScript(JSContext *cx, unsigned argc, jsval *vp, bool scriptRelative)
             .setCompileAndGo(true)
             .setNoScriptRval(true);
         if ((compileOnly && !Compile(cx, thisobj, opts, filename.ptr())) ||
-            !Evaluate(cx, thisobj, opts, filename.ptr()))
+            !Evaluate(cx, thisobj, opts, filename.ptr(), nullptr))
         {
             return false;
         }
@@ -1242,7 +1242,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             if (!script->scriptSource()->setSourceMapURL(cx, smurl))
                 return false;
         }
-        if (!JS_ExecuteScript(cx, global, script, args.rval())) {
+        if (!JS_ExecuteScript(cx, global, script, vp)) {
             if (catchTermination && !JS_IsExceptionPending(cx)) {
                 JSAutoCompartment ac1(cx, callerGlobal);
                 JSString *str = JS_NewStringCopyZ(cx, "terminated");
@@ -1414,7 +1414,7 @@ Run(JSContext *cx, unsigned argc, jsval *vp)
             return false;
     }
 
-    if (!JS_ExecuteScript(cx, thisobj, script))
+    if (!JS_ExecuteScript(cx, thisobj, script, nullptr))
         return false;
 
     int64_t endClock = PRMJ_Now();
@@ -2881,7 +2881,7 @@ WorkerMain(void *arg)
         if (!script)
             break;
         RootedValue result(cx);
-        JS_ExecuteScript(cx, global, script, &result);
+        JS_ExecuteScript(cx, global, script, result.address());
     } while (0);
 
     DestroyContext(cx, false);
@@ -3695,7 +3695,7 @@ runOffThreadScript(JSContext *cx, unsigned argc, jsval *vp)
     if (!script)
         return false;
 
-    return JS_ExecuteScript(cx, cx->global(), script, args.rval());
+    return JS_ExecuteScript(cx, cx->global(), script, args.rval().address());
 }
 
 #endif // JS_THREADSAFE
@@ -5722,7 +5722,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
         } else {
             const char *code = codeChunks.front();
             RootedValue rval(cx);
-            if (!JS_EvaluateScript(cx, obj, code, strlen(code), "-e", 1, &rval))
+            if (!JS_EvaluateScript(cx, obj, code, strlen(code), "-e", 1, rval.address()))
                 return gExitCode ? gExitCode : EXITCODE_RUNTIME_ERROR;
             codeChunks.popFront();
         }

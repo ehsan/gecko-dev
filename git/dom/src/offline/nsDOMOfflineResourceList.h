@@ -23,7 +23,7 @@
 #include "nsIScriptContext.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsPIDOMWindow.h"
-#include "mozilla/DOMEventTargetHelper.h"
+#include "nsDOMEventTargetHelper.h"
 #include "mozilla/ErrorResult.h"
 
 class nsIDOMWindow;
@@ -34,7 +34,7 @@ class DOMStringList;
 } // namespace dom
 } // namespace mozilla
 
-class nsDOMOfflineResourceList : public mozilla::DOMEventTargetHelper,
+class nsDOMOfflineResourceList : public nsDOMEventTargetHelper,
                                  public nsIDOMOfflineResourceList,
                                  public nsIObserver,
                                  public nsIOfflineCacheUpdateObserver,
@@ -49,7 +49,7 @@ public:
   NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMOfflineResourceList,
-                                           mozilla::DOMEventTargetHelper)
+                                           nsDOMEventTargetHelper)
 
   nsDOMOfflineResourceList(nsIURI* aManifestURI,
                            nsIURI* aDocumentURI,

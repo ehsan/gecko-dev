@@ -9,9 +9,9 @@
 
 #include "FileCommon.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/FileModeBinding.h"
 #include "mozilla/dom/TypedArray.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIInputStream.h"
 #include "nsIRunnable.h"
 
@@ -32,7 +32,7 @@ class FileHandle;
 class FileRequest;
 class MetadataHelper;
 
-class LockedFile : public DOMEventTargetHelper,
+class LockedFile : public nsDOMEventTargetHelper,
                    public nsIRunnable
 {
   friend class FinishHelper;
@@ -44,7 +44,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIRUNNABLE
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(LockedFile, DOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(LockedFile, nsDOMEventTargetHelper)
 
   enum RequestMode
   {

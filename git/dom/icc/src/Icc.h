@@ -5,16 +5,16 @@
 #ifndef mozilla_dom_Icc_h
 #define mozilla_dom_Icc_h
 
-#include "mozilla/DOMEventTargetHelper.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIIccProvider.h"
 
 namespace mozilla {
 namespace dom {
 
-class Icc MOZ_FINAL : public DOMEventTargetHelper
+class Icc MOZ_FINAL : public nsDOMEventTargetHelper
 {
 public:
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   Icc(nsPIDOMWindow* aWindow, long aClientId, const nsAString& aIccId);
 

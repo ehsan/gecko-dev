@@ -21,7 +21,7 @@ namespace mozilla {
 namespace layers {
 
 void
-BasicCanvasLayer::Paint(DrawTarget* aDT, Layer* aMaskLayer)
+BasicCanvasLayer::Paint(DrawTarget* aTarget, SourceSurface* aMaskSurface)
 {
   if (IsHidden())
     return;
@@ -30,24 +30,29 @@ BasicCanvasLayer::Paint(DrawTarget* aDT, Layer* aMaskLayer)
   UpdateTarget();
   FireDidTransactionCallback();
 
-  Matrix m;
-  if (mNeedsYFlip) {
-    m = aDT->GetTransform();
-    Matrix newTransform = m;
-    newTransform.Translate(0.0f, mBounds.height);
-    newTransform.Scale(1.0f, -1.0f);
-    aDT->SetTransform(newTransform);
-  }
+  PaintWithOpacity(aTarget,
+                   GetEffectiveOpacity(),
+                   aMaskSurface,
+                   GetEffectiveOperator(this));
+}
 
-  FillRectWithMask(aDT,
-                   Rect(0, 0, mBounds.width, mBounds.height),
-                   mSurface, ToFilter(mFilter),
-                   DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
-                   aMaskLayer);
+void
+BasicCanvasLayer::DeprecatedPaint(gfxContext* aContext, Layer* aMaskLayer)
+{
+  if (IsHidden())
+    return;
 
-  if (mNeedsYFlip) {
-    aDT->SetTransform(m);
-  }
+  FirePreTransactionCallback();
+  DeprecatedUpdateSurface();
+  FireDidTransactionCallback();
+
+  gfxContext::GraphicsOperator mixBlendMode = DeprecatedGetEffectiveMixBlendMode();
+  DeprecatedPaintWithOpacity(aContext,
+                             GetEffectiveOpacity(),
+                             aMaskLayer,
+                             mixBlendMode != gfxContext::OPERATOR_OVER ?
+                               mixBlendMode :
+                               DeprecatedGetOperator());
 }
 
 already_AddRefed<CanvasLayer>

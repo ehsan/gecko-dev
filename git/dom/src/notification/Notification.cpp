@@ -419,7 +419,7 @@ Notification::Notification(const nsAString& aID, const nsAString& aTitle, const 
                            NotificationDirection aDir, const nsAString& aLang,
                            const nsAString& aTag, const nsAString& aIconUrl,
 			   nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow),
+  : nsDOMEventTargetHelper(aWindow),
     mID(aID), mTitle(aTitle), mBody(aBody), mDir(aDir), mLang(aLang),
     mTag(aTag), mIconUrl(aIconUrl), mIsClosed(false)
 {

@@ -16,6 +16,7 @@
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
 #include "nsFocusManager.h"
+#include "nsEventStateManager.h"
 #include "nsFrameManager.h"
 #include "nsRefreshDriver.h"
 #include "mozilla/dom/Touch.h"
@@ -33,7 +34,6 @@
 #include "nsJSEnvironment.h"
 #include "nsJSUtils.h"
 
-#include "mozilla/EventStateManager.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
@@ -2776,7 +2776,7 @@ nsDOMWindowUtils::GetCursorType(int16_t *aCursor)
 
   bool isSameDoc = false;
   do {
-    if (EventStateManager::sMouseOverDocument == doc) {
+    if (nsEventStateManager::sMouseOverDocument == doc) {
       isSameDoc = true;
       break;
     }
@@ -3047,9 +3047,10 @@ GetFileOrBlob(const nsAString& aName, JS::Handle<JS::Value> aBlobParts,
   nsDOMMultipartFile* domFile =
     static_cast<nsDOMMultipartFile*>(static_cast<nsIDOMFile*>(file.get()));
 
-  JS::AutoValueArray<2> args(aCx);
-  args[0].set(aBlobParts);
-  args[1].set(aParameters);
+  JS::AutoValueVector args(aCx);
+  MOZ_ALWAYS_TRUE(args.resize(2));
+  args[0] = aBlobParts;
+  args[1] = aParameters;
 
   rv = domFile->InitBlob(aCx, aOptionalArgCount, args.begin(), GetXPConnectNative);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3591,7 +3592,7 @@ nsDOMWindowUtils::GetIsHandlingUserInput(bool* aHandlingUserInput)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  *aHandlingUserInput = EventStateManager::IsHandlingUserInput();
+  *aHandlingUserInput = nsEventStateManager::IsHandlingUserInput();
 
   return NS_OK;
 }

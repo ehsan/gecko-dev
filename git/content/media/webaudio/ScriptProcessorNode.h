@@ -88,7 +88,7 @@ public:
     return mNumberOfOutputChannels;
   }
 
-  using DOMEventTargetHelper::DispatchTrustedEvent;
+  using nsDOMEventTargetHelper::DispatchTrustedEvent;
 
 private:
   nsAutoPtr<SharedBuffers> mSharedBuffers;

@@ -26,7 +26,9 @@ namespace dom {
 class AudioParamTimeline;
 
 struct WebAudioUtils {
-  static const uint32_t MaxChannelCount;
+  // This is an arbitrary large number used to protect against OOMs.
+  // We can adjust it later if needed.
+  static const uint32_t MaxChannelCount = 32;
 
   static bool FuzzyEqual(float v1, float v2)
   {

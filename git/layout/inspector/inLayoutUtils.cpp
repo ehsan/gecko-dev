@@ -13,10 +13,7 @@
 #include "nsIDocShell.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "mozilla/EventStateManager.h"
 #include "mozilla/dom/Element.h"
-
-using namespace mozilla;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +49,7 @@ inLayoutUtils::GetFrameFor(nsIDOMElement* aElement)
   return content->GetPrimaryFrame();
 }
 
-EventStateManager*
+nsEventStateManager*
 inLayoutUtils::GetEventStateManagerFor(nsIDOMElement *aElement)
 {
   NS_PRECONDITION(aElement, "Passing in a null element is bad");

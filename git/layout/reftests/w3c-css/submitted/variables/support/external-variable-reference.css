@@ -1,6 +1,6 @@
 :root {
-  --a: green;
+  var-a: green;
 }
 p {
-  color: var(--a);
+  color: var(a);
 }

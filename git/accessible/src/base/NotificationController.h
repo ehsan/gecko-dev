@@ -26,6 +26,8 @@ class DocAccessible;
 class Notification
 {
 public:
+  virtual ~Notification() { }
+
   NS_INLINE_DECL_REFCOUNTING(Notification)
 
   /**
@@ -35,11 +37,6 @@ public:
 
 protected:
   Notification() { }
-
-  /**
-   * Protected destructor, to discourage deletion outside of Release():
-   */
-  virtual ~Notification() { }
 
 private:
   Notification(const Notification&);

@@ -8,8 +8,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/ipc/PBackgroundChild.h"
 
-template <class> class nsAutoPtr;
-
 namespace mozilla {
 namespace ipc {
 
@@ -17,17 +15,6 @@ namespace ipc {
 // to be inherited in BackgroundImpl.
 class BackgroundChildImpl : public PBackgroundChild
 {
-public:
-  class ThreadLocal;
-
-  // Get the ThreadLocal for the current thread if
-  // BackgroundChild::GetOrCreateForCurrentThread() has been called and true was
-  // returned (e.g. a valid PBackgroundChild actor has been created or is in the
-  // process of being created). Otherwise this function returns null.
-  // This functions is implemented in BackgroundImpl.cpp.
-  static ThreadLocal*
-  GetThreadLocalForCurrentThread();
-
 protected:
   BackgroundChildImpl();
   virtual ~BackgroundChildImpl();
@@ -40,20 +27,6 @@ protected:
 
   virtual bool
   DeallocPBackgroundTestChild(PBackgroundTestChild* aActor) MOZ_OVERRIDE;
-};
-
-class BackgroundChildImpl::ThreadLocal
-{
-  friend class nsAutoPtr<ThreadLocal>;
-
-  // Add any members needed here.
-
-public:
-  ThreadLocal();
-
-private:
-  // Only destroyed by nsAutoPtr<ThreadLocal>.
-  ~ThreadLocal();
 };
 
 } // namespace ipc

@@ -834,8 +834,7 @@ BasicLayerManager::PaintSelfOrChildren(PaintLayerContext& aPaintContext,
           aPaintContext.mCallback, aPaintContext.mCallbackData,
           aPaintContext.mReadback);
     } else {
-      data->Paint(aGroupTarget->GetDrawTarget(),
-                  aPaintContext.mLayer->GetMaskLayer());
+      data->DeprecatedPaint(aGroupTarget, aPaintContext.mLayer->GetMaskLayer());
     }
   } else {
     ReadbackProcessor readback;

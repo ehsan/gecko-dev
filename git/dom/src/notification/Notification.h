@@ -5,9 +5,9 @@
 #ifndef mozilla_dom_notification_h__
 #define mozilla_dom_notification_h__
 
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/NotificationBinding.h"
 
+#include "nsDOMEventTargetHelper.h"
 #include "nsIObserver.h"
 
 #include "nsCycleCollectionParticipant.h"
@@ -21,7 +21,7 @@ namespace dom {
 class NotificationObserver;
 class Promise;
 
-class Notification : public DOMEventTargetHelper
+class Notification : public nsDOMEventTargetHelper
 {
   friend class NotificationTask;
   friend class NotificationPermissionRequest;

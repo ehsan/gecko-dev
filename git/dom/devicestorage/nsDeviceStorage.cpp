@@ -3091,13 +3091,13 @@ NS_IMPL_CYCLE_COLLECTION_4(DeviceStorageRequest,
 NS_INTERFACE_MAP_BEGIN(nsDOMDeviceStorage)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDeviceStorage)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorage, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorage, nsDOMEventTargetHelper)
 
 nsDOMDeviceStorage::nsDOMDeviceStorage(nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow)
+  : nsDOMEventTargetHelper(aWindow)
   , mIsWatchingFile(false)
   , mAllowedToWatchFile(false)
 {
@@ -4168,8 +4168,8 @@ nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
     return rv;
   }
 
-  return DOMEventTargetHelper::AddEventListener(aType, aListener, aUseCapture,
-                                                aWantsUntrusted, aArgc);
+  return nsDOMEventTargetHelper::AddEventListener(aType, aListener, aUseCapture,
+                                                  aWantsUntrusted, aArgc);
 }
 
 void
@@ -4197,8 +4197,8 @@ nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return;
   }
-  DOMEventTargetHelper::AddEventListener(aType, aListener, aUseCapture,
-                                         aWantsUntrusted, aRv);
+  nsDOMEventTargetHelper::AddEventListener(aType, aListener, aUseCapture,
+                                           aWantsUntrusted, aRv);
 }
 
 NS_IMETHODIMP
@@ -4223,7 +4223,7 @@ nsDOMDeviceStorage::RemoveEventListener(const nsAString & aType,
                                         nsIDOMEventListener *aListener,
                                         bool aUseCapture)
 {
-  DOMEventTargetHelper::RemoveEventListener(aType, aListener, false);
+  nsDOMEventTargetHelper::RemoveEventListener(aType, aListener, false);
 
   if (mIsWatchingFile && !HasListenersFor(nsGkAtoms::onchange)) {
     mIsWatchingFile = false;
@@ -4239,7 +4239,7 @@ nsDOMDeviceStorage::RemoveEventListener(const nsAString& aType,
                                         bool aCapture,
                                         ErrorResult& aRv)
 {
-  DOMEventTargetHelper::RemoveEventListener(aType, aListener, aCapture, aRv);
+  nsDOMEventTargetHelper::RemoveEventListener(aType, aListener, aCapture, aRv);
 
   if (mIsWatchingFile && !HasListenersFor(nsGkAtoms::onchange)) {
     mIsWatchingFile = false;
@@ -4260,37 +4260,37 @@ NS_IMETHODIMP
 nsDOMDeviceStorage::DispatchEvent(nsIDOMEvent *aEvt,
                                   bool *aRetval)
 {
-  return DOMEventTargetHelper::DispatchEvent(aEvt, aRetval);
+  return nsDOMEventTargetHelper::DispatchEvent(aEvt, aRetval);
 }
 
 EventTarget*
 nsDOMDeviceStorage::GetTargetForDOMEvent()
 {
-  return DOMEventTargetHelper::GetTargetForDOMEvent();
+  return nsDOMEventTargetHelper::GetTargetForDOMEvent();
 }
 
 EventTarget *
 nsDOMDeviceStorage::GetTargetForEventTargetChain()
 {
-  return DOMEventTargetHelper::GetTargetForEventTargetChain();
+  return nsDOMEventTargetHelper::GetTargetForEventTargetChain();
 }
 
 nsresult
 nsDOMDeviceStorage::PreHandleEvent(EventChainPreVisitor& aVisitor)
 {
-  return DOMEventTargetHelper::PreHandleEvent(aVisitor);
+  return nsDOMEventTargetHelper::PreHandleEvent(aVisitor);
 }
 
 nsresult
 nsDOMDeviceStorage::WillHandleEvent(EventChainPostVisitor& aVisitor)
 {
-  return DOMEventTargetHelper::WillHandleEvent(aVisitor);
+  return nsDOMEventTargetHelper::WillHandleEvent(aVisitor);
 }
 
 nsresult
 nsDOMDeviceStorage::PostHandleEvent(EventChainPostVisitor& aVisitor)
 {
-  return DOMEventTargetHelper::PostHandleEvent(aVisitor);
+  return nsDOMEventTargetHelper::PostHandleEvent(aVisitor);
 }
 
 nsresult
@@ -4299,34 +4299,34 @@ nsDOMDeviceStorage::DispatchDOMEvent(WidgetEvent* aEvent,
                                      nsPresContext* aPresContext,
                                      nsEventStatus* aEventStatus)
 {
-  return DOMEventTargetHelper::DispatchDOMEvent(aEvent,
-                                                aDOMEvent,
-                                                aPresContext,
-                                                aEventStatus);
+  return nsDOMEventTargetHelper::DispatchDOMEvent(aEvent,
+                                                  aDOMEvent,
+                                                  aPresContext,
+                                                  aEventStatus);
 }
 
 EventListenerManager*
 nsDOMDeviceStorage::GetOrCreateListenerManager()
 {
-  return DOMEventTargetHelper::GetOrCreateListenerManager();
+  return nsDOMEventTargetHelper::GetOrCreateListenerManager();
 }
 
 EventListenerManager*
 nsDOMDeviceStorage::GetExistingListenerManager() const
 {
-  return DOMEventTargetHelper::GetExistingListenerManager();
+  return nsDOMEventTargetHelper::GetExistingListenerManager();
 }
 
 nsIScriptContext *
 nsDOMDeviceStorage::GetContextForEventHandlers(nsresult *aRv)
 {
-  return DOMEventTargetHelper::GetContextForEventHandlers(aRv);
+  return nsDOMEventTargetHelper::GetContextForEventHandlers(aRv);
 }
 
 JSContext *
 nsDOMDeviceStorage::GetJSContextForEventHandlers()
 {
-  return DOMEventTargetHelper::GetJSContextForEventHandlers();
+  return nsDOMEventTargetHelper::GetJSContextForEventHandlers();
 }
 
 NS_IMPL_EVENT_HANDLER(nsDOMDeviceStorage, change)

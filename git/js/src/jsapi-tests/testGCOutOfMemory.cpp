@@ -29,7 +29,8 @@ BEGIN_TEST(testGCOutOfMemory)
         "        array.push({});"
         "    array = []; array.push(0);"
         "})();";
-    bool ok = JS_EvaluateScript(cx, global, source, strlen(source), "", 1, &root);
+    bool ok = JS_EvaluateScript(cx, global, source, strlen(source), "", 1,
+                                  root.address());
 
     /* Check that we get OOM. */
     CHECK(!ok);
@@ -46,7 +47,7 @@ BEGIN_TEST(testGCOutOfMemory)
          "        --i;"
          "        array.push({});"
          "    }"
-         "})();", &root);
+         "})();", root.address());
     CHECK_EQUAL(errorCount, 1);
     return true;
 }

@@ -253,7 +253,7 @@ SourceBuffer::Ended()
 }
 
 SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
-  : DOMEventTargetHelper(aMediaSource->GetParentObject())
+  : nsDOMEventTargetHelper(aMediaSource->GetParentObject())
   , mMediaSource(aMediaSource)
   , mAppendWindowStart(0)
   , mAppendWindowEnd(PositiveInfinity<double>())
@@ -399,14 +399,13 @@ SourceBuffer::Evict(double aStart, double aEnd)
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(SourceBuffer, DOMEventTargetHelper,
-                                     mMediaSource)
+NS_IMPL_CYCLE_COLLECTION_INHERITED_1(SourceBuffer, nsDOMEventTargetHelper, mMediaSource)
 
-NS_IMPL_ADDREF_INHERITED(SourceBuffer, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(SourceBuffer, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(SourceBuffer, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(SourceBuffer, nsDOMEventTargetHelper)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SourceBuffer)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 } // namespace dom
 

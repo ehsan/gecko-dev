@@ -12,13 +12,12 @@
 #include "nsIDocShell.h"
 #include "AudioChannelService.h"
 
-namespace mozilla {
-namespace dom {
+using namespace mozilla::dom;
 
-NS_IMPL_QUERY_INTERFACE_INHERITED1(SpeakerManager, DOMEventTargetHelper,
+NS_IMPL_QUERY_INTERFACE_INHERITED1(SpeakerManager, nsDOMEventTargetHelper,
                                    nsIDOMEventListener)
-NS_IMPL_ADDREF_INHERITED(SpeakerManager, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(SpeakerManager, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(SpeakerManager, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(SpeakerManager, nsDOMEventTargetHelper)
 
 SpeakerManager::SpeakerManager()
   : mForcespeaker(false)
@@ -220,6 +219,3 @@ SpeakerManager::SetAudioChannelActive(bool isActive)
     }
   }
 }
-
-} // namespace dom
-} // namespace mozilla

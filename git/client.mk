@@ -203,7 +203,7 @@ endif
 ifdef WANT_MOZCONFIG_MK
 # For now, only output "export" lines from mozconfig2client-mk output.
 MOZCONFIG_MK_LINES := $(filter export||%,$(MOZCONFIG_OUT_LINES))
-$(OBJDIR)/.mozconfig.mk: $(FOUND_MOZCONFIG) $(call mkdir_deps,$(OBJDIR)) $(OBJDIR)/CLOBBER
+$(OBJDIR)/.mozconfig.mk: $(FOUND_MOZCONFIG) $(call mkdir_deps,$(OBJDIR))
 	$(if $(MOZCONFIG_MK_LINES),( $(foreach line,$(MOZCONFIG_MK_LINES), echo '$(subst ||, ,$(line))';) )) > $@
 
 # Include that makefile so that it is created. This should not actually change
@@ -340,14 +340,14 @@ else
   CONFIGURE = $(TOPSRCDIR)/configure
 endif
 
-$(OBJDIR)/CLOBBER: $(TOPSRCDIR)/CLOBBER
+check-clobber:
 	$(PYTHON) $(TOPSRCDIR)/config/pythonpath.py -I $(TOPSRCDIR)/testing/mozbase/mozfile \
 	    $(TOPSRCDIR)/python/mozbuild/mozbuild/controller/clobber.py $(TOPSRCDIR) $(OBJDIR)
 
 configure-files: $(CONFIGURES)
 
 configure-preqs = \
-  $(OBJDIR)/CLOBBER \
+  check-clobber \
   configure-files \
   $(call mkdir_deps,$(OBJDIR)) \
   $(if $(MOZ_BUILD_PROJECTS),$(call mkdir_deps,$(MOZ_OBJDIR))) \
@@ -468,6 +468,7 @@ echo-variable-%:
     cleansrcdir \
     pull_all \
     build_all \
+    check-clobber \
     clobber \
     clobber_all \
     pull_and_build_all \

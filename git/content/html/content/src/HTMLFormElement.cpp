@@ -8,10 +8,10 @@
 #include "jsapi.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStateManager.h"
 #include "mozilla/dom/HTMLFormControlsCollection.h"
 #include "mozilla/dom/HTMLFormElementBinding.h"
 #include "nsIHTMLDocument.h"
+#include "nsEventStateManager.h"
 #include "nsEventStates.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
@@ -658,7 +658,7 @@ HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
     mSubmitPopupState = openAbused;
   }
 
-  mSubmitInitiatedFromUserInput = EventStateManager::IsHandlingUserInput();
+  mSubmitInitiatedFromUserInput = nsEventStateManager::IsHandlingUserInput();
 
   if(mDeferSubmission) { 
     // we are in an event handler, JS submitted so we have to

@@ -8,10 +8,10 @@
 #define nsDOMDataChannel_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/DataChannelBinding.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/net/DataChannelListener.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIDOMDataChannel.h"
 #include "nsIInputStream.h"
 
@@ -20,7 +20,7 @@ namespace mozilla {
 class DataChannel;
 };
 
-class nsDOMDataChannel : public mozilla::DOMEventTargetHelper,
+class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
 {
@@ -34,10 +34,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDATACHANNEL
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(mozilla::DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDataChannel,
-                                           mozilla::DOMEventTargetHelper)
+                                           nsDOMEventTargetHelper)
 
   virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
     MOZ_OVERRIDE;

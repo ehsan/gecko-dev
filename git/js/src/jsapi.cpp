@@ -4712,8 +4712,8 @@ JS_DecompileFunctionBody(JSContext *cx, HandleFunction fun, unsigned indent)
     return FunctionToString(cx, fun, true, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
-MOZ_NEVER_INLINE static bool
-ExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptArg, jsval *rval)
+MOZ_NEVER_INLINE JS_PUBLIC_API(bool)
+JS_ExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptArg, jsval *rval)
 {
     RootedScript script(cx, scriptArg);
 
@@ -4744,36 +4744,18 @@ ExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptArg, jsval *rv
     return Execute(cx, script, *obj, rval);
 }
 
-MOZ_NEVER_INLINE JS_PUBLIC_API(bool)
-JS_ExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptArg, MutableHandleValue rval)
-{
-    return ExecuteScript(cx, obj, scriptArg, rval.address());
-}
-
-MOZ_NEVER_INLINE JS_PUBLIC_API(bool)
-JS_ExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptArg)
-{
-    return ExecuteScript(cx, obj, scriptArg, nullptr);
-}
-
 JS_PUBLIC_API(bool)
-JS_ExecuteScriptVersion(JSContext *cx, HandleObject obj, HandleScript script,
-                        MutableHandleValue rval, JSVersion version)
+JS_ExecuteScriptVersion(JSContext *cx, HandleObject obj, HandleScript script, jsval *rval,
+                        JSVersion version)
 {
-    return ExecuteScript(cx, obj, script, rval.address());
-}
-
-JS_PUBLIC_API(bool)
-JS_ExecuteScriptVersion(JSContext *cx, HandleObject obj, HandleScript script, JSVersion version)
-{
-    return ExecuteScript(cx, obj, script, nullptr);
+    return JS_ExecuteScript(cx, obj, script, rval);
 }
 
 static const unsigned LARGE_SCRIPT_LENGTH = 500*1024;
 
-static bool
-Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-         const jschar *chars, size_t length, JS::Value *rval)
+extern JS_PUBLIC_API(bool)
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
+             const jschar *chars, size_t length, jsval *rval)
 {
     CompileOptions options(cx, optionsArg);
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
@@ -4806,32 +4788,32 @@ Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsA
     if (script->length() > LARGE_SCRIPT_LENGTH) {
         script = nullptr;
         PrepareZoneForGC(cx->zone());
-        GC(cx->runtime(), GC_NORMAL, JS::gcreason::FINISH_LARGE_EVALUTE);
+        GC(cx->runtime(), GC_NORMAL, gcreason::FINISH_LARGE_EVALUTE);
     }
 
     return result;
 }
 
-static bool
-Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
-         const char *bytes, size_t length, JS::Value *rval)
+extern JS_PUBLIC_API(bool)
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
+             const char *bytes, size_t length, jsval *rval)
 {
     jschar *chars;
     if (options.utf8)
-        chars = UTF8CharsToNewTwoByteCharsZ(cx, JS::UTF8Chars(bytes, length), &length).get();
+        chars = UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get();
     else
         chars = InflateString(cx, bytes, &length);
     if (!chars)
         return false;
 
-    bool ok = ::Evaluate(cx, obj, options, chars, length, rval);
+    bool ok = Evaluate(cx, obj, options, chars, length, rval);
     js_free(chars);
     return ok;
 }
 
-static bool
-Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-         const char *filename, JS::Value *rval)
+extern JS_PUBLIC_API(bool)
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
+             const char *filename, jsval *rval)
 {
     FileContents buffer(cx);
     {
@@ -4845,48 +4827,6 @@ Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsA
     return Evaluate(cx, obj, options, buffer.begin(), buffer.length(), rval);
 }
 
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-             const jschar *chars, size_t length, MutableHandleValue rval)
-{
-    return ::Evaluate(cx, obj, optionsArg, chars, length, rval.address());
-}
-
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
-             const char *bytes, size_t length, MutableHandleValue rval)
-{
-    return ::Evaluate(cx, obj, options, bytes, length, rval.address());
-}
-
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-             const char *filename, MutableHandleValue rval)
-{
-    return ::Evaluate(cx, obj, optionsArg, filename, rval.address());
-}
-
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-             const jschar *chars, size_t length)
-{
-    return ::Evaluate(cx, obj, optionsArg, chars, length, nullptr);
-}
-
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
-             const char *bytes, size_t length)
-{
-    return ::Evaluate(cx, obj, options, bytes, length, nullptr);
-}
-
-extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
-             const char *filename)
-{
-    return ::Evaluate(cx, obj, optionsArg, filename, nullptr);
-}
-
 JS_PUBLIC_API(bool)
 JS_EvaluateUCScript(JSContext *cx, HandleObject obj, const jschar *chars, unsigned length,
                     const char *filename, unsigned lineno, MutableHandleValue rval)
@@ -4894,27 +4834,17 @@ JS_EvaluateUCScript(JSContext *cx, HandleObject obj, const jschar *chars, unsign
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
 
-    return ::Evaluate(cx, obj, options, chars, length, rval.address());
+    return Evaluate(cx, obj, options, chars, length, rval.address());
 }
 
 JS_PUBLIC_API(bool)
 JS_EvaluateScript(JSContext *cx, HandleObject obj, const char *bytes, unsigned nbytes,
-                  const char *filename, unsigned lineno, MutableHandleValue rval)
+                  const char *filename, unsigned lineno, jsval *rval)
 {
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
 
-    return ::Evaluate(cx, obj, options, bytes, nbytes, rval.address());
-}
-
-JS_PUBLIC_API(bool)
-JS_EvaluateScript(JSContext *cx, HandleObject obj, const char *bytes, unsigned nbytes,
-                  const char *filename, unsigned lineno)
-{
-    CompileOptions options(cx);
-    options.setFileAndLine(filename, lineno);
-
-    return ::Evaluate(cx, obj, options, bytes, nbytes, nullptr);
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
 }
 
 JS_PUBLIC_API(bool)

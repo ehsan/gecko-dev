@@ -340,7 +340,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         break;
     case eIntID_SelectTextfieldsOnKeyFocus:
         // Select textfield content when focused by kbd
-        // used by EventStateManager::sTextfieldSelectModel
+        // used by nsEventStateManager::sTextfieldSelectModel
         aResult = 1;
         break;
     case eIntID_SubmenuDelay:

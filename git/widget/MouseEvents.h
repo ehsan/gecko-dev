@@ -277,15 +277,6 @@ public:
   {
     return message == NS_CONTEXTMENU && context == eContextMenuKey;
   }
-
-  /**
-   * Returns true if the event is a real mouse event.  Otherwise, i.e., it's
-   * a synthesized event by scroll or something, returns false.
-   */
-  bool IsReal() const
-  {
-    return reason == eReal;
-  }
 };
 
 /******************************************************************************
@@ -441,7 +432,7 @@ public:
 
   // NOTE: deltaX, deltaY and deltaZ may be customized by
   //       mousewheel.*.delta_multiplier_* prefs which are applied by
-  //       EventStateManager.  So, after widget dispatches this event,
+  //       nsEventStateManager.  So, after widget dispatches this event,
   //       these delta values may have different values than before.
   double deltaX;
   double deltaY;
@@ -465,7 +456,7 @@ public:
   // when accumulated pixel delta values reach a line height.
   bool isPixelOnlyDevice;
 
-  // If widget sets lineOrPageDelta, EventStateManager will dispatch
+  // If widget sets lineOrPageDelta, nsEventStateManager will dispatch
   // NS_MOUSE_SCROLL event for compatibility.  Note that the delta value means
   // pages if the deltaMode is DOM_DELTA_PAGE, otherwise, lines.
   int32_t lineOrPageDeltaX;
@@ -493,7 +484,7 @@ public:
   }
 
   // Scroll type
-  // The default value is SCROLL_DEFAULT, which means EventStateManager will
+  // The default value is SCROLL_DEFAULT, which means nsEventStateManager will
   // select preferred scroll type automatically.
   enum ScrollType
   {
@@ -508,7 +499,7 @@ public:
   // nsEventStateManger.  If the default action of the wheel event isn't scroll,
   // these values always zero.  Otherwise, remaning delta values which are
   // not used by scroll are set.
-  // NOTE: deltaX, deltaY and deltaZ may be modified by EventStateManager.
+  // NOTE: deltaX, deltaY and deltaZ may be modified by nsEventStateManager.
   //       However, overflowDeltaX and overflowDeltaY indicate unused original
   //       delta values which are not applied the delta_multiplier prefs.
   //       So, if widget wanted to know the actual direction to be scrolled,

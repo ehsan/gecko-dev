@@ -16,7 +16,7 @@ class nsPIDOMWindow;
 namespace mozilla {
 namespace dom {
 
-class TelephonyCall MOZ_FINAL : public DOMEventTargetHelper
+class TelephonyCall MOZ_FINAL : public nsDOMEventTargetHelper
 {
   nsRefPtr<Telephony> mTelephony;
   nsRefPtr<TelephonyCallGroup> mGroup;
@@ -36,9 +36,9 @@ class TelephonyCall MOZ_FINAL : public DOMEventTargetHelper
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TelephonyCall,
-                                           DOMEventTargetHelper)
+                                           nsDOMEventTargetHelper)
 
   friend class Telephony;
 

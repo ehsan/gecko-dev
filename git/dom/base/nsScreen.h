@@ -7,17 +7,17 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/HalScreenConfiguration.h"
 #include "nsIDOMScreen.h"
 #include "nsCOMPtr.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsRect.h"
 
 class nsDeviceContext;
 
 // Script "screen" object
-class nsScreen : public mozilla::DOMEventTargetHelper
+class nsScreen : public nsDOMEventTargetHelper
                , public nsIDOMScreen
                , public mozilla::hal::ScreenConfigurationObserver
 {
@@ -27,7 +27,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSCREEN
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(mozilla::DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   nsPIDOMWindow* GetParentObject() const
   {

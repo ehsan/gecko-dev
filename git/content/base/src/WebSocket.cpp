@@ -10,7 +10,6 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "js/OldDebugAPI.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocument.h"
@@ -40,6 +39,7 @@
 #include "nsContentPolicyUtils.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIObserverService.h"
 #include "nsIWebSocketChannel.h"
 #include "GeneratedEvents.h"
@@ -441,7 +441,7 @@ WebSocket::GetInterface(const nsIID& aIID, void** aResult)
 ////////////////////////////////////////////////////////////////////////////////
 
 WebSocket::WebSocket(nsPIDOMWindow* aOwnerWindow)
-: DOMEventTargetHelper(aOwnerWindow),
+: nsDOMEventTargetHelper(aOwnerWindow),
   mKeepingAlive(false),
   mCheckMustKeepAlive(true),
   mOnCloseScheduled(false),
@@ -595,18 +595,18 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(WebSocket)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(WebSocket,
-                                               DOMEventTargetHelper)
+                                               nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WebSocket,
-                                                  DOMEventTargetHelper)
+                                                  nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mURI)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChannel)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WebSocket,
-                                                DOMEventTargetHelper)
+                                                nsDOMEventTargetHelper)
   tmp->Disconnect();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrincipal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mURI)
@@ -619,15 +619,15 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(WebSocket)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIRequest)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(WebSocket, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(WebSocket, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(WebSocket, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(WebSocket, nsDOMEventTargetHelper)
 
 void
 WebSocket::DisconnectFromOwner()
 {
-  DOMEventTargetHelper::DisconnectFromOwner();
+  nsDOMEventTargetHelper::DisconnectFromOwner();
   CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
   DontKeepAliveAnyMore();
 }

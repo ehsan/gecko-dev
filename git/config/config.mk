@@ -55,6 +55,7 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   JAVA_JAR_TARGETS \
   JS_MODULES_PATH \
   LIBRARY_NAME \
+  LIBXUL_LIBRARY \
   MODULE \
   MSVC_ENABLE_PGO \
   NO_DIST_INSTALL \
@@ -72,7 +73,6 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
 
 _DEPRECATED_VARIABLES := \
   ANDROID_RESFILES \
-  LIBXUL_LIBRARY \
   MOCHITEST_A11Y_FILES \
   MOCHITEST_BROWSER_FILES \
   MOCHITEST_BROWSER_FILES_PARTS \
@@ -340,7 +340,10 @@ _ENABLE_PIC=1
 # Determine if module being compiled is destined
 # to be merged into libxul
 
-ifneq (,$(filter xul xul-%,$(FINAL_LIBRARY) $(LIBRARY_NAME)))
+ifneq (,$(filter xul,$(FINAL_LIBRARY) $(LIBRARY_NAME)))
+  ifdef LIBXUL_LIBRARY
+    $(error LIBRARY_NAME or FINAL_LIBRARY is "xul", LIBXUL_LIBRARY is implied)
+  endif
   LIBXUL_LIBRARY := 1
 endif
 
@@ -348,7 +351,7 @@ ifdef LIBXUL_LIBRARY
 ifdef IS_COMPONENT
 $(error IS_COMPONENT is set, but is not compatible with LIBXUL_LIBRARY)
 endif
-ifeq (,$(filter xul xul-%,$(LIBRARY_NAME)))
+ifneq (xul,$(LIBRARY_NAME))
 FORCE_STATIC_LIB=1
 endif
 endif

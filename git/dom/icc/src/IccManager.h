@@ -5,8 +5,8 @@
 #ifndef mozilla_dom_IccManager_h
 #define mozilla_dom_IccManager_h
 
-#include "mozilla/DOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIDOMIccManager.h"
 #include "nsIIccProvider.h"
 #include "nsTArrayHelpers.h"
@@ -16,17 +16,17 @@ namespace dom {
 
 class IccListener;
 
-class IccManager MOZ_FINAL : public DOMEventTargetHelper
+class IccManager MOZ_FINAL : public nsDOMEventTargetHelper
                            , public nsIDOMMozIccManager
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMMOZICCMANAGER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IccManager,
-                                                         DOMEventTargetHelper)
+                                                         nsDOMEventTargetHelper)
 
   IccManager(nsPIDOMWindow* aWindow);
   ~IccManager();

@@ -1017,30 +1017,14 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
                             aValue, aSerialization);
         break;
       }
-      if (columnsValue.GetUnit() == eCSSUnit_List ||
-          columnsValue.GetUnit() == eCSSUnit_ListDep) {
-        const nsCSSValueList* columnsItem = columnsValue.GetListValue();
-        if (columnsItem->mValue.GetUnit() == eCSSUnit_Enumerated &&
-            columnsItem->mValue.GetIntValue() == NS_STYLE_GRID_TEMPLATE_SUBGRID) {
-          // We have "grid-template-areas:[something]; grid-template-columns:subgrid"
-          // which isn't a value that the shorthand can express. Bail.
-          return;
-        }
-      }
       if (rowsValue.GetUnit() != eCSSUnit_List &&
           rowsValue.GetUnit() != eCSSUnit_ListDep) {
         // We have "grid-template-areas:[something]; grid-template-rows:none"
         // which isn't a value that the shorthand can express. Bail.
         return;
       }
-      const nsCSSValueList* rowsItem = rowsValue.GetListValue();
-      if (rowsItem->mValue.GetUnit() == eCSSUnit_Enumerated &&
-          rowsItem->mValue.GetIntValue() == NS_STYLE_GRID_TEMPLATE_SUBGRID) {
-        // We have "grid-template-areas:[something]; grid-template-rows:subgrid"
-        // which isn't a value that the shorthand can express. Bail.
-        return;
-      }
       const GridTemplateAreasValue* areas = areasValue.GetGridTemplateAreas();
+      const nsCSSValueList* rowsItem = rowsValue.GetListValue();
       uint32_t nRowItems = 0;
       while (rowsItem) {
         nRowItems++;
@@ -1080,12 +1064,6 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
           // <track-size>
           rowsItem->mValue.AppendToString(eCSSProperty_grid_template_rows,
                                           aValue, aSerialization);
-          if (rowsItem->mNext &&
-              rowsItem->mNext->mValue.GetUnit() == eCSSUnit_Null &&
-              !rowsItem->mNext->mNext) {
-            // Break out of the loop early to avoid a trailing space.
-            break;
-          }
         }
 
         rowsItem = rowsItem->mNext;
@@ -1120,6 +1098,9 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
   }
 }
 
+// Length of the "var-" prefix of custom property names.
+#define VAR_PREFIX_LENGTH 4
+
 bool
 Declaration::GetValueIsImportant(const nsAString& aProperty) const
 {
@@ -1129,9 +1110,7 @@ Declaration::GetValueIsImportant(const nsAString& aProperty) const
     return false;
   }
   if (propID == eCSSPropertyExtra_variable) {
-    const nsSubstring& variableName =
-      Substring(aProperty, CSS_CUSTOM_NAME_PREFIX_LENGTH);
-    return GetVariableValueIsImportant(variableName);
+    return GetVariableValueIsImportant(Substring(aProperty, VAR_PREFIX_LENGTH));
   }
   return GetValueIsImportant(propID);
 }
@@ -1186,7 +1165,7 @@ void
 Declaration::AppendVariableAndValueToString(const nsAString& aName,
                                             nsAString& aResult) const
 {
-  aResult.AppendLiteral("--");
+  aResult.AppendLiteral("var-");
   aResult.Append(aName);
   CSSVariableDeclarations::Type type;
   nsString value;

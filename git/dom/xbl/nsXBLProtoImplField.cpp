@@ -431,7 +431,7 @@ nsXBLProtoImplField::InstallField(JS::Handle<JSObject*> aBoundNode,
   rv = nsJSUtils::EvaluateString(cx, nsDependentString(mFieldText,
                                                        mFieldTextLength),
                                  wrappedNode, options, evalOptions,
-                                 &result);
+                                 result.address());
   if (NS_FAILED(rv)) {
     return rv;
   }

@@ -135,7 +135,7 @@ SourceBufferList::QueueAsyncSimpleEvent(const char* aName)
 }
 
 SourceBufferList::SourceBufferList(MediaSource* aMediaSource)
-  : DOMEventTargetHelper(aMediaSource->GetParentObject())
+  : nsDOMEventTargetHelper(aMediaSource->GetParentObject())
   , mMediaSource(aMediaSource)
 {
   MOZ_ASSERT(aMediaSource);
@@ -153,14 +153,14 @@ SourceBufferList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   return SourceBufferListBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(SourceBufferList, DOMEventTargetHelper,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_2(SourceBufferList, nsDOMEventTargetHelper,
                                      mMediaSource, mSourceBuffers)
 
-NS_IMPL_ADDREF_INHERITED(SourceBufferList, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(SourceBufferList, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(SourceBufferList, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(SourceBufferList, nsDOMEventTargetHelper)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SourceBufferList)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 } // namespace dom
 

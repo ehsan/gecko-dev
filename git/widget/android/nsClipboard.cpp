@@ -43,7 +43,8 @@ nsClipboard::SetData(nsITransferable *aTransferable,
   nsAutoString buffer;
   supportsString->GetData(buffer);
 
-  mozilla::widget::android::Clipboard::SetClipboardText(buffer);
+  Clipboard::SetClipboardText(buffer);
+
   return NS_OK;
 }
 
@@ -84,8 +85,8 @@ nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
 {
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  mozilla::widget::android::Clipboard::ClearText();
-  
+  Clipboard::ClearText();
+
   return NS_OK;
 }
 
@@ -97,7 +98,7 @@ nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
   *aHasText = false;
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  *aHasText = mozilla::widget::android::Clipboard::HasText();
+  *aHasText = Clipboard::HasText();
   return NS_OK;
 }
 

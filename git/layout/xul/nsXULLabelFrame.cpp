@@ -5,12 +5,10 @@
 
 /* derived class of nsBlockFrame used for xul:label elements */
 
-#include "mozilla/EventStateManager.h"
 #include "nsXULLabelFrame.h"
 #include "nsHTMLParts.h"
 #include "nsNameSpaceManager.h"
-
-using namespace mozilla;
+#include "nsEventStateManager.h"
 
 nsIFrame*
 NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -49,7 +47,7 @@ nsXULLabelFrame::RegUnregAccessKey(bool aDoReg)
 
   // With a valid PresContext we can get the ESM 
   // and register the access key
-  EventStateManager* esm = PresContext()->EventStateManager();
+  nsEventStateManager *esm = PresContext()->EventStateManager();
 
   uint32_t key = accessKey.First();
   if (aDoReg)
