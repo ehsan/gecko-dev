@@ -1,10 +1,12 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=8 et :
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
+ * the License. You may obtain a copy of the License at:
  * http://www.mozilla.org/MPL/
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
@@ -12,14 +14,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Code.
  *
  * The Initial Developer of the Original Code is
- * YAMASHITA Makoto <makotoy@ms.u-tokyo.ac.jp>.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ *   The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Chris Jones <jones.chris.g@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,33 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
-interface nsIDOMWindow;
+#include "base/atomicops.h"
 
-/**
- * This is the interface to the embeddable non-blocking alert
- * service.  A non-blocking alert is a less serious informative alert
- * that does not need to block the program's execution to get the
- * user's response.
- *
- * The way to present the alert is left to the implementations.  It
- * may be a dialog separate from the parent window, or a window-modal
- * sheet (as the ones in Mac OS X) attached to the parent.
- */
-[scriptable, uuid(E800EF97-AE37-46B7-A46C-31FBE79657EA)]
-interface nsINonBlockingAlertService : nsISupports {
-  /**
-   * This shows a non-blocking alert with the specified title and
-   * message text. This function requires a valid parent window with
-   * which the alert is associated.
-   *
-   * @param aParent
-   *        The parent window. This must not be null.
-   * @param aDialogTitle
-   *        Text to appear in the title of the alert.
-   * @param aText
-   *        Text to appear in the body of the alert.
-   */
-  void showNonBlockingAlert(in nsIDOMWindow aParent,
-			    in wstring aDialogTitle, in wstring aText);
-};
+namespace base {
+namespace subtle {
+
+Lock gAtomicsMutex;
+
+}  // namespace subtle
+}  // namespace base

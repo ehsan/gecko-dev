@@ -143,7 +143,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsHtml5Module.h"
 #include "prprf.h"
-#include "Element.h"
+#include "mozilla/dom/Element.h"
 
 using namespace mozilla::dom;
 
@@ -1393,26 +1393,6 @@ nsHTMLDocument::GetElementsByTagName(const nsAString& aTagname,
     ToLowerCase(tmp); // HTML elements are lower case internally.
   }
   return nsDocument::GetElementsByTagName(tmp, aReturn);
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::GetBaseURI(nsAString &aURI)
-{
-  aURI.Truncate();
-  nsIURI *uri = mDocumentBaseURI; // WEAK
-
-  if (!uri) {
-    uri = mDocumentURI;
-  }
-
-  if (uri) {
-    nsCAutoString spec;
-    uri->GetSpec(spec);
-
-    CopyUTF8toUTF16(spec, aURI);
-  }
-
-  return NS_OK;
 }
 
 // nsIDOM3Document interface implementation
