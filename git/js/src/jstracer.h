@@ -66,11 +66,10 @@ class Queue {
 
 public:
     void ensure(unsigned size) {
-        if (_max > size)
-            return;
         if (!_max)
-            _max = 8;
-        _max = JS_MAX(_max * 2, size);
+            _max = 16;
+        while (_max < size)
+            _max <<= 1;
         if (alloc) {
             T* tmp = new (*alloc) T[_max];
             memcpy(tmp, _data, _len * sizeof(T));
