@@ -149,6 +149,8 @@
 #endif
 #ifdef MOZ_SVG
 #include "nsSVGEffects.h"
+#include "nsSVGUtils.h"
+#include "nsSVGOuterSVGFrame.h"
 #endif
 
 nsIFrame*
@@ -5136,7 +5138,9 @@ nsCSSFrameConstructor::ConstructFrameFromData(const FrameConstructionData* aData
   CHECK_ONLY_ONE_BIT(FCDATA_SKIP_FRAMEMAP, FCDATA_MAY_NEED_SCROLLFRAME);
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_DISALLOW_OUT_OF_FLOW);
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_FORCE_NULL_ABSPOS_CONTAINER);
+#ifdef MOZ_MATHML
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_WRAP_KIDS_IN_BLOCKS);
+#endif
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_MAY_NEED_SCROLLFRAME);
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_IS_POPUP);
   CHECK_ONLY_ONE_BIT(FCDATA_FUNC_IS_FULL_CTOR, FCDATA_SKIP_ABSPOS_PUSH);
@@ -8813,9 +8817,20 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     UpdateViewsForTree(aFrame, aViewManager, aFrameManager, aChange);
 
     // if frame has view, will already be invalidated
-    if ((aChange & nsChangeHint_RepaintFrame) &&
-        !aFrame->IsFrameOfType(nsIFrame::eSVG)) {
-      aFrame->Invalidate(aFrame->GetOverflowRect());
+    if (aChange & nsChangeHint_RepaintFrame) {
+      if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+#ifdef MOZ_SVG
+        if (!(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+          nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(aFrame);
+          if (outerSVGFrame) {
+            // marker changes can change the covered region
+            outerSVGFrame->UpdateAndInvalidateCoveredRegion(aFrame);
+          }
+        }
+#endif
+      } else {
+        aFrame->Invalidate(aFrame->GetOverflowRect());
+      }
     }
   }
 }
