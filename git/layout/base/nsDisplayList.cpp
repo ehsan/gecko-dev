@@ -637,10 +637,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
 
   metrics.mMayHaveTouchListeners = aMayHaveTouchListeners;
 
-  if (nsIWidget* widget = aForFrame->GetNearestWidget()) {
-    widget->GetBounds(metrics.mCompositionBounds);
-  }
-
   aRoot->SetFrameMetrics(metrics);
 }
 

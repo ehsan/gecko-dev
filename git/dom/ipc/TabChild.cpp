@@ -183,7 +183,7 @@ TabChild::HandleEvent(nsIDOMEvent* aEvent)
   if (eventType.EqualsLiteral("DOMMetaAdded")) {
     // This meta data may or may not have been a meta viewport tag. If it was,
     // we should handle it immediately.
-    HandlePossibleViewportChange();
+    HandlePossibleMetaViewportChange();
   }
 
   return NS_OK;
@@ -222,27 +222,21 @@ TabChild::Observe(nsISupports *aSubject,
 
         mContentDocumentIsDisplayed = true;
 
-        // Reset CSS viewport and zoom to default on new page, then
-        // calculate them properly using the actual metadata from the
-        // page.
+        // Reset CSS viewport and zoom to default on new page, then calculate them
+        // properly using the actual metadata from the page.
         SetCSSViewport(kDefaultViewportSize.width, kDefaultViewportSize.height);
 
-        // Calculate a really simple resolution that we probably won't
-        // be keeping, as well as putting the scroll offset back to
-        // the top-left of the page.
-        mLastMetrics.mZoom = gfxSize(1.0, 1.0);
-        mLastMetrics.mViewport =
-            gfx::Rect(0, 0,
-                      kDefaultViewportSize.width, kDefaultViewportSize.height);
-        mLastMetrics.mCompositionBounds = nsIntRect(nsIntPoint(0, 0),
-                                                    mInnerSize);
-        mLastMetrics.mResolution =
-          AsyncPanZoomController::CalculateResolution(mLastMetrics);
+        // Calculate a really simple resolution that we probably won't be
+        // keeping, as well as putting the scroll offset back to the top-left of
+        // the page.
+        float resolution = float(mInnerSize.width) / float(kDefaultViewportSize.width);
+        mLastMetrics.mZoom.width = mLastMetrics.mZoom.height =
+          mLastMetrics.mResolution.width = mLastMetrics.mResolution.height =
+            resolution;
         mLastMetrics.mScrollOffset = gfx::Point(0, 0);
-        utils->SetResolution(mLastMetrics.mResolution.width,
-                             mLastMetrics.mResolution.height);
+        utils->SetResolution(resolution, resolution);
 
-        HandlePossibleViewportChange();
+        HandlePossibleMetaViewportChange();
       }
     }
   }
@@ -356,7 +350,7 @@ TabChild::SetCSSViewport(float aWidth, float aHeight)
 }
 
 void
-TabChild::HandlePossibleViewportChange()
+TabChild::HandlePossibleMetaViewportChange()
 {
   if (!IsAsyncPanZoomEnabled()) {
     return;
@@ -368,16 +362,16 @@ TabChild::HandlePossibleViewportChange()
 
   nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
 
-  ViewportInfo viewportInfo =
+  ViewportInfo viewportMetaData =
     nsContentUtils::GetViewportInfo(document, mInnerSize.width, mInnerSize.height);
-  SendUpdateZoomConstraints(viewportInfo.allowZoom,
-                            viewportInfo.minZoom,
-                            viewportInfo.maxZoom);
+  SendUpdateZoomConstraints(viewportMetaData.allowZoom,
+                            viewportMetaData.minZoom,
+                            viewportMetaData.maxZoom);
 
   float screenW = mInnerSize.width;
   float screenH = mInnerSize.height;
-  float viewportW = viewportInfo.width;
-  float viewportH = viewportInfo.height;
+  float viewportW = viewportMetaData.width;
+  float viewportH = viewportMetaData.height;
 
   // We're not being displayed in any way; don't bother doing anything because
   // that will just confuse future adjustments.
@@ -391,8 +385,8 @@ TabChild::HandlePossibleViewportChange()
   // we have to call SetCSSViewport twice - once to set the width, and the
   // second time to figure out the height based on the layout at that width.
   float oldBrowserWidth = mOldViewportWidth;
-  mLastMetrics.mViewport.width = viewportInfo.width;
-  mLastMetrics.mViewport.height = viewportInfo.height;
+  mLastMetrics.mViewport.width = viewportMetaData.width;
+  mLastMetrics.mViewport.height = viewportMetaData.height;
   if (!oldBrowserWidth) {
     oldBrowserWidth = kDefaultViewportSize.width;
   }
@@ -431,7 +425,7 @@ TabChild::HandlePossibleViewportChange()
   float pageHeight = NS_MAX(htmlHeight, bodyHeight);
 
   minScale = mInnerSize.width / pageWidth;
-  minScale = clamped((double)minScale, viewportInfo.minZoom, viewportInfo.maxZoom);
+  minScale = clamped((double)minScale, viewportMetaData.minZoom, viewportMetaData.maxZoom);
 
   viewportH = NS_MAX(viewportH, screenH / minScale);
   SetCSSViewport(viewportW, viewportH);
@@ -452,42 +446,23 @@ TabChild::HandlePossibleViewportChange()
   if (!oldScreenWidth) {
     oldScreenWidth = mInnerSize.width;
   }
+  float zoomScale = (screenW * oldBrowserWidth) / (oldScreenWidth * viewportW);
+
+  float zoom = clamped(double(mLastMetrics.mZoom.width * zoomScale),
+                       viewportMetaData.minZoom, viewportMetaData.maxZoom);
+  utils->SetResolution(zoom, zoom);
 
   FrameMetrics metrics(mLastMetrics);
   metrics.mViewport = gfx::Rect(0.0f, 0.0f, viewportW, viewportH);
   metrics.mScrollableRect = gfx::Rect(0.0f, 0.0f, pageWidth, pageHeight);
   metrics.mCompositionBounds = nsIntRect(0, 0, mInnerSize.width, mInnerSize.height);
-
-  gfxSize intrinsicScale =
-      AsyncPanZoomController::CalculateIntrinsicScale(metrics);
-  // FIXME/bug 799585(?): GetViewportInfo() returns a defaultZoom of
-  // 0.0 to mean "did not calculate a zoom".  In that case, we default
-  // it to the intrinsic scale.
-  if (viewportInfo.defaultZoom < 0.01f) {
-    viewportInfo.defaultZoom = intrinsicScale.width;
-  }
-  MOZ_ASSERT(viewportInfo.minZoom <= viewportInfo.defaultZoom &&
-             viewportInfo.defaultZoom <= viewportInfo.maxZoom);
-  // GetViewportInfo() returns a resolution-dependent scale factor.
-  // Convert that to a resolution-indepedent zoom.
-  metrics.mZoom = gfxSize(viewportInfo.defaultZoom / intrinsicScale.width,
-                          viewportInfo.defaultZoom / intrinsicScale.height);
-
+  metrics.mZoom.width = metrics.mZoom.height =
+    metrics.mResolution.width = metrics.mResolution.height = zoom;
   metrics.mDisplayPort = AsyncPanZoomController::CalculatePendingDisplayPort(
     // The page must have been refreshed in some way such as a new document or
     // new CSS viewport, so we know that there's no velocity, acceleration, and
     // we have no idea how long painting will take.
     metrics, gfx::Point(0.0f, 0.0f), gfx::Point(0.0f, 0.0f), 0.0);
-  gfxSize resolution = AsyncPanZoomController::CalculateResolution(metrics);
-  // XXX is this actually hysteresis?  This calculation is not well
-  // understood.  It's taken from the previous JS implementation.
-  gfxFloat hysteresis/*?*/ =
-    gfxFloat(oldBrowserWidth) / gfxFloat(oldScreenWidth);
-  resolution.width *= hysteresis;
-  resolution.height *= hysteresis;
-  metrics.mResolution = resolution;
-  utils->SetResolution(metrics.mResolution.width, metrics.mResolution.height);
-
   // Force a repaint with these metrics. This, among other things, sets the
   // displayport, so we start with async painting.
   RecvUpdateFrame(metrics);
@@ -1102,6 +1077,10 @@ TabChild::RecvShow(const nsIntSize& size)
 bool
 TabChild::RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size)
 {
+#ifdef DEBUG
+    printf("[TabChild] Update Dimensions to (x,y,w,h)= (%ud, %ud, %ud, %ud) and move to (w,h)= (%ud, %ud)\n", rect.x, rect.y, rect.width, rect.height, size.width, size.height);
+#endif
+
     if (!mRemoteFrame) {
         return true;
     }
@@ -1119,7 +1098,7 @@ TabChild::RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size)
     baseWin->SetPositionAndSize(0, 0, size.width, size.height,
                                 true);
 
-    HandlePossibleViewportChange();
+    HandlePossibleMetaViewportChange();
 
     return true;
 }
@@ -1162,15 +1141,15 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
     nsCString data;
     data += nsPrintfCString("{ \"x\" : %d", NS_lround(aFrameMetrics.mScrollOffset.x));
     data += nsPrintfCString(", \"y\" : %d", NS_lround(aFrameMetrics.mScrollOffset.y));
-    data += nsPrintfCString(", \"viewport\" : ");
-        data += nsPrintfCString("{ \"width\" : %f", aFrameMetrics.mViewport.width);
-        data += nsPrintfCString(", \"height\" : %f", aFrameMetrics.mViewport.height);
-        data += nsPrintfCString(" }");
+    // We don't treat the x and y scales any differently for this
+    // semi-platform-specific code.
+    data += nsPrintfCString(", \"zoom\" : %f", aFrameMetrics.mZoom.width);
     data += nsPrintfCString(", \"displayPort\" : ");
         data += nsPrintfCString("{ \"x\" : %f", aFrameMetrics.mDisplayPort.x);
         data += nsPrintfCString(", \"y\" : %f", aFrameMetrics.mDisplayPort.y);
         data += nsPrintfCString(", \"width\" : %f", aFrameMetrics.mDisplayPort.width);
         data += nsPrintfCString(", \"height\" : %f", aFrameMetrics.mDisplayPort.height);
+        data += nsPrintfCString(", \"resolution\" : %f", aFrameMetrics.mResolution.width);
         data += nsPrintfCString(" }");
     data += nsPrintfCString(", \"compositionBounds\" : ");
         data += nsPrintfCString("{ \"x\" : %d", aFrameMetrics.mCompositionBounds.x);
@@ -1191,15 +1170,13 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
     nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
     nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mWebNav);
 
-    gfx::Rect cssCompositedRect =
-      AsyncPanZoomController::CalculateCompositedRectInCssPixels(aFrameMetrics);
     utils->SetScrollPositionClampingScrollPortSize(
-      cssCompositedRect.width, cssCompositedRect.height);
+      aFrameMetrics.mCompositionBounds.width / aFrameMetrics.mZoom.width,
+      aFrameMetrics.mCompositionBounds.height / aFrameMetrics.mZoom.width);
     window->ScrollTo(aFrameMetrics.mScrollOffset.x,
                      aFrameMetrics.mScrollOffset.y);
-    gfxSize resolution = AsyncPanZoomController::CalculateResolution(
-      aFrameMetrics);
-    utils->SetResolution(resolution.width, resolution.height);
+    utils->SetResolution(aFrameMetrics.mResolution.width,
+                         aFrameMetrics.mResolution.width);
 
     nsCOMPtr<nsIDOMDocument> domDoc;
     nsCOMPtr<nsIDOMElement> docElement;

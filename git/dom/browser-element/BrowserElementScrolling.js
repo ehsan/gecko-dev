@@ -204,9 +204,18 @@ const ContentPanning = {
 
   _recvViewportChange: function(data) {
     let metrics = data.json;
-    this._viewport = new Rect(metrics.x, metrics.y,
-                              metrics.viewport.width,
-                              metrics.viewport.height);
+    let displayPort = metrics.displayPort;
+
+    let compositionWidth = metrics.compositionBounds.width;
+    let compositionHeight = metrics.compositionBounds.height;
+
+    let x = metrics.x;
+    let y = metrics.y;
+
+    this._zoom = metrics.zoom;
+    this._viewport = new Rect(x, y,
+                              compositionWidth / metrics.zoom,
+                              compositionHeight / metrics.zoom);
     this._cssPageRect = new Rect(metrics.cssPageRect.x,
                                  metrics.cssPageRect.y,
                                  metrics.cssPageRect.width,
@@ -223,6 +232,7 @@ const ContentPanning = {
 
     let win = content;
 
+    let zoom = this._zoom;
     let element = ElementTouchHelper.anyElementFromPoint(win, data.x, data.y);
     if (!element) {
       this._zoomOut();

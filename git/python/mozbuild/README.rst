@@ -10,4 +10,5 @@ Modules Overview
 
 * mozbuild.compilation -- Functionality related to compiling. This
   includes managing compiler warnings.
+* mozbuild.testing -- Interfaces for running tests.
 
