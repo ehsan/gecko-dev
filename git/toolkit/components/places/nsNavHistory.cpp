@@ -29,6 +29,7 @@
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *   Drew Willcoxon <adw@mozilla.com>
  *   Philipp von Weitershausen <philipp@weitershausen.de>
+ *   Paolo Amadini <http://www.amadzone.org/>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -170,6 +171,14 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 // Sync guid annotation
 #define SYNCGUID_ANNO NS_LITERAL_CSTRING("sync/guid")
 
+// Download destination file URI annotation
+#define DESTINATIONFILEURI_ANNO \
+  NS_LITERAL_CSTRING("downloads/destinationFileURI")
+
+// Download destination file name annotation
+#define DESTINATIONFILENAME_ANNO \
+  NS_LITERAL_CSTRING("downloads/destinationFileName")
+
 // These macros are used when splitting history by date.
 // These are the day containers and catch-all final container.
 #define HISTORY_ADDITIONAL_DATE_CONT_NUM 3
@@ -177,7 +186,7 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 // long, but we split only the last 6 months.
 #define HISTORY_DATE_CONT_NUM(_daysFromOldestVisit) \
   (HISTORY_ADDITIONAL_DATE_CONT_NUM + \
-   NS_MIN(6, (PRInt32)NS_ceilf((float)_daysFromOldestVisit/30)))
+   NS_MIN(6, (PRInt32)ceilf((float)_daysFromOldestVisit/30)))
 // Max number of containers, used to initialize the params hash.
 #define HISTORY_DATE_CONT_MAX 10
 
@@ -491,28 +500,6 @@ nsNavHistory::Init()
 #ifdef MOZ_XUL
     (void)obsSvc->AddObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING, PR_FALSE);
 #endif
-  }
-
-  // In case we've either imported or done a migration from a pre-frecency
-  // build, we will calculate the first cutoff period's frecencies once the rest
-  // of the places infrastructure has been initialized.
-  if (mDatabaseStatus == DATABASE_STATUS_CREATE ||
-      mDatabaseStatus == DATABASE_STATUS_UPGRADED) {
-    if (mDatabaseStatus == DATABASE_STATUS_CREATE) {
-      // Check if we should import old history from history.dat
-      nsCOMPtr<nsIFile> historyFile;
-      rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE,
-                                  getter_AddRefs(historyFile));
-      if (NS_SUCCEEDED(rv) && historyFile) {
-        (void)ImportHistory(historyFile);
-      }
-    }
-
-    // In case we've either imported or done a migration from a pre-frecency
-    // build, we will calculate the first cutoff period's frecencies once the
-    // rest of the places infrastructure has been initialized.
-    if (obsSvc)
-      (void)obsSvc->AddObserver(this, TOPIC_PLACES_INIT_COMPLETE, PR_FALSE);
   }
 
   // Don't add code that can fail here! Do it up above, before we add our
@@ -1893,7 +1880,7 @@ nsNavHistory::FindLastVisit(nsIURI* aURI,
                             PRTime* aTime,
                             PRInt64* aSessionID)
 {
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBRecentVisitOfURL);
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT_RET(stmt, mDBRecentVisitOfURL, PR_FALSE);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
@@ -1921,7 +1908,7 @@ nsNavHistory::FindLastVisit(nsIURI* aURI,
 
 PRBool nsNavHistory::IsURIStringVisited(const nsACString& aURIString)
 {
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBIsPageVisited);
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT_RET(stmt, mDBIsPageVisited, PR_FALSE);
   nsresult rv = URIBinder::Bind(stmt, 0, aURIString);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
@@ -4612,18 +4599,6 @@ nsNavHistory::RemoveAllPages()
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavHistoryObserver, OnClearHistory());
 
-  // privacy cleanup, if there's an old history.dat around, just delete it
-  nsCOMPtr<nsIFile> oldHistoryFile;
-  rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE,
-                              getter_AddRefs(oldHistoryFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool fileExists;
-  if (NS_SUCCEEDED(oldHistoryFile->Exists(&fileExists)) && fileExists) {
-    rv = oldHistoryFile->Remove(PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   return NS_OK;
 }
 
@@ -5250,7 +5225,7 @@ nsNavHistory::OnEndVacuum(PRBool aSucceeded)
 
 NS_IMETHODIMP
 nsNavHistory::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
-                          PRTime aStartTime)
+                          PRTime aStartTime, nsIURI* aDestination)
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aSource);
@@ -5260,8 +5235,62 @@ nsNavHistory::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
     return NS_OK;
 
   PRInt64 visitID;
-  return AddVisit(aSource, aStartTime, aReferrer, TRANSITION_DOWNLOAD, PR_FALSE,
-                  0, &visitID);
+  nsresult rv = AddVisit(aSource, aStartTime, aReferrer, TRANSITION_DOWNLOAD,
+                         PR_FALSE, 0, &visitID);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!aDestination) {
+    return NS_OK;
+  }
+
+  // Exit silently if the download destination is not a local file.
+  nsCOMPtr<nsIFileURL> destinationFileURL = do_QueryInterface(aDestination);
+  if (!destinationFileURL) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIFile> destinationFile;
+  rv = destinationFileURL->GetFile(getter_AddRefs(destinationFile));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString destinationFileName;
+  rv = destinationFile->GetLeafName(destinationFileName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString destinationURISpec;
+  rv = destinationFileURL->GetSpec(destinationURISpec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Use annotations for storing the additional download metadata.
+  nsAnnotationService* annosvc = nsAnnotationService::GetAnnotationService();
+  NS_ENSURE_TRUE(annosvc, NS_ERROR_OUT_OF_MEMORY);
+
+  (void)annosvc->SetPageAnnotationString(
+    aSource,
+    DESTINATIONFILEURI_ANNO,
+    NS_ConvertUTF8toUTF16(destinationURISpec),
+    0,
+    nsIAnnotationService::EXPIRE_WITH_HISTORY
+  );
+
+  (void)annosvc->SetPageAnnotationString(
+    aSource,
+    DESTINATIONFILENAME_ANNO,
+    destinationFileName,
+    0,
+    nsIAnnotationService::EXPIRE_WITH_HISTORY
+  );
+
+  // In case we are downloading a file that does not correspond to a web
+  // page for which the title is present, we populate the otherwise empty
+  // history title with the name of the destination file, to allow it to be
+  // visible and searchable in history results.
+  nsAutoString title;
+  if (NS_SUCCEEDED(GetPageTitle(aSource, title)) && title.IsEmpty()) {
+    (void)SetPageTitle(aSource, destinationFileName);
+  }
+
+  return NS_OK;
 }
 
 
@@ -5551,17 +5580,6 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     }
   }
 
-  else if (strcmp(aTopic, TOPIC_PLACES_INIT_COMPLETE) == 0) {
-    nsCOMPtr<nsIObserverService> os =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-    (void)os->RemoveObserver(this, TOPIC_PLACES_INIT_COMPLETE);
-
-    // This code is only called if we've either imported or done a migration
-    // from a pre-frecency build, so we will calculate all their frecencies.
-    (void)FixInvalidFrecencies();
-  }
-
   return NS_OK;
 }
 
@@ -5706,7 +5724,7 @@ nsNavHistory::QueryToSelectClause(nsNavHistoryQuery* aQuery, // const
     clause.Condition("AUTOCOMPLETE_MATCH(").Param(":search_string")
           .Str(", h.url, page_title, tags, ")
           .Str(nsPrintfCString(17, "0, 0, 0, 0, %d, 0)",
-                               mozIPlacesAutoComplete::MATCH_ANYWHERE).get());
+                               mozIPlacesAutoComplete::MATCH_ANYWHERE_UNMODIFIED).get());
   }
 
   // min and max visit count
@@ -6845,92 +6863,6 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
   MOZ_ASSERT(!guid.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavHistoryObserver, OnTitleChanged(aURI, aTitle, guid));
-
-  return NS_OK;
-}
-
-nsresult
-nsNavHistory::AddPageWithVisits(nsIURI *aURI,
-                                const nsString &aTitle,
-                                PRInt32 aVisitCount,
-                                PRInt32 aTransitionType,
-                                PRTime aFirstVisitDate,
-                                PRTime aLastVisitDate)
-{
-  PRBool canAdd = PR_FALSE;
-  nsresult rv = CanAddURI(aURI, &canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!canAdd) {
-    return NS_OK;
-  }
-
-  // see if this is an update (revisit) or a new page
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetPageVisitStats);
-  rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-  PRBool alreadyVisited = PR_FALSE;
-  rv = stmt->ExecuteStep(&alreadyVisited);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt64 placeId = 0;
-  PRInt32 typed = 0;
-  PRInt32 hidden = 0;
-
-  nsCAutoString guid;
-  if (alreadyVisited) {
-    // Update the existing entry
-    rv = stmt->GetInt64(0, &placeId);
-    NS_ENSURE_SUCCESS(rv, rv);
-    // We don't mind visit_count
-    rv = stmt->GetInt32(2, &typed);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetInt32(3, &hidden);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetUTF8String(4, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (typed == 0 && aTransitionType == TRANSITION_TYPED) {
-      typed = 1;
-      // Update with new stats
-      DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(updateStmt, mDBUpdatePageVisitStats);
-      rv = updateStmt->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), placeId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = updateStmt->BindInt32ByName(NS_LITERAL_CSTRING("hidden"), hidden);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = updateStmt->BindInt32ByName(NS_LITERAL_CSTRING("typed"), typed);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = updateStmt->Execute();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  } else {
-    // Insert the new place entry
-    rv = InternalAddNewPage(aURI, aTitle, hidden == 1,
-                            aTransitionType == TRANSITION_TYPED, 0,
-                            PR_FALSE, &placeId, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ASSERTION(placeId != 0, "Cannot add a visit to a nonexistent page");
-
-  if (aFirstVisitDate != -1) {
-    // Add the first visit
-    PRInt64 visitId;
-    rv = InternalAddVisit(placeId, 0, 0,
-                          aFirstVisitDate, aTransitionType, &visitId);
-    aVisitCount--;
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (aLastVisitDate != -1) {
-   // Add remaining visits starting from the last one
-   for (PRInt64 i = 0; i < aVisitCount; i++) {
-      PRInt64 visitId;
-      rv = InternalAddVisit(placeId, 0, 0,
-                            aLastVisitDate - i, aTransitionType, &visitId);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
 
   return NS_OK;
 }

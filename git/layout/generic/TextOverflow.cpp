@@ -85,7 +85,8 @@ GetSelfOrNearestBlock(nsIFrame* aFrame)
 static bool
 IsAtomicElement(nsIFrame* aFrame, const nsIAtom* aFrameType)
 {
-  NS_PRECONDITION(!aFrame->GetStyleDisplay()->IsBlockOutside(),
+  NS_PRECONDITION(!nsLayoutUtils::GetAsBlock(aFrame) ||
+                  !aFrame->GetStyleDisplay()->IsBlockOutside(),
                   "unexpected block frame");
   NS_PRECONDITION(aFrameType != nsGkAtoms::placeholderFrame,
                   "unexpected placeholder frame");
@@ -229,7 +230,8 @@ void
 nsDisplayTextOverflowMarker::Paint(nsDisplayListBuilder* aBuilder,
                                    nsRenderingContext*   aCtx)
 {
-  nscolor foregroundColor = nsLayoutUtils::GetTextColor(mFrame);
+  nscolor foregroundColor =
+    nsLayoutUtils::GetColor(mFrame, eCSSProperty_color);
 
   // Paint the text-shadows for the overflow marker
   nsLayoutUtils::PaintTextShadow(mFrame, aCtx, mRect, mVisibleRect,
@@ -243,8 +245,9 @@ void
 nsDisplayTextOverflowMarker::PaintTextToContext(nsRenderingContext* aCtx,
                                                 nsPoint aOffsetFromRect)
 {
-  nsStyleContext* sc = mFrame->GetStyleContext();
-  nsLayoutUtils::SetFontFromStyle(aCtx, sc);
+  nsRefPtr<nsFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
+  aCtx->SetFont(fm);
   gfxFloat y = nsLayoutUtils::GetSnappedBaselineY(mFrame, aCtx->ThebesContext(),
                                                   mRect.y, mAscent);
   nsPoint baselinePt(mRect.x, NSToCoordFloor(y));
@@ -556,10 +559,20 @@ TextOverflow::PruneDisplayListContents(nsDisplayList*        aList,
       nsRect rect = itemFrame->GetScrollableOverflowRect() +
                     itemFrame->GetOffsetTo(mBlock);
       if (mLeft.IsNeeded() && rect.x < aInsideMarkersArea.x) {
-        charClip->mLeftEdge = aInsideMarkersArea.x - rect.x;
+        nscoord left = aInsideMarkersArea.x - rect.x;
+        if (NS_UNLIKELY(left < 0)) {
+          item->~nsDisplayItem();
+          continue;
+        }
+        charClip->mLeftEdge = left;
       }
       if (mRight.IsNeeded() && rect.XMost() > aInsideMarkersArea.XMost()) {
-        charClip->mRightEdge = rect.XMost() - aInsideMarkersArea.XMost();
+        nscoord right = rect.XMost() - aInsideMarkersArea.XMost();
+        if (NS_UNLIKELY(right < 0)) {
+          item->~nsDisplayItem();
+          continue;
+        }
+        charClip->mRightEdge = right;
       }
     }
 
@@ -646,7 +659,9 @@ TextOverflow::Marker::SetupString(nsIFrame* aFrame)
   }
   nsRefPtr<nsRenderingContext> rc =
     aFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
-  nsLayoutUtils::SetFontFromStyle(rc, aFrame->GetStyleContext());
+  nsRefPtr<nsFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm));
+  rc->SetFont(fm);
 
   mMarkerString = mStyle->mType == NS_STYLE_TEXT_OVERFLOW_ELLIPSIS ?
                     GetEllipsis(aFrame) : mStyle->mString;

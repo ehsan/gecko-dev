@@ -60,7 +60,7 @@
 /***************************************************************************/
 // stuff used by all
 
-static nsresult ThrowAndFail(uintN errNum, JSContext* cx, JSBool* retval)
+static nsresult ThrowAndFail(uintN errNum, JSContext* cx, PRBool* retval)
 {
     XPCThrower::Throw(errNum, cx);
     *retval = JS_FALSE;
@@ -3412,6 +3412,7 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
     {
         JSAutoRequest ar(mJSContext);
         JS_SetOptions(mJSContext,
+                      JS_GetOptions(mJSContext) |
                       JSOPTION_DONT_REPORT_UNCAUGHT |
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);
         JS_SetGlobalObject(mJSContext, aSandbox);
@@ -3543,6 +3544,8 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                   const char *filename, PRInt32 lineNo,
                   JSVersion jsVersion, PRBool returnStringOnly, jsval *rval)
 {
+    JS_AbortIfWrongThread(JS_GetRuntime(cx));
+
 #ifdef DEBUG
     // NB: The "unsafe" unwrap here is OK because we must be called from chrome.
     {
