@@ -629,17 +629,23 @@ GetAvailableChunkList(JSCompartment *comp)
 inline void
 Chunk::addToAvailableList(JSCompartment *comp)
 {
-    Chunk **listHeadp = GetAvailableChunkList(comp);
+    insertToAvailableList(GetAvailableChunkList(comp));
+}
+
+inline void
+Chunk::insertToAvailableList(Chunk **insertPoint)
+{
+    JS_ASSERT(hasAvailableArenas());
     JS_ASSERT(!info.prevp);
     JS_ASSERT(!info.next);
-    info.prevp = listHeadp;
-    Chunk *head = *listHeadp;
-    if (head) {
-        JS_ASSERT(head->info.prevp == listHeadp);
-        head->info.prevp = &info.next;
+    info.prevp = insertPoint;
+    Chunk *insertBefore = *insertPoint;
+    if (insertBefore) {
+        JS_ASSERT(insertBefore->info.prevp == insertPoint);
+        insertBefore->info.prevp = &info.next;
     }
-    info.next = head;
-    *listHeadp = this;
+    info.next = insertBefore;
+    *insertPoint = this;
 }
 
 inline void
@@ -715,6 +721,9 @@ Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
     JS_ASSERT(hasAvailableArenas());
 
     JSRuntime *rt = comp->rt;
+    JS_ASSERT(rt->gcBytes <= rt->gcMaxBytes);
+    if (rt->gcMaxBytes - rt->gcBytes < ArenaSize)
+        return NULL;
 
     ArenaHeader *aheader = JS_LIKELY(info.numArenasFreeCommitted > 0)
                            ? fetchNextFreeArena(rt)
@@ -724,8 +733,8 @@ Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
         removeFromAvailableList();
 
     Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes + ArenaSize);
-    JS_ATOMIC_ADD(&rt->gcBytes, ArenaSize);
-    JS_ATOMIC_ADD(&comp->gcBytes, ArenaSize);
+    rt->gcBytes += ArenaSize;
+    comp->gcBytes += ArenaSize;
     if (comp->gcBytes >= comp->gcTriggerBytes)
         TriggerCompartmentGC(comp, gcstats::ALLOCTRIGGER);
 
@@ -757,16 +766,16 @@ Chunk::releaseArena(ArenaHeader *aheader)
 #endif
 
     Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes - ArenaSize);
-    JS_ASSERT(size_t(rt->gcBytes) >= ArenaSize);
-    JS_ASSERT(size_t(comp->gcBytes) >= ArenaSize);
+    JS_ASSERT(rt->gcBytes >= ArenaSize);
+    JS_ASSERT(comp->gcBytes >= ArenaSize);
 #ifdef JS_THREADSAFE
     if (rt->gcHelperThread.sweeping()) {
         rt->reduceGCTriggerBytes(GC_HEAP_GROWTH_FACTOR * ArenaSize);
         comp->reduceGCTriggerBytes(GC_HEAP_GROWTH_FACTOR * ArenaSize);
     }
 #endif
-    JS_ATOMIC_ADD(&rt->gcBytes, -int32_t(ArenaSize));
-    JS_ATOMIC_ADD(&comp->gcBytes, -int32_t(ArenaSize));
+    rt->gcBytes -= ArenaSize;
+    comp->gcBytes -= ArenaSize;
 
     aheader->setAsNotAllocated();
     addArenaToFreeList(rt, aheader);
@@ -885,7 +894,6 @@ js_InitGC(JSRuntime *rt, uint32_t maxbytes)
      */
     rt->gcMaxBytes = maxbytes;
     rt->setGCMaxMallocBytes(maxbytes);
-    rt->gcEmptyArenaPoolLifespan = 30000;
 
     /*
      * The assigned value prevents GC from running when GC memory is too low
@@ -1375,7 +1383,7 @@ JSRuntime::setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind)
 }
 
 void
-JSRuntime::reduceGCTriggerBytes(uint32_t amount) {
+JSRuntime::reduceGCTriggerBytes(size_t amount) {
     JS_ASSERT(amount > 0);
     JS_ASSERT(gcTriggerBytes - amount >= 0);
     if (gcTriggerBytes - amount < GC_ALLOCATION_THRESHOLD * GC_HEAP_GROWTH_FACTOR)
@@ -1394,7 +1402,7 @@ JSCompartment::setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind)
 }
 
 void
-JSCompartment::reduceGCTriggerBytes(uint32_t amount) {
+JSCompartment::reduceGCTriggerBytes(size_t amount) {
     JS_ASSERT(amount > 0);
     JS_ASSERT(gcTriggerBytes - amount >= 0);
     if (gcTriggerBytes - amount < GC_ALLOCATION_THRESHOLD * GC_HEAP_GROWTH_FACTOR)
@@ -1422,33 +1430,21 @@ ArenaLists::allocateFromArena(JSCompartment *comp, AllocKind thingKind)
          * moment. So we always allocate a new arena in that case.
          */
         maybeLock.lock(comp->rt);
-        for (;;) {
-            if (*bfs == BFS_DONE)
-                break;
-
-            if (*bfs == BFS_JUST_FINISHED) {
-                /*
-                 * Before we took the GC lock or while waiting for the
-                 * background finalization to finish the latter added new
-                 * arenas to the list.
-                 */
-                *bfs = BFS_DONE;
-                break;
-            }
-
+        if (*bfs == BFS_RUN) {
             JS_ASSERT(!*al->cursor);
             chunk = PickChunk(comp);
-            if (chunk)
-                break;
-
-            /*
-             * If the background finalization still runs, wait for it to
-             * finish and retry to check if it populated the arena list or
-             * added new empty arenas.
-             */
-            JS_ASSERT(*bfs == BFS_RUN);
-            comp->rt->gcHelperThread.waitBackgroundSweepEnd();
-            JS_ASSERT(*bfs == BFS_JUST_FINISHED || *bfs == BFS_DONE);
+            if (!chunk) {
+                /*
+                 * Let the caller to wait for the background allocation to
+                 * finish and restart the allocation attempt.
+                 */
+                return NULL;
+            }
+        } else if (*bfs == BFS_JUST_FINISHED) {
+            /* See comments before BackgroundFinalizeState definition. */
+            *bfs = BFS_DONE;
+        } else {
+            JS_ASSERT(*bfs == BFS_DONE);
         }
     }
 #endif /* JS_THREADSAFE */
@@ -1492,6 +1488,9 @@ ArenaLists::allocateFromArena(JSCompartment *comp, AllocKind thingKind)
      */
     JS_ASSERT(!*al->cursor);
     ArenaHeader *aheader = chunk->allocateArena(comp, thingKind);
+    if (!aheader)
+        return NULL;
+
     aheader->next = al->head;
     if (!al->head) {
         JS_ASSERT(al->cursor == &al->head);
@@ -1667,13 +1666,6 @@ RunLastDitchGC(JSContext *cx)
     /* The last ditch GC preserves all atoms. */
     AutoKeepAtoms keep(rt);
     js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL, gcstats::LASTDITCH);
-
-#ifdef JS_THREADSAFE
-    if (rt->gcBytes >= rt->gcMaxBytes) {
-        AutoLockGC lock(rt);
-        cx->runtime->gcHelperThread.waitBackgroundSweepEnd();
-    }
-#endif
 }
 
 /* static */ void *
@@ -1690,10 +1682,6 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
         if (JS_UNLIKELY(runGC)) {
             RunLastDitchGC(cx);
 
-            /* Report OOM of the GC failed to free enough memory. */
-            if (rt->gcBytes > rt->gcMaxBytes)
-                break;
-
             /*
              * The JSGC_END callback can legitimately allocate new GC
              * things and populate the free list. If that happens, just
@@ -1703,9 +1691,27 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
             if (void *thing = comp->arenas.allocateFromFreeList(thingKind, thingSize))
                 return thing;
         }
-        void *thing = comp->arenas.allocateFromArena(comp, thingKind);
-        if (JS_LIKELY(!!thing))
-            return thing;
+
+        /*
+         * allocateFromArena may fail while the background finalization still
+         * run. In that case we want to wait for it to finish and restart.
+         * However, checking for that is racy as the background finalization
+         * could free some things after allocateFromArena decided to fail but
+         * at this point it may have already stopped. To avoid this race we
+         * always try to allocate twice.
+         */
+        for (bool secondAttempt = false; ; secondAttempt = true) {
+            void *thing = comp->arenas.allocateFromArena(comp, thingKind);
+            if (JS_LIKELY(!!thing))
+                return thing;
+            if (secondAttempt)
+                break;
+
+            AutoLockGC lock(rt);
+#ifdef JS_THREADSAFE
+            rt->gcHelperThread.waitBackgroundSweepEnd();
+#endif
+        }
 
         /*
          * We failed to allocate. Run the GC if we haven't done it already.
@@ -1913,7 +1919,14 @@ js_TraceStackFrame(JSTracer *trc, StackFrame *fp)
         return;
     if (fp->hasArgsObj())
         MarkRoot(trc, &fp->argsObj(), "arguments");
-    MarkRoot(trc, fp->script(), "script");
+    if (fp->isFunctionFrame()) {
+        MarkRoot(trc, fp->fun(), "fun");
+        if (fp->isEvalFrame()) {
+            MarkRoot(trc, fp->script(), "eval script");
+        }
+    } else {
+        MarkRoot(trc, fp->script(), "script");
+    }
     fp->script()->compartment()->active = true;
     MarkRoot(trc, fp->returnValue(), "rval");
 }
@@ -2243,6 +2256,22 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
      *
      * We decommit from the tail of the list to minimize interference with the
      * main thread that may start to allocate things at this point.
+     *
+     * The arena that is been decommitted outside the GC lock must not be
+     * available for allocations either via the free list or via the
+     * decommittedArenas bitmap. For that we just fetch the arena from the
+     * free list before the decommit pretending as it was allocated. If this
+     * arena also is the single free arena in the chunk, then we must remove
+     * from the available list before we release the lock so the allocation
+     * thread would not see chunks with no free arenas on the available list.
+     *
+     * After we retake the lock, we mark the arena as free and decommitted if
+     * the decommit was successful. We must also add the chunk back to the
+     * available list if we removed it previously or when the main thread
+     * have allocated all remaining free arenas in the chunk.
+     *
+     * We also must make sure that the aheader is not accessed again after we
+     * decommit the arena.
      */
     JS_ASSERT(chunk->info.prevp == availableListHeadp);
     while (Chunk *next = chunk->info.next) {
@@ -2252,27 +2281,23 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
 
     for (;;) {
         while (chunk->info.numArenasFreeCommitted != 0) {
-            /*
-             * The arena that is been decommitted outside the GC lock must not
-             * be available for allocations either via the free list or via
-             * the decommittedArenas bitmap. For that we just fetch the arena
-             * from the free list before the decommit and then mark it as free
-             * and decommitted when we retake the GC lock. However, if this
-             * arena also is the single free arena in the chunk, then during
-             * the decommit the allocation thread may find the chunk as
-             * present on the available list yet having no arenas to allocate.
-             * To avoid complications in this case we decommit inside the lock.
-             *
-             * We also must make sure that the aheader is not accessed again
-             * after we decommit the arena.
-             */
             ArenaHeader *aheader = chunk->fetchNextFreeArena(rt);
+
+            Chunk **savedPrevp = chunk->info.prevp;
+            if (!chunk->hasAvailableArenas())
+                chunk->removeFromAvailableList();
+
             size_t arenaIndex = Chunk::arenaIndex(aheader->arenaAddress());
             bool ok;
             {
-                Maybe<AutoUnlockGC> maybayUnlock;
-                if (chunk->hasAvailableArenas())
-                    maybayUnlock.construct(rt);
+                /*
+                 * If the main thread waits for the decommit to finish, skip
+                 * potentially expensive unlock/lock pair on the contested
+                 * lock.
+                 */
+                Maybe<AutoUnlockGC> maybeUnlock;
+                if (!rt->gcRunning)
+                    maybeUnlock.construct(rt);
                 ok = DecommitMemory(aheader->getArena(), ArenaSize);
             }
 
@@ -2281,6 +2306,26 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
                 chunk->decommittedArenas.set(arenaIndex);
             } else {
                 chunk->addArenaToFreeList(rt, aheader);
+            }
+            JS_ASSERT(chunk->hasAvailableArenas());
+            JS_ASSERT(!chunk->unused());
+            if (chunk->info.numArenasFree == 1) {
+                /*
+                 * Put the chunk back to the available list either at the
+                 * point where it was before to preserve the available list
+                 * that we enumerate, or, when the allocation thread has fully
+                 * used all the previous chunks, at the beginning of the
+                 * available list.
+                 */
+                Chunk **insertPoint = savedPrevp;
+                if (savedPrevp != availableListHeadp) {
+                    Chunk *prev = Chunk::fromPointerToNext(savedPrevp);
+                    if (!prev->hasAvailableArenas())
+                        insertPoint = availableListHeadp;
+                }
+                chunk->insertToAvailableList(insertPoint);
+            } else {
+                JS_ASSERT(chunk->info.prevp);
             }
 
             if (rt->gcChunkAllocationSinceLastGC) {
@@ -2293,8 +2338,8 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
         }
 
         /*
-         * prevp becomes null when the allocator thread consumed all chunks from
-         * the available list.
+         * chunk->info.prevp becomes null when the allocator thread consumed
+         * all chunks from the available list.
          */
         JS_ASSERT_IF(chunk->info.prevp, *chunk->info.prevp == chunk);
         if (chunk->info.prevp == availableListHeadp || !chunk->info.prevp)
@@ -2811,7 +2856,7 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind)
     rt->gcTriggerCompartment = NULL;
 
     /* Reset weak map list. */
-    rt->gcWeakMapList = NULL;
+    WeakMapBase::resetWeakMapList(rt);
 
     /* Reset malloc counter. */
     rt->resetGCMallocBytes();

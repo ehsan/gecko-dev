@@ -49,6 +49,7 @@
 #include "nsISimpleEnumerator.h"
 #include "nsITimer.h"
 
+#include "mozilla/LazyIdleThread.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
@@ -65,7 +66,6 @@
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IDBKeyRange.h"
-#include "LazyIdleThread.h"
 #include "OpenDatabaseHelper.h"
 #include "TransactionThreadPool.h"
 
@@ -250,13 +250,6 @@ IndexedDatabaseManager::GetOrCreate()
     // We need this callback to know when to shut down all our threads.
     nsresult rv = obs->AddObserver(instance, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                    false);
-    NS_ENSURE_SUCCESS(rv, nsnull);
-
-    // We don't really need this callback but we want the observer service to
-    // hold us alive until XPCOM shutdown. That way other consumers can continue
-    // to use this service until shutdown.
-    rv = obs->AddObserver(instance, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
-                          false);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
     // Make a lazy thread for any IO we need (like clearing or enumerating the
@@ -1224,7 +1217,7 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID)) {
+  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
     // Setting this flag prevents the service from being recreated and prevents
     // further databases from being created.
     if (PR_ATOMIC_SET(&gShutdown, 1)) {
@@ -1276,11 +1269,6 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
       }
     }
 
-    return NS_OK;
-  }
-
-  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    // We're dying now.
     return NS_OK;
   }
 
