@@ -9,8 +9,7 @@ function loadIntoWindow(window) {}
 function unloadFromWindow(window) {}
 
 function _sendMessageToJava (aMsg) {
-  let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
-  return bridge.handleGeckoMessage(JSON.stringify(aMsg));
+  return Services.androidBridge.handleGeckoMessage(aMsg);
 };
 
 /*
