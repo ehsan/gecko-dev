@@ -132,7 +132,7 @@ var subTests = [
 
 function runNextTest() {
   setTimeout(function () {
-      ok(true, 'subtest ' + nextTest);
+      dump('subtest ' + nextTest + '\n');
       subTests[nextTest](nextTest);
       nextTest += 1;
     }, 0);

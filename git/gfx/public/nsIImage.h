@@ -41,9 +41,9 @@
 #include "nsISupports.h"
 #include "nsMargin.h"
 #include "nsRect.h"
-#include "gfxPattern.h"
 
 class gfxASurface;
+class gfxPattern;
 struct gfxMatrix;
 struct gfxRect;
 class gfxContext;
@@ -74,10 +74,10 @@ typedef enum {
 #define  nsImageUpdateFlags_kBitsChanged     0x2
 
 // IID for the nsIImage interface
-// 0358ce68-b076-43b0-8f5c-36ed4592822c
+// c942f66c-97d0-470e-99de-a1efb4586afd
 #define NS_IIMAGE_IID \
-  { 0x358ce68, 0xb076, 0x43b0, \
-    { 0x8f, 0x5c, 0x36, 0xed, 0x45, 0x92, 0x82, 0x2c } }
+  { 0xc942f66c, 0x97d0, 0x470e, \
+    { 0x99, 0xde, 0xa1, 0xef, 0xb4, 0x58, 0x6a, 0xfd } }
 
 // Interface to Images
 class nsIImage : public nsISupports
@@ -193,7 +193,6 @@ public:
   /**
    * BitBlit the nsIImage to a device, the source and dest can be scaled.
    * @param aContext the destination
-   * @param aFilter the filter for the image
    * @param aUserSpaceToImageSpace the transform that maps user-space
    * coordinates to coordinates in (tiled, post-padding) image pixels
    * @param aFill the area to fill with tiled images
@@ -212,7 +211,6 @@ public:
    * image-space-to-device-space transform
    */
   virtual void Draw(gfxContext*        aContext,
-                    gfxPattern::GraphicsFilter aFilter,
                     const gfxMatrix&   aUserSpaceToImageSpace,
                     const gfxRect&     aFill,
                     const nsIntMargin& aPadding,

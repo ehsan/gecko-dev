@@ -111,7 +111,7 @@ textbox.plain {
 }
 
 .textbox-search-icon[chromedir="rtl"] {
-  -moz-transform: scaleX(-1);
+  list-style-image: url(chrome://global/skin/icons/Search-glass-rtl.png);
 }
 
 .textbox-search-icon[searchbutton]:not([disabled]) {

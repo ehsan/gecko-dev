@@ -54,6 +54,7 @@
 #include "nsIScrollableView.h"
 #include "nsWeakPtr.h"
 
+#include "nsIWidget.h"
 #include "nsIAppShell.h"
 
 #include "nsIEventListener.h"

@@ -186,10 +186,6 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
     }
-    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
-      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
-      PrintDisplayListTo(aBuilder, *(t->GetStoredList()->GetList()), aIndent + 4, aOutput);
-    }
   }
 }
 

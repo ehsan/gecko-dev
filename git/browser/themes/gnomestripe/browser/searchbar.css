@@ -69,12 +69,12 @@
 
 .search-go-button {
   padding: 1px;
-  list-style-image: url("chrome://global/skin/icons/Search-glass.png");
+  list-style-image: url("chrome://browser/skin/Search-glass.png");
   cursor: pointer;
 }
 
 .search-go-button[chromedir="rtl"] {
-  -moz-transform: scaleX(-1);
+  list-style-image: url("chrome://browser/skin/Search-glass-rtl.png");
 }
 
 menuitem[cmd="cmd_clearhistory"] {

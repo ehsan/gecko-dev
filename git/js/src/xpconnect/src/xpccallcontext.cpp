@@ -85,8 +85,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
 
     if(!stack || NS_FAILED(stack->Peek(&topJSContext)))
     {
-        // If we don't have a stack we're probably in shutdown.
-        NS_ASSERTION(!stack, "Bad, Peek failed!");
+        NS_ERROR("bad!");
         mJSContext = nsnull;
         return;
     }
@@ -218,8 +217,6 @@ void
 XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
                             JSBool isSetter)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -530,8 +527,6 @@ void
 XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface, 
                                  void * member)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 

@@ -134,7 +134,6 @@ public:
   virtual nsresult Init(nsINode* aRoot);
 
   virtual nsresult Init(nsIDOMRange* aRange);
-  virtual nsresult Init(nsIRange* aRange);
 
   virtual void First();
 
@@ -313,29 +312,22 @@ nsresult
 nsContentIterator::Init(nsIDOMRange* aRange)
 {
   nsCOMPtr<nsIRange> range = do_QueryInterface(aRange);
-  return Init(range);
-
-}
-
-nsresult
-nsContentIterator::Init(nsIRange* aRange)
-{
-  NS_ENSURE_ARG_POINTER(aRange);
+  NS_ENSURE_TRUE(range, NS_ERROR_NULL_POINTER);
 
   mIsDone = PR_FALSE;
 
   // get common content parent
-  mCommonParent = aRange->GetCommonAncestor();
+  mCommonParent = range->GetCommonAncestor();
   NS_ENSURE_TRUE(mCommonParent, NS_ERROR_FAILURE);
 
   // get the start node and offset
-  PRInt32 startIndx = aRange->StartOffset();
-  nsINode* startNode = aRange->GetStartParent();
+  PRInt32 startIndx = range->StartOffset();
+  nsINode* startNode = range->GetStartParent();
   NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
 
   // get the end node and offset
-  PRInt32 endIndx = aRange->EndOffset();
-  nsINode* endNode = aRange->GetEndParent();
+  PRInt32 endIndx = range->EndOffset();
+  nsINode* endNode = range->GetEndParent();
   NS_ENSURE_TRUE(endNode, NS_ERROR_FAILURE);
 
   PRBool startIsData = startNode->IsNodeOfType(nsINode::eDATA_NODE);
@@ -1178,7 +1170,6 @@ public:
   virtual nsresult Init(nsINode* aRoot);
 
   virtual nsresult Init(nsIDOMRange* aRange);
-  virtual nsresult Init(nsIRange* aRange);
 
   virtual void Next();
 
@@ -1423,11 +1414,6 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
   return NS_OK;
 }
 
-nsresult nsContentSubtreeIterator::Init(nsIRange* aRange)
-{
-  nsCOMPtr<nsIDOMRange> range = do_QueryInterface(aRange);
-  return Init(range);
-}
 
 /****************************************************************
  * nsContentSubtreeIterator overrides of ContentIterator routines

@@ -358,7 +358,7 @@ nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
     PL_strfree(info.fFileName);
 
   if(info.fVersion != NULL)
-    PR_smprintf_free(info.fVersion);
+    PL_strfree(info.fVersion);
 
   ZeroMemory((void *)&info, sizeof(info));
 

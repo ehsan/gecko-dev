@@ -66,15 +66,12 @@ def _expandwildcards(makefile, tlist):
             for r in l:
                 yield r
 
-_flagescape = re.compile(r'([\s\\])')
-
 def parsecommandlineargs(args):
     """
     Given a set of arguments from a command-line invocation of make,
-    parse out the variable definitions and return (stmts, arglist, overridestr)
+    parse out the variable definitions and return (stmts, arglist)
     """
 
-    overrides = []
     stmts = StatementList()
     r = []
     for i in xrange(0, len(args)):
@@ -84,7 +81,7 @@ def parsecommandlineargs(args):
         if t == '':
             vname, t, val = util.strpartition(a, '=')
         if t != '':
-            overrides.append(_flagescape.sub(r'\\\1', a))
+            stmts.append(Override(a))
 
             vname = vname.strip()
             vnameexp = data.Expansion.fromstring(vname, "Command-line argument")
@@ -95,7 +92,7 @@ def parsecommandlineargs(args):
         else:
             r.append(a)
 
-    return stmts, r, ' '.join(overrides)
+    return stmts, r
 
 class Statement(object):
     """
@@ -104,6 +101,18 @@ class Statement(object):
 
     def execute(self, makefile, context)
     """
+
+class Override(Statement):
+    __slots__ = ('s',)
+
+    def __init__(self, s):
+        self.s = s
+
+    def execute(self, makefile, context):
+        makefile.overrides.append(self.s)
+
+    def dump(self, fd, indent):
+        print >>fd, "%sOverride: %s" % (indent, self.s)
 
 class DummyRule(object):
     __slots__ = ()
@@ -461,11 +470,8 @@ class EmptyDirective(Statement):
     def dump(self, fd, indent):
         print >>fd, "%sEmptyDirective: %s" % (indent, self.exp)
 
-class _EvalContext(object):
-    __slots__ = ('currule',)
-
 class StatementList(list):
-    __slots__ = ('mtime',)
+    __slots__ = ()
 
     def append(self, statement):
         assert isinstance(statement, Statement)
@@ -473,7 +479,7 @@ class StatementList(list):
 
     def execute(self, makefile, context=None):
         if context is None:
-            context = _EvalContext()
+            context = util.makeobject('currule')
 
         for s in self:
             s.execute(makefile, context)

@@ -85,6 +85,13 @@
 /*************************************************************************/
 
 
+// All includers must explicitly define CSS_PROP_NOTIMPLEMENTED if they
+// want this.  (Only the DOM cares.)
+#ifndef CSS_PROP_NOTIMPLEMENTED
+#define CSS_PROP_NOTIMPLEMENTED(name_, id_, method_, flags_) /* nothing */
+#define DEFINED_CSS_PROP_NOTIMPLEMENTED
+#endif
+
 // All includers must explicitly define CSS_PROP_SHORTHAND if they
 // want it.
 #ifndef CSS_PROP_SHORTHAND
@@ -739,6 +746,11 @@ CSS_PROP_TABLE(X, X, X, 0, Table, mSpan, eCSSType_Value, nsnull)
 #endif
 
 #endif /* !defined(USED_CSS_PROP) */
+
+#ifdef DEFINED_CSS_PROP_NOTIMPLEMENTED
+#undef CSS_PROP_NOTIMPLEMENTED
+#undef DEFINED_CSS_PROP_NOTIMPLEMENTED
+#endif
 
 #ifdef DEFINED_CSS_PROP_SHORTHAND
 #undef CSS_PROP_SHORTHAND

@@ -852,7 +852,7 @@ sftkdb_CheckPassword(SFTKDBHandle *keydb, const char *pw, PRBool *tokenRemoved)
 	sftkdb_switchKeys(keydb, &key);
 
 	/* we need to update, do it now */
-	if (((keydb->db->sdb_flags & SDB_RDONLY) == 0) && keydb->update) {
+	if (keydb->update) {
 	    /* update the peer certdb if it exists */
 	    if (keydb->peerDB) {
 		sftkdb_Update(keydb->peerDB, &key);
@@ -1281,7 +1281,7 @@ loser:
 }
 
 /*
- * lose our cached password
+ * loose our cached password
  */
 SECStatus
 sftkdb_ClearPassword(SFTKDBHandle *keydb)

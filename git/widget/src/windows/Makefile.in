@@ -71,7 +71,6 @@ REQUIRES	= xpcom \
 			unicharutil \
 			thebes \
 			cairo \
-			qcms \
 			$(NULL)
 
 CPPSRCS		= \
@@ -84,7 +83,6 @@ CPPSRCS		= \
 	nsLookAndFeel.cpp    \
 	nsUXThemeData.cpp \
 	nsNativeThemeWin.cpp \
-	nsWinGesture.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING

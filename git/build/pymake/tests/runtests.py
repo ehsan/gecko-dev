@@ -12,7 +12,6 @@ The test file may contain lines at the beginning to alter the default behavior. 
 #T returncode: 2
 #T returncode-on: {'win32': 2}
 #T environment: {'VAR': 'VALUE}
-#T grep-for: "text"
 """
 
 from subprocess import Popen, PIPE, STDOUT
@@ -64,7 +63,6 @@ for makefile in makefiles:
         cline += ['__WIN32__=1']
         
     returncode = 0
-    grepfor = None
 
     env = dict(os.environ)
 
@@ -85,8 +83,6 @@ for makefile in makefiles:
         elif key == 'environment':
             for k, v in data.iteritems():
                 env[k] = v
-        elif key == 'grep-for':
-            grepfor = data
         else:
             print >>sys.stderr, "Unexpected #T key: %s" % key
             sys.exit(1)
@@ -102,17 +98,10 @@ for makefile in makefiles:
         print "FAIL"
         print stdout
     elif returncode == 0:
-        if stdout.find(grepfor or 'TEST-PASS') != -1:
+        if stdout.find('TEST-PASS') != -1:
             print "PASS"
         else:
-            print "FAIL (no expected output)"
-            print stdout
-    # check that test produced the expected output while failing
-    elif grepfor:
-        if stdout.find(grepfor) != -1:
-            print "PASS"
-        else:
-            print "FAIL (no expected output)"
+            print "FAIL (no passing output)"
             print stdout
     else:
         print "EXPECTED-FAIL"

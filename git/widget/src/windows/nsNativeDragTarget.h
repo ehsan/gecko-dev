@@ -37,6 +37,7 @@
 #ifndef _nsNativeDragTarget_h_
 #define _nsNativeDragTarget_h_
 
+#include "nsGUIEvent.h"
 #include "nsCOMPtr.h"
 #include "nsIDragSession.h"
 #include <ole2.h>
