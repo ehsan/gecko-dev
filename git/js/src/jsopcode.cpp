@@ -72,7 +72,6 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jsstaticcheck.h"
-#include "jstracer.h"
 
 #include "jsautooplen.h"
 
@@ -105,10 +104,9 @@ static const char *CodeToken[] = {
 #undef OPDEF
 };
 
-#if defined(DEBUG) || defined(JS_JIT_SPEW)
+#ifdef DEBUG
 /*
- * Array of JS bytecode names used by DEBUG-only js_Disassemble and by
- * JIT debug spew.
+ * Array of JS bytecode names used by DEBUG-only js_Disassemble.
  */
 const char *js_CodeName[] = {
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) \

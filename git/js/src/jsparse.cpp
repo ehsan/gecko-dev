@@ -1681,7 +1681,7 @@ MakeSetCall(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN msg)
     JSParseNode *pn2;
 
     JS_ASSERT(pn->pn_arity == PN_LIST);
-    JS_ASSERT(pn->pn_op == JSOP_CALL || pn->pn_op == JSOP_EVAL);
+    JS_ASSERT(pn->pn_op == JSOP_CALL || pn->pn_op == JSOP_EVAL || pn->pn_op == JSOP_APPLY);
     pn2 = pn->pn_head;
     if (pn2->pn_type == TOK_FUNCTION && (pn2->pn_flags & TCF_GENEXP_LAMBDA)) {
         js_ReportCompileErrorNumber(cx, TS(tc->parseContext), pn,
@@ -3991,7 +3991,7 @@ SetLvalKid(JSContext *cx, JSTokenStream *ts, JSParseNode *pn, JSParseNode *kid,
         kid->pn_type != TOK_DOT &&
 #if JS_HAS_LVALUE_RETURN
         (kid->pn_type != TOK_LP ||
-         (kid->pn_op != JSOP_CALL && kid->pn_op != JSOP_EVAL)) &&
+         (kid->pn_op != JSOP_CALL && kid->pn_op != JSOP_EVAL && kid->pn_op != JSOP_APPLY)) &&
 #endif
 #if JS_HAS_XML_SUPPORT
         (kid->pn_type != TOK_UNARYOP || kid->pn_op != JSOP_XMLNAME) &&
@@ -6355,17 +6355,12 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
       }
 
       case PN_LIST:
-      {
-        /* Propagate inCond through logical connectives. */
-        bool cond = inCond && (pn->pn_type == TOK_OR || pn->pn_type == TOK_AND);
-
         /* Save the list head in pn1 for later use. */
         for (pn1 = pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (!js_FoldConstants(cx, pn2, tc, cond))
+            if (!js_FoldConstants(cx, pn2, tc))
                 return JS_FALSE;
         }
         break;
-      }
 
       case PN_TERNARY:
         /* Any kid may be null (e.g. for (;;)). */

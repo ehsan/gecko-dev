@@ -115,13 +115,13 @@ static const char typeChar[] = "OIDVS?B?";
 #define NUM_DEMOTE_SLOTS(list)          list[0]
 #define CLEAR_DEMOTE_SLOTLIST(list)     list[0] = 0
 
-#ifdef JS_JIT_SPEW
+#ifdef DEBUG
 #define ABORT_TRACE(msg)   do { debug_only_v(fprintf(stdout, "abort: %d: %s\n", __LINE__, msg);)  return false; } while (0)
 #else
 #define ABORT_TRACE(msg)   return false
 #endif
 
-#ifdef JS_JIT_SPEW
+#ifdef DEBUG
 struct __jitstats {
 #define JITSTAT(x) uint64 x;
 #include "jitstats.tbl"
@@ -199,7 +199,7 @@ js_InitJITStatsClass(JSContext *cx, JSObject *glob)
 #define AUDIT(x) (jitstats.x++)
 #else
 #define AUDIT(x) ((void)0)
-#endif /* JS_JIT_SPEW */
+#endif
 
 #define INS_CONST(c)    addName(lir->insImm(c), #c)
 #define INS_CONSTPTR(p) addName(lir->insImmPtr((void*) (p)), #p)
@@ -211,7 +211,7 @@ static GC gc = GC();
 static avmplus::AvmCore s_core = avmplus::AvmCore();
 static avmplus::AvmCore* core = &s_core;
 
-#ifdef JS_JIT_SPEW
+#if defined DEBUG
 void
 js_DumpPeerStability(Fragmento* frago, const void* ip);
 #endif
@@ -222,7 +222,7 @@ static bool nesting_enabled = true;
 static bool did_we_check_sse2 = false;
 #endif
 
-#ifdef JS_JIT_SPEW
+#if defined(DEBUG) || defined(INCLUDE_VERBOSE_OUTPUT)
 static bool verbose_debug = getenv("TRACEMONKEY") && strstr(getenv("TRACEMONKEY"), "verbose");
 #define debug_only_v(x) if (verbose_debug) { x; }
 #else
@@ -789,7 +789,7 @@ public:
 
 /* In debug mode vpname contains a textual description of the type of the
    slot during the forall iteration over al slots. */
-#ifdef JS_JIT_SPEW
+#if defined(DEBUG) || defined(INCLUDE_VERBOSE_OUTPUT)
 #define DEF_VPNAME          const char* vpname; unsigned vpnum
 #define SET_VPNAME(name)    do { vpname = name; vpnum = 0; } while(0)
 #define INC_VPNUM()         do { ++vpnum; } while(0)
@@ -949,7 +949,6 @@ TypeMap::captureStackTypes(JSContext* cx, unsigned callDepth)
             oracle.isStackSlotUndemotable(cx->fp->script, cx->fp->regs->pc, unsigned(m - map))) {
             type = JSVAL_DOUBLE;
         }
-        debug_only_v(printf("capture %s%d: %d\n", vpname, vpnum, type);)
         *m++ = type;
     );
 }
@@ -2115,7 +2114,6 @@ TraceRecorder::compile(Fragmento* fragmento)
 static bool
 js_JoinPeersIfCompatible(Fragmento* frago, Fragment* stableFrag, TreeInfo* stableTree, SideExit* exit)
 {
-    JS_ASSERT(exit->numStackSlots == stableTree->stackTypeMap.length());
     /* Must have a matching type unstable exit. */
     if (memcmp(getTypeMap(exit) + exit->numGlobalSlots,
                stableTree->stackTypeMap.data(), 
@@ -2706,11 +2704,20 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, u
     ti->stackTypeMap.captureStackTypes(cx, 0/*callDepth*/);
 
     if (demotes) {
-        /* If we get a list of demotions, an outer tree is telling us our types are not callable. */
+        /* If we get a list of demotions, an outer tree is telling us our types are not callable. 
+         * We should obey this if we can.
+         */
         uint8* typeMap = ti->stackTypeMap.data();
         for (unsigned i = 1; i <= NUM_DEMOTE_SLOTS(demotes); i++) {
             JS_ASSERT(demotes[i] < ti->stackTypeMap.length());
-            if (typeMap[demotes[i]] == JSVAL_INT)
+            if (typeMap[demotes[i]] != JSVAL_INT) {
+                demotes = NULL;
+                break;
+            }
+        }
+        if (demotes) {
+            /* Actually perform demotions now. */
+            for (unsigned i = 1; i <= NUM_DEMOTE_SLOTS(demotes); i++)
                 typeMap[demotes[i]] = JSVAL_DOUBLE;
         }
     }
@@ -2748,22 +2755,28 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, u
 }
 
 static bool
-js_AttemptToStabilizeTree(JSContext* cx, SideExit* exit, Fragment* outer)
+js_AttemptToStabilizeTree(JSContext* cx, SideExit* exit, Fragment* from, Fragment* outer)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    Fragment* from = exit->from->root;
+    TreeInfo* ti = (TreeInfo*)from->vmprivate;
     unsigned* demotes;
     
     demotes = ALLOCA_DEMOTE_SLOTLIST(exit->numStackSlots);
     CLEAR_DEMOTE_SLOTLIST(demotes);
 
+    bool stable = true;
+    uint8* t1 = ti->stackTypeMap.data();
     uint8* t2 = getTypeMap(exit) + exit->numGlobalSlots;
     for (unsigned i = 0; i < exit->numStackSlots; i++) {
-        if (t2[i] == JSVAL_DOUBLE)
+        if (t1[i] == JSVAL_INT && t2[i] == JSVAL_DOUBLE) {
             ADD_DEMOTE_SLOT(demotes, i);
+        } else if (t1[i] != t2[i]) {
+            stable = false;
+            break;
+        }
     }
 
-    if (!NUM_DEMOTE_SLOTS(demotes))
+    if (!stable || !NUM_DEMOTE_SLOTS(demotes))
         demotes = NULL;
 
     if (!js_RecordTree(cx, tm, from->first, outer, demotes))
@@ -2955,7 +2968,7 @@ js_RecordLoopEdge(JSContext* cx, TraceRecorder* r, uintN& inlineCallCount)
             old = fragmento->getLoop(tm->recorder->getFragment()->root->ip);
             js_AbortRecording(cx, "Inner tree is trying to stabilize, abort outer recording");
             old->resetHits();
-            return js_AttemptToStabilizeTree(cx, lr, old);
+            return js_AttemptToStabilizeTree(cx, lr, f, old);
         case BRANCH_EXIT:
             /* abort recording the outer tree, extend the inner tree */
             old = fragmento->getLoop(tm->recorder->getFragment()->root->ip);
@@ -3059,7 +3072,7 @@ Fragment* TraceRecorder::findNestedCompatiblePeer(Fragment* f, Fragment** empty)
         ti = (TreeInfo*)f->vmprivate;
         m = ti->stackTypeMap.data();
 
-        debug_only_v(printf("checking nested types %p: ", f);)
+        debug_only_v(printf("checking fragment types: ");)
 
         FORALL_SLOTS_IN_PENDING_FRAMES(cx, 0,
             debug_only_v(printf("%s%d=", vpname, vpnum);)
@@ -3111,6 +3124,8 @@ js_CheckEntryTypes(JSContext* cx, TreeInfo* ti)
     uint16* gslots = tm->globalSlots->data();
     uint8* m = tm->globalTypeMap->data();
 
+    debug_only_v(printf("checking fragment types: ");)
+
     if (ngslots) {
         FORALL_GLOBAL_SLOTS(cx, ngslots, gslots,
             debug_only_v(printf("%s%d=", vpname, vpnum);)
@@ -3150,7 +3165,6 @@ js_FindVMCompatiblePeer(JSContext* cx, Fragment* f)
     for (; f != NULL; f = f->peer) {
         if (f->vmprivate == NULL) 
             continue;
-        debug_only_v(printf("checking vm types %p (ip: %p): ", f, f->ip);)
         if (js_CheckEntryTypes(cx, (TreeInfo*)f->vmprivate))
             return f;
     }
@@ -3244,7 +3258,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     union { NIns *code; GuardRecord* (FASTCALL *func)(InterpState*, Fragment*); } u;
     u.code = f->code();
 
-#ifdef JS_JIT_SPEW
+#ifdef DEBUG
 #if defined(NANOJIT_IA32) || (defined(NANOJIT_AMD64) && defined(__GNUC__))
     uint64 start = rdtsc();
 #endif
@@ -3366,9 +3380,9 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     JS_ASSERT(fp->slots + fp->script->nfixed +
               js_ReconstructStackDepth(cx, fp->script, fp->regs->pc) == fp->regs->sp);
 
-#if defined(JS_JIT_SPEW) && (defined(NANOJIT_IA32) || (defined(NANOJIT_AMD64) && defined(__GNUC__)))
+#if defined(DEBUG) && (defined(NANOJIT_IA32) || (defined(NANOJIT_AMD64) && defined(__GNUC__)))
     uint64 cycles = rdtsc() - start;
-#elif defined(JS_JIT_SPEW)
+#elif defined(DEBUG)
     uint64 cycles = 0;
 #endif
 
@@ -3451,7 +3465,7 @@ again:
     /* If we have no code in the anchor and no peers, we definitively won't be able to 
        activate any trees so increment the hit counter and start compiling if appropriate. */
     if (!f->code() && !f->peer) {
-monitor_loop:
+monitor_loop:       
         if (++f->hits() >= HOTLOOP) {
             /* We can give RecordTree the root peer. If that peer is already taken, it will
                walk the peer list and find us a free slot or allocate a new tree if needed. */
@@ -3461,9 +3475,6 @@ monitor_loop:
         return false;
     }
     
-    debug_only_v(printf("Looking for compat peer %d@%d, from %p (ip: %p, hits=%d)\n",
-                        js_PCToLineNumber(cx, cx->fp->script, cx->fp->regs->pc), 
-                        cx->fp->regs->pc - cx->fp->script->code, f, f->ip, f->hits());)
     Fragment* match = js_FindVMCompatiblePeer(cx, f);
     /* If we didn't find a tree that actually matched, keep monitoring the loop. */
     if (!match) 
@@ -3481,7 +3492,7 @@ monitor_loop:
        tree call guard). */
     switch (lr->exitType) {
       case UNSTABLE_LOOP_EXIT:
-        return js_AttemptToStabilizeTree(cx, lr, NULL);
+        return js_AttemptToStabilizeTree(cx, lr, match, NULL);
       case BRANCH_EXIT:
         return js_AttemptToExtendTree(cx, lr, NULL, NULL);
       case LOOP_EXIT:
@@ -3648,7 +3659,7 @@ js_InitJIT(JSTraceMonitor *tm)
 extern void
 js_FinishJIT(JSTraceMonitor *tm)
 {
-#ifdef JS_JIT_SPEW
+#ifdef DEBUG
     printf("recorder: started(%llu), aborted(%llu), completed(%llu), different header(%llu), "
            "trees trashed(%llu), slot promoted(%llu), unstable loop variable(%llu), "
            "breaks(%llu), returns(%llu), unstableInnerCalls(%llu)\n",
@@ -7657,23 +7668,19 @@ TraceRecorder::record_JSOP_HOLE()
     return true;
 }
 
-#ifdef JS_JIT_SPEW
+#if defined DEBUG
 /* Prints information about entry typemaps and unstable exits for all peers at a PC */
 void
 js_DumpPeerStability(Fragmento* frago, const void* ip)
 {
     Fragment* f;
     TreeInfo* ti;
-    bool looped = false;
-    unsigned length;
 
     for (f = frago->getLoop(ip); f != NULL; f = f->peer) {
         if (!f->vmprivate)
             continue;
         printf("fragment %p:\nENTRY: ", f);
         ti = (TreeInfo*)f->vmprivate;
-        if (looped)
-            JS_ASSERT(ti->stackTypeMap.length() == length);
         for (unsigned i = 0; i < ti->stackTypeMap.length(); i++)
             printf("%d ", ti->stackTypeMap.data()[i]);
         printf("\n");
@@ -7686,8 +7693,6 @@ js_DumpPeerStability(Fragmento* frago, const void* ip)
             printf("\n");
             uexit = uexit->next;
         }
-        length = ti->stackTypeMap.length();
-        looped = true;
     }
 }
 #endif
