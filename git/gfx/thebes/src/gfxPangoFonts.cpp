@@ -54,18 +54,12 @@
 #include "nsILanguageAtomService.h"
 
 #include "gfxContext.h"
-#ifdef MOZ_WIDGET_GTK2
 #include "gfxPlatformGtk.h"
-#endif
-#ifdef MOZ_WIDGET_QT
-#include "gfxQtPlatform.h"
-#endif
 #include "gfxPangoFonts.h"
 #include "gfxFT2FontBase.h"
 #include "gfxFT2Utils.h"
 #include "gfxFontconfigUtils.h"
 #include "gfxUserFontSet.h"
-#include "gfxAtoms.h"
 
 #include <freetype/tttables.h>
 
@@ -103,7 +97,6 @@ int moz_pango_units_from_double(double d) {
 }
 
 static PangoLanguage *GuessPangoLanguage(const nsACString& aLangGroup);
-static PangoLanguage *GuessPangoLanguage(nsIAtom *aLangGroup);
 
 static cairo_scaled_font_t *CreateScaledFont(FcPattern *aPattern);
 
@@ -112,13 +105,7 @@ static PangoFontMap *GetPangoFontMap();
 static PRBool gUseFontMapProperty;
 
 static FT_Library gFTLibrary;
-
-template <class T>
-class gfxGObjectRefTraits : public nsPointerRefTraits<T> {
-public:
-    static void Release(T *aPtr) { g_object_unref(aPtr); }
-    static void AddRef(T *aPtr) { g_object_ref(aPtr); }
-};
+static nsILanguageAtomService* gLangService;
 
 NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<PangoFont> : public gfxGObjectRefTraits<PangoFont> { };
@@ -935,7 +922,7 @@ GetFontGroup(PangoContext *aContext)
 
 class gfxFcPangoFontSet {
 public:
-    NS_INLINE_DECL_REFCOUNTING(gfxFcPangoFontSet)
+    THEBES_INLINE_DECL_REFCOUNTING(gfxFcPangoFontSet)
     
     explicit gfxFcPangoFontSet(FcPattern *aPattern,
                                gfxUserFontSet *aUserFontSet)
@@ -1901,7 +1888,7 @@ gfxPangoFontGroup::gfxPangoFontGroup (const nsAString& families,
                                       const gfxFontStyle *aStyle,
                                       gfxUserFontSet *aUserFontSet)
     : gfxFontGroup(families, aStyle, aUserFontSet),
-      mPangoLanguage(GuessPangoLanguage(aStyle->language))
+      mPangoLanguage(GuessPangoLanguage(aStyle->langGroup))
 {
     mFonts.AppendElements(1);
 }
@@ -1919,12 +1906,12 @@ gfxPangoFontGroup::Copy(const gfxFontStyle *aStyle)
 // An array of family names suitable for fontconfig
 void
 gfxPangoFontGroup::GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
-                                 nsIAtom *aLanguage)
+                                 const nsACString& aLangGroup)
 {
     FamilyCallbackData data(aFcFamilyList, mUserFontSet);
     // Leave non-existing fonts in the list so that fontconfig can get the
     // best match.
-    ForEachFontInternal(mFamilies, aLanguage, PR_TRUE, PR_FALSE,
+    ForEachFontInternal(mFamilies, aLangGroup, PR_TRUE, PR_FALSE,
                         FamilyCallback, &data);
 }
 
@@ -1976,19 +1963,24 @@ gfxPangoFontGroup::MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
 {
     const char *lang = pango_language_to_string(aLang);
 
-    nsIAtom *langGroup = nsnull;
+    const char *langGroup = nsnull;
     if (aLang != mPangoLanguage) {
         // Set up langGroup for Mozilla's font prefs.
         if (!gLangService) {
             CallGetService(NS_LANGUAGEATOMSERVICE_CONTRACTID, &gLangService);
         }
         if (gLangService) {
-            langGroup = gLangService->LookupLanguage(NS_ConvertUTF8toUTF16(lang));
+            nsIAtom *atom =
+                gLangService->LookupLanguage(NS_ConvertUTF8toUTF16(lang));
+            if (atom) {
+                atom->GetUTF8String(&langGroup);
+            }
         }
     }
 
     nsAutoTArray<nsString, 20> fcFamilyList;
-    GetFcFamilies(&fcFamilyList, langGroup ? langGroup : mStyle.language);
+    GetFcFamilies(&fcFamilyList,
+                  langGroup ? nsDependentCString(langGroup) : mStyle.langGroup);
 
     // To consider: A fontset cache here could be helpful.
 
@@ -2070,6 +2062,8 @@ gfxPangoFontGroup::Shutdown()
     // Resetting gFTLibrary in case this is wanted again after a
     // cairo_debug_reset_static_data.
     gFTLibrary = NULL;
+
+    NS_IF_RELEASE(gLangService);
 }
 
 /* static */ gfxFontEntry *
@@ -2217,10 +2211,10 @@ gfxFcFont::GetOrMakeFont(FcPattern *aPattern)
         // The LangSet in the FcPattern does not have an order so there is no
         // one particular language to choose and converting the set to a
         // string through FcNameUnparse() is more trouble than it's worth.
-        nsIAtom *language = gfxAtoms::en; // TODO: get the correct language?
+        NS_NAMED_LITERAL_CSTRING(langGroup, "x-unicode");
         // FIXME: Pass a real stretch based on aPattern!
         gfxFontStyle fontStyle(style, weight, NS_FONT_STRETCH_NORMAL,
-                               size, language, 0.0,
+                               size, langGroup, 0.0,
                                PR_TRUE, PR_FALSE, PR_FALSE);
 
         nsRefPtr<gfxFontEntry> fe;
@@ -3124,17 +3118,6 @@ GuessPangoLanguage(const nsACString& aLangGroup)
         return NULL;
 
     return pango_language_from_string(lang.get());
-}
-
-PangoLanguage *
-GuessPangoLanguage(nsIAtom *aLangGroup)
-{
-    if (!aLangGroup)
-        return NULL;
-
-    nsCAutoString lg;
-    aLangGroup->ToUTF8String(lg);
-    return GuessPangoLanguage(lg);
 }
 
 #ifdef MOZ_WIDGET_GTK2

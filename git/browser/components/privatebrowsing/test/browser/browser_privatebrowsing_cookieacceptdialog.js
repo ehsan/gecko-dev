@@ -42,6 +42,8 @@ function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   let cp = Cc["@mozilla.org/embedcomp/cookieprompt-service;1"].
            getService(Ci.nsICookiePromptService);
 
@@ -52,7 +54,7 @@ function test() {
       if (aTopic != "domwindowopened")
         return;
 
-      Services.ww.unregisterNotification(observer);
+      ww.unregisterNotification(observer);
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
       win.addEventListener("load", function onLoad(event) {
         win.removeEventListener("load", onLoad, false);
@@ -74,7 +76,7 @@ function test() {
         });
       }, false);
     }
-    Services.ww.registerNotification(observer);
+    ww.registerNotification(observer);
 
     let remember = {};
     const time = (new Date("Jan 1, 2030")).getTime() / 1000;

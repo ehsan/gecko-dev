@@ -45,8 +45,15 @@
 #endif
 
 #if defined(XP_MACOSX) && defined(USE_MACH_DYLD)
-#include <Carbon/Carbon.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <CodeFragments.h>
+#include <TextUtils.h>
+#include <Types.h>
+#include <Aliases.h>
+#include <CFURL.h>
+#include <CFBundle.h>
+#include <CFString.h>
+#include <CFDictionary.h>
+#include <CFData.h>
 #endif
 
 #ifdef XP_UNIX
@@ -198,7 +205,7 @@ void _PR_InitLinker(void)
 
 #elif defined(XP_UNIX)
 #ifdef HAVE_DLL
-#if defined(USE_DLFCN) && !defined(NO_DLOPEN_NULL)
+#ifdef USE_DLFCN
     h = dlopen(0, RTLD_LAZY);
     if (!h) {
         char *error;
@@ -214,8 +221,8 @@ void _PR_InitLinker(void)
 #elif defined(USE_HPSHL)
     h = NULL;
     /* don't abort with this NULL */
-#elif defined(USE_MACH_DYLD) || defined(NO_DLOPEN_NULL)
-    h = NULL; /* XXXX  toshok */ /* XXXX  vlad */
+#elif defined(USE_MACH_DYLD)
+    h = NULL; /* XXXX  toshok */
 #else
 #error no dll strategy
 #endif /* USE_DLFCN */
@@ -1354,7 +1361,7 @@ PR_LoadStaticLibrary(const char *name, const PRStaticLinkTable *slt)
 PR_IMPLEMENT(char *)
 PR_GetLibraryFilePathname(const char *name, PRFuncPtr addr)
 {
-#if defined(USE_DLFCN) && !defined(ANDROID) && (defined(SOLARIS) || defined(FREEBSD) \
+#if defined(USE_DLFCN) && (defined(SOLARIS) || defined(FREEBSD) \
         || defined(LINUX) || defined(__GNU__) || defined(__GLIBC__) \
         || defined(DARWIN))
     Dl_info dli;

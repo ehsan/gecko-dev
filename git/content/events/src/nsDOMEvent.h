@@ -209,7 +209,7 @@ protected:
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
-  nsRefPtr<nsPresContext>     mPresContext;
+  nsCOMPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
   nsString                    mCachedType;

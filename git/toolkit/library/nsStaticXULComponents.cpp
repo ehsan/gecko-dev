@@ -94,12 +94,9 @@
 #endif
 
 #ifdef MOZ_RDF
-#define RDF_MODULES \
-    MODULE(nsRDFModule) \
-    MODULE(nsXPIntlModule) \
-    MODULE(nsWindowDataSourceModule)
+#define RDF_MODULE MODULE(nsRDFModule)
 #else
-#define RDF_MODULES
+#define RDF_MODULE
 #endif
 
 #ifdef MOZ_PLAINTEXT_EDITOR_ONLY
@@ -145,6 +142,22 @@
 #define PLUGINS_MODULES
 #endif
 
+#ifdef MOZ_XPFE_COMPONENTS
+#ifdef MOZ_RDF
+#define RDFAPP_MODULES \
+    MODULE(nsXPIntlModule) \
+    MODULE(nsWindowDataSourceModule)
+#else
+#define RDFAPP_MODULES
+#endif
+#define APPLICATION_MODULES \
+    MODULE(application) \
+    MODULE(nsFindComponent)
+#else
+#define APPLICATION_MODULES
+#define RDFAPP_MODULES
+#endif
+
 #ifdef MOZ_XPINSTALL
 #define XPINSTALL_MODULES \
     MODULE(nsSoftwareUpdate)
@@ -159,7 +172,7 @@
 #define JSDEBUGGER_MODULES
 #endif
 
-#if defined(MOZ_FILEVIEW) && defined(MOZ_XUL)
+#if defined(MOZ_FILEVIEW) && defined(MOZ_XPFE_COMPONENTS) && defined(MOZ_XUL)
 #define FILEVIEW_MODULE MODULE(nsFileViewModule)
 #else
 #define FILEVIEW_MODULE
@@ -247,7 +260,8 @@
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
     MODULE(nsSecurityManagerModule)          \
-    RDF_MODULES                              \
+    RDF_MODULE                               \
+    RDFAPP_MODULES                           \
     MODULE(nsParserModule)                   \
     GFX_MODULES                              \
     WIDGET_MODULES                           \
@@ -263,8 +277,7 @@
     MODULE(nsTransactionManagerModule)       \
     COMPOSER_MODULE                          \
     MODULE(nsChromeModule)                   \
-    MODULE(application)                      \
-    MODULE(nsFindComponent)                  \
+    APPLICATION_MODULES                      \
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \

@@ -121,7 +121,7 @@ public:
   // nsIFormControl
   NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_TEXTAREA; }
   NS_IMETHOD Reset();
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
+  NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
@@ -313,7 +313,7 @@ nsHTMLTextAreaElement::Select()
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
 
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
   if (state == eInactiveWindow) {
     if (fm)
       fm->SetFocus(this, nsIFocusManager::FLAG_NOSCROLL);
@@ -373,13 +373,12 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Cols, cols)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
-NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
 NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Wrap, wrap)
-NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Placeholder, placeholder)
   
 
 NS_IMETHODIMP 
@@ -527,7 +526,7 @@ nsHTMLTextAreaElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::maxlength) {
-      return aResult.ParseNonNegativeIntValue(aValue);
+      return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
@@ -813,7 +812,7 @@ nsHTMLTextAreaElement::Reset()
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
+nsHTMLTextAreaElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                          nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -844,7 +843,7 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
   //
   // Submit
   //
-  rv = aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(this, name, value);
 
   return rv;
 }

@@ -72,10 +72,10 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsWidgetsCID.h"
+#include "nsXPFEComponentsCID.h"
 #include "nsXREDirProvider.h"
 
 #ifdef MOZ_IPC
-#include "nsX11ErrorHandler.h"
 #include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/message_loop.h"
@@ -255,12 +255,11 @@ static MessageLoop* sIOMessageLoop;
 // IPDL wants access to this crashreporter interface, and
 // crashreporter is built in such a way to make that awkward
 PRBool
-XRE_TakeMinidumpForChild(PRUint32 aChildPid, nsILocalFile** aDump)
+XRE_GetMinidumpForChild(PRUint32 aChildPid, nsIFile** aDump)
 {
-  return CrashReporter::TakeMinidumpForChild(aChildPid, aDump);
+  return CrashReporter::GetMinidumpForChild(aChildPid, aDump);
 }
 
-#if !defined(XP_MACOSX)
 PRBool
 XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 {
@@ -272,7 +271,6 @@ XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 #  error "OOP crash reporter unsupported on this platform"
 #endif
 }
-#endif // !XP_MACOSX
 #endif // if defined(MOZ_CRASHREPORTER)
 
 nsresult
@@ -491,14 +489,6 @@ XRE_ShutdownChildProcess()
 
   ioLoop->PostTask(FROM_HERE, new MessageLoop::QuitTask());
 }
-
-#ifdef MOZ_X11
-void
-XRE_InstallX11ErrorHandler()
-{
-  InstallX11ErrorHandler();
-}
-#endif
 
 #endif // MOZ_IPC
 

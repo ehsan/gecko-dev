@@ -7253,16 +7253,6 @@ static bool arm_has_neon = false;
 static bool arm_has_iwmmxt = false;
 static bool arm_tests_initialized = false;
 
-#ifdef ANDROID
-// android doesn't have Elf32_auxv_t defined in elf.h, but it does have /proc/self/auxv
-typedef struct {
-    uint32_t a_type;
-    union {
-       uint32_t a_val;
-    } a_un;
-} Elf32_auxv_t;
-#endif
-
 static void
 arm_read_auxv()
 {
@@ -8824,13 +8814,12 @@ TraceRecorder::relational(LOpcode op, bool tryBranchAfterCond)
         }
     }
     {
-        jsval tmp = JSVAL_NULL;
-        JSAutoTempValueRooter tvr(cx, 1, &tmp);
+        AutoValueRooter tvr(cx);
 
-        tmp = l;
-        lnum = js_ValueToNumber(cx, &tmp);
-        tmp = r;
-        rnum = js_ValueToNumber(cx, &tmp);
+        *tvr.addr() = l;
+        lnum = js_ValueToNumber(cx, tvr.addr());
+        *tvr.addr() = r;
+        rnum = js_ValueToNumber(cx, tvr.addr());
     }
     cond = EvalCmp(op, lnum, rnum);
     fp = true;
@@ -11220,7 +11209,7 @@ TraceRecorder::nativeSet(JSObject* obj, LIns* obj_ins, JSScopeProperty* sprop,
 static JSBool FASTCALL
 MethodWriteBarrier(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, JSObject* funobj)
 {
-    JSAutoTempValueRooter tvr(cx, funobj);
+    AutoValueRooter tvr(cx, funobj);
 
     return OBJ_SCOPE(obj)->methodWriteBarrier(cx, sprop, tvr.value());
 }
@@ -11584,7 +11573,7 @@ GetPropertyByIndex(JSContext* cx, JSObject* obj, int32 index, jsval* vp)
 {
     LeaveTraceIfGlobalObject(cx, obj);
 
-    JSAutoTempIdRooter idr(cx);
+    AutoIdRooter idr(cx);
     if (!js_Int32ToId(cx, index, idr.addr()) || !obj->getProperty(cx, idr.id(), vp)) {
         SetBuiltinError(cx);
         return JS_FALSE;
@@ -11923,7 +11912,7 @@ SetPropertyByIndex(JSContext* cx, JSObject* obj, int32 index, jsval* vp)
 {
     LeaveTraceIfGlobalObject(cx, obj);
 
-    JSAutoTempIdRooter idr(cx);
+    AutoIdRooter idr(cx);
     if (!js_Int32ToId(cx, index, idr.addr()) || !obj->setProperty(cx, idr.id(), vp)) {
         SetBuiltinError(cx);
         return JS_FALSE;
@@ -11938,7 +11927,7 @@ InitPropertyByIndex(JSContext* cx, JSObject* obj, int32 index, jsval val)
 {
     LeaveTraceIfGlobalObject(cx, obj);
 
-    JSAutoTempIdRooter idr(cx);
+    AutoIdRooter idr(cx);
     if (!js_Int32ToId(cx, index, idr.addr()) ||
         !obj->defineProperty(cx, idr.id(), val, NULL, NULL, JSPROP_ENUMERATE)) {
         SetBuiltinError(cx);
@@ -12094,7 +12083,6 @@ TraceRecorder::setElem(int lval_spindex, int idx_spindex, int v_spindex)
                   case js::TypedArray::TYPE_UINT8_CLAMPED:
                     addr_ins = lir->ins2(LIR_piadd, data_ins, pidx_ins);
                     lir->insStore(LIR_stb, lir->insCall(&js_TypedArray_uint8_clamp_double_ci, &v_ins), addr_ins, 0);
-                    break;
                   default:
                     JS_NOT_REACHED("Unknown typed array type in tracer");
                 }
@@ -12758,7 +12746,7 @@ TraceRecorder::name(jsval*& vp, LIns*& ins, NameResult& nr)
 static JSObject* FASTCALL
 MethodReadBarrier(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, JSObject* funobj)
 {
-    JSAutoTempValueRooter tvr(cx, funobj);
+    AutoValueRooter tvr(cx, funobj);
 
     if (!OBJ_SCOPE(obj)->methodReadBarrier(cx, sprop, tvr.addr()))
         return NULL;
@@ -14879,7 +14867,7 @@ CallIteratorNext(JSContext *cx, uintN argc, jsval *vp)
 static jsval FASTCALL
 CallIteratorNext_tn(JSContext* cx, jsbytecode* pc, JSObject* iterobj)
 {
-    JSAutoTempValueRooter tvr(cx);
+    AutoValueRooter tvr(cx);
     JSBool ok = js_CallIteratorNext(cx, iterobj, tvr.addr());
 
     if (!ok) {

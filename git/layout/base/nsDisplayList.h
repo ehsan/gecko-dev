@@ -52,7 +52,6 @@
 #include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
-#include "Layers.h"
 
 #include <stdlib.h>
 
@@ -119,8 +118,6 @@ class nsDisplayItem;
  */
 class NS_STACK_CLASS nsDisplayListBuilder {
 public:
-  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
-
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
    * is the origin of the reference coordinate system for this display list
@@ -253,12 +250,12 @@ public:
    * Display the caret if needed.
    */
   nsresult DisplayCaret(nsIFrame* aFrame, const nsRect& aDirtyRect,
-      nsDisplayList* aList) {
+      const nsDisplayListSet& aLists) {
     nsIFrame* frame = GetCaretFrame();
     if (aFrame != frame) {
       return NS_OK;
     }
-    return frame->DisplayCaret(this, aDirtyRect, aList);
+    return frame->DisplayCaret(this, aDirtyRect, aLists);
   }
   /**
    * Get the frame that the caret is supposed to draw in.
@@ -386,8 +383,6 @@ public:
   nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
 
-  NS_DECLARE_FRAME_PROPERTY(OutOfFlowDirtyRectProperty, nsIFrame::DestroyRect)
-
 private:
   // This class is only used on stack, so we don't have to worry about leaking
   // it.  Don't let us be heap-allocated!
@@ -460,9 +455,6 @@ protected:
  */
 class nsDisplayItem : public nsDisplayItemLink {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   // This is never instantiated directly (it has pure virtual methods), so no
   // need to count constructors and destructors.
   nsDisplayItem(nsIFrame* aFrame) : mFrame(aFrame) {}
@@ -554,31 +546,8 @@ public:
   /**
    * Actually paint this item to some rendering context.
    * Content outside mVisibleRect need not be painted.
-   * aCtx must be set up as for nsDisplayList::Paint.
    */
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) {}
-  /**
-   * Get the layer drawn by this display item, if any. If this display
-   * item doesn't have its own layer, then Paint will be called on it
-   * later. If it returns a layer here then Paint will not be called.
-   * This is called while aManager is in the construction phase.
-   * This is where content can decide to be rendered by the layer
-   * system (with the possibility of accelerated or off-main-thread
-   * rendering) instead of cairo.
-   * 
-   * The caller (nsDisplayList) is responsible for setting the visible
-   * region of the layer.
-   */
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager)
-  { return nsnull; }
-  /**
-   * If BuildLayer returned non-null, then this method is called to
-   * paint any ThebesLayers which are descendants of the returned layer.
-   */
-  virtual void PaintThebesLayers(nsDisplayListBuilder* aBuilder)
-  {
-  }
 
   /**
    * On entry, aVisibleRegion contains the region (relative to ReferenceFrame())
@@ -666,16 +635,10 @@ protected:
  */
 class nsDisplayList {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::layers::ThebesLayer ThebesLayer;
-
   /**
    * Create an empty list.
    */
-  nsDisplayList() :
-    mIsOpaque(PR_FALSE)
-  {
+  nsDisplayList() {
     mTop = &mSentinel;
     mSentinel.mAbove = nsnull;
 #ifdef DEBUG
@@ -768,6 +731,10 @@ public:
   nsDisplayItem* RemoveBottom();
   
   /**
+   * Remove an item from the bottom of the list and call its destructor.
+   */
+  void DeleteBottom();
+  /**
    * Remove all items from the list and call their destructors.
    */
   void DeleteAll();
@@ -826,7 +793,6 @@ public:
    * This is also a good place to put ComputeVisibility-related logic
    * that must be applied to every display item. In particular, this
    * sets mVisibleRect on each display item.
-   * This also sets mIsOpaque to whether aVisibleRegion is empty on return.
    * 
    * @param aVisibleRegion the area that is visible, relative to the
    * reference frame; on return, this contains the area visible under the list
@@ -835,34 +801,15 @@ public:
                          nsRegion* aVisibleRegion,
                          nsRegion* aVisibleRegionBeforeMove);
   /**
-   * Returns true if the visible region output from ComputeVisiblity was
-   * empty, i.e. everything visible in this list is opaque.
-   */
-  PRBool IsOpaque() const {
-    NS_ASSERTION(mDidComputeVisibility, "Need to have called ComputeVisibility");
-    return mIsOpaque;
-  }
-  /**
    * Paint the list to the rendering context. We assume that (0,0) in aCtx
    * corresponds to the origin of the reference frame. For best results,
    * aCtx's current transform should make (0,0) pixel-aligned. The
    * rectangle in aDirtyRect is painted, which *must* be contained in the
    * dirty rect used to construct the display list.
    * 
-   * If aFlags contains PAINT_USE_WIDGET_LAYERS and
-   * ShouldUseWidgetLayerManager() is set, then we will paint using
-   * the reference frame's widget's layer manager (and ctx may be null),
-   * otherwise we will use a temporary BasicLayerManager and ctx must
-   * not be null.
-   * 
    * ComputeVisibility must be called before Paint.
    */
-  enum {
-    PAINT_DEFAULT = 0,
-    PAINT_USE_WIDGET_LAYERS = 0x01
-  };
-  void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-             PRUint32 aFlags) const;
+  void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) const;
   /**
    * Get the bounds. Takes the union of the bounds of all children.
    */
@@ -873,80 +820,6 @@ public:
    */
   nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                     nsDisplayItem::HitTestState* aState) const;
-
-  /**
-   * This class represents a sublist of consecutive items in an nsDisplayList.
-   * The first item in the sublist is mStartItem and the last item
-   * is the item before mEndItem.
-   * 
-   * These sublists are themselves organized into a linked list of all
-   * the ItemGroups associated with a given layer, via mNextItemsForLayer.
-   * This list will have more than one element if the display items in a layer
-   * come from different nsDisplayLists, or if they come from the same
-   * nsDisplayList but they aren't consecutive in that list.
-   * 
-   * These objects are allocated from the nsDisplayListBuilder arena.
-   */
-  struct ItemGroup {
-    // If null, then the item group is empty.
-    nsDisplayItem* mStartItem;
-    nsDisplayItem* mEndItem;
-    ItemGroup* mNextItemsForLayer;
-    // The clipping (if any) that needs to be applied to all these items.
-    gfxRect mClipRect;
-    PRPackedBool mHasClipRect;
-
-    ItemGroup() : mStartItem(nsnull), mEndItem(nsnull),
-      mNextItemsForLayer(nsnull), mHasClipRect(PR_FALSE) {}
-
-    void* operator new(size_t aSize,
-                       nsDisplayListBuilder* aBuilder) CPP_THROW_NEW {
-      return aBuilder->Allocate(aSize);
-    }
-  };
-  /**
-   * This class represents a layer and the display item(s) it
-   * will render. The items are stored in a linked list of ItemGroups.
-   */
-  struct LayerItems {
-    nsRefPtr<Layer> mLayer;
-    // equal to mLayer, or null if mLayer is not a ThebesLayer
-    ThebesLayer* mThebesLayer;
-    ItemGroup* mItems;
-    // The bounds of the visible region for this layer, in device pixels
-    nsIntRect mVisibleRect;
-
-    LayerItems(ItemGroup* aItems) :
-      mThebesLayer(nsnull), mItems(aItems)
-    {
-    }
-  };
-  /**
-   * Compute a list of layers needed to render this display list. The layers
-   * are added to aLayers, which must be empty on entry. This
-   * must be called while aManager is in the construction phase, because
-   * we construct layers belonging to aManager. The layers used to
-   * construct the layer tree (along with the display items associated
-   * with each layer) are returned in aLayers.
-   */
-  void BuildLayers(nsDisplayListBuilder* aBuilder,
-                   LayerManager* aManager,
-                   nsTArray<LayerItems>* aLayers) const;
-  /**
-   * Return a single layer which renders this display list. This
-   * must be called while aManager is in the construction phase, because
-   * we construct layers belonging to aManager. The layers used to
-   * construct the layer tree (along with the display items associated
-   * with each layer) are returned in aLayers.
-   */
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsTArray<LayerItems>* aLayers) const;
-  /**
-   * Paint the ThebesLayers in the list of layers.
-   */
-  void PaintThebesLayers(nsDisplayListBuilder* aBuilder,
-                         const nsTArray<LayerItems>& aLayers) const;
 
 private:
   // This class is only used on stack, so we don't have to worry about leaking
@@ -962,10 +835,6 @@ private:
   nsDisplayItemLink  mSentinel;
   nsDisplayItemLink* mTop;
 
-  // This is set to true by ComputeVisibility if the final visible region
-  // is empty (i.e. everything that was visible is covered by some
-  // opaque content in this list).
-  PRPackedBool mIsOpaque;
 #ifdef DEBUG
   PRPackedBool mDidComputeVisibility;
 #endif
@@ -1515,9 +1384,7 @@ public:
   
   virtual Type GetType() { return TYPE_OPACITY; }
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager);
-  virtual void PaintThebesLayers(nsDisplayListBuilder* aBuilder);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    nsRegion* aVisibleRegionBeforeMove);  
@@ -1525,7 +1392,12 @@ public:
   NS_DISPLAY_DECL_NAME("Opacity")
 
 private:
-  nsTArray<nsDisplayList::LayerItems> mChildLayers;
+  /**
+   * We set this to PR_FALSE if we can prove that our children cover our bounds
+   * completely and opaquely, therefore no alpha channel is required in the
+   * intermediate surface.
+   */
+  PRPackedBool mNeedAlpha;
 };
 
 /**

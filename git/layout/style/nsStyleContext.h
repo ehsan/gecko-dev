@@ -115,17 +115,8 @@ public:
                                                   NS_STYLE_CONTEXT_TYPE_SHIFT);
   }
 
-  // Find, if it already exists *and is easily findable* (i.e., near the
-  // start of the child list), a style context whose:
-  //  * GetPseudo() matches aPseudoTag
-  //  * GetRuleNode() matches aRules
-  //  * !GetStyleIfVisited() == !aRulesIfVisited, and, if they're
-  //    non-null, GetStyleIfVisited()->GetRuleNode() == aRulesIfVisited
-  //  * RelevantLinkVisited() == aRelevantLinkVisited
   NS_HIDDEN_(already_AddRefed<nsStyleContext>)
-  FindChildWithRules(const nsIAtom* aPseudoTag, nsRuleNode* aRules,
-                     nsRuleNode* aRulesIfVisited,
-                     PRBool aRelevantLinkVisited);
+  FindChildWithRules(const nsIAtom* aPseudoTag, nsRuleNode* aRules);
 
   // Does this style context or any of its ancestors have text
   // decorations?
@@ -139,64 +130,7 @@ public:
   PRBool HasPseudoElementData() const
     { return !!(mBits & NS_STYLE_HAS_PSEUDO_ELEMENT_DATA); }
 
-  // Is the only link whose visitedness is allowed to influence the
-  // style of the node this style context is for (which is that element
-  // or its nearest ancestor that is a link) visited?
-  PRBool RelevantLinkVisited() const
-    { return !!(mBits & NS_STYLE_RELEVANT_LINK_VISITED); }
-
-  // Return the style context whose style data should be used for the R,
-  // G, and B components of color, background-color, and border-*-color
-  // if RelevantLinkIsVisited().
-  //
-  // GetPseudo() and GetPseudoType() on this style context return the
-  // same as on |this|, and its depth in the tree (number of GetParent()
-  // calls until null is returned) is the same as |this|, since its
-  // parent is either |this|'s parent or |this|'s parent's
-  // style-if-visited.
-  //
-  // Structs on this context should never be examined without also
-  // examining the corresponding struct on |this|.  Doing so will likely
-  // both (1) lead to a privacy leak and (2) lead to dynamic change bugs
-  // related to the Peek code in nsStyleContext::CalcStyleDifference.
-  nsStyleContext* GetStyleIfVisited()
-    { return mStyleIfVisited; }
-
-  // To be called only from nsStyleSet.
-  void SetStyleIfVisited(already_AddRefed<nsStyleContext> aStyleIfVisited)
-  {
-    NS_ASSERTION(!mStyleIfVisited, "should only be set once");
-    mStyleIfVisited = aStyleIfVisited;
-
-    NS_ASSERTION(GetStyleIfVisited()->GetPseudo() == GetPseudo(),
-                 "pseudo tag mismatch");
-    if (GetParent() && GetParent()->GetStyleIfVisited()) {
-      NS_ASSERTION(GetStyleIfVisited()->GetParent() ==
-                     GetParent()->GetStyleIfVisited() ||
-                   GetStyleIfVisited()->GetParent() == GetParent(),
-                   "parent mismatch");
-    } else {
-      NS_ASSERTION(GetStyleIfVisited()->GetParent() == GetParent(),
-                   "parent mismatch");
-    }
-  }
-
-  // Tell this style context to cache aStruct as the struct for aSID
   NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, void* aStruct);
-
-  // Setters for inherit structs only, since rulenode only sets those eagerly.
-  #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)          \
-    void SetStyle##name_ (nsStyle##name_ * aStruct) {                       \
-      NS_ASSERTION(!mCachedInheritedData.m##name_##Data ||                  \
-                   (mBits &                                                 \
-                    nsCachedStyleData::GetBitForSID(eStyleStruct_##name_)), \
-                   "Going to leak styledata");                              \
-      mCachedInheritedData.m##name_##Data = aStruct;                        \
-    }
-#define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_) /* nothing */
-  #include "nsStyleStructList.h"
-  #undef STYLE_STRUCT_RESET
-  #undef STYLE_STRUCT_INHERITED
 
   nsRuleNode* GetRuleNode() { return mRuleNode; }
   void AddStyleBit(const PRUint32& aBit) { mBits |= aBit; }
@@ -220,8 +154,7 @@ public:
    * null-checked.
    *
    * The typesafe functions below are preferred to the use of this
-   * function, bothe because they're easier to read and  because they're
-   * faster.
+   * function.
    */
   NS_HIDDEN_(const void*) NS_FASTCALL GetStyleData(nsStyleStructID aSID);
 
@@ -232,53 +165,18 @@ public:
    *   const nsStyleBorder* GetStyleBorder();
    *   const nsStyleColor* GetStyleColor();
    */
-  #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
-    const nsStyle##name_ * GetStyle##name_() {            \
-      return DoGetStyle##name_(PR_TRUE);                  \
-    }
+
+  #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                      \
+    NS_HIDDEN_(const nsStyle##name_ *) NS_FASTCALL GetStyle##name_();
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
-  /**
-   * PeekStyle* is like GetStyle* but doesn't trigger style
-   * computation if the data is not cached on either the style context
-   * or the rule node.
-   *
-   * Perhaps this shouldn't be a public nsStyleContext API.
-   */
-  #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
-    const nsStyle##name_ * PeekStyle##name_() {           \
-      return DoGetStyle##name_(PR_FALSE);                 \
-    }
-  #include "nsStyleStructList.h"
-  #undef STYLE_STRUCT
+
+  NS_HIDDEN_(const void*) PeekStyleData(nsStyleStructID aSID);
 
   NS_HIDDEN_(void*) GetUniqueStyleData(const nsStyleStructID& aSID);
 
   NS_HIDDEN_(nsChangeHint) CalcStyleDifference(nsStyleContext* aOther);
-
-  /**
-   * Get a color that depends on link-visitedness using this and
-   * this->GetStyleIfVisited().
-   *
-   * aProperty must be a color-valued property that nsStyleAnimation
-   * knows how to extract.  It must also be a property that we know to
-   * do change handling for in nsStyleContext::CalcDifference.
-   *
-   * Note that if aProperty is eCSSProperty_border_*_color, this
-   * function handles -moz-use-text-color.
-   */
-  NS_HIDDEN_(nscolor) GetVisitedDependentColor(nsCSSProperty aProperty);
-
-  /**
-   * aColors should be a two element array of nscolor in which the first
-   * color is the unvisited color and the second is the visited color.
-   *
-   * Combine the R, G, and B components of whichever of aColors should
-   * be used based on aLinkIsVisited with the A component of aColors[0].
-   */
-  static nscolor CombineVisitedColors(nscolor *aColors,
-                                      PRBool aLinkIsVisited);
 
 #ifdef DEBUG
   NS_HIDDEN_(void) List(FILE* out, PRInt32 aIndent);
@@ -290,34 +188,7 @@ protected:
 
   NS_HIDDEN_(void) ApplyStyleFixups(nsPresContext* aPresContext);
 
-  // Helper function that GetStyleData and GetUniqueStyleData use.  Only
-  // returns the structs we cache ourselves; never consults the ruletree.
-  inline const void* GetCachedStyleData(nsStyleStructID aSID);
-
-  // Helper functions for GetStyle* and PeekStyle*
-  #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)      \
-    const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
-      const nsStyle##name_ * cachedData =                               \
-        mCachedInheritedData.m##name_##Data;                            \
-      if (cachedData) /* Have it cached already, yay */                 \
-        return cachedData;                                              \
-      /* Have the rulenode deal */                                      \
-      return mRuleNode->GetStyle##name_(this, aComputeData);            \
-    }
-  #define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_)          \
-    const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
-      const nsStyle##name_ * cachedData =                               \
-        mCachedResetData ? mCachedResetData->m##name_##Data : nsnull;   \
-      if (cachedData) /* Have it cached already, yay */                 \
-        return cachedData;                                              \
-      /* Have the rulenode deal */                                      \
-      return mRuleNode->GetStyle##name_(this, aComputeData);            \
-    }
-  #include "nsStyleStructList.h"
-  #undef STYLE_STRUCT_RESET
-  #undef STYLE_STRUCT_INHERITED
-
-  nsStyleContext* const mParent; // STRONG
+  nsStyleContext* const mParent;
 
   // Children are kept in two circularly-linked lists.  The list anchor
   // is not part of the list (null for empty), and we point to the first
@@ -329,11 +200,6 @@ protected:
   nsStyleContext* mEmptyChild;
   nsStyleContext* mPrevSibling;
   nsStyleContext* mNextSibling;
-
-  // Style to be used instead for the R, G, and B components of color,
-  // background-color, and border-*-color if the nearest ancestor link
-  // element is visited (see RelevantLinkVisited()).
-  nsRefPtr<nsStyleContext> mStyleIfVisited;
 
   // If this style context is for a pseudo-element or anonymous box,
   // the relevant atom.
@@ -347,19 +213,15 @@ protected:
   // |mRule| member of |mRuleNode|.
   nsRuleNode* const       mRuleNode;
 
-  // mCachedInheritedData and mCachedResetData point to both structs that
-  // are owned by this style context and structs that are owned by one of
-  // this style context's ancestors (which are indirectly owned since this
-  // style context owns a reference to its parent).  If the bit in |mBits|
-  // is set for a struct, that means that the pointer for that struct is
-  // owned by an ancestor or by mRuleNode rather than by this style context.
-  // Since style contexts typically have some inherited data but only sometimes
-  // have reset data, we always allocate the mCachedInheritedData, but only
-  // sometimes allocate the mCachedResetData.
-  nsResetStyleData*       mCachedResetData; // Cached reset style data.
-  nsInheritedStyleData    mCachedInheritedData; // Cached inherited style data
+  // |mCachedStyleData| points to both structs that are owned by this
+  // style context and structs that are owned by one of this style
+  // context's ancestors (which are indirectly owned since this style
+  // context owns a reference to its parent).  If the bit in |mBits| is
+  // set for a struct, that means that the pointer for that struct is
+  // owned by an ancestor rather than by this style context.
+  nsCachedStyleData       mCachedStyleData; // Our cached style data.
   PRUint32                mBits; // Which structs are inherited from the
-                                 // parent context or owned by mRuleNode.
+                                 // parent context.
   PRUint32                mRefCnt;
 };
 

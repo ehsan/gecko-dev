@@ -819,26 +819,13 @@ nsThebesRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLanguage,
+nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLangGroup,
                                   gfxUserFontSet *aUserFontSet)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
 
     nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, aLanguage, aUserFontSet,
-                                  *getter_AddRefs(newMetrics));
-    mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont,
-                                  gfxUserFontSet *aUserFontSet)
-{
-    PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
-
-    nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, nsnull, aUserFontSet,
+    mDeviceContext->GetMetricsFor(aFont, aLangGroup, aUserFontSet,
                                   *getter_AddRefs(newMetrics));
     mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
     return NS_OK;

@@ -6,7 +6,6 @@
 
 
 /* { dg-do run } */
-/* { dg-options "-Wno-format" { target alpha*-dec-osf* } } */
 #include "ffitest.h"
 
 typedef struct cls_struct_align {

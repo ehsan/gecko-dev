@@ -50,7 +50,8 @@
 #include "nsICSSGroupRule.h"
 #include "nsCSSDeclaration.h"
 #include "nsICSSStyleSheet.h"
-#include "nsCSSLoader.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsIURL.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
@@ -513,7 +514,7 @@ nsCSSSelector::ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
   for (const nsCSSSelector *s = this; s; s = s->mNext) {
     stack.AppendElement(s);
   }
-
+   
   while (!stack.IsEmpty()) {
     PRUint32 index = stack.Length() - 1;
     const nsCSSSelector *s = stack.ElementAt(index);
@@ -524,16 +525,10 @@ nsCSSSelector::ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
     // Append the combinator, if needed.
     if (!stack.IsEmpty()) {
       const nsCSSSelector *next = stack.ElementAt(index - 1);
-      PRUnichar oper = s->mOperator;
-      if (next->IsPseudoElement()) {
-        NS_ASSERTION(oper == PRUnichar('>'),
-                     "improperly chained pseudo element");
-      } else {
-        NS_ASSERTION(oper != PRUnichar(0),
-                     "compound selector without combinator");
-
+      if (!next->IsPseudoElement()) {
         aString.Append(PRUnichar(' '));
-        if (oper != PRUnichar(' ')) {
+        PRUnichar oper = s->mOperator;
+        if (oper != PRUnichar(0)) {
           aString.Append(oper);
           aString.Append(PRUnichar(' '));
         }
@@ -601,8 +596,9 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       nsIAtom *prefixAtom = sheetNS->FindPrefix(mNameSpace);
       NS_ASSERTION(prefixAtom, "how'd we get a non-default namespace "
                    "without a prefix?");
-      nsStyleUtil::AppendEscapedCSSIdent(nsDependentAtomString(prefixAtom),
-                                         aString);
+      nsAutoString prefix;
+      prefixAtom->ToString(prefix);
+      nsStyleUtil::AppendEscapedCSSIdent(prefix, aString);
       aString.Append(PRUnichar('|'));
       wroteNamespace = PR_TRUE;
     } else {
@@ -809,21 +805,13 @@ nsCSSSelectorList::~nsCSSSelectorList()
   NS_CSS_DELETE_LIST_MEMBER(nsCSSSelectorList, this, mNext);
 }
 
-nsCSSSelector*
-nsCSSSelectorList::AddSelector(PRUnichar aOperator)
-{
-  nsCSSSelector* newSel = new nsCSSSelector();
-
-  if (mSelectors) {
-    NS_ASSERTION(aOperator != PRUnichar(0), "chaining without combinator");
-    mSelectors->SetOperator(aOperator);
-  } else {
-    NS_ASSERTION(aOperator == PRUnichar(0), "combinator without chaining");
+void nsCSSSelectorList::AddSelector(nsAutoPtr<nsCSSSelector>& aSelector)
+{ // prepend to list
+  nsCSSSelector* newSel = aSelector.forget();
+  if (newSel) {
+    newSel->mNext = mSelectors;
+    mSelectors = newSel;
   }
-
-  newSel->mNext = mSelectors;
-  mSelectors = newSel;
-  return newSel;
 }
 
 void
@@ -925,7 +913,8 @@ public:
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,
                                             nsIPrincipal** aSheetPrincipal,
-                                            mozilla::css::Loader** aCSSLoader);
+                                            nsICSSLoader** aCSSLoader,
+                                            nsICSSParser** aCSSParser);
   virtual nsresult DeclarationChanged();
   virtual nsIDocument* DocToUpdate();
 
@@ -1029,17 +1018,19 @@ DOMCSSDeclarationImpl::GetCSSDeclaration(nsCSSDeclaration **aDecl,
  * being initialized.
  */
 nsresult
-DOMCSSDeclarationImpl::GetCSSParsingEnvironment(nsIURI** aSheetURI,
+DOMCSSDeclarationImpl::GetCSSParsingEnvironment(nsIURI** aSheetURI, 
                                                 nsIURI** aBaseURI,
                                                 nsIPrincipal** aSheetPrincipal,
-                                                mozilla::css::Loader** aCSSLoader)
+                                                nsICSSLoader** aCSSLoader,
+                                                nsICSSParser** aCSSParser)
 {
   // null out the out params since some of them may not get initialized below
   *aSheetURI = nsnull;
   *aBaseURI = nsnull;
   *aSheetPrincipal = nsnull;
   *aCSSLoader = nsnull;
-
+  *aCSSParser = nsnull;
+  nsresult result;
   nsCOMPtr<nsIStyleSheet> sheet;
   if (mRule) {
     mRule->GetStyleSheet(*getter_AddRefs(sheet));
@@ -1059,9 +1050,14 @@ DOMCSSDeclarationImpl::GetCSSParsingEnvironment(nsIURI** aSheetURI,
       }
     }
   }
+  // XXXldb Why bother if |mRule| is null?
+  if (*aCSSLoader) {
+    result = (*aCSSLoader)->GetParserFor(nsnull, aCSSParser);
+  } else {
+    result = NS_NewCSSParser(aCSSParser);
+  }
 
-  nsresult result = NS_OK;
-  if (!*aSheetPrincipal) {
+  if (NS_SUCCEEDED(result) && !*aSheetPrincipal) {
     result = CallCreateInstance("@mozilla.org/nullprincipal;1",
                                 aSheetPrincipal);
   }
@@ -1134,7 +1130,7 @@ NS_INTERFACE_MAP_BEGIN(DOMCSSStyleRuleImpl)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleRule)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSStyleRule)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(DOMCSSStyleRuleImpl)

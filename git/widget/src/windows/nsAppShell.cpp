@@ -236,12 +236,7 @@ nsAppShell::Run(void)
   memset(modules, 0, sizeof(modules));
   sLoadedModules = modules;
 
-  nsresult rv = nsBaseAppShell::Run();
-
-  // Don't forget to null this out!
-  sLoadedModules = nsnull;
-
-  return rv;
+  return nsBaseAppShell::Run();
 }
 
 #endif

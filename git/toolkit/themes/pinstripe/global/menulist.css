@@ -116,7 +116,8 @@ html|*.menulist-editable-input {
 
 .menulist-compact > .menulist-label {
   margin: 0 3px !important;
-  text-align: end;
+  text-align: right;
+
 }  
 
 .menulist-compact > .menulist-dropmarker {

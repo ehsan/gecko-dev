@@ -1171,7 +1171,7 @@ SetFontFamily(nsPresContext*       aPresContext,
     aGlyphCode.font ? aGlyphTable->FontNameFor(aGlyphCode) : aDefaultFamily;
   if (! family.Equals(aFont.name)) {
     aFont.name = family;
-    aRenderingContext.SetFont(aFont, aPresContext->GetUserFontSet());
+    aRenderingContext.SetFont(aFont, nsnull, aPresContext->GetUserFontSet());
   }
 }
 
@@ -1584,9 +1584,9 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
     // Record the families in case there is no stretch.  But don't bother
     // storing families when they are just those from the StyleContext.
     mFamily = families;
-  }
+  }    
 
-  aRenderingContext.SetFont(font, aPresContext->GetUserFontSet());
+  aRenderingContext.SetFont(font, nsnull, aPresContext->GetUserFontSet());
   nsresult rv =
     aRenderingContext.GetBoundingMetrics(mData.get(), PRUint32(mData.Length()),
                                          aDesiredStretchSize);
@@ -1933,10 +1933,10 @@ void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
                                           nsIRenderingContext* aCtx)
 {
   const nsStyleBorder* border = mStyleContext->GetStyleBorder();
+  const nsStyleBackground* backg = mStyleContext->GetStyleBackground();
   nsRect rect(mRect + aBuilder->ToReferenceFrame(mFrame));
   nsCSSRendering::PaintBackgroundWithSC(mFrame->PresContext(), *aCtx, mFrame,
-                                        mVisibleRect, rect,
-                                        mStyleContext, *border,
+                                        mVisibleRect, rect, *backg, *border,
                                         aBuilder->GetBackgroundPaintFlags());
 }
 
@@ -2008,9 +2008,11 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              mVisibleRect, rect, styleContext, skipSides);
+                              mVisibleRect, rect, *border, styleContext,
+                              skipSides);
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
-                               mVisibleRect, rect, styleContext);
+                               mVisibleRect, rect, *border,
+                               *mFrame->GetStyleOutline(), styleContext);
 }
 #endif
 
@@ -2094,7 +2096,7 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
   if (! mFamily.IsEmpty()) {
     theFont.name = mFamily;
   }
-  aRenderingContext.SetFont(theFont, aPresContext->GetUserFontSet());
+  aRenderingContext.SetFont(theFont, nsnull, aPresContext->GetUserFontSet());
 
   if (NS_STRETCH_DIRECTION_UNSUPPORTED == mDirection) {
     // normal drawing if there is nothing special about this char ...

@@ -88,6 +88,8 @@
 #include "jsdhash.h"
 #endif
 
+using namespace js;
+
 /*
  * Asserts to verify assumptions behind pn_ macros.
  */
@@ -222,7 +224,6 @@ JSCompiler::init(const jschar *base, size_t length,
 
     /* Root atoms and objects allocated for the parsed tree. */
     JS_KEEP_ATOMS(cx->runtime);
-    JS_PUSH_TEMP_ROOT_COMPILER(cx, this, &tempRoot);
     return true;
 }
 
@@ -232,8 +233,6 @@ JSCompiler::~JSCompiler()
 
     if (principals)
         JSPRINCIPALS_DROP(cx, principals);
-    JS_ASSERT(tempRoot.u.compiler == this);
-    JS_POP_TEMP_ROOT(cx, &tempRoot);
     JS_UNKEEP_ATOMS(cx->runtime);
     tokenStream.close(cx);
     JS_ARENA_RELEASE(&cx->tempPool, tempPoolMark);
@@ -338,10 +337,7 @@ JSFunctionBox::shouldUnbrand(uintN methods, uintN slowMethods) const
 void
 JSCompiler::trace(JSTracer *trc)
 {
-    JSObjectBox *objbox;
-
-    JS_ASSERT(tempRoot.u.compiler == this);
-    objbox = traceListHead;
+    JSObjectBox *objbox = traceListHead;
     while (objbox) {
         JS_CALL_OBJECT_TRACER(trc, objbox->object, "parser.object");
         objbox = objbox->traceLink;
@@ -2413,8 +2409,7 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags)
                 if (nupvars == 0) {
                     FUN_METER(onlyfreevar);
                     FUN_SET_KIND(fun, JSFUN_NULL_CLOSURE);
-                } else if (nflattened == nupvars) {
-                    /* FIXME bug 545759: to test nflattened != 0 */
+                } else if (nflattened != 0) {
                     /*
                      * We made it all the way through the upvar loop, so it's
                      * safe to optimize to a flat closure.
@@ -8831,7 +8826,6 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
     JSParseNode **pnp, *pn1, *pn2;
     JSString *accum, *str;
     uint32 i, j;
-    JSTempValueRooter tvr;
 
     JS_ASSERT(pn->pn_arity == PN_LIST);
     tt = PN_TYPE(pn);
@@ -8922,11 +8916,12 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
         }
 
         if (accum) {
-            JS_PUSH_TEMP_ROOT_STRING(cx, accum, &tvr);
-            str = ((tt == TOK_XMLSTAGO || tt == TOK_XMLPTAGC) && i != 0)
-                  ? js_AddAttributePart(cx, i & 1, accum, str)
-                  : js_ConcatStrings(cx, accum, str);
-            JS_POP_TEMP_ROOT(cx, &tvr);
+            {
+                AutoValueRooter tvr(cx, accum);
+                str = ((tt == TOK_XMLSTAGO || tt == TOK_XMLPTAGC) && i != 0)
+                      ? js_AddAttributePart(cx, i & 1, accum, str)
+                      : js_ConcatStrings(cx, accum, str);
+            }
             if (!str)
                 return JS_FALSE;
 #ifdef DEBUG_brendanXXX

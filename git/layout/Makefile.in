@@ -83,8 +83,12 @@ PARALLEL_DIRS += \
   xul/base/test \
   $(NULL)
 
-TOOL_DIRS      += tools/reftest reftests/fonts reftests/fonts/mplus
+TOOL_DIRS      += tools/reftest
 DIRS           += tools/pageloader
+ifndef MOZ_ENABLE_LIBXUL
+TOOL_DIRS	+= html/tests
+endif
+TOOL_DIRS	+= reftests/fonts reftests/fonts/mplus
 endif
 
 include $(topsrcdir)/config/rules.mk

@@ -84,32 +84,26 @@ nsSVGTextPathFrame::GetType() const
 }
 
 
-already_AddRefed<nsIDOMSVGLengthList>
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGTextPathFrame::GetX()
 {
   return nsnull;
 }
 
-already_AddRefed<nsIDOMSVGLengthList>
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGTextPathFrame::GetY()
 {
   return nsnull;
 }
 
-already_AddRefed<nsIDOMSVGLengthList>
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGTextPathFrame::GetDx()
 {
   return nsnull;
 }
 
-already_AddRefed<nsIDOMSVGLengthList>
+NS_IMETHODIMP_(already_AddRefed<nsIDOMSVGLengthList>)
 nsSVGTextPathFrame::GetDy()
-{
-  return nsnull;
-}
-
-already_AddRefed<nsIDOMSVGNumberList>
-nsSVGTextPathFrame::GetRotate()
 {
   return nsnull;
 }
@@ -120,8 +114,8 @@ nsSVGTextPathFrame::GetRotate()
 nsIFrame *
 nsSVGTextPathFrame::GetPathFrame()
 {
-  nsSVGTextPathProperty *property = static_cast<nsSVGTextPathProperty*>
-    (Properties().Get(nsSVGEffects::HrefProperty()));
+  nsSVGTextPathProperty *property =
+    static_cast<nsSVGTextPathProperty*>(GetProperty(nsGkAtoms::href));
 
   if (!property) {
     nsSVGTextPathElement *tp = static_cast<nsSVGTextPathElement*>(mContent);
@@ -136,13 +130,17 @@ nsSVGTextPathFrame::GetPathFrame()
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                               mContent->GetCurrentDoc(), base);
 
-    property =
-      nsSVGEffects::GetTextPathProperty(targetURI, this, nsSVGEffects::HrefProperty());
+    property = nsSVGEffects::GetTextPathProperty(
+                               targetURI, this, nsGkAtoms::href);
     if (!property)
       return nsnull;
   }
 
-  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nsnull);
+  nsIFrame *result = property->GetReferencedFrame();
+  if (!result || result->GetType() != nsGkAtoms::svgPathGeometryFrame)
+    return nsnull;
+
+  return result;
 }
 
 already_AddRefed<gfxFlattenedPath>
@@ -189,7 +187,7 @@ nsSVGTextPathFrame::GetPathScale()
     return 1.0;
 
   nsSVGPathElement *path = static_cast<nsSVGPathElement*>(pathFrame->GetContent());
-  float pl = path->mPathLength.GetAnimValue();
+  float pl = path->mPathLength.GetAnimValue(path);
 
   if (pl == 0.0f)
     return 1.0;
@@ -212,7 +210,7 @@ nsSVGTextPathFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
-    Properties().Delete(nsSVGEffects::HrefProperty());
+    DeleteProperty(nsGkAtoms::href);
     NotifyGlyphMetricsChange();
   }
 

@@ -414,6 +414,12 @@ void nsCSSValue::SetDummyInheritValue()
   mUnit = eCSSUnit_DummyInherit;
 }
 
+void nsCSSValue::SetRectIsAutoValue()
+{
+  Reset();
+  mUnit = eCSSUnit_RectIsAuto;
+}
+
 void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
 {
   NS_PRECONDITION(eCSSUnit_URL == mUnit, "Not a URL value!");
@@ -500,7 +506,8 @@ nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
   : mURI(aURI),
     mString(aString),
     mReferrer(aReferrer),
-    mOriginPrincipal(aOriginPrincipal)
+    mOriginPrincipal(aOriginPrincipal),
+    mRefCnt(0)
 {
   NS_PRECONDITION(aOriginPrincipal, "Must have an origin principal");
   mString->AddRef();
@@ -586,6 +593,7 @@ nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial,
     mBgPosY(eCSSUnit_None),
     mAngle(eCSSUnit_None),
     mRadialShape(eCSSUnit_None),
-    mRadialSize(eCSSUnit_None)
+    mRadialSize(eCSSUnit_None),
+    mRefCnt(0)
 {
 }

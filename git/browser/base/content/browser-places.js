@@ -229,7 +229,7 @@ var StarUI = {
   function SU_panelShown(aEvent) {
     if (aEvent.target == this.panel) {
       if (!this._element("editBookmarkPanelContent").hidden) {
-        let fieldToFocus = "editBMPanel_" +
+        fieldToFocus = "editBMPanel_" +
           gPrefService.getCharPref("browser.bookmarks.editDialog.firstEditField");
         var elt = this._element(fieldToFocus);
         elt.focus();
@@ -546,7 +546,9 @@ var PlacesCommandHook = {
    *          UnfiledBookmarks and Tags.
    */
   showPlacesOrganizer: function PCH_showPlacesOrganizer(aLeftPaneRoot) {
-    var organizer = Services.wm.getMostRecentWindow("Places:Organizer");
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    var organizer = wm.getMostRecentWindow("Places:Organizer");
     if (!organizer) {
       // No currently open places window, so open one with the specified mode.
       openDialog("chrome://browser/content/places/places.xul", 
@@ -632,7 +634,7 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
+      m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("value", i);
       m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
 
@@ -714,7 +716,7 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
+      m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
 
       // Set the targetURI attribute so it will be shown in tooltip and statusbar.
@@ -990,26 +992,71 @@ var BookmarksEventHandler = {
 };
 
 /**
- * Drag and Drop handler for the Bookmarks menu in the top level menu bar.
+ * Drag and Drop handling specifically for the Bookmarks Menu item in the
+ * top level menu bar
  */
-let BookmarksMenuDropHandler = {
-  onDragOver: function BMDH_onDragOver(event) {
-    let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
-                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                Ci.nsITreeView.DROP_ON);
-    if (ip && PlacesControllerDragHelper.canDrop(ip, event.dataTransfer))
-      event.preventDefault();
-
-    event.stopPropagation();
+var BookmarksMenuDropHandler = {
+  /**
+   * Need to tell the session to update the state of the cursor as we drag
+   * over the Bookmarks Menu to show the "can drop" state vs. the "no drop"
+   * state.
+   */
+  onDragOver: function BMDH_onDragOver(event, flavor, session) {
+    if (!this.canDrop(event, session))
+      event.dataTransfer.effectAllowed = "none";
   },
 
-  onDrop: function BMDH_onDrop(event) {
-    // Put the item at the end of bookmark menu.
-    let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
-                                PlacesUtils.bookmarks.DEFAULT_INDEX,
+  /**
+   * Advertises the set of data types that can be dropped on the Bookmarks
+   * Menu
+   * @returns a FlavourSet object per nsDragAndDrop parlance.
+   */
+  getSupportedFlavours: function BMDH_getSupportedFlavours() {
+    var view = document.getElementById("bookmarksMenuPopup");
+    return view.getSupportedFlavours();
+  },
+
+  /**
+   * Determine whether or not the user can drop on the Bookmarks Menu.
+   * @param   event
+   *          A dragover event
+   * @param   session
+   *          The active DragSession
+   * @returns true if the user can drop onto the Bookmarks Menu item, false 
+   *          otherwise.
+   */
+  canDrop: function BMDH_canDrop(event, session) {
+    PlacesControllerDragHelper.currentDataTransfer = event.dataTransfer;
+
+    var ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId, -1);  
+    return ip && PlacesControllerDragHelper.canDrop(ip);
+  },
+
+  /**
+   * Called when the user drops onto the top level Bookmarks Menu item.
+   * @param   event
+   *          A drop event
+   * @param   data
+   *          Data that was dropped
+   * @param   session
+   *          The active DragSession
+   */
+  onDrop: function BMDH_onDrop(event, data, session) {
+    PlacesControllerDragHelper.currentDataTransfer = event.dataTransfer;
+
+  // Put the item at the end of bookmark menu
+    var ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId, -1,
                                 Ci.nsITreeView.DROP_ON);
-    PlacesControllerDragHelper.onDrop(ip, event.dataTransfer);
-    event.stopPropagation();
+    PlacesControllerDragHelper.onDrop(ip);
+  },
+
+  /**
+   * Called when drop target leaves the menu or after a drop.
+   * @param   aEvent
+   *          A drop event
+   */
+  onDragExit: function BMDH_onDragExit(event, session) {
+    PlacesControllerDragHelper.currentDataTransfer = null;
   }
 };
 

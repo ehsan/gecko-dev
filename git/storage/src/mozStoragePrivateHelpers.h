@@ -49,12 +49,8 @@
 #include "nsIVariant.h"
 #include "mozStorage.h"
 #include "jsapi.h"
-#include "nsAutoPtr.h"
 
-class mozIStorageCompletionCallback;
-class mozIStorageBaseStatement;
-class mozIStorageBindingParams;
-class nsIRunnable;
+class mozIStorageStatement;
 
 namespace mozilla {
 namespace storage {
@@ -89,29 +85,20 @@ nsresult convertResultCode(int aSQLiteResultCode);
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
 
 /**
- * Convert the provided jsval into a variant representation if possible.
  *
- * @param aCtx
- *        The JSContext the value is from.
- * @param aValue
- *        The JavaScript value to convert.  All primitive types are supported,
- *        but only Date objects are supported from the Date family.  Date
- *        objects are coerced to PRTime (nanoseconds since epoch) values.
- * @return the variant if conversion was successful, nsnull if conversion
- *         failed.  The caller is responsible for addref'ing if non-null.
  */
-nsIVariant *convertJSValToVariant(JSContext *aCtx, jsval aValue);
+bool
+bindJSValue(JSContext *aCtx,
+            mozIStorageStatement *aStatement,
+            int aIdx,
+            jsval aValue);
 
 /**
- * Obtains an event that will notify a completion callback about completion.
- *
- * @param aCallback
- *        The callback to be notified.
- * @return an nsIRunnable that can be dispatched to the calling thread.
+ * Used to convert an nsIVariant to the proper SQLite type.
  */
-already_AddRefed<nsIRunnable> newCompletionEvent(
-  mozIStorageCompletionCallback *aCallback
-);
+template <typename T>
+int variantToSQLiteT(T aObj, nsIVariant *aValue);
+#include "variantToSQLiteT_impl.h" // To keep this file easier to read.
 
 } // namespace storage
 } // namespace mozilla

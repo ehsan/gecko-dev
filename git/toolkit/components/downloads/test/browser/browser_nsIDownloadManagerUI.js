@@ -105,7 +105,9 @@ function test()
   db.executeSimpleSQL("DELETE FROM moz_downloads");
 
   // See if the DM is already open, and if it is, close it!
-  var win = Services.wm.getMostRecentWindow("Download:Manager");
+  var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+           getService(Ci.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Download:Manager");
   if (win)
     win.close();
 
@@ -115,7 +117,7 @@ function test()
 
   // The window doesn't open once we call show, so we need to wait a little bit
   function finishUp() {
-    var win = Services.wm.getMostRecentWindow("Download:Manager");
+    var win = wm.getMostRecentWindow("Download:Manager");
 
     // Now we can run our tests
     for each (var t in testFuncs)

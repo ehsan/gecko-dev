@@ -84,6 +84,9 @@ public:
   SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) = 0;
 
   NS_IMETHOD
+  GetReference(nsPoint& aReference) = 0;
+
+  NS_IMETHOD
   SetReference(const nsPoint& aReference) = 0;
 
   virtual eMathMLFrameType GetMathMLFrameType() = 0;
@@ -114,19 +117,29 @@ public:
           nsBoundingMetrics&   aContainerSize,
           nsHTMLReflowMetrics& aDesiredStretchSize) = 0;
 
- /* Get the mEmbellishData member variable. */
- 
+ /* GetEmbellishData/SetEmbellishData :
+  * Get/Set the mEmbellishData member variable.
+  */
+
   NS_IMETHOD
   GetEmbellishData(nsEmbellishData& aEmbellishData) = 0;
+
+  NS_IMETHOD
+  SetEmbellishData(const nsEmbellishData& aEmbellishData) = 0;
 
 
  /* SUPPORT FOR SCRIPTING ELEMENTS */
  /*====================================================================*/
 
- /* Get the mPresentationData member variable. */
+ /* GetPresentationData/SetPresentationData :
+  * Get/Set the mPresentationData member variable.
+  */
 
   NS_IMETHOD
   GetPresentationData(nsPresentationData& aPresentationData) = 0;
+
+  NS_IMETHOD
+  SetPresentationData(const nsPresentationData& aPresentationData) = 0;
 
   /* InheritAutomaticData() / TransmitAutomaticData() :
    * There are precise rules governing each MathML frame and its children.

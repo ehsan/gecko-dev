@@ -70,7 +70,6 @@ function check_results_callback(aSequence) {
       case Ci.nsINavHistoryService.TRANSITION_DOWNLOAD:
         return redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
       case Ci.nsINavHistoryService.TRANSITION_EMBED:
-      case Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK:
         return includeHidden && redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
       case Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY:
       case Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT:
@@ -109,8 +108,8 @@ function check_results_callback(aSequence) {
   }
 
   // Create a new query with required options.
-  let query = PlacesUtils.history.getNewQuery();
-  let options = PlacesUtils.history.getNewQueryOptions();
+  let query = histsvc.getNewQuery();
+  let options = histsvc.getNewQueryOptions();
   options.includeHidden = includeHidden;
   options.redirectsMode = redirectsMode;
   options.sortingMode = sortingMode;
@@ -118,7 +117,7 @@ function check_results_callback(aSequence) {
     options.maxResults = maxResults;
 
   // Compare resultset with expectedData.
-  let result = PlacesUtils.history.executeQuery(query, options);
+  let result = histsvc.executeQuery(query, options);
   let root = result.root;
   root.containerOpen = true;
   compareArrayToResult(expectedData, root);
@@ -212,7 +211,7 @@ function cartProd(aSequences, aCallback)
  */
 function add_visits_to_database() {
   // Clean up the database.
-  PlacesUtils.bhistory.removeAllPages();
+  bhistsvc.removeAllPages();
   remove_all_bookmarks();
 
   // We don't really bother on this, but we need a time to add visits.
@@ -225,7 +224,6 @@ function add_visits_to_database() {
     Ci.nsINavHistoryService.TRANSITION_TYPED,
     Ci.nsINavHistoryService.TRANSITION_BOOKMARK,
     Ci.nsINavHistoryService.TRANSITION_EMBED,
-    Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK,
     // Would make hard sorting by visit date because last_visit_date is actually
     // calculated excluding download transitions, but the query includes
     // downloads.
@@ -240,8 +238,7 @@ function add_visits_to_database() {
       uri: "http://" + transition + ".example.com/",
       title: transition + "-example",
       lastVisit: timeInMicroseconds--,
-      visitCount: (transition == Ci.nsINavHistoryService.TRANSITION_EMBED ||
-                   transition == Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK) ? 0 : visitCount++,
+      visitCount: transition == Ci.nsINavHistoryService.TRANSITION_EMBED ? 0 : visitCount++,
       isInQuery: true }));
 
   // Add a REDIRECT_TEMPORARY layer of visits for each of the above visits.
@@ -271,8 +268,8 @@ function add_visits_to_database() {
   // Add an unvisited bookmark in the database, it should never appear.
   visits.push({ isBookmark: true,
     uri: "http://unvisited.bookmark.com/",
-    parentFolder: PlacesUtils.bookmarksMenuFolderId,
-    index: PlacesUtils.bookmarks.DEFAULT_INDEX,
+    parentFolder: bmsvc.bookmarksMenuFolder,
+    index: bmsvc.DEFAULT_INDEX,
     title: "Unvisited Bookmark",
     isInQuery: false });
 
@@ -302,6 +299,6 @@ function run_test() {
            check_results_callback);
 
   // Clean up so we can't pollute next tests.
-  PlacesUtils.bhistory.removeAllPages();
+  bhistsvc.removeAllPages();
   remove_all_bookmarks();
 }

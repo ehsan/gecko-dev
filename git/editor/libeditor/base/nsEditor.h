@@ -311,6 +311,9 @@ protected:
   /** make the given selection span the entire document */
   NS_IMETHOD SelectEntireDocument(nsISelection *aSelection);
 
+  /* Helper for output routines -- we expect subclasses to override this */
+  NS_IMETHOD GetWrapWidth(PRInt32* aWrapCol);
+
   /** helper method for scrolling the selection into view after
    *  an edit operation. aScrollToAnchor should be PR_TRUE if you
    *  want to scroll to the point where the selection was started.
@@ -345,7 +348,7 @@ protected:
   // install the event listeners for the editor 
   nsresult InstallEventListeners();
 
-  virtual nsresult CreateEventListeners();
+  virtual nsresult CreateEventListeners() = 0;
 
   // unregister and release our event listeners
   virtual void RemoveEventListeners();
@@ -635,7 +638,12 @@ protected:
 
   nsString* mPhonetic;
 
- nsCOMPtr<nsIDOMEventListener> mEventListener;
+  nsCOMPtr<nsIDOMEventListener> mKeyListenerP;
+  nsCOMPtr<nsIDOMEventListener> mMouseListenerP;
+  nsCOMPtr<nsIDOMEventListener> mTextListenerP;
+  nsCOMPtr<nsIDOMEventListener> mCompositionListenerP;
+  nsCOMPtr<nsIDOMEventListener> mDragListenerP;
+  nsCOMPtr<nsIDOMEventListener> mFocusListenerP;
 
   friend PRBool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

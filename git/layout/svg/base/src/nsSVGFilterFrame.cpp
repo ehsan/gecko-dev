@@ -67,7 +67,7 @@ MapDeviceRectToFilterSpace(const gfxMatrix& aMatrix,
                                                 aDeviceRect->width, aDeviceRect->height));
     r.RoundOut();
     nsIntRect intRect;
-    if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(r, &intRect))) {
+    if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(r, &intRect))) {
       rect = intRect;
     }
   }
@@ -108,9 +108,9 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
     static_cast<nsSVGFilterElement*>(aFilterFrame->GetContent());
 
   PRUint16 filterUnits =
-    filter->mEnumAttributes[nsSVGFilterElement::FILTERUNITS].GetAnimValue();
+    filter->mEnumAttributes[nsSVGFilterElement::FILTERUNITS].GetAnimValue(filter);
   PRUint16 primitiveUnits =
-    filter->mEnumAttributes[nsSVGFilterElement::PRIMITIVEUNITS].GetAnimValue();
+    filter->mEnumAttributes[nsSVGFilterElement::PRIMITIVEUNITS].GetAnimValue(filter);
 
   gfxRect bbox;
   if (aOverrideSourceBBox) {
@@ -236,7 +236,7 @@ TransformFilterSpaceToDeviceSpace(nsSVGFilterInstance *aInstance, nsIntRect *aRe
   r = m.TransformBounds(r);
   r.RoundOut();
   nsIntRect deviceRect;
-  nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &deviceRect);
+  nsresult rv = nsSVGUtils::GfxRectToIntRect(r, &deviceRect);
   if (NS_FAILED(rv))
     return rv;
   *aRect = deviceRect;

@@ -178,12 +178,6 @@ nsBox::BeginLayout(nsBoxLayoutState& aState)
       box->AddStateBits(NS_FRAME_IS_DIRTY);
   }
 
-  // Another copy-over from nsHTMLReflowState.
-  // Since we are in reflow, we don't need to store these properties anymore.
-  FrameProperties props = Properties();
-  props.Delete(UsedBorderProperty());
-  props.Delete(UsedPaddingProperty());
-  props.Delete(UsedMarginProperty());
 
 #ifdef DEBUG_LAYOUT
   PropagateDebug(aState);
@@ -410,7 +404,7 @@ nsBox::SizeNeedsRecalc(nsSize& aSize)
 }
 
 void
-nsBox::CoordNeedsRecalc(nscoord& aFlex)
+nsBox::CoordNeedsRecalc(PRInt32& aFlex)
 {
   aFlex = -1;
 }
@@ -453,8 +447,7 @@ nsBox::GetPrefSize(nsBoxLayoutState& aState)
     return pref;
 
   AddBorderAndPadding(pref);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSPrefSize(this, pref, widthSet, heightSet);
+  nsIBox::AddCSSPrefSize(aState, this, pref);
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);
@@ -473,8 +466,7 @@ nsBox::GetMinSize(nsBoxLayoutState& aState)
     return min;
 
   AddBorderAndPadding(min);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSMinSize(aState, this, min, widthSet, heightSet);
+  nsIBox::AddCSSMinSize(aState, this, min);
   return min;
 }
 
@@ -496,8 +488,7 @@ nsBox::GetMaxSize(nsBoxLayoutState& aState)
     return maxSize;
 
   AddBorderAndPadding(maxSize);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSMaxSize(this, maxSize, widthSet, heightSet);
+  nsIBox::AddCSSMaxSize(aState, this, maxSize);
   return maxSize;
 }
 
@@ -506,6 +497,7 @@ nsBox::GetFlex(nsBoxLayoutState& aState)
 {
   nscoord flex = 0;
 
+  GetDefaultFlex(flex);
   nsIBox::AddCSSFlex(aState, this, flex);
 
   return flex;
@@ -515,25 +507,7 @@ PRUint32
 nsIFrame::GetOrdinal(nsBoxLayoutState& aState)
 {
   PRUint32 ordinal = DEFAULT_ORDINAL_GROUP;
-
-  nsIContent* content = GetContent();
-  if (content) {
-    PRInt32 error;
-    nsAutoString value;
-
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, value);
-    if (!value.IsEmpty()) {
-      ordinal = value.ToInteger(&error);
-    }
-    else {
-      // No attribute value.  Check CSS.
-      const nsStyleXUL* boxInfo = GetStyleXUL();
-      if (boxInfo->mBoxOrdinal > 1) {
-        // The ordinal group was defined in CSS.
-        ordinal = (nscoord)boxInfo->mBoxOrdinal;
-      }
-    }
-  }
+  nsIBox::AddCSSOrdinal(aState, this, ordinal);
 
   return ordinal;
 }
@@ -550,7 +524,10 @@ nsBox::GetBoxAscent(nsBoxLayoutState& aState)
 PRBool
 nsBox::IsCollapsed(nsBoxLayoutState& aState)
 {
-  return GetStyleVisibility()->mVisible == NS_STYLE_VISIBILITY_COLLAPSE;
+  PRBool collapsed = PR_FALSE;
+  nsIBox::AddCSSCollapsed(aState, this, collapsed);
+
+  return collapsed;
 }
 
 nsresult
@@ -666,11 +643,10 @@ nsIFrame::Redraw(nsBoxLayoutState& aState,
   return NS_OK;
 }
 
-PRBool
-nsIBox::AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &aHeightSet)
+PRBool 
+nsIBox::AddCSSPrefSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 {
-    aWidthSet = PR_FALSE;
-    aHeightSet = PR_FALSE;
+    PRBool widthSet = PR_FALSE, heightSet = PR_FALSE;
 
     // add in the css min, max, pref
     const nsStylePosition* position = aBox->GetStylePosition();
@@ -682,12 +658,12 @@ nsIBox::AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &a
     // (min-/max-/)(width/height) properties.)
     if (position->mWidth.GetUnit() == eStyleUnit_Coord) {
         aSize.width = position->mWidth.GetCoordValue();
-        aWidthSet = PR_TRUE;
+        widthSet = PR_TRUE;
     }
 
     if (position->mHeight.GetUnit() == eStyleUnit_Coord) {
         aSize.height = position->mHeight.GetCoordValue();     
-        aHeightSet = PR_TRUE;
+        heightSet = PR_TRUE;
     }
     
     nsIContent* content = aBox->GetContent();
@@ -704,7 +680,7 @@ nsIBox::AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &a
 
             aSize.width =
               nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-            aWidthSet = PR_TRUE;
+            widthSet = PR_TRUE;
         }
 
         content->GetAttr(kNameSpaceID_None, nsGkAtoms::height, value);
@@ -713,21 +689,20 @@ nsIBox::AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &a
 
             aSize.height =
               nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-            aHeightSet = PR_TRUE;
+            heightSet = PR_TRUE;
         }
     }
 
-    return (aWidthSet && aHeightSet);
+    return (widthSet && heightSet);
 }
 
 
-PRBool
-nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
-                      PRBool &aWidthSet, PRBool &aHeightSet)
+PRBool 
+nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 {
-    aWidthSet = PR_FALSE;
-    aHeightSet = PR_FALSE;
 
+    PRBool widthSet = PR_FALSE;
+    PRBool heightSet = PR_FALSE;
     PRBool canOverride = PR_TRUE;
 
     // See if a native theme wants to supply a minimum size.
@@ -742,11 +717,11 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
                                       display->mAppearance, &size, &canOverride);
           if (size.width) {
             aSize.width = aState.PresContext()->DevPixelsToAppUnits(size.width);
-            aWidthSet = PR_TRUE;
+            widthSet = PR_TRUE;
           }
           if (size.height) {
             aSize.height = aState.PresContext()->DevPixelsToAppUnits(size.height);
-            aHeightSet = PR_TRUE;
+            heightSet = PR_TRUE;
           }
         }
       }
@@ -759,15 +734,15 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
     // we will assume 0 means not set.
     if (position->mMinWidth.GetUnit() == eStyleUnit_Coord) {
         nscoord min = position->mMinWidth.GetCoordValue();
-        if (min && (!aWidthSet || (min > aSize.width && canOverride))) {
+        if (min && (!widthSet || (min > aSize.width && canOverride))) {
            aSize.width = min;
-           aWidthSet = PR_TRUE;
+           widthSet = PR_TRUE;
         }
     } else if (position->mMinWidth.GetUnit() == eStyleUnit_Percent) {
         NS_ASSERTION(position->mMinWidth.GetPercentValue() == 0.0f,
           "Non-zero percentage values not currently supported");
         aSize.width = 0;
-        aWidthSet = PR_TRUE;
+        widthSet = PR_TRUE;
     }
     // XXX Handle eStyleUnit_Enumerated?
     // (Handling the eStyleUnit_Enumerated types requires
@@ -776,15 +751,15 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
 
     if (position->mMinHeight.GetUnit() == eStyleUnit_Coord) {
         nscoord min = position->mMinHeight.GetCoordValue();
-        if (min && (!aHeightSet || (min > aSize.height && canOverride))) {
+        if (min && (!heightSet || (min > aSize.height && canOverride))) {
            aSize.height = min;
-           aHeightSet = PR_TRUE;
+           heightSet = PR_TRUE;
         }
     } else if (position->mMinHeight.GetUnit() == eStyleUnit_Percent) {
         NS_ASSERTION(position->mMinHeight.GetPercentValue() == 0.0f,
           "Non-zero percentage values not currently supported");
         aSize.height = 0;
-        aHeightSet = PR_TRUE;
+        heightSet = PR_TRUE;
     }
 
     nsIContent* content = aBox->GetContent();
@@ -801,7 +776,7 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
               nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
             if (val > aSize.width)
               aSize.width = val;
-            aWidthSet = PR_TRUE;
+            widthSet = PR_TRUE;
         }
 
         content->GetAttr(kNameSpaceID_None, nsGkAtoms::minheight, value);
@@ -814,18 +789,17 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize,
             if (val > aSize.height)
               aSize.height = val;
 
-            aHeightSet = PR_TRUE;
+            heightSet = PR_TRUE;
         }
     }
 
-    return (aWidthSet && aHeightSet);
+    return (widthSet && heightSet);
 }
 
-PRBool
-nsIBox::AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &aHeightSet)
-{
-    aWidthSet = PR_FALSE;
-    aHeightSet = PR_FALSE;
+PRBool 
+nsIBox::AddCSSMaxSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
+{  
+    PRBool widthSet = PR_FALSE, heightSet = PR_FALSE;
 
     // add in the css min, max, pref
     const nsStylePosition* position = aBox->GetStylePosition();
@@ -838,12 +812,12 @@ nsIBox::AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &aH
     // (min-/max-/)(width/height) properties.)
     if (position->mMaxWidth.GetUnit() == eStyleUnit_Coord) {
         aSize.width = position->mMaxWidth.GetCoordValue();
-        aWidthSet = PR_TRUE;
+        widthSet = PR_TRUE;
     }
 
     if (position->mMaxHeight.GetUnit() == eStyleUnit_Coord) {
         aSize.height = position->mMaxHeight.GetCoordValue();
-        aHeightSet = PR_TRUE;
+        heightSet = PR_TRUE;
     }
 
     nsIContent* content = aBox->GetContent();
@@ -858,7 +832,7 @@ nsIBox::AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &aH
             nscoord val =
               nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
             aSize.width = val;
-            aWidthSet = PR_TRUE;
+            widthSet = PR_TRUE;
         }
 
         content->GetAttr(kNameSpaceID_None, nsGkAtoms::maxheight, value);
@@ -869,14 +843,14 @@ nsIBox::AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool &aWidthSet, PRBool &aH
               nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
             aSize.height = val;
 
-            aHeightSet = PR_TRUE;
+            heightSet = PR_TRUE;
         }
     }
 
-    return (aWidthSet || aHeightSet);
+    return (widthSet || heightSet);
 }
 
-PRBool
+PRBool 
 nsIBox::AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex)
 {
     PRBool flexSet = PR_FALSE;
@@ -912,10 +886,54 @@ nsIBox::AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex)
     return flexSet;
 }
 
+PRBool 
+nsIBox::AddCSSCollapsed(nsBoxLayoutState& aState, nsIBox* aBox, PRBool& aCollapsed)
+{
+  aCollapsed = aBox->GetStyleVisibility()->mVisible ==
+               NS_STYLE_VISIBILITY_COLLAPSE;
+  return PR_TRUE;
+}
+
+PRBool 
+nsIBox::AddCSSOrdinal(nsBoxLayoutState& aState, nsIBox* aBox, PRUint32& aOrdinal)
+{
+  PRBool ordinalSet = PR_FALSE;
+  
+  // get the flexibility
+  nsIContent* content = aBox->GetContent();
+  if (content) {
+    PRInt32 error;
+    nsAutoString value;
+
+    content->GetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, value);
+    if (!value.IsEmpty()) {
+      aOrdinal = value.ToInteger(&error);
+      ordinalSet = PR_TRUE;
+    }
+    else {
+      // No attribute value.  Check CSS.
+      const nsStyleXUL* boxInfo = aBox->GetStyleXUL();
+      if (boxInfo->mBoxOrdinal > 1) {
+        // The ordinal group was defined in CSS.
+        aOrdinal = (nscoord)boxInfo->mBoxOrdinal;
+        ordinalSet = PR_TRUE;
+      }
+    }
+  }
+
+  return ordinalSet;
+}
+
 void
 nsBox::AddBorderAndPadding(nsSize& aSize)
 {
   AddBorderAndPadding(this, aSize);
+}
+
+void
+nsBox::AddMargin(nsSize& aSize)
+{
+  AddMargin(this, aSize);
 }
 
 void
@@ -1023,4 +1041,11 @@ nsBox::GetMouseThrough() const
     return mParent->GetMouseThrough();
 
   return PR_FALSE;
+}
+
+PRBool
+nsBox::GetDefaultFlex(PRInt32& aFlex) 
+{ 
+  aFlex = 0; 
+  return PR_TRUE; 
 }

@@ -277,14 +277,12 @@ FT_BEGIN_HEADER
     FTC_GCache               _gcache   = FTC_GCACHE( cache );               \
     FTC_GQuery               _gquery   = (FTC_GQuery)( query );             \
     FTC_MruNode_CompareFunc  _fcompare = (FTC_MruNode_CompareFunc)(famcmp); \
-    FTC_MruNode              _mrunode;                                      \
                                                                             \
                                                                             \
     _gquery->gindex = (gindex);                                             \
                                                                             \
     FTC_MRULIST_LOOKUP_CMP( &_gcache->families, _gquery, _fcompare,         \
-                            _mrunode, error );                              \
-    _gquery->family = FTC_FAMILY( _mrunode );                               \
+                            _gquery->family, error );                       \
     if ( !error )                                                           \
     {                                                                       \
       FTC_Family  _gqfamily = _gquery->family;                              \
@@ -305,10 +303,11 @@ FT_BEGIN_HEADER
 #define FTC_GCACHE_LOOKUP_CMP( cache, famcmp, nodecmp, hash,          \
                                gindex, query, node, error )           \
    FT_BEGIN_STMNT                                                     \
+     void*  _n = &(node);                                             \
+                                                                      \
                                                                       \
      error = FTC_GCache_Lookup( FTC_GCACHE( cache ), hash, gindex,    \
-                                FTC_GQUERY( query ), node );          \
-                                                                      \
+                                FTC_GQUERY( query ), (FTC_Node*)_n ); \
    FT_END_STMNT
 
 #endif /* !FTC_INLINE */

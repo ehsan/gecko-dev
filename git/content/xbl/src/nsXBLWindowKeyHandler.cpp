@@ -462,7 +462,9 @@ nsXBLWindowKeyHandler::IsEditor()
     docShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell) {
-    return presShell->GetSelectionFlags() == nsISelectionDisplay::DISPLAY_ALL;
+    PRInt16 isEditor;
+    presShell->GetSelectionFlags(&isEditor);
+    return isEditor == nsISelectionDisplay::DISPLAY_ALL;
   }
 
   return PR_FALSE;

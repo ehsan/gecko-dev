@@ -928,7 +928,11 @@ static BOOL gActOnSpecialCommands = YES;
 - (void) _overrideClassOfMenuItem:(NSMenuItem *)menuItem
 {
   if ([menuItem class] == [NSMenuItem class])
+#ifdef NS_LEOPARD_AND_LATER
     object_setClass(menuItem, [GeckoServicesNSMenuItem class]);
+#else
+    menuItem->isa = [GeckoServicesNSMenuItem class];
+#endif
 }
 
 @end

@@ -46,8 +46,6 @@ applet:-moz-handler-blocked,
 applet:-moz-handler-crashed,
 object:-moz-has-handlerref:-moz-handler-disabled,
 object:-moz-has-handlerref:-moz-handler-blocked,
-object:-moz-handler-crashed {
-    display: inline-block;
-    overflow: hidden;
+object:-moz-has-handlerref:-moz-handler-crashed {
     -moz-binding: url('chrome://mozapps/content/plugins/pluginProblem.xml#pluginProblem') !important;
 }

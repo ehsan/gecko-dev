@@ -483,14 +483,17 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                ("nsXULContentBuilder::BuildContentFromTemplate (is unique: %d)",
                aIsUnique));
 
+        const char *tmpln, *resn, *realn;
+        aTemplateNode->Tag()->GetUTF8String(&tmpln);
+        aResourceNode->Tag()->GetUTF8String(&resn);
+        aRealNode->Tag()->GetUTF8String(&realn);
+
         nsAutoString id;
         aChild->GetId(id);
 
         PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
                ("Tags: [Template: %s  Resource: %s  Real: %s] for id %s",
-                nsAtomCString(aTemplateNode->Tag()).get(), 
-                nsAtomCString(aResourceNode->Tag()).get(),
-                nsAtomCString(aRealNode->Tag()).get(), NS_ConvertUTF16toUTF8(id).get()));
+               tmpln, resn, realn, NS_ConvertUTF16toUTF8(id).get()));
     }
 #endif
 
@@ -559,9 +562,11 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
 #ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
+            const char *tagname;
+            tag->GetUTF8String(&tagname);
             PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("xultemplate[%p]     building %s %s %s",
-                    this, nsAtomCString(tag).get(),
+                    this, tagname,
                     (isGenerationElement ? "[resource]" : ""),
                     (isUnique ? "[unique]" : "")));
         }

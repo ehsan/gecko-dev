@@ -43,7 +43,6 @@
 #include "nsINode.h"
 #include "nsIDOMEvent.h"
 #include "nsString.h"
-#include "nsIDocument.h"
 
 /**
  * Use nsPLDOMEvent to fire a DOM event that requires safe a stable DOM.
@@ -59,9 +58,8 @@
 class nsPLDOMEvent : public nsRunnable {
 public:
   nsPLDOMEvent(nsINode *aEventNode, const nsAString& aEventType,
-               PRBool aBubbles, PRBool aDispatchChromeOnly)
+               PRBool aDispatchChromeOnly)
     : mEventNode(aEventNode), mEventType(aEventType),
-      mBubbles(aBubbles),
       mDispatchChromeOnly(aDispatchChromeOnly)
   { }
 
@@ -76,34 +74,7 @@ public:
   nsCOMPtr<nsINode>     mEventNode;
   nsCOMPtr<nsIDOMEvent> mEvent;
   nsString              mEventType;
-  PRPackedBool          mBubbles;
-  PRPackedBool          mDispatchChromeOnly;
-};
-
-class nsLoadBlockingPLDOMEvent : public nsPLDOMEvent {
-public:
-  nsLoadBlockingPLDOMEvent(nsINode *aEventNode, const nsAString& aEventType,
-                           PRBool aBubbles, PRBool aDispatchChromeOnly)
-    : nsPLDOMEvent(aEventNode, aEventType, aBubbles, aDispatchChromeOnly),
-      mBlockedDoc(aEventNode->GetOwnerDoc())
-  {
-    if (mBlockedDoc) {
-      mBlockedDoc->BlockOnload();
-    }
-  }
-
-  nsLoadBlockingPLDOMEvent(nsINode *aEventNode, nsIDOMEvent *aEvent)
-    : nsPLDOMEvent(aEventNode, aEvent),
-      mBlockedDoc(aEventNode->GetOwnerDoc())
-  {
-    if (mBlockedDoc) {
-      mBlockedDoc->BlockOnload();
-    }
-  }
-  
-  ~nsLoadBlockingPLDOMEvent();
-
-  nsCOMPtr<nsIDocument> mBlockedDoc;
+  PRBool                mDispatchChromeOnly;
 };
 
 #endif

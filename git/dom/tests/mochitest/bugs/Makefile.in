@@ -50,7 +50,6 @@ _TEST_FILES	= \
 		iframe_bug49312.html \
 		test_bug132255.html \
 		test_bug159849.html \
-		test_bug265203.html \
 		test_bug291377.html \
 		test_bug308856.html \
 		test_bug317448.html \
@@ -108,6 +107,8 @@ _TEST_FILES	= \
 		grandchild_bug260264.html \
 		utils_bug260264.js \
 		test_bug531176.html \
+		test_bug534362.html \
+		iframe_bug534362.html \
 		test_bug531542.html \
 		test_bug456151.html \
 		$(NULL)

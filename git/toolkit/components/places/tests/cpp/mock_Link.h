@@ -94,10 +94,6 @@ Link::Link()
 {
 }
 
-Link::~Link()
-{
-}
-
 nsLinkState
 Link::GetLinkState() const
 {
@@ -112,16 +108,9 @@ Link::SetLinkState(nsLinkState aState)
 }
 
 void
-Link::ResetLinkState(bool aNotify)
+Link::ResetLinkState()
 {
   NS_NOTREACHED("Unexpected call to Link::ResetLinkState");
-}
-
-already_AddRefed<nsIURI>
-Link::GetURI() const 
-{
-  NS_NOTREACHED("Unexpected call to Link::GetURI");
-  return nsnull; // suppress compiler warning
 }
 
 } // namespace dom

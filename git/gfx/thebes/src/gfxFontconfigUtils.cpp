@@ -275,18 +275,14 @@ gfxFontconfigUtils::gfxFontconfigUtils()
 }
 
 nsresult
-gfxFontconfigUtils::GetFontList(nsIAtom *aLangGroup,
+gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
                                 nsTArray<nsString>& aListOfFonts)
 {
     aListOfFonts.Clear();
 
     nsTArray<nsCString> fonts;
-    nsCAutoString langGroupStr;
-    if (aLangGroup) {
-        aLangGroup->ToUTF8String(langGroupStr);
-    }
-    nsresult rv = GetFontListInternal(fonts, langGroupStr);
+    nsresult rv = GetFontListInternal(fonts, aLangGroup);
     if (NS_FAILED(rv))
         return rv;
 
@@ -352,7 +348,6 @@ const MozLangGroupData MozLangGroups[] = {
     { "x-orya",         "or" },
     { "x-sinh",         "si" },
     { "x-telu",         "te" },
-    { "x-tibt",         "bo" },
     { "x-unicode",      0    },
     { "x-user-def",     0    }
 };

@@ -54,8 +54,6 @@
 
 #include "nsCellMap.h"//table cell navigation
 
-using namespace mozilla;
-
 nsTableRowGroupFrame::nsTableRowGroupFrame(nsStyleContext* aContext):
   nsHTMLContainerFrame(aContext)
 {
@@ -321,9 +319,11 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
   nsMargin padding(0,0,0,0);
   nsMargin* pCollapseBorder = nsnull;
   if (aBorderCollapse) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
-    if (rowFrame) {
-      pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
+    if (aReflowState.frame) {
+      nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
+      if (rowFrame) {
+        pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
+      }
     }
   }
   aReflowState.Init(&aPresContext, -1, -1, pCollapseBorder, &padding);
@@ -678,7 +678,8 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
             // get the height of the cell 
             nsSize cellFrameSize = cellFrame->GetSize();
             nsSize cellDesSize = cellFrame->GetDesiredSize();
-            rowFrame->CalculateCellActualHeight(cellFrame, cellDesSize.height);
+            rowFrame->CalculateCellActualSize(cellFrame, cellDesSize.width, 
+                                              cellDesSize.height, cellDesSize.width);
             cellFrameSize.height = cellDesSize.height;
             if (cellFrame->HasVerticalAlignBaseline()) {
               // to ensure that a spanning cell with a long descender doesn't
@@ -1695,6 +1696,13 @@ nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame)
   return rowFrame->GetRowIndex() - GetStartRowIndex();
 }
 
+PRInt32
+nsTableRowGroupFrame::FindLineAt(nscoord  aY)
+{
+  NS_NOTREACHED("Not implemented");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 #ifdef IBMBIDI
 NS_IMETHODIMP
 nsTableRowGroupFrame::CheckLineOrder(PRInt32                  aLine,
@@ -1805,12 +1813,11 @@ nsTableRowGroupFrame::GetNextSiblingOnLine(nsIFrame*& aFrame,
 //end nsLineIterator methods
 
 static void
-DestroyFrameCursorData(void* aPropertyValue)
+DestroyFrameCursorData(void* aObject, nsIAtom* aPropertyName,
+                       void* aPropertyValue, void* aData)
 {
   delete static_cast<nsTableRowGroupFrame::FrameCursorData*>(aPropertyValue);
 }
-
-NS_DECLARE_FRAME_PROPERTY(RowCursorProperty, DestroyFrameCursorData)
 
 void
 nsTableRowGroupFrame::ClearRowCursor()
@@ -1819,7 +1826,7 @@ nsTableRowGroupFrame::ClearRowCursor()
     return;
 
   RemoveStateBits(NS_ROWGROUP_HAS_ROW_CURSOR);
-  Properties().Delete(RowCursorProperty());
+  DeleteProperty(nsGkAtoms::rowCursorProperty);
 }
 
 nsTableRowGroupFrame::FrameCursorData*
@@ -1843,7 +1850,12 @@ nsTableRowGroupFrame::SetupRowCursor()
   FrameCursorData* data = new FrameCursorData();
   if (!data)
     return nsnull;
-  Properties().Set(RowCursorProperty(), data);
+  nsresult rv = SetProperty(nsGkAtoms::rowCursorProperty, data,
+                            DestroyFrameCursorData);
+  if (NS_FAILED(rv)) {
+    delete data;
+    return nsnull;
+  }
   AddStateBits(NS_ROWGROUP_HAS_ROW_CURSOR);
   return data;
 }
@@ -1855,7 +1867,7 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
     return nsnull;
 
   FrameCursorData* property = static_cast<FrameCursorData*>
-    (Properties().Get(RowCursorProperty()));
+                                         (GetProperty(nsGkAtoms::rowCursorProperty));
   PRUint32 cursorIndex = property->mCursorIndex;
   PRUint32 frameCount = property->mFrames.Length();
   if (cursorIndex >= frameCount)

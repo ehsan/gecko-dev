@@ -70,8 +70,6 @@ using mozilla::plugins::PluginInstanceParent;
 #include "nsIDeviceContext.h"
 #include "prmem.h"
 
-#include "LayerManagerOGL.h"
-
 #ifndef WINCE
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
@@ -135,34 +133,44 @@ IsRenderMode(gfxWindowsPlatform::RenderMode rmode)
   return gfxWindowsPlatform::GetPlatform()->GetRenderMode() == rmode;
 }
 
-nsIntRegion
+void
+nsWindowGfx::AddRECTToRegion(const RECT& aRect, nsIRegion* aRegion)
+{
+  aRegion->Union(aRect.left, aRect.top, aRect.right - aRect.left, aRect.bottom - aRect.top);
+}
+
+already_AddRefed<nsIRegion>
 nsWindowGfx::ConvertHRGNToRegion(HRGN aRgn)
 {
   NS_ASSERTION(aRgn, "Don't pass NULL region here");
 
-  nsIntRegion rgn;
+  nsCOMPtr<nsIRegion> region = do_CreateInstance(kRegionCID);
+  if (!region)
+    return nsnull;
+
+  region->Init();
 
   DWORD size = ::GetRegionData(aRgn, 0, NULL);
   nsAutoTArray<PRUint8,100> buffer;
   if (!buffer.SetLength(size))
-    return rgn;
+    return region.forget();
 
   RGNDATA* data = reinterpret_cast<RGNDATA*>(buffer.Elements());
   if (!::GetRegionData(aRgn, size, data))
-    return rgn;
+    return region.forget();
 
   if (data->rdh.nCount > MAX_RECTS_IN_REGION) {
-    rgn = ToIntRect(data->rdh.rcBound);
-    return rgn;
+    AddRECTToRegion(data->rdh.rcBound, region);
+    return region.forget();
   }
 
   RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
   for (PRUint32 i = 0; i < data->rdh.nCount; ++i) {
     RECT* r = rects + i;
-    rgn.Or(rgn, ToIntRect(*r));
+    AddRECTToRegion(*r, region);
   }
 
-  return rgn;
+  return region.forget();
 }
 
 #ifdef CAIRO_HAS_DDRAW_SURFACE
@@ -245,37 +253,56 @@ void nsWindow::SetUpForPaint(HDC aHDC)
 // it's abstracted out because Windows XP/Vista/7 handles this for us, but
 // we need to keep track of it our selves for Windows CE and Windows Mobile
 
-nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
-                                       PAINTSTRUCT ps, HDC aDC)
+nsCOMPtr<nsIRegion> nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
+                                               PAINTSTRUCT ps, HDC aDC)
 { 
+  HRGN paintRgn = NULL;
+  nsCOMPtr<nsIRegion> paintRgnWin;
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
+    paintRgn = ::CreateRectRgn(paintRect.left, paintRect.top, 
+                               paintRect.right, paintRect.bottom);
+    if (paintRgn) {
+      paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+      ::DeleteObject(paintRgn);
+      return paintRgnWin;
+    }
   }
-
-#if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
-  HRGN paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+#ifndef WINCE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
   if (paintRgn != NULL) {
-# ifdef WINCE
-    int result = GetUpdateRgn(mWnd, paintRgn, FALSE);
-# else
     int result = GetRandomRgn(aDC, paintRgn, SYSRGN);
-# endif
     if (result == 1) {
       POINT pt = {0,0};
       ::MapWindowPoints(NULL, mWnd, &pt, 1);
       ::OffsetRgn(paintRgn, pt.x, pt.y);
     }
-    nsIntRegion rgn(nsWindowGfx::ConvertHRGNToRegion(paintRgn));
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
     ::DeleteObject(paintRgn);
-# ifdef WINCE
-    if (!rgn.IsEmpty())
+  }
+#else
+# ifdef WINCE_WINDOWS_MOBILE
+  paintRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (paintRgn != NULL) {
+    int result = GetUpdateRgn(mWnd, paintRgn, FALSE);
+    if (result == 1) {
+      POINT pt = {0,0};
+      ::MapWindowPoints(NULL, mWnd, &pt, 1);
+      ::OffsetRgn(paintRgn, pt.x, pt.y);
+    }
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
+  }
 # endif
-      return rgn;
+  paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top,
+                             ps.rcPaint.right, ps.rcPaint.bottom);
+  if (paintRgn) {
+    paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
+    ::DeleteObject(paintRgn);
   }
 #endif
-  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
+  return paintRgnWin;
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -385,23 +412,27 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #endif // WIDGET_DEBUG_OUTPUT
 
   HDC hDC = aDC ? aDC : (::BeginPaint(mWnd, &ps));
-  if (!IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
-    mPaintDC = hDC;
-  }
-
-  // generate the event and call the event callback
-  nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-  InitEvent(event);
+  mPaintDC = hDC;
 
 #ifdef MOZ_XUL
   PRBool forceRepaint = aDC || (eTransparencyTransparent == mTransparencyMode);
 #else
   PRBool forceRepaint = NULL != aDC;
 #endif
-  event.region = GetRegionToPaint(forceRepaint, ps, hDC);
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(forceRepaint, ps, hDC);
 
-  if (!event.region.IsEmpty() && mEventCallback)
+  if (paintRgnWin &&
+      !paintRgnWin->IsEmpty() &&
+      mEventCallback)
   {
+    // generate the event and call the event callback
+    nsPaintEvent event(PR_TRUE, NS_PAINT, this);
+
+    InitEvent(event);
+
+    event.region = paintRgnWin;
+    event.rect = nsnull;
+ 
     // Should probably pass in a real region here, using GetRandomRgn
     // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/gdi/clipping_4q0e.asp
 
@@ -413,280 +444,255 @@ PRBool nsWindow::OnPaint(HDC aDC)
                          (PRInt32) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 
-    switch (GetLayerManager()->GetBackendType()) {
-      case LayerManager::LAYERS_BASIC:
-        {
-          nsRefPtr<gfxASurface> targetSurface;
+    nsRefPtr<gfxASurface> targetSurface;
 
 #if defined(MOZ_XUL)
-          // don't support transparency for non-GDI rendering, for now
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) && eTransparencyTransparent == mTransparencyMode) {
-            if (mTransparentSurface == nsnull)
-              SetupTranslucentWindowMemoryBitmap(mTransparencyMode);
-            targetSurface = mTransparentSurface;
-          }
+    // don't support transparency for non-GDI rendering, for now
+    if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) && eTransparencyTransparent == mTransparencyMode) {
+      if (mTransparentSurface == nsnull)
+        SetupTranslucentWindowMemoryBitmap(mTransparencyMode);
+      targetSurface = mTransparentSurface;
+    }
 #endif
 
-          nsRefPtr<gfxWindowsSurface> targetSurfaceWin;
-          if (!targetSurface &&
-              IsRenderMode(gfxWindowsPlatform::RENDER_GDI))
-          {
-            targetSurfaceWin = new gfxWindowsSurface(hDC);
-            targetSurface = targetSurfaceWin;
-          }
-#ifdef CAIRO_HAS_D2D_SURFACE
-          if (!targetSurface &&
-              IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))
-          {
-            if (!mD2DWindowSurface) {
-              mD2DWindowSurface = new gfxD2DSurface(mWnd);
-            }
-            targetSurface = mD2DWindowSurface;
-          }
-#endif
+    nsRefPtr<gfxWindowsSurface> targetSurfaceWin;
+    if (!targetSurface &&
+        IsRenderMode(gfxWindowsPlatform::RENDER_GDI))
+    {
+      targetSurfaceWin = new gfxWindowsSurface(hDC);
+      targetSurface = targetSurfaceWin;
+    }
+
 #ifdef CAIRO_HAS_DDRAW_SURFACE
-          nsRefPtr<gfxDDrawSurface> targetSurfaceDDraw;
-          if (!targetSurface &&
-              (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL)))
-          {
-            if (!glpDD) {
-              if (!nsWindowGfx::InitDDraw()) {
-                NS_WARNING("DirectDraw init failed; falling back to RENDER_IMAGE_STRETCH24");
-                gfxWindowsPlatform::GetPlatform()->SetRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24);
-                goto DDRAW_FAILED;
-              }
-            }
+    nsRefPtr<gfxDDrawSurface> targetSurfaceDDraw;
+    if (!targetSurface &&
+        (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
+         IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL)))
+    {
+      if (!glpDD) {
+        if (!nsWindowGfx::InitDDraw()) {
+          NS_WARNING("DirectDraw init failed; falling back to RENDER_IMAGE_STRETCH24");
+          gfxWindowsPlatform::GetPlatform()->SetRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24);
+          goto DDRAW_FAILED;
+        }
+      }
 
-            // create a rect that maps the window in screen space
-            // create a new sub-surface that aliases this one
-            RECT winrect;
-            GetClientRect(mWnd, &winrect);
-            MapWindowPoints(mWnd, NULL, (LPPOINT)&winrect, 2);
+      // create a rect that maps the window in screen space
+      // create a new sub-surface that aliases this one
+      RECT winrect;
+      GetClientRect(mWnd, &winrect);
+      MapWindowPoints(mWnd, NULL, (LPPOINT)&winrect, 2);
 
-            targetSurfaceDDraw = new gfxDDrawSurface(gpDDSurf.get(), winrect);
-            targetSurface = targetSurfaceDDraw;
-          }
+      targetSurfaceDDraw = new gfxDDrawSurface(gpDDSurf.get(), winrect);
+      targetSurface = targetSurfaceDDraw;
+    }
 #endif
 
 DDRAW_FAILED:
-          nsRefPtr<gfxImageSurface> targetSurfaceImage;
-          if (!targetSurface &&
-              (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)))
-          {
-            gfxIntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
-                                   ps.rcPaint.bottom - ps.rcPaint.top);
+    nsRefPtr<gfxImageSurface> targetSurfaceImage;
+    if (!targetSurface &&
+        (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
+         IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)))
+    {
+      gfxIntSize surfaceSize(ps.rcPaint.right - ps.rcPaint.left,
+                             ps.rcPaint.bottom - ps.rcPaint.top);
 
-            if (!EnsureSharedSurfaceSize(surfaceSize)) {
-              NS_ERROR("Couldn't allocate a shared image surface!");
-              return NS_ERROR_FAILURE;
-            }
+      if (!EnsureSharedSurfaceSize(surfaceSize)) {
+        NS_ERROR("Couldn't allocate a shared image surface!");
+        return NS_ERROR_FAILURE;
+      }
 
-            // don't use the shared surface directly; instead, create a new one
-            // that just reuses its buffer.
-            targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
-                                                     surfaceSize,
-                                                     surfaceSize.width * 4,
-                                                     gfxASurface::ImageFormatRGB24);
+      // don't use the shared surface directly; instead, create a new one
+      // that just reuses its buffer.
+      targetSurfaceImage = new gfxImageSurface(sSharedSurfaceData.get(),
+                                               surfaceSize,
+                                               surfaceSize.width * 4,
+                                               gfxASurface::ImageFormatRGB24);
 
-            if (targetSurfaceImage && !targetSurfaceImage->CairoStatus()) {
-              targetSurfaceImage->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
-              targetSurface = targetSurfaceImage;
-            }
-          }
+      if (targetSurfaceImage && !targetSurfaceImage->CairoStatus()) {
+        targetSurfaceImage->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
+        targetSurface = targetSurfaceImage;
+      }
+    }
 
-          if (!targetSurface) {
-            NS_ERROR("Invalid RenderMode!");
-            return NS_ERROR_FAILURE;
-          }
+    if (!targetSurface) {
+      NS_ERROR("Invalid RenderMode!");
+      return NS_ERROR_FAILURE;
+    }
 
-          nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
-          thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
-            const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(event.region);
-                 (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
-            }
-            thebesContext->Clip();
-          }
+    nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
+    thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
+
 #ifdef WINCE
-          thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
+    thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
 #endif
 
-          // don't need to double buffer with anything but GDI
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
+    // don't need to double buffer with anything but GDI
+    if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
 # if defined(MOZ_XUL) && !defined(WINCE)
-            if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
-              thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-            } else if (eTransparencyTransparent == mTransparencyMode) {
-              // If we're rendering with translucency, we're going to be
-              // rendering the whole window; make sure we clear it first
-              thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-              thebesContext->Paint();
-              thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
-            } else
+      if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
+        thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+      } else if (eTransparencyTransparent == mTransparencyMode) {
+        // If we're rendering with translucency, we're going to be
+        // rendering the whole window; make sure we clear it first
+        thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+        thebesContext->Paint();
+        thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
+      } else
 #endif
-            {
-              // If we're not doing translucency, then double buffer
-              thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
-            }
-          }
+      {
+        // If we're not doing translucency, then double buffer
+        thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
+      }
+    }
 
-          {
-            AutoLayerManagerSetup setupLayerManager(this, thebesContext);
-            result = DispatchWindowEvent(&event, eventStatus);
-          }
+    nsCOMPtr<nsIRenderingContext> rc;
+    nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
+    if (NS_FAILED(rv)) {
+      NS_WARNING("CreateRenderingContextInstance failed");
+      return PR_FALSE;
+    }
+
+    rv = rc->Init(mContext, thebesContext);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("RC::Init failed");
+      return PR_FALSE;
+    }
+
+    event.renderingContext = rc;
+    result = DispatchWindowEvent(&event, eventStatus);
+    event.renderingContext = nsnull;
 
 #ifdef MOZ_XUL
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
-              eTransparencyTransparent == mTransparencyMode) {
-            // Data from offscreen drawing surface was copied to memory bitmap of transparent
-            // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
-            // that displayed on the screen.
-            UpdateTranslucentWindow();
-          } else
+    if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
+        eTransparencyTransparent == mTransparencyMode) {
+      // Data from offscreen drawing surface was copied to memory bitmap of transparent
+      // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
+      // that displayed on the screen.
+      UpdateTranslucentWindow();
+    } else
 #endif
-#ifdef CAIRO_HAS_D2D_SURFACE
-          if (result) {
-            if (mD2DWindowSurface) {
-              mD2DWindowSurface->Present();
-            }
-          }
-#endif
-          if (result) {
-            if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
-              // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
-              // this, and we'll just end up painting with black.
-              thebesContext->PopGroupToSource();
-              thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-              thebesContext->Paint();
-            } else if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
-                       IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL))
-            {
+    if (result) {
+      if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
+        // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
+        // this, and we'll just end up painting with black.
+        thebesContext->PopGroupToSource();
+        thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+        thebesContext->Paint();
+      } else if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
+                 IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL))
+      {
 #ifdef CAIRO_HAS_DDRAW_SURFACE
-              // blit with direct draw
-              HRESULT hr = glpDDClipper->SetHWnd(0, mWnd);
+        // blit with direct draw
+        HRESULT hr = glpDDClipper->SetHWnd(0, mWnd);
 
 #ifdef DEBUG
-              if (FAILED(hr))
-                DDError("SetHWnd", hr);
+        if (FAILED(hr))
+          DDError("SetHWnd", hr);
 #endif
 
-              // blt from the affected area from the window back-buffer to the
-              // screen-relative coordinates of the window paint area
-              RECT dst_rect = ps.rcPaint;
-              MapWindowPoints(mWnd, NULL, (LPPOINT)&dst_rect, 2);
-              hr = glpDDPrimary->Blt(&dst_rect,
-                                     gpDDSurf->GetDDSurface(),
-                                     &dst_rect,
-                                     DDBLT_WAITNOTBUSY,
-                                     NULL);
+        // blt from the affected area from the window back-buffer to the
+        // screen-relative coordinates of the window paint area
+        RECT dst_rect = ps.rcPaint;
+        MapWindowPoints(mWnd, NULL, (LPPOINT)&dst_rect, 2);
+        hr = glpDDPrimary->Blt(&dst_rect,
+                               gpDDSurf->GetDDSurface(),
+                               &dst_rect,
+                               DDBLT_WAITNOTBUSY,
+                               NULL);
 #ifdef DEBUG
-              if (FAILED(hr))
-                DDError("SetHWnd", hr);
+        if (FAILED(hr))
+          DDError("SetHWnd", hr);
 #endif
 #endif
-            } else if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
-                       IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32)) 
-            {
-              gfxIntSize surfaceSize = targetSurfaceImage->GetSize();
+      } else if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
+                 IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32)) 
+      {
+        gfxIntSize surfaceSize = targetSurfaceImage->GetSize();
 
-              // Just blit this directly
-              BITMAPINFOHEADER bi;
-              memset(&bi, 0, sizeof(BITMAPINFOHEADER));
-              bi.biSize = sizeof(BITMAPINFOHEADER);
-              bi.biWidth = surfaceSize.width;
-              bi.biHeight = - surfaceSize.height;
-              bi.biPlanes = 1;
-              bi.biBitCount = 32;
-              bi.biCompression = BI_RGB;
+        // Just blit this directly
+        BITMAPINFOHEADER bi;
+        memset(&bi, 0, sizeof(BITMAPINFOHEADER));
+        bi.biSize = sizeof(BITMAPINFOHEADER);
+        bi.biWidth = surfaceSize.width;
+        bi.biHeight = - surfaceSize.height;
+        bi.biPlanes = 1;
+        bi.biBitCount = 32;
+        bi.biCompression = BI_RGB;
 
-              if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)) {
-                // On Windows CE/Windows Mobile, 24bpp packed-pixel sources
-                // seem to be far faster to blit than 32bpp (see bug 484864).
-                // So, convert the bits to 24bpp by stripping out the unused
-                // alpha byte.  24bpp DIBs also have scanlines that are 4-byte
-                // aligned though, so that must be taken into account.
-                int srcstride = surfaceSize.width*4;
-                int dststride = surfaceSize.width*3;
-                dststride = (dststride + 3) & ~3;
+        if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24)) {
+          // On Windows CE/Windows Mobile, 24bpp packed-pixel sources
+          // seem to be far faster to blit than 32bpp (see bug 484864).
+          // So, convert the bits to 24bpp by stripping out the unused
+          // alpha byte.  24bpp DIBs also have scanlines that are 4-byte
+          // aligned though, so that must be taken into account.
+          int srcstride = surfaceSize.width*4;
+          int dststride = surfaceSize.width*3;
+          dststride = (dststride + 3) & ~3;
 
-                // Convert in place
-                for (int j = 0; j < surfaceSize.height; ++j) {
-                  unsigned int *src = (unsigned int*) (targetSurfaceImage->Data() + j*srcstride);
-                  unsigned int *dst = (unsigned int*) (targetSurfaceImage->Data() + j*dststride);
+          // Convert in place
+          for (int j = 0; j < surfaceSize.height; ++j) {
+            unsigned int *src = (unsigned int*) (targetSurfaceImage->Data() + j*srcstride);
+            unsigned int *dst = (unsigned int*) (targetSurfaceImage->Data() + j*dststride);
 
-                  // go 4 pixels at a time, since each 4 pixels
-                  // turns into 3 DWORDs when converted into BGR:
-                  // BGRx BGRx BGRx BGRx -> BGRB GRBG RBGR
-                  //
-                  // However, since we're dealing with little-endian ints, this is actually:
-                  // xRGB xrgb xRGB xrgb -> bRGB GBrg rgbR
-                  int width_left = surfaceSize.width;
-                  while (width_left >= 4) {
-                    unsigned int a = *src++;
-                    unsigned int b = *src++;
-                    unsigned int c = *src++;
-                    unsigned int d = *src++;
+            // go 4 pixels at a time, since each 4 pixels
+            // turns into 3 DWORDs when converted into BGR:
+            // BGRx BGRx BGRx BGRx -> BGRB GRBG RBGR
+            //
+            // However, since we're dealing with little-endian ints, this is actually:
+            // xRGB xrgb xRGB xrgb -> bRGB GBrg rgbR
+            int width_left = surfaceSize.width;
+            while (width_left >= 4) {
+              unsigned int a = *src++;
+              unsigned int b = *src++;
+              unsigned int c = *src++;
+              unsigned int d = *src++;
 
-                    *dst++ =  (a & 0x00ffffff)        | (b << 24);
-                    *dst++ = ((b & 0x00ffff00) >> 8)  | (c << 16);
-                    *dst++ = ((c & 0x00ff0000) >> 16) | (d << 8);
+              *dst++ =  (a & 0x00ffffff)        | (b << 24);
+              *dst++ = ((b & 0x00ffff00) >> 8)  | (c << 16);
+              *dst++ = ((c & 0x00ff0000) >> 16) | (d << 8);
 
-                    width_left -= 4;
-                  }
+              width_left -= 4;
+            }
 
-                  // then finish up whatever number of pixels are left,
-                  // using bytes.
-                  unsigned char *bsrc = (unsigned char*) src;
-                  unsigned char *bdst = (unsigned char*) dst;
-                  switch (width_left) {
-                    case 3:
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      bsrc++;
-                    case 2:
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      bsrc++;
-                    case 1:
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      *bdst++ = *bsrc++;
-                      bsrc++;
-                    case 0:
-                      break;
-                  }
-                }
-
-                bi.biBitCount = 24;
-              }
-
-              StretchDIBits(hDC,
-                            ps.rcPaint.left, ps.rcPaint.top,
-                            surfaceSize.width, surfaceSize.height,
-                            0, 0,
-                            surfaceSize.width, surfaceSize.height,
-                            targetSurfaceImage->Data(),
-                            (BITMAPINFO*) &bi,
-                            DIB_RGB_COLORS,
-                            SRCCOPY);
+            // then finish up whatever number of pixels are left,
+            // using bytes.
+            unsigned char *bsrc = (unsigned char*) src;
+            unsigned char *bdst = (unsigned char*) dst;
+            switch (width_left) {
+              case 3:
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                bsrc++;
+              case 2:
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                bsrc++;
+              case 1:
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                *bdst++ = *bsrc++;
+                bsrc++;
+              case 0:
+                break;
             }
           }
+
+          bi.biBitCount = 24;
         }
-        break;
-      case LayerManager::LAYERS_OPENGL:
-        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
-          SetClippingRegion(event.region);
-        result = DispatchWindowEvent(&event, eventStatus);
-        break;
-      default:
-        NS_ERROR("Unknown layers backend used!");
-        break;
+
+        StretchDIBits(hDC,
+                      ps.rcPaint.left, ps.rcPaint.top,
+                      surfaceSize.width, surfaceSize.height,
+                      0, 0,
+                      surfaceSize.width, surfaceSize.height,
+                      targetSurfaceImage->Data(),
+                      (BITMAPINFO*) &bi,
+                      DIB_RGB_COLORS,
+                      SRCCOPY);
+      }
     }
   }
 
@@ -725,6 +731,12 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   HICON *aIcon) {
 
   nsresult rv;
+  PRInt32 maxWidth = GetSystemMetrics(SM_CXICON);
+  PRInt32 maxHeight = GetSystemMetrics(SM_CYICON);
+
+  if (!maxWidth || !maxHeight)
+    return NS_ERROR_UNEXPECTED;
+
   PRUint32 nFrames;
   rv = aContainer->GetNumFrames(&nFrames);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -745,6 +757,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   PRInt32 width = frame->Width();
   PRInt32 height = frame->Height();
 
+  if (width > maxWidth || height > maxHeight)
+    return NS_ERROR_INVALID_ARG;
+
   HBITMAP bmp = DataToBitmap(data, width, -height, 32);
   PRUint8* a1data = Data32BitTo1Bit(data, width, height);
   if (!a1data) {
@@ -760,7 +775,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   info.yHotspot = aHotspotY;
   info.hbmMask = mbmp;
   info.hbmColor = bmp;
-
+  
   HCURSOR icon = ::CreateIconIndirect(&info);
   ::DeleteObject(mbmp);
   ::DeleteObject(bmp);
@@ -917,7 +932,9 @@ PRBool nsWindow::OnPaintImageDDraw16()
   gfxIntSize surfaceSize;
   nsRefPtr<gfxImageSurface> targetSurfaceImage;
   nsRefPtr<gfxContext> thebesContext;
+  nsCOMPtr<nsIRenderingContext> rc;
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
+  PRInt32 brx, bry, brw, brh;
   gfxIntSize newSize;
   newSize.height = GetSystemMetrics(SM_CYSCREEN);
   newSize.width = GetSystemMetrics(SM_CXSCREEN);
@@ -925,14 +942,17 @@ PRBool nsWindow::OnPaintImageDDraw16()
 
   HDC hDC = ::BeginPaint(mWnd, &ps);
   mPaintDC = hDC;
-  nsIntRegion paintRgn = GetRegionToPaint(PR_FALSE, ps, hDC);
+  nsCOMPtr<nsIRegion> paintRgnWin = GetRegionToPaint(PR_FALSE, ps, hDC);
 
-  if (paintRgn.IsEmpty() || !mEventCallback) {
+  if (!paintRgnWin || paintRgnWin->IsEmpty() || !mEventCallback) {
     result = PR_TRUE;
     goto cleanup;
   }
 
   InitEvent(event);
+  
+  event.region = paintRgnWin;
+  event.rect = nsnull;
   
   if (!glpDD) {
     if (!nsWindowGfx::InitDDraw()) {
@@ -969,10 +989,7 @@ PRBool nsWindow::OnPaintImageDDraw16()
     }
   }
 
-  PRInt32 brx = paintRgn.GetBounds().x;
-  PRInt32 bry = paintRgn.GetBounds().y;
-  PRInt32 brw = paintRgn.GetBounds().width;
-  PRInt32 brh = paintRgn.GetBounds().height;
+  paintRgnWin->GetBoundingBox(&brx, &bry, &brw, &brh);
   surfaceSize = gfxIntSize(brw, brh);
   
   if (!EnsureSharedSurfaceSize(surfaceSize))
@@ -992,15 +1009,25 @@ PRBool nsWindow::OnPaintImageDDraw16()
   thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
   thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
     
-  {
-    AutoLayerManagerSetup setupLayerManager(this, thebesContext);
-    event.region = paintRgn;
-    result = DispatchWindowEvent(&event, eventStatus);
-  }
+  nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
+  if (NS_FAILED(rv))
+    goto cleanup;
   
-  if (!result && eventStatus  == nsEventStatus_eConsumeNoDefault)
+  rv = rc->Init(mContext, thebesContext);
+  if (NS_FAILED(rv))
+    goto cleanup;
+    
+  event.renderingContext = rc;
+  PRBool res = DispatchWindowEvent(&event, eventStatus);
+  event.renderingContext = nsnull;
+  
+  if (!res && eventStatus  == nsEventStatus_eConsumeNoDefault)
     goto cleanup;
 
+  nsRegionRectSet *rects = nsnull;
+  RECT r;
+  paintRgnWin->GetRects(&rects);
+  
   HRESULT hr = glpDDSecondary->Lock(0, &gDDSDSecondary, DDLOCK_WAITNOTBUSY | DDLOCK_DISCARD, 0); 
   if (FAILED(hr))
     goto cleanup;
@@ -1018,15 +1045,14 @@ PRBool nsWindow::OnPaintImageDDraw16()
                              gDDSDSecondary.dwWidth * 2);
   
 
-  const nsIntRect* r;
-  for (nsIntRegionRectIterator iter(paintRgn);
-       (r = iter.Next()) != nsnull;) {
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {
     pixman_image_composite(PIXMAN_OP_SRC, srcPixmanImage, NULL, dstPixmanImage,
-                           r->x - brx, r->y - bry,
-                           0, 0,
-                           r->x, r->y,
-                           r->width, r->height);
-  }
+                           rects->mRects[i].x - brx, rects->mRects[i].y - bry, 
+                           0, 0, 
+                           rects->mRects[i].x, rects->mRects[i].y, 
+                           rects->mRects[i].width, rects->mRects[i].height);
+    
+  } 
   
   pixman_image_unref(dstPixmanImage);
   pixman_image_unref(srcPixmanImage);
@@ -1039,13 +1065,15 @@ PRBool nsWindow::OnPaintImageDDraw16()
   if (FAILED(hr))
     goto cleanup;
   
-  for (nsIntRegionRectIterator iter(paintRgn);
-       (r = iter.Next()) != nsnull;) {
-    RECT wr = { r->x, r->y, r->XMost(), r->YMost() };
-    RECT renderRect = wr;
+  for (unsigned int i = 0; i < rects->mNumRects; i++) {  
+    r.left = rects->mRects[i].x;
+    r.top = rects->mRects[i].y;
+    r.right = rects->mRects[i].width + rects->mRects[i].x;
+    r.bottom = rects->mRects[i].height + rects->mRects[i].y;
+    RECT renderRect = r;
     SetLastError(0); // See http://msdn.microsoft.com/en-us/library/dd145046%28VS.85%29.aspx
     MapWindowPoints(mWnd, 0, (LPPOINT)&renderRect, 2);
-    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &wr, 0, NULL);
+    hr = glpDDPrimary->Blt(&renderRect, glpDDSecondary, &r, 0, NULL);
     if (FAILED(hr)) {
       NS_ERROR("this blt should never fail!");
       printf("#### %s blt failed: %08lx", __FUNCTION__, hr);

@@ -39,6 +39,7 @@ function test() {
 
   // test setup
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
   waitForExplicitFinish();
 
   let uniqueName = "bug 448741";
@@ -70,7 +71,7 @@ function test() {
 
     ok(valueWasCleaned, "found and removed the specific tab value");
     aSubject.data = uneval(state);
-    Services.obs.removeObserver(cleaningObserver, aTopic, false);
+    os.removeObserver(cleaningObserver, aTopic, false);
   }
 
   // make sure that all later observers don't see that value any longer
@@ -81,15 +82,15 @@ function test() {
 
     // clean up
     gBrowser.removeTab(tab);
-    Services.obs.removeObserver(checkingObserver, aTopic, false);
+    os.removeObserver(checkingObserver, aTopic, false);
     if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
       gPrefService.clearUserPref("browser.sessionstore.interval");
     finish();
   }
 
   // last added observers are invoked first
-  Services.obs.addObserver(checkingObserver, "sessionstore-state-write", false);
-  Services.obs.addObserver(cleaningObserver, "sessionstore-state-write", false);
+  os.addObserver(checkingObserver, "sessionstore-state-write", false);
+  os.addObserver(cleaningObserver, "sessionstore-state-write", false);
 
   // trigger an immediate save operation
   gPrefService.setIntPref("browser.sessionstore.interval", 0);

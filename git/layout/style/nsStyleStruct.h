@@ -84,8 +84,6 @@ class imgIContainer;
 #define NS_STYLE_HAS_TEXT_DECORATIONS     0x01000000
 // See nsStyleContext::HasPseudoElementData.
 #define NS_STYLE_HAS_PSEUDO_ELEMENT_DATA  0x02000000
-// See nsStyleContext::RelevantLinkIsVisited
-#define NS_STYLE_RELEVANT_LINK_VISITED    0x04000000
 // See nsStyleContext::GetPseudoEnum
 #define NS_STYLE_CONTEXT_TYPE_MASK        0xf0000000
 #define NS_STYLE_CONTEXT_TYPE_SHIFT       28
@@ -165,14 +163,38 @@ public:
   // stops are in the order specified in the stylesheet
   nsTArray<nsStyleGradientStop> mStops;
 
+  nsrefcnt AddRef() {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsStyleGradient");
+      return mRefCnt;
+    }
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsStyleGradient", sizeof(*this));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release() {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsStyleGradient");
+      return mRefCnt;
+    }
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsStyleGradient");
+    if (mRefCnt == 0) {
+      delete this;
+      return 0;
+    }
+    return mRefCnt;
+  }
+
   PRBool operator==(const nsStyleGradient& aOther) const;
   PRBool operator!=(const nsStyleGradient& aOther) const {
     return !(*this == aOther);
   };
 
-  NS_INLINE_DECL_REFCOUNTING(nsStyleGradient)
-
 private:
+  nsrefcnt mRefCnt;
+
   ~nsStyleGradient() {}
 
   // Not to be implemented
@@ -649,7 +671,7 @@ class nsCSSShadowArray {
     }
 
     nsCSSShadowArray(PRUint32 aArrayLen) :
-      mLength(aArrayLen)
+      mLength(aArrayLen), mRefCnt(0)
     {
       MOZ_COUNT_CTOR(nsCSSShadowArray);
       for (PRUint32 i = 1; i < mLength; ++i) {
@@ -665,6 +687,15 @@ class nsCSSShadowArray {
       }
     }
 
+    nsrefcnt AddRef() {
+      if (mRefCnt == PR_UINT32_MAX) {
+        NS_WARNING("refcount overflow, leaking object");
+        return mRefCnt;
+      }
+      return ++mRefCnt;
+    }
+    nsrefcnt Release();
+
     PRUint32 Length() const { return mLength; }
     nsCSSShadowItem* ShadowAt(PRUint32 i) {
       NS_ABORT_IF_FALSE(i < mLength, "Accessing too high an index in the text shadow array!");
@@ -675,10 +706,9 @@ class nsCSSShadowArray {
       return &mArray[i];
     }
 
-    NS_INLINE_DECL_REFCOUNTING(nsCSSShadowArray)
-
   private:
     PRUint32 mLength;
+    PRUint32 mRefCnt;
     nsCSSShadowItem mArray[1]; // This MUST be the last item
 };
 
@@ -1161,7 +1191,7 @@ struct nsStyleVisibility {
   
   PRUint8 mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
   PRUint8   mVisible;                  // [inherited]
-  nsCOMPtr<nsIAtom> mLanguage;         // [inherited]
+  nsCOMPtr<nsIAtom> mLangGroup;        // [inherited]
   PRUint8 mPointerEvents;              // [inherited] see nsStyleConsts.h
 
   PRBool IsVisible() const {
@@ -1284,7 +1314,6 @@ struct nsStyleDisplay {
   PRPackedBool mBreakAfter;     // [reset] 
   PRUint8 mOverflowX;           // [reset] see nsStyleConsts.h
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
-  PRUint8 mResize;              // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
   PRPackedBool mTransformPresent;  // [reset] Whether there is a -moz-transform.
   nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix

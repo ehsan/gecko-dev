@@ -74,8 +74,7 @@ nsMathMLTokenFrame::GetMathMLFrameType()
   nsAutoString style;
   // mathvariant overrides fontstyle
   // http://www.w3.org/TR/2003/REC-MathML2-20031021/chapter3.html#presm.deprecatt
-  mContent->GetAttr(kNameSpaceID_None,
-                    nsGkAtoms::_moz_math_fontstyle_, style) ||
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::MOZfontstyle, style) ||
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mathvariant_, style) ||
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::fontstyle_, style);
 
@@ -276,7 +275,7 @@ nsMathMLTokenFrame::ProcessTextData()
 
   // explicitly request a re-resolve to pick up the change of style
   PresContext()->PresShell()->FrameConstructor()->
-    PostRestyleEvent(mContent, eRestyle_Self, NS_STYLE_HINT_NONE);
+    PostRestyleEvent(mContent, eReStyle_Self, NS_STYLE_HINT_NONE);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -352,18 +351,16 @@ nsMathMLTokenFrame::SetTextStyle()
     }
   }
 
-  // set the _moz-math-font-style attribute without notifying that we want a reflow
+  // set the -moz-math-font-style attribute without notifying that we want a reflow
   if (fontstyle.IsEmpty()) {
-    if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_)) {
-      mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_,
-                          PR_FALSE);
+    if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::MOZfontstyle)) {
+      mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::MOZfontstyle, PR_FALSE);
       return PR_TRUE;
     }
   }
-  else if (!mContent->AttrValueIs(kNameSpaceID_None,
-                                  nsGkAtoms::_moz_math_fontstyle_,
+  else if (!mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::MOZfontstyle,
                                   fontstyle, eCaseMatters)) {
-    mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_,
+    mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::MOZfontstyle,
                       fontstyle, PR_FALSE);
     return PR_TRUE;
   }

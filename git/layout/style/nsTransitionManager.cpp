@@ -393,7 +393,7 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
   NS_PRECONDITION(aOldStyleContext->GetPseudo() ==
                       aNewStyleContext->GetPseudo(),
                   "pseudo type mismatch");
-  // If we were called from ReparentStyleContext, this assertion would
+  // If we were called from ReParentStyleContext, this assertion would
   // actually fire.  If we need to be called from there, we can probably
   // just remove it; the condition probably isn't critical, although
   // it's worth thinking about some more.
@@ -886,22 +886,16 @@ nsTransitionManager::RulesMatching(XULTreeRuleProcessorData* aData)
 }
 #endif
 
-nsRestyleHint
+nsReStyleHint
 nsTransitionManager::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return nsRestyleHint(0);
+  return nsReStyleHint(0);
 }
 
-PRBool
-nsTransitionManager::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
-{
-  return PR_FALSE;
-}
-
-nsRestyleHint
+nsReStyleHint
 nsTransitionManager::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
-  return nsRestyleHint(0);
+  return nsReStyleHint(0);
 }
 
 NS_IMETHODIMP

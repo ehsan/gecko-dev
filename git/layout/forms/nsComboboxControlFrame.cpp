@@ -900,6 +900,17 @@ nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
 }
 
 NS_IMETHODIMP
+nsComboboxControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
+{
+  NS_ASSERTION(mDropdownFrame, "No dropdown frame!");
+
+  nsISelectControlFrame* listFrame = do_QueryFrame(mDropdownFrame);
+  NS_ASSERTION(listFrame, "No list frame!");
+
+  return listFrame->GetOptionSelected(aIndex, aValue);
+}
+
+NS_IMETHODIMP
 nsComboboxControlFrame::OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   nsAutoScriptBlocker scriptBlocker;
@@ -1439,9 +1450,8 @@ nsComboboxControlFrame::OnOptionSelected(PRInt32 aIndex, PRBool aSelected)
 void nsComboboxControlFrame::FireValueChangeEvent()
 {
   // Fire ValueChange event to indicate data value of combo box has changed
-  nsContentUtils::AddScriptRunner(
-    new nsPLDOMEvent(mContent, NS_LITERAL_STRING("ValueChange"), PR_TRUE,
-                     PR_FALSE));
+  nsContentUtils::AddScriptRunner(new nsPLDOMEvent(mContent,
+                                  NS_LITERAL_STRING("ValueChange"), PR_FALSE));
 }
 
 void

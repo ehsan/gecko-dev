@@ -21,7 +21,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,noinitialfocus"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey,noinitialfocus"/>
       </xul:hbox>
     </content>
 
@@ -52,18 +52,30 @@
         ]]></getter>
       </property>
 
-      <property name="value"      onset="this.inputField.value = val; return val;"
-                                  onget="return this.inputField.value;"/>
+      <property name="value"
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
+        <setter><![CDATA[
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
+          return val;
+        ]]></setter>
+      </property>
       <property name="defaultValue" onset="this.inputField.defaultValue = val; return val;"
                                   onget="return this.inputField.defaultValue;"/>
       <property name="label"      onset="this.setAttribute('label', val); return val;"
                                   onget="return this.getAttribute('label') ||
                                                 (this.labelElement ? this.labelElement.value :
-                                                 this.placeholder);"/>
-      <property name="placeholder" onset="this.inputField.placeholder = val; return val;"
-                                  onget="return this.inputField.placeholder;"/>
-      <property name="emptyText"  onset="this.placeholder = val; return val;"
-                                  onget="return this.placeholder;"/>
+                                                 this.emptyText);"/>
+      <property name="emptyText"  onget="return this.getAttribute('emptytext') || '';"
+                                  onset="this.setAttribute('emptytext', val);
+                                         this._updateVisibleText(); return val;" />
       <property name="type"       onset="if (val) this.setAttribute('type', val);
                                          else this.removeAttribute('type'); return val;"
                                   onget="return this.getAttribute('type');"/>
@@ -115,7 +127,8 @@
 
       <property name="controllers"    readonly="true" onget="return this.inputField.controllers"/>
       <property name="textLength"     readonly="true"
-                                      onget="return this.inputField.textLength;"/>
+                                      onget="return this.hasAttribute('isempty') ?
+                                                    0 : this.inputField.textLength;"/>
       <property name="selectionStart" onset="this.inputField.selectionStart = val; return val;"
                                       onget="return this.inputField.selectionStart;"/>
       <property name="selectionEnd"   onset="this.inputField.selectionEnd = val; return val;"
@@ -147,6 +160,49 @@
         ]]></body>
       </method>
 
+      <method name="_updateVisibleText">
+        <body><![CDATA[
+          if (!this.hasAttribute("focused") &&
+              !this.value &&
+              this.emptyText) {
+
+            if (!this.hasAttribute("isempty")) {
+              this.setAttribute("isempty", "true");
+
+              // Hide the emptytext for a bit, in case the textbox will be focused subsequently
+              this.inputField.setAttribute("emptytextdelay", "true");
+              setTimeout(function (input) {
+                input.removeAttribute("emptytextdelay");
+              }, 100, this.inputField);
+
+              try {
+                this.editor.transactionManager.beginBatch();
+              } catch (e) {}
+            }
+
+            this.inputField.value = this.emptyText;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_clearEmptyText">
+        <body><![CDATA[
+          if (this.hasAttribute("isempty")) {
+            this.inputField.value = "";
+            try {
+              var transactionManager = this.editor.transactionManager;
+              transactionManager.endBatch();
+
+              // Clear undo stack if there have been no user edits
+              if (transactionManager.numberOfUndoItems == 1 &&
+                  transactionManager.numberOfRedoItems == 0)
+                transactionManager.clear();
+            } catch (e) {}
+            this.removeAttribute("isempty");
+          }
+        ]]></body>
+      </method>
+
       <constructor><![CDATA[
         var str = this.boxObject.getProperty("value");
         if (str) {
@@ -154,10 +210,8 @@
           this.boxObject.removeProperty("value");
         }
 
+        this._updateVisibleText();
         this._setNewlineHandling();
-
-        if (this.hasAttribute("emptytext"))
-          this.placeholder = this.getAttribute("emptytext");
       ]]></constructor>
 
       <destructor>
@@ -182,6 +236,8 @@
               this.inputField.focus();
               break;
             case this.inputField:
+              this._clearEmptyText();
+
               if (this.mIgnoreFocus) {
                 this.mIgnoreFocus = false;
               } else if (this.clickSelectsAll) {
@@ -205,6 +261,7 @@
       <handler event="blur" phase="capturing">
         <![CDATA[
           this.removeAttribute('focused');
+          this._updateVisibleText();
 
           // don't trigger clickSelectsAll when switching application windows
           if (window == window.top &&
@@ -212,6 +269,14 @@
               document.activeElement == this.inputField)
             this.mIgnoreFocus = true;
         ]]>
+      </handler>
+
+      <handler event="dragover" phase="capturing">
+        this._clearEmptyText();
+      </handler>
+
+      <handler event="dragexit" phase="capturing">
+        this._updateVisibleText();
       </handler>
 
       <handler event="mousedown">
@@ -258,9 +323,17 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 0;"/>
       <property name="value"
-                onget="return this.inputField.value;">
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
-          this.inputField.value = val;
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
           if (this._timer)
             clearTimeout(this._timer);
           return val;
@@ -300,7 +373,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck" align="center">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
         <xul:deck class="textbox-search-icons" anonid="search-icons">
           <xul:image class="textbox-search-icon"
                      onclick="document.getBindingParent(this)._iconClick();"
@@ -333,18 +406,21 @@
         ]]></setter>
       </property>
       <property name="value"
-                onget="return this.inputField.value;">
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
-          this.inputField.value = val;
-
-          if (val)
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
             this._searchIcons.selectedIndex = this.searchButton ? 0 : 1;
-          else
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
             this._searchIcons.selectedIndex = 0;
-
+          }
           if (this._timer)
             clearTimeout(this._timer);
-
           return val;
         ]]></setter>
       </property>
@@ -427,7 +503,7 @@
     <content>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:textarea class="textbox-textarea" flex="1" anonid="input"
-                       xbl:inherits="onfocus,onblur,xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap,placeholder"><children/></html:textarea>
+                       xbl:inherits="onfocus,onblur,xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap"><children/></html:textarea>
       </xul:hbox>
     </content>
   </binding>

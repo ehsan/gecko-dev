@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    CID-keyed Type1 Glyph Loader (body).                                 */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010 by */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007 by             */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -22,7 +22,6 @@
 #include FT_INTERNAL_DEBUG_H
 #include FT_INTERNAL_STREAM_H
 #include FT_OUTLINE_H
-#include FT_INTERNAL_CALC_H
 
 #include "ciderrs.h"
 
@@ -52,25 +51,20 @@
     FT_ULong       glyph_length = 0;
     PSAux_Service  psaux        = (PSAux_Service)face->psaux;
 
-#ifdef FT_CONFIG_OPTION_INCREMENTAL
-    FT_Incremental_InterfaceRec *inc =
-                                  face->root.internal->incremental_interface;
-#endif
-
-
-    FT_TRACE4(( "cid_load_glyph: glyph index %d\n", glyph_index ));
 
 #ifdef FT_CONFIG_OPTION_INCREMENTAL
 
     /* For incremental fonts get the character data using */
     /* the callback function.                             */
-    if ( inc )
+    if ( face->root.internal->incremental_interface )
     {
       FT_Data  glyph_data;
 
 
-      error = inc->funcs->get_glyph_data( inc->object,
-                                          glyph_index, &glyph_data );
+      error = face->root.internal->incremental_interface->funcs->get_glyph_data(
+                face->root.internal->incremental_interface->object,
+                glyph_index,
+                &glyph_data );
       if ( error )
         goto Exit;
 
@@ -86,7 +80,9 @@
                      glyph_length );
       }
 
-      inc->funcs->free_glyph_data( inc->object, &glyph_data );
+      face->root.internal->incremental_interface->funcs->free_glyph_data(
+                face->root.internal->incremental_interface->object,
+                &glyph_data );
 
       if ( error )
         goto Exit;
@@ -167,22 +163,23 @@
 #ifdef FT_CONFIG_OPTION_INCREMENTAL
 
     /* Incremental fonts can optionally override the metrics. */
-    if ( !error && inc && inc->funcs->get_glyph_metrics )
+    if ( !error                                                              &&
+         face->root.internal->incremental_interface                          &&
+         face->root.internal->incremental_interface->funcs->get_glyph_metrics )
     {
       FT_Incremental_MetricsRec  metrics;
 
 
-      metrics.bearing_x = FIXED_TO_INT( decoder->builder.left_bearing.x );
-      metrics.bearing_y = 0;
-      metrics.advance   = FIXED_TO_INT( decoder->builder.advance.x );
-      metrics.advance_v = FIXED_TO_INT( decoder->builder.advance.y );
-
-      error = inc->funcs->get_glyph_metrics( inc->object,
-                                             glyph_index, FALSE, &metrics );
-
-      decoder->builder.left_bearing.x = INT_TO_FIXED( metrics.bearing_x );
-      decoder->builder.advance.x      = INT_TO_FIXED( metrics.advance );
-      decoder->builder.advance.y      = INT_TO_FIXED( metrics.advance_v );
+      metrics.bearing_x = decoder->builder.left_bearing.x;
+      metrics.bearing_y = decoder->builder.left_bearing.y;
+      metrics.advance   = decoder->builder.advance.x;
+      error = face->root.internal->incremental_interface->funcs->get_glyph_metrics(
+                face->root.internal->incremental_interface->object,
+                glyph_index, FALSE, &metrics );
+      decoder->builder.left_bearing.x = metrics.bearing_x;
+      decoder->builder.left_bearing.y = metrics.bearing_y;
+      decoder->builder.advance.x      = metrics.advance;
+      decoder->builder.advance.y      = 0;
     }
 
 #endif /* FT_CONFIG_OPTION_INCREMENTAL */
@@ -254,7 +251,7 @@
       /* ignore the error if one occurred - skip to next glyph */
     }
 
-    *max_advance = FIXED_TO_INT( decoder.builder.advance.x );
+    *max_advance = decoder.builder.advance.x;
 
     psaux->t1_decoder_funcs->done( &decoder );
 
@@ -345,10 +342,8 @@
       FT_Slot_Internal  internal = cidglyph->internal;
 
 
-      cidglyph->metrics.horiBearingX =
-        FIXED_TO_INT( decoder.builder.left_bearing.x );
-      cidglyph->metrics.horiAdvance =
-        FIXED_TO_INT( decoder.builder.advance.x );
+      cidglyph->metrics.horiBearingX = decoder.builder.left_bearing.x;
+      cidglyph->metrics.horiAdvance  = decoder.builder.advance.x;
 
       internal->glyph_matrix      = font_matrix;
       internal->glyph_delta       = font_offset;
@@ -362,10 +357,8 @@
 
 
       /* copy the _unscaled_ advance width */
-      metrics->horiAdvance =
-        FIXED_TO_INT( decoder.builder.advance.x );
-      cidglyph->linearHoriAdvance =
-        FIXED_TO_INT( decoder.builder.advance.x );
+      metrics->horiAdvance                  = decoder.builder.advance.x;
+      cidglyph->linearHoriAdvance           = decoder.builder.advance.x;
       cidglyph->internal->glyph_transformed = 0;
 
       /* make up vertical ones */
@@ -427,12 +420,9 @@
       metrics->horiBearingX = cbox.xMin;
       metrics->horiBearingY = cbox.yMax;
 
-      if ( load_flags & FT_LOAD_VERTICAL_LAYOUT ) 
-      {
-        /* make up vertical ones */
-        ft_synthesize_vertical_metrics( metrics,
-                                        metrics->vertAdvance );
-      }
+      /* make up vertical ones */
+      ft_synthesize_vertical_metrics( metrics,
+                                      metrics->vertAdvance );
     }
 
   Exit:

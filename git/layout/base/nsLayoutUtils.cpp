@@ -89,7 +89,6 @@
 #include "nsIImageLoadingContent.h"
 #include "nsCOMPtr.h"
 #include "nsListControlFrame.h"
-#include "ImageLayers.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -98,15 +97,11 @@
 #include "nsSVGOuterSVGFrame.h"
 #endif
 
-#ifdef MOZ_XUL
-#include "nsXULPopupManager.h"
-#endif
-
-using namespace mozilla::layers;
-
 /**
  * A namespace class for static layout utilities.
  */
+
+PRBool nsLayoutUtils::sDisableGetUsedXAssertions = PR_FALSE;
 
 nsIFrame*
 nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
@@ -783,28 +778,6 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
   return widgetToView - aFrame->GetOffsetTo(rootFrame);
 }
 
-nsIFrame*
-nsLayoutUtils::GetPopupFrameForEventCoordinates(const nsEvent* aEvent)
-{
-#ifdef MOZ_XUL
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (!pm) {
-    return nsnull;
-  }
-  nsTArray<nsIFrame*> popups = pm->GetVisiblePopups();
-  PRUint32 i;
-  // Search from top to bottom
-  for (i = 0; i < popups.Length(); i++) {
-    nsIFrame* popup = popups[i];
-    if (popup->GetOverflowRect().Contains(
-          GetEventCoordinatesRelativeTo(aEvent, popup))) {
-      return popup;
-    }
-  }
-#endif
-  return nsnull;
-}
-
 gfxMatrix
 nsLayoutUtils::ChangeMatrixBasis(const gfxPoint &aOrigin,
                                  const gfxMatrix &aMatrix)
@@ -919,15 +892,6 @@ nsLayoutUtils::InvertTransformsToRoot(nsIFrame *aFrame,
 
   /* Otherwise, invert the CTM and use it to transform the point. */
   return MatrixTransformPoint(aPoint, ctm.Invert(), aFrame->PresContext()->AppUnitsPerDevPixel());
-}
-
-nsresult
-nsLayoutUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
-{
-  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
-                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
-  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
-    ? NS_OK : NS_ERROR_FAILURE;
 }
 
 static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
@@ -1149,6 +1113,8 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
+  nsAutoDisableGetUsedXAssertions disableAssert;
+
   nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
@@ -1226,17 +1192,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
 #endif
 
-  PRUint32 flags = nsDisplayList::PAINT_DEFAULT;
-  if (aFlags & PAINT_WIDGET_LAYERS) {
-    flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
-    nsIWidget *widget = aFrame->GetWindow();
-    PRInt32 pixelRatio = widget->GetDeviceContext()->AppUnitsPerDevPixel();
-    nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
-    nsIntRegion dirtyWindowRegion(aDirtyRegion.ToOutsidePixels(pixelRatio));
-
-    widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
-  }
-  list.Paint(&builder, aRenderingContext, flags);
+  list.Paint(&builder, aRenderingContext);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
   return NS_OK;
@@ -1393,6 +1349,8 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
 {
   NS_ASSERTION(aRootFrame != aMovingFrame,
                "The root frame shouldn't be the one that's moving, that makes no sense");
+
+  nsAutoDisableGetUsedXAssertions disableAssert;
 
   // Build the 'after' display list over the whole area of interest.
   // (We have to build the 'after' display list because the frame/view
@@ -1692,7 +1650,7 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   
   return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
                   aStyleContext->GetStyleFont()->mFont,
-                  aStyleContext->GetStyleVisibility()->mLanguage,
+                  aStyleContext->GetStyleVisibility()->mLangGroup,
                   fs, *aFontMetrics);
 }
 
@@ -1760,6 +1718,63 @@ nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
 }
 
 nsIFrame*
+nsLayoutUtils::GetClosestCommonAncestorViaPlaceholders(nsIFrame* aFrame1,
+                                                       nsIFrame* aFrame2,
+                                                       nsIFrame* aKnownCommonAncestorHint)
+{
+  NS_PRECONDITION(aFrame1, "aFrame1 must not be null");
+  NS_PRECONDITION(aFrame2, "aFrame2 must not be null");
+
+  nsPresContext* presContext = aFrame1->PresContext();
+  if (presContext != aFrame2->PresContext()) {
+    // different documents, no common ancestor
+    return nsnull;
+  }
+  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
+
+  nsAutoTArray<nsIFrame*, 8> frame1Ancestors;
+  nsIFrame* f1;
+  for (f1 = aFrame1; f1 && f1 != aKnownCommonAncestorHint;
+       f1 = GetParentOrPlaceholderFor(frameManager, f1)) {
+    frame1Ancestors.AppendElement(f1);
+  }
+  if (!f1 && aKnownCommonAncestorHint) {
+    // So, it turns out aKnownCommonAncestorHint was not an ancestor of f1. Oops.
+    // Never mind. We can continue as if aKnownCommonAncestorHint was null.
+    aKnownCommonAncestorHint = nsnull;
+  }
+
+  nsAutoTArray<nsIFrame*, 8> frame2Ancestors;
+  nsIFrame* f2;
+  for (f2 = aFrame2; f2 && f2 != aKnownCommonAncestorHint;
+       f2 = GetParentOrPlaceholderFor(frameManager, f2)) {
+    frame2Ancestors.AppendElement(f2);
+  }
+  if (!f2 && aKnownCommonAncestorHint) {
+    // So, it turns out aKnownCommonAncestorHint was not an ancestor of f2.
+    // We need to retry with no common ancestor hint.
+    return GetClosestCommonAncestorViaPlaceholders(aFrame1, aFrame2, nsnull);
+  }
+
+  // now frame1Ancestors and frame2Ancestors give us the parent frame chain
+  // up to aKnownCommonAncestorHint, or if that is null, up to and including
+  // the root frame. We need to walk from the end (i.e., the top of the
+  // frame (sub)tree) down to aFrame1/aFrame2 looking for the first difference.
+  nsIFrame* lastCommonFrame = aKnownCommonAncestorHint;
+  PRInt32 last1 = frame1Ancestors.Length() - 1;
+  PRInt32 last2 = frame2Ancestors.Length() - 1;
+  while (last1 >= 0 && last2 >= 0) {
+    nsIFrame* frame1 = frame1Ancestors.ElementAt(last1);
+    if (frame1 != frame2Ancestors.ElementAt(last2))
+      break;
+    lastCommonFrame = frame1;
+    last1--;
+    last2--;
+  }
+  return lastCommonFrame;
+}
+
+nsIFrame*
 nsLayoutUtils::GetNextContinuationOrSpecialSibling(nsIFrame *aFrame)
 {
   nsIFrame *result = aFrame->GetNextContinuation();
@@ -1771,7 +1786,7 @@ nsLayoutUtils::GetNextContinuationOrSpecialSibling(nsIFrame *aFrame)
     // frame in the continuation chain. Walk back to find that frame now.
     aFrame = aFrame->GetFirstContinuation();
 
-    void* value = aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling());
+    void* value = aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling);
     return static_cast<nsIFrame*>(value);
   }
 
@@ -1785,7 +1800,7 @@ nsLayoutUtils::GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame)
   if (result->GetStateBits() & NS_FRAME_IS_SPECIAL) {
     while (PR_TRUE) {
       nsIFrame *f = static_cast<nsIFrame*>
-        (result->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+        (result->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
       if (!f)
         break;
       result = f;
@@ -3114,7 +3129,7 @@ nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
   const nsStyleFont* font = aSC->GetStyleFont();
   const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
 
-  aRC->SetFont(font->mFont, visibility->mLanguage,
+  aRC->SetFont(font->mFont, visibility->mLangGroup,
                aSC->PresContext()->GetUserFontSet());
 }
 
@@ -3202,12 +3217,11 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
     return eTransparencyOpaque;
   }
 
-  nsStyleContext* bgSC;
+  const nsStyleBackground* bg;
   if (!nsCSSRendering::FindBackground(aBackgroundFrame->PresContext(),
-                                      aBackgroundFrame, &bgSC)) {
+                                      aBackgroundFrame, &bg)) {
     return eTransparencyTransparent;
   }
-  const nsStyleBackground* bg = bgSC->GetStyleBackground();
   if (NS_GET_A(bg->mBackgroundColor) < 255 ||
       // bottom layer's clip is used for the color
       bg->BottomLayer().mClip != NS_STYLE_BG_CLIP_BORDER)
@@ -3415,31 +3429,26 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     if (!principal)
       return result;
 
-    ImageContainer *container = video->GetImageContainer();
-    if (!container)
+    PRUint32 w, h;
+    rv = video->GetVideoWidth(&w);
+    rv |= video->GetVideoHeight(&h);
+    if (NS_FAILED(rv))
       return result;
 
-    gfxIntSize size;
-    nsRefPtr<gfxASurface> surf = container->GetCurrentAsSurface(&size);
-    if (!surf)
-      return result;
-
-    if (wantImageSurface && surf->GetType() != gfxASurface::SurfaceTypeImage) {
-      nsRefPtr<gfxImageSurface> imgSurf =
-        new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
-      if (!imgSurf)
-        return result;
-
-      nsRefPtr<gfxContext> ctx = new gfxContext(imgSurf);
-      if (!ctx)
-        return result;
-      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      ctx->DrawSurface(surf, size);
-      surf = imgSurf;
+    nsRefPtr<gfxASurface> surf;
+    if (wantImageSurface) {
+      surf = new gfxImageSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
+    } else {
+      surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
     }
 
+    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
+
+    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    video->Paint(ctx, gfxPattern::FILTER_NEAREST, gfxRect(0, 0, w, h));
+
     result.mSurface = surf;
-    result.mSize = size;
+    result.mSize = gfxIntSize(w, h);
     result.mPrincipal = principal;
     result.mIsWriteOnly = PR_FALSE;
 

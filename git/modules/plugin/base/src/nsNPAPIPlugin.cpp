@@ -44,9 +44,6 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "prclist.h"
-
-#include "jscntxt.h"
-
 #include "nsAutoLock.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
@@ -72,6 +69,8 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsIPrincipal.h"
+
+#include "jscntxt.h"
 
 #include "nsIXPConnect.h"
 
@@ -110,66 +109,7 @@ using mozilla::PluginPRLibrary;
 using mozilla::plugins::PluginModuleParent;
 #endif
 
-using namespace mozilla::plugins::parent;
-
-// We should make this const...
-static NPNetscapeFuncs sBrowserFuncs = {
-  sizeof(sBrowserFuncs),
-  (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR,
-  _geturl,
-  _posturl,
-  _requestread,
-  _newstream,
-  _write,
-  _destroystream,
-  _status,
-  _useragent,
-  _memalloc,
-  _memfree,
-  _memflush,
-  _reloadplugins,
-  _getJavaEnv,
-  _getJavaPeer,
-  _geturlnotify,
-  _posturlnotify,
-  _getvalue,
-  _setvalue,
-  _invalidaterect,
-  _invalidateregion,
-  _forceredraw,
-  _getstringidentifier,
-  _getstringidentifiers,
-  _getintidentifier,
-  _identifierisstring,
-  _utf8fromidentifier,
-  _intfromidentifier,
-  _createobject,
-  _retainobject,
-  _releaseobject,
-  _invoke,
-  _invokeDefault,
-  _evaluate,
-  _getproperty,
-  _setproperty,
-  _removeproperty,
-  _hasproperty,
-  _hasmethod,
-  _releasevariantvalue,
-  _setexception,
-  _pushpopupsenabledstate,
-  _poppopupsenabledstate,
-  _enumerate,
-  _pluginthreadasynccall,
-  _construct,
-  _getvalueforurl,
-  _setvalueforurl,
-  _getauthenticationinfo,
-  _scheduletimer,
-  _unscheduletimer,
-  _popupcontextmenu,
-  _convertpoint
-};
-
+static NPNetscapeFuncs sBrowserFuncs;
 static PRLock *sPluginThreadAsyncCallLock = nsnull;
 static PRCList sPendingAsyncCalls = PR_INIT_STATIC_CLIST(&sPendingAsyncCalls);
 
@@ -180,6 +120,8 @@ enum eNPPStreamTypeInternal {
 };
 
 static NS_DEFINE_IID(kMemoryCID, NS_MEMORY_CID);
+
+using namespace mozilla::plugins::parent;
 
 // This function sends a notification using the observer service to any object
 // registered to listen to the "experimental-notify-plugin-call" subject.
@@ -208,6 +150,62 @@ nsNPAPIPlugin::CheckClassInitialized()
 
   if (initialized)
     return;
+
+  // XXX It'd be nice to make this const and initialize it statically...
+  sBrowserFuncs.size = sizeof(sBrowserFuncs);
+  sBrowserFuncs.version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
+  sBrowserFuncs.geturl = ((NPN_GetURLProcPtr)_geturl);
+  sBrowserFuncs.posturl = ((NPN_PostURLProcPtr)_posturl);
+  sBrowserFuncs.requestread = ((NPN_RequestReadProcPtr)_requestread);
+  sBrowserFuncs.newstream = ((NPN_NewStreamProcPtr)_newstream);
+  sBrowserFuncs.write = ((NPN_WriteProcPtr)_write);
+  sBrowserFuncs.destroystream = ((NPN_DestroyStreamProcPtr)_destroystream);
+  sBrowserFuncs.status = ((NPN_StatusProcPtr)_status);
+  sBrowserFuncs.uagent = ((NPN_UserAgentProcPtr)_useragent);
+  sBrowserFuncs.memalloc = ((NPN_MemAllocProcPtr)_memalloc);
+  sBrowserFuncs.memfree = ((NPN_MemFreeProcPtr)_memfree);
+  sBrowserFuncs.memflush = ((NPN_MemFlushProcPtr)_memflush);
+  sBrowserFuncs.reloadplugins = ((NPN_ReloadPluginsProcPtr)_reloadplugins);
+  sBrowserFuncs.getJavaEnv = ((NPN_GetJavaEnvProcPtr)_getJavaEnv);
+  sBrowserFuncs.getJavaPeer = ((NPN_GetJavaPeerProcPtr)_getJavaPeer);
+  sBrowserFuncs.geturlnotify = ((NPN_GetURLNotifyProcPtr)_geturlnotify);
+  sBrowserFuncs.posturlnotify = ((NPN_PostURLNotifyProcPtr)_posturlnotify);
+  sBrowserFuncs.getvalue = ((NPN_GetValueProcPtr)_getvalue);
+  sBrowserFuncs.setvalue = ((NPN_SetValueProcPtr)_setvalue);
+  sBrowserFuncs.invalidaterect = ((NPN_InvalidateRectProcPtr)_invalidaterect);
+  sBrowserFuncs.invalidateregion = ((NPN_InvalidateRegionProcPtr)_invalidateregion);
+  sBrowserFuncs.forceredraw = ((NPN_ForceRedrawProcPtr)_forceredraw);
+  sBrowserFuncs.getstringidentifier = ((NPN_GetStringIdentifierProcPtr)_getstringidentifier);
+  sBrowserFuncs.getstringidentifiers = ((NPN_GetStringIdentifiersProcPtr)_getstringidentifiers);
+  sBrowserFuncs.getintidentifier = ((NPN_GetIntIdentifierProcPtr)_getintidentifier);
+  sBrowserFuncs.identifierisstring = ((NPN_IdentifierIsStringProcPtr)_identifierisstring);
+  sBrowserFuncs.utf8fromidentifier = ((NPN_UTF8FromIdentifierProcPtr)_utf8fromidentifier);
+  sBrowserFuncs.intfromidentifier = ((NPN_IntFromIdentifierProcPtr)_intfromidentifier);
+  sBrowserFuncs.createobject = ((NPN_CreateObjectProcPtr)_createobject);
+  sBrowserFuncs.retainobject = ((NPN_RetainObjectProcPtr)_retainobject);
+  sBrowserFuncs.releaseobject = ((NPN_ReleaseObjectProcPtr)_releaseobject);
+  sBrowserFuncs.invoke = ((NPN_InvokeProcPtr)_invoke);
+  sBrowserFuncs.invokeDefault = ((NPN_InvokeDefaultProcPtr)_invokeDefault);
+  sBrowserFuncs.evaluate = ((NPN_EvaluateProcPtr)_evaluate);
+  sBrowserFuncs.getproperty = ((NPN_GetPropertyProcPtr)_getproperty);
+  sBrowserFuncs.setproperty = ((NPN_SetPropertyProcPtr)_setproperty);
+  sBrowserFuncs.removeproperty = ((NPN_RemovePropertyProcPtr)_removeproperty);
+  sBrowserFuncs.hasproperty = ((NPN_HasPropertyProcPtr)_hasproperty);
+  sBrowserFuncs.hasmethod = ((NPN_HasMethodProcPtr)_hasmethod);
+  sBrowserFuncs.enumerate = ((NPN_EnumerateProcPtr)_enumerate);
+  sBrowserFuncs.construct = ((NPN_ConstructProcPtr)_construct);
+  sBrowserFuncs.releasevariantvalue = ((NPN_ReleaseVariantValueProcPtr)_releasevariantvalue);
+  sBrowserFuncs.setexception = ((NPN_SetExceptionProcPtr)_setexception);
+  sBrowserFuncs.pushpopupsenabledstate = ((NPN_PushPopupsEnabledStateProcPtr)_pushpopupsenabledstate);
+  sBrowserFuncs.poppopupsenabledstate = ((NPN_PopPopupsEnabledStateProcPtr)_poppopupsenabledstate);
+  sBrowserFuncs.pluginthreadasynccall = ((NPN_PluginThreadAsyncCallProcPtr)_pluginthreadasynccall);
+  sBrowserFuncs.getvalueforurl = ((NPN_GetValueForURLPtr)_getvalueforurl);
+  sBrowserFuncs.setvalueforurl = ((NPN_SetValueForURLPtr)_setvalueforurl);
+  sBrowserFuncs.getauthenticationinfo = ((NPN_GetAuthenticationInfoPtr)_getauthenticationinfo);
+  sBrowserFuncs.scheduletimer = ((NPN_ScheduleTimerPtr)_scheduletimer);
+  sBrowserFuncs.unscheduletimer = ((NPN_UnscheduleTimerPtr)_unscheduletimer);
+  sBrowserFuncs.popupcontextmenu = ((NPN_PopUpContextMenuPtr)_popupcontextmenu);
+  sBrowserFuncs.convertpoint = ((NPN_ConvertPointPtr)_convertpoint);
 
   if (!sPluginThreadAsyncCallLock)
     sPluginThreadAsyncCallLock = nsAutoLock::NewLock("sPluginThreadAsyncCallLock");
@@ -302,11 +300,10 @@ nsNPAPIPlugin::SetPluginRefNum(short aRefNum)
 
 #ifdef MOZ_IPC
 void
-nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
-                             const nsAString& browserDumpID)
+nsNPAPIPlugin::PluginCrashed(const nsAString& dumpID)
 {
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  host->PluginCrashed(this, pluginDumpID, browserDumpID);
+  host->PluginCrashed(this, dumpID);
 }
 #endif
 
@@ -314,53 +311,12 @@ namespace {
 
 #ifdef MOZ_IPC
 
-#ifdef XP_MACOSX
-static PRInt32 OSXVersion()
-{
-  static PRInt32 gOSXVersion = 0x0;
-  if (gOSXVersion == 0x0) {
-    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
-    if (err != noErr) {
-      // This should probably be changed when our minimum version changes
-      NS_ERROR("Couldn't determine OS X version, assuming 10.5");
-      gOSXVersion = 0x00001050;
-    }
-  }
-  return gOSXVersion;
-}
-#endif
-
 inline PRBool
-OOPPluginsEnabled(const char* aFilePath, const nsPluginTag *aPluginTag)
+OOPPluginsEnabled(const char* aFilePath)
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
     return PR_FALSE;
   }
-
-#ifdef XP_MACOSX
-  // Only allow on Mac OS X 10.6 or higher.
-  if (OSXVersion() < 0x00001060) {
-    return PR_FALSE;
-  }
-  // Blacklist Flash 10.0 or lower since it may try to negotiate Carbon/Quickdraw
-  // which are not supported out of process.
-  if (aPluginTag && 
-      aPluginTag->mFileName.EqualsIgnoreCase("flash player.plugin")) {
-    // If the first '.' is before position 2 or the version 
-    // starts with 10.0 then we are dealing with Flash 10 or less.
-    if (aPluginTag->mVersion.FindChar('.') < 2) {
-      return PR_FALSE;
-    }
-    if (aPluginTag->mVersion.Length() >= 4) {
-      nsCString versionPrefix;
-      aPluginTag->mVersion.Left(versionPrefix, 4);
-      if (versionPrefix.EqualsASCII("10.0")) {
-        return PR_FALSE;
-      }
-    }
-  }
-
-#endif
 
 #ifdef XP_WIN
   OSVERSIONINFO osVerInfo = {0};
@@ -406,12 +362,8 @@ GetNewPluginLibrary(const char* aFilePath,
                     PRLibrary* aLibrary)
 {
 #ifdef MOZ_IPC
-  nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-  nsPluginTag* tag = host->FindTagForLibrary(aLibrary);
-  if (tag) {
-    if (aFilePath && OOPPluginsEnabled(aFilePath, tag)) {
-      return PluginModuleParent::LoadModule(aFilePath);
-    }   
+  if (aFilePath && OOPPluginsEnabled(aFilePath)) {
+    return PluginModuleParent::LoadModule(aFilePath);
   }
 #endif
   return new PluginPRLibrary(aFilePath, aLibrary);
@@ -729,8 +681,8 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
 
   PluginDestructionGuard guard(npp);
 
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
-  if (!inst || !inst->IsRunning())
+  nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
+  if (!inst)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   nsCOMPtr<nsIPluginHost> pluginHost = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
@@ -1282,12 +1234,8 @@ _destroystream(NPP npp, NPStream *pstream, NPError reason)
       return NPERR_INVALID_PARAM;
 
     // This will release the wrapped nsIOutputStream.
-    // pstream should always be a subobject of wrapper.  See bug 548441.
-    NS_ASSERTION((char*)wrapper <= (char*)pstream && 
-                 ((char*)pstream) + sizeof(*pstream)
-                     <= ((char*)wrapper) + sizeof(*wrapper),
-                 "pstream is not a subobject of wrapper");
     delete wrapper;
+    pstream->ndata = nsnull;
   }
 
   return NPERR_NO_ERROR;
@@ -1745,7 +1693,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
-  JSAutoTempValueRooter tvr(cx, NS_ARRAY_LENGTH(vec), vec);
+  js::AutoArrayRooter tvr(cx, NS_ARRAY_LENGTH(vec), vec);
   jsval *rval = &vec[1];
 
   if (result) {
@@ -2232,13 +2180,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     return NPERR_NO_ERROR;
   }
 
-   case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = PR_TRUE;
-
-     return NPERR_NO_ERROR;
-   }
-
-
 #ifndef NP_NO_CARBON
   case NPNVsupportsCarbonBool: {
     *(NPBool*)result = PR_TRUE;
@@ -2438,13 +2379,8 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
   if (streamtype != NP_SEEK)
     return NPERR_STREAM_NOT_SEEKABLE;
 
-  if (!streamlistener->mStreamInfo)
-    return NPERR_GENERIC_ERROR;
-
-  nsresult rv = streamlistener->mStreamInfo
-    ->RequestRead((NPByteRange *)rangeList);
-  if (NS_FAILED(rv))
-    return NPERR_GENERIC_ERROR;
+  if (streamlistener->mStreamInfo)
+    streamlistener->mStreamInfo->RequestRead((NPByteRange *)rangeList);
 
   return NS_OK;
 }

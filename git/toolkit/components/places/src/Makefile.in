@@ -65,8 +65,6 @@ CPPSRCS = \
           SQLFunctions.cpp \
           Helpers.cpp \
           History.cpp \
-          nsPlacesImportExportService.cpp \
-          AsyncFaviconHelpers.cpp \
           $(NULL)
 
 EXTRA_DSO_LDOPTS += \
@@ -82,7 +80,6 @@ EXTRA_COMPONENTS = \
   nsTaggingService.js \
   nsPlacesDBFlush.js \
   nsPlacesExpiration.js \
-  nsMicrosummaryService.js \
   $(NULL)
 
 ifdef MOZ_XUL

@@ -150,8 +150,6 @@
 #include "nsSVGOuterSVGFrame.h"
 #endif
 
-using namespace mozilla;
-
 nsIFrame*
 NS_NewHTMLCanvasFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -422,7 +420,7 @@ ReparentFrame(nsFrameManager* aFrameManager,
               nsIFrame* aFrame)
 {
   aFrame->SetParent(aNewParentFrame);
-  aFrameManager->ReparentStyleContext(aFrame);
+  aFrameManager->ReParentStyleContext(aFrame);
   if (aFrame->GetStateBits() &
       (NS_FRAME_HAS_VIEW | NS_FRAME_HAS_CHILD_WITH_VIEW)) {
     // No need to walk up the tree, since the bits are already set
@@ -462,9 +460,10 @@ static nsIFrame* GetSpecialSibling(nsIFrame* aFrame)
 
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.
-  return static_cast<nsIFrame*>
+  return
+    static_cast<nsIFrame*>
     (aFrame->GetFirstContinuation()->
-       Properties().Get(nsIFrame::IBSplitSpecialSibling()));
+       GetProperty(nsGkAtoms::IBSplitSpecialSibling));
 }
 
 static nsIFrame* GetSpecialPrevSibling(nsIFrame* aFrame)
@@ -473,9 +472,10 @@ static nsIFrame* GetSpecialPrevSibling(nsIFrame* aFrame)
   
   // We only store the "special sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.  
-  return static_cast<nsIFrame*>
+  return
+    static_cast<nsIFrame*>
     (aFrame->GetFirstContinuation()->
-       Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+       GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
 }
 
 static nsIFrame*
@@ -517,9 +517,8 @@ SetFrameIsSpecial(nsIFrame* aFrame, nsIFrame* aSpecialSibling)
 
     // Store the "special sibling" (if we were given one) with the
     // first frame in the flow.
-    FramePropertyTable* props = aFrame->PresContext()->PropertyTable();
-    props->Set(aFrame, nsIFrame::IBSplitSpecialSibling(), aSpecialSibling);
-    props->Set(aSpecialSibling, nsIFrame::IBSplitSpecialPrevSibling(), aFrame);
+    aFrame->SetProperty(nsGkAtoms::IBSplitSpecialSibling, aSpecialSibling);
+    aSpecialSibling->SetProperty(nsGkAtoms::IBSplitSpecialPrevSibling, aFrame);
   }
 }
 
@@ -4630,10 +4629,7 @@ nsCSSFrameConstructor::FindMathMLData(nsIContent* aContent,
 
   // Handle <math> specially, because it sometimes produces inlines
   if (aTag == nsGkAtoms::math) {
-    // This needs to match the test in EnsureBlockDisplay in
-    // nsRuleNode.cpp.  Though the behavior here for the display:table
-    // case is pretty weird...
-    if (aStyleContext->GetStyleDisplay()->IsBlockOutside()) {
+    if (aStyleContext->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_BLOCK) {
       static const FrameConstructionData sBlockMathData =
         FCDATA_DECL(FCDATA_FORCE_NULL_ABSPOS_CONTAINER |
                     FCDATA_WRAP_KIDS_IN_BLOCKS,
@@ -4743,11 +4739,6 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     // adding to the undisplayed content map.
     //
     // We don't currently handle any UI for desc/title
-    return &sSuppressData;
-  }
-
-  // We don't need frames for animation elements
-  if (aContent->IsNodeOfType(nsINode::eANIMATION)) {
     return &sSuppressData;
   }
 
@@ -5296,25 +5287,14 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
   }
 }
 
-static void
-DestroyContent(void* aPropertyValue)
+static void DestroyContent(void *aObject,
+                           nsIAtom *aPropertyName,
+                           void *aPropertyValue,
+                           void *aData)
 {
   nsIContent* content = static_cast<nsIContent*>(aPropertyValue);
   content->UnbindFromTree();
   NS_RELEASE(content);
-}
-
-NS_DECLARE_FRAME_PROPERTY(BeforeProperty, DestroyContent)
-NS_DECLARE_FRAME_PROPERTY(AfterProperty, DestroyContent)
-
-static const FramePropertyDescriptor*
-GenConPseudoToProperty(nsIAtom* aPseudo)
-{
-  NS_ASSERTION(aPseudo == nsCSSPseudoElements::before ||
-               aPseudo == nsCSSPseudoElements::after,
-               "Bad gen-con pseudo");
-  return aPseudo == nsCSSPseudoElements::before ? BeforeProperty()
-      : AfterProperty();
 }
 
 /**
@@ -5418,8 +5398,8 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
     // setting it on a table pseudo-frame inserted under that instead.  That's
     // OK, though; we just need to do the property set so that the content will
     // get cleaned up when the frame is destroyed.
-    aParentFrame->Properties().Set(GenConPseudoToProperty(styleContext->GetPseudo()),
-                                   item.mContent);
+    aParentFrame->SetProperty(styleContext->GetPseudo(),
+                              item.mContent, DestroyContent);
 
     // Now that we've passed ownership of item.mContent to the frame, unset
     // our generated content flag so we don't release or unbind it ourselves.
@@ -5839,7 +5819,8 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
   // If the frame is out-of-flow, GetPrimaryFrame() will have returned the
   // out-of-flow frame; we want the placeholder.
   if (sibling->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
-    nsIFrame* placeholderFrame = mPresShell->FrameManager()->GetPlaceholderFrameFor(sibling);
+    nsIFrame* placeholderFrame;
+    mPresShell->GetPlaceholderFrameFor(sibling, &placeholderFrame);
     NS_ASSERTION(placeholderFrame, "no placeholder for out-of-flow frame");
     sibling = placeholderFrame;
   }
@@ -7211,7 +7192,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
         }
 #endif
       } else {
-        aFrame->InvalidateOverflowRect();
+        aFrame->Invalidate(aFrame->GetOverflowRect());
       }
     }
   }
@@ -7223,7 +7204,9 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
                            nsChangeHint aChange)
 {
   nsIPresShell *shell = aPresContext->PresShell();
-  if (shell->IsPaintingSuppressed()) {
+  PRBool isPaintingSuppressed = PR_FALSE;
+  shell->IsPaintingSuppressed(&isPaintingSuppressed);
+  if (isPaintingSuppressed) {
     // Don't allow synchronous rendering changes when painting is turned off.
     aChange = NS_SubtractHint(aChange, nsChangeHint_RepaintFrame);
     if (!aChange) {
@@ -7233,8 +7216,8 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
 
   // If the frame's background is propagated to an ancestor, walk up to
   // that ancestor.
-  nsStyleContext *bgSC;
-  while (!nsCSSRendering::FindBackground(aPresContext, aFrame, &bgSC)) {
+  const nsStyleBackground *bg;
+  while (!nsCSSRendering::FindBackground(aPresContext, aFrame, &bg)) {
     aFrame = aFrame->GetParent();
     NS_ASSERTION(aFrame, "root frame must paint");
   }
@@ -7303,7 +7286,7 @@ InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node)
 
   nsIViewManager::UpdateViewBatch batch(presShell->GetViewManager());
   nsIFrame* rootFrame = presShell->GetRootFrame();
-  rootFrame->InvalidateOverflowRect();
+  rootFrame->Invalidate(rootFrame->GetOverflowRect());
   batch.EndUpdateViewBatch(NS_VMREFRESH_DEFERRED);
 }
 
@@ -7422,8 +7405,6 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
   return rv;
 }
 
-NS_DECLARE_FRAME_PROPERTY(ChangeListProperty, nsnull)
-
 nsresult
 nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 {
@@ -7438,7 +7419,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   BeginUpdate();
 
   nsPresContext* presContext = mPresShell->GetPresContext();
-  FramePropertyTable* propTable = presContext->PropertyTable();
+  nsPropertyTable *propTable = presContext->PropertyTable();
 
   // Mark frames so that we skip frames that die along the way, bug 123049.
   // A frame can be in the list multiple times with different hints. Further
@@ -7449,8 +7430,9 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     const nsStyleChangeData* changeData;
     aChangeList.ChangeAt(index, &changeData);
     if (changeData->mFrame) {
-      propTable->Set(changeData->mFrame, ChangeListProperty(),
-                     NS_INT32_TO_PTR(1));
+      propTable->SetProperty(changeData->mFrame,
+                             nsGkAtoms::changeListProperty,
+                             nsnull, nsnull, nsnull);
     }
   }
 
@@ -7479,7 +7461,11 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 
     // skip any frame that has been destroyed due to a ripple effect
     if (frame) {
-      if (!propTable->Get(frame, ChangeListProperty()))
+      nsresult res;
+
+      propTable->GetProperty(frame, nsGkAtoms::changeListProperty, &res);
+
+      if (NS_PROPTABLE_PROP_NOT_THERE == res)
         continue;
     }
 
@@ -7529,7 +7515,8 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     const nsStyleChangeData* changeData;
     aChangeList.ChangeAt(index, &changeData);
     if (changeData->mFrame) {
-      propTable->Delete(changeData->mFrame, ChangeListProperty());
+      propTable->DeleteProperty(changeData->mFrame,
+                                nsGkAtoms::changeListProperty);
     }
 
 #ifdef DEBUG
@@ -7645,18 +7632,11 @@ nsCSSFrameConstructor::DoContentStateChanged(nsIContent* aContent,
       }
     }
 
-    nsRestyleHint rshint = 
+    nsReStyleHint rshint = 
       styleSet->HasStateDependentStyle(presContext, aContent, aStateMask);
       
     if ((aStateMask & NS_EVENT_STATE_HOVER) && rshint != 0) {
       ++mHoverGeneration;
-    }
-
-    if (aStateMask & NS_EVENT_STATE_VISITED) {
-      // Exposing information to the page about whether the link is
-      // visited or not isn't really something we can worry about here.
-      // FIXME: We could probably do this a bit better.
-      NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
     }
 
     PostRestyleEvent(aContent, rshint, hint);
@@ -7669,7 +7649,7 @@ nsCSSFrameConstructor::AttributeWillChange(nsIContent* aContent,
                                            nsIAtom* aAttribute,
                                            PRInt32 aModType)
 {
-  nsRestyleHint rshint =
+  nsReStyleHint rshint =
     mPresShell->FrameManager()->HasAttributeDependentStyle(aContent,
                                                            aAttribute,
                                                            aModType,
@@ -7756,7 +7736,7 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
   // See if we can optimize away the style re-resolution -- must be called after
   // the frame's AttributeChanged() in case it does something that affects the style
   nsFrameManager *frameManager = shell->FrameManager();
-  nsRestyleHint rshint = frameManager->HasAttributeDependentStyle(aContent,
+  nsReStyleHint rshint = frameManager->HasAttributeDependentStyle(aContent,
                                                                   aAttribute,
                                                                   aModType,
                                                                   PR_TRUE);
@@ -8259,7 +8239,8 @@ nsCSSFrameConstructor::ReplicateFixedFrames(nsPageContentFrame* aParentFrame)
   // are within fixed frames, because that would cause duplicates on the new
   // page - bug 389619)
   for (nsIFrame* fixed = firstFixed; fixed; fixed = fixed->GetNextSibling()) {
-    nsIFrame* prevPlaceholder = mPresShell->FrameManager()->GetPlaceholderFrameFor(fixed);
+    nsIFrame* prevPlaceholder = nsnull;
+    mPresShell->GetPlaceholderFrameFor(fixed, &prevPlaceholder);
     if (prevPlaceholder &&
         nsLayoutUtils::IsProperAncestorFrame(prevCanvasFrame, prevPlaceholder)) {
       nsresult rv = ConstructFrame(state, fixed->GetContent(),
@@ -8608,7 +8589,7 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
       // ContentRemoved triggered reconstruction, then we don't need to do this
       // because the frames will already have been built.
       if (aAsyncInsert) {
-        PostRestyleEvent(aContent, nsRestyleHint(0), nsChangeHint_ReconstructFrame);
+        PostRestyleEvent(aContent, nsReStyleHint(0), nsChangeHint_ReconstructFrame);
       } else {
         rv = ContentInserted(container, aContent,
                              indexInContainer, mTempFrameTreeState);
@@ -9129,7 +9110,9 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
     nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
-    nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
+    nsAutoString parentTag, kidTag;
+    aContent->Tag()->ToString(parentTag);
+    badKid->Tag()->ToString(kidTag);
     const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
     nsStyleContext *frameStyleContext = aFrame->GetStyleContext();
     const nsStyleDisplay *display = frameStyleContext->GetStyleDisplay();
@@ -10176,10 +10159,10 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
   //
   // {ib} splits maintain the following invariants:
   // 1) All frames in the split have the NS_FRAME_IS_SPECIAL bit set.
-  // 2) Each frame in the split has the nsIFrame::IBSplitSpecialSibling
+  // 2) Each frame in the split has the nsGkAtoms::IBSplitSpecialSibling
   //    property pointing to the next frame in the split, except for the last
   //    one, which does not have it set.
-  // 3) Each frame in the split has the nsIFrame::IBSplitSpecialPrevSibling
+  // 3) Each frame in the split has the nsGkAtoms::IBSplitSpecialPrevSibling
   //    property pointing to the previous frame in the split, except for the
   //    first one, which does not have it set.
   // 4) The first and last frame in the split are always inlines.
@@ -10744,7 +10727,9 @@ nsCSSFrameConstructor::ReframeContainingBlock(nsIFrame* aFrame)
 
   // XXXbz how exactly would we get here while isReflowing anyway?  Should this
   // whole test be ifdef DEBUG?
-  if (mPresShell->IsReflowLocked()) {
+  PRBool isReflowing;
+  mPresShell->IsReflowLocked(&isReflowing);
+  if(isReflowing) {
     // don't ReframeContainingBlock, this will result in a crash
     // if we remove a tree that's in reflow - see bug 121368 for testcase
     NS_ERROR("Atemptted to nsCSSFrameConstructor::ReframeContainingBlock during a Reflow!!!");
@@ -10804,7 +10789,7 @@ nsCSSFrameConstructor::RestyleForAppend(nsIContent* aContainer,
     return;
 
   if (selectorFlags & NODE_HAS_SLOW_SELECTOR) {
-    PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+    PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
     // Restyling the container is the most we can do here, so we're done.
     return;
   }
@@ -10824,7 +10809,7 @@ nsCSSFrameConstructor::RestyleForAppend(nsIContent* aContainer,
       }
     }
     if (wasEmpty) {
-      PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+      PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
       // Restyling the container is the most we can do here, so we're done.
       return;
     }
@@ -10834,7 +10819,7 @@ nsCSSFrameConstructor::RestyleForAppend(nsIContent* aContainer,
     for (PRInt32 index = aNewIndexInContainer - 1; index >= 0; --index) {
       nsIContent *content = aContainer->GetChildAt(index);
       if (content->IsNodeOfType(nsINode::eELEMENT)) {
-        PostRestyleEvent(content, eRestyle_Self, NS_STYLE_HINT_NONE);
+        PostRestyleEvent(content, eReStyle_Self, NS_STYLE_HINT_NONE);
         break;
       }
     }
@@ -10860,7 +10845,7 @@ nsCSSFrameConstructor::RestyleForInsertOrChange(nsIContent* aContainer,
 
   if (selectorFlags & (NODE_HAS_SLOW_SELECTOR |
                        NODE_HAS_SLOW_SELECTOR_NOAPPEND)) {
-    PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+    PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
     // Restyling the container is the most we can do here, so we're done.
     return;
   }
@@ -10884,7 +10869,7 @@ nsCSSFrameConstructor::RestyleForInsertOrChange(nsIContent* aContainer,
       }
     }
     if (wasEmpty) {
-      PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+      PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
       // Restyling the container is the most we can do here, so we're done.
       return;
     }
@@ -10903,7 +10888,7 @@ nsCSSFrameConstructor::RestyleForInsertOrChange(nsIContent* aContainer,
       }
       if (content->IsNodeOfType(nsINode::eELEMENT)) {
         if (passedChild) {
-          PostRestyleEvent(content, eRestyle_Self, NS_STYLE_HINT_NONE);
+          PostRestyleEvent(content, eReStyle_Self, NS_STYLE_HINT_NONE);
         }
         break;
       }
@@ -10919,7 +10904,7 @@ nsCSSFrameConstructor::RestyleForInsertOrChange(nsIContent* aContainer,
       }
       if (content->IsNodeOfType(nsINode::eELEMENT)) {
         if (passedChild) {
-          PostRestyleEvent(content, eRestyle_Self, NS_STYLE_HINT_NONE);
+          PostRestyleEvent(content, eReStyle_Self, NS_STYLE_HINT_NONE);
         }
         break;
       }
@@ -10941,7 +10926,7 @@ nsCSSFrameConstructor::RestyleForRemove(nsIContent* aContainer,
 
   if (selectorFlags & (NODE_HAS_SLOW_SELECTOR |
                        NODE_HAS_SLOW_SELECTOR_NOAPPEND)) {
-    PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+    PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
     // Restyling the container is the most we can do here, so we're done.
     return;
   }
@@ -10963,7 +10948,7 @@ nsCSSFrameConstructor::RestyleForRemove(nsIContent* aContainer,
       }
     }
     if (isEmpty) {
-      PostRestyleEvent(aContainer, eRestyle_Self, NS_STYLE_HINT_NONE);
+      PostRestyleEvent(aContainer, eReStyle_Self, NS_STYLE_HINT_NONE);
       // Restyling the container is the most we can do here, so we're done.
       return;
     }
@@ -10977,7 +10962,7 @@ nsCSSFrameConstructor::RestyleForRemove(nsIContent* aContainer,
         break; // went through all children
       if (content->IsNodeOfType(nsINode::eELEMENT)) {
         if (index >= aIndexInContainer) {
-          PostRestyleEvent(content, eRestyle_Self, NS_STYLE_HINT_NONE);
+          PostRestyleEvent(content, eReStyle_Self, NS_STYLE_HINT_NONE);
         }
         break;
       }
@@ -10988,7 +10973,7 @@ nsCSSFrameConstructor::RestyleForRemove(nsIContent* aContainer,
       nsIContent *content = aContainer->GetChildAt(index);
       if (content->IsNodeOfType(nsINode::eELEMENT)) {
         if (index < aIndexInContainer) {
-          PostRestyleEvent(content, eRestyle_Self, NS_STYLE_HINT_NONE);
+          PostRestyleEvent(content, eReStyle_Self, NS_STYLE_HINT_NONE);
         }
         break;
       }
@@ -11019,7 +11004,7 @@ CollectRestyles(nsISupports* aContent,
 
 void
 nsCSSFrameConstructor::ProcessOneRestyle(nsIContent* aContent,
-                                         nsRestyleHint aRestyleHint,
+                                         nsReStyleHint aRestyleHint,
                                          nsChangeHint aChangeHint)
 {
   NS_PRECONDITION(aContent, "Must have content node");
@@ -11032,7 +11017,7 @@ nsCSSFrameConstructor::ProcessOneRestyle(nsIContent* aContent,
   }
   
   nsIFrame* primaryFrame = aContent->GetPrimaryFrame();
-  if (aRestyleHint & eRestyle_Self) {
+  if (aRestyleHint & eReStyle_Self) {
     RestyleElement(aContent, primaryFrame, aChangeHint);
   } else if (aChangeHint &&
                (primaryFrame ||
@@ -11043,7 +11028,7 @@ nsCSSFrameConstructor::ProcessOneRestyle(nsIContent* aContent,
     ProcessRestyledFrames(changeList);
   }
 
-  if (aRestyleHint & eRestyle_LaterSiblings) {
+  if (aRestyleHint & eReStyle_LaterSiblings) {
     RestyleLaterSiblings(aContent);
   }
 }
@@ -11148,10 +11133,6 @@ nsCSSFrameConstructor::ProcessPendingRestyleTable(
     count = aRestyles.Count();
   }
 
-  // Set mInStyleRefresh to false now, since the EndUpdate call might
-  // add more restyles.
-  mInStyleRefresh = PR_FALSE;
-
   EndUpdate();
 
 #ifdef DEBUG
@@ -11162,21 +11143,15 @@ nsCSSFrameConstructor::ProcessPendingRestyleTable(
 void
 nsCSSFrameConstructor::ProcessPendingRestyles()
 {
-  NS_PRECONDITION(mDocument, "No document?  Pshaw!");
+  NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
   NS_PRECONDITION(!nsContentUtils::IsSafeToRunScript(),
                   "Missing a script blocker!");
 
   // Process non-animation restyles...
-  nsPresContext *presContext = mPresShell->GetPresContext();
-  NS_ABORT_IF_FALSE(!presContext->IsProcessingRestyles(),
-                    "Nesting calls to ProcessPendingRestyles?");
-  presContext->SetProcessingRestyles(PR_TRUE);
-
   ProcessPendingRestyleTable(mPendingRestyles);
 
-#ifdef DEBUG
-  PRUint32 oldPendingRestyleCount = mPendingRestyles.Count();
-#endif
+  NS_POSTCONDITION(mPendingRestyles.Count() == 0,
+                   "We should have processed mPendingRestyles to completion");
 
   // ...and then process animation restyles.  This needs to happen
   // second because we need to start animations that resulted from the
@@ -11186,12 +11161,17 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
   // mid-transition (since processing the non-animation restyle ignores
   // the running transition so it can check for a new change on the same
   // property, and then posts an immediate animation style change).
+  nsPresContext *presContext = mPresShell->GetPresContext();
   presContext->SetProcessingAnimationStyleChange(PR_TRUE);
   ProcessPendingRestyleTable(mPendingAnimationRestyles);
   presContext->SetProcessingAnimationStyleChange(PR_FALSE);
 
-  presContext->SetProcessingRestyles(PR_FALSE);
-  NS_POSTCONDITION(mPendingRestyles.Count() == oldPendingRestyleCount,
+  mInStyleRefresh = PR_FALSE;
+
+  NS_POSTCONDITION(mPendingAnimationRestyles.Count() == 0,
+                   "We should have processed mPendingAnimationRestyles to "
+                   "completion");
+  NS_POSTCONDITION(mPendingRestyles.Count() == 0,
                    "We should not have posted new non-animation restyles while "
                    "processing animation restyles");
 
@@ -11205,7 +11185,7 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
 
 void
 nsCSSFrameConstructor::PostRestyleEventCommon(nsIContent* aContent,
-                                              nsRestyleHint aRestyleHint,
+                                              nsReStyleHint aRestyleHint,
                                               nsChangeHint aMinChangeHint,
                                               PRBool aForAnimation)
 {
@@ -11222,7 +11202,7 @@ nsCSSFrameConstructor::PostRestyleEventCommon(nsIContent* aContent,
                "Shouldn't be trying to restyle non-elements directly");
 
   RestyleData existingData;
-  existingData.mRestyleHint = nsRestyleHint(0);
+  existingData.mRestyleHint = nsReStyleHint(0);
   existingData.mChangeHint = NS_STYLE_HINT_NONE;
 
   nsDataHashtable<nsISupportsHashKey, RestyleData> &restyles =
@@ -11230,7 +11210,7 @@ nsCSSFrameConstructor::PostRestyleEventCommon(nsIContent* aContent,
 
   restyles.Get(aContent, &existingData);
   existingData.mRestyleHint =
-    nsRestyleHint(existingData.mRestyleHint | aRestyleHint);
+    nsReStyleHint(existingData.mRestyleHint | aRestyleHint);
   NS_UpdateHint(existingData.mChangeHint, aMinChangeHint);
 
   restyles.Put(aContent, existingData);

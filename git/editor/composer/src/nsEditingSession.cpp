@@ -1058,10 +1058,9 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
           if (NS_FAILED(rv)) return rv;
 
           mEditorStatus = eEditorCreationInProgress;
-          mDocShell = do_GetWeakReference(docShell);
           mLoadBlankDocTimer->InitWithFuncCallback(
                                           nsEditingSession::TimerCallback,
-                                          static_cast<void*> (mDocShell.get()),
+                                          (void*)docShell,
                                           10, nsITimer::TYPE_ONE_SHOT);
         }
       }
@@ -1074,7 +1073,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
 void
 nsEditingSession::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(static_cast<nsIWeakReference*> (aClosure));
+  nsCOMPtr<nsIDocShell> docShell = (nsIDocShell*)aClosure;
   if (docShell)
   {
     nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));

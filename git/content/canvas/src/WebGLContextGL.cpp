@@ -52,6 +52,7 @@
 
 #include "CanvasUtils.h"
 #include "NativeJSContext.h"
+#include "SimpleBuffer.h"
 
 #include "jstypedarray.h"
 
@@ -932,7 +933,7 @@ WebGLContext::FramebufferTexture2D(GLenum target,
 
     MakeContextCurrent();
 
-    gl->fFramebufferTexture2D(target, attachment, textarget, tex ? tex->GLName() : 0, level);
+    gl->fFramebufferTexture2D(target, attachment, textarget, tex->GLName(), level);
 
     return NS_OK;
 }
@@ -2160,7 +2161,7 @@ WebGLContext::UseProgram(nsIWebGLProgram *prog)
 NS_IMETHODIMP
 WebGLContext::ValidateProgram(nsIWebGLProgram *prog)
 {
-    if (!prog || static_cast<WebGLProgram*>(prog)->Deleted())
+    if (!prog && static_cast<WebGLProgram*>(prog)->Deleted())
         return ErrorMessage("glValidateProgram: program is null or has already been deleted!");
 
     GLuint program = static_cast<WebGLProgram*>(prog)->GLName();
@@ -2404,7 +2405,7 @@ WebGLContext::ValidateGL()
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
     // GL_MAX_{COMBINED_}TEXTURE_IMAGE_UNITS value is the accurate
-    // value.  For GLES2, GL_MAX_TEXTURE_UNITS is still correct.
+    // value.  For GLES2, GL_MAX_TEXTURE_UNITS is still correc.t
     gl->fGetIntegerv(LOCAL_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &val);
     if (val == 0) {
         LogMessage("GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS is 0!");

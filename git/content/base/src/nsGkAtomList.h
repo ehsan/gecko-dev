@@ -63,14 +63,12 @@
 
 GK_ATOM(_empty, "")
 GK_ATOM(moz, "_moz")
-GK_ATOM(moztype, "_moz-type")
 GK_ATOM(mozdirty, "_moz_dirty")
 GK_ATOM(mozeditorbogusnode, "_moz_editor_bogus_node")
 GK_ATOM(mozgeneratedcontentbefore, "_moz_generated_content_before")
 GK_ATOM(mozgeneratedcontentafter, "_moz_generated_content_after")
 GK_ATOM(mozgeneratedcontentimage, "_moz_generated_content_image")
 GK_ATOM(_moz_target, "_moz_target")
-GK_ATOM(_moz_type, "_moz-type")
 GK_ATOM(menuactive, "_moz-menuactive")
 GK_ATOM(_poundDefault, "#default")
 GK_ATOM(_asterix, "*")
@@ -132,6 +130,7 @@ GK_ATOM(b, "b")
 GK_ATOM(background, "background")
 GK_ATOM(base, "base")
 GK_ATOM(basefont, "basefont")
+GK_ATOM(baseLevel, "BaseLevel")                            // PRUint8
 GK_ATOM(baseline, "baseline")
 GK_ATOM(bdo, "bdo")
 GK_ATOM(before, "before")
@@ -186,6 +185,7 @@ GK_ATOM(_char, "char")
 GK_ATOM(charcode, "charcode")
 GK_ATOM(charoff, "charoff")
 GK_ATOM(charset, "charset")
+GK_ATOM(charType, "charType")                              // PRUint8
 GK_ATOM(checkbox, "checkbox")
 GK_ATOM(checked, "checked")
 GK_ATOM(child, "child")
@@ -341,6 +341,7 @@ GK_ATOM(elementAvailable, "element-available")
 GK_ATOM(elements, "elements")
 GK_ATOM(em, "em")
 GK_ATOM(embed, "embed")
+GK_ATOM(embeddingLevel, "EmbeddingLevel")                  // PRUint8
 GK_ATOM(embossed, "embossed")
 GK_ATOM(empty, "empty")
 GK_ATOM(encoding, "encoding")
@@ -348,6 +349,7 @@ GK_ATOM(enctype, "enctype")
 GK_ATOM(end, "end")
 GK_ATOM(end_after, "end_after")
 GK_ATOM(end_before, "end_before")
+GK_ATOM(endsInDiacritic, "EndsInDiacritic")                // PRUint32
 GK_ATOM(equalsize, "equalsize")
 GK_ATOM(error, "error")
 GK_ATOM(even, "even")
@@ -719,7 +721,6 @@ GK_ATOM(ping, "ping")
 #ifdef MOZ_MEDIA
 GK_ATOM(pixelratio, "pixelratio")
 #endif
-GK_ATOM(placeholder, "placeholder")
 GK_ATOM(plaintext, "plaintext")
 #ifdef MOZ_MEDIA
 GK_ATOM(playbackrate, "playbackrate")
@@ -1297,14 +1298,12 @@ GK_ATOM(XML, "XML")
 #endif
 
 #ifdef MOZ_MATHML
-// internal MathML attributes: different from columnalign_, columnlines_,
-// fontstyle_, rowalign_ and rowlines_
-GK_ATOM(_moz_math_columnalign_, "_moz-math-columnalign")
-GK_ATOM(_moz_math_columnline_, "_moz-math-columnline")
-GK_ATOM(_moz_math_fontstyle_, "_moz-math-font-style")
-GK_ATOM(_moz_math_rowalign_, "_moz-math-rowalign")
-GK_ATOM(_moz_math_rowline_, "_moz-math-rowline")
-
+GK_ATOM(MOZcolumnalign, "-moz-math-columnalign")
+GK_ATOM(MOZcolumnline, "-moz-math-columnline") // different from columnlines_
+GK_ATOM(MOZfontsize, "-moz-math-font-size") // different from fontsize_
+GK_ATOM(MOZfontstyle, "-moz-math-font-style") // different from fontstyle_
+GK_ATOM(MOZrowalign, "-moz-math-rowalign")
+GK_ATOM(MOZrowline, "-moz-math-rowline") // different from rowlines_
 GK_ATOM(abs_, "abs")
 GK_ATOM(accent_, "accent")
 GK_ATOM(accentunder_, "accentunder")
@@ -1652,10 +1651,43 @@ GK_ATOM(durationchange, "durationchange")
 GK_ATOM(volumechange, "volumechange")
 #endif
 
-// Content property names
+// Frame property names
+GK_ATOM(boxMetricsProperty, "BoxMetricsProperty") // nsBoxLayoutMetrics*
+GK_ATOM(changeListProperty, "ChangeListProperty") // void*
+GK_ATOM(collapseOffsetProperty, "CollapseOffsetProperty")  // nsPoint*
+GK_ATOM(computedOffsetProperty, "ComputedOffsetProperty")  // nsPoint*
+GK_ATOM(floatContinuationProperty, "FloatContinuationProperty") // nsFrameList*
+GK_ATOM(floatRegionProperty, "FloatRegionProperty") // nsRect*
+GK_ATOM(generatedContent, "GeneratedContentProperty")  // nsCOMArray<nsIContent>*
+#ifdef MOZ_MATHML
+GK_ATOM(HTMLReflowMetricsProperty, "HTMLReflowMetricsProperty") // nsHTMLReflowMetrics*
+#endif
+GK_ATOM(IBSplitSpecialPrevSibling, "IBSplitSpecialPrevSibling")// nsIFrame*
+GK_ATOM(IBSplitSpecialSibling, "IBSplitSpecialSibling")    // nsIFrame*
+GK_ATOM(lineCursorProperty, "LineCursorProperty") // nsLineBox*
+GK_ATOM(rowCursorProperty, "RowCursorProperty") // nsTableRowGroupFrame::FrameCursorData*
+GK_ATOM(maxElementWidthProperty, "MaxElementWidthProperty")  // nscoord*
+GK_ATOM(outlineInnerRectProperty, "OutlineInnerRectProperty") // nsRect*
+GK_ATOM(outOfFlowDirtyRectProperty, "OutOfFlowDirtyRectProperty") // nsRect*
+GK_ATOM(overflowAreaProperty, "OverflowArea")              // nsRect*
+GK_ATOM(overflowProperty, "OverflowProperty")              // nsFrameList*
+GK_ATOM(overflowContainersProperty, "OverflowContainersProperty")             // nsFrameList*
+GK_ATOM(excessOverflowContainersProperty, "ExcessOverflowContainersProperty") // nsFrameList*
+GK_ATOM(overflowLinesProperty, "OverflowLinesProperty")    // list of nsLineBox*
+GK_ATOM(overflowOutOfFlowsProperty, "OverflowOutOfFlowsProperty")      // nsFrameList*
+GK_ATOM(preEffectsBBoxProperty, "PreEffectsBBoxProperty") // nsRect*
+GK_ATOM(preTransformBBoxProperty, "PreTransformBBoxProperty") // nsRect*
+GK_ATOM(rowUnpaginatedHeightProperty, "RowUnpaginatedHeightProperty")  // nscoord*
+GK_ATOM(tabWidthProperty, "TabWidthProperty")              // nsTArray<TabSetting>* array of tab widths
+GK_ATOM(tableBCProperty, "TableBCProperty")                // table border collapsing info (e.g. damage area, table border widths)
 GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
 GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTransitions*
 GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*
+GK_ATOM(usedMarginProperty, "UsedMarginProperty") // nsMargin*
+GK_ATOM(usedPaddingProperty, "UsedPaddingProperty") // nsMargin*
+GK_ATOM(viewProperty, "ViewProperty")                      
+
+// Content property names
 GK_ATOM(genConInitializerProperty, "QuoteNodeProperty")
 GK_ATOM(labelMouseDownPtProperty, "LabelMouseDownPtProperty")
 

@@ -120,7 +120,7 @@ public:
 protected:
 
   virtual PRIntn GetSkipSides() const;
-  void ReparentFrameList(const nsFrameList& aFrameList);
+  void ReParentFrameList(const nsFrameList& aFrameList);
 
   nsIFrame* mLegendFrame;
   nsIFrame* mContentFrame;
@@ -306,7 +306,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -320,7 +321,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -333,7 +335,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
   } else {
@@ -341,7 +344,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
                                 aDirtyRect,
                                 nsRect(aPt, mRect.Size()),
-                                mStyleContext, skipSides);
+                                *borderStyle, mStyleContext, skipSides);
   }
 }
 
@@ -618,7 +621,7 @@ nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
                               nsFrameList&   aFrameList)
 {
   // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReparentFrameList(aFrameList);
+  ReParentFrameList(aFrameList);
   return mContentFrame->AppendFrames(aListName, aFrameList);
 }
 
@@ -632,7 +635,7 @@ nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                "inserting after sibling frame with different parent");
 
   // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReparentFrameList(aFrameList);
+  ReParentFrameList(aFrameList);
   if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
     aPrevFrame = nsnull;
   }
@@ -662,14 +665,14 @@ NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 #endif
 
 void
-nsFieldSetFrame::ReparentFrameList(const nsFrameList& aFrameList)
+nsFieldSetFrame::ReParentFrameList(const nsFrameList& aFrameList)
 {
   nsFrameManager* frameManager = PresContext()->FrameManager();
   for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(mLegendFrame || e.get()->GetType() != nsGkAtoms::legendFrame,
                  "The fieldset's legend is not allowed in this list");
     e.get()->SetParent(mContentFrame);
-    frameManager->ReparentStyleContext(e.get());
+    frameManager->ReParentStyleContext(e.get());
   }
   mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
 }

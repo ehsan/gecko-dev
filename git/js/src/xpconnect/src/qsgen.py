@@ -231,7 +231,7 @@ def addStubMember(memberId, member, traceable):
     # Add this member to the list.
     member.iface.stubMembers.append(member)
 
-def checkStubMember(member, isCustom):
+def checkStubMember(member):
     memberId = member.iface.name + "." + member.name
     if member.kind not in ('method', 'attribute'):
         raise UserError("Member %s is %r, not a method or attribute."
@@ -246,8 +246,7 @@ def checkStubMember(member, isCustom):
 
     if (member.kind == 'attribute'
           and not member.readonly
-          and isSpecificInterfaceType(member.realtype, 'nsIVariant')
-          and not isCustom):
+          and isSpecificInterfaceType(member.realtype, 'nsIVariant')):
         raise UserError(
             "Attribute %s: Non-readonly attributes of type nsIVariant "
             "are not supported."
@@ -369,9 +368,7 @@ def readConfigFile(filename, includePath, cachedir, traceable):
     # Now go through and check all the interfaces' members
     for iface in stubbedInterfaces:
         for member in iface.stubMembers:
-            cmc = conf.customMethodCalls.get(iface.name + "_" + header.methodNativeName(member), None)
-            skipgen = cmc is not None and cmc.get('skipgen', False)
-            checkStubMember(member, skipgen)
+            checkStubMember(member)
 
     for iface in conf.customReturnInterfaces:
         # just ensure that it exists so that we can grab it later
@@ -738,7 +735,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         signature += "%s(JSContext *cx, uintN argc,%s jsval *vp)\n"
 
     customMethodCall = customMethodCalls.get(stubName, None)
-
     if customMethodCall is None:
         customMethodCall = customMethodCalls.get(member.iface.name + '_', None)
         if customMethodCall is not None:
@@ -783,6 +779,8 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
                 code = customMethodCall['setter_code']
             stubName = templateName
     else:
+        if customMethodCall.get('skipgen', False):
+            return
         callTemplate = ""
         code = customMethodCall['code']
 
@@ -835,7 +833,7 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if isGetter:
             pthisval = 'vp'
         elif isSetter:
-            f.write("    JSAutoTempValueRooter tvr(cx);\n")
+            f.write("    js::AutoValueRooter tvr(cx);\n")
             pthisval = 'tvr.addr()'
         else:
             pthisval = '&vp[1]' # as above, ok to overwrite vp[1]
@@ -1310,20 +1308,15 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
                ", ".join(traceInfo["params"])))
 
 def writeAttrStubs(f, customMethodCalls, attr):
-    cmc = customMethodCalls.get(attr.iface.name + "_" + header.methodNativeName(attr), None)
-    custom = cmc and cmc.get('skipgen', False)
-
     getterName = (attr.iface.name + '_'
                   + header.attributeNativeName(attr, True))
-    if not custom:
-        writeQuickStub(f, customMethodCalls, attr, getterName)
+    writeQuickStub(f, customMethodCalls, attr, getterName)
     if attr.readonly:
         setterName = 'js_GetterOnlyPropertyStub'
     else:
         setterName = (attr.iface.name + '_'
                       + header.attributeNativeName(attr, False))
-        if not custom:
-            writeQuickStub(f, customMethodCalls, attr, setterName, isSetter=True)
+        writeQuickStub(f, customMethodCalls, attr, setterName, isSetter=True)
 
     ps = ('{"%s", %s, %s}'
           % (attr.name, getterName, setterName))
@@ -1331,25 +1324,15 @@ def writeAttrStubs(f, customMethodCalls, attr):
 
 def writeMethodStub(f, customMethodCalls, method):
     """ Write a method stub to `f`. Return an xpc_qsFunctionSpec initializer. """
-
-    cmc = customMethodCalls.get(method.iface.name + "_" + header.methodNativeName(method), None)
-    custom = cmc and cmc.get('skipgen', False)
-
     stubName = method.iface.name + '_' + header.methodNativeName(method)
-    if not custom:
-        writeQuickStub(f, customMethodCalls, method, stubName)
+    writeQuickStub(f, customMethodCalls, method, stubName)
     fs = '{"%s", %s, %d}' % (method.name, stubName, len(method.params))
     return fs
 
 def writeTraceableStub(f, customMethodCalls, method):
     """ Write a method stub to `f`. Return an xpc_qsTraceableSpec initializer. """
-
-    cmc = customMethodCalls.get(method.iface.name + "_" + header.methodNativeName(method), None)
-    custom = cmc and cmc.get('skipgen', False)
-
     stubName = method.iface.name + '_' + header.methodNativeName(method)
-    if not custom:
-        writeTraceableQuickStub(f, customMethodCalls, method, stubName)
+    writeTraceableQuickStub(f, customMethodCalls, method, stubName)
     fs = '{"%s", %s, %d}' % (method.name,
                              "JS_DATA_TO_FUNC_PTR(JSNative, &%s_trcinfo)" % stubName,
                              len(method.params))
@@ -1529,11 +1512,6 @@ stubTopTemplate = '''\
 /* THIS FILE IS AUTOGENERATED - DO NOT EDIT */
 #include "jsapi.h"
 #include "jscntxt.h"
-/* Include nanojit.h early to avoid conflicting with nscore's |#define free|.
- * NB: needs to be kept in sync with jsbuiltins.h */
-#ifdef JS_TRACER
-#  include "nanojit/nanojit.h"
-#endif
 #include "prtypes.h"
 #include "nsID.h"
 #include "%s"

@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -42,6 +42,7 @@
 #include "nsCaret.h"
 #include "nsTextEditUtils.h"
 #include "nsTextEditRules.h"
+#include "nsEditorEventListeners.h"
 #include "nsIEditActionListener.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
@@ -304,6 +305,49 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet)
 
   return result; 
 } 
+
+nsresult
+nsPlaintextEditor::CreateEventListeners()
+{
+  nsresult rv = NS_OK;
+
+  if (!mMouseListenerP) {
+    // get a mouse listener
+    rv |= NS_NewEditorMouseListener(getter_AddRefs(mMouseListenerP), this);
+  }
+
+  if (!mKeyListenerP) {
+    // get a key listener
+    rv |= NS_NewEditorKeyListener(getter_AddRefs(mKeyListenerP), this);
+  }
+
+  if (!mTextListenerP) {
+    // get a text listener
+    rv |= NS_NewEditorTextListener(getter_AddRefs(mTextListenerP), this);
+  }
+
+  if (!mCompositionListenerP) {
+    // get a composition listener
+    rv |=
+      NS_NewEditorCompositionListener(getter_AddRefs(mCompositionListenerP),
+                                      this);
+  }
+
+  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
+  if (!mDragListenerP) {
+    // get a drag listener
+    rv |= NS_NewEditorDragListener(getter_AddRefs(mDragListenerP), presShell,
+                                   this);
+  }
+
+  if (!mFocusListenerP) {
+    // get a focus listener
+    rv |= NS_NewEditorFocusListener(getter_AddRefs(mFocusListenerP),
+                                    this, presShell);
+  }
+
+  return rv;
+}
 
 NS_IMETHODIMP 
 nsPlaintextEditor::GetFlags(PRUint32 *aFlags)
@@ -1142,65 +1186,127 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
   return result;
 }
 
-PRBool
-nsPlaintextEditor::CanCutOrCopy()
+nsresult nsPlaintextEditor::GetClipboardEventTarget(nsIDOMNode** aEventTarget)
 {
-  nsCOMPtr<nsISelection> selection;
-  if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
-    return PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aEventTarget);
+  *aEventTarget = nsnull;
 
-  PRBool isCollapsed;
-  selection->GetIsCollapsed(&isCollapsed);
-  return !isCollapsed;
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(res))
+    return res;
+
+  return nsCopySupport::GetClipboardEventTarget(selection, aEventTarget);
 }
 
-PRBool
-nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
+nsresult nsPlaintextEditor::FireClipboardEvent(PRUint32 msg,
+                                               PRBool* aPreventDefault)
 {
-  if (aType == NS_PASTE)
-    ForceCompositionEnd();
+  *aPreventDefault = PR_FALSE;
 
-  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
-  NS_ENSURE_TRUE(presShell, PR_FALSE);
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  if (!ps)
+    return NS_ERROR_NOT_INITIALIZED;
 
-  nsCOMPtr<nsISelection> selection;
-  if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
-    return PR_FALSE;
+  // Unsafe to fire event during reflow (bug 396108)
+  PRBool isReflowing = PR_TRUE;
+  nsresult rv = ps->IsReflowLocked(&isReflowing);
+  if (NS_FAILED(rv) || isReflowing)
+    return NS_OK;
 
-  if (!nsCopySupport::FireClipboardEvent(aType, presShell, selection))
-    return PR_FALSE;
+  nsCOMPtr<nsIDOMNode> eventTarget;
+  rv = GetClipboardEventTarget(getter_AddRefs(eventTarget));
+  if (NS_FAILED(rv))
+    // On failure to get event target, just forget about it and don't fire.
+    return NS_OK;
 
-  // If the event handler caused the editor to be destroyed, return false.
-  // Otherwise return true to indicate that the event was not cancelled.
-  return !mDidPreDestroy;
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsEvent evt(PR_TRUE, msg);
+  nsEventDispatcher::Dispatch(eventTarget, ps->GetPresContext(), &evt,
+                              nsnull, &status);
+  // if event handler return'd false (PreventDefault)
+  if (status == nsEventStatus_eConsumeNoDefault)
+    *aPreventDefault = PR_TRUE;
+
+  // Did the event handler cause the editor to be destroyed? (ie. the input
+  // element was removed from the document)  Don't proceed with command,
+  // could crash, definitely does during paste.
+  if (mDidPreDestroy)
+    return NS_ERROR_NOT_INITIALIZED;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
-  if (FireClipboardEvent(NS_CUT))
-    return DeleteSelection(eNone);
-  return NS_OK;
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_CUT, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
+
+  nsCOMPtr<nsISelection> selection;
+  rv = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(rv))
+    return rv;
+
+  PRBool isCollapsed;
+  if (NS_SUCCEEDED(selection->GetIsCollapsed(&isCollapsed)) && isCollapsed)
+    return NS_OK;  // just return ok so no JS error is thrown
+
+  // ps should be guaranteed by FireClipboardEvent not failing
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  rv = ps->DoCopy();
+  if (NS_SUCCEEDED(rv))
+    rv = DeleteSelection(eNone);
+  return rv;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCut(PRBool *aCanCut)
 {
   NS_ENSURE_ARG_POINTER(aCanCut);
-  *aCanCut = IsModifiable() && CanCutOrCopy();
+  *aCanCut = PR_FALSE;
+
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(rv)) return rv;
+    
+  PRBool isCollapsed;
+  rv = selection->GetIsCollapsed(&isCollapsed);
+  if (NS_FAILED(rv)) return rv;
+
+  *aCanCut = !isCollapsed && IsModifiable();
   return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::Copy()
 {
-  FireClipboardEvent(NS_COPY);
-  return NS_OK;
+  PRBool preventDefault;
+  nsresult rv = FireClipboardEvent(NS_COPY, &preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+    return rv;
+
+  // ps should be guaranteed by FireClipboardEvent not failing
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  return ps->DoCopy();
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCopy(PRBool *aCanCopy)
 {
   NS_ENSURE_ARG_POINTER(aCanCopy);
-  *aCanCopy = CanCutOrCopy();
+  *aCanCopy = PR_FALSE;
+
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(rv)) return rv;
+    
+  PRBool isCollapsed;
+  rv = selection->GetIsCollapsed(&isCollapsed);
+  if (NS_FAILED(rv)) return rv;
+
+  *aCanCopy = !isCollapsed;
   return NS_OK;
 }
+
 
 // Shared between OutputToString and OutputToStream
 NS_IMETHODIMP
@@ -1576,7 +1682,8 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
   nsresult result = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(result)) return result;
 
-  nsRefPtr<nsCaret> caretP = ps->GetCaret();
+  nsRefPtr<nsCaret> caretP;
+  ps->GetCaret(getter_AddRefs(caretP));
 
   // We should return caret position if it is possible. Because this event
   // dispatcher always expects to be returned the correct caret position.
@@ -1653,15 +1760,18 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
 
   if (caretP)
   {
+    nsIView *view = nsnull;
     nsRect rect;
-    nsIFrame* frame = caretP->GetGeometry(selection, &rect);
-    if (!frame)
-      return NS_ERROR_FAILURE;
-    nsPoint nearestWidgetOffset;
-    aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
-    rect.MoveBy(nearestWidgetOffset);
+    result = caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+                                         selection,
+                                         &rect,
+                                         &(aReply->mCursorIsCollapsed),
+                                         &view);
     aReply->mCursorPosition =
-       rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+       rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+    NS_ASSERTION(NS_SUCCEEDED(result), "cannot get caret position");
+    if (NS_SUCCEEDED(result) && view)
+      aReply->mReferenceWidget = view->GetWidget();
   }
 
   return result;

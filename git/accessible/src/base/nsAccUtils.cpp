@@ -42,6 +42,7 @@
 #include "nsIAccessibleStates.h"
 #include "nsIAccessibleTypes.h"
 
+#include "nsAccEvent.h"
 #include "nsHyperTextAccessible.h"
 #include "nsHTMLTableAccessible.h"
 #include "nsDocAccessible.h"
@@ -63,7 +64,9 @@ nsAccUtils::GetAccAttr(nsIPersistentProperties *aAttributes,
 {
   aAttrValue.Truncate();
 
-  aAttributes->GetStringProperty(nsAtomCString(aAttrName), aAttrValue);
+  nsCAutoString attrName;
+  aAttrName->ToUTF8String(attrName);
+  aAttributes->GetStringProperty(attrName, aAttrValue);
 }
 
 void
@@ -73,7 +76,8 @@ nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes,
   nsAutoString oldValue;
   nsCAutoString attrName;
 
-  aAttributes->SetStringProperty(nsAtomCString(aAttrName), aAttrValue, oldValue);
+  aAttrName->ToUTF8String(attrName);
+  aAttributes->SetStringProperty(attrName, aAttrValue, oldValue);
 }
 
 void

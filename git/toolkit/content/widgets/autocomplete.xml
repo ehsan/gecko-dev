@@ -42,11 +42,6 @@
 #
 # ***** END LICENSE BLOCK *****
 
-<!DOCTYPE bindings [
-<!ENTITY % actionsDTD SYSTEM "chrome://global/locale/actions.dtd">
-%actionsDTD;
-]>
-
 <bindings id="autocompleteBindings"
           xmlns="http://www.mozilla.org/xbl"
           xmlns:html="http://www.w3.org/1999/xhtml"
@@ -69,7 +64,7 @@
           <children/>
           <html:input anonid="input" class="autocomplete-textbox textbox-input"
                       flex="1" allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
+                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
@@ -258,22 +253,19 @@
 
       <!-- =================== PUBLIC MEMBERS =================== -->
 
-      <property name="value">
-        <getter><![CDATA[
-          if (typeof this.onBeforeValueGet == "function") {
-            var result = this.onBeforeValueGet();
-            if (result)
-              return result.value;
-          }
-          return this.inputField.value;
-        ]]></getter>
+      <property name="value"
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           this.mIgnoreInput = true;
-
-          if (typeof this.onBeforeValueSet == "function")
-            val = this.onBeforeValueSet(val);
-
-          this.inputField.value = val;
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
           this.mIgnoreInput = false;
           var event = document.createEvent('Events');
           event.initEvent('ValueChange', true, true);
@@ -532,23 +524,11 @@
         ]]></body>
       </method>
 
-      <method name="resetActionType">
-        <body><![CDATA[
-          if (this.mIgnoreInput)
-            return;
-          this.removeAttribute("actiontype");
-        ]]></body>
-      </method>
-
     </implementation>
 
     <handlers>
-      <handler event="input"><![CDATA[
-        if (!this.mIgnoreInput && this.mController.input == this) {
-          this.mController.handleText(true);
-        }
-        this.resetActionType();
-      ]]></handler>
+      <handler event="input"
+               action="if (!this.mIgnoreInput &amp;&amp; this.mController.input == this) this.mController.handleText(true);"/>
 
       <handler event="keypress" phase="capturing"
                action="return this.onKeyPress(event);"/>
@@ -1163,7 +1143,7 @@
 
   <binding id="autocomplete-richlistitem" extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
     <content>
-      <xul:hbox align="center" class="ac-title-box">
+      <xul:hbox align="center">
         <xul:image xbl:inherits="src=image" class="ac-site-icon"/>
         <xul:hbox anonid="title-box" class="ac-title" flex="1"
                   onunderflow="_doUnderflow('_title');">
@@ -1180,7 +1160,6 @@
       </xul:hbox>
       <xul:hbox align="center" class="ac-url-box">
         <xul:spacer class="ac-site-icon"/>
-        <xul:image class="ac-action-icon"/>
         <xul:hbox anonid="url-box" class="ac-url" flex="1"
                   onunderflow="_doUnderflow('_url');">
           <xul:description anonid="url" class="ac-normal-text ac-url-text" xbl:inherits="selected"/>
@@ -1354,18 +1333,11 @@
       <method name="_setUpDescription">
         <parameter name="aDescriptionElement"/>
         <parameter name="aText"/>
-        <parameter name="aNoEmphasis"/>
         <body>
           <![CDATA[
           // Get rid of all previous text
           while (aDescriptionElement.hasChildNodes())
             aDescriptionElement.removeChild(aDescriptionElement.firstChild);
-
-          // If aNoEmphasis is specified, don't add any emphasis
-          if (aNoEmphasis) {
-            aDescriptionElement.appendChild(document.createTextNode(aText));
-            return;
-          }
 
           // Get the indices that separate match and non-match text
           let search = this.getAttribute("text");
@@ -1408,10 +1380,6 @@
           var title = this.getAttribute("title");
           var type = this.getAttribute("type");
 
-          this.removeAttribute("actiontype");
-
-          var setupUrl = true;
-
           // If we have a tag match, show the tags and icon
           if (type == "tag") {
             // Configure the extra box for tags display
@@ -1453,15 +1421,6 @@
 
             // Don't emphasize keyword searches in the title or url
             this.setAttribute("text", "");
-          } else if (type == "action") {
-            let [,action, param] = url.match(/^moz-action:([^,]+),(.*)$/);
-            this.setAttribute("actiontype", action);
-            url = param;
-            this._extraBox.hidden = true;
-            this._titleBox.flex = 1;
-            let desc = "]]>&action.switchToTab.label;<![CDATA[";
-            this._setUpDescription(this._url, desc, true);
-            setupUrl = false;
           } else {
             // Hide the title's extra box if we don't need extra stuff
             this._extraBox.hidden = true;
@@ -1478,8 +1437,7 @@
 
           // Emphasize the matching search terms for the description
           this._setUpDescription(this._title, title);
-          if (setupUrl)
-            this._setUpDescription(this._url, url);
+          this._setUpDescription(this._url, url);
 
           // Set up overflow on a timeout because the contents of the box
           // might not have a width yet even though we just changed them

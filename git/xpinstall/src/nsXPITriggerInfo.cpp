@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jscntxt.h"
 #include "nscore.h"
 #include "plstr.h"
 #include "nsXPITriggerInfo.h"
@@ -51,6 +50,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsICryptoHash.h"
 #include "nsIX509Cert.h"
+#include "jscntxt.h"
 
 //
 // nsXPITriggerItem
@@ -247,10 +247,10 @@ XPITriggerEvent::Run()
 
     // Build arguments into rooted jsval array
     jsval args[2] = { JSVAL_NULL, JSVAL_NULL };
-    JSAutoTempValueRooter tvr(cx, JS_ARRAY_LENGTH(args), args);
+    js::AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(args), args);
 
     // args[0] is the URL
-    JSString *str = JS_NewUCStringCopyZ(cx, reinterpret_cast<const jschar*>(URL.get()));
+    JSString *str = JS_NewUCStringCopyZ(cx, URL.get());
     if (!str)
         return 0;
     args[0] = STRING_TO_JSVAL(str);

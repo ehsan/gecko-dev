@@ -74,10 +74,9 @@ nsSVGTransformSMILAttr::ValueFromString(const nsAString& aStr,
 nsSMILValue
 nsSVGTransformSMILAttr::GetBaseValue() const
 {
-  // To benefit from Return Value Optimization and avoid copy constructor calls
-  // due to our use of return-by-value, we must return the exact same object
-  // from ALL return points. This function must only return THIS variable:
   nsSMILValue val(&nsSVGTransformSMILType::sSingleton);
+  if (val.IsNull())
+    return val; // Initialization failed
 
   nsIDOMSVGTransformList *list = mVal->mBaseVal.get();
 
@@ -88,10 +87,7 @@ nsSVGTransformSMILAttr::GetBaseValue() const
     nsresult rv = list->GetItem(i, getter_AddRefs(transform));
     if (NS_SUCCEEDED(rv) && transform) {
       rv = AppendSVGTransformToSMILValue(transform.get(), val);
-      if (NS_FAILED(rv)) {   // Appending to |val| failed (OOM?)
-        val = nsSMILValue();
-        break;
-      }
+      NS_ENSURE_SUCCESS(rv, nsSMILValue());
     }
   }
 
@@ -117,6 +113,7 @@ nsSVGTransformSMILAttr::SetAnimValue(const nsSMILValue& aValue)
   nsresult rv = NS_OK;
 
   // Create the anim value if necessary
+  mVal->WillModify(nsISVGValue::mod_other);
   if (!mVal->mAnimVal) {
     rv = nsSVGTransformList::Create(getter_AddRefs(mVal->mAnimVal));
     NS_ENSURE_SUCCESS(rv,rv);
@@ -131,7 +128,7 @@ nsSVGTransformSMILAttr::SetAnimValue(const nsSMILValue& aValue)
   }
   NS_ENSURE_SUCCESS(rv,rv);
 
-  mSVGElement->DidAnimateTransform();
+  mVal->DidModify(nsISVGValue::mod_other);
   return NS_OK;
 }
 
@@ -190,8 +187,8 @@ nsSVGTransformSMILAttr::ParseValue(const nsAString& aSpec,
     return;
   }
 
-  // Success! Populate our outparam with parsed value.
-  aResult.Swap(val);
+  // Success! Initialize our outparam with parsed value.
+  aResult = val;
 }
 
 inline PRBool

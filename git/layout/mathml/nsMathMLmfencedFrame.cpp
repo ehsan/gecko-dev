@@ -175,7 +175,7 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
     value = PRUnichar(','); // default as per the MathML REC
   }
   else {
-    value.StripWhitespace();
+    value.Trim(" ");
   }
 
   mSeparatorsCount = value.Length();
@@ -250,7 +250,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   PRInt32 i;
   nsCOMPtr<nsIFontMetrics> fm;
   const nsStyleFont* font = GetStyleFont();
-  aReflowState.rendContext->SetFont(font->mFont,
+  aReflowState.rendContext->SetFont(font->mFont, nsnull,
                                     aPresContext->GetUserFontSet());
   aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
   nscoord axisHeight, em;

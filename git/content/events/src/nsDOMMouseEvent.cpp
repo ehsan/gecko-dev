@@ -54,9 +54,6 @@ nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
   // DOM event.
   
   if (aEvent) {
-    NS_ASSERTION(static_cast<nsMouseEvent*>(mEvent)->reason
-                 != nsMouseEvent::eSynthesized,
-                 "Don't dispatch DOM events from synthesized mouse events");
     mEventIsInternal = PR_FALSE;
   }
   else {
@@ -97,7 +94,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMMouseEvent, nsDOMUIEvent)
 NS_INTERFACE_MAP_BEGIN(nsDOMMouseEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNSMouseEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MouseEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(MouseEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP

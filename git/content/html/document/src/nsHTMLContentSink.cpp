@@ -179,7 +179,6 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLContentSink, nsContentSink)
 
   // nsIContentSink
   NS_IMETHOD WillParse(void);
@@ -233,15 +232,15 @@ protected:
                      void* aThis);
 #endif
 
-  nsCOMPtr<nsIHTMLDocument> mHTMLDocument;
+  nsIHTMLDocument* mHTMLDocument;
 
   // The maximum length of a text run
   PRInt32 mMaxTextRun;
 
-  nsRefPtr<nsGenericHTMLElement> mRoot;
-  nsRefPtr<nsGenericHTMLElement> mBody;
+  nsGenericHTMLElement* mRoot;
+  nsGenericHTMLElement* mBody;
   nsRefPtr<nsGenericHTMLElement> mFrameset;
-  nsRefPtr<nsGenericHTMLElement> mHead;
+  nsGenericHTMLElement* mHead;
 
   nsRefPtr<nsGenericHTMLElement> mCurrentForm;
 
@@ -426,6 +425,7 @@ HTMLContentSink::AddAttributes(const nsIParserNode& aNode,
     return NS_OK;
   }
 
+  nsCAutoString k;
   nsHTMLTag nodeType = nsHTMLTag(aNode.GetNodeType());
 
   // The attributes are on the parser node in the order they came in in the
@@ -454,12 +454,15 @@ HTMLContentSink::AddAttributes(const nsIParserNode& aNode,
     step = -1;
   }
   
-  nsAutoString key;
   for (; i != limit; i += step) {
     // Get lower-cased key
-    nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), key);
+    const nsAString& key = aNode.GetKeyAt(i);
+    // Copy up-front to avoid shared-buffer overhead (and convert to UTF-8
+    // at the same time since that's what the atom table uses).
+    CopyUTF16toUTF8(key, k);
+    ToLowerCase(k);
 
-    nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(key);
+    nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(k);
 
     if (aCheckIfPresent && aContent->HasAttr(kNameSpaceID_None, keyAtom)) {
       continue;
@@ -939,10 +942,13 @@ SinkContext::CloseContainer(const nsHTMLTag aTag, PRBool aMalformed)
 #ifdef NS_DEBUG
       {
         // Tracing code
+        const char *tagStr;
+        mStack[mStackPos].mContent->Tag()->GetUTF8String(&tagStr);
+
         SINK_TRACE(gSinkLogModuleInfo, SINK_TRACE_REFLOW,
                    ("SinkContext::CloseContainer: reflow on notifyImmediate "
                     "tag=%s newIndex=%d stackPos=%d",
-                    nsAtomCString(mStack[mStackPos].mContent->Tag()).get(),
+                    tagStr,
                     mStack[mStackPos].mNumFlushed, mStackPos));
       }
 #endif
@@ -1347,10 +1353,12 @@ SinkContext::FlushTags()
 #ifdef NS_DEBUG
         {
           // Tracing code
+          const char* tagStr;
+          mStack[stackPos].mContent->Tag()->GetUTF8String(&tagStr);
+
           SINK_TRACE(gSinkLogModuleInfo, SINK_TRACE_REFLOW,
                      ("SinkContext::FlushTags: tag=%s from newindex=%d at "
-                      "stackPos=%d",
-                      nsAtomCString(mStack[stackPos].mContent->Tag()).get(),
+                      "stackPos=%d", tagStr,
                       mStack[stackPos].mNumFlushed, stackPos));
         }
 #endif
@@ -1527,6 +1535,12 @@ HTMLContentSink::HTMLContentSink()
 
 HTMLContentSink::~HTMLContentSink()
 {
+  NS_IF_RELEASE(mHead);
+  NS_IF_RELEASE(mBody);
+  NS_IF_RELEASE(mRoot);
+
+  NS_IF_RELEASE(mHTMLDocument);
+
   if (mNotificationTimer) {
     mNotificationTimer->Cancel();
   }
@@ -1564,45 +1578,18 @@ HTMLContentSink::~HTMLContentSink()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLContentSink)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLContentSink, nsContentSink)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mHTMLDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBody)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFrameset)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mHead)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCurrentForm)
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(tmp->mNodeInfoCache); ++i) {
-    NS_IF_RELEASE(tmp->mNodeInfoCache[i]);
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLContentSink,
-                                                  nsContentSink)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHTMLDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBody)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameset)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHead)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentForm)
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(tmp->mNodeInfoCache); ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mNodeInfoCache[i]");
-    cb.NoteXPCOMChild(tmp->mNodeInfoCache[i]);
-  }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLContentSink)
-  NS_INTERFACE_TABLE_BEGIN
-    NS_INTERFACE_TABLE_ENTRY(HTMLContentSink, nsIContentSink)
-    NS_INTERFACE_TABLE_ENTRY(HTMLContentSink, nsIHTMLContentSink)
 #if DEBUG
-    NS_INTERFACE_TABLE_ENTRY(HTMLContentSink, nsIDebugDumpContent)
+NS_IMPL_ISUPPORTS_INHERITED3(HTMLContentSink,
+                             nsContentSink,
+                             nsIContentSink,
+                             nsIHTMLContentSink,
+                             nsIDebugDumpContent)
+#else
+NS_IMPL_ISUPPORTS_INHERITED2(HTMLContentSink,
+                             nsContentSink,
+                             nsIContentSink,
+                             nsIHTMLContentSink)
 #endif
-  NS_INTERFACE_TABLE_END
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsContentSink)
-
-NS_IMPL_ADDREF_INHERITED(HTMLContentSink, nsContentSink)
-NS_IMPL_RELEASE_INHERITED(HTMLContentSink, nsContentSink)
 
 static PRBool
 IsScriptEnabled(nsIDocument *aDoc, nsIDocShell *aContainer)
@@ -1648,7 +1635,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
 
   aDoc->AddObserver(this);
   mIsDocumentObserver = PR_TRUE;
-  mHTMLDocument = do_QueryInterface(aDoc);
+  CallQueryInterface(aDoc, &mHTMLDocument);
 
   mObservers = nsnull;
   nsIParserService* service = nsContentUtils::GetParserService();
@@ -1692,12 +1679,13 @@ HTMLContentSink::Init(nsIDocument* aDoc,
     // If the document already has a root we'll use it. This will
     // happen when we do document.open()/.write()/.close()...
 
-    mRoot = static_cast<nsGenericHTMLElement*>(doc_root);
+    NS_ADDREF(mRoot = static_cast<nsGenericHTMLElement*>(doc_root));
   } else {
     mRoot = NS_NewHTMLHtmlElement(nodeInfo);
     if (!mRoot) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
+    NS_ADDREF(mRoot);
 
     NS_ASSERTION(mDocument->GetChildCount() == 0,
                  "Document should have no kids here!");
@@ -1714,6 +1702,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
   if (NS_FAILED(rv)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
+  NS_ADDREF(mHead);
 
   mRoot->AppendChildTo(mHead, PR_FALSE);
 
@@ -1988,6 +1977,8 @@ HTMLContentSink::OpenBody(const nsIParserNode& aNode)
   }
 
   mBody = mCurrentContext->mStack[mCurrentContext->mStackPos - 1].mContent;
+
+  NS_ADDREF(mBody);
 
   if (mCurrentContext->mStackPos > 1) {
     PRInt32 parentIndex    = mCurrentContext->mStackPos - 2;

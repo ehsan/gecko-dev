@@ -60,9 +60,6 @@
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5Parser.h"
 #include "nsHtml5AtomTable.h"
-#include "nsICharsetAlias.h"
-
-static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
 NS_INTERFACE_TABLE_HEAD(nsHtml5Parser)
   NS_INTERFACE_TABLE2(nsHtml5Parser, nsIParser, nsISupportsWeakReference)
@@ -142,8 +139,7 @@ nsHtml5Parser::SetDocumentCharset(const nsACString& aCharset, PRInt32 aCharsetSo
                   "Document charset set too late.");
   NS_PRECONDITION(mStreamParser, "Tried to set charset on a script-only parser.");
   mStreamParser->SetDocumentCharset(aCharset, aCharsetSource);
-  mExecutor->SetDocumentCharsetAndSource((nsACString&)aCharset, aCharsetSource);
-  mCharsetSource = aCharsetSource; // used for the document.open() case only
+  mExecutor->SetDocumentCharset((nsACString&)aCharset);
 }
 
 NS_IMETHODIMP_(void)
@@ -179,8 +175,28 @@ nsHtml5Parser::GetStreamListener(nsIStreamListener** aListener)
 NS_IMETHODIMP
 nsHtml5Parser::ContinueInterruptedParsing()
 {
-  NS_NOTREACHED("Don't call. For interface compat only.");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  // If there are scripts executing, then the content sink is jumping the gun
+  // (probably due to a synchronous XMLHttpRequest) and will re-enable us
+  // later, see bug 460706.
+  if (mExecutor->IsScriptExecuting()) {
+    return NS_OK;
+  }
+  if (mExecutor->IsFlushing()) {
+    // A nested event loop dequeued the continue event and there aren't
+    // scripts executing. What's currently causing the flush is running to 
+    // completion or there will be a script later and the script will cause
+    // another continue event.
+    return NS_OK;
+  }
+  // If the stream has already finished, there's a good chance
+  // that we might start closing things down when the parser
+  // is reenabled. To make sure that we're not deleted across
+  // the reenabling process, hold a reference to ourselves.
+  nsCOMPtr<nsIParser> kungFuDeathGrip(this);
+  nsRefPtr<nsHtml5StreamParser> streamKungFuDeathGrip(mStreamParser);
+  nsRefPtr<nsHtml5TreeOpExecutor> treeOpKungFuDeathGrip(mExecutor);
+  ParseUntilBlocked();
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(void)
@@ -250,9 +266,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
   if (!mExecutor->HasStarted()) {
     NS_ASSERTION(!mStreamParser,
                  "Had stream parser but document.write started life cycle.");
-    // This is the first document.write() on a document.open()ed document
     mExecutor->SetParser(this);
-    mTokenizer->setEncodingDeclarationHandler(this);
     mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
     mTokenizer->start();
     mExecutor->Start();
@@ -340,6 +354,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
   }
 
   if (!mBlocked) {
+    // mExecutor->WillResume();
     while (buffer->hasMore()) {
       buffer->adjust(mLastWasCR);
       mLastWasCR = PR_FALSE;
@@ -366,9 +381,10 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
         if (mTreeBuilder->HasScript()) {
           // No need to flush characters, because an end tag was tokenized last
           mTreeBuilder->Flush(); // Move ops to the executor
-          mExecutor->FlushDocumentWrite(); // run the ops    
+          mExecutor->Flush(PR_TRUE); // run the ops    
         }
         if (mBlocked) {
+          // mExecutor->WillInterrupt();
           break;
         }
         // Ignore suspension requests
@@ -381,7 +397,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     // Scripting semantics require a forced tree builder flush here
     mTreeBuilder->flushCharacters(); // Flush trailing characters
     mTreeBuilder->Flush(); // Move ops to the executor
-    mExecutor->FlushDocumentWrite(); // run the ops    
+    mExecutor->Flush(PR_TRUE); // run the ops    
   }
 
   return NS_OK;
@@ -443,7 +459,7 @@ nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
   NS_ENSURE_TRUE(uri, NS_ERROR_NOT_AVAILABLE);
 
   nsCOMPtr<nsISupports> container = doc->GetContainer();
-  // Can be null if owner document is synthetic
+  NS_ENSURE_TRUE(container, NS_ERROR_NOT_AVAILABLE);
 
   Initialize(doc, uri, container, nsnull);
 
@@ -476,7 +492,7 @@ nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
   mTokenizer->eof();
   mTreeBuilder->StreamEnded();
   mTreeBuilder->Flush();
-  mExecutor->FlushDocumentWrite();
+  mExecutor->Flush(PR_TRUE);
   mTokenizer->end();
   mExecutor->DropParserAndPerfHint();
   mAtomTable.Clear();
@@ -570,6 +586,7 @@ nsHtml5Parser::ParseUntilBlocked()
   }
   NS_ASSERTION(mExecutor->HasStarted(), "Bad life cycle.");
 
+  mExecutor->WillResume();
   for (;;) {
     if (!mFirstBuffer->hasMore()) {
       if (mFirstBuffer == mLastBuffer) {
@@ -583,7 +600,7 @@ nsHtml5Parser::ParseUntilBlocked()
           mTokenizer->eof();
           mTreeBuilder->StreamEnded();
           mTreeBuilder->Flush();
-          mExecutor->FlushDocumentWrite();
+          mExecutor->Flush(PR_TRUE);
           mTokenizer->end();
           return;            
         } else {
@@ -628,9 +645,10 @@ nsHtml5Parser::ParseUntilBlocked()
       }
       if (mTreeBuilder->HasScript()) {
         mTreeBuilder->Flush();
-        mExecutor->FlushDocumentWrite();
+        mExecutor->Flush(PR_TRUE);
       }
       if (mBlocked) {
+        // mExecutor->WillInterrupt();
         return;
       }
     }
@@ -669,36 +687,4 @@ nsHtml5Parser::ContinueAfterFailedCharsetSwitch()
   NS_PRECONDITION(mStreamParser, 
     "Tried to continue after failed charset switch without a stream parser");
   mStreamParser->ContinueAfterFailedCharsetSwitch();
-}
-
-void
-nsHtml5Parser::internalEncodingDeclaration(nsString* aEncoding)
-{
-  // Note: This handler is only installed when parsing a document.open()ed doc
-  // See bug 539887 and bug 255820.
-  if (mCharsetSource >= kCharsetFromMetaTag) { // this threshold corresponds to "confident" in the HTML5 spec
-    return;
-  }
-
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsICharsetAlias> calias(do_GetService(kCharsetAliasCID, &rv));
-  if (NS_FAILED(rv)) {
-    NS_NOTREACHED("Charset alias service not available.");
-    return;
-  }
-  nsCAutoString newEncoding;
-  CopyUTF16toUTF8(*aEncoding, newEncoding);
-  
-  // XXX check HTML5 non-IANA aliases here
-  
-  nsCAutoString preferred;
-  
-  rv = calias->GetPreferred(newEncoding, preferred);
-  if (NS_FAILED(rv)) {
-    // the encoding name is bogus
-    return;
-  }
-  
-  mCharsetSource = kCharsetFromMetaTag;
-  mTreeBuilder->SetDocumentCharset(preferred, mCharsetSource);
 }

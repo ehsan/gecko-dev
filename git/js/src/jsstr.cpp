@@ -1104,7 +1104,7 @@ StringMatch(const jschar *text, jsuint textlen,
     if (textlen < patlen)
         return -1;
 
-#if defined(__i386__) || defined(__i386)
+#if __i386__
     /*
      * Given enough registers, the unrolled loop below is faster than the
      * following loop. 32-bit x86 does not have enough registers.
@@ -1603,7 +1603,7 @@ str_match(JSContext *cx, uintN argc, jsval *vp)
     if (!g.normalizeRegExp(false, 1, argc, vp))
         return false;
 
-    JSAutoTempValueRooter array(cx, JSVAL_NULL);
+    AutoValueRooter array(cx, JSVAL_NULL);
     if (!DoMatch(cx, vp, str, g, MatchCallback, array.addr(), MATCH_ARGS))
         return false;
 
@@ -3384,7 +3384,7 @@ js_ValueToSource(JSContext *cx, jsval v)
     }
 
     JSAtom *atom = cx->runtime->atomState.toSourceAtom;
-    JSAutoTempValueRooter tvr(cx, JSVAL_NULL);
+    AutoValueRooter tvr(cx, JSVAL_NULL);
     if (!js_TryMethod(cx, JSVAL_TO_OBJECT(v), atom, 0, NULL, tvr.addr()))
         return NULL;
     return js_ValueToString(cx, tvr.value());

@@ -42,8 +42,6 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 
-class nsIntRegion;
-
 /**
  * Implementation of regions.
  * A region is represented as circular double-linked list of nsRegion::RgnRect structures.
@@ -178,7 +176,6 @@ public:
   PRBool IsEqual (const nsRegion& aRegion) const;
   PRUint32 GetNumRects () const { return mRectCount; }
   const nsRect& GetBounds () const { return mBoundRect; }
-  nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
 
   /**
    * Make sure the region has at most aMaxRects by adding area to it

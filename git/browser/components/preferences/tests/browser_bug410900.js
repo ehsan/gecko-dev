@@ -16,14 +16,17 @@ function test() {
               getService(Ci.nsIHandlerService);
   hserv.store(info);
 
+  var obs = Cc["@mozilla.org/observer-service;1"].
+            getService(Ci.nsIObserverService);
+
   function observer(win, topic, data) {
     if (topic != "app-handler-pane-loaded")
       return;
 
-    Services.obs.removeObserver(observer, "app-handler-pane-loaded");
+    obs.removeObserver(observer, "app-handler-pane-loaded");
     runTest(win);
   }
-  Services.obs.addObserver(observer, "app-handler-pane-loaded", false);
+  obs.addObserver(observer, "app-handler-pane-loaded", false);
 
   openDialog("chrome://browser/content/preferences/preferences.xul", "Preferences",
              "chrome,titlebar,toolbar,centerscreen,dialog=no", "paneApplications");

@@ -264,7 +264,7 @@ js_ValueToECMAUint32(JSContext *cx, jsval *vp);
 static inline int32
 js_DoubleToECMAInt32(jsdouble d)
 {
-#if defined(__i386__) || defined(__i386)
+#ifdef __i386__
     jsdpun du, duh, two32;
     uint32 di_h, u_tmp, expon, shift_amount;
     int32 mask32;
@@ -448,9 +448,7 @@ StringToNumberType(JSContext *cx, JSString *str)
     if (str->length() == 1) {
         jschar c = str->chars()[0];
         if ('0' <= c && c <= '9')
-            return NumberTraits<T>::toSelfType(T(c - '0'));
-        if (JS_ISSPACE(c))
-            return NumberTraits<T>::toSelfType(T(0));
+            return NumberTraits<T>::toSelfType(int32(c - '0'));
         return NumberTraits<T>::NaN();
     }
 

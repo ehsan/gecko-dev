@@ -123,16 +123,12 @@ nsTextServicesDocument::~nsTextServicesDocument()
   ClearOffsetTable(&mOffsetTable);
 }
 
-#define TS_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
-#include "nsTSAtomList.h"
-#undef TS_ATOM
-
 /* static */
 void
 nsTextServicesDocument::RegisterAtoms()
 {
   static const nsStaticAtom ts_atoms[] = {
-#define TS_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &name_),
+#define TS_ATOM(name_, value_) { value_, &name_ },
 #include "nsTSAtomList.h"
 #undef TS_ATOM
   };

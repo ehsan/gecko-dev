@@ -38,6 +38,7 @@
 #include "nsIGenericFactory.h"
 #include "nsAppStartup.h"
 #include "nsUserInfo.h"
+#include "nsXPFEComponentsCID.h"
 #include "nsToolkitCompsCID.h"
 
 #if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
@@ -66,8 +67,6 @@
 #ifdef MOZ_FEEDS
 #include "nsScriptableUnescapeHTML.h"
 #endif
-
-#include "nsBrowserStatusFilter.h"
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -118,8 +117,6 @@ nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
 #ifdef MOZ_FEEDS
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableUnescapeHTML)
 #endif
-
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -189,10 +186,6 @@ static const nsModuleComponentInfo components[] =
     NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID,
     nsScriptableUnescapeHTMLConstructor },
 #endif
-  { NS_BROWSERSTATUSFILTER_CLASSNAME,
-    NS_BROWSERSTATUSFILTER_CID,
-    NS_BROWSERSTATUSFILTER_CONTRACTID,
-    nsBrowserStatusFilterConstructor },
 };
 
 NS_IMPL_NSGETMODULE(nsToolkitCompsModule, components)

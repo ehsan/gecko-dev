@@ -38,7 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGLength.h"
-#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGValue.h"
 #include "nsTextFormatter.h"
@@ -155,7 +154,7 @@ NS_INTERFACE_MAP_BEGIN(nsSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsISVGLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -343,7 +342,9 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
       return NS_ERROR_UNEXPECTED;
   }
 
-  aValueAsString.Append(nsDependentAtomString(UnitAtom));
+  nsAutoString unitString;
+  UnitAtom->ToString(unitString);
+  aValueAsString.Append(unitString);
 
   return NS_OK;
 }
@@ -362,8 +363,8 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
   if (*number) {
     char *rest;
     float value = float(PR_strtod(number, &rest));
-    if (rest != number) {
-      const char* unitStr = nsCRT::strtok(rest, SVG_WSP_DELIM, &rest);
+    if (rest!=number) {
+      const char* unitStr = nsCRT::strtok(rest, "\x20\x9\xD\xA", &rest);
       PRUint16 unitType = SVG_LENGTHTYPE_UNKNOWN;
       if (!unitStr || *unitStr=='\0') {
         unitType = SVG_LENGTHTYPE_NUMBER;

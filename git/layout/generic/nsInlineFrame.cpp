@@ -304,7 +304,7 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
 }
 
 static void
-ReparentChildListStyle(nsPresContext* aPresContext,
+ReParentChildListStyle(nsPresContext* aPresContext,
                        const nsFrameList::Slice& aFrames,
                        nsIFrame* aParentFrame)
 {
@@ -312,7 +312,7 @@ ReparentChildListStyle(nsPresContext* aPresContext,
 
   for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == aParentFrame, "Bogus parentage");
-    frameManager->ReparentStyleContext(e.get());
+    frameManager->ReParentStyleContext(e.get());
   }
 }
 
@@ -374,7 +374,7 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
         // we reparent the style contexts when we set their parents in
         // nsInlineFrame::ReflowFrames and nsInlineFrame::ReflowInlineFrame.
         if (aReflowState.mLineLayout->GetInFirstLine()) {
-          ReparentChildListStyle(aPresContext, newFrames, this);
+          ReParentChildListStyle(aPresContext, newFrames, this);
         }
       }
     }
@@ -522,7 +522,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
       }
       frame->SetParent(this);
       if (inFirstLine) {
-        frameManager->ReparentStyleContext(frame);
+        frameManager->ReParentStyleContext(frame);
       }
       // We also need to check if frame has a next-in-flow. If it does, then set
       // its parent frame pointer, too. Otherwise, if we reflow frame and it's
@@ -540,7 +540,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
         }
         nextInFlow->SetParent(this);
         if (inFirstLine) {
-          frameManager->ReparentStyleContext(nextInFlow);
+          frameManager->ReParentStyleContext(nextInFlow);
         }
       }
 
@@ -559,7 +559,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
             if (mFrames.ContainsFrame(nextInFlow)) {
               nextInFlow->SetParent(this);
               if (inFirstLine) {
-                frameManager->ReparentStyleContext(nextInFlow);
+                frameManager->ReParentStyleContext(nextInFlow);
               }
             }
             else {
@@ -744,7 +744,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
           for (nsIFrame* f = aFrame->GetNextSibling(); f; f = f->GetNextSibling()) {
             f->SetParent(this);
             if (lineLayout->GetInFirstLine()) {
-              aPresContext->FrameManager()->ReparentStyleContext(f);
+              aPresContext->FrameManager()->ReParentStyleContext(f);
             }
           }
         }
@@ -1005,7 +1005,7 @@ nsFirstLineFrame::PullOneFrame(nsPresContext* aPresContext, InlineReflowState& i
     // We are a first-line frame. Fixup the child frames
     // style-context that we just pulled.
     NS_ASSERTION(frame->GetParent() == this, "Incorrect parent?");
-    aPresContext->FrameManager()->ReparentStyleContext(frame);
+    aPresContext->FrameManager()->ReParentStyleContext(frame);
   }
   return frame;
 }
@@ -1035,7 +1035,7 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
       }
       const nsFrameList::Slice& newFrames =
         mFrames.InsertFrames(this, nsnull, *prevOverflowFrames);
-      ReparentChildListStyle(aPresContext, newFrames, this);
+      ReParentChildListStyle(aPresContext, newFrames, this);
     }
   }
 
@@ -1046,7 +1046,7 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
 
     const nsFrameList::Slice& newFrames =
       mFrames.AppendFrames(nsnull, *overflowFrames);
-    ReparentChildListStyle(aPresContext, newFrames, this);
+    ReParentChildListStyle(aPresContext, newFrames, this);
   }
 
   // Set our own reflow state (additional state above and beyond
@@ -1108,7 +1108,7 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
           SetStyleContext(newSC);
 
           // Re-resolve all children
-          ReparentChildListStyle(aPresContext, mFrames, this);
+          ReParentChildListStyle(aPresContext, mFrames, this);
         }
       }
     }
@@ -1135,7 +1135,7 @@ nsFirstLineFrame::PullOverflowsFromPrevInFlow()
       // Assume that our prev-in-flow has the same line container that we do.
       const nsFrameList::Slice& newFrames =
         mFrames.InsertFrames(this, nsnull, *prevOverflowFrames);
-      ReparentChildListStyle(PresContext(), newFrames, this);
+      ReParentChildListStyle(PresContext(), newFrames, this);
     }
   }
 }

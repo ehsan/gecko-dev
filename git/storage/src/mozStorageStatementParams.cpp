@@ -88,10 +88,8 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
   if (JSVAL_IS_INT(aId)) {
     int idx = JSVAL_TO_INT(aId);
 
-    nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
-    NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
-    nsresult rv = mStatement->BindByIndex(idx, variant);
-    NS_ENSURE_SUCCESS(rv, rv);
+    PRBool res = bindJSValue(aCtx, mStatement, idx, *_vp);
+    NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else if (JSVAL_IS_STRING(aId)) {
     JSString *str = JSVAL_TO_STRING(aId);
@@ -100,10 +98,12 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                                ::JS_GetStringLength(str));
 
     // check to see if there's a parameter with this name
-    nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
-    NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
-    nsresult rv = mStatement->BindByName(name, variant);
+    PRUint32 index;
+    nsresult rv = mStatement->GetParameterIndex(name, &index);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    PRBool res = bindJSValue(aCtx, mStatement, index, *_vp);
+    NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else {
     return NS_ERROR_INVALID_ARG;

@@ -71,6 +71,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
@@ -150,7 +153,6 @@ protected:
 
   // Data members
   PRPackedBool              mDoPaintFocus;
-  PRPackedBool              mAddedScrollPositionListener;
   nsAbsoluteContainingBlock mAbsoluteContainer;
 };
 

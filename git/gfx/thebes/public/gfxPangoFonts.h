@@ -150,7 +150,7 @@ protected:
 #endif
 
     void GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
-                       nsIAtom *aLanguage);
+                       const nsACString& aLangGroup);
 
     // @param aLang [in] language to use for pref fonts and system font
     //        resolution, or NULL to guess a language from the gfxFontStyle.

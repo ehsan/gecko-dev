@@ -617,7 +617,6 @@ class ExprCall(Node):
     def __init__(self, func, args=[ ]):
         assert hasattr(func, 'accept')
         assert isinstance(args, list)
-        for arg in args:  assert not isinstance(arg, str)
 
         Node.__init__(self)
         self.func = func

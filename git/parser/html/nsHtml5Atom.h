@@ -55,6 +55,9 @@ class nsHtml5Atom : public nsIAtom
 
     nsHtml5Atom(const nsAString& aString);
     ~nsHtml5Atom();
+
+  private:
+    nsString mData;
 };
 
 #endif // nsHtml5Atom_h_

@@ -49,7 +49,6 @@
 
 class nsIContent;
 class nsAutoRollup;
-class gfxContext;
 
 /**
  * Common widget implementation used as base class for native
@@ -106,9 +105,9 @@ public:
   virtual void            SetShowsToolbarButton(PRBool aShow) {}
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
+  virtual nsIRenderingContext* GetRenderingContext();
   virtual nsIDeviceContext* GetDeviceContext();
-  virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager();
+  virtual nsIToolkit*     GetToolkit();  
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
@@ -135,28 +134,12 @@ public:
   NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
-  NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
-  virtual PRBool          GetAcceleratedRendering();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
-
-  /**
-   * Use this when GetLayerManager() returns a BasicLayerManager
-   * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
-   * layer manager to temporarily render into aTarget.
-   */
-  class AutoLayerManagerSetup {
-  public:
-    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget);
-    ~AutoLayerManagerSetup();
-  private:
-    nsBaseWidget* mWidget;
-  };
-  friend class AutoLayerManagerSetup;
 
 protected:
 
@@ -196,16 +179,14 @@ protected:
 protected: 
   void*             mClientData;
   EVENT_CALLBACK    mEventCallback;
-  nsIDeviceContext* mContext;
-  nsIToolkit*       mToolkit;
-  nsRefPtr<LayerManager> mLayerManager;
+  nsIDeviceContext  *mContext;
+  nsIToolkit        *mToolkit;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
   PRPackedBool      mOnDestroyCalled;
-  PRPackedBool      mUseAcceleratedRendering;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped

@@ -19,21 +19,14 @@ include svg-integration/reftest.list
 == clip-01.svg pass.svg
 == clip-02a.svg clip-02-ref.svg
 == clip-02b.svg clip-02-ref.svg
-== clipPath-advanced-01.svg pass.svg
 == clipPath-and-shape-rendering-01.svg clipPath-and-shape-rendering-01-ref.svg
 == clipPath-basic-01.svg pass.svg
-== clipPath-basic-02.svg pass.svg
-== clipPath-basic-03.svg pass.svg
-== clipPath-basic-04.svg pass.svg
 == clipPath-winding-01.svg pass.svg
 == clip-surface-clone-01.svg clip-surface-clone-01-ref.svg
 == conditions-01.svg pass.svg
 == currentColor-01.svg pass.svg
 == currentColor-02.svg pass.svg
 == currentColor-03.svg pass.svg
-== dynamic-attr-removal-1.svg pass.svg
-== dynamic-attr-removal-2.svg pass.svg
-== dynamic-attr-change-1.svg pass.svg
 == dynamic-conditions-01.svg pass.svg
 == dynamic-clipPath-01.svg pass.svg
 == dynamic-feFlood-01.svg pass.svg
@@ -111,7 +104,7 @@ fails == inline-in-xul-basic-01.xul pass.svg
 == objectBoundingBox-and-pattern-01a.svg objectBoundingBox-and-pattern-01-ref.svg
 == objectBoundingBox-and-pattern-01b.svg objectBoundingBox-and-pattern-01-ref.svg
 == objectBoundingBox-and-pattern-01c.svg objectBoundingBox-and-pattern-01-ref.svg
-== opacity-and-gradient-01.svg pass.svg
+fails-if(http.oscpu.match(/Mac\x20OS\x20X\x2010\.4$/)) == opacity-and-gradient-01.svg pass.svg # fails on OS X 10.4 (bug 379610)
 == opacity-and-gradient-02.svg opacity-and-gradient-02-ref.svg
 == opacity-and-pattern-01.svg pass.svg
 == path-01.svg path-01-ref.svg
@@ -119,16 +112,11 @@ fails == inline-in-xul-basic-01.xul pass.svg
 == pattern-live-01b.svg pattern-live-01-ref.svg
 == pattern-live-01c.svg pattern-live-01-ref.svg
 == pseudo-classes-01.svg pass.svg
-# This test depends on :visited styles (which are asynchronous), so we run
-# it in layout/style/test/test_visited_reftests.html instead of using the
-# reftest harness.
-# == pseudo-classes-02.svg pseudo-classes-02-ref.svg
+== pseudo-classes-02.svg pseudo-classes-02-ref.svg
 == radialGradient-basic-01.svg pass.svg
 == radialGradient-basic-02.svg pass.svg
 == radialGradient-basic-03.svg radialGradient-basic-03-ref.svg
 == rect-01.svg pass.svg
-== rect-02.svg pass.svg
-== rect-03.svg pass.svg
 == rect-with-rx-and-ry-01.svg pass.svg
 == rect-with-rx-or-ry-01.svg rect-with-rx-or-ry-01-ref.svg
 == rootElement-null-01.svg pass.svg
@@ -146,8 +134,6 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == text-font-weight-01.svg text-font-weigh
 # For bug 546813: sanity-check using HTML text, then test SVG behavior. Fails on Linux tryserver due to lack of CJK fonts.
 != text-language-00.xhtml text-language-00-ref.xhtml
 random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != text-language-01.xhtml text-language-01-ref.xhtml
-== text-layout-01.svg text-layout-01-ref.svg
-== text-layout-02.svg text-layout-02-ref.svg
 == text-scale-01.svg text-scale-01-ref.svg
 == text-style-01a.svg text-style-01-ref.svg
 == text-style-01b.svg text-style-01-ref.svg
@@ -162,4 +148,3 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != text-language-01.xhtml text-language-01
 == svg-effects-area-unzoomed.xhtml svg-effects-area-unzoomed-ref.xhtml
 fails == svg-effects-area-zoomed-in.xhtml svg-effects-area-zoomed-in-ref.xhtml # Bug 541270
 fails == svg-effects-area-zoomed-out.xhtml svg-effects-area-zoomed-out-ref.xhtml # Bug 541270
-== href-attr-change-restyles.svg href-attr-change-restyles-ref.svg

@@ -24,7 +24,6 @@
  *   Asaf Romano <mano@mozilla.com>
  *   Sungjoon Steve Won <stevewon@gmail.com>
  *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,6 +39,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function LOG(str) {
+  dump("*** " + str + "\n");
+}
+
 var EXPORTED_SYMBOLS = ["PlacesUtils"];
 
 var Ci = Components.interfaces;
@@ -48,8 +51,6 @@ var Cr = Components.results;
 var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/NetUtil.jsm");
 
 const EXCLUDE_FROM_BACKUP_ANNO = "places/excludeFromBackup";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
@@ -105,13 +106,87 @@ var PlacesUtils = {
   TYPE_UNICODE: "text/unicode",
 
   /**
+   * The Bookmarks Service.
+   */
+  get bookmarks() {
+    delete this.bookmarks;
+    return this.bookmarks = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+                            getService(Ci.nsINavBookmarksService);
+  },
+
+  /**
+   * The Nav History Service.
+   */
+  get history() {
+    delete this.history;
+    return this.history = Cc["@mozilla.org/browser/nav-history-service;1"].
+                          getService(Ci.nsINavHistoryService);
+  },
+
+  /**
+   * The Live Bookmark Service.
+   */
+  get livemarks() {
+    delete this.livemarks;
+    return this.livemarks = Cc["@mozilla.org/browser/livemark-service;2"].
+                            getService(Ci.nsILivemarkService);
+  },
+
+  /**
+   * The Annotations Service.
+   */
+  get annotations() {
+    delete this.annotations;
+    return this.annotations = Cc["@mozilla.org/browser/annotation-service;1"].
+                              getService(Ci.nsIAnnotationService);
+  },
+
+  /**
+   * The Favicons Service
+   */
+  get favicons() {
+    delete this.favicons;
+    return this.favicons = Cc["@mozilla.org/browser/favicon-service;1"].
+                           getService(Ci.nsIFaviconService);
+  },
+
+  /**
+   * The Places Tagging Service
+   */
+  get tagging() {
+    delete this.tagging;
+    return this.tagging = Cc["@mozilla.org/browser/tagging-service;1"].
+                          getService(Ci.nsITaggingService);
+  },
+
+  get observerSvc() {
+    delete this.observerSvc;
+    return this.observerSvc = Cc["@mozilla.org/observer-service;1"].
+                              getService(Ci.nsIObserverService);
+  },
+
+  /**
    * Makes a URI from a spec.
    * @param   aSpec
    *          The string spec of the URI
    * @returns A URI object for the spec.
    */
   _uri: function PU__uri(aSpec) {
-    return NetUtil.newURI(aSpec);
+    return Cc["@mozilla.org/network/io-service;1"].
+           getService(Ci.nsIIOService).
+           newURI(aSpec, null, null);
+  },
+
+  /**
+   * String bundle helpers
+   */
+  get _bundle() {
+    const PLACES_STRING_BUNDLE_URI =
+        "chrome://places/locale/places.properties";
+    delete this._bundle;
+    return this._bundle = Cc["@mozilla.org/intl/stringbundle;1"].
+                          getService(Ci.nsIStringBundleService).
+                          createBundle(PLACES_STRING_BUNDLE_URI);
   },
 
   getFormattedString: function PU_getFormattedString(key, params) {
@@ -191,19 +266,6 @@ var PlacesUtils = {
   },
 
   /**
-   * Generator for a node's ancestors.
-   * @param aNode
-   *        A result node
-   */
-  nodeAncestors: function PU_nodeAncestors(aNode) {
-    let node = aNode.parent;
-    while (node) {
-      yield node;
-      node = node.parent;
-    }
-  },
-
-  /**
    * Cache array of read-only item IDs.
    *
    * The first time this property is called:
@@ -222,7 +284,7 @@ var PlacesUtils = {
     this.annotations.addObserver(this, false);
 
     // observe shutdown, so we can remove the anno observer
-    Services.obs.addObserver(this, "xpcom-shutdown", false);
+    this.observerSvc.addObserver(this, "xpcom-shutdown", false);
 
     var readOnly = this.annotations.getItemsWithAnnotation(READ_ONLY_ANNO);
     this.__defineGetter__("_readOnly", function() readOnly);
@@ -236,7 +298,7 @@ var PlacesUtils = {
   observe: function PU_observe(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
       this.annotations.removeObserver(this);
-      Services.obs.removeObserver(this, "xpcom-shutdown");
+      this.observerSvc.removeObserver(this, "xpcom-shutdown");
     }
   },
 
@@ -424,6 +486,34 @@ var PlacesUtils = {
   },
 
   /**
+   * Gets the index of a node within its parent container
+   * @param   aNode
+   *          The node to look up
+   * @returns The index of the node within its parent container, or -1 if the
+   *          node was not found or the node specified has no parent.
+   */
+  getIndexOfNode: function PU_getIndexOfNode(aNode) {
+    var parent = aNode.parent;
+    if (!parent)
+      return -1;
+    var wasOpen = parent.containerOpen;
+    var result, oldViewer;
+    if (!wasOpen) {
+      result = parent.parentResult;
+      oldViewer = result.viewer;
+      result.viewer = null;
+      parent.containerOpen = true;
+    }
+    var cc = parent.childCount;
+    for (var i = 0; i < cc && parent.getChild(i) != aNode; ++i);
+    if (!wasOpen) {
+      parent.containerOpen = false;
+      result.viewer = oldViewer;
+    }
+    return i < cc ? i : -1;
+  },
+
+  /**
    * String-wraps a result node according to the rules of the specified
    * content type.
    * @param   aNode
@@ -439,45 +529,40 @@ var PlacesUtils = {
    * @returns A string serialization of the node
    */
   wrapNode: function PU_wrapNode(aNode, aType, aOverrideURI, aForceCopy) {
-    let self = this;
+    var self = this;
 
     // when wrapping a node, we want all the items, even if the original
     // query options are excluding them.
     // this can happen when copying from the left hand pane of the bookmarks
     // organizer
-    // @return [node, shouldClose]
     function convertNode(cNode) {
       if (self.nodeIsFolder(cNode) && asQuery(cNode).queryOptions.excludeItems) {
-        let concreteId = self.getConcreteItemId(cNode);
-        return [self.getFolderContents(concreteId, false, true).root, true];
+        var concreteId = self.getConcreteItemId(cNode);
+        return self.getFolderContents(concreteId, false, true).root;
       }
-
-      // If we didn't create our own query, do not alter the node's open state.
-      return [cNode, false];
+      return cNode;
     }
 
     switch (aType) {
       case this.TYPE_X_MOZ_PLACE:
       case this.TYPE_X_MOZ_PLACE_SEPARATOR:
-      case this.TYPE_X_MOZ_PLACE_CONTAINER: {
-        let writer = {
+      case this.TYPE_X_MOZ_PLACE_CONTAINER:
+        var writer = {
           value: "",
           write: function PU_wrapNode__write(aStr, aLen) {
             this.value += aStr;
           }
         };
-
-        let [node, shouldClose] = convertNode(aNode);
+        var node = convertNode(aNode);
         self.serializeNodeAsJSONToOutputStream(node, writer, true, aForceCopy);
-        if (shouldClose)
+        // Convert node could pass an open container node.
+        if (self.nodeIsContainer(node))
           node.containerOpen = false;
-
         return writer.value;
-      }
-      case this.TYPE_X_MOZ_URL: {
+      case this.TYPE_X_MOZ_URL:
         function gatherDataUrl(bNode) {
           if (self.nodeIsLivemarkContainer(bNode)) {
-            let siteURI = self.livemarks.getSiteURI(bNode.itemId).spec;
+            var siteURI = self.livemarks.getSiteURI(bNode.itemId).spec;
             return siteURI + NEWLINE + bNode.title;
           }
           if (self.nodeIsURI(bNode))
@@ -485,15 +570,15 @@ var PlacesUtils = {
           // ignore containers and separators - items without valid URIs
           return "";
         }
-
-        let [node, shouldClose] = convertNode(aNode);
-        let dataUrl = gatherDataUrl(node);
-        if (shouldClose)
+        var node = convertNode(aNode);
+        var dataUrl = gatherDataUrl(node);
+        // Convert node could pass an open container node.
+        if (self.nodeIsContainer(node))
           node.containerOpen = false;
-
         return dataUrl;
-      }
-      case this.TYPE_HTML: {
+        
+
+      case this.TYPE_HTML:
         function gatherDataHtml(bNode) {
           function htmlEscape(s) {
             s = s.replace(/&/g, "&amp;");
@@ -504,20 +589,20 @@ var PlacesUtils = {
             return s;
           }
           // escape out potential HTML in the title
-          let escapedTitle = bNode.title ? htmlEscape(bNode.title) : "";
+          var escapedTitle = bNode.title ? htmlEscape(bNode.title) : "";
           if (self.nodeIsLivemarkContainer(bNode)) {
-            let siteURI = self.livemarks.getSiteURI(bNode.itemId).spec;
+            var siteURI = self.livemarks.getSiteURI(bNode.itemId).spec;
             return "<A HREF=\"" + siteURI + "\">" + escapedTitle + "</A>" + NEWLINE;
           }
           if (self.nodeIsContainer(bNode)) {
             asContainer(bNode);
-            let wasOpen = bNode.containerOpen;
+            var wasOpen = bNode.containerOpen;
             if (!wasOpen)
               bNode.containerOpen = true;
 
-            let childString = "<DL><DT>" + escapedTitle + "</DT>" + NEWLINE;
-            let cc = bNode.childCount;
-            for (let i = 0; i < cc; ++i)
+            var childString = "<DL><DT>" + escapedTitle + "</DT>" + NEWLINE;
+            var cc = bNode.childCount;
+            for (var i = 0; i < cc; ++i)
               childString += "<DD>"
                              + NEWLINE
                              + gatherDataHtml(bNode.getChild(i))
@@ -532,31 +617,28 @@ var PlacesUtils = {
             return "<HR>" + NEWLINE;
           return "";
         }
-
-        let [node, shouldClose] = convertNode(aNode);
-        let dataHtml = gatherDataHtml(node);
-        if (shouldClose)
+        var node = convertNode(aNode);
+        var dataHtml = gatherDataHtml(node);
+        // Convert node could pass an open container node.
+        if (self.nodeIsContainer(node))
           node.containerOpen = false;
-
         return dataHtml;
-      }
     }
-
-    // Otherwise, we wrap as TYPE_UNICODE.
+    // case this.TYPE_UNICODE:
     function gatherDataText(bNode) {
       if (self.nodeIsLivemarkContainer(bNode))
         return self.livemarks.getSiteURI(bNode.itemId).spec;
       if (self.nodeIsContainer(bNode)) {
         asContainer(bNode);
-        let wasOpen = bNode.containerOpen;
+        var wasOpen = bNode.containerOpen;
         if (!wasOpen)
           bNode.containerOpen = true;
 
-        let childString = bNode.title + NEWLINE;
-        let cc = bNode.childCount;
-        for (let i = 0; i < cc; ++i) {
-          let child = bNode.getChild(i);
-          let suffix = i < (cc - 1) ? NEWLINE : "";
+        var childString = bNode.title + NEWLINE;
+        var cc = bNode.childCount;
+        for (var i = 0; i < cc; ++i) {
+          var child = bNode.getChild(i);
+          var suffix = i < (cc - 1) ? NEWLINE : "";
           childString += gatherDataText(child) + suffix;
         }
         bNode.containerOpen = wasOpen;
@@ -569,12 +651,11 @@ var PlacesUtils = {
       return "";
     }
 
-    let [node, shouldClose] = convertNode(aNode);
-    let dataText = gatherDataText(node);
+    var node = convertNode(aNode);
+    var dataText = gatherDataText(node);
     // Convert node could pass an open container node.
-    if (shouldClose)
+    if (self.nodeIsContainer(node))
       node.containerOpen = false;
-
     return dataText;
   },
 
@@ -641,6 +722,7 @@ var PlacesUtils = {
         }
         break;
       default:
+        LOG("Cannot unwrap data of type " + type);
         throw Cr.NS_ERROR_INVALID_ARG;
     }
     return nodes;
@@ -1034,29 +1116,24 @@ var PlacesUtils = {
     if (!this.nodeIsContainer(aNode))
       return false;
 
-    let root = this.getContainerNodeWithOptions(aNode, false, true);
-    let result = root.parentResult;
-    let didSuppressNotifications = false;
-    let wasOpen = root.containerOpen;
+    var root = this.getContainerNodeWithOptions(aNode, false, true);
+    var oldViewer = root.parentResult.viewer;
+    var wasOpen = root.containerOpen;
     if (!wasOpen) {
-      didSuppressNotifications = result.suppressNotifications;
-      if (!didSuppressNotifications)
-        result.suppressNotifications = true;
-
+      root.parentResult.viewer = null;
       root.containerOpen = true;
     }
 
-    let found = false;
-    for (let i = 0; i < root.childCount && !found; i++) {
-      let child = root.getChild(i);
+    var found = false;
+    for (var i = 0; i < root.childCount && !found; i++) {
+      var child = root.getChild(i);
       if (this.nodeIsURI(child))
         found = true;
     }
 
     if (!wasOpen) {
       root.containerOpen = false;
-      if (!didSuppressNotifications)
-        result.suppressNotifications = false;
+      root.parentResult.viewer = oldViewer;
     }
     return found;
   },
@@ -1070,32 +1147,27 @@ var PlacesUtils = {
    * @returns array of uris in the first level of the container.
    */
   getURLsForContainerNode: function PU_getURLsForContainerNode(aNode) {
-    let urls = [];
+    var urls = [];
     if (!this.nodeIsContainer(aNode))
       return urls;
 
-    let root = this.getContainerNodeWithOptions(aNode, false, true);
-    let result = root.parentResult;
-    let wasOpen = root.containerOpen;
-    let didSuppressNotifications = false;
+    var root = this.getContainerNodeWithOptions(aNode, false, true);
+    var oldViewer = root.parentResult.viewer;
+    var wasOpen = root.containerOpen;
     if (!wasOpen) {
-      didSuppressNotifications = result.suppressNotifications;
-      if (!didSuppressNotifications)
-        result.suppressNotifications = true;
-
+      root.parentResult.viewer = null;
       root.containerOpen = true;
     }
 
-    for (let i = 0; i < root.childCount; ++i) {
-      let child = root.getChild(i);
+   for (var i = 0; i < root.childCount; ++i) {
+      var child = root.getChild(i);
       if (this.nodeIsURI(child))
         urls.push({uri: child.uri, isBookmark: this.nodeIsBookmark(child)});
     }
 
     if (!wasOpen) {
       root.containerOpen = false;
-      if (!didSuppressNotifications)
-        result.suppressNotifications = false;
+      root.parentResult.viewer = oldViewer;
     }
     return urls;
   },
@@ -1418,7 +1490,9 @@ var PlacesUtils = {
             }
             return true;
           });
-        } catch(ex) {}
+        } catch(ex) {
+          LOG(ex);
+        }
         if (annos.length != 0)
           aJSNode.annos = annos;
       }
@@ -1603,9 +1677,9 @@ var PlacesUtils = {
   restoreBookmarksFromJSONFile:
   function PU_restoreBookmarksFromJSONFile(aFile) {
     let failed = false;
-    Services.obs.notifyObservers(null,
-                                 RESTORE_BEGIN_NSIOBSERVER_TOPIC,
-                                 RESTORE_NSIOBSERVER_DATA);
+    this.observerSvc.notifyObservers(null,
+                                     RESTORE_BEGIN_NSIOBSERVER_TOPIC,
+                                     RESTORE_NSIOBSERVER_DATA);
 
     try {
       // open file stream
@@ -1631,17 +1705,17 @@ var PlacesUtils = {
     }
     catch (exc) {
       failed = true;
-      Services.obs.notifyObservers(null,
-                                   RESTORE_FAILED_NSIOBSERVER_TOPIC,
-                                   RESTORE_NSIOBSERVER_DATA);
+      this.observerSvc.notifyObservers(null,
+                                       RESTORE_FAILED_NSIOBSERVER_TOPIC,
+                                       RESTORE_NSIOBSERVER_DATA);
       Cu.reportError("Bookmarks JSON restore failed: " + exc);
       throw exc;
     }
     finally {
       if (!failed) {
-        Services.obs.notifyObservers(null,
-                                     RESTORE_SUCCESS_NSIOBSERVER_TOPIC,
-                                     RESTORE_NSIOBSERVER_DATA);
+        this.observerSvc.notifyObservers(null,
+                                         RESTORE_SUCCESS_NSIOBSERVER_TOPIC,
+                                         RESTORE_NSIOBSERVER_DATA);
       }
     }
   },
@@ -1684,7 +1758,9 @@ var PlacesUtils = {
     },
 
     get folder() {
-      let bookmarksBackupDir = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+      let dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                   getService(Ci.nsIProperties);
+      let bookmarksBackupDir = dirSvc.get("ProfD", Ci.nsILocalFile);
       bookmarksBackupDir.append("bookmarkbackups");
       if (!bookmarksBackupDir.exists()) {
         bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
@@ -1933,46 +2009,3 @@ var PlacesUtils = {
     Cu.import("resource://gre/modules/PlacesDBUtils.jsm");
   }
 };
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "history",
-                                   "@mozilla.org/browser/nav-history-service;1",
-                                   "nsINavHistoryService");
-
-XPCOMUtils.defineLazyGetter(PlacesUtils, "bhistory", function() {
-  return PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-});
-
-XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory2", function() {
-  return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory2);
-});
-
-XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory3", function() {
-  return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory3);
-});
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "favicons",
-                                   "@mozilla.org/browser/favicon-service;1",
-                                   "nsIFaviconService");
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "bookmarks",
-                                   "@mozilla.org/browser/nav-bookmarks-service;1",
-                                   "nsINavBookmarksService");
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "annotations",
-                                   "@mozilla.org/browser/annotation-service;1",
-                                   "nsIAnnotationService");
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "tagging",
-                                   "@mozilla.org/browser/tagging-service;1",
-                                   "nsITaggingService");
-
-XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "livemarks",
-                                   "@mozilla.org/browser/livemark-service;2",
-                                   "nsILivemarkService");
-
-XPCOMUtils.defineLazyGetter(PlacesUtils, "_bundle", function() {
-  const PLACES_STRING_BUNDLE_URI = "chrome://places/locale/places.properties";
-  return Cc["@mozilla.org/intl/stringbundle;1"].
-         getService(Ci.nsIStringBundleService).
-         createBundle(PLACES_STRING_BUNDLE_URI);
-});

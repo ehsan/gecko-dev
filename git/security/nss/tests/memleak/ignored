@@ -47,7 +47,6 @@
 
 #367376
 **/_PR_CreateThread/pthread_create@@GLIBC_2.1/**
-**/_PR_CreateThread/PR_Calloc/**
 
 #367384
 **/PR_LoadLibraryWithFlags/**

@@ -74,6 +74,7 @@
 
 #include "nsIScriptContext.h"
 
+#include "nsICSSLoader.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
 
@@ -207,12 +208,27 @@ public:
     nsXBLInsertionPointEntry::ReleasePool();
   }
 
-  NS_INLINE_DECL_REFCOUNTING(nsXBLInsertionPointEntry)
+  nsrefcnt AddRef() {
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsXBLInsertionPointEntry", sizeof(nsXBLInsertionPointEntry));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release() {
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsXBLInsertionPointEntry");
+    if (mRefCnt == 0) {
+      Destroy(this);
+      return 0;
+    }
+    return mRefCnt;
+  }
 
 protected:
   nsCOMPtr<nsIContent> mInsertionParent;
   nsCOMPtr<nsIContent> mDefaultContent;
   PRUint32 mInsertionIndex;
+  nsAutoRefCnt mRefCnt;
 
   nsXBLInsertionPointEntry(nsIContent* aParent)
     : mInsertionParent(aParent),

@@ -173,7 +173,7 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsval idval, uintN argc,
 
     JSObject *funobj = JS_GetFunctionObject(fun);
 
-    JSAutoTempValueRooter tvr(cx, OBJECT_TO_JSVAL(funobj));
+    js::AutoValueRooter tvr(cx, OBJECT_TO_JSVAL(funobj));
 
     // Unfortunately, we cannot guarantee that JSPropertyOp is aligned. Use a
     // second object to work around this.
@@ -198,7 +198,7 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsval idval, jsid interned_id,
 {
     // Generate both getter and setter and stash them in the prototype.
     jsval roots[2] = { JSVAL_NULL, JSVAL_NULL };
-    JSAutoTempValueRooter tvr(cx, 2, roots);
+    js::AutoArrayRooter tvr(cx, 2, roots);
 
     uintN attrs = JSPROP_SHARED;
     JSObject *getterobj;
@@ -295,8 +295,7 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     if(!name ||
        !IS_PROTO_CLASS(STOBJ_GET_CLASS(desc.obj)) ||
        (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
-       !(desc.getter || desc.setter) ||
-       desc.setter == STOBJ_GET_CLASS(desc.obj)->setProperty)
+       !(desc.getter || desc.setter))
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;

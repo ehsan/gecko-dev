@@ -43,7 +43,6 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsRegion.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -66,12 +65,6 @@ class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
-
-namespace mozilla {
-namespace layers {
-class LayerManager;
-}
-}
 
 /**
  * Callback function that processes events.
@@ -110,8 +103,9 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0xf286438a, 0x6ec6, 0x4766, \
-  { 0xa4, 0x76, 0x4a, 0x44, 0x80, 0x95, 0xd3, 0x1f } }
+{ 0x6bdb96ba, 0x1727, 0x40ae, \
+  { 0x85, 0x55, 0x9c, 0x53, 0x4b, 0x95, 0x23, 0x98 } }
+
 /*
  * Window shadow styles
  * Also used for the -moz-window-shadow CSS property
@@ -186,7 +180,6 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 class nsIWidget : public nsISupports {
 
   public:
-    typedef mozilla::layers::LayerManager LayerManager;
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -590,16 +583,6 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
-     * Updates a region of the window that might not have opaque content drawn. Widgets should
-     * assume that the initial possibly transparent region is empty.
-     *
-     * @param aDirtyRegion the region of the window that aMaybeTransparentRegion pertains to
-     * @param aPossiblyTransparentRegion the region of the window that is possibly transparent
-     */
-    virtual void UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
-                                                 const nsIntRegion &aPossiblyTransparentRegion) {};
-
-    /**
      * This represents a command to set the bounds and clip region of
      * a child widget.
      */
@@ -685,14 +668,6 @@ class nsIWidget : public nsISupports {
     virtual nsIToolkit* GetToolkit() = 0;    
 
     /**
-     * Return the widget's LayerManager. The layer tree for that
-     * LayerManager is what gets rendered to the widget.
-     * The layer manager is guaranteed to be the same for the lifetime
-     * of the widget.
-     */
-    virtual LayerManager* GetLayerManager() = 0;
-
-    /**
      * Scroll a set of rectangles in this widget and (as simultaneously as
      * possible) modify the specified child widgets.
      * 
@@ -726,6 +701,7 @@ class nsIWidget : public nsISupports {
     virtual void RemoveChild(nsIWidget* aChild) = 0;
     virtual void* GetNativeData(PRUint32 aDataType) = 0;
     virtual void FreeNativeData(void * data, PRUint32 aDataType) = 0;//~~~
+    virtual nsIRenderingContext* GetRenderingContext() = 0;
 
     // GetDeviceContext returns a weak pointer to this widget's device context
     virtual nsIDeviceContext* GetDeviceContext() = 0;
@@ -1061,11 +1037,6 @@ class nsIWidget : public nsISupports {
      * Destruct and don't commit the IME composition string.
      */
     NS_IMETHOD CancelIMEComposition() = 0;
-
-    /**
-     * Set accelerated rendering to 'True' or 'False'
-     */
-    NS_IMETHOD SetAcceleratedRendering(PRBool aEnabled) = 0;
 
     /*
      * Get toggled key states.

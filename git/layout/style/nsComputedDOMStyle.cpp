@@ -132,8 +132,7 @@ GetContainingBlockFor(nsIFrame* aFrame) {
 
 nsComputedDOMStyle::nsComputedDOMStyle()
   : mDocumentWeak(nsnull), mOuterFrame(nsnull),
-    mInnerFrame(nsnull), mPresShell(nsnull), mAppUnitsPerInch(0),
-    mExposeVisitedStyle(PR_FALSE)
+    mInnerFrame(nsnull), mPresShell(nsnull), mAppUnitsPerInch(0)
 {
 }
 
@@ -173,7 +172,7 @@ NS_INTERFACE_TABLE_HEAD(nsComputedDOMStyle)
                                     new CSS2PropertiesTearoff(this))
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties,
                                     new CSS2PropertiesTearoff(this))
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ComputedCSSStyleDeclaration)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ComputedCSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
 
@@ -499,19 +498,6 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
     NS_ENSURE_TRUE(mStyleContextHolder, NS_ERROR_OUT_OF_MEMORY);
     NS_ASSERTION(mPseudo || !mStyleContextHolder->HasPseudoElementData(),
                  "should not have pseudo-element data");
-  }
-
-  // mExposeVisitedStyle is set to true only by testing APIs that
-  // require UniversalXPConnect.
-  NS_ABORT_IF_FALSE(!mExposeVisitedStyle ||
-                    nsContentUtils::IsCallerTrustedForCapability(
-                                      "UniversalXPConnect"),
-                    "mExposeVisitedStyle set incorrectly");
-  if (mExposeVisitedStyle && mStyleContextHolder->RelevantLinkVisited()) {
-    nsStyleContext *styleIfVisited = mStyleContextHolder->GetStyleIfVisited();
-    if (styleIfVisited) {
-      mStyleContextHolder = styleIfVisited;
-    }
   }
 
   // Call our pointer-to-member-function.
@@ -3089,19 +3075,6 @@ nsComputedDOMStyle::GetOverflowY(nsIDOMCSSValue** aValue)
 }
 
 nsresult
-nsComputedDOMStyle::GetResize(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mResize,
-                                               nsCSSProps::kResizeKTable));
-
-  return CallQueryInterface(val, aValue);
-}
-
-
-nsresult
 nsComputedDOMStyle::GetPageBreakAfter(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
@@ -4321,9 +4294,10 @@ nsComputedDOMStyle::GetTransitionProperty(nsIDOMCSSValue** aValue)
       property->SetIdent(eCSSKeyword_none);
     else if (cssprop == eCSSProperty_UNKNOWN)
     {
+      const char *str;
+      transition->GetUnknownProperty()->GetUTF8String(&str);
       nsAutoString escaped;
-      nsStyleUtil::AppendEscapedCSSIdent(
-        nsDependentAtomString(transition->GetUnknownProperty()), escaped);
+      nsStyleUtil::AppendEscapedCSSIdent(NS_ConvertUTF8toUTF16(str), escaped);
       property->SetString(escaped); // really want SetIdent
     }
     else
@@ -4559,7 +4533,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_bottomRight,OutlineRadiusBottomRight),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topLeft,    OutlineRadiusTopLeft),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topRight,   OutlineRadiusTopRight),
-    COMPUTED_STYLE_MAP_ENTRY(resize,                        Resize),
     COMPUTED_STYLE_MAP_ENTRY(stack_sizing,                  StackSizing),
     COMPUTED_STYLE_MAP_ENTRY(_moz_tab_size,                 MozTabSize),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_transform,         MozTransform),

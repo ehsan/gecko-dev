@@ -651,9 +651,9 @@ interface nsIXPConnect : nsISupports
                                  in JSObjectPtr  aNewParent,
                                  in nsISupports  aCOMObj);
     void
-    moveWrappers(in JSContextPtr aJSContext,
-                 in JSObjectPtr  aOldScope,
-                 in JSObjectPtr  aNewScope);
+    reparentScopeAwareWrappers(in JSContextPtr aJSContext,
+                               in JSObjectPtr  aOldScope,
+                               in JSObjectPtr  aNewScope);
 
     void clearAllWrappedNativeSecurityPolicies();
 

@@ -67,8 +67,6 @@
 #undef NOISY_VERTICAL_ALIGN
 #endif
 
-using namespace mozilla;
-
 // Prefs-driven control for |text-decoration: blink|
 static PRPackedBool sPrefIsLoaded = PR_FALSE;
 static PRPackedBool sBlinkIsAllowed = PR_TRUE;
@@ -309,13 +307,14 @@ void nsHTMLReflowState::InitCBReflowState()
 
   if (parentReflowState->frame->IsContainingBlock() ||
       // Absolutely positioned frames should always be kids of the frames that
-      // determine their containing block....
+      // determine their containing block
       (NS_FRAME_GET_TYPE(mFrameType) == NS_CSS_FRAME_TYPE_ABSOLUTE)) {
-    // an absolutely positioned inner table needs to use the parent of
-    // the outer table.  So the above comment about absolutely
-    // positioned frames is sort of a lie.
+    // a block inside a table cell needs to use the table cell, and an
+    // absolutely positioned inner table needs to use the parent of the outer
+    // table.
     if (parentReflowState->parentReflowState &&
-        frame->GetType() == nsGkAtoms::tableFrame) {
+        (IS_TABLE_CELL(parentReflowState->parentReflowState->frame->GetType()) ||
+         frame->GetType() == nsGkAtoms::tableFrame)) {
       mCBReflowState = parentReflowState->parentReflowState;
     } else {
       mCBReflowState = parentReflowState;
@@ -377,8 +376,6 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
   } else if (mCBReflowState && !frame->IsContainingBlock()) {
     // XXX Is this problematic for relatively positioned inlines acting
     // as containing block for absolutely positioned elements?
-    // Possibly; in that case we should at least be checking
-    // NS_SUBTREE_DIRTY, I'd think.
     mFlags.mVResize = mCBReflowState->mFlags.mVResize;
   } else if (mComputedHeight == NS_AUTOHEIGHT) {
     if (eCompatibility_NavQuirks == aPresContext->CompatibilityMode() &&
@@ -590,6 +587,14 @@ nsHTMLReflowState::InitFrameType()
   mFrameType = frameType;
 }
 
+static void
+nsPointDtor(void *aFrame, nsIAtom *aPropertyName,
+            void *aPropertyValue, void *aDtorData)
+{
+  nsPoint *point = static_cast<nsPoint*>(aPropertyValue);
+  delete point;
+}
+
 void
 nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
                                           nscoord aContainingBlockWidth,
@@ -699,25 +704,24 @@ nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
   }
 
   // Store the offset
-  FrameProperties props(aPresContext->PropertyTable(), frame);
+  nsPropertyTable* propTable = aPresContext->PropertyTable();
   nsPoint* offsets = static_cast<nsPoint*>
-    (props.Get(nsIFrame::ComputedOffsetProperty()));
-  if (offsets) {
+                                (propTable->GetProperty(frame, nsGkAtoms::computedOffsetProperty));
+  if (offsets)
     offsets->MoveTo(mComputedOffsets.left, mComputedOffsets.top);
-  } else {
-    props.Set(nsIFrame::ComputedOffsetProperty(),
-              new nsPoint(mComputedOffsets.left, mComputedOffsets.top));
+  else {
+    offsets = new nsPoint(mComputedOffsets.left, mComputedOffsets.top);
+    if (offsets)
+      propTable->SetProperty(frame, nsGkAtoms::computedOffsetProperty,
+                              offsets, nsPointDtor, nsnull);
   }
 }
 
-static nsIFrame*
-GetNearestContainingBlock(nsIFrame *aFrame)
+inline PRBool
+IsAnonBlockPseudo(nsIAtom *aPseudo)
 {
-  nsIFrame *cb = aFrame;
-  do {
-    cb = cb->GetParent();
-  } while (!cb->IsContainingBlock());
-  return cb;
+  return aPseudo == nsCSSAnonBoxes::mozAnonymousBlock ||
+         aPseudo == nsCSSAnonBoxes::mozAnonymousPositionedBlock;
 }
 
 nsIFrame*
@@ -725,7 +729,13 @@ nsHTMLReflowState::GetHypotheticalBoxContainer(nsIFrame* aFrame,
                                                nscoord& aCBLeftEdge,
                                                nscoord& aCBWidth)
 {
-  aFrame = GetNearestContainingBlock(aFrame);
+  do {
+    aFrame = aFrame->GetParent();
+    NS_ASSERTION(aFrame, "Must find containing block somewhere");
+  } while (!(aFrame->IsContainingBlock() ||
+             (aFrame->IsFrameOfType(nsIFrame::eBlockFrame) &&
+              IsAnonBlockPseudo(aFrame->GetStyleContext()->GetPseudo()))));
+
   NS_ASSERTION(aFrame != frame, "How did that happen?");
 
   /* Now aFrame is the containing block we want */
@@ -757,6 +767,16 @@ nsHTMLReflowState::GetHypotheticalBoxContainer(nsIFrame* aFrame,
   }
 
   return aFrame;
+}
+
+static nsIFrame*
+GetNearestContainingBlock(nsIFrame *aFrame)
+{
+  nsIFrame *cb = aFrame;
+  do {
+    cb = cb->GetParent();
+  } while (!cb->IsContainingBlock());
+  return cb;
 }
 
 // When determining the hypothetical box that would have been if the element
@@ -962,19 +982,14 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
   const nsStyleVisibility* blockVis = aContainingBlock->GetStyleVisibility();
 
   // Get the placeholder x-offset and y-offset in the coordinate
-  // space of its containing block
+  // space of the block frame that contains it
   // XXXbz the placeholder is not fully reflowed yet if our containing block is
   // relatively positioned...
   nsPoint placeholderOffset = aPlaceholderFrame->GetOffsetTo(aContainingBlock);
 
-  // First, determine the hypothetical box's mTop.  We want to check the
-  // content insertion frame of aContainingBlock for block-ness, but make
-  // sure to compute all coordinates in the coordinate system of
-  // aContainingBlock.
-  nsBlockFrame* blockFrame =
-    nsLayoutUtils::GetAsBlock(aContainingBlock->GetContentInsertionFrame());
+  // First, determine the hypothetical box's mTop
+  nsBlockFrame* blockFrame = nsLayoutUtils::GetAsBlock(aContainingBlock);
   if (blockFrame) {
-    nscoord blockYOffset = blockFrame->GetOffsetTo(aContainingBlock).y;
     PRBool isValid;
     nsBlockInFlowLineIterator iter(blockFrame, aPlaceholderFrame, &isValid);
     NS_ASSERTION(isValid, "Can't find placeholder!");
@@ -986,7 +1001,7 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
     if (NS_STYLE_DISPLAY_INLINE == mStyleDisplay->mOriginalDisplay) {
       // Use the top of the inline box which the placeholder lives in as the
       // hypothetical box's top.
-      aHypotheticalBox.mTop = lineBox->mBounds.y + blockYOffset;
+      aHypotheticalBox.mTop = lineBox->mBounds.y;
     } else {
       // The element would have been block-level which means it would be below
       // the line containing the placeholder frame, unless all the frames
@@ -1011,14 +1026,14 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
           // The top of the hypothetical box is the top of the line containing
           // the placeholder, since there is nothing in the line before our
           // placeholder except empty frames.
-          aHypotheticalBox.mTop = lineBox->mBounds.y + blockYOffset;
+          aHypotheticalBox.mTop = lineBox->mBounds.y;
         } else {
           // The top of the hypothetical box is just below the line containing
           // the placeholder.
-          aHypotheticalBox.mTop = lineBox->mBounds.YMost() + blockYOffset;
+          aHypotheticalBox.mTop = lineBox->mBounds.YMost();
         }
       } else {
-        // Just use the placeholder's y-offset wrt the containing block
+        // Just use the placeholder's y-offset
         aHypotheticalBox.mTop = placeholderOffset.y;
       }
     }
@@ -1145,7 +1160,8 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
   // Get the placeholder frame
   nsIFrame*     placeholderFrame;
 
-  placeholderFrame = aPresContext->PresShell()->GetPlaceholderFrameFor(outOfFlow);
+  aPresContext->PresShell()->GetPlaceholderFrameFor(outOfFlow,
+                                                    &placeholderFrame);
   NS_ASSERTION(nsnull != placeholderFrame, "no placeholder frame");
 
   // If both 'left' and 'right' are 'auto' or both 'top' and 'bottom' are
@@ -1642,12 +1658,6 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                                    const nsMargin* aBorder,
                                    const nsMargin* aPadding)
 {
-  // Since we are in reflow, we don't need to store these properties anymore
-  FrameProperties props(aPresContext->PropertyTable(), frame);
-  props.Delete(nsIFrame::UsedBorderProperty());
-  props.Delete(nsIFrame::UsedPaddingProperty());
-  props.Delete(nsIFrame::UsedMarginProperty());
-
   // If this is the root frame, then set the computed width and
   // height equal to the available space
   if (nsnull == parentReflowState) {
@@ -2141,6 +2151,16 @@ nsHTMLReflowState::CalcLineHeight(nsStyleContext* aStyleContext,
   return lineHeight;
 }
 
+/* static */
+void
+nsCSSOffsetState::DestroyMarginFunc(void*    aFrame,
+                                    nsIAtom* aPropertyName,
+                                    void*    aPropertyValue,
+                                    void*    aDtorData)
+{
+  delete static_cast<nsMargin*>(aPropertyValue);
+}
+
 void
 nsCSSOffsetState::ComputeMargin(nscoord aContainingBlockWidth)
 {
@@ -2183,8 +2203,9 @@ nsCSSOffsetState::ComputeMargin(nscoord aContainingBlockWidth)
     // ... but if we did that, we'd need to fix nsFrame::GetUsedMargin
     // to use it even when the margins are all zero (since sometimes
     // they get treated as auto)
-    frame->Properties().Set(nsIFrame::UsedMarginProperty(),
-                            new nsMargin(mComputedMargin));
+    frame->SetProperty(nsGkAtoms::usedMarginProperty,
+                       new nsMargin(mComputedMargin),
+                       DestroyMarginFunc);
   }
 }
 
@@ -2211,8 +2232,9 @@ nsCSSOffsetState::ComputePadding(nscoord aContainingBlockWidth)
       ComputeWidthDependentValue(aContainingBlockWidth,
                                  stylePadding->mPadding.GetBottom());
 
-    frame->Properties().Set(nsIFrame::UsedPaddingProperty(),
-                            new nsMargin(mComputedPadding));
+    frame->SetProperty(nsGkAtoms::usedPaddingProperty,
+                       new nsMargin(mComputedPadding),
+                       DestroyMarginFunc);
   }
   // a table row/col group, row/col doesn't have padding
   // XXXldb Neither do border-collapse tables.

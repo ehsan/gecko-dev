@@ -35,9 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#if !defined(nsHTMLMediaElement_h__)
-#define nsHTMLMediaElement_h__
-
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
@@ -46,8 +43,6 @@
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsILoadGroup.h"
-#include "nsIObserver.h"
-#include "ImageLayers.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -55,11 +50,8 @@
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
 
-class nsHTMLMediaElement : public nsGenericHTMLElement,
-                           public nsIObserver
+class nsHTMLMediaElement : public nsGenericHTMLElement
 {
-  typedef mozilla::layers::ImageContainer ImageContainer;
-
 public:
   nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLMediaElement();
@@ -76,8 +68,6 @@ public:
 
   // nsIDOMHTMLMediaElement
   NS_DECL_NSIDOMHTMLMEDIAELEMENT
-
-  NS_DECL_NSIOBSERVER
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -165,13 +155,11 @@ public:
   // (no data has arrived for a while).
   void DownloadStalled();
 
-  // Called by the media decoder and the video frame to get the
-  // ImageContainer containing the video data.
-  ImageContainer* GetImageContainer();
-
-  // Called by the video frame to get the print surface, if this is
-  // a static document and we're not actually playing video
-  gfxASurface* GetPrintSurface() { return mPrintSurface; }
+  // Draw the latest video data. See nsMediaDecoder for
+  // details.
+  void Paint(gfxContext* aContext,
+             gfxPattern::GraphicsFilter aFilter,
+             const gfxRect& aRect);
 
   // Dispatch events
   nsresult DispatchSimpleEvent(const nsAString& aName);
@@ -395,15 +383,13 @@ protected:
   void AddRemoveSelfReference();
 
   /**
-   * Called asynchronously to release a self-reference to this element.
+   * Alias for Release(), but using stdcall calling convention so on
+   * platforms where Release has a strange calling convention (Windows)
+   * we can still get a method pointer to this method.
    */
-  void DoRemoveSelfReference();
+  void DoRelease() { Release(); }
 
   nsRefPtr<nsMediaDecoder> mDecoder;
-
-  // A reference to the ImageContainer which contains the current frame
-  // of video to display.
-  nsRefPtr<ImageContainer> mImageContainer;
 
   // Holds a reference to the first channel we open to the media resource.
   // Once the decoder is created, control over the channel passes to the
@@ -535,11 +521,5 @@ protected:
   // events of its own accord.
   PRPackedBool mHasSelfReference;
 
-  // PR_TRUE if we've received a notification that the engine is shutting
-  // down.
-  PRPackedBool mShuttingDown;
-
   nsRefPtr<gfxASurface> mPrintSurface;
 };
-
-#endif

@@ -152,8 +152,6 @@ COMPONENT_LIBS += \
 	toolkitcomps \
 	pipboot \
 	pipnss \
-	mozfind \
-	appcomps \
 	$(NULL)
 
 ifdef BUILD_CTYPES
@@ -166,6 +164,14 @@ ifdef MOZ_PLUGINS
 DEFINES += -DMOZ_PLUGINS
 COMPONENT_LIBS += \
 	gkplugin \
+	$(NULL)
+endif
+
+ifdef MOZ_XPFE_COMPONENTS
+DEFINES += -DMOZ_XPFE_COMPONENTS
+COMPONENT_LIBS += \
+	mozfind \
+	appcomps \
 	$(NULL)
 endif
 
@@ -242,15 +248,21 @@ endif
 ifdef MOZ_RDF
 COMPONENT_LIBS += \
 	rdf \
+	$(NULL)
+ifdef MOZ_XPFE_COMPONENTS
+COMPONENT_LIBS += \
 	windowds \
 	intlapp \
 	$(NULL)
 endif
+endif
 
 ifeq (,$(filter qt beos os2 photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
+ifdef MOZ_XPFE_COMPONENTS
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
+endif
 endif
 endif
 
@@ -308,7 +320,7 @@ COMPONENT_LIBS += imgicon
 endif
 endif
 
-STATIC_LIBS += thebes layers
+STATIC_LIBS += thebes
 COMPONENT_LIBS += gkgfxthebes
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))

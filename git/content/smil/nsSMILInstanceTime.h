@@ -41,8 +41,6 @@
 #include "nsSMILTimeValue.h"
 #include "nsAutoPtr.h"
 
-class nsSMILInterval;
-class nsSMILTimeContainer;
 class nsSMILTimeValueSpec;
 
 //----------------------------------------------------------------------
@@ -85,24 +83,22 @@ public:
   };
 
   nsSMILInstanceTime(const nsSMILTimeValue& aTime,
-                     nsSMILInstanceTimeSource aSource = SOURCE_NONE,
-                     nsSMILTimeValueSpec* aCreator = nsnull,
-                     nsSMILInterval* aBaseInterval = nsnull);
-  ~nsSMILInstanceTime();
-  void Unlink();
-  void HandleChangedInterval(const nsSMILTimeContainer* aSrcContainer,
-                             PRBool aBeginObjectChanged,
-                             PRBool aEndObjectChanged);
-  void HandleDeletedInterval();
+                     const nsSMILInstanceTime* aDependentTime,
+                     nsSMILInstanceTimeSource aSource = SOURCE_NONE);
 
   const nsSMILTimeValue& Time() const { return mTime; }
-  const nsSMILTimeValueSpec* GetCreator() const { return mCreator; }
+
+  const nsSMILInstanceTime* GetDependentTime() const { return mDependentTime; }
+  void SetDependentTime(const nsSMILInstanceTime* aDependentTime);
 
   PRBool ClearOnReset() const { return !!(mFlags & kClearOnReset); }
   PRBool MayUpdate() const { return !!(mFlags & kMayUpdate); }
   PRBool FromDOM() const { return !!(mFlags & kFromDOM); }
 
-  void MarkNoLongerUpdating() { mFlags &= ~kMayUpdate; }
+  void MarkNoLongerUpdating()
+  {
+    mFlags &= ~kMayUpdate;
+  }
 
   void DependentUpdate(const nsSMILTimeValue& aNewTime)
   {
@@ -114,9 +110,9 @@ public:
   PRBool IsDependent(const nsSMILInstanceTime& aOther,
                      PRUint32 aRecursionDepth = 0) const;
 
-  PRBool SameTimeAndBase(const nsSMILInstanceTime& aOther) const
+  PRBool SameTimeAndDependency(const nsSMILInstanceTime& aOther) const
   {
-    return mTime == aOther.mTime && GetBaseTime() == aOther.GetBaseTime();
+    return mTime == aOther.mTime && mDependentTime == aOther.mDependentTime;
   }
 
   // Get and set a serial number which may be used by a containing class to
@@ -124,14 +120,44 @@ public:
   PRUint32 Serial() const { return mSerial; }
   void SetSerial(PRUint32 aIndex) { mSerial = aIndex; }
 
-  NS_INLINE_DECL_REFCOUNTING(nsSMILInstanceTime)
+  nsrefcnt AddRef()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ASSERT_OWNINGTHREAD(_class);
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime addref isn't thread-safe!");
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsSMILInstanceTime", sizeof(*this));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime release isn't thread-safe!");
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsSMILInstanceTime");
+    if (mRefCnt == 0) {
+      delete this;
+      return 0;
+    }
+    return mRefCnt;
+  }
 
 protected:
-  void SetBaseInterval(nsSMILInterval* aBaseInterval);
-  void BreakPotentialCycle(const nsSMILInstanceTime* aNewTail) const;
-  const nsSMILInstanceTime* GetBaseTime() const;
+  void BreakPotentialCycle(const nsSMILInstanceTime* aNewTail);
 
   nsSMILTimeValue mTime;
+
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
   // Internal flags used for represent behaviour of different instance times`
   enum {
@@ -153,18 +179,13 @@ protected:
     // DOM.
     kFromDOM = 4
   };
-  PRUint8       mFlags; // Combination of kClearOnReset, kMayUpdate, etc.
-  PRUint32      mSerial; // A serial number used by the containing class to
-                         // specify the sort order for instance times with the
-                         // same mTime.
-  PRPackedBool  mVisited;
-  PRPackedBool  mChainEnd;
+  PRUint8  mFlags; // Combination of kClearOnReset, kMayUpdate, etc.
+  PRUint32 mSerial; // A serial number used by the containing class to specify
+                    // the sort order for instance times with the same mTime.
 
-  nsSMILTimeValueSpec* mCreator; // The nsSMILTimeValueSpec object that created
-                                 // us. (currently only needed for syncbase
-                                 // instance times.)
-  nsSMILInterval* mBaseInterval; // Interval from which this time is derived
-                                 // (only used for syncbase instance times)
+  // The instance time upon which this instance time is based (if any). This is
+  // ONLY used for determining the compositing order of animations.
+  nsRefPtr<nsSMILInstanceTime> mDependentTime;
 };
 
 #endif // NS_SMILINSTANCETIME_H_

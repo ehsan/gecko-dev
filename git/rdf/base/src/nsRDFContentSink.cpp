@@ -186,9 +186,20 @@ public:
     static nsIRDFResource* kRDF_Seq;
     static nsIRDFResource* kRDF_nextVal;
 
-#define RDF_ATOM(name_, value_) static nsIAtom* name_;
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
+    static nsIAtom* kAboutAtom;
+    static nsIAtom* kIdAtom;
+    static nsIAtom* kNodeIdAtom;
+    static nsIAtom* kAboutEachAtom;
+    static nsIAtom* kResourceAtom;
+    static nsIAtom* kRDFAtom;
+    static nsIAtom* kDescriptionAtom;
+    static nsIAtom* kBagAtom;
+    static nsIAtom* kSeqAtom;
+    static nsIAtom* kAltAtom;
+    static nsIAtom* kLiAtom;
+    static nsIAtom* kXMLNSAtom;
+    static nsIAtom* kParseTypeAtom;
+
 
     typedef struct ContainerInfo {
         nsIRDFResource**  mType;
@@ -286,20 +297,35 @@ nsIRDFResource* RDFContentSinkImpl::kRDF_Bag;
 nsIRDFResource* RDFContentSinkImpl::kRDF_Seq;
 nsIRDFResource* RDFContentSinkImpl::kRDF_nextVal;
 
+nsIAtom* RDFContentSinkImpl::kAboutAtom;
+nsIAtom* RDFContentSinkImpl::kIdAtom;
+nsIAtom* RDFContentSinkImpl::kNodeIdAtom;
+nsIAtom* RDFContentSinkImpl::kAboutEachAtom;
+nsIAtom* RDFContentSinkImpl::kResourceAtom;
+nsIAtom* RDFContentSinkImpl::kRDFAtom;
+nsIAtom* RDFContentSinkImpl::kDescriptionAtom;
+nsIAtom* RDFContentSinkImpl::kBagAtom;
+nsIAtom* RDFContentSinkImpl::kSeqAtom;
+nsIAtom* RDFContentSinkImpl::kAltAtom;
+nsIAtom* RDFContentSinkImpl::kLiAtom;
+nsIAtom* RDFContentSinkImpl::kXMLNSAtom;
+nsIAtom* RDFContentSinkImpl::kParseTypeAtom;
+
 ////////////////////////////////////////////////////////////////////////
-
-#define RDF_ATOM(name_, value_) nsIAtom* RDFContentSinkImpl::name_;
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
-
-#define RDF_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
-
 static const nsStaticAtom rdf_atoms[] = {
-#define RDF_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &RDFContentSinkImpl::name_),
-#include "nsRDFContentSinkAtomList.h"
-#undef RDF_ATOM
+    { "about", &RDFContentSinkImpl::kAboutAtom },
+    { "ID", &RDFContentSinkImpl::kIdAtom },
+    { "nodeID", &RDFContentSinkImpl::kNodeIdAtom },
+    { "aboutEach", &RDFContentSinkImpl::kAboutEachAtom },
+    { "resource", &RDFContentSinkImpl::kResourceAtom },
+    { "RDF", &RDFContentSinkImpl::kRDFAtom },
+    { "Description", &RDFContentSinkImpl::kDescriptionAtom },
+    { "Bag", &RDFContentSinkImpl::kBagAtom },
+    { "Seq", &RDFContentSinkImpl::kSeqAtom },
+    { "Alt", &RDFContentSinkImpl::kAltAtom },
+    { "li", &RDFContentSinkImpl::kLiAtom },
+    { "xmlns", &RDFContentSinkImpl::kXMLNSAtom },
+    { "parseType", &RDFContentSinkImpl::kParseTypeAtom },
 };
 
 RDFContentSinkImpl::RDFContentSinkImpl()
@@ -1026,8 +1052,11 @@ RDFContentSinkImpl::AddProperties(const PRUnichar** aAttributes,
           }
       }
 
+      const char* attrName;
+      localName->GetUTF8String(&attrName);
+
       NS_ConvertUTF16toUTF8 propertyStr(nameSpaceURI);    
-      propertyStr.Append(nsAtomCString(localName));
+      propertyStr.Append(attrName);
 
       // Add the assertion to RDF
       nsCOMPtr<nsIRDFResource> property;
@@ -1155,8 +1184,11 @@ RDFContentSinkImpl::OpenObject(const PRUnichar* aName,
     }
 
     if (isaTypedNode) {
+        const char* attrName;
+        localName->GetUTF8String(&attrName);
+
         NS_ConvertUTF16toUTF8 typeStr(nameSpaceURI);
-        typeStr.Append(nsAtomCString(localName));
+        typeStr.Append(attrName);
 
         nsCOMPtr<nsIRDFResource> type;
         nsresult rv = gRDFService->GetResource(typeStr, getter_AddRefs(type));
@@ -1184,8 +1216,11 @@ RDFContentSinkImpl::OpenProperty(const PRUnichar* aName, const PRUnichar** aAttr
     const nsDependentSubstring& nameSpaceURI =
         SplitExpatName(aName, getter_AddRefs(localName));
 
+    const char* attrName;
+    localName->GetUTF8String(&attrName);
+
     NS_ConvertUTF16toUTF8 propertyStr(nameSpaceURI);
-    propertyStr.Append(nsAtomCString(localName));
+    propertyStr.Append(attrName);
 
     nsCOMPtr<nsIRDFResource> property;
     rv = gRDFService->GetResource(propertyStr, getter_AddRefs(property));

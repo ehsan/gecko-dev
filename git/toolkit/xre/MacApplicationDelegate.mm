@@ -112,17 +112,10 @@ SetupMacApplicationDelegate()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if ((self = [super init])) {
-    NSAppleEventManager *aeMgr = [NSAppleEventManager sharedAppleEventManager];
-
-    [aeMgr setEventHandler:self
-               andSelector:@selector(handleAppleEvent:withReplyEvent:)
-             forEventClass:kInternetEventClass
-                andEventID:kAEGetURL];
-
-    [aeMgr setEventHandler:self
-               andSelector:@selector(handleAppleEvent:withReplyEvent:)
-             forEventClass:'WWW!'
-                andEventID:'OURL'];
+    [[NSAppleEventManager sharedAppleEventManager] setEventHandler:self
+                                                       andSelector:@selector(handleAppleEvent:withReplyEvent:)
+                                                     forEventClass:kInternetEventClass
+                                                        andEventID:kAEGetURL];
   }
   return self;
 
@@ -133,9 +126,7 @@ SetupMacApplicationDelegate()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NSAppleEventManager *aeMgr = [NSAppleEventManager sharedAppleEventManager];
-  [aeMgr removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
-  [aeMgr removeEventHandlerForEventClass:'WWW!' andEventID:'OURL'];
+  [[NSAppleEventManager sharedAppleEventManager] removeEventHandlerForEventClass:kInternetEventClass andEventID:kAEGetURL];
   [super dealloc];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -373,8 +364,7 @@ static NSWindow* GetCocoaWindowForXULWindow(nsISupports *aXULWindow)
   if (!event)
     return;
 
-  if (([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) ||
-      ([event eventClass] == 'WWW!' && [event eventID] == 'OURL')) {
+  if ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL) {
     NSString* urlString = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
 
     // don't open chrome URLs

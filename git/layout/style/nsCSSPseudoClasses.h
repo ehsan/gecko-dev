@@ -52,6 +52,7 @@ public:
 
   static void AddRefAtoms();
 
+  static PRBool IsPseudoClass(nsIAtom *aAtom);
   static PRBool HasStringArg(nsIAtom* aAtom);
   static PRBool HasNthPairArg(nsIAtom* aAtom);
 

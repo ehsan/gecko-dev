@@ -301,9 +301,7 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
 
   // If additive animation isn't required or isn't supported, set the value.
   if (!IsAdditive() || NS_FAILED(aResult.SandwichAdd(result))) {
-    aResult.Swap(result);
-    // Note: The old value of aResult is now in |result|, and it will get
-    // cleaned up when |result| goes out of scope, when this function returns.
+    aResult = result;
   }
 }
 
@@ -522,17 +520,6 @@ nsSMILAnimationFunction::ComputePacedPosition(const nsSMILValueArray& aValues,
                "aSimpleProgress is out of bounds");
   NS_ASSERTION(GetCalcMode() == CALC_PACED,
                "Calling paced-specific function, but not in paced mode");
-  NS_ABORT_IF_FALSE(aValues.Length() >= 2, "Unexpected number of values");
-
-  // Trivial case: If we have just 2 values, then there's only one interval
-  // for us to traverse, and our progress across that interval is the exact
-  // same as our overall progress.
-  if (aValues.Length() == 2) {
-    aIntervalProgress = aSimpleProgress;
-    aFrom = &aValues[0];
-    aTo = &aValues[1];
-    return NS_OK;
-  }
 
   double totalDistance = ComputePacedTotalDistance(aValues);
   if (totalDistance == COMPUTE_DISTANCE_ERROR)

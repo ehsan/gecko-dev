@@ -51,13 +51,6 @@ import sys
 import threading
 import tempfile
 
-SCRIPT_DIR = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
-sys.path.insert(0, SCRIPT_DIR)
-import automationutils
-
-_DEFAULT_WEB_SERVER = "127.0.0.1"
-_DEFAULT_HTTP_PORT = 8888
-_DEFAULT_SSL_PORT = 4443
 
 #expand _DIST_BIN = __XPC_BIN_PATH__
 #expand _IS_WIN32 = len("__WIN32__") != 0
@@ -77,22 +70,6 @@ _IS_CYGWIN = False
 #expand _IS_TEST_BUILD = __IS_TEST_BUILD__
 #expand _IS_DEBUG_BUILD = __IS_DEBUG_BUILD__
 #expand _CRASHREPORTER = __CRASHREPORTER__ == 1
-
-
-if _IS_WIN32:
-  import ctypes, ctypes.wintypes, time, msvcrt
-else:
-  import errno
-
-
-# We use the logging system here primarily because it'll handle multiple
-# threads, which is needed to process the output of the server and application
-# processes simultaneously.
-_log = logging.getLogger()
-handler = logging.StreamHandler(sys.stdout)
-_log.setLevel(logging.INFO)
-_log.addHandler(handler)
-
 
 #################
 # PROFILE SETUP #
@@ -146,19 +123,23 @@ class Automation(object):
   IS_DEBUG_BUILD = _IS_DEBUG_BUILD
   CRASHREPORTER = _CRASHREPORTER
 
+  SCRIPT_DIR = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
+  sys.path.insert(0, SCRIPT_DIR)
+  automationutils = __import__('automationutils')
+
   # timeout, in seconds
   DEFAULT_TIMEOUT = 60.0
-  DEFAULT_WEB_SERVER = _DEFAULT_WEB_SERVER
-  DEFAULT_HTTP_PORT = _DEFAULT_HTTP_PORT
-  DEFAULT_SSL_PORT = _DEFAULT_SSL_PORT
+
+  log = logging.getLogger()
 
   def __init__(self):
-    self.log = _log
 
-  def setServerInfo(self, webServer = _DEFAULT_WEB_SERVER, httpPort = _DEFAULT_HTTP_PORT, sslPort = _DEFAULT_SSL_PORT):
-    self.webServer = webServer
-    self.httpPort = httpPort
-    self.sslPort = sslPort
+    # We use the logging system here primarily because it'll handle multiple
+    # threads, which is needed to process the output of the server and application
+    # processes simultaneously.
+    handler = logging.StreamHandler(sys.stdout)
+    self.log.setLevel(logging.INFO)
+    self.log.addHandler(handler)
 
   @property
   def __all__(self):
@@ -185,28 +166,6 @@ class Automation(object):
     Represents our view of a subprocess.
     It adds a kill() method which allows it to be stopped explicitly.
     """
-
-    def __init__(self,
-                 args,
-                 bufsize=0,
-                 executable=None,
-                 stdin=None,
-                 stdout=None,
-                 stderr=None,
-                 preexec_fn=None,
-                 close_fds=False,
-                 shell=False,
-                 cwd=None,
-                 env=None,
-                 universal_newlines=False,
-                 startupinfo=None,
-                 creationflags=0):
-      subprocess.Popen.__init__(self, args, bufsize, executable,
-                                stdin, stdout, stderr,
-                                preexec_fn, close_fds,
-                                shell, cwd, env,
-                                universal_newlines, startupinfo, creationflags)
-      self.log = _log
 
     def kill(self):
       if Automation().IS_WIN32:
@@ -280,13 +239,15 @@ class Automation(object):
 
     return locations
 
-  def initializeProfile(self, profileDir, extraPrefs = [], useServerLocations = False):
-    " Sets up the standard testing profile."
 
-    prefs = []
+  def initializeProfile(self, profileDir, extraPrefs = []):
+    "Sets up the standard testing profile."
+
     # Start with a clean slate.
     shutil.rmtree(profileDir, True)
     os.mkdir(profileDir)
+
+    prefs = []
 
     part = """\
 user_pref("browser.dom.window.dump.enabled", true);
@@ -313,7 +274,7 @@ user_pref("network.http.prompt-temp-redirect", false);
 user_pref("media.cache_size", 100);
 user_pref("security.warn_viewing_mixed", false);
 
-user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+user_pref("geo.wifi.uri", "http://localhost:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 user_pref("geo.wifi.testing", true);
 
 user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
@@ -321,30 +282,20 @@ user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
 // Make url-classifier updates so rare that they won't affect tests
 user_pref("urlclassifier.updateinterval", 172800);
 // Point the url-classifier to the local testing server for fast failures
-user_pref("browser.safebrowsing.provider.0.gethashURL", "http://%(server)s/safebrowsing-dummy/gethash");
-user_pref("browser.safebrowsing.provider.0.keyURL", "http://%(server)s/safebrowsing-dummy/newkey");
-user_pref("browser.safebrowsing.provider.0.lookupURL", "http://%(server)s/safebrowsing-dummy/lookup");
-user_pref("browser.safebrowsing.provider.0.updateURL", "http://%(server)s/safebrowsing-dummy/update");
-""" % { "server" : self.webServer + ":" + str(self.httpPort) }
+user_pref("browser.safebrowsing.provider.0.gethashURL", "http://localhost:8888/safebrowsing-dummy/gethash");
+user_pref("browser.safebrowsing.provider.0.keyURL", "http://localhost:8888/safebrowsing-dummy/newkey");
+user_pref("browser.safebrowsing.provider.0.lookupURL", "http://localhost:8888/safebrowsing-dummy/lookup");
+user_pref("browser.safebrowsing.provider.0.updateURL", "http://localhost:8888/safebrowsing-dummy/update");
+"""
+  
     prefs.append(part)
 
-    if useServerLocations == False:
-      part = """
-user_pref("capability.principal.codebase.p1.granted",
-          "UniversalXPConnect UniversalBrowserRead UniversalBrowserWrite \
-           UniversalPreferencesRead UniversalPreferencesWrite \
-           UniversalFileRead");
-user_pref("capability.principal.codebase.p1.id", "%(origin)s");
-user_pref("capability.principal.codebase.p1.subjectName", "");
-"""  % { "origin": "http://" + self.webServer + ":" + str(self.httpPort) }
-      prefs.append(part)
-    else:
-      locations = self.readLocations()
+    locations = self.readLocations()
 
-      # Grant God-power to all the privileged servers on which tests run.
-      privileged = filter(lambda loc: "privileged" in loc.options, locations)
-      for (i, l) in itertools.izip(itertools.count(1), privileged):
-        part = """
+    # Grant God-power to all the privileged servers on which tests run.
+    privileged = filter(lambda loc: "privileged" in loc.options, locations)
+    for (i, l) in itertools.izip(itertools.count(1), privileged):
+      part = """
 user_pref("capability.principal.codebase.p%(i)d.granted",
           "UniversalXPConnect UniversalBrowserRead UniversalBrowserWrite \
            UniversalPreferencesRead UniversalPreferencesWrite \
@@ -352,15 +303,15 @@ user_pref("capability.principal.codebase.p%(i)d.granted",
 user_pref("capability.principal.codebase.p%(i)d.id", "%(origin)s");
 user_pref("capability.principal.codebase.p%(i)d.subjectName", "");
 """  % { "i": i,
-         "origin": (l.scheme + "://" + l.host + ":" + str(l.port)) }
-        prefs.append(part)
+         "origin": (l.scheme + "://" + l.host + ":" + l.port) }
+      prefs.append(part)
 
-      # We need to proxy every server but the primary one.
-      origins = ["'%s://%s:%s'" % (l.scheme, l.host, l.port)
-                for l in filter(lambda l: "primary" not in l.options, locations)]
-      origins = ", ".join(origins)
+    # We need to proxy every server but the primary one.
+    origins = ["'%s://%s:%s'" % (l.scheme, l.host, l.port)
+              for l in filter(lambda l: "primary" not in l.options, locations)]
+    origins = ", ".join(origins)
 
-      pacURL = """data:text/plain,
+    pacURL = """data:text/plain,
 function FindProxyForURL(url, host)
 {
   var origins = [%(origins)s];
@@ -384,23 +335,20 @@ function FindProxyForURL(url, host)
   if (origins.indexOf(origin) < 0)
     return 'DIRECT';
   if (isHttp)
-    return 'PROXY %(remote)s:%(httpport)s';
+    return 'PROXY 127.0.0.1:8888';
   if (isHttps)
-    return 'PROXY %(remote)s:%(sslport)s';
+    return 'PROXY 127.0.0.1:4443';
   return 'DIRECT';
-}""" % { "origins": origins,
-         "remote":  self.webServer,
-         "httpport":self.httpPort,
-         "sslport": self.sslPort }
-      pacURL = "".join(pacURL.splitlines())
+}""" % { "origins": origins }
+    pacURL = "".join(pacURL.splitlines())
 
-      part += """
+    part = """
 user_pref("network.proxy.type", 2);
 user_pref("network.proxy.autoconfig_url", "%(pacURL)s");
 
 user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless to others
 """ % {"pacURL": pacURL}
-      prefs.append(part)
+    prefs.append(part)
 
     for v in extraPrefs:
       thispref = v.split("=")
@@ -437,8 +385,8 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
   
     sslTunnelConfig.write("httpproxy:1\n")
     sslTunnelConfig.write("certdbdir:%s\n" % certPath)
-    sslTunnelConfig.write("forward:127.0.0.1:%s\n" % self.httpPort)
-    sslTunnelConfig.write("listen:*:%s:pgo server certificate\n" % self.sslPort)
+    sslTunnelConfig.write("forward:127.0.0.1:8888\n")
+    sslTunnelConfig.write("listen:*:4443:pgo server certificate\n")
 
     # Configure automatic certificate and bind custom certificates, client authentication
     locations = self.readLocations()
@@ -451,14 +399,14 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           match = customCertRE.match(option)
           if match:
             customcert = match.group("nickname");
-            sslTunnelConfig.write("listen:%s:%s:%s:%s\n" %
-                      (loc.host, loc.port, self.sslPort, customcert))
+            sslTunnelConfig.write("listen:%s:%s:4443:%s\n" %
+                      (loc.host, loc.port, customcert))
 
           match = clientAuthRE.match(option)
           if match:
             clientauth = match.group("clientauth");
-            sslTunnelConfig.write("clientauth:%s:%s:%s:%s\n" %
-                      (loc.host, loc.port, self.sslPort, clientauth))
+            sslTunnelConfig.write("clientauth:%s:%s:4443:%s\n" %
+                      (loc.host, loc.port, clientauth))
 
     sslTunnelConfig.close()
 
@@ -496,7 +444,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     if env == None:
       env = dict(os.environ)
 
-    ldLibraryPath = os.path.abspath(os.path.join(SCRIPT_DIR, xrePath))
+    ldLibraryPath = os.path.abspath(os.path.join(self.SCRIPT_DIR, xrePath))
     if self.UNIXISH or self.IS_MAC:
       envVar = "LD_LIBRARY_PATH"
       if self.IS_MAC:
@@ -520,6 +468,10 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     return env
 
   if IS_WIN32:
+    ctypes = __import__('ctypes')
+    wintypes = __import__('ctypes.wintypes')
+    time = __import__('time')
+    msvcrt = __import__('msvcrt')
     PeekNamedPipe = ctypes.windll.kernel32.PeekNamedPipe
     GetLastError = ctypes.windll.kernel32.GetLastError
 
@@ -533,11 +485,11 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       if timeout is None:
         # shortcut to allow callers to pass in "None" for no timeout.
         return (f.readline(), False)
-      x = msvcrt.get_osfhandle(f.fileno())
-      l = ctypes.c_long()
-      done = time.time() + timeout
-      while time.time() < done:
-        if self.PeekNamedPipe(x, None, 0, None, ctypes.byref(l), None) == 0:
+      x = self.msvcrt.get_osfhandle(f.fileno())
+      l = self.ctypes.c_long()
+      done = self.time.time() + timeout
+      while self.time.time() < done:
+        if self.PeekNamedPipe(x, None, 0, None, self.ctypes.byref(l), None) == 0:
           err = self.GetLastError()
           if err == 38 or err == 109: # ERROR_HANDLE_EOF || ERROR_BROKEN_PIPE
             return ('', False)
@@ -547,18 +499,18 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           # we're assuming that the output is line-buffered,
           # which is not unreasonable
           return (f.readline(), False)
-        time.sleep(0.01)
+        self.time.sleep(0.01)
       return ('', True)
 
     def isPidAlive(self, pid):
       STILL_ACTIVE = 259
       PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-      pHandle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+      pHandle = self.ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
       if not pHandle:
         return False
       pExitCode = ctypes.wintypes.DWORD()
-      ctypes.windll.kernel32.GetExitCodeProcess(pHandle, self.ctypes.byref(pExitCode))
-      ctypes.windll.kernel32.CloseHandle(pHandle)
+      self.ctypes.windll.kernel32.GetExitCodeProcess(pHandle, self.ctypes.byref(pExitCode))
+      self.ctypes.windll.kernel32.CloseHandle(pHandle)
       if (pExitCode.value == STILL_ACTIVE):
         return True
       else:
@@ -566,13 +518,14 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
     def killPid(self, pid):
       PROCESS_TERMINATE = 0x0001
-      pHandle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, 0, pid)
+      pHandle = self.ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, 0, pid)
       if not pHandle:
         return
-      success = ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
-      ctypes.windll.kernel32.CloseHandle(pHandle)
+      success = self.ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
+      self.ctypes.windll.kernel32.CloseHandle(pHandle)
 
   else:
+    errno = __import__('errno')
 
     def readWithTimeout(self, f, timeout):
       """Try to read a line of output from the file object |f|. If no output
@@ -600,30 +553,31 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       except OSError, err:
         # Catch the errors we might expect from os.kill/os.waitpid, 
         # and re-raise any others
-        if err.errno == errno.ESRCH or err.errno == errno.ECHILD:
+        if err.errno == self.errno.ESRCH or err.errno == self.errno.ECHILD:
           return False
         raise
 
     def killPid(self, pid):
       os.kill(pid, signal.SIGKILL)
 
-  def killAndGetStack(self, proc, utilityPath, debuggerInfo):
-    """Kill the process, preferrably in a way that gets us a stack trace."""
-    if self.CRASHREPORTER and not debuggerInfo:
+  def triggerBreakpad(self, proc, utilityPath):
+    """Attempt to kill this process in a way that triggers Breakpad crash
+    reporting, if we know how for this platform. Otherwise just .kill() it."""
+    if self.CRASHREPORTER:
       if self.UNIXISH:
-        # ABRT will get picked up by Breakpad's signal handler
-        os.kill(proc.pid, signal.SIGABRT)
+        # SEGV will get picked up by Breakpad's signal handler
+        os.kill(proc.pid, signal.SIGSEGV)
         return
       elif self.IS_WIN32:
         # We should have a "crashinject" program in our utility path
         crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
         if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(proc.pid)]).wait() == 0:
           return
-      #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
+    #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
     self.log.info("Can't trigger Breakpad, just killing process")
     proc.kill()
 
-  def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo):
+  def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime):
     """ Look for timeout or crashes and return the status after the process terminates """
     stackFixerProcess = None
     stackFixerModule = None
@@ -656,10 +610,10 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           # Kill the application, but continue reading from stack fixer so as not to deadlock on stackFixerProcess.wait().
           hitMaxTime = True
           self.log.info("TEST-UNEXPECTED-FAIL | automation.py | application ran for longer than allowed maximum time of %d seconds", int(maxTime))
-          self.killAndGetStack(proc, utilityPath, debuggerInfo)
+          self.triggerBreakpad(proc, utilityPath)
       if didTimeout:
         self.log.info("TEST-UNEXPECTED-FAIL | automation.py | application timed out after %d seconds with no output", int(timeout))
-        self.killAndGetStack(proc, utilityPath, debuggerInfo)
+        self.triggerBreakpad(proc, utilityPath)
 
     status = proc.wait()
     if status != 0 and not didTimeout and not hitMaxTime:
@@ -767,11 +721,8 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     cmd, args = self.buildCommandLine(app, debuggerInfo, profileDir, testURL, extraArgs)
     startTime = datetime.now()
 
+    # Don't redirect stdout and stderr if an interactive debugger is attached
     if debuggerInfo and debuggerInfo["interactive"]:
-      # If an interactive debugger is attached, don't redirect output
-      # and don't use timeouts.
-      timeout = None
-      maxTime = None
       outputPipe = None
     else:
       outputPipe = subprocess.PIPE
@@ -783,12 +734,12 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
                  stderr = subprocess.STDOUT)
     self.log.info("INFO | automation.py | Application pid: %d", proc.pid)
 
-    status = self.waitForFinish(proc, utilityPath, timeout, maxTime, startTime, debuggerInfo)
+    status = self.waitForFinish(proc, utilityPath, timeout, maxTime, startTime)
     self.log.info("INFO | automation.py | Application ran for: %s", str(datetime.now() - startTime))
 
     # Do a final check for zombie child processes.
     self.checkForZombies(processLog)
-    automationutils.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath)
+    self.automationutils.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath)
 
     if os.path.exists(processLog):
       os.unlink(processLog)

@@ -46,8 +46,8 @@ void  nsSJISProber::Reset(void)
 {
   mCodingSM->Reset(); 
   mState = eDetecting;
-  mContextAnalyser.Reset(mIsPreferredLanguage);
-  mDistributionAnalyser.Reset(mIsPreferredLanguage);
+  mContextAnalyser.Reset();
+  mDistributionAnalyser.Reset();
 }
 
 nsProbingState nsSJISProber::HandleData(const char* aBuf, PRUint32 aLen)
@@ -90,8 +90,8 @@ nsProbingState nsSJISProber::HandleData(const char* aBuf, PRUint32 aLen)
 
 float nsSJISProber::GetConfidence(void)
 {
-  float contxtCf = mContextAnalyser.GetConfidence();
-  float distribCf = mDistributionAnalyser.GetConfidence();
+  float contxtCf = mContextAnalyser.GetConfidence(mIsPreferredLanguage);
+  float distribCf = mDistributionAnalyser.GetConfidence(mIsPreferredLanguage);
 
   return (contxtCf > distribCf ? contxtCf : distribCf);
 }

@@ -206,6 +206,7 @@ struct nsCSSCornerSizes {
     return PR_FALSE;
   }
 
+  void SetAllCornersTo(const nsCSSValue& aValue);
   void Reset();
 
   nsCSSValuePair mTopLeft;
@@ -371,7 +372,6 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mResize;
   nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;

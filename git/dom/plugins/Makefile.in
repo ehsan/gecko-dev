@@ -63,8 +63,6 @@ EXPORTS_mozilla/plugins = \
   NPEventOSX.h \
   NPEventWindows.h \
   NPEventX11.h \
-  PluginIdentifierChild.h \
-  PluginIdentifierParent.h \
   PluginInstanceChild.h \
   PluginInstanceParent.h \
   PluginMessageUtils.h \

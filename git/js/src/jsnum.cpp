@@ -675,8 +675,7 @@ jsdouble js_NaN;
 jsdouble js_PositiveInfinity;
 jsdouble js_NegativeInfinity;
 
-#if (defined __GNUC__ && defined __i386__) || \
-    (defined __SUNPRO_CC && defined __i386)
+#if (defined __GNUC__ && defined __i386__)
 
 /*
  * Set the exception mask to mask all exceptions and set the FPU precision
@@ -729,11 +728,6 @@ js_InitRuntimeNumberState(JSContext *cx)
     u.s.lo = 1;
     number_constants[NC_MIN_VALUE].dval = u.d;
 
-#ifndef HAVE_LOCALECONV
-    rt->thousandsSeparator = JS_strdup(cx, "'");
-    rt->decimalSeparator = JS_strdup(cx, ".");
-    rt->numGrouping = JS_strdup(cx, "\3\0");
-#else
     struct lconv *locale = localeconv();
     rt->thousandsSeparator =
         JS_strdup(cx, locale->thousands_sep ? locale->thousands_sep : "'");
@@ -741,7 +735,6 @@ js_InitRuntimeNumberState(JSContext *cx)
         JS_strdup(cx, locale->decimal_point ? locale->decimal_point : ".");
     rt->numGrouping =
         JS_strdup(cx, locale->grouping ? locale->grouping : "\3\0");
-#endif
 
     return rt->thousandsSeparator && rt->decimalSeparator && rt->numGrouping;
 }
@@ -996,11 +989,11 @@ js_ValueToNumber(JSContext *cx, jsval *vp)
          * vp roots obj so we cannot use it as an extra root for
          * obj->defaultValue result when calling the hook.
          */
-        JSAutoTempValueRooter tvr(cx, v);
-        if (!obj->defaultValue(cx, JSTYPE_NUMBER, tvr.addr()))
+        AutoValueRooter gcr(cx, v);
+        if (!obj->defaultValue(cx, JSTYPE_NUMBER, gcr.addr()))
             obj = NULL;
         else
-            v = *vp = tvr.value();
+            v = *vp = gcr.value();
         if (!obj) {
             *vp = JSVAL_NULL;
             return 0.0;

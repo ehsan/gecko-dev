@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Auto-fitter hinting routines for latin script (body).                */
 /*                                                                         */
-/*  Copyright 2003, 2004, 2005, 2006, 2007, 2008, 2009 by                  */
+/*  Copyright 2003, 2004, 2005, 2006, 2007 by                              */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -15,8 +15,6 @@
 /*                                                                         */
 /***************************************************************************/
 
-
-#include FT_ADVANCES_H
 
 #include "aflatin.h"
 #include "aflatin2.h"
@@ -156,7 +154,7 @@
 #define AF_LATIN_MAX_TEST_CHARACTERS  12
 
 
-  static const char af_latin2_blue_chars[AF_LATIN_MAX_BLUES][AF_LATIN_MAX_TEST_CHARACTERS+1] =
+  static const char* const  af_latin2_blue_chars[AF_LATIN_MAX_BLUES] =
   {
     "THEZOCQS",
     "HEZLOCUS",
@@ -338,7 +336,7 @@
          *  we couldn't find a single glyph to compute this blue zone,
          *  we will simply ignore it then
          */
-        AF_LOG(( "empty\n" ));
+        AF_LOG(( "empty!\n" ));
         continue;
       }
 
@@ -403,52 +401,6 @@
   }
 
 
-  FT_LOCAL_DEF( void )
-  af_latin2_metrics_check_digits( AF_LatinMetrics  metrics,
-                                  FT_Face          face )
-  {
-    FT_UInt   i;
-    FT_Bool   started = 0, same_width = 1;
-    FT_Fixed  advance, old_advance = 0;
-
-
-    /* check whether all ASCII digits have the same advance width; */
-    /* digit `0' is 0x30 in all supported charmaps                 */
-    for ( i = 0x30; i <= 0x39; i++ )
-    {
-      FT_UInt  glyph_index;
-
-
-      glyph_index = FT_Get_Char_Index( face, i );
-      if ( glyph_index == 0 )
-        continue;
-
-      if ( FT_Get_Advance( face, glyph_index,
-                           FT_LOAD_NO_SCALE         |
-                           FT_LOAD_NO_HINTING       |
-                           FT_LOAD_IGNORE_TRANSFORM,
-                           &advance ) )
-        continue;
-
-      if ( started )
-      {
-        if ( advance != old_advance )
-        {
-          same_width = 0;
-          break;
-        }
-      }
-      else
-      {
-        old_advance = advance;
-        started     = 1;
-      }
-    }
-
-    metrics->root.digits_have_same_width = same_width;
-  }
-
-
   FT_LOCAL_DEF( FT_Error )
   af_latin2_metrics_init( AF_LatinMetrics  metrics,
                          FT_Face          face )
@@ -482,7 +434,6 @@
       /* For now, compute the standard width and height from the `o'. */
       af_latin2_metrics_init_widths( metrics, face, 'o' );
       af_latin2_metrics_init_blues( metrics, face );
-      af_latin2_metrics_check_digits( metrics, face );
     }
 
     FT_Set_Charmap( face, oldmap );
@@ -993,9 +944,6 @@
           }
         }
     }
-#if 0
-    }
-#endif
 
     /* now, compute the `serif' segments */
     for ( seg1 = segments; seg1 < segment_limit; seg1++ )
@@ -1788,6 +1736,7 @@
     AF_AxisHints  axis       = &hints->axis[dim];
     AF_Edge       edges      = axis->edges;
     AF_Edge       edge_limit = edges + axis->num_edges;
+    FT_Int        n_edges;
     AF_Edge       edge;
     AF_Edge       anchor     = 0;
     FT_Int        has_serifs = 0;
@@ -2098,60 +2047,54 @@
     /* We don't handle horizontal edges since we can't easily assure that */
     /* the third (lowest) stem aligns with the base line; it might end up */
     /* one pixel higher or lower.                                         */
-
 #if 0
+    n_edges = edge_limit - edges;
+    if ( dim == AF_DIMENSION_HORZ && ( n_edges == 6 || n_edges == 12 ) )
     {
-      FT_Int  n_edges = edge_limit - edges;
+      AF_Edge  edge1, edge2, edge3;
+      FT_Pos   dist1, dist2, span, delta;
 
 
-      if ( dim == AF_DIMENSION_HORZ && ( n_edges == 6 || n_edges == 12 ) )
+      if ( n_edges == 6 )
       {
-        AF_Edge  edge1, edge2, edge3;
-        FT_Pos   dist1, dist2, span, delta;
+        edge1 = edges;
+        edge2 = edges + 2;
+        edge3 = edges + 4;
+      }
+      else
+      {
+        edge1 = edges + 1;
+        edge2 = edges + 5;
+        edge3 = edges + 9;
+      }
 
+      dist1 = edge2->opos - edge1->opos;
+      dist2 = edge3->opos - edge2->opos;
 
-        if ( n_edges == 6 )
+      span = dist1 - dist2;
+      if ( span < 0 )
+        span = -span;
+
+      if ( span < 8 )
+      {
+        delta = edge3->pos - ( 2 * edge2->pos - edge1->pos );
+        edge3->pos -= delta;
+        if ( edge3->link )
+          edge3->link->pos -= delta;
+
+        /* move the serifs along with the stem */
+        if ( n_edges == 12 )
         {
-          edge1 = edges;
-          edge2 = edges + 2;
-          edge3 = edges + 4;
-        }
-        else
-        {
-          edge1 = edges + 1;
-          edge2 = edges + 5;
-          edge3 = edges + 9;
+          ( edges + 8 )->pos -= delta;
+          ( edges + 11 )->pos -= delta;
         }
 
-        dist1 = edge2->opos - edge1->opos;
-        dist2 = edge3->opos - edge2->opos;
-
-        span = dist1 - dist2;
-        if ( span < 0 )
-          span = -span;
-
-        if ( span < 8 )
-        {
-          delta = edge3->pos - ( 2 * edge2->pos - edge1->pos );
-          edge3->pos -= delta;
-          if ( edge3->link )
-            edge3->link->pos -= delta;
-
-          /* move the serifs along with the stem */
-          if ( n_edges == 12 )
-          {
-            ( edges + 8 )->pos -= delta;
-            ( edges + 11 )->pos -= delta;
-          }
-
-          edge3->flags |= AF_EDGE_DONE;
-          if ( edge3->link )
-            edge3->link->flags |= AF_EDGE_DONE;
-        }
+        edge3->flags |= AF_EDGE_DONE;
+        if ( edge3->link )
+          edge3->link->flags |= AF_EDGE_DONE;
       }
     }
 #endif
-
     if ( has_serifs || !anchor )
     {
       /*
@@ -2207,10 +2150,7 @@
           if ( before >= edges && before < edge   &&
                after < edge_limit && after > edge )
           {
-            if ( after->opos == before->opos )
-              edge->pos = before->pos;
-            else
-              edge->pos = before->pos +
+            edge->pos = before->pos +
                           FT_MulDiv( edge->opos - before->opos,
                                      after->pos - before->pos,
                                      after->opos - before->opos );
@@ -2320,13 +2260,15 @@
 
   static const AF_Script_UniRangeRec  af_latin2_uniranges[] =
   {
-    AF_UNIRANGE_REC( 32UL,  127UL ),    /* XXX: TODO: Add new Unicode ranges here! */
-    AF_UNIRANGE_REC( 160UL, 255UL ),
-    AF_UNIRANGE_REC( 0UL,   0UL )
+    { 32,  127 },    /* XXX: TODO: Add new Unicode ranges here! */
+    { 160, 255 },
+    { 0,   0 }
   };
 
 
-  AF_DEFINE_SCRIPT_CLASS(af_latin2_script_class,
+  FT_CALLBACK_TABLE_DEF const AF_ScriptClassRec
+  af_latin2_script_class =
+  {
     AF_SCRIPT_LATIN2,
     af_latin2_uniranges,
 
@@ -2338,7 +2280,7 @@
 
     (AF_Script_InitHintsFunc)   af_latin2_hints_init,
     (AF_Script_ApplyHintsFunc)  af_latin2_hints_apply
-  )
+  };
 
 
 /* END */

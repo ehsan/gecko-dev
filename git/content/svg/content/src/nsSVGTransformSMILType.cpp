@@ -47,14 +47,17 @@ typedef nsTArray<nsSVGSMILTransform> TransformArray;
 //----------------------------------------------------------------------
 // nsISMILType implementation
 
-void
+nsresult
 nsSVGTransformSMILType::Init(nsSMILValue &aValue) const
 {
   NS_PRECONDITION(aValue.IsNull(), "Unexpected value type");
 
   TransformArray* transforms = new TransformArray(1);
+  NS_ENSURE_TRUE(transforms, NS_ERROR_OUT_OF_MEMORY);
   aValue.mU.mPtr = transforms;
   aValue.mType = this;
+
+  return NS_OK;
 }
 
 void

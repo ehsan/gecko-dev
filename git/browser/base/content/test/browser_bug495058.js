@@ -37,7 +37,8 @@ function next() {
         is(win.gBrowser.currentURI.spec, uri, uri + ": uri loaded in detached tab");
         is(win.document.activeElement, win.gBrowser.selectedBrowser, uri + ": browser is focused");
         is(win.gURLBar.value, "", uri + ": urlbar is empty");
-        ok(win.gURLBar.placeholder, uri + ": placeholder text is present");
+        ok(win.gURLBar.emptyText, uri + ": emptytext is present");
+        ok(win.gURLBar.hasAttribute("isempty"), uri + ": emptytext is displayed");
 
         win.close();
         if (uris.length)

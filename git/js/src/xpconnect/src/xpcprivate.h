@@ -50,14 +50,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
-#include "jsapi.h"
-#include "jsdhash.h"
-#include "jsprf.h"
-#include "prprf.h"
-#include "jsinterp.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsgc.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -82,6 +74,14 @@
 #include "nsIModule.h"
 #include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
+#include "jsapi.h"
+#include "jsdhash.h"
+#include "jsprf.h"
+#include "prprf.h"
+#include "jsinterp.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsgc.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
 #include "xpclog.h"
@@ -96,7 +96,6 @@
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
-#include "mozilla/AutoRestore.h"
 
 #include "nsThreadUtils.h"
 #include "nsIJSContextStack.h"
@@ -306,7 +305,7 @@ static inline void xpc_NotifyAll(XPCLock* lock)
 // Note that xpconnect only makes *one* monitor and *mostly* holds it locked
 // only through very small critical sections.
 
-class NS_STACK_CLASS XPCAutoLock : public nsAutoLockBase {
+class XPCAutoLock : public nsAutoLockBase {
 public:
 
     static XPCLock* NewLock(const char* name)
@@ -314,7 +313,7 @@ public:
     static void     DestroyLock(XPCLock* lock)
                         {nsAutoMonitor::DestroyMonitor(lock);}
 
-    XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoLock(XPCLock* lock)
 #ifdef DEBUG_jband
         : nsAutoLockBase(lock ? (void*) lock : (void*) this, eAutoMonitor),
 #else
@@ -322,7 +321,6 @@ public:
 #endif
           mLock(lock)
     {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
             PR_EnterMonitor(mLock);
     }
@@ -341,7 +339,6 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoLock object incorrectly.
@@ -361,13 +358,12 @@ private:
 
 /************************************************/
 
-class NS_STACK_CLASS XPCAutoUnlock : public nsAutoUnlockBase {
+class XPCAutoUnlock : public nsAutoUnlockBase {
 public:
-    XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoUnlock(XPCLock* lock)
         : nsAutoUnlockBase(lock),
           mLock(lock)
     {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
         {
 #ifdef DEBUG
@@ -386,7 +382,6 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoUnlock object incorrectly.
@@ -402,6 +397,34 @@ private:
         return nsnull;
     }
     static void operator delete(void* /*memory*/) {}
+};
+
+// A helper class to deal with temporary JS contexts. It destroys the context
+// when it goes out of scope.
+class XPCAutoJSContext
+{
+public:
+    XPCAutoJSContext(JSContext *aContext, PRBool aGCOnDestroy)
+        : mContext(aContext), mGCOnDestroy(aGCOnDestroy)
+    {
+    }
+
+    ~XPCAutoJSContext()
+    {
+        if(!mContext)
+            return;
+
+        if(mGCOnDestroy)
+            JS_DestroyContext(mContext);
+        else
+            JS_DestroyContextNoGC(mContext);
+    }
+
+    operator JSContext * () {return mContext;}
+
+private:
+    JSContext *mContext;
+    PRBool mGCOnDestroy;
 };
 
 /***************************************************************************
@@ -1366,24 +1389,6 @@ xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper);
 
 /***************************************************************************/
 
-namespace XPCWrapper {
-
-enum WrapperType {
-    UNKNOWN         = 0,
-    NONE            = 0,
-    XPCNW_IMPLICIT  = 1 << 0,
-    XPCNW_EXPLICIT  = 1 << 1,
-    XPCNW           = (XPCNW_IMPLICIT | XPCNW_EXPLICIT),
-    SJOW            = 1 << 2,
-    // SJOW must be the last wrapper type that can be returned to chrome.
-
-    XOW             = 1 << 3,
-    COW             = 1 << 4,
-    SOW             = 1 << 5
-};
-
-}
-
 /***************************************************************************/
 // XPCWrappedNativeScope is one-to-one with a JS global object.
 
@@ -1486,14 +1491,6 @@ public:
 
     JSBool
     IsValid() const {return mRuntime != nsnull;}
-
-    /**
-     * Figures out what type of wrapper to create for obj if it were injected
-     * into 'this's scope.
-     */
-    XPCWrapper::WrapperType
-    GetWrapperFor(JSContext *cx, JSObject *obj, XPCWrapper::WrapperType hint,
-                  XPCWrappedNative **wn);
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
@@ -3777,14 +3774,11 @@ private:
 /***************************************************************************/
 // XXX allowing for future notifications to XPCCallContext
 
-class NS_STACK_CLASS AutoJSRequest
+class AutoJSRequest
 {
 public:
-    AutoJSRequest(XPCCallContext& aCCX MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mCCX(aCCX), mCX(aCCX.GetJSContext()) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-        BeginRequest();
-    }
+    AutoJSRequest(XPCCallContext& aCCX)
+      : mCCX(aCCX), mCX(aCCX.GetJSContext()) {BeginRequest();}
     ~AutoJSRequest() {EndRequest();}
 
     void EndRequest() {
@@ -3803,18 +3797,13 @@ private:
 private:
     XPCCallContext& mCCX;
     JSContext* mCX;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS AutoJSSuspendRequest
+class AutoJSSuspendRequest
 {
 public:
-    AutoJSSuspendRequest(XPCCallContext& aCCX
-                         MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mCX(aCCX.GetJSContext()) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-        SuspendRequest();
-    }
+    AutoJSSuspendRequest(XPCCallContext& aCCX)
+      : mCX(aCCX.GetJSContext()) {SuspendRequest();}
     ~AutoJSSuspendRequest() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3833,18 +3822,13 @@ private:
 private:
     JSContext* mCX;
     jsrefcount mDepth;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS AutoJSSuspendRequestWithNoCallContext
+class AutoJSSuspendRequestWithNoCallContext
 {
 public:
-    AutoJSSuspendRequestWithNoCallContext(JSContext *aCX
-                                          MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mCX(aCX) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-        SuspendRequest();
-    }
+    AutoJSSuspendRequestWithNoCallContext(JSContext *aCX)
+      : mCX(aCX) {SuspendRequest();}
     ~AutoJSSuspendRequestWithNoCallContext() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3863,18 +3847,13 @@ private:
 private:
     JSContext* mCX;
     jsrefcount mDepth;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class NS_STACK_CLASS AutoJSSuspendNonMainThreadRequest
+class AutoJSSuspendNonMainThreadRequest
 {
 public:
-    AutoJSSuspendNonMainThreadRequest(JSContext *aCX
-                                      MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-        : mCX(aCX) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-        SuspendRequest();
-    }
+    AutoJSSuspendNonMainThreadRequest(JSContext *aCX)
+        : mCX(aCX) {SuspendRequest();}
     ~AutoJSSuspendNonMainThreadRequest() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3894,21 +3873,15 @@ private:
 
     JSContext *mCX;
     jsrefcount mDepth;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
         
 
 /*****************************************/
 
-class NS_STACK_CLASS AutoJSRequestWithNoCallContext
+class AutoJSRequestWithNoCallContext
 {
 public:
-    AutoJSRequestWithNoCallContext(JSContext* aCX
-                                   MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-        : mCX(aCX) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-        BeginRequest();
-    }
+    AutoJSRequestWithNoCallContext(JSContext* aCX) : mCX(aCX) {BeginRequest();}
     ~AutoJSRequestWithNoCallContext() {EndRequest();}
 
     void EndRequest() {
@@ -3926,20 +3899,16 @@ private:
     }
 private:
     JSContext* mCX;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/
-class NS_STACK_CLASS AutoJSErrorAndExceptionEater
+class AutoJSErrorAndExceptionEater
 {
 public:
-    AutoJSErrorAndExceptionEater(JSContext* aCX
-                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoJSErrorAndExceptionEater(JSContext* aCX)
         : mCX(aCX),
           mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
-          mOldExceptionState(JS_SaveExceptionState(mCX)) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    }
+          mOldExceptionState(JS_SaveExceptionState(mCX)) {}
     ~AutoJSErrorAndExceptionEater()
     {
         JS_SetErrorReporter(mCX, mOldErrorReporter);
@@ -3949,25 +3918,22 @@ private:
     JSContext*        mCX;
     JSErrorReporter   mOldErrorReporter;
     JSExceptionState* mOldExceptionState;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************
  * Handles pre/post script processing and the setting/resetting the error
  * reporter
  */
-class NS_STACK_CLASS AutoScriptEvaluate
+class AutoScriptEvaluate
 {
 public:
     /**
      * Saves the JSContext as well as initializing our state
      * @param cx The JSContext, this can be null, we don't do anything then
      */
-    AutoScriptEvaluate(JSContext * cx MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoScriptEvaluate(JSContext * cx)
          : mJSContext(cx), mState(0), mErrorReporterSet(PR_FALSE),
-           mEvaluated(PR_FALSE), mContextHasThread(0) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    }
+           mEvaluated(PR_FALSE), mContextHasThread(0) {}
 
     /**
      * Does the pre script evaluation and sets the error reporter if given
@@ -3987,7 +3953,6 @@ private:
     PRBool mErrorReporterSet;
     PRBool mEvaluated;
     jsword mContextHasThread;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
     AutoScriptEvaluate(const AutoScriptEvaluate &);
@@ -3995,16 +3960,13 @@ private:
 };
 
 /***************************************************************************/
-class NS_STACK_CLASS AutoResolveName
+class AutoResolveName
 {
 public:
-    AutoResolveName(XPCCallContext& ccx, jsval name
-                    MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoResolveName(XPCCallContext& ccx, jsval name)
         : mTLS(ccx.GetThreadData()),
           mOld(mTLS->SetResolveName(name)),
-          mCheck(name) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    }
+          mCheck(name) {}
     ~AutoResolveName()
         {
 #ifdef DEBUG
@@ -4018,7 +3980,6 @@ private:
     XPCPerThreadData* mTLS;
     jsval mOld;
     jsval mCheck;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/

@@ -388,14 +388,6 @@ public:
                                                nsIFrame* aFrame);
 
   /**
-   * Get the popup frame of a given native mouse event.
-   * @param aEvent  the event.
-   * @return        Null, if there is no popup frame at the point, otherwise,
-   *                returns top-most popup frame at the point.
-   */
-  static nsIFrame* GetPopupFrameForEventCoordinates(const nsEvent* aEvent);
-
-/**
    * Translate from widget coordinates to the view's coordinates
    * @param aPresContext the PresContext for the view
    * @param aWidget the widget
@@ -482,17 +474,10 @@ public:
    */
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
-  /**
-   * If aIn can be represented exactly using an nsIntRect (i.e.
-   * integer-aligned edges and coordinates in the PRInt32 range) then we
-   * set aOut to that rectangle, otherwise return failure.
-   */
-  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   enum {
     PAINT_IN_TRANSFORM = 0x01,
-    PAINT_SYNC_DECODE_IMAGES = 0x02,
-    PAINT_WIDGET_LAYERS = 0x04
+    PAINT_SYNC_DECODE_IMAGES = 0x02
   };
 
   /**
@@ -500,35 +485,14 @@ public:
    * descendants to aRenderingContext. 
    * @param aRenderingContext a rendering context translated so that (0,0)
    * is the origin of aFrame; for best results, (0,0) should transform
-   * to pixel-aligned coordinates. This can be null, in which case
-   * aFrame must be a "display root" (root frame for a root document,
-   * or the root of a popup) with an associated widget and we draw using
-   * the layer manager for the frame's widget.
+   * to pixel-aligned coordinates
    * @param aDirtyRegion the region that must be painted, in the coordinates
    * of aFrame
    * @param aBackstop paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
    * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
    * this is inside a transform or SVG foreignObject. If
-   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all
-   * images. If PAINT_WIDGET_LAYERS is set, aFrame must be a display root,
-   * and we will use the frame's widget's layer manager to paint
-   * even if aRenderingContext is non-null. This is useful if you want
-   * to force rendering to use the widget's layer manager for testing
-   * or speed. PAINT_WIDGET_LAYERS must be set if aRenderingContext is null.
-   * 
-   * So there are three possible behaviours:
-   * 1) PAINT_WIDGET_LAYERS is set and aRenderingContext is null; we paint
-   * by calling BeginTransaction on the widget's layer manager
-   * 2) PAINT_WIDGET_LAYERS is set and aRenderingContext is non-null; we
-   * paint by calling BeginTransactionWithTarget on the widget's layer
-   * maanger
-   * 3) PAINT_WIDGET_LAYERS is not set and aRenderingContext is non-null;
-   * we paint by construct a BasicLayerManager and calling
-   * BeginTransactionWithTarget on it. This is desirable if we're doing
-   * something like drawWindow in a mode where what gets rendered doesn't
-   * necessarily correspond to what's visible in the window; we don't
-   * want to mess up the widget's layer tree.
+   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all images.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
@@ -728,6 +692,20 @@ public:
    */
   static nsIFrame* GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                              nsIFrame* aFrame);
+
+  /**
+   * Find the closest common ancestor of aFrame1 and aFrame2, following
+   * out of flow frames to their placeholders instead of their parents. Returns
+   * nsnull if the frames are in different frame trees.
+   * 
+   * @param aKnownCommonAncestorHint a frame that is believed to be on the
+   * ancestor chain of both aFrame1 and aFrame2. If null, or a frame that is
+   * not in fact on both ancestor chains, then this function will still return
+   * the correct result, but it will be slower.
+   */
+  static nsIFrame*
+  GetClosestCommonAncestorViaPlaceholders(nsIFrame* aFrame1, nsIFrame* aFrame2,
+                                          nsIFrame* aKnownCommonAncestorHint);
 
   /**
    * Get a frame's next-in-flow, or, if it doesn't have one, its special sibling.
@@ -1081,13 +1059,19 @@ public:
   static PRBool IsReallyFixedPos(nsIFrame* aFrame);
 
   /**
+   * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
+   * disabled.
+   */
+  static PRBool sDisableGetUsedXAssertions;
+
+  /**
    * Return true if aFrame is in an {ib} split and is NOT one of the
    * continuations of the first inline in it.
    */
   static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        Properties().Get(nsIFrame::IBSplitSpecialPrevSibling());
+        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   }
 
   /**
@@ -1097,7 +1081,7 @@ public:
   static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
       aFrame->GetFirstContinuation()->
-        Properties().Get(nsIFrame::IBSplitSpecialSibling());
+        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   }
 
   /**
@@ -1141,6 +1125,23 @@ public:
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
                                                      PRUint32 aSurfaceFlags = 0);
+};
+
+class nsAutoDisableGetUsedXAssertions
+{
+public:
+  nsAutoDisableGetUsedXAssertions()
+    : mOldValue(nsLayoutUtils::sDisableGetUsedXAssertions)
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = PR_TRUE;
+  }
+  ~nsAutoDisableGetUsedXAssertions()
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = mOldValue;
+  }
+
+private:
+  PRBool mOldValue;
 };
 
 class nsSetAttrRunnable : public nsRunnable
