@@ -342,7 +342,7 @@ txStylesheetCompiler::startElementInternal(PRInt32 aNamespaceID,
         }
     }
 
-    rv = pushPtr(const_cast<txElementHandler*>(handler), eElementHandler);
+    rv = pushPtr(const_cast<txElementHandler*>(handler));
     NS_ENSURE_SUCCESS(rv, rv);
 
     mElementContext->mDepth++;
@@ -379,7 +379,7 @@ txStylesheetCompiler::endElement()
 
     const txElementHandler* handler =
         const_cast<const txElementHandler*>
-                  (static_cast<txElementHandler*>(popPtr(eElementHandler)));
+                  (static_cast<txElementHandler*>(popPtr()));
     rv = (handler->mEndFunction)(*this);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -636,7 +636,7 @@ txStylesheetCompilerState::~txStylesheetCompilerState()
 nsresult
 txStylesheetCompilerState::pushHandlerTable(txHandlerTable* aTable)
 {
-    nsresult rv = pushPtr(mHandlerTable, eHandlerTable);
+    nsresult rv = pushPtr(mHandlerTable);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mHandlerTable = aTable;
@@ -647,13 +647,13 @@ txStylesheetCompilerState::pushHandlerTable(txHandlerTable* aTable)
 void
 txStylesheetCompilerState::popHandlerTable()
 {
-    mHandlerTable = static_cast<txHandlerTable*>(popPtr(eHandlerTable));
+    mHandlerTable = static_cast<txHandlerTable*>(popPtr());
 }
 
 nsresult
 txStylesheetCompilerState::pushSorter(txPushNewContext* aSorter)
 {
-    nsresult rv = pushPtr(mSorter, ePushNewContext);
+    nsresult rv = pushPtr(mSorter);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mSorter = aSorter;
@@ -664,7 +664,7 @@ txStylesheetCompilerState::pushSorter(txPushNewContext* aSorter)
 void
 txStylesheetCompilerState::popSorter()
 {
-    mSorter = static_cast<txPushNewContext*>(popPtr(ePushNewContext));
+    mSorter = static_cast<txPushNewContext*>(popPtr());
 }
 
 nsresult
@@ -700,35 +700,21 @@ txStylesheetCompilerState::popObject()
 }
 
 nsresult
-txStylesheetCompilerState::pushPtr(void* aPtr, enumStackType aType)
+txStylesheetCompilerState::pushPtr(void* aPtr)
 {
 #ifdef TX_DEBUG_STACK
-    PR_LOG(txLog::xslt, PR_LOG_DEBUG, ("pushPtr: 0x%x type %u\n", aPtr, aType));
+    PR_LOG(txLog::xslt, PR_LOG_DEBUG, ("pushPtr: %d\n", aPtr));
 #endif
-    mTypeStack.AppendElement(aType);
     return mOtherStack.push(aPtr);
 }
 
 void*
-txStylesheetCompilerState::popPtr(enumStackType aType)
+txStylesheetCompilerState::popPtr()
 {
-    PRUint32 stacklen = mTypeStack.Length();
-    if (stacklen == 0) {
-        NS_RUNTIMEABORT("Attempt to pop when type stack is empty");
-    }
-
-    enumStackType type = mTypeStack.ElementAt(stacklen - 1);
-    mTypeStack.RemoveElementAt(stacklen - 1);
     void* value = mOtherStack.pop();
-    
 #ifdef TX_DEBUG_STACK
-    PR_LOG(txLog::xslt, PR_LOG_DEBUG, ("popPtr: 0x%x type %u requested %u\n", value, type, aType));
+    PR_LOG(txLog::xslt, PR_LOG_DEBUG, ("popPtr: %d\n", value));
 #endif
-    
-    if (type != aType) {
-        NS_RUNTIMEABORT("Expected type does not match top element type");
-    }
-
     return value;
 }
 
