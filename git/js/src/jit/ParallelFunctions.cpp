@@ -428,7 +428,7 @@ StrictlyEqualImplPar(ForkJoinContext *cx, MutableHandleValue lhs, MutableHandleV
             return LooselyEqualImplPar<Equal>(cx, lhs, rhs, res);
     }
 
-    *res = !Equal;
+    *res = false;
     return true;
 }
 

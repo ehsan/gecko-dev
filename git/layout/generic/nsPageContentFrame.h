@@ -16,8 +16,7 @@ class nsPageContentFrame : public ViewportFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsPageContentFrame* NS_NewPageContentFrame(nsIPresShell* aPresShell,
-                                                    nsStyleContext* aContext);
+  friend nsIFrame* NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   friend class nsPageFrame;
 
   // nsIFrame

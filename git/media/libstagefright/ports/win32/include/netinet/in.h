@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-#if defined(_M_IX86) || defined(_M_AMD64)
+#if defined(_M_IX86)
 
 static uint32_t
 ntohl(uint32_t x)

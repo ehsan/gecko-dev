@@ -53,9 +53,9 @@ NS_QUERYFRAME_HEAD(nsContainerFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSplittableFrame)
 
 void
-nsContainerFrame::Init(nsIContent*       aContent,
-                       nsContainerFrame* aParent,
-                       nsIFrame*         aPrevInFlow)
+nsContainerFrame::Init(nsIContent* aContent,
+                       nsIFrame*   aParent,
+                       nsIFrame*   aPrevInFlow)
 {
   nsSplittableFrame::Init(aContent, aParent, aPrevInFlow);
   if (aPrevInFlow) {
@@ -172,7 +172,8 @@ nsContainerFrame::RemoveFrame(ChildListID aListID,
     //      for overflow containers once we can split abspos elements with
     //      inline containing blocks.
     nsIFrame* oldFrameNextContinuation = aOldFrame->GetNextContinuation();
-    nsContainerFrame* parent = aOldFrame->GetParent();
+    nsContainerFrame* parent =
+      static_cast<nsContainerFrame*>(aOldFrame->GetParent());
     parent->StealFrame(aOldFrame, true);
     aOldFrame->Destroy();
     aOldFrame = oldFrameNextContinuation;
@@ -969,7 +970,8 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
       // the right parent to do the removal (it's possible that the
       // parent is not this because we are executing pullup code)
       nsOverflowContinuationTracker::AutoFinish fini(aTracker, aKidFrame);
-      kidNextInFlow->GetParent()->DeleteNextInFlowChild(kidNextInFlow, true);
+      static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
+        ->DeleteNextInFlowChild(kidNextInFlow, true);
     }
   }
 }
@@ -1171,7 +1173,8 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
         }
         else if (!(nif->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
           // used to be a normal next-in-flow; steal it from the child list
-          nsresult rv = nif->GetParent()->StealFrame(nif);
+          nsresult rv = static_cast<nsContainerFrame*>(nif->GetParent())
+                 ->StealFrame(nif);
           if (NS_FAILED(rv)) {
             return;
           }
@@ -1371,8 +1374,8 @@ nsContainerFrame::DeleteNextInFlowChild(nsIFrame* aNextInFlow,
     }
     for (int32_t i = frames.Length() - 1; i >= 0; --i) {
       nsIFrame* delFrame = frames.ElementAt(i);
-      delFrame->GetParent()->
-        DeleteNextInFlowChild(delFrame, aDeletingEmptyFrames);
+      static_cast<nsContainerFrame*>(delFrame->GetParent())
+        ->DeleteNextInFlowChild(delFrame, aDeletingEmptyFrames);
     }
   }
 
@@ -1660,7 +1663,8 @@ nsOverflowContinuationTracker::Insert(nsIFrame*       aOverflowCont,
       NS_ASSERTION(!(mOverflowContList &&
                      mOverflowContList->ContainsFrame(aOverflowCont)),
                    "overflow containers out of order");
-      rv = aOverflowCont->GetParent()->StealFrame(aOverflowCont);
+      rv = static_cast<nsContainerFrame*>(aOverflowCont->GetParent())
+             ->StealFrame(aOverflowCont);
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1725,7 +1729,8 @@ nsOverflowContinuationTracker::Insert(nsIFrame*       aOverflowCont,
               (!reparented && f->GetParent() == mParent) ||
               (reparented && f->GetParent() != mParent))) {
       if (!(f->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
-        rv = f->GetParent()->StealFrame(f);
+        nsContainerFrame* parent = static_cast<nsContainerFrame*>(f->GetParent());
+        rv = parent->StealFrame(f);
         NS_ENSURE_SUCCESS(rv, rv);
       }
       Insert(f, aReflowStatus);
@@ -1772,7 +1777,7 @@ nsOverflowContinuationTracker::EndFinish(nsIFrame* aChild)
       // mOverflowContList was deleted
       mPrevOverflowCont = nullptr;
       mSentry = nullptr;
-      mParent = aChild->GetParent();
+      mParent = static_cast<nsContainerFrame*>(aChild->GetParent());
       mOverflowContList = nullptr;
       SetupOverflowContList();
       return;

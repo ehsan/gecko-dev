@@ -619,7 +619,8 @@ TransactionThreadPool::TransactionQueue::Run()
 
   nsCOMPtr<nsIRunnable> finishTransactionRunnable =
     new FinishTransactionRunnable(mTransaction, finishRunnable);
-  if (NS_FAILED(NS_DispatchToMainThread(finishTransactionRunnable))) {
+  if (NS_FAILED(NS_DispatchToMainThread(finishTransactionRunnable,
+                                        NS_DISPATCH_NORMAL))) {
     NS_WARNING("Failed to dispatch finishTransactionRunnable!");
   }
 

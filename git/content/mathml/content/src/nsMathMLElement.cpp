@@ -9,7 +9,6 @@
 #include "mozilla/ArrayUtils.h"
 #include "nsGkAtoms.h"
 #include "nsCRT.h"
-#include "nsLayoutStylesheetCache.h"
 #include "nsRuleData.h"
 #include "nsCSSValue.h"
 #include "nsMappedAttributes.h"
@@ -92,6 +91,8 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                             nsIContent* aBindingParent,
                             bool aCompileEventHandlers)
 {
+  static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
+
   Link::ResetLinkState(false, Link::ElementHasHref());
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
@@ -107,8 +108,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       // construction, because we could move a MathML element from the document
       // that created it to another document.
       aDocument->SetMathMLEnabled();
-      aDocument->
-        EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::MathMLSheet());
+      aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
 
       // Rebuild style data for the presshell, because style system
       // optimizations may have taken place assuming MathML was disabled.

@@ -976,8 +976,9 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         // Remove all of the childs next-in-flows. Make sure that we ask
         // the right parent to do the removal (it's possible that the
         // parent is not this because we are executing pullup code)
-        kidNextInFlow->GetParent()->
-          DeleteNextInFlowChild(kidNextInFlow, true);
+        nsContainerFrame* parent = static_cast<nsContainerFrame*>
+                                                  (kidNextInFlow->GetParent());
+        parent->DeleteNextInFlowChild(kidNextInFlow, true);
       }
     }
 

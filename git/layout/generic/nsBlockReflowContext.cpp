@@ -295,7 +295,8 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
         // Floats will eventually be removed via nsBlockFrame::RemoveFloat
         // which detaches the placeholder from the float.
         nsOverflowContinuationTracker::AutoFinish fini(aState.mOverflowTracker, mFrame);
-        kidNextInFlow->GetParent()->DeleteNextInFlowChild(kidNextInFlow, true);
+        static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
+          ->DeleteNextInFlowChild(kidNextInFlow, true);
       }
     }
   }

@@ -170,9 +170,9 @@ nsBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
  * Initialize us. This is a good time to get the alignment of the box
  */
 void
-nsBoxFrame::Init(nsIContent*       aContent,
-                 nsContainerFrame* aParent,
-                 nsIFrame*         aPrevInFlow)
+nsBoxFrame::Init(nsIContent*      aContent,
+                 nsIFrame*        aParent,
+                 nsIFrame*        aPrevInFlow)
 {
   nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
@@ -1098,7 +1098,7 @@ nsBoxFrame::AppendFrames(ChildListID     aListID,
    return NS_OK;
 }
 
-/* virtual */ nsContainerFrame*
+/* virtual */ nsIFrame*
 nsBoxFrame::GetContentInsertionFrame()
 {
   if (GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK)
@@ -1225,7 +1225,7 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
   }
   else if (aAttribute == nsGkAtoms::ordinal) {
     nsBoxLayoutState state(PresContext());
-    nsIFrame* parent = GetParentBox(this);
+    nsIFrame* parent = GetParentBox();
     // If our parent is not a box, there's not much we can do... but in that
     // case our ordinal doesn't matter anyway, so that's ok.
     // Also don't bother with popup frames since they are kept on the 
@@ -1478,7 +1478,7 @@ nsBoxFrame::PaintXULDebugOverlay(nsRenderingContext& aRenderingContext,
 
   nscoord onePixel = GetPresContext()->IntScaledPixelsToTwips(1);
 
-  kid = nsBox::GetChildBox(this);
+  kid = GetChildBox();
   while (nullptr != kid) {
     bool isHorizontal = IsHorizontal();
 
@@ -1516,7 +1516,7 @@ nsBoxFrame::PaintXULDebugOverlay(nsRenderingContext& aRenderingContext,
       DrawSpacer(GetPresContext(), aRenderingContext, isHorizontal, flex, x, y, borderSize, spacerSize);
     }
 
-    kid = GetNextBox(kid);
+    kid = kid->GetNextBox();
   }
 }
 #endif
@@ -1733,7 +1733,7 @@ nsBoxFrame::DisplayDebugInfoFor(nsIFrame*  aBox,
     //printf("%%%%%% inside box %%%%%%%\n");
 
     int count = 0;
-    nsIFrame* child = nsBox::GetChildBox(aBox);
+    nsIFrame* child = aBox->GetChildBox();
 
     nsMargin m;
     nsMargin m2;
@@ -1822,7 +1822,7 @@ nsBoxFrame::DisplayDebugInfoFor(nsIFrame*  aBox,
                     return NS_OK;   
             }
 
-          child = GetNextBox(child);
+          child = child->GetNextBox();
           count++;
         }
     } else {
@@ -1836,11 +1836,11 @@ nsBoxFrame::DisplayDebugInfoFor(nsIFrame*  aBox,
 void
 nsBoxFrame::SetDebugOnChildList(nsBoxLayoutState& aState, nsIFrame* aChild, bool aDebug)
 {
-    nsIFrame* child = nsBox::GetChildBox(this);
+    nsIFrame* child = GetChildBox();
      while (child)
      {
         child->SetDebug(aState, aDebug);
-        child = GetNextBox(child);
+        child = child->GetNextBox();
      }
 }
 
@@ -1957,7 +1957,7 @@ nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
       newPrevSib = child;
     }
 
-    child = GetNextBox(child);
+    child = child->GetNextBox();
   }
 
   if (aChild->GetPrevSibling() == newPrevSib) {

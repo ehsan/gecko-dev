@@ -17,10 +17,9 @@ class nsTableCaptionFrame : public nsBlockFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsTableCaptionFrame* NS_NewTableCaptionFrame(nsIPresShell* aPresShell,
-                                                      nsStyleContext*  aContext);
-  // nsIFrame
+  // nsISupports
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  friend nsIFrame* NS_NewTableCaptionFrame(nsIPresShell* aPresShell, nsStyleContext*  aContext);
 
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
@@ -65,8 +64,7 @@ public:
     *
     * @return           the frame that was created
     */
-  friend nsTableOuterFrame* NS_NewTableOuterFrame(nsIPresShell* aPresShell,
-                                                  nsStyleContext* aContext);
+  friend nsIFrame* NS_NewTableOuterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   
   // nsIFrame overrides - see there for a description
 
@@ -88,7 +86,7 @@ public:
   virtual nsresult RemoveFrame(ChildListID     aListID,
                                nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
-  virtual nsContainerFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
+  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
     return GetFirstPrincipalChild()->GetContentInsertionFrame();
   }
 

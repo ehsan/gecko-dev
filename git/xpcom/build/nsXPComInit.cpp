@@ -812,6 +812,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
                                 nullptr);
 
         layers::CompositorParent::ShutDown();
+        layers::AsyncTransactionTracker::Finalize();
 
         gXPCOMThreadsShutDown = true;
         NS_ProcessPendingEvents(thread);
@@ -898,8 +899,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     }
 
     nsCycleCollector_shutdown();
-
-    layers::AsyncTransactionTrackersHolder::Finalize();
 
     PROFILER_MARKER("Shutdown xpcom");
     // If we are doing any shutdown checks, poison writes.

@@ -909,15 +909,16 @@ nsLayoutUtils::GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult)
   return false;
 }
 
-nsContainerFrame*
-nsLayoutUtils::LastContinuationWithChild(nsContainerFrame* aFrame)
+nsIFrame*
+nsLayoutUtils::LastContinuationWithChild(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
-  nsIFrame* f = aFrame->LastContinuation();
-  while (!f->GetFirstPrincipalChild() && f->GetPrevContinuation()) {
-    f = f->GetPrevContinuation();
+  aFrame = aFrame->LastContinuation();
+  while (!aFrame->GetFirstPrincipalChild() &&
+         aFrame->GetPrevContinuation()) {
+    aFrame = aFrame->GetPrevContinuation();
   }
-  return static_cast<nsContainerFrame*>(f);
+  return aFrame;
 }
 
 /**
@@ -956,13 +957,13 @@ GetFirstChildFrame(nsIFrame*       aFrame,
  * @param aFrame the frame's content node
  */
 static nsIFrame*
-GetLastChildFrame(nsContainerFrame* aFrame,
-                  nsIContent*       aContent)
+GetLastChildFrame(nsIFrame*       aFrame,
+                  nsIContent*     aContent)
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
   // Get the last continuation frame that's a parent
-  nsContainerFrame* lastParentContinuation =
+  nsIFrame* lastParentContinuation =
     nsLayoutUtils::LastContinuationWithChild(aFrame);
   nsIFrame* lastChildFrame =
     lastParentContinuation->GetLastChild(nsIFrame::kPrincipalList);
@@ -977,8 +978,7 @@ GetLastChildFrame(nsContainerFrame* aFrame,
     if (lastChildFrame &&
         lastChildFrame->IsPseudoFrame(aContent) &&
         !lastChildFrame->IsGeneratedContentFrame()) {
-      return GetLastChildFrame(static_cast<nsContainerFrame*>(lastChildFrame),
-                               aContent);
+      return GetLastChildFrame(lastChildFrame, aContent);
     }
 
     return lastChildFrame;
@@ -1062,7 +1062,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
 #ifdef DEBUG
   // Verify that the frame is actually in that child list or in the
   // corresponding overflow list.
-  nsContainerFrame* parent = aChildFrame->GetParent();
+  nsIFrame* parent = aChildFrame->GetParent();
   bool found = parent->GetChildList(id).ContainsFrame(aChildFrame);
   if (!found) {
     if (!(aChildFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
@@ -1094,10 +1094,8 @@ nsLayoutUtils::GetBeforeFrame(nsIFrame* aFrame)
                "aFrame must be first continuation");
 
   nsIFrame* cif = aFrame->GetContentInsertionFrame();
-  if (!cif) {
-    return nullptr;
-  }
   nsIFrame* firstFrame = GetFirstChildFrame(cif, aFrame->GetContent());
+
   if (firstFrame && IsGeneratedContentFor(nullptr, firstFrame,
                                           nsCSSPseudoElements::before)) {
     return firstFrame;
@@ -1112,11 +1110,9 @@ nsLayoutUtils::GetAfterFrame(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
-  nsContainerFrame* cif = aFrame->GetContentInsertionFrame();
-  if (!cif) {
-    return nullptr;
-  }
+  nsIFrame* cif = aFrame->GetContentInsertionFrame();
   nsIFrame* lastFrame = GetLastChildFrame(cif, aFrame->GetContent());
+
   if (lastFrame && IsGeneratedContentFor(nullptr, lastFrame,
                                          nsCSSPseudoElements::after)) {
     return lastFrame;

@@ -330,7 +330,7 @@ WebSocket::ScheduleConnectionCloseEvents(nsISupports* aContext,
                                          nsresult aStatusCode,
                                          bool sync)
 {
-  MOZ_ASSERT(NS_IsMainThread());
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
   // no-op if some other code has already initiated close event
   if (!mOnCloseScheduled) {
@@ -351,7 +351,8 @@ WebSocket::ScheduleConnectionCloseEvents(nsISupports* aContext,
     if (sync) {
       DispatchConnectionCloseEvents();
     } else {
-      NS_DispatchToCurrentThread(new CallDispatchConnectionCloseEvents(this));
+      NS_DispatchToMainThread(new CallDispatchConnectionCloseEvents(this),
+                              NS_DISPATCH_NORMAL);
     }
   }
 

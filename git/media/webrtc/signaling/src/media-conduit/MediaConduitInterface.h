@@ -279,7 +279,7 @@ public:
    * @param encoder
    * @result: on success, we will use the specified encoder
    */
-  virtual MediaConduitErrorCode SetExternalSendCodec(VideoCodecConfig* config,
+  virtual MediaConduitErrorCode SetExternalSendCodec(int pltype,
                                                      VideoEncoder* encoder) = 0;
 
   /**
@@ -287,7 +287,7 @@ public:
    * @param decoder
    * @result: on success, we will use the specified decoder
    */
-  virtual MediaConduitErrorCode SetExternalRecvCodec(VideoCodecConfig* config,
+  virtual MediaConduitErrorCode SetExternalRecvCodec(int pltype,
                                                      VideoDecoder* decoder) = 0;
 
   /**

@@ -1059,9 +1059,6 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
         sAltGrModifier = true;
     }
 
-    CodeNameIndex codeNameIndex =
-        ScanCodeToDOMCodeNameIndex(aEvent->nativeScanCode());
-
 #ifdef MOZ_X11
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
@@ -1157,7 +1154,6 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
 
         downEvent.keyCode = domKeyCode;
         downEvent.mKeyNameIndex = keyNameIndex;
-        downEvent.mCodeNameIndex = codeNameIndex;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1362,7 +1358,6 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
     event.mKeyNameIndex = keyNameIndex;
-    event.mCodeNameIndex = codeNameIndex;
     // send the key press event
     return DispatchEvent(&event);
 #else
@@ -1402,7 +1397,6 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
 
         downEvent.keyCode = domKeyCode;
         downEvent.mKeyNameIndex = keyNameIndex;
-        downEvent.mCodeNameIndex = codeNameIndex;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1419,7 +1413,6 @@ nsWindow::keyPressEvent(QKeyEvent* aEvent)
 
     event.keyCode = domCharCode ? 0 : domKeyCode;
     event.mKeyNameIndex = keyNameIndex;
-    event.mCodeNameIndex = codeNameIndex;
 
     // send the key press event
     return DispatchEvent(&event);
@@ -1477,8 +1470,6 @@ nsWindow::keyReleaseEvent(QKeyEvent* aEvent)
         (aEvent->text().length() && aEvent->text()[0].isPrint()) ?
             KEY_NAME_INDEX_PrintableKey :
             QtKeyCodeToDOMKeyNameIndex(aEvent->key());
-    event.mCodeNameIndex =
-        ScanCodeToDOMCodeNameIndex(aEvent->nativeScanCode());
 
     // unset the key down flag
     ClearKeyDownFlag(event.keyCode);
