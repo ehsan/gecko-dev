@@ -659,13 +659,9 @@ sandbox_finalize(JSFreeOp *fop, JSObject *obj)
 {
     nsIScriptObjectPrincipal *sop =
         static_cast<nsIScriptObjectPrincipal *>(xpc_GetJSPrivate(obj));
-    if (!sop) {
-        // sop can be null if CreateSandboxObject fails in the middle.
-        return;
-    }
-
+    MOZ_ASSERT(sop);
     static_cast<SandboxPrivate *>(sop)->ForgetGlobalObject();
-    NS_RELEASE(sop);
+    NS_IF_RELEASE(sop);
     DestroyProtoAndIfaceCache(obj);
 }
 

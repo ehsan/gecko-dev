@@ -630,26 +630,19 @@ void TickSample::PopulateContext(void* aContext)
   }
 }
 
+// WARNING: Works with values up to 1 second
 void OS::SleepMicro(int microseconds)
 {
-  if (MOZ_UNLIKELY(microseconds >= 1000000)) {
-    // Use usleep for larger intervals, because the nanosleep
-    // code below only supports intervals < 1 second.
-    MOZ_ALWAYS_TRUE(!::usleep(microseconds));
-    return;
-  }
-
   struct timespec ts;
   ts.tv_sec  = 0;
   ts.tv_nsec = microseconds * 1000UL;
 
-  int rv = ::nanosleep(&ts, &ts);
-
-  while (rv != 0 && errno == EINTR) {
-    // Keep waiting in case of interrupt.
-    // nanosleep puts the remaining time back into ts.
-    rv = ::nanosleep(&ts, &ts);
+  while (true) {
+    // in the case of interrupt we keep waiting
+    // nanosleep puts the remaining to back into ts
+    if (!nanosleep(&ts, &ts) || errno != EINTR) {
+      return;
+    }
   }
-
-  MOZ_ASSERT(!rv, "nanosleep call failed");
 }
+

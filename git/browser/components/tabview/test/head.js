@@ -105,7 +105,7 @@ function newWindowWithTabView(shownCallback, loadCallback, width, height) {
   let winHeight = height || 800;
   let win = window.openDialog(getBrowserURL(), "_blank",
                               "chrome,all,dialog=no,height=" + winHeight +
-                              ",width=" + winWidth, "about:blank");
+                              ",width=" + winWidth);
 
   whenWindowLoaded(win, function () {
     if (loadCallback)
@@ -333,7 +333,7 @@ function newWindowWithState(state, callback) {
              .getService(Ci.nsISessionStore);
 
   let opts = "chrome,all,dialog=no,height=800,width=800";
-  let win = window.openDialog(getBrowserURL(), "_blank", opts, "about:blank");
+  let win = window.openDialog(getBrowserURL(), "_blank", opts);
 
   let numConditions = 2;
   let check = function () {
@@ -432,20 +432,4 @@ function waitForOnBeforeUnloadDialog(browser, callback) {
       callback(button0, button1);
     });
   }, true);
-}
-
-/**
- * Overrides browser.js' OpenBrowserWindow() function to enforce an initial
- * tab different from about:home to not hit the network.
- */
-function OpenBrowserWindow(aOptions) {
-  let features = "";
-  let url = "about:blank";
-
-  if (aOptions && aOptions.private || false) {
-    features = ",private";
-    url = "about:privatebrowsing";
-  }
-
-  return openDialog(getBrowserURL(), "", "chrome,all,dialog=no" + features, url);
 }

@@ -37,23 +37,30 @@
         <getter><![CDATA[
           if (this._frame)
             return this._frame;
+          let notificationFrameId = "social-mark-frame-" + this.getAttribute("origin");
           let provider = Social._getProviderFromOrigin(this.getAttribute("origin"));
           let size = provider.getPageSize("marks");
           let {width, height} = size ? size : {width: 330, height: 100};
           this._useDynamicResizer = !size;
 
-          let iframe = this._frame = document.createElement("iframe");
-          iframe.setAttribute("type", "content");
-          iframe.setAttribute("class", "social-panel-frame");
-          iframe.setAttribute("flex", "1");
-          iframe.setAttribute("tooltip", "aHTMLTooltip");
-          iframe.setAttribute("context", "contentAreaContextMenu");
-          iframe.setAttribute("src", "about:blank");
-          iframe.setAttribute("origin", provider.origin);
-          iframe.setAttribute("style", "width: " + width + "px; height: " + height + "px;");
-          this.panel.appendChild(iframe);
-
+          this._frame = SharedFrame.createFrame(
+            notificationFrameId, /* frame name */
+            this.panel, /* parent */
+            {
+              "type": "content",
+              "mozbrowser": "true",
+              "class": "social-panel-frame",
+              "id": notificationFrameId,
+              "tooltip": "aHTMLTooltip",
+              "flex": "1",
+              "context": "contentAreaContextMenu",
+              "origin": this.getAttribute("origin"),
+              "src": "about:blank",
+              "style": "width: " + width + "px; height: " + height + "px;",
+            }
+          );
           this._frame.addEventListener("DOMLinkAdded", this);
+          this.setAttribute("notificationFrameId", notificationFrameId);
           return this._frame;
         ]]></getter>
       </property>
@@ -168,10 +175,11 @@
             // update the annotation based on this event, then update the
             // icon as well
             this.isMarked = JSON.parse(event.detail).marked;
+            let uri = Services.io.newURI(this.pageData.url, null, null);
             if (this.isMarked) {
-              Social.markURI(provider.origin, gBrowser.currentURI);
+              Social.markURI(provider.origin, uri);
             } else {
-              Social.unmarkURI(provider.origin, gBrowser.currentURI, () => {
+              Social.unmarkURI(provider.origin, uri, () => {
                 this.update();
               });
             }
@@ -194,9 +202,11 @@
         let panel = this.panel;
         let frameId = this.getAttribute("notificationFrameId");
 
-        // All mark buttons use a single panelview to contain their iframes if
-        // they are in the menu-panel. Clear dimensions on all browsers so the
-        // panel size will only use the selected browser.
+        let wasAlive = SharedFrame.isGroupAlive(frameId);
+        SharedFrame.setOwner(frameId, this.content);
+
+        // Clear dimensions on all browsers so the panel size will
+        // only use the selected browser.
         let frameIter = panel.firstElementChild;
         while (frameIter) {
           frameIter.collapsed = (frameIter != this.content);

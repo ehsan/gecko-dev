@@ -33,13 +33,10 @@ function asyncTest(generator) {
   return () => Task.spawn(generator).then(null, ok.bind(null, false)).then(finish);
 }
 
-function* cleanup()
+function cleanup()
 {
   gPanelWindow = null;
   while (gBrowser.tabs.length > 1) {
-    let target = TargetFactory.forTab(gBrowser.selectedTab);
-    yield gDevTools.closeToolbox(target);
-
     gBrowser.removeCurrentTab();
   }
 }

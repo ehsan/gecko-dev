@@ -3650,11 +3650,6 @@ nsHttpChannel::CloseCacheEntry(bool doomOnFailure)
     if (doom) {
         LOG(("  dooming cache entry!!"));
         mCacheEntry->AsyncDoom(nullptr);
-    } else {
-      // Store updated security info, makes cached EV status race less likely
-      // (see bug 1040086)
-      if (mSecurityInfo)
-          mCacheEntry->SetSecurityInfo(mSecurityInfo);
     }
 
     mCachedResponseHead = nullptr;
