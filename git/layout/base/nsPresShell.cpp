@@ -1773,9 +1773,6 @@ PresShell::Init(nsIDocument* aDocument,
 NS_IMETHODIMP
 PresShell::Destroy()
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-    "destroy called on presshell while scripts not blocked");
-
 #ifdef MOZ_REFLOW_PERF
   DumpReflows();
   if (mReflowCountMgr) {
@@ -2540,11 +2537,6 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     return NS_OK;
   }
 
-  if (!mDocument) {
-    // Nothing to do
-    return NS_OK;
-  }
-
   NS_ASSERTION(!mDidInitialReflow, "Why are we being called?");
 
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
@@ -2571,28 +2563,11 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
   mPresContext->SetVisibleArea(nsRect(0, 0, aWidth, aHeight));
 
+  nsIContent *root = mDocument ? mDocument->GetRootContent() : nsnull;
+
   // Get the root frame from the frame manager
-  // XXXbz it would be nice to move this somewhere else... like frame manager
-  // Init(), say.  But we need to make sure our views are all set up by the
-  // time we do this!
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
-  NS_ASSERTION(!rootFrame, "How did that happen, exactly?");
-  if (!rootFrame) {
-    nsAutoScriptBlocker scriptBlocker;
-    mFrameConstructor->BeginUpdate();
-    mFrameConstructor->ConstructRootFrame(&rootFrame);
-    FrameManager()->SetRootFrame(rootFrame);
-    mFrameConstructor->EndUpdate();
-  }
-
-  NS_ENSURE_STATE(!mHaveShutDown);
-
-  if (!rootFrame) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsIContent *root = mDocument->GetRootContent();
-
+  
   if (root) {
     MOZ_TIMER_DEBUGLOG(("Reset and start: Frame Creation: PresShell::InitialReflow(), this=%p\n",
                         (void*)this));
@@ -2602,6 +2577,13 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     {
       nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->BeginUpdate();
+
+      if (!rootFrame) {
+        // Have style sheet processor construct a frame for the
+        // precursors to the root content object's frame
+        mFrameConstructor->ConstructRootFrame(root, &rootFrame);
+        FrameManager()->SetRootFrame(rootFrame);
+      }
 
       // Have the style sheet processor construct frame for the root
       // content object down
@@ -2618,7 +2600,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
       mFrameConstructor->EndUpdate();
     }
 
-    // nsAutoScriptBlocker going out of scope may have killed us too
+    // DidCauseReflow may have killed us too
     NS_ENSURE_STATE(!mHaveShutDown);
 
     // Run the XBL binding constructors for any new frames we've constructed
@@ -2636,22 +2618,27 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
     // And that might have run _more_ XBL constructors
     NS_ENSURE_STATE(!mHaveShutDown);
+
+    // Now reget the root frame, since all that script might have affected it
+    // somehow.  Currently that can't happen, as long as mHaveShutDown is
+    // false, but let's not rely on that.
+    rootFrame = FrameManager()->GetRootFrame();
   }
 
-  NS_ASSERTION(rootFrame, "How did that happen?");
+  if (rootFrame) {
+    // Note: Because the frame just got created, it has the NS_FRAME_IS_DIRTY
+    // bit set.  Unset it so that FrameNeedsReflow() will work right.
+    NS_ASSERTION(!mDirtyRoots.Contains(rootFrame),
+                 "Why is the root in mDirtyRoots already?");
 
-  // Note: Because the frame just got created, it has the NS_FRAME_IS_DIRTY
-  // bit set.  Unset it so that FrameNeedsReflow() will work right.
-  NS_ASSERTION(!mDirtyRoots.Contains(rootFrame),
-               "Why is the root in mDirtyRoots already?");
+    rootFrame->RemoveStateBits(NS_FRAME_IS_DIRTY |
+                               NS_FRAME_HAS_DIRTY_CHILDREN);
+    FrameNeedsReflow(rootFrame, eResize, NS_FRAME_IS_DIRTY);
 
-  rootFrame->RemoveStateBits(NS_FRAME_IS_DIRTY |
-                             NS_FRAME_HAS_DIRTY_CHILDREN);
-  FrameNeedsReflow(rootFrame, eResize, NS_FRAME_IS_DIRTY);
-
-  NS_ASSERTION(mDirtyRoots.Contains(rootFrame),
-               "Should be in mDirtyRoots now");
-  NS_ASSERTION(mReflowEvent.IsPending(), "Why no reflow event pending?");
+    NS_ASSERTION(mDirtyRoots.Contains(rootFrame),
+                 "Should be in mDirtyRoots now");
+    NS_ASSERTION(mReflowEvent.IsPending(), "Why no reflow event pending?");
+  }
 
   // Restore our root scroll position now if we're getting here after EndLoad
   // got called, since this is our one chance to do it.  Note that we need not
@@ -2691,7 +2678,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 void
 PresShell::sPaintSuppressionCallback(nsITimer *aTimer, void* aPresShell)
 {
-  nsRefPtr<PresShell> self = static_cast<PresShell*>(aPresShell);
+  PresShell* self = static_cast<PresShell*>(aPresShell);
   if (self)
     self->UnsuppressPainting();
 }
@@ -4206,13 +4193,6 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
     return;
   }
 
-  if (frame->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
-    // The reflow flush before this scroll got interrupted, and this frame's
-    // coords and size are all zero, and it has no content showing anyway.
-    // Don't bother scrolling to it.  We'll try again when we finish up layout.
-    return;
-  }
-
   // This is a two-step process.
   // Step 1: Find the bounds of the rect we want to scroll into view.  For
   //         example, for an inline frame we may want to scroll in the whole
@@ -4531,7 +4511,7 @@ PresShell::IsPaintingSuppressed(PRBool* aResult)
 void
 PresShell::UnsuppressAndInvalidate()
 {
-  if (!mPresContext->EnsureVisible(PR_FALSE) || mHaveShutDown) {
+  if (!mPresContext->EnsureVisible(PR_FALSE)) {
     // No point; we're about to be torn down anyway.
     return;
   }
@@ -4557,7 +4537,7 @@ PresShell::UnsuppressAndInvalidate()
   if (focusController) // Unsuppress now that we've shown the new window and focused it.
     focusController->SetSuppressFocus(PR_FALSE, "PresShell suppression on Web page loads");
 
-  if (!mHaveShutDown && mViewManager)
+  if (mViewManager)
     mViewManager->SynthesizeMouseMove(PR_FALSE);
 }
 
@@ -7043,6 +7023,13 @@ PresShell::DoReflow(nsIFrame* target, PRBool aInterruptible)
 void
 PresShell::DoVerifyReflow()
 {
+  if (nsIFrameDebug::GetVerifyTreeEnable()) {
+    nsIFrame* rootFrame = FrameManager()->GetRootFrame();
+    nsIFrameDebug *frameDebug = do_QueryFrame(rootFrame);
+    if (frameDebug) {
+      frameDebug->VerifyTree();
+    }
+  }
   if (GetVerifyReflowEnable()) {
     // First synchronously render what we have so far so that we can
     // see it.

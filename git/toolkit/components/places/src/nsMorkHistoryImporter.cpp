@@ -185,7 +185,7 @@ AddToHistoryCB(const nsCSubstring &aRowID,
 NS_IMETHODIMP
 nsNavHistory::ImportHistory(nsIFile* aFile)
 {
-  NS_ENSURE_ARG(aFile);
+  NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
 
   // Check that the file exists before we try to open it
   PRBool exists;

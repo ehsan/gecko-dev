@@ -367,7 +367,7 @@ typedef enum JSBuiltinStatus {
 struct InterpState
 {
     double        *sp;                  // native stack pointer, stack[0] is spbase[0]
-    FrameInfo**   rp;                   // call stack pointer
+    void          *rp;                  // call stack pointer
     JSContext     *cx;                  // current VM context handle
     double        *eos;                 // first unusable word after the native stack
     void          *eor;                 // first unusable word after the call stack
@@ -385,7 +385,6 @@ struct InterpState
 #ifdef EXECUTE_TREE_TIMER
     uint64         startTime;
 #endif
-    InterpState*   prev;
 
     /*
      * Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
@@ -468,8 +467,7 @@ class TraceRecorder : public avmplus::GCObject {
     JSTraceableNative*      pendingTraceableNative;
     TraceRecorder*          nextRecorderToAbort;
     bool                    wasRootFragment;
-    jsbytecode*             outer;     /* outer trace header PC */
-    uint32                  outerArgc; /* outer trace deepest frame argc */
+    jsbytecode*             outer;
     bool                    loop;
 
     bool isGlobal(jsval* p) const;
@@ -576,9 +574,8 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK JSRecordingStatus name(jsval*& vp);
     JS_REQUIRES_STACK JSRecordingStatus prop(JSObject* obj, nanojit::LIns* obj_ins, uint32& slot,
                                              nanojit::LIns*& v_ins);
-    JS_REQUIRES_STACK JSRecordingStatus denseArrayElement(jsval& oval, jsval& idx, jsval*& vp,
-                                                          nanojit::LIns*& v_ins,
-                                                          nanojit::LIns*& addr_ins);
+    JS_REQUIRES_STACK JSRecordingStatus elem(jsval& oval, jsval& idx, jsval*& vp,
+                                             nanojit::LIns*& v_ins, nanojit::LIns*& addr_ins);
     JS_REQUIRES_STACK JSRecordingStatus getProp(JSObject* obj, nanojit::LIns* obj_ins);
     JS_REQUIRES_STACK JSRecordingStatus getProp(jsval& v);
     JS_REQUIRES_STACK JSRecordingStatus getThis(nanojit::LIns*& this_ins);
@@ -627,8 +624,7 @@ public:
     JS_REQUIRES_STACK
     TraceRecorder(JSContext* cx, VMSideExit*, nanojit::Fragment*, TreeInfo*,
                   unsigned stackSlots, unsigned ngslots, uint8* typeMap,
-                  VMSideExit* expectedInnerExit, jsbytecode* outerTree,
-                  uint32 outerArgc);
+                  VMSideExit* expectedInnerExit, jsbytecode* outerTree);
     ~TraceRecorder();
 
     static JS_REQUIRES_STACK JSRecordingStatus monitorRecording(JSContext* cx, TraceRecorder* tr,
@@ -664,8 +660,9 @@ public:
     JS_REQUIRES_STACK void joinEdgesToEntry(nanojit::Fragmento* fragmento,
                                             VMFragment* peer_root);
     void blacklist() { fragment->blacklist(); }
-    JS_REQUIRES_STACK void adjustCallerTypes(nanojit::Fragment* f);
-    JS_REQUIRES_STACK nanojit::Fragment* findNestedCompatiblePeer(nanojit::Fragment* f);
+    JS_REQUIRES_STACK bool adjustCallerTypes(nanojit::Fragment* f);
+    JS_REQUIRES_STACK nanojit::Fragment* findNestedCompatiblePeer(nanojit::Fragment* f,
+                                                                  nanojit::Fragment** empty);
     JS_REQUIRES_STACK void prepareTreeCall(nanojit::Fragment* inner);
     JS_REQUIRES_STACK void emitTreeCall(nanojit::Fragment* inner, VMSideExit* exit);
     unsigned getCallDepth() const;

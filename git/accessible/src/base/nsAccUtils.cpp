@@ -45,7 +45,6 @@
 
 #include "nsAccessibleEventData.h"
 #include "nsHyperTextAccessible.h"
-#include "nsHTMLTableAccessible.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccessibleTreeWalker.h"
 #include "nsAccessible.h"
@@ -722,16 +721,6 @@ nsAccUtils::QueryAccessible(nsIAccessible *aAccessible)
   nsAccessible* accessible = nsnull;
   if (aAccessible)
     CallQueryInterface(aAccessible, &accessible);
-  
-  return accessible;
-}
-
-already_AddRefed<nsHTMLTableAccessible>
-nsAccUtils::QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable)
-{
-  nsHTMLTableAccessible* accessible = nsnull;
-  if (aAccessibleTable)
-    CallQueryInterface(aAccessibleTable, &accessible);
   
   return accessible;
 }

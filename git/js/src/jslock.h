@@ -103,10 +103,14 @@ struct JSTitle {
 };
 
 /*
- * Title structure is always allocated as a field of JSScope.
+ * Title structures must be immediately preceded by JSObjectMap structures for
+ * maps that use titles for threadsafety.  This is enforced by assertion in
+ * jsscope.h; see bug 408416 for future remedies to this somewhat fragile
+ * architecture.
  */
-#define TITLE_TO_SCOPE(title)                                                 \
-    ((JSScope *)((uint8 *) (title) - offsetof(JSScope, title)))
+
+#define TITLE_TO_MAP(title)                                                   \
+    ((JSObjectMap *)((char *)(title) - sizeof(JSObjectMap)))
 
 /*
  * Atomic increment and decrement for a reference counter, given jsrefcount *p.

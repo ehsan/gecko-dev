@@ -792,8 +792,6 @@ popup[type="autocomplete"][hidden="true"] {
 .autocomplete-result-popupset {
   max-width: 0px;
   width: 0 !important;
-  min-width: 0%;
-  min-height: 0%;
 }
 
 /********** colorpicker **********/
@@ -888,8 +886,16 @@ scrollbar[value="hidden"] {
   visibility: hidden;
 }
 
+scrollbarbutton {
+  -moz-binding: url(chrome://global/content/bindings/scrollbar.xml#scrollbarbutton);
+}
+
 scale {
   -moz-binding: url(chrome://global/content/bindings/scale.xml#scale);
+}
+
+slider {
+  -moz-binding: url(chrome://global/content/bindings/scrollbar.xml#slider);
 }
 
 .scale-slider {

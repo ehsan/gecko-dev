@@ -51,22 +51,20 @@
     ", typed INTEGER DEFAULT 0 NOT NULL" \
     ", favicon_id INTEGER" \
     ", frecency INTEGER DEFAULT -1 NOT NULL" \
-    ", last_visit_date INTEGER " \
   ")" \
 )
 #define CREATE_MOZ_PLACES CREATE_MOZ_PLACES_BASE("moz_places", "")
 #define CREATE_MOZ_PLACES_TEMP CREATE_MOZ_PLACES_BASE("moz_places_temp", "TEMP")
-#define MOZ_PLACES_COLUMNS \
-  "id, url, title, rev_host, visit_count, hidden, typed, favicon_id, " \
-  "frecency, last_visit_date"
 #define CREATE_MOZ_PLACES_VIEW NS_LITERAL_CSTRING( \
   "CREATE TEMPORARY VIEW moz_places_view AS " \
-  "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places_temp " \
+  "SELECT * FROM moz_places_temp " \
   "UNION ALL " \
-  "SELECT " MOZ_PLACES_COLUMNS " FROM moz_places " \
+  "SELECT * FROM moz_places " \
   "WHERE id NOT IN (SELECT id FROM moz_places_temp) " \
 )
-
+#define MOZ_PLACES_COLUMNS \
+  "id, url, title, rev_host, visit_count, hidden, typed, favicon_id, " \
+  "frecency"
 
 #define CREATE_MOZ_HISTORYVISITS_BASE(__name, __temporary) NS_LITERAL_CSTRING( \
   "CREATE " __temporary " TABLE " __name " (" \
@@ -82,15 +80,15 @@
   CREATE_MOZ_HISTORYVISITS_BASE("moz_historyvisits", "")
 #define CREATE_MOZ_HISTORYVISITS_TEMP \
   CREATE_MOZ_HISTORYVISITS_BASE("moz_historyvisits_temp", "TEMP")
-#define MOZ_HISTORYVISITS_COLUMNS \
-  "id, from_visit, place_id, visit_date, visit_type, session"
 #define CREATE_MOZ_HISTORYVISITS_VIEW NS_LITERAL_CSTRING( \
   "CREATE TEMPORARY VIEW moz_historyvisits_view AS " \
-  "SELECT " MOZ_HISTORYVISITS_COLUMNS " FROM moz_historyvisits_temp " \
+  "SELECT * FROM moz_historyvisits_temp " \
   "UNION ALL " \
-  "SELECT " MOZ_HISTORYVISITS_COLUMNS " FROM moz_historyvisits " \
+  "SELECT * FROM moz_historyvisits " \
   "WHERE id NOT IN (SELECT id FROM moz_historyvisits_temp) " \
 )
+#define MOZ_HISTORYVISITS_COLUMNS \
+  "id, from_visit, place_id, visit_date, visit_type, session"
 
 #define CREATE_MOZ_INPUTHISTORY NS_LITERAL_CSTRING( \
   "CREATE TABLE moz_inputhistory (" \

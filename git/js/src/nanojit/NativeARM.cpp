@@ -579,36 +579,32 @@ Assembler::asm_restore(LInsp i, Reservation *resv, Register r)
 {
     if (i->isop(LIR_alloc)) {
         asm_add_imm(r, FP, disp(resv));
-    } else if (IsFpReg(r)) {
-        NanoAssert(AvmCore::config.vfp);
-
-        // We can't easily load immediate values directly into FP registers, so
-        // ensure that memory is allocated for the constant and load it from
-        // memory.
-        int d = findMemFor(i);
-        if (isS8(d >> 2)) {
-            FLDD(r, FP, d);
-        } else {
-            FLDD(r, IP, 0);
-            ADDi(IP, FP, d);
-        }
+    }
 #if 0
-    // This code tries to use a small constant load to restore the value of r.
-    // However, there was a comment explaining that using this regresses
-    // crypto-aes by about 50%. I do not see that behaviour; however, enabling
-    // this code does cause a JavaScript failure in the first of the
-    // createMandelSet tests in trace-tests. I can't explain either the
-    // original performance issue or the crash that I'm seeing.
-    } else if (i->isconst()) {
-        // asm_ld_imm will automatically select between LDR and MOV as
-        // appropriate.
+    /* This seriously regresses crypto-aes (by about 50%!), with or
+     * without the S8/U8 check (which ensures that we can do this
+     * const load in one instruction).  I have no idea why, because a
+     * microbenchmark of const mov vs. loading from memory shows that
+     * the mov is faster, though not by much.
+     */
+    else if (i->isconst() && (isS8(i->imm32()) || isU8(i->imm32()))) {
         if (!resv->arIndex)
             reserveFree(i);
         asm_ld_imm(r, i->imm32());
+    }
 #endif
-    } else {
+    else {
         int d = findMemFor(i);
-        LDR(r, FP, d);
+        if (IsFpReg(r)) {
+            if (isS8(d >> 2)) {
+                FLDD(r, FP, d);
+            } else {
+                FLDD(r, IP, 0);
+                ADDi(IP, FP, d);
+            }
+        } else {
+            LDR(r, FP, d);
+        }
     }
 
     verbose_only(
@@ -649,27 +645,28 @@ Assembler::asm_load64(LInsp ins)
     int d = disp(resv);
 
     freeRsrcOf(ins, false);
-    Register rb = findRegFor(base, GpRegs);
-    NanoAssert(IsGpReg(rb));
 
-    if (AvmCore::config.vfp && rr != UnknownReg) {
-        // VFP is enabled and the result will go into a register.
-        NanoAssert(IsFpReg(rr));
+    if (AvmCore::config.vfp) {
+        Register rb = findRegFor(base, GpRegs);
 
-        if (!isS8(offset >> 2) || (offset&3) != 0) {
-            FLDD(rr,IP,0);
-            ADDi(IP, rb, offset);
+        NanoAssert(rb != UnknownReg);
+        NanoAssert(rr == UnknownReg || IsFpReg(rr));
+
+        if (rr != UnknownReg) {
+            if (!isS8(offset >> 2) || (offset&3) != 0) {
+                FLDD(rr,IP,0);
+                ADDi(IP, rb, offset);
+            } else {
+                FLDD(rr,rb,offset);
+            }
         } else {
-            FLDD(rr,rb,offset);
+            asm_mmq(FP, d, rb, offset);
         }
-    } else {
-        // Either VFP is not available or the result needs to go into memory;
-        // in either case, VFP instructions are not required. Note that the
-        // result will never be loaded into registers if VFP is not available.
-        NanoAssert(resv->reg == UnknownReg);
-        NanoAssert(d != 0);
 
         // *(FP+dr) <- *(rb+db)
+    } else {
+        NanoAssert(resv->reg == UnknownReg && d != 0);
+        Register rb = findRegFor(base, GpRegs);
         asm_mmq(FP, d, rb, offset);
     }
 
@@ -758,9 +755,13 @@ Assembler::asm_quad_nochk(Register rr, int32_t imm64_0, int32_t imm64_1)
 void
 Assembler::asm_quad(LInsp ins)
 {
-    Reservation *   res = getresv(ins);
-    int             d = disp(res);
-    Register        rr = res->reg;
+    //asm_output(">>> asm_quad");
+
+    Reservation *res = getresv(ins);
+    int d = disp(res);
+    Register rr = res->reg;
+
+    NanoAssert(d || rr != UnknownReg);
 
     freeRsrcOf(ins, false);
 
@@ -773,23 +774,27 @@ Assembler::asm_quad(LInsp ins)
         underrunProtect(4*4);
         asm_quad_nochk(rr, ins->imm64_0(), ins->imm64_1());
     } else {
-        NanoAssert(d);
         STR(IP, FP, d+4);
         asm_ld_imm(IP, ins->imm64_1());
         STR(IP, FP, d);
         asm_ld_imm(IP, ins->imm64_0());
     }
+
+    //asm_output("<<< asm_quad");
 }
 
 void
 Assembler::asm_nongp_copy(Register r, Register s)
 {
-    if (IsFpReg(r) && IsFpReg(s)) {
+    if ((rmask(r) & FpRegs) && (rmask(s) & FpRegs)) {
         // fp->fp
         FCPYD(r, s);
+    } else if ((rmask(r) & GpRegs) && (rmask(s) & FpRegs)) {
+        // fp->gp
+        // who's doing this and why?
+        NanoAssert(0);
+        // FMRS(r, loSingleVfp(s));
     } else {
-        // We can't move a double-precision FP register into a 32-bit GP
-        // register, so assert that no calling code is trying to do that.
         NanoAssert(0);
     }
 }
@@ -972,23 +977,8 @@ Assembler::BL(NIns* addr)
 void
 Assembler::LD32_nochk(Register r, int32_t imm)
 {
-    // If the immediate value will fit into a simple MOV or MVN, use that to
-    // save a word of memory.
-    if (isU8(imm)) {
-        underrunProtect(4);
-
-        // MOV r, #imm
-        *(--_nIns) = (NIns)( COND_AL | 0x3B<<20 | r<<12 | imm & 0xFF );
-        asm_output("mov %s,0x%x",gpn(r), imm);
-
-        return;
-    } else if (isU8(~imm)) {
-        underrunProtect(4);
-
-        // MVN r, #imm
-        *(--_nIns) = (NIns)( COND_AL | 0x3E<<20 | r<<12 | ~imm & 0xFF );
-        asm_output("mvn %s,0x%x",gpn(r), ~imm);
-
+    if (imm == 0) {
+        EOR(r, r, r);
         return;
     }
 
@@ -1001,25 +991,19 @@ Assembler::LD32_nochk(Register r, int32_t imm)
         return;
     }
 
-    // Because the literal pool is on the same page as the generated code, it
-    // will almost always be within the ±4096 range of a LDR. However, this may
-    // not be the case if _nSlot is at the start of the page and _nIns is at
-    // the end because the PC is 8 bytes ahead of _nIns. This is unlikely to
-    // happen, but if it does occur we can simply waste a word or two of
-    // literal space.
+    // We should always reach the const pool, since it's on the same page (<4096);
+    // if we can't, someone didn't underrunProtect enough.
 
-    int offset = PC_OFFSET_FROM(_nSlot+1, _nIns-1);
-    while (offset <= -4096) {
-        ++_nSlot;
-        offset += sizeof(_nSlot);
-    }
+    *(++_nSlot) = (int)imm;
+
+    //fprintf (stderr, "wrote slot(2) %p with %08x, jmp @ %p\n", _nSlot, (intptr_t)imm, _nIns-1);
+
+    int offset = PC_OFFSET_FROM(_nSlot,_nIns-1);
+
     NanoAssert(isS12(offset) && (offset < 0));
 
-    // Write the literal.
-    *(++_nSlot) = imm;
     asm_output("  (%d(PC) = 0x%x)", offset, imm);
 
-    // Load the literal.
     LDR_nochk(r,PC,offset);
 }
 
@@ -1031,23 +1015,10 @@ Assembler::asm_ldr_chk(Register d, Register b, int32_t off, bool chk)
         return;
     }
 
-    // This function can't reliably be used to generate PC-relative loads
-    // because it may emit other instructions before the LDR. Support for
-    // PC-relative loads could be added, but isn't currently required so this
-    // assertion is sufficient.
-    NanoAssert(b != PC);
-
-    if (isU12(off)) {
-        // LDR d, b, #+off
+    if (off > -4096 && off < 4096) {
         if (chk) underrunProtect(4);
-        *(--_nIns) = (NIns)( COND_AL | (0x59<<20) | (b<<16) | (d<<12) | off );
-    } else if (isU12(-off)) {
-        // LDR d, b, #-off
-        if (chk) underrunProtect(4);
-        *(--_nIns) = (NIns)( COND_AL | (0x51<<20) | (b<<16) | (d<<12) | -off );
+        *(--_nIns) = (NIns)( COND_AL | ((off < 0 ? 0x51 : 0x59)<<20) | (b<<16) | (d<<12) | ((off < 0 ? -off : off)&0xFFF) );
     } else {
-        // The offset is over 4096 (and outside the range of LDR), so we need
-        // to add a level of indirection to get the address into IP.
         if (chk) underrunProtect(4+LD32_size);
         NanoAssert(b != IP);
         *(--_nIns) = (NIns)( COND_AL | (0x79<<20) | (b<<16) | (d<<12) | IP );
@@ -1261,18 +1232,18 @@ Assembler::asm_fop(LInsp ins)
     Register rr = prepResultReg(ins, FpRegs);
 
     Register ra = findRegFor(lhs, FpRegs);
-    Register rb = (rhs == lhs) ? ra : findRegFor(rhs, FpRegs & ~rmask(ra));
+    Register rb = (rhs == lhs) ? ra : findRegFor(rhs, FpRegs);
 
     // XXX special-case 1.0 and 0.0
 
-    switch (op)
-    {
-        case LIR_fadd:      FADDD(rr,ra,rb);    break;
-        case LIR_fsub:      FSUBD(rr,ra,rb);    break;
-        case LIR_fmul:      FMULD(rr,ra,rb);    break;
-        case LIR_fdiv:      FDIVD(rr,ra,rb);    break;
-        default:            NanoAssert(0);      break;
-    }
+    if (op == LIR_fadd)
+        FADDD(rr,ra,rb);
+    else if (op == LIR_fsub)
+        FSUBD(rr,ra,rb);
+    else if (op == LIR_fmul)
+        FMULD(rr,ra,rb);
+    else //if (op == LIR_fdiv)
+        FDIVD(rr,ra,rb);
 }
 
 void
@@ -1294,27 +1265,7 @@ Assembler::asm_fcmp(LInsp ins)
 Register
 Assembler::asm_prep_fcall(Reservation*, LInsp)
 {
-    /* Because ARM actually returns the result in (R0,R1), and not in a
-     * floating point register, the code to move the result into a correct
-     * register is at the beginning of asm_call(). This function does
-     * nothing.
-     *
-     * The reason being that if this function did something, the final code
-     * sequence we'd get would be something like:
-     *     MOV {R0-R3},params        [from asm_call()]
-     *     BL function               [from asm_call()]
-     *     MOV {R0-R3},spilled data  [from evictScratchRegs()]
-     *     MOV Dx,{R0,R1}            [from this function]
-     * which is clearly broken.
-     *
-     * This is not a problem for non-floating point calls, because the
-     * restoring of spilled data into R0 is done via a call to prepResultReg(R0)
-     * at the same point in the sequence as this function is called, meaning that
-     * evictScratchRegs() will not modify R0. However, prepResultReg is not aware
-     * of the concept of using a register pair (R0,R1) for the result of a single
-     * operation, so it can only be used here with the ultimate VFP register, and
-     * not R0/R1, which potentially allows for R0/R1 to get corrupted as described.
-     */
+    // We have nothing to do here; we do it all in asm_call.
     return UnknownReg;
 }
 
@@ -1552,8 +1503,7 @@ Assembler::asm_arith(LInsp ins)
     // outside of +/-255 (for AND) r outside of
     // 0..255 for others.
     if (!forceReg) {
-        if ((op != LIR_lsh) && (op != LIR_rsh) && (LIR_ush) &&
-            rhs->isconst() && !isU8(rhs->imm32()))
+        if (rhs->isconst() && !isU8(rhs->imm32()))
             forceReg = true;
     }
 
@@ -1594,16 +1544,13 @@ Assembler::asm_arith(LInsp ins)
             ORR(rr, ra, rb);
         else if (op == LIR_xor)
             EOR(rr, ra, rb);
-        else if (op == LIR_lsh) {
-            SHL(rr, ra, IP);
-            ANDi(IP, rb, 0x1f);
-        } else if (op == LIR_rsh) {
-            SAR(rr, ra, IP);
-            ANDi(IP, rb, 0x1f);
-        } else if (op == LIR_ush) {
-            SHR(rr, ra, IP);
-            ANDi(IP, rb, 0x1f);
-        } else
+        else if (op == LIR_lsh)
+            SHL(rr, ra, rb);
+        else if (op == LIR_rsh)
+            SAR(rr, ra, rb);
+        else if (op == LIR_ush)
+            SHR(rr, ra, rb);
+        else
             NanoAssertMsg(0, "Unsupported");
     } else {
         int c = rhs->imm32();

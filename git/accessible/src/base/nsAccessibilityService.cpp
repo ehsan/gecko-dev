@@ -557,10 +557,6 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
            tag == nsAccessibilityAtoms::q) {
     return CreateHyperTextAccessible(aFrame, aAccessible);
   }
-  else if (nsCoreUtils::IsHTMLTableHeader(content)) {
-    *aAccessible = new nsHTMLTableHeaderAccessible(aNode, aWeakShell);
-  }
-
   NS_IF_ADDREF(*aAccessible);
   return NS_OK;
 }
@@ -1835,6 +1831,14 @@ nsresult nsAccessibilityService::GetAccessibleByType(nsIDOMNode *aNode,
       *aAccessible = new nsXULStatusBarAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULScale:
+      *aAccessible = new nsEnumRoleXBLAccessible(aNode, weakShell,
+                                                 nsIAccessibleRole::ROLE_GROUPING);
+      break;
+    case nsIAccessibleProvider::XULScrollbar:
+      *aAccessible = new nsEnumRoleXBLAccessible(aNode, weakShell,
+                                                 nsIAccessibleRole::ROLE_SCROLLBAR);
+      break;
+    case nsIAccessibleProvider::XULSlider:
       *aAccessible = new nsXULSliderAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULRadioButton:

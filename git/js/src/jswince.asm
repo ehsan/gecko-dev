@@ -71,9 +71,10 @@ $PrologName
     endp
 
     FUNC_HEADER js_arm_try_armv5_op
-    ;; clz ip, ip
-    DCD 0xE16FCF1C
+    blx js_arm_try_armv5_test
     mov pc, lr
+js_arm_try_armv5_test
+    bx lr
     ENTRY_END
     endp
 

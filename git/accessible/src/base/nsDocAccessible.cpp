@@ -1140,9 +1140,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   }
   
   if (aAttribute == nsAccessibilityAtoms::alt ||
-      aAttribute == nsAccessibilityAtoms::title ||
-      aAttribute == nsAccessibilityAtoms::aria_label ||
-      aAttribute == nsAccessibilityAtoms::aria_labelledby) {
+      aAttribute == nsAccessibilityAtoms::title) {
     FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE,
                             targetNode);
     return;

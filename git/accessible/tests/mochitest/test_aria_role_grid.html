@@ -100,9 +100,7 @@
           }
         ]
       };
-      if (LINUX)
-        todo(false, "No tests on linux because of different hierarchies.");
-      else
+      if (!LINUX) // Do not test on linux because of different hierarchies.
         testAccessibleTree("grid", accTree);
 
       SimpleTest.finish();

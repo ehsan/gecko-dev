@@ -179,12 +179,13 @@ struct InlineBackgroundData
 
 protected:
   nsIFrame*     mFrame;
-  nsBlockFrame* mBlockFrame;
-  nsRect        mBoundingBox;
   nscoord       mContinuationPoint;
   nscoord       mUnbrokenWidth;
-  nscoord       mLineContinuationPoint;
+  nsRect        mBoundingBox;
+
   PRBool        mBidiEnabled;
+  nsBlockFrame* mBlockFrame;
+  nscoord       mLineContinuationPoint;
   
   void SetFrame(nsIFrame* aFrame)
   {
@@ -1178,19 +1179,10 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     // (renderContext == shadowContext) which is why we set up the color and clip
     // before doing this.
     shadowContext->NewPath();
-    if (hasBorderRadius) {
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = -shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(borderRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowRect, clipRectRadii);
-    } else {
+    if (hasBorderRadius)
+      shadowContext->RoundedRectangle(shadowRect, borderRadii);
+    else
       shadowContext->Rectangle(shadowRect);
-    }
     shadowContext->Fill();
 
     blurringArea.DoPaint();
@@ -1236,7 +1228,10 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
                                            &innerRadii);
   }
 
+  gfxRect frameGfxRect = RectToGfxRect(paddingRect, twipsPerPixel);
+  frameGfxRect.Round();
   gfxRect dirtyGfxRect = RectToGfxRect(aDirtyRect, twipsPerPixel);
+
   for (PRUint32 i = shadows->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
     if (!shadowItem->mInset)
@@ -1298,20 +1293,10 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // not paint in, and blur and apply it
     shadowContext->NewPath();
     shadowContext->Rectangle(shadowPaintRect);
-    if (hasBorderRadius) {
-      // Calculate the radii the inner clipping rect will have
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(innerRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowClipRect, clipRectRadii, PR_FALSE);
-    } else {
+    if (hasBorderRadius)
+      shadowContext->RoundedRectangle(shadowClipRect, innerRadii, PR_FALSE);
+    else
       shadowContext->Rectangle(shadowClipRect);
-    }
     shadowContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
     shadowContext->Fill();
 

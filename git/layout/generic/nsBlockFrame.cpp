@@ -4082,8 +4082,7 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
 #ifdef IBMBIDI
   // XXXldb Why don't we do this earlier?
   if (aState.mPresContext->BidiEnabled()) {
-    if (!aState.mPresContext->IsVisualMode() ||
-        GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
+    if (!aState.mPresContext->IsVisualMode()) {
       nsBidiPresUtils* bidiUtils = aState.mPresContext->GetBidiUtils();
 
       if (bidiUtils && bidiUtils->IsSuccessful() ) {
@@ -5019,6 +5018,15 @@ nsBlockFrame::RemoveFloat(nsIFrame* aFloat) {
     if (line->IsInline() && line->RemoveFloat(aFloat)) {
       break;
     }
+  }
+
+  // Unlink the placeholder *after* we searched the lines, because
+  // the line search uses the placeholder relationship.
+  nsFrameManager* fm = PresContext()->GetPresShell()->FrameManager();
+  nsPlaceholderFrame* placeholder = fm->GetPlaceholderFrameFor(aFloat);
+  if (placeholder) {
+    fm->UnregisterPlaceholderFrame(placeholder);
+    placeholder->SetOutOfFlowFrame(nsnull);
   }
 
   // Try to destroy if it's in mFloats.
@@ -6385,6 +6393,21 @@ nsBlockFrame::ChildIsDirty(nsIFrame* aChild)
 
   nsBlockFrameSuper::ChildIsDirty(aChild);
 }
+
+//////////////////////////////////////////////////////////////////////
+// Start Debugging
+
+#ifdef NS_DEBUG
+NS_IMETHODIMP
+nsBlockFrame::VerifyTree() const
+{
+  // XXX rewrite this
+  return NS_OK;
+}
+#endif
+
+// End Debugging
+//////////////////////////////////////////////////////////////////////
 
 NS_IMETHODIMP
 nsBlockFrame::Init(nsIContent*      aContent,

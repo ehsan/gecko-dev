@@ -31,7 +31,6 @@
    -   Michael Ventnor <ventnor.bugzilla@yahoo.com.au>
    -   Mark Pilgrim <pilgrim@gmail.com>
    -   Dão Gottwald <dao@mozilla.com>
-   -   Paul O’Shannessy <paul@oshannessy.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -1488,7 +1487,7 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            this._endRemoveTab(this._beginRemoveTab(aTab, false, null, true));
+            this._endRemoveTab(this._beginRemoveTab(aTab, true, null, true));
           ]]>
         </body>
       </method>
@@ -1502,7 +1501,7 @@
       <!-- Returns everything that _endRemoveTab needs in an array. -->
       <method name="_beginRemoveTab">
         <parameter name="aTab"/>
-        <parameter name="aTabWillBeMoved"/>
+        <parameter name="aFireBeforeUnload"/>
         <parameter name="aCloseWindowWithLastTab"/>
         <parameter name="aCloseWindowFastpath"/>
         <body>
@@ -1512,7 +1511,7 @@
 
             var browser = this.getBrowserForTab(aTab);
 
-            if (!aTabWillBeMoved) {
+            if (aFireBeforeUnload) {
               let ds = browser.docShell;
               if (ds.contentViewer && !ds.contentViewer.permitUnload())
                 return null;
@@ -1551,8 +1550,8 @@
             // Dispatch a notification.
             // We dispatch it before any teardown so that event listeners can
             // inspect the tab that's about to close.
-            var evt = document.createEvent("UIEvent");
-            evt.initUIEvent("TabClose", true, false, window, aTabWillBeMoved ? 1 : 0);
+            var evt = document.createEvent("Events");
+            evt.initEvent("TabClose", true, false);
             aTab.dispatchEvent(evt);
 
             // Remove the tab's filter and progress listener.
@@ -1717,7 +1716,7 @@
             // First, start teardown of the other browser.  Make sure to not
             // fire the beforeunload event in the process.  Close the other
             // window if this was its last tab.
-            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, true, true);
+            var endRemoveArgs = remoteBrowser._beginRemoveTab(aOtherTab, false, true);
 
             // Unhook our progress listener
             var ourIndex = aOurTab._tPos;
@@ -2281,7 +2280,7 @@
         <body>
           <![CDATA[
             if (this.mTabs.length == 1)
-              return null;
+              return;
 
             // tell a new window to take the "dropped" tab
             var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
