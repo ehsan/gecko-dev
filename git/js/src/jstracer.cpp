@@ -1726,6 +1726,11 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     newifp->frame.regs->pc = script->code;
     newifp->frame.regs->sp = newsp + script->nfixed;
     newifp->frame.slots = newsp;
+    if (script->staticDepth < JS_DISPLAY_SIZE) {
+        JSStackFrame **disp = &cx->display[script->staticDepth];
+        newifp->frame.displaySave = *disp;
+        *disp = &newifp->frame;
+    }
 #ifdef DEBUG
     newifp->frame.pcDisabledSave = 0;
 #endif
@@ -2281,10 +2286,6 @@ FrameInRange(JSStackFrame* fp, JSStackFrame *target, unsigned callDepth)
 bool
 TraceRecorder::activeCallOrGlobalSlot(JSObject* obj, jsval*& vp)
 {
-#if 1
-    vp = 0;
-    ABORT_TRACE("can't yet trace with active call object");
-#else
     JS_ASSERT(obj != globalObj);
 
     JSAtom* atom = atoms[GET_INDEX(cx->fp->regs->pc)];
@@ -2328,7 +2329,6 @@ TraceRecorder::activeCallOrGlobalSlot(JSObject* obj, jsval*& vp)
 
     OBJ_DROP_PROPERTY(cx, obj2, prop);
     ABORT_TRACE("fp->scopeChain is not global or active call object");
-#endif /* !NOTYET */
 }
 
 LIns*
@@ -3932,6 +3932,18 @@ TraceRecorder::record_JSOP_CALLNAME()
 }
 
 bool
+TraceRecorder::record_JSOP_GETUPVAR()
+{
+    ABORT_TRACE("GETUPVAR");
+}
+
+bool
+TraceRecorder::record_JSOP_CALLUPVAR()
+{
+    ABORT_TRACE("CALLUPVAR");
+}
+
+bool
 TraceRecorder::guardShapelessCallee(jsval& callee)
 {
     if (!VALUE_IS_FUNCTION(cx, callee))
@@ -4044,8 +4056,27 @@ TraceRecorder::record_JSOP_CALL()
      * from benchmarks. FIXME: we need a post-eval recording hook to know which
      * type tag to unbox from.
      */
-    if (FUN_SLOW_NATIVE(fun)) 
+    if (FUN_SLOW_NATIVE(fun)) {
+        if (fun->u.n.native == js_obj_eval) {
+            if (JSVAL_IS_PRIMITIVE(tval))
+                ABORT_TRACE("eval with primitive |this|");
+
+            jsval& arg = stackval(0 - argc);
+            if (!JSVAL_IS_STRING(arg)) {
+                set(&fval, get(&arg));
+                return true;
+            }
+
+            LIns* args[] = { get(&arg), this_ins, get(&fval), cx_ins };
+            LIns* res_ins = lir->insCall(F_FastEval, args);
+            if (!unbox_jsval(JSVAL_STRING, res_ins))
+                ABORT_TRACE("unboxing non-string eval result");
+            set(&fval, res_ins);
+            return true;
+        }
+
         ABORT_TRACE("slow native");
+    }
 
     static JSTraceableNative knownNatives[] = {
         { js_math_sin,                 F_Math_sin,             "",    "d",    INFALLIBLE,  NULL },
@@ -5028,11 +5059,7 @@ TraceRecorder::record_JSOP_DEFLOCALFUN()
     JSScript* script = cx->fp->script;
     LOAD_FUNCTION(SLOTNO_LEN); // needs script, regs, fun
 
-    JSObject* obj = FUN_OBJECT(fun);
-    if (OBJ_GET_PARENT(cx, obj) != cx->fp->scopeChain)
-        ABORT_TRACE("can't trace with activation object on scopeChain");
-
-    var(GET_SLOTNO(regs.pc), lir->insImmPtr(obj));
+    var(GET_SLOTNO(regs.pc), INS_CONSTPTR(FUN_OBJECT(fun)));
     return true;
 }
 
@@ -5735,7 +5762,6 @@ UNUSED(JSOP_UNUSED76)
 UNUSED(JSOP_UNUSED77)
 UNUSED(JSOP_UNUSED78)
 UNUSED(JSOP_UNUSED79)
-UNUSED(JSOP_UNUSED186)
 UNUSED(JSOP_UNUSED201)
 UNUSED(JSOP_UNUSED202)
 UNUSED(JSOP_UNUSED203)
@@ -5743,6 +5769,5 @@ UNUSED(JSOP_UNUSED204)
 UNUSED(JSOP_UNUSED205)
 UNUSED(JSOP_UNUSED206)
 UNUSED(JSOP_UNUSED207)
-UNUSED(JSOP_UNUSED213)
 UNUSED(JSOP_UNUSED219)
 UNUSED(JSOP_UNUSED226)
