@@ -9,6 +9,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,11 +35,6 @@ public class BrowserIDRemoteVerifierClient implements BrowserIDVerifierClient {
     protected RemoteVerifierResourceDelegate(Resource resource, BrowserIDVerifierDelegate delegate) {
       super(resource);
       this.delegate = delegate;
-    }
-
-    @Override
-    public String getUserAgent() {
-      return null;
     }
 
     @Override

@@ -177,10 +177,6 @@ public class BaseResource implements Resource {
     HttpConnectionParams.setStaleCheckingEnabled(params, false);
     HttpProtocolParams.setContentCharset(params, charset);
     HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);
-    final String userAgent = delegate.getUserAgent();
-    if (userAgent != null) {
-      HttpProtocolParams.setUserAgent(params, userAgent);
-    }
     delegate.addHeaders(request, client);
   }
 

@@ -106,7 +106,7 @@ public class DynamicToolbar {
             return;
         }
 
-        final boolean immediate = transition.equals(VisibilityTransition.IMMEDIATE);
+        final boolean immediate = transition.equals(VisibilityTransition.ANIMATE);
         if (visible) {
             layerView.getLayerMarginsAnimator().showMargins(immediate);
         } else {

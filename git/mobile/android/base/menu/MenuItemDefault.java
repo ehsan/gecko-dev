@@ -142,7 +142,7 @@ public class MenuItemDefault extends TextView
         }
     }
 
-    void setSubMenuIndicator(boolean hasSubMenu) {
+    private void setSubMenuIndicator(boolean hasSubMenu) {
         if (mHasSubMenu != hasSubMenu) {
             mHasSubMenu = hasSubMenu;
             refreshDrawableState();

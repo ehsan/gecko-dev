@@ -253,7 +253,6 @@ toolbarpaletteitem[place="toolbar"] {
 
 #wrapper-personal-bookmarks:not([place="toolbar"]) > #personal-bookmarks {
   -moz-box-pack: center;
-  min-height: 48px;
 }
 
 #customization-palette > toolbarpaletteitem > label {
