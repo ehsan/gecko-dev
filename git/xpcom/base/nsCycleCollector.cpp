@@ -1047,12 +1047,12 @@ struct nsCycleCollector
                      nsICycleCollectorListener *aListener);
 
     // Prepare for and cleanup after one or more collection(s).
-    PRBool PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes,
-                                PRBool aForceGC);
+    PRBool PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes);
     void CleanupAfterCollection();
 
     // Start and finish an individual collection.
-    PRBool BeginCollection(nsICycleCollectorListener *aListener);
+    PRBool BeginCollection(PRBool aForceGC,
+                           nsICycleCollectorListener *aListener);
     PRBool FinishCollection();
 
     PRUint32 SuspectedCount();
@@ -2499,12 +2499,8 @@ nsCycleCollector::Freed(void *n)
 #endif
 
 PRBool
-nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes,
-                                       PRBool aForceGC)
+nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes)
 {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "PrepareForCollection must be called on the main thread.");
-
 #if defined(DEBUG_CC) && !defined(__MINGW32__)
     if (!mParams.mDoNothing && mParams.mHookMalloc)
         InitMemHook();
@@ -2532,29 +2528,6 @@ nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes,
     mCollectedObjects = 0;
 
     mWhiteNodes = aWhiteNodes;
-
-    // The cycle collector uses the mark bitmap to discover what JS objects
-    // were reachable only from XPConnect roots that might participate in
-    // cycles. We ask the JS runtime whether we need to force a GC before
-    // this CC. It returns true on startup (before the mark bits have been set),
-    // and also when UnmarkGray has run out of stack.
-    if (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
-        nsCycleCollectionJSRuntime* rt =
-            static_cast<nsCycleCollectionJSRuntime*>
-                (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
-        if (rt->NeedCollect() || aForceGC) {
-#ifdef COLLECT_TIME_DEBUG
-            PRTime start = PR_Now();
-#endif
-            // rt->Collect() must be called from the main thread,
-            // because it invokes XPCJSRuntime::GCCallback(cx, JSGC_BEGIN)
-            // which returns false if not in the main thread.
-            rt->Collect();
-#ifdef COLLECT_TIME_DEBUG
-            printf("cc: GC() took %lldms\n", (PR_Now() - start) / PR_USEC_PER_MSEC);
-#endif
-        }
-    }
 
     return PR_TRUE;
 }
@@ -2590,13 +2563,13 @@ nsCycleCollector::Collect(PRUint32 aTryCollections,
 {
     nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
 
-    if (!PrepareForCollection(&whiteNodes, PR_TRUE))
+    if (!PrepareForCollection(&whiteNodes))
         return 0;
 
     PRUint32 totalCollections = 0;
     while (aTryCollections > totalCollections) {
         // Synchronous cycle collection. Always force a JS GC as well.
-        if (!(BeginCollection(aListener) && FinishCollection()))
+        if (!(BeginCollection(PR_TRUE, aListener) && FinishCollection()))
             break;
 
         ++totalCollections;
@@ -2608,10 +2581,31 @@ nsCycleCollector::Collect(PRUint32 aTryCollections,
 }
 
 PRBool
-nsCycleCollector::BeginCollection(nsICycleCollectorListener *aListener)
+nsCycleCollector::BeginCollection(PRBool aForceGC,
+                                  nsICycleCollectorListener *aListener)
 {
     if (mParams.mDoNothing)
         return PR_FALSE;
+
+    // The cycle collector uses the mark bitmap to discover what JS objects
+    // were reachable only from XPConnect roots that might participate in
+    // cycles. We ask the JS runtime whether we need to force a GC before
+    // this CC. It returns true on startup (before the mark bits have been set),
+    // and also when UnmarkGray has run out of stack.
+    if (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
+        nsCycleCollectionJSRuntime* rt =
+            static_cast<nsCycleCollectionJSRuntime*>
+                (mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]);
+        if (rt->NeedCollect() || aForceGC) {
+#ifdef COLLECT_TIME_DEBUG
+            PRTime start = PR_Now();
+#endif
+            rt->Collect();
+#ifdef COLLECT_TIME_DEBUG
+            printf("cc: GC() took %lldms\n", (PR_Now() - start) / PR_USEC_PER_MSEC);
+#endif
+        }
+    }
 
     if (aListener && NS_FAILED(aListener->Begin())) {
         aListener = nsnull;
@@ -3364,7 +3358,7 @@ public:
                 return NS_OK;
             }
 
-            mCollected = mCollector->BeginCollection(mListener);
+            mCollected = mCollector->BeginCollection(PR_FALSE, mListener);
 
             mReply.Notify();
         }
@@ -3395,7 +3389,7 @@ public:
             return 0;
 
         nsAutoTPtrArray<PtrInfo, 4000> whiteNodes;
-        if (!mCollector->PrepareForCollection(&whiteNodes, PR_FALSE))
+        if (!mCollector->PrepareForCollection(&whiteNodes))
             return 0;
 
         NS_ASSERTION(!mListener, "Should have cleared this already!");

@@ -309,7 +309,7 @@ public:
    */
   nsIDocument* GetDocument() const
   {
-    return mDocument;
+    return mOwnerManager->GetDocument();
   }
 
 protected:
@@ -358,8 +358,6 @@ protected:
 
   // nsNodeInfoManager needs to pass mInner to the hash table.
   friend class nsNodeInfoManager;
-
-  nsIDocument* mDocument; // Weak. Cache of mOwnerManager->mDocument
 
   nsNodeInfoInner mInner;
 

@@ -2806,8 +2806,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
     newlen = 0;
     newarr = NULL;
 #endif
-    jsuint start = 0, end = length;
-    jsint step = 1;
+    jsint start = 0, end = length, step = 1;
 
     switch (mode) {
       case REDUCE_RIGHT:
@@ -2876,7 +2875,7 @@ array_extra(JSContext *cx, ArrayExtraMode mode, uintN argc, Value *vp)
 
     Value objv = ObjectValue(*obj);
     AutoValueRooter tvr(cx);
-    for (jsuint i = start; i != end; i += step) {
+    for (jsint i = start; i != end; i += step) {
         JSBool hole;
         ok = JS_CHECK_OPERATION_LIMIT(cx) &&
              GetElement(cx, obj, i, &hole, tvr.addr());
