@@ -478,9 +478,8 @@ ReadStream::Forget()
 NS_IMETHODIMP
 ReadStream::Close()
 {
-  nsresult rv = mStream->Close();
   NoteClosed();
-  return rv;
+  return mStream->Close();
 }
 
 NS_IMETHODIMP
@@ -489,7 +488,7 @@ ReadStream::Available(uint64_t* aNumAvailableOut)
   nsresult rv = mSnappyStream->Available(aNumAvailableOut);
 
   if (NS_FAILED(rv)) {
-    Close();
+    NoteClosed();
   }
 
   return rv;
@@ -502,9 +501,12 @@ ReadStream::Read(char* aBuf, uint32_t aCount, uint32_t* aNumReadOut)
 
   nsresult rv = mSnappyStream->Read(aBuf, aCount, aNumReadOut);
 
+  // Don't auto-close when end of stream is hit.  We want to close
+  // this stream on a particular thread in the parent case.
+
   if ((NS_FAILED(rv) && rv != NS_BASE_STREAM_WOULD_BLOCK) ||
       *aNumReadOut == 0) {
-    Close();
+    NoteClosed();
   }
 
   return rv;
@@ -519,9 +521,12 @@ ReadStream::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
   nsresult rv = mSnappyStream->ReadSegments(aWriter, aClosure, aCount,
                                             aNumReadOut);
 
+  // Don't auto-close when end of stream is hit.  We want to close
+  // this stream on a particular thread in the parent case.
+
   if ((NS_FAILED(rv) && rv != NS_BASE_STREAM_WOULD_BLOCK &&
                         rv != NS_ERROR_NOT_IMPLEMENTED) || *aNumReadOut == 0) {
-    Close();
+    NoteClosed();
   }
 
   return rv;
