@@ -31,14 +31,12 @@ public:
                          nsAutoPtr<MediaData>& aOutput) MOZ_OVERRIDE;
 private:
 
-  HRESULT UpdateOutputType();
-
   // IMFTransform wrapper that performs the decoding.
   RefPtr<MFTDecoder> mDecoder;
 
-  uint32_t mAudioChannels;
+  const uint32_t mAudioChannels;
   const uint32_t mAudioBytesPerSample;
-  uint32_t mAudioRate;
+  const uint32_t mAudioRate;
   nsTArray<BYTE> mUserData;
 
   // The offset, in audio frames, at which playback started since the

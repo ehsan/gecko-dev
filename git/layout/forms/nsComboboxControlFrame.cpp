@@ -1184,16 +1184,11 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsComboboxControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                                  uint32_t aFilter)
 {
-  if (mDisplayContent) {
-    aElements.AppendElement(mDisplayContent);
-  }
-
-  if (mButtonContent) {
-    aElements.AppendElement(mButtonContent);
-  }
+  aElements.MaybeAppendElement(mDisplayContent);
+  aElements.MaybeAppendElement(mButtonContent);
 }
 
 // XXXbz this is a for-now hack.  Now that display:inline-block works,

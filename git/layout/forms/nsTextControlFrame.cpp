@@ -394,20 +394,15 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsTextControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                              uint32_t aFilter)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
 
-  nsIContent* root = txtCtrl->GetRootEditorNode();
-  if (root) {
-    aElements.AppendElement(root);
-  }
-
-  nsIContent* placeholder = txtCtrl->GetPlaceholderNode();
-  if (placeholder && !(aFilter & nsIContent::eSkipPlaceholderContent))
-    aElements.AppendElement(placeholder);
+  aElements.MaybeAppendElement(txtCtrl->GetRootEditorNode());
+  if (!(aFilter & nsIContent::eSkipPlaceholderContent))
+    aElements.MaybeAppendElement(txtCtrl->GetPlaceholderNode());
   
 }
 

@@ -58,7 +58,7 @@ Box::Box(BoxContext* aContext, uint64_t aOffset, const Box* aParent)
   }
 
   MediaByteRange boxRange(aOffset, aOffset + size);
-  if (mChildOffset >= boxRange.mEnd ||
+  if (boxRange.mEnd > mChildOffset ||
       (mParent && !mParent->mRange.Contains(boxRange)) ||
       !byteRange->Contains(boxRange)) {
     return;

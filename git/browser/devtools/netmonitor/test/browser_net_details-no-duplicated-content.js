@@ -12,13 +12,10 @@ let test = Task.async(function* () {
   let { NetMonitorView, EVENTS } = panel;
   let { RequestsMenu, NetworkDetails } = NetMonitorView;
 
-  const COOKIE_UNIQUE_PATH = "/do-not-use-in-other-tests-using-cookies";
-
   let TEST_CASES = [
     {
       desc: "Test headers tab",
       pageURI: CUSTOM_GET_URL,
-      requestURI: null,
       isPost: false,
       tabIndex: 0,
       variablesView: NetworkDetails._headers,
@@ -27,7 +24,6 @@ let test = Task.async(function* () {
     {
       desc: "Test cookies tab",
       pageURI: CUSTOM_GET_URL,
-      requestURI: COOKIE_UNIQUE_PATH,
       isPost: false,
       tabIndex: 1,
       variablesView: NetworkDetails._cookies,
@@ -36,7 +32,6 @@ let test = Task.async(function* () {
     {
       desc: "Test params tab",
       pageURI: POST_RAW_URL,
-      requestURI: null,
       isPost: true,
       tabIndex: 2,
       variablesView: NetworkDetails._params,
@@ -45,18 +40,19 @@ let test = Task.async(function* () {
   ];
 
   info("Adding a cookie for the \"Cookie\" tab test");
-  debuggee.document.cookie = "a=b; path=" + COOKIE_UNIQUE_PATH;
+  debuggee.document.cookie = "a=b; Max-Age=10; path=" +  CUSTOM_GET_URL;
+  is(debuggee.document.cookie, "a=b", "Cookie was added.")
 
   info("Running tests");
   for (let spec of TEST_CASES) {
     yield runTestCase(spec);
   }
 
-  // Remove the cookie. If an error occurs the path of the cookie ensures it
-  // doesn't mess with the other tests.
+  // Remove the cookie. If an error occurs Max-Age ensures it doesn't stay to
+  // mess with the tests.
   info("Removing the added cookie.");
-  debuggee.document.cookie = "a=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=" +
-    COOKIE_UNIQUE_PATH;
+  debuggee.document.cookie = "a=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  is(debuggee.document.cookie, "", "Cookie was removed.");
 
   yield teardown(monitor);
   finish();
@@ -70,7 +66,7 @@ let test = Task.async(function* () {
 
     yield waitForNetworkEvents(monitor, 1);
     RequestsMenu.clear();
-    yield waitForFinalDetailTabUpdate(spec.tabIndex, spec.isPost, spec.requestURI);
+    yield waitForFinalDetailTabUpdate(spec.tabIndex, spec.isPost);
 
     is(spec.variablesView._store.length, spec.expectedScopeLength,
        "View contains " + spec.expectedScopeLength + " scope headers");
@@ -79,18 +75,18 @@ let test = Task.async(function* () {
   /**
    * A helper that prepares the variables view for the actual testing. It
    * - selects the correct tab
-   * - performs the specified request to specified URI
+   * - performs the specified request
    * - opens the details view
    * - waits for the final update to happen
    */
-  function* waitForFinalDetailTabUpdate(tabIndex, isPost, uri) {
+  function* waitForFinalDetailTabUpdate(tabIndex, isPost) {
     let onNetworkEvent = waitFor(panel, EVENTS.NETWORK_EVENT);
     let onDetailsPopulated = waitFor(panel, EVENTS.NETWORKDETAILSVIEW_POPULATED);
     let onRequestFinished = isPost ?
       waitForNetworkEvents(monitor, 0, 1) : waitForNetworkEvents(monitor, 1);
 
     info("Performing a request");
-    debuggee.performRequests(1, uri);
+    debuggee.performRequests(1, null);
 
     info("Waiting for NETWORK_EVENT");
     yield onNetworkEvent;

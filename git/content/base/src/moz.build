@@ -61,7 +61,6 @@ EXPORTS.mozilla += [
 
 EXPORTS.mozilla.dom += [
     'Attr.h',
-    'ChildIterator.h',
     'Comment.h',
     'DocumentFragment.h',
     'DocumentType.h',

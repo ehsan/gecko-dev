@@ -86,7 +86,6 @@ private:
   bool Decode(mp4_demuxer::TrackType aTrack);
   void Flush(mp4_demuxer::TrackType aTrack);
   void DrainComplete(mp4_demuxer::TrackType aTrack);
-  void UpdateIndex();
   void NotifyResourcesStatusChanged();
   bool IsWaitingOnCodecResource();
   bool IsWaitingOnCDMResource();

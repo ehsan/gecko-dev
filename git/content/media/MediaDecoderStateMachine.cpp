@@ -586,8 +586,8 @@ MediaDecoderStateMachine::DecodeVideo()
     // soon anyway and we'll want to be able to display frames immediately
     // after buffering finishes.
     if (mState == DECODER_STATE_DECODING &&
-        IsVideoDecoding() &&
-        ((!mIsAudioPrerolling && IsAudioDecoding() &&
+        mIsVideoDecoding &&
+        ((!mIsAudioPrerolling && mIsAudioDecoding &&
           GetDecodedAudioDuration() < mLowAudioThresholdUsecs * mPlaybackRate) ||
           (!mIsVideoPrerolling && IsVideoDecoding() &&
            // don't skip frame when |clock time| <= |mVideoFrameEndTime| for

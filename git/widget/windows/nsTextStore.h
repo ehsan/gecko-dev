@@ -24,9 +24,6 @@
 #ifdef INPUTSCOPE_INIT_GUID
 #include <initguid.h>
 #endif
-#ifdef TEXTATTRS_INIT_GUID
-#include <tsattrs.h>
-#endif
 #include <inputscope.h>
 
 // TSF InputScope, for earlier SDK 8
@@ -287,9 +284,9 @@ protected:
   void     FlushPendingActions();
 
   nsresult OnLayoutChangeInternal();
-  HRESULT  HandleRequestAttrs(DWORD aFlags,
-                              ULONG aFilterCount,
-                              const TS_ATTRID* aFilterAttrs);
+  HRESULT  ProcessScopeRequest(DWORD dwFlags,
+                               ULONG cFilterAttrs,
+                               const TS_ATTRID *paFilterAttrs);
   void     SetInputScope(const nsString& aHTMLInputType);
 
   // Creates native caret over our caret.  This method only works on desktop
@@ -666,28 +663,8 @@ protected:
 
   // The input scopes for this context, defaults to IS_DEFAULT.
   nsTArray<InputScope>         mInputScopes;
-
-  // Support retrieving attributes.
-  // TODO: We should support RightToLeft, perhaps.
-  enum
-  {
-    // Used for result of GetRequestedAttrIndex()
-    eNotSupported = -1,
-
-    // Supported attributes
-    eInputScope = 0,
-    eTextVerticalWriting,
-
-    // Count of the supported attributes
-    NUM_OF_SUPPORTED_ATTRS
-  };
-  bool mRequestedAttrs[NUM_OF_SUPPORTED_ATTRS];
-
-  int32_t GetRequestedAttrIndex(const TS_ATTRID& aAttrID);
-  TS_ATTRID GetAttrID(int32_t aIndex);
-
-  bool mRequestedAttrValues;
-
+  bool                         mInputScopeDetected;
+  bool                         mInputScopeRequested;
   // If edit actions are being recorded without document lock, this is true.
   // Otherwise, false.
   bool                         mIsRecordingActionsWithoutLock;
