@@ -7,17 +7,20 @@
 	<style type="text/css">
 
 	@font-face {
-		font-family: "One";
-		src: url(../fonts/markA.ttf) format("unknown", "truetype"), url(../fonts/mark2A.ttf) format("truetype");
+		font-family: "MarkA";
+		src: url(../fonts/markA.ttf);
 	}
 
-	body { font-family: "One"; }
+	@font-face {
+		font-family: "Mark2B";
+		src: url(../fonts/mark2B.ttf);
+	}
 
 	</style>
 </head>
 <body>
 
-<p>ABC</p>
+<p><span style="font-family: MarkA">A</span><span style="font-family: Mark2B">B</span>C</p>
 
 </body>
 </html>
