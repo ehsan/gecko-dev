@@ -24,7 +24,8 @@ FFmpegAudioDecoder<LIBAV_VER>::FFmpegAudioDecoder(
   , mCallback(aCallback)
 {
   MOZ_COUNT_CTOR(FFmpegAudioDecoder);
-  mExtraData = aConfig.audio_specific_config;
+  mExtraData.append(aConfig.audio_specific_config.begin(),
+                    aConfig.audio_specific_config.length());
 }
 
 nsresult

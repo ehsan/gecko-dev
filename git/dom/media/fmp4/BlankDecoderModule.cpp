@@ -250,10 +250,9 @@ public:
 
 };
 
-already_AddRefed<PlatformDecoderModule> CreateBlankDecoderModule()
+PlatformDecoderModule* CreateBlankDecoderModule()
 {
-  nsRefPtr<PlatformDecoderModule> pdm = new BlankDecoderModule();
-  return pdm.forget();
+  return new BlankDecoderModule();
 }
 
 } // namespace mozilla

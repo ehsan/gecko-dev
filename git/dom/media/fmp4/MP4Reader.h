@@ -123,7 +123,7 @@ private:
   size_t SizeOfQueue(TrackType aTrack);
 
   nsAutoPtr<mp4_demuxer::MP4Demuxer> mDemuxer;
-  nsRefPtr<PlatformDecoderModule> mPlatform;
+  nsAutoPtr<PlatformDecoderModule> mPlatform;
 
   class DecoderCallback : public MediaDataDecoderCallback {
   public:

@@ -258,10 +258,4 @@ EMEDecoderModule::CreateAudioDecoder(const AudioDecoderConfig& aConfig,
   return emeDecoder.forget();
 }
 
-bool
-EMEDecoderModule::DecoderNeedsAVCC(const mp4_demuxer::VideoDecoderConfig& aConfig)
-{
-  return mCDMDecodesVideo && aConfig.crypto.valid;
-}
-
 } // namespace mozilla

@@ -59,7 +59,7 @@ private:
   VP8Sample* PopSample();
 
   nsRefPtr<WebMReader> mReader;
-  nsRefPtr<PlatformDecoderModule> mPlatform;
+  nsAutoPtr<PlatformDecoderModule> mPlatform;
   nsRefPtr<MediaDataDecoder> mMediaDataDecoder;
 
   // TaskQueue on which decoder can choose to decode.

@@ -23,7 +23,6 @@ NS_IMETHODIMP
 xpcAccessible::GetParent(nsIAccessible** aParent)
 {
   NS_ENSURE_ARG_POINTER(aParent);
-  *aParent = nullptr;
   if (!Intl())
     return NS_ERROR_FAILURE;
 
@@ -147,10 +146,6 @@ NS_IMETHODIMP
 xpcAccessible::GetIndexInParent(int32_t* aIndexInParent)
 {
   NS_ENSURE_ARG_POINTER(aIndexInParent);
-  *aIndexInParent = -1;
-
-  if (!Intl())
-    return NS_ERROR_FAILURE;
 
   *aIndexInParent = Intl()->IndexInParent();
   return *aIndexInParent != -1 ? NS_OK : NS_ERROR_FAILURE;
@@ -161,9 +156,6 @@ xpcAccessible::GetDOMNode(nsIDOMNode** aDOMNode)
 {
   NS_ENSURE_ARG_POINTER(aDOMNode);
   *aDOMNode = nullptr;
-
-  if (!Intl())
-    return NS_ERROR_FAILURE;
 
   nsINode* node = Intl()->GetNode();
   if (node)
@@ -176,10 +168,6 @@ NS_IMETHODIMP
 xpcAccessible::GetDocument(nsIAccessibleDocument** aDocument)
 {
   NS_ENSURE_ARG_POINTER(aDocument);
-  *aDocument = nullptr;
-
-  if (!Intl())
-    return NS_ERROR_FAILURE;
 
   NS_IF_ADDREF(*aDocument = ToXPCDocument(Intl()->Document()));
   return NS_OK;
@@ -189,10 +177,6 @@ NS_IMETHODIMP
 xpcAccessible::GetRootDocument(nsIAccessibleDocument** aRootDocument)
 {
   NS_ENSURE_ARG_POINTER(aRootDocument);
-  *aRootDocument = nullptr;
-
-  if (!Intl())
-    return NS_ERROR_FAILURE;
 
   NS_IF_ADDREF(*aRootDocument = ToXPCDocument(Intl()->RootAccessible()));
   return NS_OK;
@@ -215,7 +199,7 @@ NS_IMETHODIMP
 xpcAccessible::GetState(uint32_t* aState, uint32_t* aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-
+  
   if (!Intl())
     nsAccUtils::To32States(states::DEFUNCT, aState, aExtraState);
   else

@@ -8,7 +8,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/NullPtr.h"
 
 class WriteRecordClient : public GMPRecordClient {
 public:
@@ -26,7 +25,7 @@ public:
 
   virtual void OpenComplete(GMPErr aStatus) MOZ_OVERRIDE {
     if (GMP_SUCCEEDED(aStatus)) {
-      mRecord->Write(mData.size() ? &mData.front() : nullptr, mData.size());
+      mRecord->Write(&mData.front(), mData.size());
     } else {
       GMPRunOnMainThread(mOnFailure);
       mOnSuccess->Destroy();

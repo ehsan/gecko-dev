@@ -72,7 +72,7 @@ SharedDecoderManager::CreateVideoDecoder(
   MediaTaskQueue* aVideoTaskQueue, MediaDataDecoderCallback* aCallback)
 {
   if (!mDecoder) {
-    nsRefPtr<PlatformDecoderModule> platform(PlatformDecoderModule::Create());
+    nsAutoPtr<PlatformDecoderModule> platform(PlatformDecoderModule::Create());
     mDecoder = platform->CreateVideoDecoder(
       aConfig, aLayersBackend, aImageContainer, aVideoTaskQueue, mCallback);
     if (!mDecoder) {

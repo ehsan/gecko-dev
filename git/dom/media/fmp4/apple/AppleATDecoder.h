@@ -9,6 +9,7 @@
 
 #include <AudioToolbox/AudioToolbox.h>
 #include "PlatformDecoderModule.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Vector.h"
 #include "nsIThread.h"
@@ -23,7 +24,7 @@ public:
   AppleATDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
                  MediaTaskQueue* aVideoTaskQueue,
                  MediaDataDecoderCallback* aCallback);
-  virtual ~AppleATDecoder();
+  ~AppleATDecoder();
 
   virtual nsresult Init() MOZ_OVERRIDE;
   virtual nsresult Input(mp4_demuxer::MP4Sample* aSample) MOZ_OVERRIDE;
@@ -35,13 +36,13 @@ public:
   const mp4_demuxer::AudioDecoderConfig& mConfig;
 
   // Use to extract magic cookie for HE-AAC detection.
-  nsTArray<uint8_t> mMagicCookie;
+  mozilla::Vector<uint8_t> mMagicCookie;
   // Will be set to true should an error occurred while attempting to retrieve
   // the magic cookie property.
   bool mFileStreamError;
 
 private:
-  nsRefPtr<MediaTaskQueue> mTaskQueue;
+  RefPtr<MediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
   AudioConverterRef mConverter;
   AudioStreamBasicDescription mOutputFormat;
@@ -52,7 +53,7 @@ private:
   void SubmitSample(nsAutoPtr<mp4_demuxer::MP4Sample> aSample);
   nsresult DecodeSample(mp4_demuxer::MP4Sample* aSample);
   nsresult GetInputAudioDescription(AudioStreamBasicDescription& aDesc,
-                                    const nsTArray<uint8_t>& aExtraData);
+                                    const mozilla::Vector<uint8_t>& aExtraData);
   // Setup AudioConverter once all information required has been gathered.
   // Will return NS_ERROR_NOT_INITIALIZED if more data is required.
   nsresult SetupDecoder(mp4_demuxer::MP4Sample* aSample);

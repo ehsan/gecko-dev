@@ -229,8 +229,6 @@ struct Statistics
     void beginGC(JSGCInvocationKind kind);
     void endGC();
 
-    void recordPhaseEnd(Phase phase);
-
     void gcDuration(int64_t *total, int64_t *maxPause);
     void sccDurations(int64_t *total, int64_t *maxPause);
     void printStats();

@@ -9,7 +9,6 @@ import re
 import subprocess
 import sys
 
-from distutils.version import LooseVersion
 from distutils.version import StrictVersion
 
 
@@ -77,7 +76,7 @@ We recommend the following tools for installing Python:
 MODERN_MERCURIAL_VERSION = StrictVersion('3.0')
 
 # Upgrade Python older than this.
-MODERN_PYTHON_VERSION = LooseVersion('2.7.3')
+MODERN_PYTHON_VERSION = StrictVersion('2.7.3')
 
 
 class BaseBootstrapper(object):
@@ -269,7 +268,7 @@ class BaseBootstrapper(object):
             print('ERROR Unable to identify Python version.')
             return False, None
 
-        our = LooseVersion(match.group(1))
+        our = StrictVersion(match.group(1))
 
         return our >= MODERN_PYTHON_VERSION, our
 

@@ -332,6 +332,7 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     SAFE_OP(TypeObjectDispatch)
     SAFE_OP(IsCallable)
     SAFE_OP(IsObject)
+    SAFE_OP(HaveSameClass)
     SAFE_OP(HasClass)
     UNSAFE_OP(EffectiveAddress)
     UNSAFE_OP(AsmJSUnsignedToDouble)

@@ -185,7 +185,7 @@ class RegExpShared
     /* Accessors */
 
     size_t getParenCount() const {
-        MOZ_ASSERT(isCompiled());
+        MOZ_ASSERT(isCompiled() || canStringMatch);
         return parenCount;
     }
 

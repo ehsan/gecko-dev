@@ -16,7 +16,9 @@ public:
   AppleDecoderModule();
   virtual ~AppleDecoderModule();
 
-  virtual nsresult Startup() MOZ_OVERRIDE;
+  // Perform any per-instance initialization.
+  // Main thread only.
+  nsresult Startup();
 
   // Called when the decoders have shutdown. Main thread only.
   // Does this really need to be main thread only????
@@ -37,8 +39,6 @@ public:
                      MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   virtual bool SupportsAudioMimeType(const char* aMimeType) MOZ_OVERRIDE;
-  virtual bool
-  DecoderNeedsAVCC(const mp4_demuxer::VideoDecoderConfig& aConfig) MOZ_OVERRIDE;
 
   static void Init();
   static nsresult CanDecode();

@@ -871,24 +871,34 @@ Statistics::beginPhase(Phase phase)
 {
     Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
 
-    // Re-entry is allowed during callbacks, so pause callback phases while
-    // other phases are in progress, auto-resuming after they end. As a result,
-    // nested GC time will not be accounted against the callback phases.
+    // Re-entry is allowed during callbacks. Do not account nested GC time
+    // against the callbacks.
     //
     // Reuse this mechanism for managing PHASE_MUTATOR.
     if (parent == PHASE_GC_BEGIN || parent == PHASE_GC_END || parent == PHASE_MUTATOR) {
         suspendedPhases[suspendedPhaseNestingDepth++] = parent;
         MOZ_ASSERT(suspendedPhaseNestingDepth <= mozilla::ArrayLength(suspendedPhases));
-        recordPhaseEnd(parent);
+        endPhase(parent);
         parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
     }
 
     // Guard against any other re-entry.
+#ifdef DEBUG
+    if (phaseStartTimes[phase]) {
+        fprintf(stderr, "phase %d already has start time of %ld; recursive entry detected!\n",
+                phase, phaseStartTimes[phase]);
+        for (int i = 0; i < phaseNestingDepth; i++)
+            fprintf(stderr, "  stack[%d]: %d\n", i, phaseNesting[i]);
+        MOZ_CRASH("My horse for a stack trace!\n");
+    }
     MOZ_ASSERT(!phaseStartTimes[phase]);
+#endif
 
+#ifdef DEBUG
     MOZ_ASSERT(phases[phase].index == phase);
     MOZ_ASSERT(phaseNestingDepth < MAX_NESTING);
     MOZ_ASSERT_IF(gcDepth == 1 && phase != PHASE_MINOR_GC, phases[phase].parent == parent);
+#endif
 
     phaseNesting[phaseNestingDepth] = phase;
     phaseNestingDepth++;
@@ -897,7 +907,7 @@ Statistics::beginPhase(Phase phase)
 }
 
 void
-Statistics::recordPhaseEnd(Phase phase)
+Statistics::endPhase(Phase phase)
 {
     int64_t now = PRMJ_Now();
 
@@ -911,19 +921,18 @@ Statistics::recordPhaseEnd(Phase phase)
         slices.back().phaseTimes[phase] += t;
     phaseTimes[phase] += t;
     phaseStartTimes[phase] = 0;
-}
-
-void
-Statistics::endPhase(Phase phase)
-{
-    recordPhaseEnd(phase);
 
     // When emptying the stack, we may need to resume a callback phase
-    // (PHASE_GC_BEGIN/END) or return to timing the mutator (PHASE_MUTATOR).
-    if (phaseNestingDepth == 0 && suspendedPhaseNestingDepth > 0) {
+    // (PHASE_GC_BEGIN/END) or if not, return to timing the mutator
+    // (PHASE_MUTATOR).
+    //
+    // However, if the phase we're ending is PHASE_MUTATOR, that means
+    // beginPhase is calling endPhase(PHASE_MUTATOR) because some other phase
+    // is starting. So don't resume any earlier phase.
+    if (phaseNestingDepth == 0 && suspendedPhaseNestingDepth > 0 && phase != PHASE_MUTATOR) {
         Phase resumePhase = suspendedPhases[--suspendedPhaseNestingDepth];
         if (resumePhase == PHASE_MUTATOR)
-            timedGCTime += PRMJ_Now() - timedGCStart;
+            timedGCTime += now - timedGCStart;
         beginPhase(resumePhase);
     }
 }

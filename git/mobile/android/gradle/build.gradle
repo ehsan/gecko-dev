@@ -1,13 +1,12 @@
-allprojects {
-    // Expose the per-object-directory configuration to all projects.
-    ext {
-        mozconfig = gradle.mozconfig
-        topsrcdir = gradle.mozconfig.topsrcdir
-        topobjdir = gradle.mozconfig.topobjdir
-    }
-}
+buildDir = "${topobjdir}/mobile/android/gradle/build"
 
-buildDir "${topobjdir}/mobile/android/gradle/build"
+ext {
+    compileSdkVersion = "${compileSdkVersion}"
+    buildToolsVersion = "${buildToolsVersion}"
+
+    targetSdkVersion = "${targetSdkVersion}"
+    minSdkVersion = "${minSdkVersion}"
+}
 
 buildscript {
     repositories {
@@ -15,21 +14,10 @@ buildscript {
     }
 
     dependencies {
-        // IntelliJ 14.0.2 wants 0.14.4; Android Studio wants 1.0.0.
-        classpath 'com.android.tools.build:gradle:[0.14.4,1.0.0]'
+        classpath 'com.android.tools.build:gradle:0.12.2'
     }
 }
 
 repositories {
     jcenter()
-}
-
-subprojects {
-    task generateCodeAndResources(type:Exec) {
-        workingDir "${topobjdir}"
-
-        commandLine "${topsrcdir}/mach"
-        args 'build'
-        args 'mobile/android/base/gradle-targets'
-    }
 }

@@ -261,6 +261,7 @@ class LIRGenerator : public LIRGeneratorSpecific
     void visitProfilerStackOp(MProfilerStackOp *ins);
     void visitIsCallable(MIsCallable *ins);
     void visitIsObject(MIsObject *ins);
+    void visitHaveSameClass(MHaveSameClass *ins);
     void visitHasClass(MHasClass *ins);
     void visitAsmJSLoadGlobalVar(MAsmJSLoadGlobalVar *ins);
     void visitAsmJSStoreGlobalVar(MAsmJSStoreGlobalVar *ins);

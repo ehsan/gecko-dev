@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "MediaTaskQueue.h"
+#include "mp4_demuxer/mp4_demuxer.h"
 #include "FFmpegLibs.h"
 #include "FFmpegLog.h"
 #include "FFmpegDataDecoder.h"
@@ -24,7 +25,6 @@ FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(MediaTaskQueue* aTaskQueue,
   : mTaskQueue(aTaskQueue)
   , mCodecContext(nullptr)
   , mFrame(NULL)
-  , mExtraData(nullptr)
   , mCodecID(aCodecID)
 {
   MOZ_COUNT_CTOR(FFmpegDataDecoder);
@@ -94,15 +94,11 @@ FFmpegDataDecoder<LIBAV_VER>::Init()
   mCodecContext->thread_type = FF_THREAD_SLICE | FF_THREAD_FRAME;
   mCodecContext->thread_safe_callbacks = false;
 
-  if (mExtraData) {
-    mCodecContext->extradata_size = mExtraData->Length();
-    for (int i = 0; i < FF_INPUT_BUFFER_PADDING_SIZE; i++) {
-      mExtraData->AppendElement(0);
-    }
-    mCodecContext->extradata = mExtraData->Elements();
-  } else {
-    mCodecContext->extradata_size = 0;
+  mCodecContext->extradata_size = mExtraData.length();
+  for (int i = 0; i < FF_INPUT_BUFFER_PADDING_SIZE; i++) {
+    mExtraData.append(0);
   }
+  mCodecContext->extradata = mExtraData.begin();
 
   if (codec->capabilities & CODEC_CAP_DR1) {
     mCodecContext->flags |= CODEC_FLAG_EMU_EDGE;
