@@ -62,12 +62,12 @@ namespace mozilla {
   private:
     T& mLocation;
     T mValue;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
   public:
-    AutoRestore(T& aValue MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoRestore(T& aValue MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
       : mLocation(aValue), mValue(aValue)
     {
-      MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+      MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoRestore() { mLocation = mValue; }
   };

@@ -381,11 +381,11 @@ private:
 class NS_STACK_CLASS nsDOMFileInternalUrlHolder {
 public:
   nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile, nsIPrincipal* aPrincipal
-                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+                             MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM);
   ~nsDOMFileInternalUrlHolder();
   nsAutoString mUrl;
 private:
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 #endif

@@ -1,5 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=40: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,19 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Telephony.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *   The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,12 +35,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMEvent.idl"
+/**
+ * MODULE NOTES:
+ * @update  jevering 6/17/98
+ * 
+ * This interface is not yet used; it was intended to allow an observer object
+ * to "look at" the i/o stream coming into the parser before, during and after
+ * the parser saw it. The intention of this was to allow an observer to modify
+ * the stream at various stages.
+ */
 
-interface nsIDOMTelephonyCall;
+#ifndef  IPARSERFILTER
+#define  IPARSERFILTER
 
-[scriptable, builtinclass, uuid(95625a90-7f1c-493b-b4bd-73f05834c6dd)]
-interface nsIDOMCallEvent : nsIDOMEvent
-{
-  readonly attribute nsIDOMTelephonyCall call;
+#include "nsISupports.h"
+
+class CToken;
+
+#define NS_IPARSERFILTER_IID     \
+  {0x14d6ff0,  0x0610,  0x11d2,  \
+  {0x8c, 0x3f, 0x00,    0x80, 0x5f, 0x8a, 0x1d, 0xb7}}
+
+
+class nsIParserFilter : public nsISupports {
+  public:
+
+   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IPARSERFILTER_IID)
+      
+   NS_IMETHOD RawBuffer(const char * buffer, PRUint32 * buffer_length) = 0;
+
+   NS_IMETHOD Finish() = 0;
+
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIParserFilter, NS_IPARSERFILTER_IID)
+
+
+#endif
+

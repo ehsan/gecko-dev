@@ -370,10 +370,10 @@ public:
     static void     DestroyLock(XPCLock* lock)
                         {delete lock;}
 
-    XPCAutoLock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock)
             mLock->Enter();
     }
@@ -387,7 +387,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoLock object incorrectly.
@@ -409,10 +409,10 @@ private:
 
 class NS_STACK_CLASS XPCAutoUnlock {
 public:
-    XPCAutoUnlock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock) {
             mLock->Exit();
         }
@@ -426,7 +426,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoUnlock object incorrectly.
@@ -3907,11 +3907,11 @@ class NS_STACK_CLASS AutoJSErrorAndExceptionEater
 {
 public:
     AutoJSErrorAndExceptionEater(JSContext* aCX
-                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mCX(aCX),
           mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
           mOldExceptionState(JS_SaveExceptionState(mCX)) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoJSErrorAndExceptionEater()
     {
@@ -3922,7 +3922,7 @@ private:
     JSContext*        mCX;
     JSErrorReporter   mOldErrorReporter;
     JSExceptionState* mOldExceptionState;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************
@@ -3936,10 +3936,10 @@ public:
      * Saves the JSContext as well as initializing our state
      * @param cx The JSContext, this can be null, we don't do anything then
      */
-    AutoScriptEvaluate(JSContext * cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoScriptEvaluate(JSContext * cx MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
          : mJSContext(cx), mState(0), mErrorReporterSet(false),
            mEvaluated(false), mContextHasThread(0) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     /**
@@ -3961,7 +3961,7 @@ private:
     bool mEvaluated;
     jsword mContextHasThread;
     JSAutoEnterCompartment mEnterCompartment;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
     AutoScriptEvaluate(const AutoScriptEvaluate &) MOZ_DELETE;
@@ -3973,11 +3973,11 @@ class NS_STACK_CLASS AutoResolveName
 {
 public:
     AutoResolveName(XPCCallContext& ccx, jsid name
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                    MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mTLS(ccx.GetThreadData()),
           mOld(mTLS->SetResolveName(name)),
           mCheck(name) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoResolveName()
         {
@@ -3992,7 +3992,7 @@ private:
     XPCPerThreadData* mTLS;
     jsid mOld;
     jsid mCheck;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/

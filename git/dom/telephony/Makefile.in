@@ -50,21 +50,14 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/dom/dom-config.mk
 
-CPPSRCS = \
-  Telephony.cpp \
-  TelephonyCall.cpp \
-  CallEvent.cpp \
-  $(NULL)
-
 XPIDLSRCS = \
-  nsIDOMNavigatorTelephony.idl \
-  nsIDOMTelephony.idl \
-  nsIDOMTelephonyCall.idl \
-  nsIDOMCallEvent.idl \
+  mozIDOMTelephony.idl \
   nsITelephone.idl \
   $(NULL)
 
 EXTRA_COMPONENTS = \
+  Telephony.manifest \
+  Telephony.js \
   nsTelephonyWorker.manifest \
   nsTelephonyWorker.js \
   $(NULL)

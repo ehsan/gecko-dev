@@ -290,7 +290,6 @@ struct JSFunction : public JSObject
     inline JSAtom *methodAtom() const;
     inline void setMethodAtom(JSAtom *atom);
 
-  private:
     /* 
      * These member functions are inherited from JSObject, but should never be applied to
      * a value statically known to be a JSFunction.

@@ -746,6 +746,7 @@ nsParser::Initialize(bool aConstructor)
   else {
     // nsCOMPtrs
     mObserver = nsnull;
+    mParserFilter = nsnull;
     mUnusedInput.Truncate();
   }
 
@@ -853,6 +854,12 @@ nsParser::PostContinueEvent()
     }
   }
   return NS_OK;
+}
+
+NS_IMETHODIMP_(void)
+nsParser::SetParserFilter(nsIParserFilter * aFilter)
+{
+  mParserFilter = aFilter;
 }
 
 NS_IMETHODIMP_(void)
@@ -2619,6 +2626,7 @@ nsParser::DetectMetaTag(const char* aBytes,
 typedef struct {
   bool mNeedCharsetCheck;
   nsParser* mParser;
+  nsIParserFilter* mParserFilter;
   nsScanner* mScanner;
   nsIRequest* mRequest;
 } ParserWriteStruct;
@@ -2688,6 +2696,9 @@ ParserWriteFunc(nsIInputStream* in,
     }
   }
 
+  if (pws->mParserFilter)
+    pws->mParserFilter->RawBuffer(buf, &theNumRead);
+
   result = pws->mScanner->Append(buf, theNumRead, pws->mRequest);
   if (NS_SUCCEEDED(result)) {
     *writeCount = count;
@@ -2736,6 +2747,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
     pws.mNeedCharsetCheck =
       (0 == sourceOffset) && (mCharsetSource < kCharsetFromMetaTag);
     pws.mParser = this;
+    pws.mParserFilter = mParserFilter;
     pws.mScanner = theContext->mScanner;
     pws.mRequest = request;
 
@@ -2789,6 +2801,9 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   }
 
   mStreamStatus = status;
+
+  if (mParserFilter)
+    mParserFilter->Finish();
 
   if (IsOkToProcessNetworkData() && NS_SUCCEEDED(rv)) {
     mProcessingNetworkData = true;

@@ -1,5 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=40: */
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,19 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Telephony.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *   The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,28 +35,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMEventTarget.idl"
+#ifndef nsCDETAdaptorCID_h__
+#define nsCDETAdaptorCID_h__
 
-interface nsIDOMEventListener;
+#include "nscore.h"
 
-[scriptable, builtinclass, uuid(832b7551-ff53-403f-9e2c-d7d28e2bb40b)]
-interface nsIDOMTelephonyCall : nsIDOMEventTarget
-{
-  readonly attribute DOMString number;
+#define NS_CHARSET_DETECTION_ADAPTOR_CONTRACTID "@mozilla.org/intl/charsetdetectionadaptor;1"
 
-  readonly attribute DOMString state;
+// {12BB8F17-2389-11d3-B3BF-00805F8A6670}
+#define NS_CHARSET_DETECTION_ADAPTOR_CID \
+{ 0x12bb8f17, 0x2389, 0x11d3, { 0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70 } }
 
-  void answer();
-  void hangUp();
 
-  attribute nsIDOMEventListener onstatechange;
-
-  attribute nsIDOMEventListener ondialing;
-  attribute nsIDOMEventListener onringing;
-  attribute nsIDOMEventListener onbusy;
-  attribute nsIDOMEventListener onconnecting;
-  attribute nsIDOMEventListener onconnected;
-  attribute nsIDOMEventListener ondisconnecting;
-  attribute nsIDOMEventListener ondisconnected;
-  attribute nsIDOMEventListener onincoming;
-};
+#endif // nsCDETAdaptorCID_h__

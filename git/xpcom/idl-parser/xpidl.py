@@ -532,7 +532,11 @@ class Interface(object):
             self.doccomments = parent.getName(self.name, None).doccomments
 
         parent.setName(self)
-        if self.base is not None:
+        if self.base is None:
+            if self.name != 'nsISupports':
+                print >>sys.stderr, IDLError("interface '%s' not derived from nsISupports" % self.name,
+                                             self.location, warning=True)
+        else:
             realbase = parent.getName(self.base, self.location)
             if realbase.kind != 'interface':
                 raise IDLError("interface '%s' inherits from non-interface type '%s'" % (self.name, self.base), self.location)

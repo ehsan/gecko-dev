@@ -37,38 +37,46 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "SystemWorkerManager.h"
-
-#include "nsIObserverService.h"
-#include "nsIJSContextStack.h"
-#include "nsITelephone.h"
-#include "nsIWifi.h"
-#include "nsIWorkerHolder.h"
-#include "nsIXPConnect.h"
-
-#include "jstypedarray.h"
-#include "mozilla/dom/workers/Workers.h"
-#include "mozilla/ipc/Ril.h"
+#include "RadioManager.h"
+#include "nsIRadioWorker.h"
 #include "nsContentUtils.h"
-#include "nsServiceManagerUtils.h"
-#include "nsTelephonyWorker.h"
-#include "nsThreadUtils.h"
-#include "nsWifiWorker.h"
+#include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
+#include "nsIObserverService.h"
+#include "mozilla/dom/workers/Workers.h"
+#include "jstypedarray.h"
 
-USING_TELEPHONY_NAMESPACE
+#include "nsTelephonyWorker.h"
+#include "nsITelephone.h"
+#include "nsWifiWorker.h"
+#include "nsIWifi.h"
+
+#include "nsThreadUtils.h"
+
+#if defined(MOZ_WIDGET_GONK)
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
+#else
+#define LOG(args...)  printf(args);
+#endif
+
 USING_WORKERS_NAMESPACE
 using namespace mozilla::ipc;
 
+static NS_DEFINE_CID(kTelephonyWorkerCID, NS_TELEPHONYWORKER_CID);
+static NS_DEFINE_CID(kWifiWorkerCID, NS_WIFIWORKER_CID);
+
+// Topic we listen to for shutdown.
+#define PROFILE_BEFORE_CHANGE_TOPIC "profile-before-change"
+
+USING_TELEPHONY_NAMESPACE
+
 namespace {
 
-NS_DEFINE_CID(kTelephonyWorkerCID, NS_TELEPHONYWORKER_CID);
-NS_DEFINE_CID(kWifiWorkerCID, NS_WIFIWORKER_CID);
-
 // Doesn't carry a reference, we're owned by services.
-SystemWorkerManager *gInstance = nsnull;
+RadioManager* gInstance = nsnull;
 
-class ConnectWorkerToRIL : public WorkerTask
-{
+class ConnectWorkerToRIL : public WorkerTask {
 public:
   virtual bool RunTask(JSContext *aCx);
 };
@@ -142,14 +150,12 @@ ConnectWorkerToRIL::RunTask(JSContext *aCx)
   NS_ASSERTION(!JS_IsRunning(aCx), "Are we being called somehow?");
   JSObject *workerGlobal = JS_GetGlobalObject(aCx);
 
-  return !!JS_DefineFunction(aCx, workerGlobal, "postRILMessage", PostToRIL, 1,
-                             0);
+  return JS_DefineFunction(aCx, workerGlobal, "postRILMessage", PostToRIL, 1, 0);
 }
 
 class RILReceiver : public RilConsumer
 {
-  class DispatchRILEvent : public WorkerTask
-  {
+  class DispatchRILEvent : public WorkerTask {
   public:
     DispatchRILEvent(RilRawData *aMessage)
       : mMessage(aMessage)
@@ -194,14 +200,14 @@ RILReceiver::DispatchRILEvent::RunTask(JSContext *aCx)
 
 } // anonymous namespace
 
-SystemWorkerManager::SystemWorkerManager()
+RadioManager::RadioManager()
   : mShutdown(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!gInstance, "There should only be one instance!");
 }
 
-SystemWorkerManager::~SystemWorkerManager()
+RadioManager::~RadioManager()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!gInstance || gInstance == this,
@@ -210,15 +216,23 @@ SystemWorkerManager::~SystemWorkerManager()
 }
 
 nsresult
-SystemWorkerManager::Init()
+RadioManager::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "We can only initialize on the main thread");
-  NS_ASSERTION(!mShutdown, "Already shutdown!");
 
-  JSContext *cx;
-  nsresult rv = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+  nsCOMPtr<nsIObserverService> obs =
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+  if (!obs) {
+    NS_WARNING("Failed to get observer service!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = obs->AddObserver(this, PROFILE_BEFORE_CHANGE_TOPIC, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  JSContext *cx;
+  rv = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
   nsCxPusher pusher;
   if (!cx || !pusher.Push(cx, false)) {
     return NS_ERROR_FAILURE;
@@ -230,50 +244,32 @@ SystemWorkerManager::Init()
   rv = InitWifi(cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIObserverService> obs =
-    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-  if (!obs) {
-    NS_WARNING("Failed to get observer service!");
-    return NS_ERROR_FAILURE;
-  }
-
-  rv = obs->AddObserver(this, WORKERS_SHUTDOWN_TOPIC, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
 void
-SystemWorkerManager::Shutdown()
+RadioManager::Shutdown()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  mShutdown = true;
-
   StopRil();
+  mTelephone = nsnull;
+  mWifi = nsnull;
 
-  mTelephoneWorker = nsnull;
-  mWifiWorker = nsnull;
-
-  nsCOMPtr<nsIObserverService> obs =
-    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-  if (obs) {
-    obs->RemoveObserver(this, WORKERS_SHUTDOWN_TOPIC);
-  }
+  mShutdown = true;
 }
 
 // static
-already_AddRefed<SystemWorkerManager>
-SystemWorkerManager::FactoryCreate()
+already_AddRefed<RadioManager>
+RadioManager::FactoryCreate()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<SystemWorkerManager> instance(gInstance);
+  nsRefPtr<RadioManager> instance(gInstance);
 
   if (!instance) {
-    instance = new SystemWorkerManager();
+    instance = new RadioManager();
     if (NS_FAILED(instance->Init())) {
-      instance->Shutdown();
       return nsnull;
     }
 
@@ -284,54 +280,41 @@ SystemWorkerManager::FactoryCreate()
 }
 
 // static
-nsIInterfaceRequestor*
-SystemWorkerManager::GetInterfaceRequestor()
-{
-  return gInstance;
-}
-
-NS_IMETHODIMP
-SystemWorkerManager::GetInterface(const nsIID &aIID, void **aResult)
+already_AddRefed<nsITelephone>
+RadioManager::GetTelephone()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (aIID.Equals(NS_GET_IID(nsITelephone))) {
-    return CallQueryInterface(mTelephoneWorker,
-                              reinterpret_cast<nsITelephone**>(aResult));
+  if (gInstance) {
+    nsCOMPtr<nsITelephone> retval = gInstance->mTelephone;
+    return retval.forget();
   }
 
-  if (aIID.Equals(NS_GET_IID(nsIWifi))) {
-    return CallQueryInterface(mWifiWorker,
-                              reinterpret_cast<nsIWifi**>(aResult));
-  }
-
-  NS_WARNING("Got nothing for the requested IID!");
-  return NS_ERROR_NO_INTERFACE;
+  return nsnull;
 }
 
 nsresult
-SystemWorkerManager::InitTelephone(JSContext *cx)
+RadioManager::InitTelephone(JSContext *cx)
 {
-  // We're keeping as much of this implementation as possible in JS, so the real
-  // worker lives in nsTelephonyWorker.js. All we do here is hold it alive and
-  // hook it up to the RIL thread.
-  nsCOMPtr<nsIWorkerHolder> worker = do_CreateInstance(kTelephonyWorkerCID);
+  // The telephony worker component is a hack that gives us a global object for
+  // our own functions and makes creating the worker possible.
+  nsCOMPtr<nsIRadioWorker> worker(do_CreateInstance(kTelephonyWorkerCID));
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
 
   jsval workerval;
   nsresult rv = worker->GetWorker(&workerval);
   NS_ENSURE_SUCCESS(rv, rv);
+  NS_ASSERTION(!JSVAL_IS_PRIMITIVE(workerval), "bad worker value");
 
-  NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(workerval), NS_ERROR_UNEXPECTED);
+  JSObject *workerobj = JSVAL_TO_OBJECT(workerval);
 
   JSAutoRequest ar(cx);
   JSAutoEnterCompartment ac;
-  if (!ac.enter(cx, JSVAL_TO_OBJECT(workerval))) {
+  if (!ac.enter(cx, workerobj)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  WorkerCrossThreadDispatcher *wctd =
-    GetWorkerCrossThreadDispatcher(cx, workerval);
+  WorkerCrossThreadDispatcher *wctd = GetWorkerCrossThreadDispatcher(cx, workerval);
   if (!wctd) {
     return NS_ERROR_FAILURE;
   }
@@ -345,28 +328,44 @@ SystemWorkerManager::InitTelephone(JSContext *cx)
   mozilla::RefPtr<RILReceiver> receiver = new RILReceiver(wctd);
   StartRil(receiver);
 
-  mTelephoneWorker = worker;
+  mTelephone = do_QueryInterface(worker);
+  NS_ENSURE_TRUE(mTelephone, NS_ERROR_FAILURE);
+
   return NS_OK;
 }
 
 nsresult
-SystemWorkerManager::InitWifi(JSContext *cx)
+RadioManager::InitWifi(JSContext *cx)
 {
-  nsCOMPtr<nsIWorkerHolder> worker = do_CreateInstance(kWifiWorkerCID);
+  nsCOMPtr<nsIRadioWorker> worker(do_CreateInstance(kWifiWorkerCID));
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
 
-  mWifiWorker = worker;
+  mWifi = do_QueryInterface(worker);
+  NS_ENSURE_TRUE(mWifi, NS_ERROR_FAILURE);
+
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS2(SystemWorkerManager, nsIObserver, nsIInterfaceRequestor)
+
+NS_IMPL_ISUPPORTS1(RadioManager, nsIObserver)
 
 NS_IMETHODIMP
-SystemWorkerManager::Observe(nsISupports *aSubject, const char *aTopic,
-                             const PRUnichar *aData)
+RadioManager::Observe(nsISupports* aSubject, const char* aTopic,
+                      const PRUnichar* aData)
 {
-  if (!strcmp(aTopic, WORKERS_SHUTDOWN_TOPIC)) {
+  if (!strcmp(aTopic, PROFILE_BEFORE_CHANGE_TOPIC)) {
     Shutdown();
+
+    nsCOMPtr<nsIObserverService> obs =
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+    if (obs) {
+      if (NS_FAILED(obs->RemoveObserver(this, aTopic))) {
+        NS_WARNING("Failed to remove observer!");
+      }
+    }
+    else {
+      NS_WARNING("Failed to get observer service!");
+    }
   }
 
   return NS_OK;
