@@ -212,7 +212,7 @@ NPError
 PluginInstanceChild::InternalGetNPObjectForValue(NPNVariable aValue,
                                                  NPObject** aObject)
 {
-    PluginScriptableObjectChild* actor = NULL;
+    PluginScriptableObjectChild* actor;
     NPError result = NPERR_NO_ERROR;
 
     switch (aValue) {

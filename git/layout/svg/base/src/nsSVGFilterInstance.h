@@ -70,7 +70,6 @@ public:
                       const gfxRect& aFilterRect,
                       const nsIntSize& aFilterSpaceSize,
                       const gfxMatrix &aFilterSpaceToDeviceSpaceTransform,
-                      const nsIntRect& aTargetBounds,
                       const nsIntRect& aDirtyOutputRect,
                       const nsIntRect& aDirtyInputRect,
                       PRUint16 aPrimitiveUnits) :
@@ -81,7 +80,6 @@ public:
     mFilterSpaceToDeviceSpaceTransform(aFilterSpaceToDeviceSpaceTransform),
     mFilterRect(aFilterRect),
     mFilterSpaceSize(aFilterSpaceSize),
-    mTargetBounds(aTargetBounds),
     mDirtyOutputRect(aDirtyOutputRect),
     mDirtyInputRect(aDirtyInputRect),
     mSurfaceRect(nsIntPoint(0, 0), aFilterSpaceSize),
@@ -211,8 +209,6 @@ private:
   gfxMatrix               mFilterSpaceToDeviceSpaceTransform;
   gfxRect                 mFilterRect;
   nsIntSize               mFilterSpaceSize;
-  // Filter-space bounds of the target image (SourceAlpha/SourceGraphic)
-  nsIntRect               mTargetBounds;
   nsIntRect               mDirtyOutputRect;
   nsIntRect               mDirtyInputRect;
   nsIntRect               mSurfaceRect;

@@ -39,14 +39,18 @@
         <parameter name="thumbnail"/>
         <body>
           <![CDATA[
-            let tabWidth, tabHeight;
+            let tabWidth, tabHeight, closeWidth, closeHeight;
 
             if (Util.isTablet()) {
               tabWidth = 176;
               tabHeight = 110;
+              closeWidth = 41;
+              closeHeight = 117;
             } else {
               tabWidth = 104;
               tabHeight = 65;
+              closeWidth = 55;
+              closeHeight = 65;
             }
 
             if (tabWidth != thumbnail.width) {
@@ -56,7 +60,8 @@
 
               thumbnail.width = reload.width = title.width = tabWidth;
               thumbnail.height = reload.height = tabHeight;
-              closeContainer.height = tabHeight;
+              closeContainer.width = closeWidth;
+              closeContainer.height = closeHeight;
             }
           ]]>
         </body>

@@ -2242,7 +2242,7 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   return NS_OK;
 }
 
-JSContext*
+void *
 nsJSContext::GetNativeContext()
 {
   return mContext;

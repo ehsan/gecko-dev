@@ -254,9 +254,9 @@ function getContentClientRects(aElement) {
 
 
 let Content = {
-  get formAssistant() {
-    delete this.formAssistant;
-    return this.formAssistant = new FormAssistant();
+  get _formAssistant() {
+    delete this._formAssistant;
+    return this._formAssistant = new FormAssistant();
   },
 
   init: function init() {
@@ -490,7 +490,7 @@ let Content = {
       }
 
       case "Browser:MouseClick": {
-        this.formAssistant.focusSync = true;
+        this._formAssistant.focusSync = true;
         let element = elementFromPoint(x, y);
         if (modifiers == Ci.nsIDOMNSEvent.CONTROL_MASK) {
           let uri = Util.getHrefForElement(element);
@@ -500,7 +500,7 @@ let Content = {
           break;
         }
 
-        if (!this.formAssistant.open(element))
+        if (!this._formAssistant.open(element))
           sendAsyncMessage("FindAssist:Hide", { });
 
         if (this._highlightElement) {
@@ -510,7 +510,7 @@ let Content = {
         }
         this._cancelTapHighlight();
         ContextHandler.reset();
-        this.formAssistant.focusSync = false;
+        this._formAssistant.focusSync = false;
         break;
       }
 
@@ -1047,21 +1047,6 @@ var FormSubmitObserver = {
   init: function init(){
     addMessageListener("Browser:TabOpen", this);
     addMessageListener("Browser:TabClose", this);
-
-    addEventListener("pageshow", this, false);
-
-    Services.obs.addObserver(this, "invalidformsubmit", false);
-  },
-
-  handleEvent: function handleEvent(aEvent) {
-    let target = aEvent.originalTarget;
-    let isRootDocument = (target == content.document || target.ownerDocument == content.document);
-    if (!isRootDocument)
-      return;
-
-    // Reset invalid submit state on each pageshow
-    if (aEvent.type == "pageshow")
-      Content.formAssistant.invalidSubmit = false;
   },
 
   receiveMessage: function findHandlerReceiveMessage(aMessage) {
@@ -1081,22 +1066,6 @@ var FormSubmitObserver = {
     if (aWindow == content)
       // We don't need to send any data along
       sendAsyncMessage("Browser:FormSubmit", {});
-  },
-
-  notifyInvalidSubmit: function notifyInvalidSubmit(aFormElement, aInvalidElements) {
-    if (!aInvalidElements.length)
-      return;
-
-    let element = aInvalidElements.queryElementAt(0, Ci.nsISupports);
-    if (!(element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement ||
-          element instanceof HTMLSelectElement ||
-          element instanceof HTMLButtonElement)) {
-      return;
-    }
-
-    Content.formAssistant.invalidSubmit = true;
-    Content.formAssistant.open(element);
   },
 
   QueryInterface : function(aIID) {

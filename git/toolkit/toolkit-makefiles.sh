@@ -266,6 +266,7 @@ MAKEFILES_content="
   content/xslt/src/xml/Makefile
   content/xslt/src/xpath/Makefile
   content/xslt/src/xslt/Makefile
+  content/xslt/src/main/Makefile
 "
 
 MAKEFILES_layout="
@@ -681,6 +682,7 @@ MAKEFILES_jsreflect="
 MAKEFILES_jsductwork="
   js/ductwork/Makefile
   js/ductwork/debugger/Makefile
+  js/ductwork/debugger/tests/Makefile
 "
 
 MAKEFILES_libpr0n="
