@@ -13,11 +13,6 @@ Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 Cu.import("resource://gre/modules/AppsServiceChild.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this, "appsService",
-                                   "@mozilla.org/AppsService;1",
-                                   "nsIAppsService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -219,7 +214,7 @@ WebappsRegistry.prototype = {
     if (!this._mgmt) {
       let mgmt = Cc["@mozilla.org/webapps/manager;1"]
                    .createInstance(Ci.nsISupports);
-      mgmt.wrappedJSObject.init(this._window, this.hasFullMgmtPrivilege);
+      mgmt.wrappedJSObject.init(this._window);
       mgmt.wrappedJSObject._windowId = this._id;
       this._mgmt = mgmt.__DOM_IMPL__
         ? mgmt.__DOM_IMPL__
@@ -250,10 +245,6 @@ WebappsRegistry.prototype = {
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
-    const prefs = new Preferences();
-
-    this._window = aWindow;
-
     this.initDOMRequestHelper(aWindow, "Webapps:Install:Return:OK");
 
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -263,24 +254,12 @@ WebappsRegistry.prototype = {
                           { messages: ["Webapps:Install:Return:OK"]});
 
     let principal = aWindow.document.nodePrincipal;
-    let appId = principal.appId;
-    let app = appId && appsService.getAppByLocalId(appId);
+    let perm = Services.perms
+               .testExactPermissionFromPrincipal(principal, "webapps-manage");
 
-    let isCurrentHomescreen = app &&
-      app.manifestURL == prefs.get("dom.mozApps.homescreenURL") &&
-      app.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
-
-    let hasWebappsPermission = Ci.nsIPermissionManager.ALLOW_ACTION ==
-      Services.perms.testExactPermissionFromPrincipal(
-        principal, "webapps-manage");
-
-    let hasHomescreenPermission = Ci.nsIPermissionManager.ALLOW_ACTION ==
-      Services.perms.testExactPermissionFromPrincipal(
-        principal, "homescreen-webapps-manage");
-
-    this.hasMgmtPrivilege = hasWebappsPermission ||
-         (isCurrentHomescreen && hasHomescreenPermission);
-    this.hasFullMgmtPrivilege = hasWebappsPermission;
+    // Only pages with the webapps-manage permission set can get access to
+    // the mgmt object.
+    this.hasMgmtPrivilege = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
   },
 
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
@@ -315,12 +294,12 @@ WebappsApplication.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
   init: function(aWindow, aApp) {
-    this._window = aWindow;
-
     let proxyHandler = DOMApplicationRegistry.addDOMApp(this,
                                                         aApp.manifestURL,
                                                         aApp.id);
     this._proxy = new Proxy(this, proxyHandler);
+
+    this._window = aWindow;
 
     this.initDOMRequestHelper(aWindow);
   },
@@ -740,9 +719,7 @@ function WebappsApplicationMgmt() {
 WebappsApplicationMgmt.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  init: function(aWindow, aHasFullMgmtPrivilege) {
-    this._window = aWindow;
-
+  init: function(aWindow) {
     this.initDOMRequestHelper(aWindow, ["Webapps:Uninstall:Return:OK",
                                         "Webapps:Uninstall:Broadcast:Return:OK",
                                         "Webapps:Uninstall:Return:KO",
@@ -759,11 +736,6 @@ WebappsApplicationMgmt.prototype = {
                                        "Webapps:SetEnabled:Return"]
                           }
                          );
-
-    if (!aHasFullMgmtPrivilege) {
-      this.getNotInstalled = null;
-      this.applyDownload = null;
-    }
   },
 
   uninit: function() {
@@ -779,16 +751,12 @@ WebappsApplicationMgmt.prototype = {
       return;
     }
 
-    let principal = this._window.document.nodePrincipal;
-
     cpmm.sendAsyncMessage("Webapps:ApplyDownload",
-                          { manifestURL: aApp.manifestURL },
-                          null, principal);
+                          { manifestURL: aApp.manifestURL });
   },
 
   uninstall: function(aApp) {
     let request = this.createRequest();
-    let principal = this._window.document.nodePrincipal;
 
     cpmm.sendAsyncMessage("Webapps:Uninstall", {
       origin: aApp.origin,
@@ -797,8 +765,7 @@ WebappsApplicationMgmt.prototype = {
       from: this._window.location.href,
       windowId: this._windowId,
       requestID: this.getRequestId(request)
-    }, null, principal);
-
+    });
     return request;
   },
 
@@ -815,18 +782,12 @@ WebappsApplicationMgmt.prototype = {
 
   getNotInstalled: function() {
     let request = this.createRequest();
-    let principal = this._window.document.nodePrincipal;
-
-    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", {
-      oid: this._id,
-      requestID: this.getRequestId(request)
-    }, null, principal);
-
+    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", { oid: this._id,
+                                                       requestID: this.getRequestId(request) });
     return request;
   },
 
   import: function(aBlob) {
-    let principal = this._window.document.nodePrincipal;
     return this.createPromise((aResolve, aReject) => {
       cpmm.sendAsyncMessage("Webapps:Import",
         { blob: aBlob,
@@ -834,12 +795,11 @@ WebappsApplicationMgmt.prototype = {
           requestID: this.getPromiseResolverId({
             resolve: aResolve,
             reject: aReject
-          })}, null, principal);
+          })});
     });
   },
 
   extractManifest: function(aBlob) {
-    let principal = this._window.document.nodePrincipal;
     return this.createPromise((aResolve, aReject) => {
       cpmm.sendAsyncMessage("Webapps:ExtractManifest",
         { blob: aBlob,
@@ -847,16 +807,14 @@ WebappsApplicationMgmt.prototype = {
           requestID: this.getPromiseResolverId({
             resolve: aResolve,
             reject: aReject
-          })}, null, principal);
+          })});
     });
   },
 
   setEnabled: function(aApp, aValue) {
-    let principal = this._window.document.nodePrincipal;
-
     cpmm.sendAsyncMessage("Webapps:SetEnabled",
                           { manifestURL: aApp.manifestURL,
-                            enabled: aValue }, null, principal);
+                            enabled: aValue });
   },
 
   get oninstall() {

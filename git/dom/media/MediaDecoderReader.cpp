@@ -193,7 +193,7 @@ MediaDecoderReader::RequestVideoData(bool aSkipToNextKeyframe,
     }
     GetCallback()->OnVideoDecoded(v);
   } else if (VideoQueue().IsFinished()) {
-    GetCallback()->OnNotDecoded(MediaData::VIDEO_DATA, RequestSampleCallback::END_OF_STREAM);
+    GetCallback()->OnVideoEOS();
   }
 }
 
@@ -226,7 +226,7 @@ MediaDecoderReader::RequestAudioData()
     GetCallback()->OnAudioDecoded(a);
     return;
   } else if (AudioQueue().IsFinished()) {
-    GetCallback()->OnNotDecoded(MediaData::AUDIO_DATA, RequestSampleCallback::END_OF_STREAM);
+    GetCallback()->OnAudioEOS();
     return;
   }
 }
@@ -280,12 +280,21 @@ AudioDecodeRendezvous::OnAudioDecoded(AudioData* aSample)
 }
 
 void
-AudioDecodeRendezvous::OnNotDecoded(MediaData::Type aType, NotDecodedReason aReason)
+AudioDecodeRendezvous::OnAudioEOS()
 {
-  MOZ_ASSERT(aType == MediaData::AUDIO_DATA);
   MonitorAutoLock mon(mMonitor);
   mSample = nullptr;
-  mStatus = aReason == DECODE_ERROR ? NS_ERROR_FAILURE : NS_OK;
+  mStatus = NS_OK;
+  mHaveResult = true;
+  mon.NotifyAll();
+}
+
+void
+AudioDecodeRendezvous::OnDecodeError()
+{
+  MonitorAutoLock mon(mMonitor);
+  mSample = nullptr;
+  mStatus = NS_ERROR_FAILURE;
   mHaveResult = true;
   mon.NotifyAll();
 }

@@ -3527,9 +3527,6 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
 
   if (PR_GetEnv("MOZ_RUN_GTEST")) {
     int result;
-#ifdef XP_WIN
-    UseParentConsole();
-#endif
     // RunGTest will only be set if we're in xul-unit
     if (mozilla::RunGTest) {
       result = mozilla::RunGTest();
@@ -4629,6 +4626,13 @@ mozilla::BrowserTabsRemoteAutostart()
     }
   }
 #endif
+
+  bool tpEnabled = Preferences::GetBool("privacy.trackingprotection.enabled",
+                                        false);
+  if (tpEnabled) {
+    gBrowserTabsRemoteAutostart = false;
+    LogE10sBlockedReason("Tracking protection is enabled");
+  }
 
   mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_AUTOSTART, gBrowserTabsRemoteAutostart);
   if (Preferences::GetBool("browser.enabledE10SFromPrompt", false)) {

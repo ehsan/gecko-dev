@@ -202,8 +202,7 @@ public:
 
 enum GMPSessionType {
   kGMPTemporySession = 0,
-  kGMPPersistentSession = 1,
-  kGMPSessionInvalid = 2 // Must always be last.
+  kGMPPersistentSession = 1
 };
 
 // API exposed by plugin library to manage decryption sessions.

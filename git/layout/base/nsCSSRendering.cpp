@@ -705,11 +705,12 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 
   // Convert to dev pixels.
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
-  Rect joinedBorderAreaPx = NSRectToRect(joinedBorderArea, twipsPerPixel);
-  Float borderWidths[4] = { Float(border.top / twipsPerPixel),
-                            Float(border.right / twipsPerPixel),
-                            Float(border.bottom / twipsPerPixel),
-                            Float(border.left / twipsPerPixel) };
+  gfxRect joinedBorderAreaPx =
+    nsLayoutUtils::RectToGfxRect(joinedBorderArea, twipsPerPixel);
+  gfxFloat borderWidths[4] = { gfxFloat(border.top / twipsPerPixel),
+                               gfxFloat(border.right / twipsPerPixel),
+                               gfxFloat(border.bottom / twipsPerPixel),
+                               gfxFloat(border.left / twipsPerPixel) };
 
   uint8_t borderStyles[4];
   nscolor borderColors[4];
@@ -732,13 +733,14 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 #if 0
   // this will draw a transparent red backround underneath the border area
   ctx->Save();
-  ctx->Rectangle(ThebesRect(joinedBorderAreaPx));
+  ctx->Rectangle(joinedBorderAreaPx);
   ctx->SetColor(gfxRGBA(1.0, 0.0, 0.0, 0.5));
   ctx->Fill();
   ctx->Restore();
 #endif
 
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(twipsPerPixel,
+                         ctx,
                          joinedBorderAreaPx,
                          borderStyles,
                          borderWidths,
@@ -827,7 +829,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   // get the outer rectangles
-  Rect oRect(NSRectToRect(outerRect, twipsPerPixel));
+  gfxRect oRect(nsLayoutUtils::RectToGfxRect(outerRect, twipsPerPixel));
 
   // convert the radii
   nsMargin outlineMargin(width, width, width, width);
@@ -865,17 +867,18 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                                outlineColor };
 
   // convert the border widths
-  Float outlineWidths[4] = { Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel),
-                             Float(width / twipsPerPixel) };
+  gfxFloat outlineWidths[4] = { gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel),
+                                gfxFloat(width / twipsPerPixel) };
 
   // start drawing
   gfxContext *ctx = aRenderingContext.ThebesContext();
 
   ctx->Save();
 
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(twipsPerPixel,
+                         ctx,
                          oRect,
                          outlineStyles,
                          outlineWidths,
@@ -899,17 +902,17 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
   nscoord oneCSSPixel = nsPresContext::CSSPixelsToAppUnits(1);
   nscoord oneDevPixel = aPresContext->DevPixelsToAppUnits(1);
 
-  Rect focusRect(NSRectToRect(aFocusRect, oneDevPixel));
+  gfxRect focusRect(nsLayoutUtils::RectToGfxRect(aFocusRect, oneDevPixel));
 
   RectCornerRadii focusRadii;
   {
     nscoord twipsRadii[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     ComputePixelRadii(twipsRadii, oneDevPixel, &focusRadii);
   }
-  Float focusWidths[4] = { Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel),
-                           Float(oneCSSPixel / oneDevPixel) };
+  gfxFloat focusWidths[4] = { gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel),
+                              gfxFloat(oneCSSPixel / oneDevPixel) };
 
   uint8_t focusStyles[4] = { NS_STYLE_BORDER_STYLE_DOTTED,
                              NS_STYLE_BORDER_STYLE_DOTTED,
@@ -927,7 +930,8 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
   // something that CSS can style, this function will then have access
   // to a style context and can use the same logic that PaintBorder
   // and PaintOutline do.)
-  nsCSSBorderRenderer br(ctx,
+  nsCSSBorderRenderer br(oneDevPixel,
+                         ctx,
                          focusRect,
                          focusStyles,
                          focusWidths,
@@ -1531,57 +1535,56 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // rendered shadow (even after blurring), so those pixels must be completely
     // transparent in the shadow, so drawing them changes nothing.
     gfxContext* renderContext = aRenderingContext.ThebesContext();
-    DrawTarget* drawTarget = renderContext->GetDrawTarget();
     nsContextBoxBlur blurringArea;
     gfxContext* shadowContext =
       blurringArea.Init(shadowPaintRect, 0, blurRadius, twipsPerPixel,
                         renderContext, aDirtyRect, &skipGfxRect);
     if (!shadowContext)
       continue;
-    DrawTarget* shadowDT = shadowContext->GetDrawTarget();
 
     // shadowContext is owned by either blurringArea or aRenderingContext.
     MOZ_ASSERT(shadowContext == renderContext ||
                shadowContext == blurringArea.GetContext());
 
     // Set the shadow color; if not specified, use the foreground color
-    Color shadowColor = Color::FromABGR(shadowItem->mHasColor ?
-                                          shadowItem->mColor :
-                                          aForFrame->StyleColor()->mColor);
+    nscolor shadowColor;
+    if (shadowItem->mHasColor)
+      shadowColor = shadowItem->mColor;
+    else
+      shadowColor = aForFrame->StyleColor()->mColor;
+
     renderContext->Save();
-    renderContext->SetColor(ThebesColor(shadowColor));
+    renderContext->SetColor(gfxRGBA(shadowColor));
 
     // Clip the context to the area of the frame's padding rect, so no part of the
     // shadow is painted outside. Also cut out anything beyond where the inset shadow
     // will be.
-    Rect shadowGfxRect = NSRectToRect(paddingRect, twipsPerPixel);
+    gfxRect shadowGfxRect =
+      nsLayoutUtils::RectToGfxRect(paddingRect, twipsPerPixel);
     shadowGfxRect.Round();
-    if (hasBorderRadius) {
-      RefPtr<Path> roundedRect =
-        MakePathForRoundedRect(*drawTarget, shadowGfxRect, innerRadii);
-      renderContext->Clip(roundedRect);
-    } else {
-      renderContext->Clip(shadowGfxRect);
-    }
+    renderContext->NewPath();
+    if (hasBorderRadius)
+      renderContext->RoundedRectangle(shadowGfxRect, innerRadii, false);
+    else
+      renderContext->Rectangle(shadowGfxRect);
+    renderContext->Clip();
 
     // Fill the surface minus the area within the frame that we should
     // not paint in, and blur and apply it.
-    Rect shadowPaintGfxRect = NSRectToRect(shadowPaintRect, twipsPerPixel);
+    gfxRect shadowPaintGfxRect =
+      nsLayoutUtils::RectToGfxRect(shadowPaintRect, twipsPerPixel);
     shadowPaintGfxRect.RoundOut();
-    Rect shadowClipGfxRect = NSRectToRect(shadowClipRect, twipsPerPixel);
+    gfxRect shadowClipGfxRect =
+      nsLayoutUtils::RectToGfxRect(shadowClipRect, twipsPerPixel);
     shadowClipGfxRect.Round();
-    RefPtr<PathBuilder> builder =
-      shadowDT->CreatePathBuilder(FillRule::FILL_EVEN_ODD);
-    AppendRectToPath(builder, shadowPaintGfxRect, true);
-    if (hasBorderRadius) {
-      AppendRoundedRectToPath(builder, shadowClipGfxRect, clipRectRadii, false);
-    } else {
-      AppendRectToPath(builder, shadowClipGfxRect, false);
-    }
-    RefPtr<Path> path = builder->Finish();
-    shadowContext->SetPath(path);
-    shadowContext->Fill();
     shadowContext->NewPath();
+    shadowContext->Rectangle(shadowPaintGfxRect);
+    if (hasBorderRadius)
+      shadowContext->RoundedRectangle(shadowClipGfxRect, clipRectRadii, false);
+    else
+      shadowContext->Rectangle(shadowClipGfxRect);
+    shadowContext->SetFillRule(FillRule::FILL_EVEN_ODD);
+    shadowContext->Fill();
 
     blurringArea.DoPaint();
     renderContext->Restore();
@@ -1819,8 +1822,6 @@ SetupBackgroundClip(nsCSSRendering::BackgroundClipState& aClipState,
     return;
   }
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-
   // If we have rounded corners, clip all subsequent drawing to the
   // rounded rectangle defined by bgArea and bgRadii (we don't know
   // whether the rounded corners intrude on the dirtyRect or not).
@@ -1841,8 +1842,10 @@ SetupBackgroundClip(nsCSSRendering::BackgroundClipState& aClipState,
   }
 
   if (aClipState.mHasRoundedCorners) {
-    Rect bgAreaGfx = NSRectToRect(aClipState.mBGClipArea, aAppUnitsPerPixel);
+    gfxRect bgAreaGfx =
+      nsLayoutUtils::RectToGfxRect(aClipState.mBGClipArea, aAppUnitsPerPixel);
     bgAreaGfx.Round();
+    bgAreaGfx.Condition();
 
     if (bgAreaGfx.IsEmpty()) {
       // I think it's become possible to hit this since
@@ -1854,10 +1857,9 @@ SetupBackgroundClip(nsCSSRendering::BackgroundClipState& aClipState,
     }
 
     aAutoSR->EnsureSaved(aCtx);
-
-    RefPtr<Path> roundedRect =
-      MakePathForRoundedRect(*drawTarget, bgAreaGfx, aClipState.mClippedRadii);
-    aCtx->Clip(roundedRect);
+    aCtx->NewPath();
+    aCtx->RoundedRectangle(bgAreaGfx, aClipState.mClippedRadii);
+    aCtx->Clip();
   }
 }
 
@@ -1871,8 +1873,6 @@ DrawBackgroundColor(nsCSSRendering::BackgroundClipState& aClipState,
     return;
   }
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-
   // We don't support custom clips and rounded corners, arguably a bug, but
   // table painting seems to depend on it.
   if (!aClipState.mHasRoundedCorners || aClipState.mCustomClip) {
@@ -1882,8 +1882,10 @@ DrawBackgroundColor(nsCSSRendering::BackgroundClipState& aClipState,
     return;
   }
 
-  Rect bgAreaGfx = NSRectToRect(aClipState.mBGClipArea, aAppUnitsPerPixel);
+  gfxRect bgAreaGfx =
+    nsLayoutUtils::RectToGfxRect(aClipState.mBGClipArea, aAppUnitsPerPixel);
   bgAreaGfx.Round();
+  bgAreaGfx.Condition();
 
   if (bgAreaGfx.IsEmpty()) {
     // I think it's become possible to hit this since
@@ -1895,7 +1897,7 @@ DrawBackgroundColor(nsCSSRendering::BackgroundClipState& aClipState,
   }
 
   aCtx->Save();
-  gfxRect dirty = ThebesRect(bgAreaGfx).Intersect(aClipState.mDirtyRectGfx);
+  gfxRect dirty = bgAreaGfx.Intersect(aClipState.mDirtyRectGfx);
 
   aCtx->NewPath();
   aCtx->Rectangle(dirty, true);
@@ -1911,9 +1913,9 @@ DrawBackgroundColor(nsCSSRendering::BackgroundClipState& aClipState,
     aCtx->Clip();
   }
 
-  RefPtr<Path> roundedRect =
-    MakePathForRoundedRect(*drawTarget, bgAreaGfx, aClipState.mClippedRadii);
-  aCtx->SetPath(roundedRect);
+  aCtx->NewPath();
+  aCtx->RoundedRectangle(bgAreaGfx, aClipState.mClippedRadii);
+
   aCtx->Fill();
   aCtx->Restore();
 }
