@@ -1428,7 +1428,7 @@ nsStandardURL::SetHost(const nsACString &input)
         return NS_ERROR_UNEXPECTED;
     }
 
-    if (strlen(host) < flat.Length())
+    if (host && strlen(host) < flat.Length())
         return NS_ERROR_MALFORMED_URI; // found embedded null
 
     // For consistency with SetSpec/nsURLParsers, don't allow spaces
@@ -1439,7 +1439,7 @@ nsStandardURL::SetHost(const nsACString &input)
     InvalidateCache();
     mHostEncoding = eEncoding_ASCII;
 
-    if (!*host) {
+    if (!(host && *host)) {
         // remove existing hostname
         if (mHost.mLen > 0) {
             // remove entire authority
