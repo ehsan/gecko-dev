@@ -7,11 +7,10 @@
 #define nsIScrollObserver_h___
 
 #include "nsISupports.h"
-#include "Units.h"
 
 #define NS_ISCROLLOBSERVER_IID \
-  { 0x00bc10e3, 0xaa59, 0x4aa3, \
-    { 0x88, 0xe9, 0x43, 0x0a, 0x01, 0xa3, 0x88, 0x04 } }
+  { 0x03465b77, 0x9ce2, 0x4d19, \
+    { 0xb2, 0xf6, 0x82, 0xae, 0xee, 0x85, 0xc3, 0xbf } }
 
 class nsIScrollObserver : public nsISupports
 {
@@ -24,16 +23,14 @@ public:
   virtual void ScrollPositionChanged() = 0;
 
   /**
-   * Called when an async panning/zooming transform has started being applied
-   * and passed the scroll offset
+   * Called when an async panning/zooming transform has started being applied.
    */
-  virtual void AsyncPanZoomStarted(const mozilla::CSSIntPoint scrollPos){};
+  virtual void AsyncPanZoomStarted(){};
 
   /**
-   * Called when an async panning/zooming transform is no longer applied
-   * and passed the scroll offset
+   * Called when an async panning/zooming transform is no longer applied.
    */
-  virtual void AsyncPanZoomStopped(const mozilla::CSSIntPoint scrollPos){};
+  virtual void AsyncPanZoomStopped(){};
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIScrollObserver, NS_ISCROLLOBSERVER_IID)

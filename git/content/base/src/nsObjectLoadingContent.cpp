@@ -68,7 +68,7 @@
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 #include "GeckoProfiler.h"
-#include "nsPluginFrame.h"
+#include "nsObjectFrame.h"
 #include "nsDOMClassInfo.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMJSUtils.h"
@@ -860,7 +860,7 @@ nsObjectLoadingContent::InstantiatePluginInstance(bool aIsLoading)
   // dangling. (Bug 854082)
   nsIFrame* frame = thisContent->GetPrimaryFrame();
   if (frame && mInstanceOwner) {
-    mInstanceOwner->SetFrame(static_cast<nsPluginFrame*>(frame));
+    mInstanceOwner->SetFrame(static_cast<nsObjectFrame*>(frame));
 
     // Bug 870216 - Adobe Reader renders with incorrect dimensions until it gets
     // a second SetWindow call. This is otherwise redundant.
@@ -1296,7 +1296,7 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
 
   // Otherwise, we're just changing frames
   // Set up relationship between instance owner and frame.
-  nsPluginFrame *objFrame = static_cast<nsPluginFrame*>(aFrame);
+  nsObjectFrame *objFrame = static_cast<nsObjectFrame*>(aFrame);
   mInstanceOwner->SetFrame(objFrame);
 
   return NS_OK;
@@ -2718,13 +2718,13 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
   return eType_Null;
 }
 
-nsPluginFrame*
+nsObjectFrame*
 nsObjectLoadingContent::GetExistingFrame()
 {
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   nsIFrame* frame = thisContent->GetPrimaryFrame();
   nsIObjectFrame* objFrame = do_QueryFrame(frame);
-  return static_cast<nsPluginFrame*>(objFrame);
+  return static_cast<nsObjectFrame*>(objFrame);
 }
 
 void
@@ -3576,7 +3576,7 @@ nsObjectLoadingContent::GetPluginJSObject(JSContext *cx,
                                           JS::MutableHandle<JSObject*> plugin_proto)
 {
   // NB: We need an AutoEnterCompartment because we can be called from
-  // nsPluginFrame when the plugin loads after the JS object for our content
+  // nsObjectFrame when the plugin loads after the JS object for our content
   // node has been created.
   JSAutoCompartment ac(cx, obj);
 

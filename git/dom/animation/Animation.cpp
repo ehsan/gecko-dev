@@ -114,8 +114,12 @@ Animation::GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
   bool isEndOfFinalIteration = false;
 
   // Get the normalized time within the active interval.
-  StickyTimeDuration activeTime;
-  if (localTime >= aTiming.mDelay + result.mActiveDuration) {
+  TimeDuration activeTime;
+  // FIXME: The following check that the active duration is not equal to Forever
+  // is a temporary workaround to avoid overflow and should be removed once
+  // bug 1039924 is fixed.
+  if (result.mActiveDuration != TimeDuration::Forever() &&
+      localTime >= aTiming.mDelay + result.mActiveDuration) {
     result.mPhase = ComputedTiming::AnimationPhase_After;
     if (!aTiming.FillsForwards()) {
       // The animation isn't active or filling at this time.
@@ -144,10 +148,10 @@ Animation::GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
   }
 
   // Get the position within the current iteration.
-  StickyTimeDuration iterationTime;
+  TimeDuration iterationTime;
   if (aTiming.mIterationDuration != zeroDuration) {
     iterationTime = isEndOfFinalIteration
-                    ? StickyTimeDuration(aTiming.mIterationDuration)
+                    ? aTiming.mIterationDuration
                     : activeTime % aTiming.mIterationDuration;
   } /* else, iterationTime is zero */
 
@@ -211,20 +215,19 @@ Animation::GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
   return result;
 }
 
-StickyTimeDuration
+TimeDuration
 Animation::ActiveDuration(const AnimationTiming& aTiming)
 {
   if (aTiming.mIterationCount == mozilla::PositiveInfinity<float>()) {
     // An animation that repeats forever has an infinite active duration
     // unless its iteration duration is zero, in which case it has a zero
     // active duration.
-    const StickyTimeDuration zeroDuration;
+    const TimeDuration zeroDuration;
     return aTiming.mIterationDuration == zeroDuration
            ? zeroDuration
-           : StickyTimeDuration::Forever();
+           : TimeDuration::Forever();
   }
-  return StickyTimeDuration(
-    aTiming.mIterationDuration.MultDouble(aTiming.mIterationCount));
+  return aTiming.mIterationDuration.MultDouble(aTiming.mIterationCount);
 }
 
 bool

@@ -240,7 +240,7 @@ NS_IMPL_ISUPPORTS(nsMathMLmactionFrame::MouseListener,
 
 
 // helper to show a msg on the status bar
-// curled from nsPluginFrame.cpp ...
+// curled from nsObjectFrame.cpp ...
 void
 ShowStatus(nsPresContext* aPresContext, nsString& aStatusMsg)
 {

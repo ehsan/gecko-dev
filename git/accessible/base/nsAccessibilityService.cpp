@@ -57,7 +57,7 @@
 #include "nsImageFrame.h"
 #include "nsIObserverService.h"
 #include "nsLayoutUtils.h"
-#include "nsPluginFrame.h"
+#include "nsObjectFrame.h"
 #include "nsSVGPathGeometryFrame.h"
 #include "nsTreeBodyFrame.h"
 #include "nsTreeColumns.h"
@@ -263,11 +263,11 @@ NS_IMPL_ISUPPORTS(PluginTimerCallBack, nsITimerCallback)
 #endif
 
 already_AddRefed<Accessible>
-nsAccessibilityService::CreatePluginAccessible(nsPluginFrame* aFrame,
+nsAccessibilityService::CreatePluginAccessible(nsObjectFrame* aFrame,
                                                nsIContent* aContent,
                                                Accessible* aContext)
 {
-  // nsPluginFrame means a plugin, so we need to use the accessibility support
+  // nsObjectFrame means a plugin, so we need to use the accessibility support
   // of the plugin.
   if (aFrame->GetRect().IsEmpty())
     return nullptr;
@@ -1619,8 +1619,8 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
       newAcc = new OuterDocAccessible(aContent, document);
       break;
     case ePluginType: {
-      nsPluginFrame* pluginFrame = do_QueryFrame(aFrame);
-      newAcc = CreatePluginAccessible(pluginFrame, aContent, aContext);
+      nsObjectFrame* objectFrame = do_QueryFrame(aFrame);
+      newAcc = CreatePluginAccessible(objectFrame, aContent, aContext);
       break;
     }
     case eTextLeafType:

@@ -62,7 +62,6 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla += [
-    'StickyTimeDuration.h',
     'TimeStamp.h',
 ]
 
