@@ -15,7 +15,7 @@
   <project name="platform_build" path="build" remote="b2g" revision="3a2947df41a480de1457a6dcdbf46ad0af70d8e0">
     <copyfile dest="Makefile" src="core/root.mk"/>
   </project>
-  <project name="gaia" path="gaia" remote="mozillaorg" revision="778ebac47554e1c4b7e9a952d73e850f58123914"/>
+  <project name="gaia" path="gaia" remote="mozillaorg" revision="bc8eb493311c58f1f311a56b8b645b52bfbd2f71"/>
   <project name="fake-libdvm" path="dalvik" remote="b2g" revision="d50ae982b19f42f0b66d08b9eb306be81687869f"/>
   <project name="gonk-misc" path="gonk-misc" remote="b2g" revision="fd2ace405952a06d16eb8a1334129007c3f179fa"/>
   <project name="librecovery" path="librecovery" remote="b2g" revision="891e5069c0ad330d8191bf8c7b879c814258c89f"/>
@@ -135,7 +135,7 @@
   <project name="device-flame" path="device/t2m/flame" remote="b2g" revision="52c909e821d107d414f851e267dedcd7aae2cebf"/>
   <project name="codeaurora_kernel_msm" path="kernel" remote="b2g" revision="1072f7d31dc0bf3a2adc64177b1104da9f4ce4b6"/>
   <project name="kernel_lk" path="bootable/bootloader/lk" remote="b2g" revision="fda40423ffa573dc6cafd3780515010cb2a086be"/>
-  <project name="platform/external/bluetooth/bluedroid" path="external/bluetooth/bluedroid" revision="082a1f98422e6a6b56f61218d6fcf465e85d4c58"/>
+  <project name="platform/external/bluetooth/bluedroid" path="external/bluetooth/bluedroid" revision="30b96dfca99cb384bf520a16b81f3aba56f09907"/>
   <project name="platform/external/wpa_supplicant_8" path="external/wpa_supplicant_8" revision="5b71e40213f650459e95d35b6f14af7e88d8ab62"/>
   <project name="platform_external_libnfc-nci" path="external/libnfc-nci" remote="t2m" revision="4186bdecb4dae911b39a8202252cc2310d91b0be"/>
   <project name="platform/frameworks/av" path="frameworks/av" revision="9e88d2eb335f00d9d9af18f663f9d3e55b019bf8"/>
