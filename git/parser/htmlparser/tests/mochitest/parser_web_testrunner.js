@@ -76,17 +76,8 @@ function makeFragmentTestChecker(input,
                                  fragment, 
                                  testframe) {
   return function () {
-    var context;
-    if (fragment.startsWith("svg ")) {
-      context = document.createElementNS("http://www.w3.org/2000/svg",
-                                         fragment.substring(4));
-    } else if (fragment.startsWith("math ")) {
-      context = document.createElementNS("http://www.w3.org/1998/Math/MathML",
-                                         fragment.substring(5));
-    } else {
-      context = document.createElementNS("http://www.w3.org/1999/xhtml",
-                                         fragment);
-    }
+    var context = document.createElementNS("http://www.w3.org/1999/xhtml",
+                                           fragment);
     context.innerHTML = input;
     var domAsString = fragmentToTestOutput(context);
     is(domAsString, expected, "HTML5 expected success. " + new Date());

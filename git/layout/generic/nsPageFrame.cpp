@@ -243,9 +243,10 @@ nscoord nsPageFrame::GetXPosition(nsRenderingContext& aRenderingContext,
                                   int32_t              aJust,
                                   const nsString&      aStr)
 {
-  nscoord width = nsLayoutUtils::AppUnitWidthOfStringBidi(aStr, this,
-                                                          aFontMetrics,
-                                                          aRenderingContext);
+  nscoord width = nsLayoutUtils::GetStringWidth(this, &aRenderingContext,
+                                                aFontMetrics,
+                                                aStr.get(), aStr.Length());
+
   nscoord x = aRect.x;
   switch (aJust) {
     case nsIPrintSettings::kJustLeft:
