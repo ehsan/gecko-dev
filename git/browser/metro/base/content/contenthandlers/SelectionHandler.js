@@ -56,17 +56,11 @@ var SelectionHandler = {
   /*
    * Selection start event handler
    */
-  _onSelectionStart: function _onSelectionStart(aJson) {
+  _onSelectionStart: function _onSelectionStart(aX, aY) {
     // Init content window information
-    if (!this._initTargetInfo(aJson.xPos, aJson.yPos)) {
+    if (!this._initTargetInfo(aX, aY)) {
       this._onFail("failed to get target information");
       return;
-    }
-
-    // for context menu select command, which doesn't trigger
-    // form input focus changes.
-    if (aJson.setFocus && this._targetIsEditable) {
-      this._targetElement.focus();
     }
 
     // Clear any existing selection from the document
@@ -74,7 +68,7 @@ var SelectionHandler = {
     selection.removeAllRanges();
 
     // Set our initial selection, aX and aY should be in client coordinates.
-    let framePoint = this._clientPointToFramePoint({ xPos: aJson.xPos, yPos: aJson.yPos });
+    let framePoint = this._clientPointToFramePoint({ xPos: aX, yPos: aY });
     if (!this._domWinUtils.selectAtPoint(framePoint.xPos, framePoint.yPos,
                                          Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
       this._onFail("failed to set selection at point");
@@ -504,7 +498,7 @@ var SelectionHandler = {
     let json = aMessage.json;
     switch (aMessage.name) {
       case "Browser:SelectionStart":
-        this._onSelectionStart(json);
+        this._onSelectionStart(json.xPos, json.yPos);
         break;
 
       case "Browser:SelectionAttach":

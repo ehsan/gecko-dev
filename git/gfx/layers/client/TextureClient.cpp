@@ -320,11 +320,7 @@ DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
       NS_WARNING("creating SurfaceDescriptor failed!");
     }
     if (mContentType == gfxASurface::CONTENT_COLOR_ALPHA) {
-      gfxASurface* surface = GetSurface();
-      if (!surface) {
-        return false;
-      }
-      nsRefPtr<gfxContext> context = new gfxContext(surface);
+      nsRefPtr<gfxContext> context = new gfxContext(GetSurface());
       context->SetColor(gfxRGBA(0, 0, 0, 0));
       context->SetOperator(gfxContext::OPERATOR_SOURCE);
       context->Paint();
@@ -336,17 +332,16 @@ DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
 void
 DeprecatedTextureClientShmem::SetDescriptor(const SurfaceDescriptor& aDescriptor)
 {
-  if (aDescriptor.type() == SurfaceDescriptor::Tnull_t) {
+  if (IsSurfaceDescriptorValid(aDescriptor)) {
+    ReleaseResources();
+    mDescriptor = aDescriptor;
+  } else {
     EnsureAllocated(mSize, mContentType);
-    return;
   }
 
-  ReleaseResources();
-  mDescriptor = aDescriptor;
-
   MOZ_ASSERT(!mSurface);
-  NS_ASSERTION(mDescriptor.type() == SurfaceDescriptor::T__None ||
-               mDescriptor.type() == SurfaceDescriptor::TSurfaceDescriptorGralloc ||
+
+  NS_ASSERTION(mDescriptor.type() == SurfaceDescriptor::TSurfaceDescriptorGralloc ||
                mDescriptor.type() == SurfaceDescriptor::TShmem ||
                mDescriptor.type() == SurfaceDescriptor::TMemoryImage ||
                mDescriptor.type() == SurfaceDescriptor::TRGBImage,
@@ -380,10 +375,6 @@ DeprecatedTextureClientShmem::LockDrawTarget()
   }
 
   gfxASurface* surface = GetSurface();
-  if (!surface) {
-    return nullptr;
-  }
-
   mDrawTarget = gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(surface, mSize);
 
   return mDrawTarget;
@@ -403,11 +394,7 @@ gfxImageSurface*
 DeprecatedTextureClientShmem::LockImageSurface()
 {
   if (!mSurfaceAsImage) {
-    gfxASurface* surface = GetSurface();
-    if (!surface) {
-      return nullptr;
-    }
-    mSurfaceAsImage = surface->GetAsImageSurface();
+    mSurfaceAsImage = GetSurface()->GetAsImageSurface();
   }
 
   return mSurfaceAsImage.get();
@@ -430,13 +417,13 @@ DeprecatedTextureClientShmemYCbCr::ReleaseResources()
 void
 DeprecatedTextureClientShmemYCbCr::SetDescriptor(const SurfaceDescriptor& aDescriptor)
 {
-  MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TYCbCrImage ||
-             aDescriptor.type() == SurfaceDescriptor::T__None);
+  MOZ_ASSERT(aDescriptor.type() == SurfaceDescriptor::TYCbCrImage);
 
   if (IsSurfaceDescriptorValid(mDescriptor)) {
     GetForwarder()->DestroySharedSurface(&mDescriptor);
   }
   mDescriptor = aDescriptor;
+  MOZ_ASSERT(IsSurfaceDescriptorValid(mDescriptor));
 }
 
 void

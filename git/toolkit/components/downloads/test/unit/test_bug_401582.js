@@ -27,10 +27,6 @@ var tests = [test_noScanningDownloads];
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   for (var i = 0; i < tests.length; i++)
     tests[i]();
 }
