@@ -85,8 +85,7 @@ GetSelfOrNearestBlock(nsIFrame* aFrame)
 static bool
 IsAtomicElement(nsIFrame* aFrame, const nsIAtom* aFrameType)
 {
-  NS_PRECONDITION(!nsLayoutUtils::GetAsBlock(aFrame) ||
-                  !aFrame->GetStyleDisplay()->IsBlockOutside(),
+  NS_PRECONDITION(!aFrame->GetStyleDisplay()->IsBlockOutside(),
                   "unexpected block frame");
   NS_PRECONDITION(aFrameType != nsGkAtoms::placeholderFrame,
                   "unexpected placeholder frame");
