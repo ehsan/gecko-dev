@@ -3219,12 +3219,13 @@ nsContentUtils::IsInChromeDocshell(nsIDocument *aDocument)
     return IsInChromeDocshell(aDocument->GetDisplayDocument());
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> docShell = aDocument->GetDocShell();
-  if (!docShell) {
-    return false;
+  nsCOMPtr<nsIDocShellTreeItem> docShell(aDocument->GetDocShell());
+  int32_t itemType = nsIDocShellTreeItem::typeContent;
+  if (docShell) {
+    docShell->GetItemType(&itemType);
   }
 
-  return docShell->ItemType() == nsIDocShellTreeItem::typeChrome;
+  return itemType == nsIDocShellTreeItem::typeChrome;
 }
 
 // static
@@ -5041,8 +5042,13 @@ nsContentUtils::CheckForSubFrameDrop(nsIDragSession* aDragSession,
     return true;
   }
 
+  int32_t type = -1;
+  if (NS_FAILED(tdsti->GetItemType(&type))) {
+    return true;
+  }
+
   // Always allow dropping onto chrome shells.
-  if (tdsti->ItemType() == nsIDocShellTreeItem::typeChrome) {
+  if (type == nsIDocShellTreeItem::typeChrome) {
     return false;
   }
 

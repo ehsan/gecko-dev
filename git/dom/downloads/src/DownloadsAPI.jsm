@@ -19,9 +19,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "nsIMessageBroadcaster");
 
 function debug(aStr) {
-#ifdef MOZ_DEBUG
   dump("-*- DownloadsAPI.jsm : " + aStr + "\n");
-#endif
 }
 
 function sendPromiseMessage(aMm, aMessageName, aData, aError) {

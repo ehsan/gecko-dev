@@ -15,9 +15,3 @@ EXTRA_JS_MODULES += [
 FAIL_ON_WARNINGS = True
 
 FINAL_LIBRARY = 'xul'
-
-LOCAL_INCLUDES += [
-    '/js/xpconnect/loader',
-]
-
-MOCHITEST_CHROME_MANIFESTS += ['chrome.ini']
