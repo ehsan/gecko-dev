@@ -308,6 +308,8 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   NS_ASSERTION(aObjectStore, "Null pointer!");
   NS_ASSERTION(aIndexInfo, "Null pointer!");
 
+  IDBDatabase* database = aObjectStore->Transaction()->Database();
+
   nsRefPtr<IDBIndex> index = new IDBIndex();
 
   index->mObjectStore = aObjectStore;

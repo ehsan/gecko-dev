@@ -640,42 +640,6 @@ var WifiManager = (function() {
     return true;
   }
 
-  function killSupplicant(callback) {
-    // It is interesting to note that this function does exactly what
-    // wifi_stop_supplicant does. Unforunately, on the Galaxy S2, Samsung
-    // changed that function in a way that means that it doesn't recognize
-    // wpa_supplicant as already running. Therefore, we have to roll our own
-    // version here.
-    var count = 0;
-    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    function tick() {
-      getProperty("init.svc.wpa_supplicant", "stopped", function (result) {
-        if (result === null) {
-          callback(false);
-          return;
-        }
-        if (result === "stopped" || ++count >= 5) {
-          // Either we succeeded or ran out of time.
-          timer = null;
-          callback(count < 5);
-          return;
-        }
-
-        // Else it's still running, continue waiting.
-        timer.initWithCallback(tick, 1000, Ci.nsITimer.TYPE_ONE_SHOT);
-      });
-    }
-
-    setProperty("ctl.stop", "wpa_supplicant", tick);
-  }
-
-  function prepareForStartup(callback) {
-    stopDhcp(manager.ifname, function() {
-      // Ignore any errors.
-      killSupplicant(callback);
-    });
-  }
-
   // Initial state
   var airplaneMode = false;
 
@@ -687,29 +651,24 @@ var WifiManager = (function() {
     if (enable && airplaneMode)
       return false;
     if (enable) {
-      // Kill any existing connections if necessary.
-      getProperty("wifi.interface", "tiwlan0", function (ifname) {
-        if (!ifname) {
-          callback(-1);
+      loadDriver(function (status) {
+        if (status < 0) {
+          callback(status);
           return;
         }
-        manager.ifname = ifname;
-
-        prepareForStartup(function() {
-          // Ignore errors...
-          loadDriver(function (status) {
-            if (status < 0) {
-              callback(status);
+        startSupplicant(function (status) {
+          if (status < 0) {
+            callback(status);
+            return;
+          }
+          getProperty("wifi.interface", "tiwlan0", function (ifname) {
+            if (!ifname) {
+              callback(-1);
               return;
             }
-            startSupplicant(function (status) {
-              if (status < 0) {
-                callback(status);
-                return;
-              }
-              enableInterface(ifname, function (ok) {
-                callback(ok ? 0 : -1);
-              });
+            manager.ifname = ifname;
+            enableInterface(ifname, function (ok) {
+              callback(ok ? 0 : -1);
             });
           });
         });
@@ -732,7 +691,7 @@ var WifiManager = (function() {
   manager.reassociate = reassociateCommand;
 
   var networkConfigurationFields = ["ssid", "bssid", "psk", "wep_key0", "wep_key1", "wep_key2", "wep_key3",
-                                    "wep_tx_keyidx", "priority", "key_mgmt", "scan_ssid", "disabled"];
+                                    "wep_tx_keyidx", "priority", "key_mgmt", "scan_ssid"];
 
   manager.getNetworkConfiguration = function(config, callback) {
     var netId = config.netId;
@@ -879,27 +838,35 @@ function nsWifiWorker() {
     // TODO Remove me in favor of UI and a way to select a network.
 
     debug("Haven't connected to a network, trying a default (for now)");
-    var configs = [
-      { "ssid": '"mozilla demo"', "key_mgmt": "NONE", "disabled": 0 },
-      { "ssid": '"Mozilla"', "key_mgmt": "NONE", "disabled": 0 },
-      { "ssid": '"Mozilla Guest"', "key_mgmt": "NONE", "scan_ssid": 1, "disabled": 0 },
-    ];
-
-    var i = 0;
-    function addThem() {
-      WifiManager.addNetwork(configs[i++], function(ok) {
-        if (!ok) {
-          debug("Unable to add the network!");
-          return;
-        }
-
-        if (i < configs.length) {
-          addThem();
-          return;
-        }
-      });
+    var name = "Mozilla";
+    var net = self.networks[name];
+    if (net && (net.flags && net.flags !== "[IBSS]")) {
+      debug("Network Mozilla exists, but is encrypted");
+      net = null;
     }
-    addThem();
+
+    var config = Object.create(null);
+    if (!net) {
+      name = "Mozilla Guest";
+      net = self.networks[name];
+      if (!net || (net.flags && net.flags !== "[IBSS]")) {
+        debug("Can't find either network, trying to force 'Mozilla Guest'");
+        config.scan_ssid = 1;
+      }
+    }
+
+    config.ssid = '"' + name + '"';
+    config.key_mgmt = "NONE";
+    WifiManager.addNetwork(config, function(ok) {
+      if (!ok) {
+        debug("Unable to add the network!");
+        return;
+      }
+
+      WifiManager.enableNetwork(config.netId, false, function(ok) {
+        debug((ok ? "Successfully enabled " : "Didn't enable ") + name);
+      });
+    });
   }
   this.waitForScan(connectToMozilla);
 
