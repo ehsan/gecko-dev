@@ -10,6 +10,7 @@
 interface DummyInterface {
   readonly attribute OnErrorEventHandlerNonNull onErrorEventHandler;
   FilePropertyBag fileBag();
+  RTCConfiguration rtcConfiguration();
   CFStateChangeEventDict cfstateChangeEvent();
   USSDReceivedEventDict ussdReceivedEvent();
   InspectorRGBTriple rgbTriple();

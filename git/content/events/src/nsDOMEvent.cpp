@@ -34,7 +34,6 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsPIWindowRoot.h"
-#include "nsGlobalWindow.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -44,18 +43,6 @@ static char *sPopupAllowedEvents;
 
 nsDOMEvent::nsDOMEvent(mozilla::dom::EventTarget* aOwner,
                        nsPresContext* aPresContext, nsEvent* aEvent)
-{
-  ConstructorInit(aOwner, aPresContext, aEvent);
-}
-
-nsDOMEvent::nsDOMEvent(nsPIDOMWindow* aParent)
-{
-  ConstructorInit(static_cast<nsGlobalWindow *>(aParent), nullptr, nullptr);
-  SetIsDOMBinding();
-}
-
-void nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                                 nsPresContext* aPresContext, nsEvent* aEvent)
 {
   SetOwner(aOwner);
 

@@ -826,16 +826,8 @@ NON_IDL_EVENT(MozPressTapGesture,
               NS_SIMPLE_GESTURE_PRESSTAP,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUIStarted,
-              NS_SIMPLE_GESTURE_EDGE_STARTED,
-              EventNameType_None,
-              NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUICanceled,
-              NS_SIMPLE_GESTURE_EDGE_CANCELED,
-              EventNameType_None,
-              NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUICompleted,
-              NS_SIMPLE_GESTURE_EDGE_COMPLETED,
+NON_IDL_EVENT(MozEdgeUIGesture,
+              NS_SIMPLE_GESTURE_EDGEUI,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
 
@@ -858,11 +850,6 @@ NON_IDL_EVENT(animationiteration,
 
 NON_IDL_EVENT(audioprocess,
               NS_AUDIO_PROCESS,
-              EventNameType_None,
-              NS_EVENT)
-
-NON_IDL_EVENT(complete,
-              NS_AUDIO_COMPLETE,
               EventNameType_None,
               NS_EVENT)
 

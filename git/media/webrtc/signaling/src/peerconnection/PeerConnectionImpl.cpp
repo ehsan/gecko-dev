@@ -230,7 +230,14 @@ public:
           if (!stream) {
             CSFLogError(logTag, "%s: GetMediaStream returned NULL", __FUNCTION__);
           } else {
-            mObserver->OnAddStream(stream);
+            // We provide a type field because it is in the IDL
+            // and we want code that looks at it not to crash.
+            // We use "video" so that if an app looks for
+            // that string it has some chance of working.
+            // TODO(ekr@rtfm.com): Bug 834847
+            // The correct way for content JS to know stream type
+            // is via get{Audio,Video}Tracks. See Bug 834835.
+            mObserver->OnAddStream(stream, "video");
           }
           break;
         }
@@ -382,6 +389,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
     return NS_ERROR_FAILURE;
   }
   for (uint32_t i = 0; i < config.mIceServers.Value().Length(); i++) {
+    // XXXbz once this moves to WebIDL, remove RTCConfiguration in DummyBinding.webidl.
     RTCIceServer& server = config.mIceServers.Value()[i];
     if (!server.mUrl.WasPassed()) {
       return NS_ERROR_FAILURE;

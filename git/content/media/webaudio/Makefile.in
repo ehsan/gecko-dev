@@ -33,7 +33,6 @@ CPPSRCS := \
   EnableWebAudioCheck.cpp \
   GainNode.cpp \
   MediaBufferDecoder.cpp \
-  OfflineAudioCompletionEvent.cpp \
   PannerNode.cpp \
   ScriptProcessorNode.cpp \
   ThreeDPoint.cpp \
