@@ -807,9 +807,11 @@ mjit::Compiler::booleanJumpScript(JSOp op, jsbytecode *target)
     MaybeRegisterID type;
     MaybeRegisterID data;
 
-    if (!fe->isTypeKnown() && !frame.shouldAvoidTypeRemat(fe))
-        type.setReg(frame.copyTypeIntoReg(fe));
-    data.setReg(frame.copyDataIntoReg(fe));
+    if (!fe->isTypeKnown() && !frame.shouldAvoidTypeRemat(fe)) {
+        type.setReg(frame.tempRegForType(fe));
+        frame.pinReg(type.reg());
+    }
+    data.setReg(frame.tempRegForData(fe));
 
     /* :FIXME: Can something more lightweight be used? */
     frame.forgetEverything();
