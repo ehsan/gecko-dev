@@ -45,7 +45,6 @@ function Tester(aTests, aDumper, aCallback) {
   var simpleTestScope = {};
   this._scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
   this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
   this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
@@ -162,11 +161,6 @@ Tester.prototype = {
         let func = testScope.__cleanupFunctions.shift();
         func.apply(testScope);
       };
-
-      // Note the test run time
-      let time = Date.now() - this.lastStartTime;
-      let msg = "Test took " + (time / 1000) + "s to complete\n";
-      this.currentTest.addResult(new testMessage(msg));
     }
 
     // Check the window state for the current test before moving to the next one.
@@ -176,6 +170,12 @@ Tester.prototype = {
   },
 
   realNextTest: function Test_realNextTest() {
+    if (this.lastStartTime) {
+      let time = Date.now() - this.lastStartTime;
+      this.dumper.dump("TEST-END | " + this.currentTest.path + " | Test took " +
+                       time + "ms to complete\n");
+    }
+
     if (this.done) {
       this.finish();
       return;

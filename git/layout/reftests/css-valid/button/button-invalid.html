@@ -2,8 +2,11 @@
 <html class="reftest-wait">
   <!-- Test: if button has a custom error, it should not be affected by :valid
              pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    button { background-color: green; }
+    button:valid { background-color: red; }
+  </style>
   <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
-    <button class='notvalid' id='b'></button>
+    <button id='b'></button>
   </body>
 </html>

@@ -123,10 +123,6 @@ public:
     mDeferNotifications = aDeferNotifications;
   }
 
-  // Setter for our |mImage| pointer, for imgRequest to use, once it
-  // instantiates an Image.
-  void SetImage(mozilla::imagelib::Image* aImage);
-
 protected:
   friend class imgStatusTracker;
   friend class imgStatusNotifyRunnable;
@@ -184,12 +180,6 @@ protected:
     RemoveFromLoadGroup(PR_TRUE);
   }
 
-  // Return the imgStatusTracker associated with mOwner and/or mImage. It may
-  // live either on mOwner or mImage, depending on whether
-  //   (a) we have an mOwner at all
-  //   (b) whether mOwner has instantiated its image yet
-  imgStatusTracker& GetStatusTracker();
-
 private:
   friend class imgCacheValidator;
 
@@ -220,7 +210,6 @@ private:
 
   nsLoadFlags mLoadFlags;
   PRUint32    mLocksHeld;
-  PRUint32    mDeferredLocks;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
   PRPackedBool mListenerIsStrongRef;

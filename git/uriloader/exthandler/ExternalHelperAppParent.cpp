@@ -69,7 +69,6 @@ ExternalHelperAppParent::ExternalHelperAppParent(
 void
 ExternalHelperAppParent::Init(TabParent *parent,
                               const nsCString& aMimeContentType,
-                              const nsCString& aContentDisposition,
                               const PRBool& aForceSave)
 {
   nsHashPropertyBag::Init();
@@ -83,15 +82,14 @@ ExternalHelperAppParent::Init(TabParent *parent,
     do_GetService(NS_EXTERNALHELPERAPPSERVICE_CONTRACTID);
   NS_ASSERTION(helperAppService, "No Helper App Service!");
 
-  mContentDisposition = aContentDisposition;
+  SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, mContentLength);
   helperAppService->DoContent(aMimeContentType, this, ir,
                               aForceSave, getter_AddRefs(mListener));
 }
 
 bool
-ExternalHelperAppParent::RecvOnStartRequest(const nsCString& entityID)
+ExternalHelperAppParent::RecvOnStartRequest()
 {
-  mEntityID = entityID;
   mPending = PR_TRUE;
   mStatus = mListener->OnStartRequest(this, nsnull);
   return true;
@@ -298,40 +296,19 @@ ExternalHelperAppParent::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDisposition(nsACString& aContentDisposition)
+ExternalHelperAppParent::GetContentLength(PRInt32 *aContentLength)
 {
-  aContentDisposition = mContentDisposition;
+  if (mContentLength > PR_INT32_MAX || mContentLength < 0)
+    *aContentLength = -1;
+  else
+    *aContentLength = (PRInt32)mContentLength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetContentLength(PRInt64 *aContentLength)
-{
-  *aContentLength = mContentLength;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::SetContentLength(PRInt64 aContentLength)
+ExternalHelperAppParent::SetContentLength(PRInt32 aContentLength)
 {
   mContentLength = aContentLength;
-  return NS_OK;
-}
-
-//
-// nsIResumableChannel implementation
-//
-
-NS_IMETHODIMP
-ExternalHelperAppParent::ResumeAt(PRUint64 startPos, const nsACString& entityID)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetEntityID(nsACString& aEntityID)
-{
-  aEntityID = mEntityID;
   return NS_OK;
 }
 

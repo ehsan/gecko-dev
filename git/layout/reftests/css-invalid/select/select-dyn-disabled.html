@@ -2,7 +2,10 @@
 <html class="reftest-wait">
   <!-- Test: if select is disabled and invalid, it is barred from constraint
              validation and should not be affected by :invalid pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    select { background-color: green; }
+    select:invalid { background-color: red; }
+  </style>
   <script>
     function onLoadHandler()
     {
@@ -13,6 +16,6 @@
     }
   </script>
   <body onload="onLoadHandler();">
-    <select class='notinvalid' id='s'></select>
+    <select id='s'></select>
   </body>
 </html>

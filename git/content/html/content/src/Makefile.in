@@ -119,9 +119,9 @@ ifdef MOZ_MEDIA
 CPPSRCS		+= \
 		nsHTMLAudioElement.cpp \
 		nsHTMLMediaElement.cpp \
-		nsMediaError.cpp \
+		nsHTMLMediaError.cpp \
 		nsHTMLSourceElement.cpp \
-		nsTimeRanges.cpp \
+		nsHTMLTimeRanges.cpp \
 		nsHTMLVideoElement.cpp \
 		$(NULL)
 endif

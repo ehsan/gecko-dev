@@ -23,13 +23,6 @@ function grabEventAndContinueHandler(event)
   testGenerator.send(event);
 }
 
-function continueToNextStep()
-{
-  SimpleTest.executeSoon(function() {
-    testGenerator.next();
-  });
-}
-
 function errorHandler(event)
 {
   ok(false, "indexedDB error (" + event.code + "): " + event.message);

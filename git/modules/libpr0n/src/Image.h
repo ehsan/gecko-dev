@@ -48,7 +48,8 @@ namespace imagelib {
 class Image : public imgIContainer
 {
 public:
-  imgStatusTracker& GetStatusTracker() { return *mStatusTracker; }
+  imgStatusTracker& GetStatusTracker() { return mStatusTracker; }
+  PRBool IsInitialized() const { return mInitialized; }
 
   /**
    * Flags for Image initialization.
@@ -84,9 +85,21 @@ public:
 
   /**
    * The rectangle defining the location and size of the currently displayed
-   * frame.
+   * frame.  Should be an attribute, but can't be because of reference/pointer
+   * conflicts with native types in xpidl.
    */
-  virtual void GetCurrentFrameRect(nsIntRect& aRect) = 0;
+  virtual nsresult GetCurrentFrameRect(nsIntRect& aRect) = 0;
+
+  /**
+   * The index of the current frame that would be drawn if the image was to be
+   * drawn now.
+   */
+  virtual PRUint32 GetCurrentFrameIndex() = 0;
+
+  /**
+   * The total number of frames in this image.
+   */
+  virtual PRUint32 GetNumFrames() = 0;
 
   /**
    * The size, in bytes, occupied by the significant data portions of the image.
@@ -107,11 +120,11 @@ public:
   static eDecoderType GetDecoderType(const char *aMimeType);
 
 protected:
-  Image(imgStatusTracker* aStatusTracker);
+  Image();
 
   // Member data shared by all implementations of this abstract class
-  nsAutoPtr<imgStatusTracker> mStatusTracker;
-  PRPackedBool                mInitialized;   // Have we been initalized?
+  imgStatusTracker   mStatusTracker;
+  PRPackedBool       mInitialized;   // Have we been initalized?
 };
 
 } // namespace imagelib

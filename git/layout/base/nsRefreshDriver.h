@@ -179,12 +179,6 @@ public:
   void Thaw();
 
   /**
-   * Throttle or unthrottle the refresh driver.  This is done if the
-   * corresponding presshell is hidden or shown.
-   */
-  void SetThrottled(bool aThrottled);
-
-  /**
    * Return the prescontext we were initialized with
    */
   nsPresContext* PresContext() const { return mPresContext; }
@@ -216,8 +210,7 @@ private:
   nsPresContext *mPresContext; // weak; pres context passed in constructor
                                // and unset in Disconnect
 
-  bool mFrozen;
-  bool mThrottled;
+  PRBool mFrozen;
 
   // separate arrays for each flush type we support
   ObserverArray mObservers[3];

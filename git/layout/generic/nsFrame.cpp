@@ -3096,6 +3096,16 @@ nsFrame::GetIntrinsicRatio()
   return nsSize(0, 0);
 }
 
+inline PRBool
+IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
+{
+  nsStyleUnit unit = aCoord.GetUnit();
+  return unit == eStyleUnit_Auto ||  // only for 'height'
+         unit == eStyleUnit_None ||  // only for 'max-height'
+         (unit == eStyleUnit_Percent && 
+          aCBHeight == NS_AUTOHEIGHT);
+}
+
 /* virtual */ nsSize
 nsFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
@@ -3144,24 +3154,27 @@ nsFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
 
   // Compute height
 
-  if (!nsLayoutUtils::IsAutoHeight(stylePos->mHeight, aCBSize.height)) {
+  if (!IsAutoHeight(stylePos->mHeight, aCBSize.height)) {
     result.height =
-      nsLayoutUtils::ComputeHeightValue(aCBSize.height, stylePos->mHeight) -
+      nsLayoutUtils::ComputeHeightDependentValue(aCBSize.height,
+                                                 stylePos->mHeight) -
       boxSizingAdjust.height;
   }
 
   if (result.height != NS_UNCONSTRAINEDSIZE) {
-    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMaxHeight, aCBSize.height)) {
+    if (!IsAutoHeight(stylePos->mMaxHeight, aCBSize.height)) {
       nscoord maxHeight =
-        nsLayoutUtils::ComputeHeightValue(aCBSize.height, stylePos->mMaxHeight) -
+        nsLayoutUtils::ComputeHeightDependentValue(aCBSize.height,
+                                                   stylePos->mMaxHeight) -
         boxSizingAdjust.height;
       if (maxHeight < result.height)
         result.height = maxHeight;
     }
 
-    if (!nsLayoutUtils::IsAutoHeight(stylePos->mMinHeight, aCBSize.height)) {
+    if (!IsAutoHeight(stylePos->mMinHeight, aCBSize.height)) {
       nscoord minHeight =
-        nsLayoutUtils::ComputeHeightValue(aCBSize.height, stylePos->mMinHeight) -
+        nsLayoutUtils::ComputeHeightDependentValue(aCBSize.height,
+                                                   stylePos->mMinHeight) -
         boxSizingAdjust.height;
       if (minHeight > result.height)
         result.height = minHeight;
@@ -3300,9 +3313,10 @@ nsFrame::DidReflow(nsPresContext*           aPresContext,
   // height. This happens in the case where a table cell has no computed
   // height but can fabricate one when the cell height is known.
   if (aReflowState && aReflowState->mPercentHeightObserver &&
-      !GetPrevInFlow()) {
-    const nsStyleCoord &height = aReflowState->mStylePosition->mHeight;
-    if (height.HasPercent()) {
+      (eStyleUnit_Percent == aReflowState->mStylePosition->mHeight.GetUnit())) {
+
+    nsIFrame* prevInFlow = GetPrevInFlow();
+    if (!prevInFlow) { // 1st in flow
       aReflowState->mPercentHeightObserver->NotifyPercentHeight(*aReflowState);
     }
   }

@@ -327,11 +327,10 @@ var tests = [
       this.notification.remove();
     }
   },
-  // Test that icons appear
+  // Test that anchor icon appears
   { // Test #11
     run: function () {
       this.notifyObj = new basicNotification();
-      this.notifyObj.id = "geolocation";
       this.notifyObj.anchorID = "geo-notification-icon";
       this.notification = showNotification(this.notifyObj);
     },
@@ -478,11 +477,8 @@ function checkPopup(popup, notificationObj) {
 
   is(notifications.length, 1, "only one notification displayed");
   let notification = notifications[0];
-  let icon = document.getAnonymousElementByAttribute(notification, "class", "popup-notification-icon");
-  if (notificationObj.id == "geolocation")
-    isnot(icon.boxObject.width, 0, "icon for geo displayed");
   is(notification.getAttribute("label"), notificationObj.message, "message matches");
-  is(notification.id, notificationObj.id + "-notification", "id matches");
+  is(notification.id, notificationObj.id, "id matches");
   if (notificationObj.mainAction) {
     is(notification.getAttribute("buttonlabel"), notificationObj.mainAction.label, "main action label matches");
     is(notification.getAttribute("buttonaccesskey"), notificationObj.mainAction.accessKey, "main action accesskey matches");

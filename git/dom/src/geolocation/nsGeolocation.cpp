@@ -1019,13 +1019,10 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(window->GetDocShell());
     
-    child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
-    
-    // Retain a reference so the object isn't deleted without IPDL's knowledge.
-    // Corresponding release occurs in DeallocPGeolocationRequest.
-    request->AddRef();
+    PGeolocationRequestChild* a = 
+        child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
 
-    unused << request->Sendprompt();
+    (void) a->Sendprompt();
     return;
   }
 #endif

@@ -2,8 +2,11 @@
 <html>
   <!-- Test: if button has no custom error and is not barred from constraint
              validation, it should be affected by :valid pseudo-class. -->
-  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    button { background-color: red; }
+    button:valid { background-color: green; }
+  </style>
   <body>
-    <button class='valid'></button>
+    <button></button>
   </body>
 </html>

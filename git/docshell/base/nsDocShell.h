@@ -326,7 +326,8 @@ protected:
                                    PRBool aBypassClassifier);
 
     nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, PRBool * aDoHashchange);
+                            PRUint32 aLoadType, nscoord *cx, nscoord *cy,
+                            PRBool * aDoHashchange);
 
     // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.

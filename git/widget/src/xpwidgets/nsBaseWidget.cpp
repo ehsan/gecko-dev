@@ -51,7 +51,6 @@
 #include "nsIPrefBranch2.h"
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
-#include "nsIXULRuntime.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -534,8 +533,9 @@ NS_IMETHODIMP nsBaseWidget::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 // merely stores the state.
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode)
-{
+NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
+
+
   if (aMode == nsSizeMode_Normal ||
       aMode == nsSizeMode_Minimized ||
       aMode == nsSizeMode_Maximized ||
@@ -552,8 +552,8 @@ NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode)
 // Get the size mode (minimized, maximized, that sort of thing...)
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode)
-{
+NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode) {
+
   *aMode = mSizeMode;
   return NS_OK;
 }
@@ -763,27 +763,13 @@ LayerManager* nsBaseWidget::GetLayerManager()
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
-    PRBool disableAcceleration = PR_FALSE;
-    PRBool accelerateByDefault = PR_TRUE;
-
+    PRBool allowAcceleration = PR_TRUE;
     if (prefs) {
-      prefs->GetBoolPref("layers.accelerate-all",
-                         &accelerateByDefault);
-      prefs->GetBoolPref("layers.accelerate-none",
-                         &disableAcceleration);
+      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
+                         &allowAcceleration);
     }
 
-    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-    PRBool safeMode = PR_FALSE;
-    if (xr)
-      xr->GetInSafeMode(&safeMode);
-
-    if (disableAcceleration || safeMode)
-      mUseAcceleratedRendering = PR_FALSE;
-    else if (accelerateByDefault)
-      mUseAcceleratedRendering = PR_TRUE;
-
-    if (mUseAcceleratedRendering) {
+    if (mUseAcceleratedRendering && allowAcceleration) {
       nsRefPtr<LayerManagerOGL> layerManager =
         new mozilla::layers::LayerManagerOGL(this);
       /**

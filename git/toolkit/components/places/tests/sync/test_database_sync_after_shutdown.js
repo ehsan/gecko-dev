@@ -50,7 +50,7 @@ const TEST_URI = "http://test.com/";
 
 const kSyncPrefName = "syncDBTableIntervalInSecs";
 const SYNC_INTERVAL = 600; // ten minutes
-const TOPIC_CONNECTION_CLOSED = "places-connection-closed";
+const kSyncFinished = "places-sync-finished";
 
 var historyObserver = {
   onVisit: function(aURI, aVisitId, aTime, aSessionId, aReferringId,
@@ -64,8 +64,9 @@ hs.addObserver(historyObserver, false);
 var observer = {
   visitId: -1,
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic == TOPIC_CONNECTION_CLOSED) {
-      os.removeObserver(this, aTopic);
+    if (aTopic == kSyncFinished) {
+      // remove the observer, we don't need to observe sync on quit
+      os.removeObserver(this, kSyncFinished);
 
       // visit id must be valid
       do_check_neq(this.visitId, -1);
@@ -74,7 +75,7 @@ var observer = {
     }
   }
 }
-os.addObserver(observer, TOPIC_CONNECTION_CLOSED, false);
+os.addObserver(observer, kSyncFinished, false);
 
 function run_test()
 {

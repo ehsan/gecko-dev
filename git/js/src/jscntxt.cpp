@@ -1399,7 +1399,7 @@ js_ReportOutOfScriptQuota(JSContext *cx)
                          JSMSG_SCRIPT_STACK_QUOTA);
 }
 
-JS_FRIEND_API(void)
+void
 js_ReportOverRecursed(JSContext *cx)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_OVER_RECURSED);

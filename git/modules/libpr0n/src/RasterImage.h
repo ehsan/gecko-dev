@@ -156,17 +156,19 @@ public:
   NS_DECL_NSITIMERCALLBACK
   NS_DECL_NSIPROPERTIES
 
-  RasterImage(imgStatusTracker* aStatusTracker = nsnull);
+  RasterImage();
   virtual ~RasterImage();
 
   // C++-only version of imgIContainer::GetType, for convenience
   virtual PRUint16 GetType() { return imgIContainer::TYPE_RASTER; }
 
   // Methods inherited from Image
-  nsresult Init(imgIDecoderObserver* aObserver,
+  nsresult Init(imgIDecoderObserver *aObserver,
                 const char* aMimeType,
                 PRUint32 aFlags);
-  void     GetCurrentFrameRect(nsIntRect& aRect);
+  nsresult GetCurrentFrameRect(nsIntRect& aRect);
+  PRUint32 GetCurrentFrameIndex();
+  PRUint32 GetNumFrames();
   PRUint32 GetDataSize();
 
   // Raster-specific methods
@@ -174,13 +176,6 @@ public:
                                       const char* aFromRawSegment,
                                       PRUint32 aToOffset, PRUint32 aCount,
                                       PRUint32* aWriteCount);
-
-  /* The index of the current frame that would be drawn if the image was to be
-   * drawn now. */
-  PRUint32 GetCurrentFrameIndex();
-
-  /* The total number of frames in this image. */
-  PRUint32 GetNumFrames();
 
   PRUint32 GetDecodedDataSize();
   PRUint32 GetSourceDataSize();
@@ -226,7 +221,7 @@ public:
                                PRUint32** paletteData,
                                PRUint32*  paletteLength);
 
-  void FrameUpdated(PRUint32 aFrameNum, nsIntRect& aUpdatedRect);
+  nsresult FrameUpdated(PRUint32 aFrameNum, nsIntRect& aUpdatedRect);
 
   /* notification when the current frame is done decoding */
   nsresult EndFrameDecode(PRUint32 aFrameNum);
@@ -289,11 +284,6 @@ public:
     kDisposeClear,          // Clear the frame's area, revealing bg
     kDisposeRestorePrevious // Restore the previous (composited) frame
   };
-
-  // Progressive decoding knobs
-  static void SetDecodeBytesAtATime(PRUint32 aBytesAtATime);
-  static void SetMaxMSBeforeYield(PRUint32 aMaxMS);
-  static void SetMaxBytesForSyncDecode(PRUint32 aMaxBytes);
 
 private:
   struct Anim

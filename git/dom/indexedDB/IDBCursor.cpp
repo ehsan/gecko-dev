@@ -37,12 +37,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// XXX remove once we can get jsvals out of XPIDL
+#include "jscntxt.h"
+#include "jsapi.h"
+
 #include "IDBCursor.h"
 
 #include "nsIIDBDatabaseException.h"
 #include "nsIVariant.h"
 
-#include "jscntxt.h"
 #include "mozilla/storage.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
@@ -481,8 +484,7 @@ IDBCursor::Update(const jsval &aValue,
   rv = json->EncodeFromJSVal(clone.jsval_addr(), aCx, jsonValue);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<IDBRequest> request =
-    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateWriteRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<UpdateHelper> helper =
@@ -516,8 +518,7 @@ IDBCursor::Remove(nsIIDBRequest** _retval)
   const Key& key = mData[mDataIndex].key;
   NS_ASSERTION(!key.IsUnset() && !key.IsNull(), "Bad key!");
 
-  nsRefPtr<IDBRequest> request =
-    GenerateWriteRequest(mTransaction->ScriptContext(), mTransaction->Owner());
+  nsRefPtr<IDBRequest> request = GenerateWriteRequest();
   NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
 
   nsRefPtr<RemoveHelper> helper =

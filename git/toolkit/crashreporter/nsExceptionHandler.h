@@ -102,7 +102,8 @@ bool TakeMinidumpForChild(PRUint32 childPid,
 typedef HANDLE ProcessHandle;
 typedef DWORD ThreadId;
 #elif defined(XP_MACOSX)
-typedef task_t ProcessHandle;
+//FIXME: mach_port_t
+typedef int ProcessHandle;
 typedef mach_port_t ThreadId;
 #else
 typedef int ProcessHandle;

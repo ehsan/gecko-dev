@@ -239,7 +239,6 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsPaintRequest.h"
 #include "nsIDOMNotifyPaintEvent.h"
-#include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsIDOMTransitionEvent.h"
 #include "nsIDOMNSDocumentStyle.h"
@@ -308,8 +307,8 @@
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLTitleElement.h"
 #include "nsIDOMHTMLUListElement.h"
-#include "nsIDOMMediaError.h"
-#include "nsIDOMTimeRanges.h"
+#include "nsIDOMHTMLMediaError.h"
+#include "nsIDOMHTMLTimeRanges.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
@@ -1361,11 +1360,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLSourceElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MediaError, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLMediaError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLAudioElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(TimeRanges, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLTimeRanges, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
@@ -1384,9 +1383,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(NotifyPaintEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(NotifyAudioAvailableEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(SimpleGestureEvent, nsDOMGenericSH,
@@ -1419,8 +1415,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(WebGLRenderbuffer, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLUniformLocation, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(WebGLActiveInfo, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(PaintRequest, nsDOMGenericSH,
@@ -3891,8 +3885,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MediaError, nsIDOMMediaError)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaError)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLMediaError, nsIDOMHTMLMediaError)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMediaError)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLAudioElement, nsIDOMHTMLAudioElement)
@@ -3900,8 +3894,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(TimeRanges, nsIDOMTimeRanges)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeRanges)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLTimeRanges, nsIDOMHTMLTimeRanges)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLTimeRanges)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END  
 #endif
@@ -3925,11 +3919,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(NotifyPaintEvent, nsIDOMNotifyPaintEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNotifyPaintEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(NotifyAudioAvailableEvent, nsIDOMNotifyAudioAvailableEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNotifyAudioAvailableEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4003,10 +3992,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLUniformLocation, nsIWebGLUniformLocation)
     DOM_CLASSINFO_MAP_ENTRY(nsIWebGLUniformLocation)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(WebGLActiveInfo, nsIWebGLActiveInfo)
-    DOM_CLASSINFO_MAP_ENTRY(nsIWebGLActiveInfo)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(PaintRequest, nsIDOMPaintRequest)

@@ -42,8 +42,6 @@
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
 #include "CanvasLayerD3D9.h"
-#include "nsIServiceManager.h"
-#include "nsIPrefService.h"
 
 namespace mozilla {
 namespace layers {
@@ -51,7 +49,6 @@ namespace layers {
 DeviceManagerD3D9 *LayerManagerD3D9::mDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
-  : mIs3DEnabled(PR_FALSE)
 {
     mWidget = aWidget;
     mCurrentCallbackInfo.Callback = NULL;
@@ -73,10 +70,6 @@ LayerManagerD3D9::~LayerManagerD3D9()
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  /* Check the user preference for whether 3d video is enabled or not */ 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
-  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled); 
-
   if (!mDeviceManager) {
     mDeviceManager = new DeviceManagerD3D9;
 
@@ -260,7 +253,8 @@ LayerManagerD3D9::PaintToTarget()
 {
   nsRefPtr<IDirect3DSurface9> backBuff;
   nsRefPtr<IDirect3DSurface9> destSurf;
-  device()->GetRenderTarget(0, getter_AddRefs(backBuff));
+  device()->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO,
+                         getter_AddRefs(backBuff));
 
   D3DSURFACE_DESC desc;
   backBuff->GetDesc(&desc);

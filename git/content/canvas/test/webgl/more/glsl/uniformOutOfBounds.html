@@ -61,7 +61,7 @@ arr.forEach(function(e){
 
 </script>
 <script id="crvert" type="x-shader/x-vertex">
-
+  #version 120
 
   attribute vec3 Vertex; attribute vec2 Tex;
   uniform float x[3];
@@ -71,7 +71,7 @@ arr.forEach(function(e){
   }
 </script>
 <script id="cwvert" type="x-shader/x-vertex">
-
+  #version 120
 
   attribute vec3 Vertex; attribute vec2 Tex;
   uniform float x[3];
@@ -82,7 +82,7 @@ arr.forEach(function(e){
   }
 </script>
 <script id="vrvert" type="x-shader/x-vertex">
-
+  #version 120
 
   uniform float x[3];
   attribute vec3 Vertex; attribute vec2 Tex;
@@ -93,7 +93,7 @@ arr.forEach(function(e){
   }
 </script>
 <script id="vwvert" type="x-shader/x-vertex">
-
+  #version 120
 
   attribute vec3 Vertex; attribute vec2 Tex;
   uniform float x[3];
@@ -105,7 +105,7 @@ arr.forEach(function(e){
   }
 </script>
 <script id="tvwvert" type="x-shader/x-vertex">
-
+  #version 120
 
   attribute vec3 Vertex; attribute vec2 Tex;
   uniform float x[3];
@@ -117,7 +117,7 @@ arr.forEach(function(e){
   }
 </script>
 <script id="vert" type="x-shader/x-vertex">
-
+  #version 120
 
   attribute vec3 Vertex; attribute vec2 Tex;
   varying vec2 TexCoord;
@@ -129,11 +129,8 @@ arr.forEach(function(e){
 </script>
 
 <script id="crfrag" type="x-shader/x-fragment">
+  #version 120
 
-
-  #ifdef GL_ES
-precision highp float;
-#endif
   uniform float x[3];
 
   varying vec2 TexCoord;
@@ -143,11 +140,8 @@ precision highp float;
   }
 </script>
 <script id="cwfrag" type="x-shader/x-fragment">
+  #version 120
 
-
-  #ifdef GL_ES
-precision highp float;
-#endif
   uniform float x[3];
 
   varying vec2 TexCoord;
@@ -158,11 +152,8 @@ precision highp float;
   }
 </script>
 <script id="vrfrag" type="x-shader/x-fragment">
+  #version 120
 
-
-  #ifdef GL_ES
-precision highp float;
-#endif
   uniform float x[3];
 
   varying vec2 TexCoord;
@@ -173,11 +164,8 @@ precision highp float;
   }
 </script>
 <script id="vwfrag" type="x-shader/x-fragment">
+  #version 120
 
-
-  #ifdef GL_ES
-precision highp float;
-#endif
   uniform float x[3];
 
   varying vec2 TexCoord;
@@ -189,11 +177,8 @@ precision highp float;
   }
 </script>
 <script id="tvwfrag" type="x-shader/x-fragment">
+  #version 120
 
-
-  #ifdef GL_ES
-precision highp float;
-#endif
   uniform float x[3];
 
   varying vec2 TexCoord;
@@ -205,11 +190,9 @@ precision highp float;
   }
 </script>
 <script id="frag" type="x-shader/x-fragment">
+  #version 120
 
 
-  #ifdef GL_ES
-precision highp float;
-#endif
   void main()
   {
     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);

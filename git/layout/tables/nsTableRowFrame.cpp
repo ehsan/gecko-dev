@@ -547,7 +547,6 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
   else if (eStyleUnit_Percent == position->mHeight.GetUnit()) {
     SetPctHeight(position->mHeight.GetPercentValue());
   }
-  // calc() is treated like 'auto' on table rows.
 
   for (nsIFrame* kidFrame = mFrames.FirstChild(); kidFrame;
        kidFrame = kidFrame->GetNextSibling()) {
@@ -676,7 +675,7 @@ nsTableRowFrame::CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
       break;
     }
     case eStyleUnit_Auto:
-    default: // includes calc(), which we treat like 'auto'
+    default:
       break;
   }
 
@@ -1406,10 +1405,8 @@ void nsTableRowFrame::InitHasCellWithStyleHeight(nsTableFrame* aTableFrame)
       continue;
     }
     // Ignore row-spanning cells
-    const nsStyleCoord &cellHeight = cellFrame->GetStylePosition()->mHeight;
     if (aTableFrame->GetEffectiveRowSpan(*cellFrame) == 1 &&
-        cellHeight.GetUnit() != eStyleUnit_Auto &&
-        !cellHeight.IsCalcUnit() /* calc() treated like 'auto' */) {
+        cellFrame->GetStylePosition()->mHeight.GetUnit() != eStyleUnit_Auto) {
       AddStateBits(NS_ROW_HAS_CELL_WITH_STYLE_HEIGHT);
       return;
     }

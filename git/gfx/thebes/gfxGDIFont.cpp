@@ -260,8 +260,7 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
     if (!mMetrics) {
         Initialize();
     }
-    if (!mScaledFont ||
-        cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
+    if (cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
         return PR_FALSE;
@@ -424,13 +423,12 @@ gfxGDIFont::Initialize()
                                            &ctm, fontOptions);
     cairo_font_options_destroy(fontOptions);
 
-    if (!mScaledFont ||
-        cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
+    cairo_status_t cairoerr = cairo_scaled_font_status(mScaledFont);
+    if (cairoerr != CAIRO_STATUS_SUCCESS) {
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create scaled font: %s status: %d",
-                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(),
-                mScaledFont ? cairo_scaled_font_status(mScaledFont) : 0);
+                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), cairoerr);
         NS_WARNING(warnBuf);
 #endif
     }
