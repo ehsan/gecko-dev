@@ -4,13 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/AsmJS.h"
-
 #include "mozilla/Move.h"
 
 #include "jsmath.h"
 #include "jsworkers.h"
-#include "jswrapper.h"
 #include "prmjtime.h"
 
 #ifdef MOZ_VTUNE
@@ -18,6 +15,7 @@
 #endif
 
 #include "frontend/Parser.h"
+#include "ion/AsmJS.h"
 #include "ion/AsmJSModule.h"
 #include "ion/PerfSpewer.h"
 #include "ion/CodeGenerator.h"
@@ -36,15 +34,7 @@
 using namespace js;
 using namespace js::frontend;
 using namespace js::ion;
-
-using mozilla::AddToHash;
-using mozilla::ArrayLength;
-using mozilla::DebugOnly;
-using mozilla::HashGeneric;
-using mozilla::IsNegativeZero;
-using mozilla::Maybe;
-using mozilla::Move;
-using mozilla::MoveRef;
+using namespace mozilla;
 
 static const size_t LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
 
@@ -635,10 +625,10 @@ class ABIArgIter
     uint32_t stackBytesConsumedSoFar() const { return gen_.stackBytesConsumedSoFar(); }
 };
 
-typedef Vector<MIRType, 8> MIRTypeVector;
+typedef js::Vector<MIRType, 8> MIRTypeVector;
 typedef ABIArgIter<MIRTypeVector> ABIArgMIRTypeIter;
 
-typedef Vector<VarType, 8> VarTypeVector;
+typedef js::Vector<VarType, 8> VarTypeVector;
 typedef ABIArgIter<VarTypeVector> ABIArgTypeIter;
 
 class Signature
@@ -877,8 +867,8 @@ TypedArrayStoreType(ArrayBufferView::ViewType viewType)
 
 /*****************************************************************************/
 
-typedef Vector<PropertyName*,1> LabelVector;
-typedef Vector<MBasicBlock*,8> BlockVector;
+typedef js::Vector<PropertyName*,1> LabelVector;
+typedef js::Vector<MBasicBlock*,8> BlockVector;
 
 // ModuleCompiler encapsulates the compilation of an entire asm.js module. Over
 // the course of an ModuleCompiler object's lifetime, many FunctionCompiler
@@ -1033,7 +1023,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         }
     };
 
-    typedef Vector<const Func*> FuncPtrVector;
+    typedef js::Vector<const Func*> FuncPtrVector;
 
     class FuncPtrTable
     {
@@ -1061,7 +1051,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         const Func &elem(unsigned i) const { return *elems_[i]; }
     };
 
-    typedef Vector<FuncPtrTable> FuncPtrTableVector;
+    typedef js::Vector<FuncPtrTable> FuncPtrTableVector;
 
     class ExitDescriptor
     {
@@ -1105,9 +1095,9 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     typedef HashMap<PropertyName*, AsmJSMathBuiltin> MathNameMap;
     typedef HashMap<PropertyName*, Global*> GlobalMap;
-    typedef Vector<Func*> FuncVector;
-    typedef Vector<AsmJSGlobalAccess> GlobalAccessVector;
-    typedef Vector<SlowFunction> SlowFunctionVector;
+    typedef js::Vector<Func*> FuncVector;
+    typedef js::Vector<AsmJSGlobalAccess> GlobalAccessVector;
+    typedef js::Vector<SlowFunction> SlowFunctionVector;
 
     JSContext *                    cx_;
     AsmJSParser &                  parser_;
@@ -1639,10 +1629,10 @@ class FunctionCompiler
 
   private:
     typedef HashMap<PropertyName*, Local> LocalMap;
-    typedef Vector<Value> VarInitializerVector;
+    typedef js::Vector<Value> VarInitializerVector;
     typedef HashMap<PropertyName*, BlockVector> LabeledBlockMap;
     typedef HashMap<ParseNode*, BlockVector> UnlabeledBlockMap;
-    typedef Vector<ParseNode*, 4> NodeStack;
+    typedef js::Vector<ParseNode*, 4> NodeStack;
 
     ModuleCompiler &       m_;
     LifoAlloc &            lifo_;
@@ -1986,7 +1976,7 @@ class FunctionCompiler
         uint32_t spIncrement_;
         Signature sig_;
         MAsmJSCall::Args regArgs_;
-        Vector<MAsmJSPassStackArg*> stackArgs_;
+        js::Vector<MAsmJSPassStackArg*> stackArgs_;
         bool childClobbers_;
 
         friend class FunctionCompiler;
@@ -4886,11 +4876,11 @@ CheckFunctionsSequential(ModuleCompiler &m)
 struct ParallelGroupState
 {
     WorkerThreadState &state;
-    Vector<AsmJSParallelTask> &tasks;
+    js::Vector<AsmJSParallelTask> &tasks;
     int32_t outstandingJobs; // Good work, jobs!
     uint32_t compiledJobs;
 
-    ParallelGroupState(WorkerThreadState &state, Vector<AsmJSParallelTask> &tasks)
+    ParallelGroupState(WorkerThreadState &state, js::Vector<AsmJSParallelTask> &tasks)
       : state(state), tasks(tasks), outstandingJobs(0), compiledJobs(0)
     { }
 };
@@ -5050,7 +5040,7 @@ CheckFunctionsParallel(ModuleCompiler &m)
 
     // Allocate scoped AsmJSParallelTask objects. Each contains a unique
     // LifoAlloc that provides all necessary memory for compilation.
-    Vector<AsmJSParallelTask, 0> tasks(m.cx());
+    js::Vector<AsmJSParallelTask, 0> tasks(m.cx());
     if (!tasks.initCapacity(numParallelJobs))
         return false;
 

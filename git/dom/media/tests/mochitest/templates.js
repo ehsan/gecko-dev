@@ -89,33 +89,17 @@ var commandsPeerConnection = [
     }
   ],
   [
-    'PC_LOCAL_CHECK_MEDIA_STREAMS',
+    'PC_LOCAL_CHECK_MEDIA',
     function (test) {
-      test.pcLocal.checkMediaStreams(test.pcRemote.constraints);
+      test.pcLocal.checkMedia(test.pcRemote.constraints);
       test.next();
     }
   ],
   [
-    'PC_REMOTE_CHECK_MEDIA_STREAMS',
+    'PC_REMOTE_CHECK_MEDIA',
     function (test) {
-      test.pcRemote.checkMediaStreams(test.pcLocal.constraints);
+      test.pcRemote.checkMedia(test.pcLocal.constraints);
       test.next();
-    }
-  ],
-  [
-    'PC_LOCAL_CHECK_MEDIA_FLOW_PRESENT',
-    function (test) {
-      test.pcLocal.checkMediaFlowPresent(function () {
-        test.next();
-      });
-    }
-  ],
-  [
-    'PC_REMOTE_CHECK_MEDIA_FLOW_PRESENT',
-    function (test) {
-      test.pcRemote.checkMediaFlowPresent(function () {
-        test.next();
-      });
     }
   ]
 ];
@@ -233,33 +217,17 @@ var commandsDataChannel = [
     }
   ],
   [
-    'PC_LOCAL_CHECK_MEDIA_STREAMS',
+    'PC_LOCAL_CHECK_MEDIA',
     function (test) {
-      test.pcLocal.checkMediaStreams(test.pcRemote.constraints);
+      test.pcLocal.checkMedia(test.pcRemote.constraints);
       test.next();
     }
   ],
   [
-    'PC_REMOTE_CHECK_MEDIA_STREAMS',
+    'PC_REMOTE_CHECK_MEDIA',
     function (test) {
-      test.pcRemote.checkMediaStreams(test.pcLocal.constraints);
+      test.pcRemote.checkMedia(test.pcLocal.constraints);
       test.next();
-    }
-  ],
-  [
-    'PC_LOCAL_CHECK_MEDIA_FLOW_PRESENT',
-    function (test) {
-      test.pcLocal.checkMediaFlowPresent(function () {
-        test.next();
-      });
-    }
-  ],
-  [
-    'PC_REMOTE_CHECK_MEDIA_FLOW_PRESENT',
-    function (test) {
-      test.pcRemote.checkMediaFlowPresent(function () {
-        test.next();
-      });
     }
   ],
   [

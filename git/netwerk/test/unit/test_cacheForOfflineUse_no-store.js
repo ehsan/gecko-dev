@@ -12,11 +12,7 @@ var httpServer = null;
 const testFileName = "test_nsHttpChannel_CacheForOfflineUse-no-store";
 const cacheClientID = testFileName + "|fake-group-id";
 const basePath = "/" + testFileName + "/";
-
-XPCOMUtils.defineLazyGetter(this, "baseURI", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort + basePath;
-});
-
+const baseURI = "http://localhost:4444" + basePath;
 const normalEntry = "normal";
 const noStoreEntry = "no-store";
 
@@ -123,7 +119,7 @@ function run_test()
   httpServer = new HttpServer();
   httpServer.registerPathHandler(basePath + normalEntry, normalHandler);
   httpServer.registerPathHandler(basePath + noStoreEntry, noStoreHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
   run_next_test();
 }
 

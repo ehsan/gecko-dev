@@ -15,7 +15,6 @@ const DEFAULT_MAX_CHILDREN = 100;
 let {UndoStack} = require("devtools/shared/undo");
 let EventEmitter = require("devtools/shared/event-emitter");
 let {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
-let promise = require("sdk/core/promise");
 
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
@@ -42,7 +41,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 function MarkupView(aInspector, aFrame, aControllerWindow)
 {
   this._inspector = aInspector;
-  this.walker = this._inspector.walker;
   this._frame = aFrame;
   this.doc = this._frame.contentDocument;
   this._elt = this.doc.querySelector("#root");
@@ -58,11 +56,10 @@ function MarkupView(aInspector, aFrame, aControllerWindow)
 
   this._containers = new WeakMap();
 
-  this._boundMutationObserver = this._mutationObserver.bind(this);
-  this.walker.on("mutations", this._boundMutationObserver)
+  this._observer = new this.doc.defaultView.MutationObserver(this._mutationObserver.bind(this));
 
   this._boundOnNewSelection = this._onNewSelection.bind(this);
-  this._inspector.selection.on("new-node-front", this._boundOnNewSelection);
+  this._inspector.selection.on("new-node", this._boundOnNewSelection);
   this._onNewSelection();
 
   this._boundKeyDown = this._onKeyDown.bind(this);
@@ -101,15 +98,11 @@ MarkupView.prototype = {
    */
   _onNewSelection: function MT__onNewSelection()
   {
-    let done = this._inspector.updating("markup-view");
     if (this._inspector.selection.isNode()) {
-      this.showNode(this._inspector.selection.nodeFront, true).then(() => {
-        this.markNodeAsSelected(this._inspector.selection.nodeFront);
-        done();
-      });
+      this.showNode(this._inspector.selection.node, true);
+      this.markNodeAsSelected(this._inspector.selection.node);
     } else {
       this.unmarkSelectedNode();
-      done();
     }
   },
 
@@ -123,9 +116,7 @@ MarkupView.prototype = {
       aStart || this._elt,
       Ci.nsIDOMNodeFilter.SHOW_ELEMENT,
       function(aElement) {
-        if (aElement.container &&
-            aElement.container.elt === aElement &&
-            aElement.container.visible) {
+        if (aElement.container && aElement.container.visible) {
           return Ci.nsIDOMNodeFilter.FILTER_ACCEPT;
         }
         return Ci.nsIDOMNodeFilter.FILTER_SKIP;
@@ -154,8 +145,7 @@ MarkupView.prototype = {
         this.deleteNode(this._selectedContainer.node);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_HOME:
-        let rootContainer = this._containers.get(this._rootNode);
-        this.navigate(rootContainer.children.firstChild.container);
+        this.navigate(this._containers.get(this._rootNode.firstChild));
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_LEFT:
         if (this._selectedContainer.expanded) {
@@ -169,7 +159,7 @@ MarkupView.prototype = {
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_RIGHT:
         if (!this._selectedContainer.expanded) {
-          this._expandContainer(this._selectedContainer);
+          this.expandNode(this._selectedContainer.node);
         } else {
           let next = this._selectionWalker().nextNode();
           if (next) {
@@ -230,28 +220,24 @@ MarkupView.prototype = {
    */
   deleteNode: function MC__deleteNode(aNode)
   {
-    if (aNode.isDocumentElement ||
+    let doc = nodeDocument(aNode);
+    if (aNode === doc ||
+        aNode === doc.documentElement ||
         aNode.nodeType == Ci.nsIDOMNode.DOCUMENT_TYPE_NODE) {
       return;
     }
 
-    let container = this._containers.get(aNode);
+    let parentNode = aNode.parentNode;
+    let sibling = aNode.nextSibling;
 
-    // Retain the node so we can undo this...
-    this.walker.retainNode(aNode).then(() => {
-      let parent = aNode.parentNode();
-      let sibling = null;
-      this.undo.do(() => {
-        if (container.selected) {
-          this.navigate(this._containers.get(parent));
-        }
-        this.walker.removeNode(aNode).then(nextSibling => {
-          sibling = nextSibling;
-        });
-      }, () => {
-        this.walker.insertBefore(aNode, parent, sibling);
-      });
-    }).then(null, console.error);
+    this.undo.do(function() {
+      if (aNode.selected) {
+        this.navigate(this._containers.get(parentNode));
+      }
+      parentNode.removeChild(aNode);
+    }.bind(this), function() {
+      parentNode.insertBefore(aNode, sibling);
+    });
   },
 
   /**
@@ -283,12 +269,12 @@ MarkupView.prototype = {
     }
 
     let node = aContainer.node;
-    this.markNodeAsSelected(node);
-    this._inspector.selection.setNodeFront(node, "treepanel");
+    this.showNode(node, false);
+
+    this._inspector.selection.setNode(node, "treepanel");
     // This event won't be fired if the node is the same. But the highlighter
     // need to lock the node if it wasn't.
     this._inspector.selection.emit("new-node");
-    this._inspector.selection.emit("new-node-front");
 
     if (!aIgnoreFocus) {
       aContainer.focus();
@@ -300,9 +286,10 @@ MarkupView.prototype = {
    *
    * @param DOMNode aNode
    *        The node in the content document.
+   *
    * @returns MarkupContainer The MarkupContainer object for this element.
    */
-  importNode: function MT_importNode(aNode)
+  importNode: function MT_importNode(aNode, aExpand)
   {
     if (!aNode) {
       return null;
@@ -312,22 +299,47 @@ MarkupView.prototype = {
       return this._containers.get(aNode);
     }
 
-    if (aNode === this.walker.rootNode) {
+    this._observer.observe(aNode, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+    });
+
+    let walker = documentWalker(aNode);
+    let parent = walker.parentNode();
+    if (parent) {
+      var container = new MarkupContainer(this, aNode);
+    } else {
       var container = new RootContainer(this, aNode);
       this._elt.appendChild(container.elt);
+
+      if (this._rootNode) {
+        this._rootNode.removeEventListener("load", this, true);
+      }
+
       this._rootNode = aNode;
-    } else {
-      var container = new MarkupContainer(this, aNode);
+      aNode.addEventListener("load", this, true);
     }
 
     this._containers.set(aNode, container);
-    container.childrenDirty = true;
+    // FIXME: set an expando to prevent the the wrapper from disappearing
+    // See bug 819131 for details.
+    aNode.__preserveHack = true;
+    container.expanded = aExpand;
 
+    container.childrenDirty = true;
     this._updateChildren(container);
 
+    if (parent) {
+      this.importNode(parent, true);
+    }
     return container;
   },
 
+  handleEvent: function MT_handleEvent(aEvent) {
+    // Fake a childList mutation here.
+    this._mutationObserver([{target: aEvent.target, type: "childList"}]);
+  },
 
   /**
    * Mutation observer used for included nodes.
@@ -335,37 +347,21 @@ MarkupView.prototype = {
   _mutationObserver: function MT__mutationObserver(aMutations)
   {
     for (let mutation of aMutations) {
-      let type = mutation.type;
-      let target = mutation.target;
-
-      if (mutation.type === "documentUnload") {
-        // Treat this as a childList change of the child (maybe the protocol
-        // should do this).
-        type = "childList"
-        target = mutation.targetParent;
-        if (!target) {
-          continue;
-        }
-      }
-
-      let container = this._containers.get(target);
+      let container = this._containers.get(mutation.target);
       if (!container) {
-        // Container might not exist if this came from a load event for a node
+        // Container might not exist if this came from a load event for an iframe
         // we're not viewing.
         continue;
       }
-      if (type === "attributes" || type === "characterData") {
+      if (mutation.type === "attributes" || mutation.type === "characterData") {
         container.update();
-      } else if (type === "childList") {
+      } else if (mutation.type === "childList") {
         container.childrenDirty = true;
         this._updateChildren(container);
       }
     }
-    this._waitForChildren().then(() => {
-      this._inspector.emit("markupmutation");
-    });
+    this._inspector.emit("markupmutation");
   },
-
 
   /**
    * Make sure the given node's parents are expanded and the
@@ -374,18 +370,14 @@ MarkupView.prototype = {
   showNode: function MT_showNode(aNode, centered)
   {
     let container = this.importNode(aNode);
-    let parent = aNode;
-    while ((parent = parent.parentNode())) {
-      this.importNode(parent);
+    this._updateChildren(container);
+    let walker = documentWalker(aNode);
+    let parent;
+    while (parent = walker.parentNode()) {
+      this._updateChildren(this.getContainer(parent));
       this.expandNode(parent);
     }
-
-    return this._waitForChildren().then(() => {
-      return this._ensureVisible(aNode);
-    }).then(() => {
-      // Why is this not working?
-      LayoutHelpers.scrollIntoViewIfNeeded(this._containers.get(aNode).editor.elt, centered);
-    });
+    LayoutHelpers.scrollIntoViewIfNeeded(this._containers.get(aNode).editor.elt, centered);
   },
 
   /**
@@ -393,9 +385,10 @@ MarkupView.prototype = {
    */
   _expandContainer: function MT__expandContainer(aContainer)
   {
-    return this._updateChildren(aContainer, true).then(() => {
+    if (aContainer.hasChildren && !aContainer.expanded) {
       aContainer.expanded = true;
-    })
+      this._updateChildren(aContainer);
+    }
   },
 
   /**
@@ -414,15 +407,12 @@ MarkupView.prototype = {
    */
   _expandAll: function MT_expandAll(aContainer)
   {
-    return this._expandContainer(aContainer).then(() => {
-      let child = aContainer.children.firstChild;
-      let promises = [];
-      while (child) {
-        promises.push(this._expandAll(child.container));
-        child = child.nextSibling;
-      }
-      return promise.all(promises);
-    }).then(null, console.error);
+    this._expandContainer(aContainer);
+    let child = aContainer.children.firstChild;
+    while (child) {
+      this._expandAll(child.container);
+      child = child.nextSibling;
+    }
   },
 
   /**
@@ -434,7 +424,7 @@ MarkupView.prototype = {
   expandAll: function MT_expandAll(aNode)
   {
     aNode = aNode || this._rootNode;
-    return this._expandAll(this._containers.get(aNode));
+    this._expandAll(this._containers.get(aNode));
   },
 
   /**
@@ -444,15 +434,6 @@ MarkupView.prototype = {
   {
     let container = this._containers.get(aNode);
     container.expanded = false;
-  },
-
-  setNodeExpanded: function(aNode, aExpanded)
-  {
-    if (aExpanded) {
-      this.expandNode(aNode);
-    } else {
-      this.collapseNode(aNode);
-    }
   },
 
   /**
@@ -472,6 +453,8 @@ MarkupView.prototype = {
       this._selectedContainer.selected = true;
     }
 
+    this._ensureSelectionVisible();
+
     return true;
   },
 
@@ -479,11 +462,13 @@ MarkupView.prototype = {
    * Make sure that every ancestor of the selection are updated
    * and included in the list of visible children.
    */
-  _ensureVisible: function(node)
+  _ensureSelectionVisible: function MT_ensureSelectionVisible()
   {
+    let node = this._selectedContainer.node;
+    let walker = documentWalker(node);
     while (node) {
       let container = this._containers.get(node);
-      let parent = node.parentNode();
+      let parent = walker.parentNode();
       if (!container.elt.parentNode) {
         let parentContainer = this._containers.get(parent);
         parentContainer.childrenDirty = true;
@@ -492,7 +477,6 @@ MarkupView.prototype = {
 
       node = parent;
     }
-    return this._waitForChildren();
   },
 
   /**
@@ -517,139 +501,67 @@ MarkupView.prototype = {
   },
 
   /**
-   * Check if the current selection is a descendent of the container.
-   * if so, make sure it's among the visible set for the container,
-   * and set the dirty flag if needed.
-   * @returns The node that should be made visible, if any.
-   */
-  _checkSelectionVisible: function(aContainer) {
-    let centered = null;
-    let node = this._inspector.selection.nodeFront;
-    while (node) {
-      if (node.parentNode() === aContainer.node) {
-        centered = node;
-        break;
-      }
-      node = node.parentNode();
-    }
-
-    return centered;
-  },
-
-  /**
    * Make sure all children of the given container's node are
    * imported and attached to the container in the right order.
-   *
-   * Children need to be updated only in the following circumstances:
-   * a) We just imported this node and have never seen its children.
-   *    container.childrenDirty will be set by importNode in this case.
-   * b) We received a childList mutation on the node.
-   *    container.childrenDirty will be set in that case too.
-   * c) We have changed the selection, and the path to that selection
-   *    wasn't loaded in a previous children request (because we only
-   *    grab a subset).
-   *    container.childrenDirty should be set in that case too!
-   *
-   * This method returns a promise that will be resolved when the children
-   * are ready (which may be immediately).
+   * @param aCentered If provided, this child will be included
+   *        in the visible subset, and will be roughly centered
+   *        in that list.
    */
-  _updateChildren: function(aContainer, aExpand)
+  _updateChildren: function MT__updateChildren(aContainer, aCentered)
   {
-    aContainer.hasChildren = aContainer.node.hasChildren;
-
-    if (!this._queuedChildUpdates) {
-      this._queuedChildUpdates = new Map();
-    }
-
-    if (this._queuedChildUpdates.has(aContainer)) {
-      return this._queuedChildUpdates.get(aContainer);
-    }
-
     if (!aContainer.childrenDirty) {
-      return promise.resolve(aContainer);
+      return false;
     }
 
-    if (!aContainer.hasChildren) {
-      while (aContainer.children.firstChild) {
-        aContainer.children.removeChild(aContainer.children.firstChild);
-      }
-      aContainer.childrenDirty = false;
-      return promise.resolve(aContainer);
+    // Get a tree walker pointing at the first child of the node.
+    let treeWalker = documentWalker(aContainer.node);
+    let child = treeWalker.firstChild();
+    aContainer.hasChildren = !!child;
+
+    if (!aContainer.expanded) {
+      return;
     }
 
-    // If we're not expanded (or asked to update anyway), we're done for
-    // now.  Note that this will leave the childrenDirty flag set, so when
-    // expanded we'll refresh the child list.
-    if (!(aContainer.expanded || aExpand)) {
-      return promise.resolve(aContainer);
-    }
-
-    // We're going to issue a children request, make sure it includes the
-    // centered node.
-    let centered = this._checkSelectionVisible(aContainer);
-
-    // Children aren't updated yet, but clear the childrenDirty flag anyway.
-    // If the dirty flag is re-set while we're fetching we'll need to fetch
-    // again.
     aContainer.childrenDirty = false;
-    let updatePromise = this._getVisibleChildren(aContainer, centered).then(children => {
-      if (!this._containers) {
-        return promise.reject("markup view destroyed");
-      }
-      this._queuedChildUpdates.delete(aContainer);
 
-      // If children are dirty, we got a change notification for this node
-      // while the request was in progress, we need to do it again.
-      if (aContainer.childrenDirty) {
-        return this._updateChildren(aContainer, centered);
-      }
+    let children = this._getVisibleChildren(aContainer, aCentered);
+    let fragment = this.doc.createDocumentFragment();
 
-      let fragment = this.doc.createDocumentFragment();
-
-      for (let child of children.nodes) {
-        let container = this.importNode(child);
-        fragment.appendChild(container.elt);
-      }
-
-      while (aContainer.children.firstChild) {
-        aContainer.children.removeChild(aContainer.children.firstChild);
-      }
-
-      if (!(children.hasFirst && children.hasLast)) {
-        let data = {
-          showing: this.strings.GetStringFromName("markupView.more.showing"),
-          showAll: this.strings.formatStringFromName(
-                    "markupView.more.showAll",
-                    [aContainer.node.numChildren.toString()], 1),
-          allButtonClick: () => {
-            aContainer.maxChildren = -1;
-            aContainer.childrenDirty = true;
-            this._updateChildren(aContainer);
-          }
-        };
-
-        if (!children.hasFirst) {
-          let span = this.template("more-nodes", data);
-          fragment.insertBefore(span, fragment.firstChild);
-        }
-        if (!children.hasLast) {
-          let span = this.template("more-nodes", data);
-          fragment.appendChild(span);
-        }
-      }
-
-      aContainer.children.appendChild(fragment);
-      return aContainer;
-    }).then(null, console.error);
-    this._queuedChildUpdates.set(aContainer, updatePromise);
-    return updatePromise;
-  },
-
-  _waitForChildren: function() {
-    if (!this._queuedChildUpdates) {
-      return promise.resolve(undefined);
+    for (child of children.children) {
+      let container = this.importNode(child, false);
+      fragment.appendChild(container.elt);
     }
-    return promise.all([updatePromise for (updatePromise of this._queuedChildUpdates.values())]);
+
+    while (aContainer.children.firstChild) {
+      aContainer.children.removeChild(aContainer.children.firstChild);
+    }
+
+    if (!(children.hasFirst && children.hasLast)) {
+      let data = {
+        showing: this.strings.GetStringFromName("markupView.more.showing"),
+        showAll: this.strings.formatStringFromName(
+                  "markupView.more.showAll",
+                  [aContainer.node.children.length.toString()], 1),
+        allButtonClick: function() {
+          aContainer.maxChildren = -1;
+          aContainer.childrenDirty = true;
+          this._updateChildren(aContainer);
+        }.bind(this)
+      };
+
+      if (!children.hasFirst) {
+        let span = this.template("more-nodes", data);
+        fragment.insertBefore(span, fragment.firstChild);
+      }
+      if (!children.hasLast) {
+        let span = this.template("more-nodes", data);
+        fragment.appendChild(span);
+      }
+    }
+
+    aContainer.children.appendChild(fragment);
+
+    return true;
   },
 
   /**
@@ -659,13 +571,71 @@ MarkupView.prototype = {
   {
     let maxChildren = aContainer.maxChildren || this.maxChildren;
     if (maxChildren == -1) {
-      maxChildren = undefined;
+      maxChildren = Number.MAX_VALUE;
+    }
+    let firstChild = documentWalker(aContainer.node).firstChild();
+    let lastChild = documentWalker(aContainer.node).lastChild();
+
+    if (!firstChild) {
+      // No children, we're done.
+      return { hasFirst: true, hasLast: true, children: [] };
     }
 
-    return this.walker.children(aContainer.node, {
-      maxNodes: maxChildren,
-      center: aCentered
-    });
+    // By default try to put the selected child in the middle of the list.
+    let start = aCentered || firstChild;
+
+    // Start by reading backward from the starting point....
+    let nodes = [];
+    let backwardWalker = documentWalker(start);
+    if (backwardWalker.previousSibling()) {
+      let backwardCount = Math.floor(maxChildren / 2);
+      let backwardNodes = this._readBackward(backwardWalker, backwardCount);
+      nodes = backwardNodes;
+    }
+
+    // Then read forward by any slack left in the max children...
+    let forwardWalker = documentWalker(start);
+    let forwardCount = maxChildren - nodes.length;
+    nodes = nodes.concat(this._readForward(forwardWalker, forwardCount));
+
+    // If there's any room left, it means we've run all the way to the end.
+    // In that case, there might still be more items at the front.
+    let remaining = maxChildren - nodes.length;
+    if (remaining > 0 && nodes[0] != firstChild) {
+      let firstNodes = this._readBackward(backwardWalker, remaining);
+
+      // Then put it all back together.
+      nodes = firstNodes.concat(nodes);
+    }
+
+    return {
+      hasFirst: nodes[0] == firstChild,
+      hasLast: nodes[nodes.length - 1] == lastChild,
+      children: nodes
+    };
+  },
+
+  _readForward: function MV__readForward(aWalker, aCount)
+  {
+    let ret = [];
+    let node = aWalker.currentNode;
+    do {
+      ret.push(node);
+      node = aWalker.nextSibling();
+    } while (node && --aCount);
+    return ret;
+  },
+
+  _readBackward: function MV__readBackward(aWalker, aCount)
+  {
+    let ret = [];
+    let node = aWalker.currentNode;
+    do {
+      ret.push(node);
+      node = aWalker.previousSibling();
+    } while(node && --aCount);
+    ret.reverse();
+    return ret;
   },
 
   /**
@@ -679,30 +649,28 @@ MarkupView.prototype = {
     this._frame.removeEventListener("focus", this._boundFocus, false);
     delete this._boundFocus;
 
-    if (this._boundUpdatePreview) {
-      this._frame.contentWindow.removeEventListener("scroll", this._boundUpdatePreview, true);
-      delete this._boundUpdatePreview;
-    }
-
-    if (this._boundResizePreview) {
-      this._frame.contentWindow.removeEventListener("resize", this._boundResizePreview, true);
-      this._frame.contentWindow.removeEventListener("overflow", this._boundResizePreview, true);
-      this._frame.contentWindow.removeEventListener("underflow", this._boundResizePreview, true);
-      delete this._boundResizePreview;
-    }
+    this._frame.contentWindow.removeEventListener("scroll", this._boundUpdatePreview, true);
+    this._frame.contentWindow.removeEventListener("resize", this._boundResizePreview, true);
+    this._frame.contentWindow.removeEventListener("overflow", this._boundResizePreview, true);
+    this._frame.contentWindow.removeEventListener("underflow", this._boundResizePreview, true);
+    delete this._boundUpdatePreview;
 
     this._frame.contentWindow.removeEventListener("keydown", this._boundKeyDown, false);
     delete this._boundKeyDown;
 
-    this._inspector.selection.off("new-node-front", this._boundOnNewSelection);
+    this._inspector.selection.off("new-node", this._boundOnNewSelection);
     delete this._boundOnNewSelection;
-
-    this.walker.off("mutations", this._boundMutationObserver)
-    delete this._boundMutationObserver;
 
     delete this._elt;
 
     delete this._containers;
+    this._observer.disconnect();
+    delete this._observer;
+
+    if (this._rootNode) {
+      this._rootNode.removeEventListener("load", this, true);
+      delete this._rootNode;
+    }
   },
 
   /**
@@ -822,12 +790,15 @@ function MarkupContainer(aMarkupView, aNode)
   this.children = null;
   this.markup.template("container", this);
   this.elt.container = this;
-  this.children.container = this;
 
   this.expander.addEventListener("click", function() {
     this.markup.navigate(this);
 
-    this.markup.setNodeExpanded(this.node, !this.expanded);
+    if (this.expanded) {
+      this.markup.collapseNode(this.node);
+    } else {
+      this.markup.expandNode(this.node);
+    }
   }.bind(this));
 
   this.codeBox.insertBefore(this.editor.elt, this.children);
@@ -850,11 +821,10 @@ function MarkupContainer(aMarkupView, aNode)
     }.bind(this), false);
     this.codeBox.appendChild(this.editor.closeElt);
   }
+
 }
 
 MarkupContainer.prototype = {
-  toString: function() { return "[MarkupContainer for " + this.node + "]" },
-
   /**
    * True if the current node has children.  The MarkupView
    * will set this attribute for the MarkupContainer.
@@ -872,10 +842,6 @@ MarkupContainer.prototype = {
     } else {
       this.expander.style.visibility = "hidden";
     }
-  },
-
-  parentContainer: function() {
-    return this.elt.parentNode ? this.elt.parentNode.container : null;
   },
 
   /**
@@ -920,7 +886,6 @@ MarkupContainer.prototype = {
 
   set selected(aValue) {
     this._selected = aValue;
-    this.editor.selected = aValue;
     if (this._selected) {
       this.editor.elt.classList.add("theme-selected");
       if (this.editor.closeElt) {
@@ -964,10 +929,8 @@ function RootContainer(aMarkupView, aNode)
 {
   this.doc = aMarkupView.doc;
   this.elt = this.doc.createElement("ul");
-  this.elt.container = this;
   this.children = this.elt;
   this.node = aNode;
-  this.toString = function() { return "[root container]"}
 }
 
 /**
@@ -1007,7 +970,6 @@ function DoctypeEditor(aContainer, aNode)
 function TextEditor(aContainer, aNode, aTemplate)
 {
   this.node = aNode;
-  this._selected = false;
 
   aContainer.markup.template(aTemplate, this);
 
@@ -1016,62 +978,28 @@ function TextEditor(aContainer, aNode, aTemplate)
     stopOnReturn: true,
     trigger: "dblclick",
     multiline: true,
-    done: (aVal, aCommit) => {
+    done: function TE_done(aVal, aCommit) {
       if (!aCommit) {
         return;
       }
-      this.node.getNodeValue().then(longstr => {
-        longstr.string().then(oldValue => {
-          longstr.release().then(null, console.error);
-
-          aContainer.undo.do(() => {
-            this.node.setNodeValue(aVal).then(() => {
-              aContainer.markup.nodeChanged(this.node);
-            });
-          }, () => {
-            this.node.setNodeValue(oldValue).then(() => {
-              aContainer.markup.nodeChanged(this.node);
-            })
-          });
-        });
-      });
-    }
+      let oldValue = this.node.nodeValue;
+      aContainer.undo.do(function() {
+        this.node.nodeValue = aVal;
+        aContainer.markup.nodeChanged(this.node);
+      }.bind(this), function() {
+        this.node.nodeValue = oldValue;
+        aContainer.markup.nodeChanged(this.node);
+      }.bind(this));
+    }.bind(this)
   });
 
   this.update();
 }
 
 TextEditor.prototype = {
-  get selected() this._selected,
-  set selected(aValue) {
-    if (aValue === this._selected) {
-      return;
-    }
-    this._selected = aValue;
-    this.update();
-  },
-
   update: function TE_update()
   {
-    if (!this.selected || !this.node.incompleteValue) {
-      let text = this.node.shortValue;
-      // XXX: internationalize the elliding
-      if (this.node.incompleteValue) {
-        text += "…";
-      }
-      this.value.textContent = text;
-    } else {
-      let longstr = null;
-      this.node.getNodeValue().then(ret => {
-        longstr = ret;
-        return longstr.string();
-      }).then(str => {
-        longstr.release().then(null, console.error);
-        if (this.selected) {
-          this.value.textContent = str;
-        }
-      }).then(null, console.error);
-    }
+    this.value.textContent = this.node.nodeValue;
   }
 };
 
@@ -1103,7 +1031,7 @@ function ElementEditor(aContainer, aNode)
   // Create the main editor
   this.template("element", this);
 
-  if (this.node.hasChildren) {
+  if (this.node.firstChild || this.node.textContent.length > 0) {
     // Create the summary placeholder
     this.template("elementContentSummary", this);
   }
@@ -1111,11 +1039,8 @@ function ElementEditor(aContainer, aNode)
   // Create the closing tag
   this.template("elementClose", this);
 
-  this.rawNode = aNode.rawNode();
-
-  // Make the tag name editable (unless this is a remote node or
-  // a document element)
-  if (this.rawNode && !aNode.isDocumentElement) {
+  // Make the tag name editable (unless this is a document element)
+  if (aNode != aNode.ownerDocument.documentElement) {
     this.tag.setAttribute("tabindex", "0");
     editableField({
       element: this.tag,
@@ -1130,24 +1055,17 @@ function ElementEditor(aContainer, aNode)
     element: this.newAttr,
     trigger: "dblclick",
     stopOnReturn: true,
-    done: (aVal, aCommit) => {
+    done: function EE_onNew(aVal, aCommit) {
       if (!aCommit) {
         return;
       }
 
       try {
-        let doMods = this._startModifyingAttributes();
-        let undoMods = this._startModifyingAttributes();
-        this._applyAttributes(aVal, null, doMods, undoMods);
-        this.undo.do(() => {
-          doMods.apply();
-        }, function() {
-          undoMods.apply();
-        });
-      } catch(x) {
-        console.log(x);
+        this._applyAttributes(aVal);
+      } catch (x) {
+        return;
       }
-    }
+    }.bind(this)
   });
 
   let tagName = this.node.nodeName.toLowerCase();
@@ -1188,10 +1106,6 @@ ElementEditor.prototype = {
     }
   },
 
-  _startModifyingAttributes: function() {
-    return this.node.startModifyingAttributes();
-  },
-
   _createAttribute: function EE_createAttribute(aAttr, aBefore)
   {
     if (this.attrs.indexOf(aAttr.name) !== -1) {
@@ -1222,7 +1136,7 @@ ElementEditor.prototype = {
         trigger: "dblclick",
         stopOnReturn: true,
         selectAll: false,
-        start: (aEditor, aEvent) => {
+        start: function EE_editAttribute_start(aEditor, aEvent) {
           // If the editing was started inside the name or value areas,
           // select accordingly.
           if (aEvent && aEvent.target === name) {
@@ -1236,30 +1150,25 @@ ElementEditor.prototype = {
             aEditor.input.select();
           }
         },
-        done: (aVal, aCommit) => {
+        done: function EE_editAttribute_done(aVal, aCommit) {
           if (!aCommit) {
             return;
           }
 
-          let doMods = this._startModifyingAttributes();
-          let undoMods = this._startModifyingAttributes();
+          this.undo.startBatch();
 
           // Remove the attribute stored in this editor and re-add any attributes
           // parsed out of the input element. Restore original attribute if
           // parsing fails.
+          this._removeAttribute(this.node, aAttr.name);
           try {
-            this._saveAttribute(aAttr.name, undoMods);
-            doMods.removeAttribute(aAttr.name);
-            this._applyAttributes(aVal, attr, doMods, undoMods);
-            this.undo.do(() => {
-              doMods.apply();
-            }, () => {
-              undoMods.apply();
-            })
-          } catch(ex) {
-            console.error(ex);
+            this._applyAttributes(aVal, attr);
+            this.undo.endBatch();
+          } catch (e) {
+            this.undo.endBatch();
+            this.undo.undo();
           }
-        }
+        }.bind(this)
       });
 
       this.attrs[aAttr.name] = attr;
@@ -1280,39 +1189,88 @@ ElementEditor.prototype = {
    *        set of attributes, used to place new attributes where the
    *        user put them.
    */
-  _applyAttributes: function EE__applyAttributes(aValue, aAttrNode, aDoMods, aUndoMods)
+  _applyAttributes: function EE__applyAttributes(aValue, aAttrNode)
   {
     let attrs = escapeAttributeValues(aValue);
 
-    for (let attr of attrs) {
-      // Create an attribute editor next to the current attribute if needed.
-      this._createAttribute(attr, aAttrNode ? aAttrNode.nextSibling : null);
+    this.undo.startBatch();
 
-      this._saveAttribute(attr.name, aUndoMods);
-      aDoMods.setAttribute(attr.name, attr.value);
+    for (let attr of attrs) {
+      let attribute = {
+        name: attr.name,
+        value: attr.value
+      };
+      // Create an attribute editor next to the current attribute if needed.
+      this._createAttribute(attribute, aAttrNode ? aAttrNode.nextSibling : null);
+      this._setAttribute(this.node, attr.name, attr.value);
+    }
+
+    this.undo.endBatch();
+  },
+
+  /**
+   * Helper function for _setAttribute and _removeAttribute,
+   * returns a function that puts an attribute back the way it was.
+   */
+  _restoreAttribute: function EE_restoreAttribute(aNode, aName)
+  {
+    if (aNode.hasAttribute(aName)) {
+      let oldValue = aNode.getAttribute(aName);
+      return function() {
+        aNode.setAttribute(aName, oldValue);
+        this.markup.nodeChanged(aNode);
+      }.bind(this);
+    } else {
+      return function() {
+        aNode.removeAttribute(aName);
+        this.markup.nodeChanged(aNode);
+      }.bind(this);
     }
   },
 
   /**
-   * Saves the current state of the given attribute into an attribute
-   * modification list.
+   * Sets an attribute.  This operation is undoable.
    */
-  _saveAttribute: function(aName, aUndoMods)
+  _setAttribute: function EE_setAttribute(aNode, aName, aValue)
   {
-    let node = this.node;
-    if (node.hasAttribute(aName)) {
-      let oldValue = node.getAttribute(aName);
-      aUndoMods.setAttribute(aName, oldValue);
-    } else {
-      aUndoMods.removeAttribute(aName);
-    }
+    this.undo.do(function() {
+      aNode.setAttribute(aName, aValue);
+      this.markup.nodeChanged(aNode);
+    }.bind(this), this._restoreAttribute(aNode, aName));
   },
+
+  /**
+   * Removes an attribute.  This operation is undoable.
+   */
+  _removeAttribute: function EE_removeAttribute(aNode, aName)
+  {
+    this.undo.do(function() {
+      aNode.removeAttribute(aName);
+      this.markup.nodeChanged(aNode);
+    }.bind(this), this._restoreAttribute(aNode, aName));
+  },
+
+  /**
+   * Handler for the new attribute editor.
+   */
+  _onNewAttribute: function EE_onNewAttribute(aValue, aCommit)
+  {
+    if (!aValue || !aCommit) {
+      return;
+    }
+
+    this._setAttribute(this.node, aValue, "");
+    let attr = this._createAttribute({ name: aValue, value: ""});
+    attr.style.removeAttribute("display");
+    attr.querySelector("attrvalue").click();
+  },
+
 
   /**
    * Called when the tag name editor has is done editing.
    */
   onTagEdit: function EE_onTagEdit(aVal, aCommit) {
-    if (!aCommit || aVal == this.rawNode.tagName) {
+    if (!aCommit || aVal == this.node.tagName) {
       return;
     }
 
@@ -1320,49 +1278,50 @@ ElementEditor.prototype = {
     // current element and prepare to replace the current node
     // with it.
     try {
-      var newElt = nodeDocument(this.rawNode).createElement(aVal);
+      var newElt = nodeDocument(this.node).createElement(aVal);
     } catch(x) {
       // Failed to create a new element with that tag name, ignore
       // the change.
       return;
     }
 
-    let attrs = this.rawNode.attributes;
+    let attrs = this.node.attributes;
 
     for (let i = 0 ; i < attrs.length; i++) {
       newElt.setAttribute(attrs[i].name, attrs[i].value);
     }
-    let newFront = this.markup.walker.frontForRawNode(newElt);
-    let newContainer = this.markup.importNode(newFront);
 
-    // Retain the two nodes we care about here so we can undo.
-    let walker = this.markup.walker;
-    promise.all([
-      walker.retainNode(newFront), walker.retainNode(this.node)
-    ]).then(() => {
-      function swapNodes(aOld, aNew) {
-        aOld.parentNode.insertBefore(aNew, aOld);
-        while (aOld.firstChild) {
-          aNew.appendChild(aOld.firstChild);
-        }
-        aOld.parentNode.removeChild(aOld);
+    function swapNodes(aOld, aNew) {
+      while (aOld.firstChild) {
+        aNew.appendChild(aOld.firstChild);
       }
+      aOld.parentNode.insertBefore(aNew, aOld);
+      aOld.parentNode.removeChild(aOld);
+    }
 
-      this.undo.do(() => {
-        swapNodes(this.rawNode, newElt);
-        this.markup.setNodeExpanded(newFront, this.container.expanded);
-        if (this.container.selected) {
-          this.markup.navigate(newContainer);
-        }
-      }, () => {
-        swapNodes(newElt, this.rawNode);
-        this.markup.setNodeExpanded(this.node, newContainer.expanded);
-        if (newContainer.selected) {
-          this.markup.navigate(this.container);
-        }
-      });
-    }).then(null, console.error);
-  }
+    let markup = this.container.markup;
+
+    // Queue an action to swap out the element.
+    this.undo.do(function() {
+      swapNodes(this.node, newElt);
+
+      // Make sure the new node is imported and is expanded/selected
+      // the same as the current node.
+      let newContainer = markup.importNode(newElt, this.container.expanded);
+      newContainer.expanded = this.container.expanded;
+      if (this.container.selected) {
+        markup.navigate(newContainer);
+      }
+    }.bind(this), function() {
+      swapNodes(newElt, this.node);
+
+      let newContainer = markup._containers.get(newElt);
+      this.container.expanded = newContainer.expanded;
+      if (newContainer.selected) {
+        markup.navigate(this.container);
+      }
+    }.bind(this));
+  },
 }
 
 
@@ -1373,9 +1332,102 @@ RootContainer.prototype = {
   update: function RC_update() {}
 };
 
+function documentWalker(node) {
+  return new DocumentWalker(node, Ci.nsIDOMNodeFilter.SHOW_ALL, whitespaceTextFilter);
+}
+
 function nodeDocument(node) {
   return node.ownerDocument || (node.nodeType == Ci.nsIDOMNode.DOCUMENT_NODE ? node : null);
 }
+
+/**
+ * Similar to a TreeWalker, except will dig in to iframes and it doesn't
+ * implement the good methods like previousNode and nextNode.
+ *
+ * See TreeWalker documentation for explanations of the methods.
+ */
+function DocumentWalker(aNode, aShow, aFilter)
+{
+  let doc = nodeDocument(aNode);
+  this.walker = doc.createTreeWalker(nodeDocument(aNode), aShow, aFilter);
+  this.walker.currentNode = aNode;
+  this.filter = aFilter;
+}
+
+DocumentWalker.prototype = {
+  get node() this.walker.node,
+  get whatToShow() this.walker.whatToShow,
+  get expandEntityReferences() this.walker.expandEntityReferences,
+  get currentNode() this.walker.currentNode,
+  set currentNode(aVal) this.walker.currentNode = aVal,
+
+  /**
+   * Called when the new node is in a different document than
+   * the current node, creates a new treewalker for the document we've
+   * run in to.
+   */
+  _reparentWalker: function DW_reparentWalker(aNewNode) {
+    if (!aNewNode) {
+      return null;
+    }
+    let doc = nodeDocument(aNewNode);
+    let walker = doc.createTreeWalker(doc,
+      this.whatToShow, this.filter, this.expandEntityReferences);
+    walker.currentNode = aNewNode;
+    this.walker = walker;
+    return aNewNode;
+  },
+
+  parentNode: function DW_parentNode()
+  {
+    let currentNode = this.walker.currentNode;
+    let parentNode = this.walker.parentNode();
+
+    if (!parentNode) {
+      if (currentNode && currentNode.nodeType == Ci.nsIDOMNode.DOCUMENT_NODE
+          && currentNode.defaultView) {
+        let embeddingFrame = currentNode.defaultView.frameElement;
+        if (embeddingFrame) {
+          return this._reparentWalker(embeddingFrame);
+        }
+      }
+      return null;
+    }
+
+    return parentNode;
+  },
+
+  firstChild: function DW_firstChild()
+  {
+    let node = this.walker.currentNode;
+    if (!node)
+      return;
+    if (node.contentDocument) {
+      return this._reparentWalker(node.contentDocument);
+    } else if (node.getSVGDocument) {
+      return this._reparentWalker(node.getSVGDocument());
+    }
+    return this.walker.firstChild();
+  },
+
+  lastChild: function DW_lastChild()
+  {
+    let node = this.walker.currentNode;
+    if (!node)
+      return;
+    if (node.contentDocument) {
+      return this._reparentWalker(node.contentDocument);
+    } else if (node.getSVGDocument) {
+      return this._reparentWalker(node.getSVGDocument());
+    }
+    return this.walker.lastChild();
+  },
+
+  previousSibling: function DW_previousSibling() this.walker.previousSibling(),
+  nextSibling: function DW_nextSibling() this.walker.nextSibling(),
+
+  // XXX bug 785143: not doing previousNode or nextNode, which would sure be useful.
+};
 
 /**
  * Properly escape attribute values.

@@ -6,10 +6,7 @@ const Cr = Components.results;
 Cu.import("resource://testing-common/httpd.js");
 
 var httpserver = null;
-
-XPCOMUtils.defineLazyGetter(this, "uri", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + "/multipart";
-});
+var uri = "http://localhost:4444/multipart";
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -110,7 +107,7 @@ function run_test()
 {
   httpserver = new HttpServer();
   httpserver.registerPathHandler("/multipart", contentHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   var streamConv = Cc["@mozilla.org/streamConverters;1"]
                      .getService(Ci.nsIStreamConverterService);

@@ -73,7 +73,6 @@
 #include "vm/StringBuffer.h"
 #include "vm/TypedArrayObject.h"
 #include "vm/WeakMapObject.h"
-#include "vm/WrapperObject.h"
 #include "vm/Xdr.h"
 #include "yarr/BumpPointerAllocator.h"
 
@@ -1589,8 +1588,8 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
 {
     AssertHeapIsIdle(cx);
     JS_ASSERT(origobj != target);
-    JS_ASSERT(!origobj->is<CrossCompartmentWrapperObject>());
-    JS_ASSERT(!target->is<CrossCompartmentWrapperObject>());
+    JS_ASSERT(!IsCrossCompartmentWrapper(origobj));
+    JS_ASSERT(!IsCrossCompartmentWrapper(target));
 
     AutoMaybeTouchDeadZones agc(cx);
     AutoDisableProxyCheck adpc(cx->runtime());
@@ -1665,10 +1664,10 @@ js_TransplantObjectWithWrapper(JSContext *cx,
     AutoDisableProxyCheck adpc(cx->runtime());
 
     AssertHeapIsIdle(cx);
-    JS_ASSERT(!origobj->is<CrossCompartmentWrapperObject>());
-    JS_ASSERT(!origwrapper->is<CrossCompartmentWrapperObject>());
-    JS_ASSERT(!targetobj->is<CrossCompartmentWrapperObject>());
-    JS_ASSERT(!targetwrapper->is<CrossCompartmentWrapperObject>());
+    JS_ASSERT(!IsCrossCompartmentWrapper(origobj));
+    JS_ASSERT(!IsCrossCompartmentWrapper(origwrapper));
+    JS_ASSERT(!IsCrossCompartmentWrapper(targetobj));
+    JS_ASSERT(!IsCrossCompartmentWrapper(targetwrapper));
 
     RootedObject newWrapper(cx);
     JSCompartment *destination = targetobj->compartment();
@@ -2067,7 +2066,7 @@ JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JS_ASSERT(!obj->is<CrossCompartmentWrapperObject>());
+    JS_ASSERT(!IsCrossCompartmentWrapper(obj));
     return js_IdentifyClassPrototype(obj);
 }
 

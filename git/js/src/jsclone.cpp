@@ -29,14 +29,12 @@
  */
 
 #include "jsclone.h"
-#include "jswrapper.h"
 
 #include "mozilla/FloatingPoint.h"
 
 #include "jsdate.h"
 
 #include "vm/TypedArrayObject.h"
-#include "vm/WrapperObject.h"
 
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
@@ -136,12 +134,6 @@ js::ClearStructuredClone(const uint64_t *data, size_t nbytes)
                 if (tag == SCTAG_TRANSFER_MAP) {
                     u = LittleEndian::readUint64(point++);
                     js_free(reinterpret_cast<void*>(u));
-                } else {
-                    // The only things in the transfer map should be
-                    // SCTAG_TRANSFER_MAP tags paired with pointers. If we find
-                    // any other tag, we've walked off the end of the transfer
-                    // map.
-                    break;
                 }
             }
         }
@@ -570,7 +562,7 @@ JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v)
 
     // If the object is a security wrapper, see if we're allowed to unwrap it.
     // If we aren't, throw.
-    if (obj->is<WrapperObject>())
+    if (obj->isWrapper())
         obj = CheckedUnwrap(obj);
     if (!obj) {
         JS_ReportError(w->context(), "Permission denied to access object");

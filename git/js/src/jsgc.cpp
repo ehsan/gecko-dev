@@ -69,7 +69,6 @@ using mozilla::Swap;
 #include "vm/Shape.h"
 #include "vm/String.h"
 #include "vm/ForkJoin.h"
-#include "vm/WrapperObject.h"
 #include "ion/IonCode.h"
 #ifdef JS_ION
 # include "ion/BaselineJIT.h"
@@ -3385,7 +3384,7 @@ static bool
 IsGrayListObject(JSObject *obj)
 {
     JS_ASSERT(obj);
-    return obj->is<CrossCompartmentWrapperObject>() && !IsDeadProxyObject(obj);
+    return IsCrossCompartmentWrapper(obj) && !IsDeadProxyObject(obj);
 }
 
 /* static */ unsigned
