@@ -516,23 +516,16 @@ nsHTMLEditor::BeginningOfDocument()
     nsWSRunObject wsObj(this, curNode, curOffset);
     nsCOMPtr<nsIDOMNode> visNode;
     PRInt32 visOffset=0;
-    PRInt16 visType=0;
+    WSType visType;
     wsObj.NextVisibleNode(curNode, curOffset, address_of(visNode), &visOffset, &visType);
-    if ((visType==nsWSRunObject::eNormalWS) || 
-        (visType==nsWSRunObject::eText))
-    {
+    if (visType == WSType::normalWS || visType == WSType::text) {
       selNode = visNode;
       selOffset = visOffset;
       done = true;
-    }
-    else if ((visType==nsWSRunObject::eBreak)    ||
-             (visType==nsWSRunObject::eSpecial))
-    {
+    } else if (visType == WSType::br || visType == WSType::special) {
       selNode = GetNodeLocation(visNode, &selOffset);
       done = true;
-    }
-    else if (visType==nsWSRunObject::eOtherBlock)
-    {
+    } else if (visType == WSType::otherBlock) {
       // By definition of nsWSRunObject, a block element terminates 
       // a whitespace run. That is, although we are calling a method 
       // that is named "NextVisibleNode", the node returned
@@ -599,6 +592,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
 
   switch (nativeKeyEvent->keyCode) {
     case nsIDOMKeyEvent::DOM_VK_META:
+    case nsIDOMKeyEvent::DOM_VK_WIN:
     case nsIDOMKeyEvent::DOM_VK_SHIFT:
     case nsIDOMKeyEvent::DOM_VK_CONTROL:
     case nsIDOMKeyEvent::DOM_VK_ALT:
@@ -619,7 +613,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       }
 
       if (nativeKeyEvent->IsControl() || nativeKeyEvent->IsAlt() ||
-          nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsMeta() || nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
 
@@ -669,7 +663,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     case nsIDOMKeyEvent::DOM_VK_RETURN:
     case nsIDOMKeyEvent::DOM_VK_ENTER:
       if (nativeKeyEvent->IsControl() || nativeKeyEvent->IsAlt() ||
-          nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsMeta() || nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
       aKeyEvent->PreventDefault(); // consumed
@@ -684,7 +678,8 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   // NOTE: On some keyboard layout, some characters are inputted with Control
   // key or Alt key, but at that time, widget sets FALSE to these keys.
   if (nativeKeyEvent->charCode == 0 || nativeKeyEvent->IsControl() ||
-      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
+      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
+      nativeKeyEvent->IsOS()) {
     // we don't PreventDefault() here or keybindings like control-x won't work
     return NS_OK;
   }
@@ -948,10 +943,11 @@ bool nsHTMLEditor::IsVisBreak(nsIDOMNode *aNode)
   nsWSRunObject wsObj(this, selNode, selOffset);
   nsCOMPtr<nsIDOMNode> visNode;
   PRInt32 visOffset=0;
-  PRInt16 visType=0;
+  WSType visType;
   wsObj.NextVisibleNode(selNode, selOffset, address_of(visNode), &visOffset, &visType);
-  if (visType & nsWSRunObject::eBlock)
+  if (visType & WSType::block) {
     return false;
+  }
   
   return true;
 }
@@ -1449,26 +1445,29 @@ nsHTMLEditor::NormalizeEOLInsertPosition(nsIDOMNode *firstNodeToInsert,
   nsCOMPtr<nsIDOMNode> nextVisNode;
   nsCOMPtr<nsIDOMNode> prevVisNode;
   PRInt32 nextVisOffset=0;
-  PRInt16 nextVisType=0;
+  WSType nextVisType;
   PRInt32 prevVisOffset=0;
-  PRInt16 prevVisType=0;
+  WSType prevVisType;
 
   wsObj.NextVisibleNode(*insertParentNode, *insertOffset, address_of(nextVisNode), &nextVisOffset, &nextVisType);
   if (!nextVisNode)
     return;
 
-  if (! (nextVisType & nsWSRunObject::eBreak))
+  if (!(nextVisType & WSType::br)) {
     return;
+  }
 
   wsObj.PriorVisibleNode(*insertParentNode, *insertOffset, address_of(prevVisNode), &prevVisOffset, &prevVisType);
   if (!prevVisNode)
     return;
 
-  if (prevVisType & nsWSRunObject::eBreak)
+  if (prevVisType & WSType::br) {
     return;
+  }
 
-  if (prevVisType & nsWSRunObject::eThisBlock)
+  if (prevVisType & WSType::thisBlock) {
     return;
+  }
 
   PRInt32 brOffset=0;
   nsCOMPtr<nsIDOMNode> brNode = GetNodeLocation(nextVisNode, &brOffset);
@@ -4397,12 +4396,10 @@ nsHTMLEditor::IsVisTextNode(nsIContent* aNode,
       nsWSRunObject wsRunObj(this, node, 0);
       nsCOMPtr<nsIDOMNode> visNode;
       PRInt32 outVisOffset=0;
-      PRInt16 visType=0;
+      WSType visType;
       wsRunObj.NextVisibleNode(node, 0, address_of(visNode),
                                &outVisOffset, &visType);
-      if ( (visType == nsWSRunObject::eNormalWS) ||
-           (visType == nsWSRunObject::eText) )
-      {
+      if (visType == WSType::normalWS || visType == WSType::text) {
         *outIsEmptyNode = (node != visNode);
       }
     }

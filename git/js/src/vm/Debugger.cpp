@@ -26,6 +26,7 @@
 #include "vm/Stack-inl.h"
 
 using namespace js;
+using js::frontend::IsIdentifier;
 
 
 /*** Forward declarations ************************************************************************/
@@ -3696,12 +3697,12 @@ DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
         JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
 
         if (fun->nargs > 0) {
-            BindingNames names(cx);
-            if (!fun->script()->bindings.getLocalNameArray(cx, &names))
+            BindingVector names(cx);
+            if (!GetOrderedBindings(cx, fun->script()->bindings, &names))
                 return false;
 
             for (size_t i = 0; i < fun->nargs; i++) {
-                JSAtom *name = names[i].maybeAtom;
+                PropertyName *name = names[i].maybeName;
                 result->setDenseArrayElement(i, name ? StringValue(name) : UndefinedValue());
             }
         }

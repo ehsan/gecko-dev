@@ -128,48 +128,6 @@ public:
         }
         return nsnull;
     }
-
-    static JNIEnv* GetJNIForCompositorThread() {
-        if (NS_LIKELY(sBridge)) {
-            if (sBridge->mCompositorThread) {
-                if ((void*)pthread_self() != sBridge->mCompositorThread) {
-                    __android_log_print(ANDROID_LOG_ERROR, "AndroidBridge", "Non-compositor thread calling GetJNIForCompositorThread!");
-                    NS_ABORT();
-                    return NULL;
-                }
-                return sBridge->mJNIForCompositorThread;
-            }
-
-            // first time this is being called, so create the JNI object for the compositor thread.
-            // make sure to do it in a thread-safe manner in case two different threads call this function
-            // at the same time during startup.
-            MutexAutoLock lock(sBridge->mCompositorJNICreationMutex);
-
-            if (sBridge->mCompositorThread) {
-                // this means that another thread executed this function between the time we started executing
-                // it and the time we acquired the mutex. fail.
-                __android_log_print(ANDROID_LOG_ERROR, "AndroidBridge", "Two threads called GetJNIForCompositorThread on startup!");
-                NS_ABORT();
-                return NULL;
-            }
-
-            JavaVM *jVm = mozilla::AndroidBridge::GetVM();
-            if (!jVm) {
-                __android_log_print(ANDROID_LOG_ERROR, "AndroidBridge", "Null VM in GetJNIForCompositorThread");
-                return NULL;
-            }
-            JNIEnv* env;
-            if (jVm->AttachCurrentThread(&env, NULL)) {
-                __android_log_print(ANDROID_LOG_ERROR, "AndroidBridge", "Unable to attach to VM in GetJNIForCompositorThread");
-                return NULL;
-            }
-
-            sBridge->mCompositorThread = (void*)pthread_self();
-            sBridge->mJNIForCompositorThread = env;
-            return env;
-        }
-        return NULL;
-    }
     
     static jclass GetGeckoAppShellClass() {
         return sBridge->mGeckoAppShellClass;
@@ -339,6 +297,10 @@ public:
 
     void *AcquireNativeWindow(JNIEnv* aEnv, jobject aSurface);
     void ReleaseNativeWindow(void *window);
+
+    void *AcquireNativeWindowFromSurfaceTexture(JNIEnv* aEnv, jobject aSurface);
+    void ReleaseNativeWindowForSurfaceTexture(void *window);
+
     bool SetNativeWindowFormat(void *window, int width, int height, int format);
 
     bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
@@ -377,11 +339,6 @@ public:
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
 
-    jobject CreateSurface();
-    void DestroySurface(jobject surface);
-    void ShowSurface(jobject surface, const gfxRect& aRect, bool aInverted, bool aBlend);
-    void HideSurface(jobject surface);
-
     void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
     void RemovePluginView(jobject view, bool isFullScreen);
 
@@ -399,6 +356,13 @@ public:
 
     void NotifyWakeLockChanged(const nsAString& topic, const nsAString& state);
 
+    int GetAPIVersion() { return mAPIVersion; }
+    bool IsHoneycomb() { return mAPIVersion >= 11 && mAPIVersion <= 13; }
+
+    void ScheduleComposite();
+    void RegisterSurfaceTextureFrameListener(jobject surfaceTexture, int id);
+    void UnregisterSurfaceTextureFrameListener(jobject surfaceTexture);
+
     void GetGfxInfoData(nsACString& aRet);
 
 protected:
@@ -410,11 +374,6 @@ protected:
     // the JNIEnv for the main thread
     JNIEnv *mJNIEnv;
     void *mThread;
-
-    // the JNIEnv for the compositor thread and the lock used when creating it
-    JNIEnv *mJNIForCompositorThread;
-    void* mCompositorThread;
-    Mutex mCompositorJNICreationMutex;
 
     // the GeckoSurfaceView
     AndroidGeckoSurfaceView mSurfaceView;
@@ -436,6 +395,8 @@ protected:
     bool mHasNativeBitmapAccess;
     bool mHasNativeWindowAccess;
     bool mHasNativeWindowFallback;
+
+    int mAPIVersion;
 
     nsCOMArray<nsIRunnable> mRunnableQueue;
 
@@ -526,6 +487,8 @@ protected:
     jmethodID jUnlockScreenOrientation;
     jmethodID jPumpMessageLoop;
     jmethodID jNotifyWakeLockChanged;
+    jmethodID jRegisterSurfaceTextureFrameListener;
+    jmethodID jUnregisterSurfaceTextureFrameListener;
 
     // for GfxInfo (gfx feature detection and blacklisting)
     jmethodID jGetGfxInfoData;
@@ -554,6 +517,7 @@ protected:
     int (* AndroidBitmap_unlockPixels)(JNIEnv *env, jobject bitmap);
 
     void* (*ANativeWindow_fromSurface)(JNIEnv *env, jobject surface);
+    void* (*ANativeWindow_fromSurfaceTexture)(JNIEnv *env, jobject surfaceTexture);
     void (*ANativeWindow_release)(void *window);
     int (*ANativeWindow_setBuffersGeometry)(void *window, int width, int height, int format);
 

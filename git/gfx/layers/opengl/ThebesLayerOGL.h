@@ -115,14 +115,10 @@ public:
   ShadowThebesLayerOGL(LayerManagerOGL *aManager);
   virtual ~ShadowThebesLayerOGL();
 
-  virtual bool ShouldDoubleBuffer();
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        OptionalThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion);
-  virtual void EnsureTextureUpdated();
-  virtual void EnsureTextureUpdated(nsIntRegion& aRegion);
-  virtual void ProgressiveUpload();
   virtual void DestroyFrontBuffer();
 
   virtual void Disconnect();
@@ -147,13 +143,6 @@ private:
   // When doing delayed texture upload, this is the region of the buffer that
   // still requires uploading.
   nsIntRegion mRegionPendingUpload;
-
-  // Task used for progressive texture upload. When double-buffering, rather
-  // than synchronously uploading texture data, we immediately return and
-  // upload only what is necessary when rendering the layer. We also upload
-  // other parts of the layer that aren't necessary to render progressively,
-  // over time.
-  CancelableTask* mUploadTask;
 
   // Following used for double-buffering
   ShadowThebesLayerBufferOGL mFrontBuffer;

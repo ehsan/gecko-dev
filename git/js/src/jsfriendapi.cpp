@@ -23,6 +23,12 @@ using namespace js;
 using namespace JS;
 
 JS_FRIEND_API(void)
+JS_SetSourceHook(JSRuntime *rt, JS_SourceHook hook)
+{
+    rt->sourceHook = hook;
+}
+
+JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 {
     rt->gcGrayRootsTraceOp = traceOp;
@@ -452,7 +458,9 @@ JS_GetE4XObjectsCreated(JSContext *)
     return sE4XObjectsCreated;
 }
 
+namespace js {
 extern size_t sSetProtoCalled;
+}
 
 JS_FRIEND_API(size_t)
 JS_SetProtoCalled(JSContext *)
@@ -466,6 +474,17 @@ JS_FRIEND_API(size_t)
 JS_GetCustomIteratorCount(JSContext *cx)
 {
     return sCustomIteratorCount;
+}
+
+JS_FRIEND_API(JSBool)
+JS_IsDeadWrapper(JSObject *obj)
+{
+    if (!IsProxy(obj)) {
+        return false;
+    }
+
+    BaseProxyHandler *handler = GetProxyHandler(obj);
+    return handler->family() == &DeadObjectProxy::sDeadObjectFamily;
 }
 
 void
@@ -763,8 +782,13 @@ GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
 JS_FRIEND_API(void)
 NotifyDidPaint(JSRuntime *rt)
 {
-    if (rt->gcZeal() == gc::ZealFrameVerifierValue) {
-        gc::VerifyBarriers(rt);
+    if (rt->gcZeal() == gc::ZealFrameVerifierPreValue) {
+        gc::VerifyBarriers(rt, gc::PreBarrierVerifier);
+        return;
+    }
+
+    if (rt->gcZeal() == gc::ZealFrameVerifierPostValue) {
+        gc::VerifyBarriers(rt, gc::PostBarrierVerifier);
         return;
     }
 

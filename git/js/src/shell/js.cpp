@@ -1727,9 +1727,6 @@ DisassembleScript(JSContext *cx, JSScript *script_, JSFunction *fun, bool lines,
 
 #undef SHOW_FLAG
 
-        if (fun->isNullClosure())
-            Sprint(sp, " NULL_CLOSURE");
-
         Sprint(sp, "\n");
     }
 
@@ -3192,6 +3189,8 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 Parse(JSContext *cx, unsigned argc, jsval *vp)
 {
+    using namespace js::frontend;
+
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "compile", "0", "s");
@@ -3205,10 +3204,10 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    js::Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
-                      JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                      "<string>", /* lineno = */ 1, cx->findVersion(),
-                      /* foldConstants = */ true, /* compileAndGo = */ false);
+    Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
+                  JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
+                  "<string>", /* lineno = */ 1, cx->findVersion(),
+                  /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 
@@ -3290,6 +3289,63 @@ Snarf(JSContext *cx, unsigned argc, jsval *vp)
     if (!(str = FileAsString(cx, pathname)))
         return false;
     *vp = STRING_TO_JSVAL(str);
+    return true;
+}
+
+static bool
+DecompileFunctionSomehow(JSContext *cx, unsigned argc, Value *vp,
+                         JSString *(*decompiler)(JSContext *, JSFunction *, unsigned))
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() < 1 || !args[0].isObject() || !args[0].toObject().isFunction()) {
+        args.rval().setUndefined();
+        return true;
+    }
+    JSString *result = decompiler(cx, args[0].toObject().toFunction(), 0);
+    if (!result)
+        return false;
+    args.rval().setString(result);
+    return true;
+}
+
+static JSBool
+DecompileBody(JSContext *cx, unsigned argc, Value *vp)
+{
+    return DecompileFunctionSomehow(cx, argc, vp, JS_DecompileFunctionBody);
+}
+
+static JSBool
+DecompileFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    return DecompileFunctionSomehow(cx, argc, vp, JS_DecompileFunction);
+}
+
+static JSBool
+DecompileThisScript(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JSScript *script = js_GetCurrentScript(cx);
+    JS_ASSERT(script);
+    JSString *result = JS_DecompileScript(cx, script, "test", 0);
+    if (!result)
+        return false;
+    args.rval().setString(result);
+    return true;
+}
+
+static JSBool
+ThisFilename(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JSScript *script = js_GetCurrentScript(cx);
+    if (!script || !script->filename) {
+        args.rval().setString(cx->runtime->emptyString);
+        return true;
+    }
+    JSString *filename = JS_NewStringCopyZ(cx, script->filename);
+    if (!filename)
+        return false;
+    args.rval().setString(filename);
     return true;
 }
 
@@ -3402,29 +3458,6 @@ EnableStackWalkingAssertion(JSContext *cx, unsigned argc, jsval *vp)
 #ifdef DEBUG
     cx->stackIterAssertionEnabled = JSVAL_TO_BOOLEAN(JS_ARGV(cx, vp)[0]);
 #endif
-
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
-    return true;
-}
-
-static JSBool
-EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
-{
-    jsval arg = JS_ARGV(cx, vp)[0];
-    if (argc == 0 || !JSVAL_IS_BOOLEAN(arg)) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS,
-                             "enableSPSProfilingAssertions");
-        return false;
-    }
-
-    static ProfileEntry stack[1000];
-    static uint32_t stack_size = 0;
-
-    if (JSVAL_TO_BOOLEAN(arg))
-        SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
-    else
-        SetRuntimeProfilingStack(cx->runtime, NULL, NULL, 0);
-    cx->runtime->spsProfiler.enableSlowAssertions(JSVAL_TO_BOOLEAN(arg));
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
@@ -3712,6 +3745,22 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "parent(obj)",
 "  Returns the parent of obj."),
 
+    JS_FN_HELP("decompileFunction", DecompileFunction, 1, 0,
+"decompileFunction(func)",
+"  Decompile a function."),
+
+    JS_FN_HELP("decompileBody", DecompileBody, 1, 0,
+"decompileBody(func)",
+"  Decompile a function's body."),
+
+    JS_FN_HELP("decompileThis", DecompileThisScript, 0, 0,
+"decompileThis()",
+"  Decompile the currently executing script."),
+
+    JS_FN_HELP("thisFilename", ThisFilename, 0, 0,
+"thisFilename()",
+"  Return the filename of the current script"),
+
     JS_FN_HELP("wrap", Wrap, 1, 0,
 "wrap(obj)",
 "  Wrap an object into a noop wrapper."),
@@ -3745,11 +3794,6 @@ static JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("getMaxArgs", GetMaxArgs, 0, 0,
 "getMaxArgs()",
 "  Return the maximum number of supported args for a call."),
-
-    JS_FN_HELP("enableSPSProfilingAssertions", EnableSPSProfilingAssertions, 1, 0,
-"enableProfilingAssertions(enabled)",
-"  Enables or disables the assertions related to SPS profiling. This is fairly\n"
-"  expensive, so it shouldn't be enabled normally."),
 
     JS_FN_HELP("relaxRootChecks", RelaxRootChecks, 0, 0,
 "relaxRootChecks()",

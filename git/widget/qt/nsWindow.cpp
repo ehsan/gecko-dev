@@ -475,11 +475,10 @@ nsWindow::SetModal(bool aModal)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWindow::IsVisible(bool & aState)
+bool
+nsWindow::IsVisible() const
 {
-    aState = mIsShown;
-    return NS_OK;
+    return mIsShown;
 }
 
 NS_IMETHODIMP
@@ -1040,7 +1039,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         startup->RemoveFakeLayout();
     }
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    if (GetLayerManager(nsnull)->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
         aPainter->beginNativePainting();
         nsPaintEvent event(true, NS_PAINT, this);
         event.willSendDidPaint = true;
@@ -3087,12 +3086,10 @@ nsWindow::Enable(bool aState)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWindow::IsEnabled(bool *aState)
+bool
+nsWindow::IsEnabled() const
 {
-    *aState = mEnabled;
-
-    return NS_OK;
+    return mEnabled;
 }
 
 void
@@ -3308,7 +3305,7 @@ PRUint32
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
         // On maemo the hardware fb has RGB format.
 #ifdef MOZ_PLATFORM_MAEMO
         return LOCAL_GL_RGB;

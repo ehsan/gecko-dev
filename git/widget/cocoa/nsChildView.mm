@@ -526,26 +526,20 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-NS_IMETHODIMP nsChildView::IsVisible(bool& outState)
+bool nsChildView::IsVisible() const
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (!mVisible) {
-    outState = mVisible;
-  }
-  else {
-    // mVisible does not accurately reflect the state of a hidden tabbed view
-    // so verify that the view has a window as well
-    outState = ([mView window] != nil);
-    // now check native widget hierarchy visibility
-    if (outState && NSIsEmptyRect([mView visibleRect])) {
-      outState = false;
-    }
+    return mVisible;
   }
 
-  return NS_OK;
+  // mVisible does not accurately reflect the state of a hidden tabbed view
+  // so verify that the view has a window as well
+  // then check native widget hierarchy visibility
+  return ([mView window] != nil) && !NSIsEmptyRect([mView visibleRect]);
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
 }
 
 void nsChildView::HidePlugin()
@@ -754,12 +748,9 @@ NS_IMETHODIMP nsChildView::Enable(bool aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsChildView::IsEnabled(bool *aState)
+bool nsChildView::IsEnabled() const
 {
-  // unimplemented
-  if (aState)
-   *aState = true;
-  return NS_OK;
+  return true;
 }
 
 NS_IMETHODIMP nsChildView::SetFocus(bool aRaise)
@@ -976,9 +967,7 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
   outOrigin.x = -NSToIntRound(viewOrigin.x);
   outOrigin.y = -NSToIntRound(viewOrigin.y);
 
-  bool isVisible;
-  IsVisible(isVisible);
-  if (isVisible && [mView window] != nil) {
+  if (IsVisible() && [mView window] != nil) {
     outClipRect.width  = NSToIntRound(visibleBounds.origin.x + visibleBounds.size.width) - NSToIntRound(visibleBounds.origin.x);
     outClipRect.height = NSToIntRound(visibleBounds.origin.y + visibleBounds.size.height) - NSToIntRound(visibleBounds.origin.y);
 
@@ -2484,9 +2473,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 - (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext
 {
   SAMPLE_LABEL("widget", "ChildView::drawRect");
-  bool isVisible;
-  if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) ||
-      !isVisible)
+  if (!mGeckoChild || !mGeckoChild->IsVisible())
     return;
 
 #ifndef NP_NO_QUICKDRAW
@@ -2551,7 +2538,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif
 
   LayerManager *layerManager = mGeckoChild->GetLayerManager(nsnull);
-  if (layerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+  if (layerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
     NSOpenGLContext *glContext;
 
     LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(layerManager);

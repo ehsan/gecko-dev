@@ -4,13 +4,10 @@
 
 "use strict";
 
-let Cu = Components.utils;
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-let Cr = Components.results;
-
+let { classes: Cc, interfaces: Ci, results: Cr, utils: Cu }  = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/Geometry.jsm");
 Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
 
 // Event whitelisted for bubbling.
@@ -52,6 +49,15 @@ function BrowserElementChild() {
   // Maps outer window id --> weak ref to window.  Used by modal dialog code.
   this._windowIDDict = {};
 
+  // _forcedVisible corresponds to the visibility state our owner has set on us
+  // (via iframe.setVisible).  ownerVisible corresponds to whether the docShell
+  // whose window owns this element is visible.
+  //
+  // Our docShell is visible iff _forcedVisible and _ownerVisible are both
+  // true.
+  this._forcedVisible = true;
+  this._ownerVisible = true;
+
   this._init();
 };
 
@@ -62,12 +68,15 @@ BrowserElementChild.prototype = {
 
     BrowserElementPromptService.mapWindowToBrowserElementChild(content, this);
 
-    docShell.isBrowserFrame = true;
     docShell.QueryInterface(Ci.nsIWebProgress)
             .addProgressListener(this._progressListener,
                                  Ci.nsIWebProgress.NOTIFY_LOCATION |
                                  Ci.nsIWebProgress.NOTIFY_SECURITY |
                                  Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
+
+    docShell.QueryInterface(Ci.nsIWebNavigation)
+            .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
+                                .createInstance(Ci.nsISHistory);
 
     // This is necessary to get security web progress notifications.
     var securityUI = Cc['@mozilla.org/secure_browser_ui;1']
@@ -117,12 +126,17 @@ BrowserElementChild.prototype = {
 
     addMsgListener("get-screenshot", this._recvGetScreenshot);
     addMsgListener("set-visible", this._recvSetVisible);
+    addMsgListener("send-mouse-event", this._recvSendMouseEvent);
+    addMsgListener("send-touch-event", this._recvSendTouchEvent);
     addMsgListener("get-can-go-back", this._recvCanGoBack);
     addMsgListener("get-can-go-forward", this._recvCanGoForward);
     addMsgListener("go-back", this._recvGoBack);
     addMsgListener("go-forward", this._recvGoForward);
+    addMsgListener("reload", this._recvReload);
+    addMsgListener("stop", this._recvStop);
     addMsgListener("unblock-modal-prompt", this._recvStopWaiting);
     addMsgListener("fire-ctx-callback", this._recvFireCtxCallback);
+    addMsgListener("owner-visibility-change", this._recvOwnerVisibilityChange);
 
     let els = Cc["@mozilla.org/eventlistenerservice;1"]
                 .getService(Ci.nsIEventListenerService);
@@ -143,6 +157,9 @@ BrowserElementChild.prototype = {
                                /* useCapture = */ false);
     els.addSystemEventListener(global, 'contextmenu',
                                this._contextmenuHandler.bind(this),
+                               /* useCapture = */ false);
+    els.addSystemEventListener(global, 'scroll',
+                               this._scrollEventHandler.bind(this),
                                /* useCapture = */ false);
   },
 
@@ -377,6 +394,16 @@ BrowserElementChild.prototype = {
     return false;
   },
 
+  _scrollEventHandler: function(e) {
+    let win = e.target.defaultView;
+    if (win != content) {
+      return;
+    }
+
+    debug("scroll event " + win);
+    sendAsyncMsg("scroll", { top: win.scrollY, left: win.scrollX });
+  },
+
   _recvGetScreenshot: function(data) {
     debug("Received getScreenshot message: (" + data.json.id + ")");
     var canvas = content.document
@@ -431,9 +458,43 @@ BrowserElementChild.prototype = {
 
   _recvSetVisible: function(data) {
     debug("Received setVisible message: (" + data.json.visible + ")");
-    if (docShell.isActive !== data.json.visible) {
-      docShell.isActive = data.json.visible;
+    this._forcedVisible = data.json.visible;
+    this._updateDocShellVisibility();
+  },
+
+  /**
+   * Called when the window which contains this iframe becomes hidden or
+   * visible.
+   */
+  _recvOwnerVisibilityChange: function(data) {
+    debug("Received ownerVisibilityChange: (" + data.json.visible + ")");
+    this._ownerVisible = data.json.visible;
+    this._updateDocShellVisibility();
+  },
+
+  _updateDocShellVisibility: function() {
+    var visible = this._forcedVisible && this._ownerVisible;
+    if (docShell.isActive !== visible) {
+      docShell.isActive = visible;
     }
+  },
+
+  _recvSendMouseEvent: function(data) {
+    let json = data.json;
+    let utils = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Ci.nsIDOMWindowUtils);
+    utils.sendMouseEvent(json.type, json.x, json.y, json.button,
+                         json.clickCount, json.modifiers);
+  },
+
+  _recvSendTouchEvent: function(data) {
+    let json = data.json;
+    let utils = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Ci.nsIDOMWindowUtils);
+    utils.sendTouchEvent(json.type, json.identifiers, json.touchesX,
+                         json.touchesY, json.radiisX, json.radiisY,
+                         json.rotationAngles, json.forces, json.count,
+                         json.modifiers);
   },
 
   _recvCanGoBack: function(data) {
@@ -466,6 +527,23 @@ BrowserElementChild.prototype = {
     } catch(e) {
       // Silently swallow errors; these happen when we can't go forward.
     }
+  },
+
+  _recvReload: function(data) {
+    let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
+    let reloadFlags = data.json.hardReload ?
+      webNav.LOAD_FLAGS_BYPASS_PROXY | webNav.LOAD_FLAGS_BYPASS_CACHE :
+      webNav.LOAD_FLAGS_NONE;
+    try {
+      webNav.reload(reloadFlags);
+    } catch(e) {
+      // Silently swallow errors; these can happen if a used cancels reload
+    }
+  },
+
+  _recvStop: function(data) {
+    let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
+    webNav.stop(webNav.STOP_NETWORK);
   },
 
   _keyEventHandler: function(e) {
@@ -556,3 +634,10 @@ BrowserElementChild.prototype = {
 };
 
 var api = new BrowserElementChild();
+
+// FIXME/bug 775438: use a JSM?
+//
+// The code in this included file depends on the |addEventListener|,
+// |addMessageListener|, |content|, |Geometry| and |Services| symbols
+// being "exported" from here.
+#include BrowserElementScrolling.js

@@ -482,7 +482,7 @@ NS_IMETHODIMP
 HyperTextAccessible::GetCharacterAtOffset(PRInt32 aOffset, PRUnichar* aCharacter)
 {
   NS_ENSURE_ARG_POINTER(aCharacter);
-  *aCharacter = nsnull;
+  *aCharacter = L'\0';
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -1808,8 +1808,6 @@ HyperTextAccessible::SetSelectionBounds(PRInt32 aSelectionNum,
   if (rangeCount < static_cast<PRUint32>(aSelectionNum))
     return NS_ERROR_INVALID_ARG;
 
-  // Caret is a collapsed selection
-  bool isOnlyCaret = (aStartOffset == aEndOffset);
   nsRefPtr<nsRange> range;
   if (aSelectionNum == rangeCount)
     range = new nsRange();

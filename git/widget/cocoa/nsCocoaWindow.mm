@@ -545,14 +545,13 @@ void* nsCocoaWindow::GetNativeData(PRUint32 aDataType)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
 
-NS_IMETHODIMP nsCocoaWindow::IsVisible(bool & aState)
+bool nsCocoaWindow::IsVisible() const
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  aState = (mWindow && ([mWindow isVisible] || mSheetNeedsShow));
-  return NS_OK;
+  return (mWindow && ([mWindow isVisible] || mSheetNeedsShow));
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
 }
 
 NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)
@@ -1012,11 +1011,9 @@ NS_IMETHODIMP nsCocoaWindow::Enable(bool aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsCocoaWindow::IsEnabled(bool *aState)
+bool nsCocoaWindow::IsEnabled() const
 {
-  if (aState)
-    *aState = true;
-  return NS_OK;
+  return true;
 }
 
 #define kWindowPositionSlop 20

@@ -7,6 +7,7 @@
 #include "uiaRawElmProvider.h"
 
 #include "AccessibleWrap.h"
+#include "nsIPersistentProperties2.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -146,9 +147,60 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
   if (!aPropertyValue)
     return E_INVALIDARG;
 
-  // UI Automation will attempt to get the property from the host
-  //window provider.
+  if (mAcc->IsDefunct())
+    return CO_E_OBJNOTCONNECTED;
+
   aPropertyValue->vt = VT_EMPTY;
+
+  switch (aPropertyId) {
+    // Accelerator Key / shortcut.
+    case UIA_AcceleratorKeyPropertyId: {
+      nsAutoString keyString;
+
+      mAcc->KeyboardShortcut().ToString(keyString);
+
+      if (!keyString.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(keyString.get());
+        return S_OK;
+      }
+
+      break;
+    }
+
+    // Access Key / mneumonic.
+    case UIA_AccessKeyPropertyId: {
+      nsAutoString keyString;
+
+      mAcc->AccessKey().ToString(keyString);
+
+      if (!keyString.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(keyString.get());
+        return S_OK;
+      }
+
+      break;
+    }
+    
+    //ARIA Role / shortcut
+    case UIA_AriaRolePropertyId: {
+      nsAutoString xmlRoles;
+
+      nsCOMPtr<nsIPersistentProperties> attributes;
+      mAcc->GetAttributes(getter_AddRefs(attributes));
+      attributes->GetStringProperty(NS_LITERAL_CSTRING("xml-roles"), xmlRoles);
+
+      if(!xmlRoles.IsEmpty()) {
+        aPropertyValue->vt = VT_BSTR;
+        aPropertyValue->bstrVal = ::SysAllocString(xmlRoles.get());
+        return S_OK;
+      }
+
+      break;
+    }
+  }
+
   return S_OK;
 
   A11Y_TRYBLOCK_END

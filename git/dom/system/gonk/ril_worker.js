@@ -1,6 +1,17 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* Copyright 2012 Mozilla Foundation and Mozilla contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 /**
  * This file implements the RIL worker thread. It communicates with
@@ -49,7 +60,6 @@ let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = false;
 let RILQUIRKS_V5_LEGACY = true;
 let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = false;
 let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = false;
-let RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME = false;
 
 /**
  * This object contains helpers buffering incoming data & deconstructing it
@@ -717,10 +727,6 @@ let RIL = {
       case "Qualcomm RIL 1.0":
         let product_model = libcutils.property_get("ro.product.model");
         if (DEBUG) debug("Detected product model " + product_model);
-        if (product_model == "otoro1") {
-          if (DEBUG) debug("Enabling RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME.");
-          RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME = true;
-        }
         if (DEBUG) {
           debug("Detected Qualcomm RIL 1.0, " +
                 "disabling RILQUIRKS_V5_LEGACY and " +
@@ -986,6 +992,7 @@ let RIL = {
     this.getMSISDN();
     this.getAD();
     this.getUST();
+    this.getMBDN();
   },
 
   /**
@@ -1288,6 +1295,41 @@ let RIL = {
     });
   },
 
+   /**
+   * Get ICC MBDN. (Mailbox Dialling Number)
+   *
+   * @see TS 131.102, clause 4.2.60
+   */
+  getMBDN: function getMBDN() {
+    function callback(options) {
+      let parseCallback = function parseCallback(contact) {
+        if (DEBUG) {
+          debug("MBDN, alphaId="+contact.alphaId+" number="+contact.number);
+        }
+        if (this.iccInfo.mbdn != contact.number) {
+          this.iccInfo.mbdn = contact.number;
+          contact.type = "iccmbdn";
+          this.sendDOMMessage(contact);
+        }
+      };
+
+      this.parseDiallingNumber(options, parseCallback);
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_MBDN,
+      pathId:    EF_PATH_MF_SIM + EF_PATH_DF_GSM,
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+    });
+  },
+
   decodeSimTlvs: function decodeSimTlvs(tlvsLen) {
     let index = 0;
     let tlvs = [];
@@ -1406,7 +1448,7 @@ let RIL = {
     if (this._processingNetworkInfo) {
       if (DEBUG) {
         debug("Already requesting network info: " +
-              JSON.stringify(this._pendingNetworkInfo))
+              JSON.stringify(this._pendingNetworkInfo));
       }
       return;
     }
@@ -1797,8 +1839,7 @@ let RIL = {
     Buf.sendParcel();
 
     datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
-    this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: datacall});
+    this.sendDOMMessage(datacall);
   },
 
   /**
@@ -2345,7 +2386,7 @@ let RIL = {
     }
   },
 
-  _processDataCallList: function _processDataCallList(datacalls) {
+  _processDataCallList: function _processDataCallList(datacalls, newDataCallOptions) {
     for each (let currentDataCall in this.currentDataCalls) {
       let updatedDataCall;
       if (datacalls) {
@@ -2356,8 +2397,8 @@ let RIL = {
       if (!updatedDataCall) {
         delete this.currentDataCalls[currentDataCall.callIndex];
         currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-        this.sendDOMMessage({type: "datacallstatechange",
-                             datacall: currentDataCall});
+        currentDataCall.type = "datacallstatechange";
+        this.sendDOMMessage(currentDataCall);
         continue;
       }
 
@@ -2366,16 +2407,27 @@ let RIL = {
         currentDataCall.status = updatedDataCall.status;
         currentDataCall.active = updatedDataCall.active;
         currentDataCall.state = updatedDataCall.state;
-        this.sendDOMMessage({type: "datacallstatechange",
-                             datacall: currentDataCall});
+        currentDataCall.type = "datacallstatechange";
+        this.sendDOMMessage(currentDataCall);
       }
     }
 
     for each (let newDataCall in datacalls) {
       this.currentDataCalls[newDataCall.cid] = newDataCall;
       this._setDataCallGeckoState(newDataCall);
-      this.sendDOMMessage({type: "datacallstatechange",
-                           datacall: newDataCall});
+      if (newDataCallOptions) {
+        newDataCall.radioTech = newDataCallOptions.radioTech;
+        newDataCall.apn = newDataCallOptions.apn;
+        newDataCall.user = newDataCallOptions.user;
+        newDataCall.passwd = newDataCallOptions.passwd;
+        newDataCall.chappap = newDataCallOptions.chappap;
+        newDataCall.pdptype = newDataCallOptions.pdptype;
+        newDataCallOptions = null;
+      } else if (DEBUG) {
+        debug("Unexpected new data call: " + JSON.stringify(newDataCall));
+      }
+      newDataCall.type = "datacallstatechange";
+      this.sendDOMMessage(newDataCall);
     }
   },
 
@@ -2932,6 +2984,9 @@ RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length
     num = Buf.readUint32();
   }
   if (!num) {
+    // No response of REQUEST_LAST_CALL_FAIL_CAUSE. Change the call state into
+    // 'disconnected' directly.
+    this._handleDisconnectedCall(options);
     return;
   }
 
@@ -3125,21 +3180,25 @@ RIL.readSetupDataCall_v5 = function readSetupDataCall_v5(options) {
 
 RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options) {
   if (options.rilRequestError) {
-    // On Data Call error, we shall notify caller
-    this.sendDOMMessage({type: "datacallerror"});
+    options.type = "datacallerror";
+    this.sendDOMMessage(options);
     return;
   }
 
   if (RILQUIRKS_V5_LEGACY) {
+    // Populate the `options` object with the data call information. That way
+    // we retain the APN and other info about how the data call was set up.
     this.readSetupDataCall_v5(options);
     this.currentDataCalls[options.cid] = options;
-    this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: options});
+    options.type = "datacallstatechange";
+    this.sendDOMMessage(options);
     // Let's get the list of data calls to ensure we know whether it's active
     // or not.
     this.getDataCallList();
     return;
   }
+  // Pass `options` along. That way we retain the APN and other info about
+  // how the data call was set up.
   this[REQUEST_DATA_CALL_LIST](length, options);
 };
 RIL[REQUEST_SIM_IO] = function REQUEST_SIM_IO(length, options) {
@@ -3207,8 +3266,8 @@ RIL[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_DATA_CALL(length
   let datacall = this.currentDataCalls[options.cid];
   delete this.currentDataCalls[options.cid];
   datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-  this.sendDOMMessage({type: "datacallstatechange",
-                       datacall: datacall});
+  datacall.type = "datacallstatechange";
+  this.sendDOMMessage(datacall);
 };
 RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, options) {
   if (options.rilRequestError) {
@@ -3303,15 +3362,15 @@ RIL[REQUEST_GET_MUTE] = null;
 RIL[REQUEST_QUERY_CLIP] = null;
 RIL[REQUEST_LAST_DATA_CALL_FAIL_CAUSE] = null;
 
-RIL.readDataCall_v5 = function readDataCall_v5() {
+RIL.readDataCall_v5 = function readDataCall_v5(options) {
   if (!options) {
     options = {};
   }
-  cid = Buf.readUint32().toString();
-  active = Buf.readUint32(); // DATACALL_ACTIVE_*
-  type = Buf.readString();
-  apn = Buf.readString();
-  address = Buf.readString();
+  options.cid = Buf.readUint32().toString();
+  options.active = Buf.readUint32(); // DATACALL_ACTIVE_*
+  options.type = Buf.readString();
+  options.apn = Buf.readString();
+  options.address = Buf.readString();
   return options;
 };
 
@@ -3320,9 +3379,7 @@ RIL.readDataCall_v6 = function readDataCall_v6(options) {
     options = {};
   }
   options.status = Buf.readUint32();  // DATACALL_FAIL_*
-  if (!RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME) {
-    options.suggestedRetryTime = Buf.readUint32();
-  }
+  options.suggestedRetryTime = Buf.readUint32();
   options.cid = Buf.readUint32().toString();
   options.active = Buf.readUint32();  // DATACALL_ACTIVE_*
   options.type = Buf.readString();
@@ -3363,14 +3420,18 @@ RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
   for (let i = 0; i < num; i++) {
     let datacall;
     if (version < 6) {
-      datacall = this.readDataCall_v5(options);
+      datacall = this.readDataCall_v5();
     } else {
-      datacall = this.readDataCall_v6(options);
+      datacall = this.readDataCall_v6();
     }
     datacalls[datacall.cid] = datacall;
   }
 
-  this._processDataCallList(datacalls);
+  let newDataCallOptions = null;
+  if (options.rilRequestType == REQUEST_SETUP_DATA_CALL) {
+    newDataCallOptions = options;
+  }
+  this._processDataCallList(datacalls, newDataCallOptions);
 };
 RIL[REQUEST_RESET_RADIO] = null;
 RIL[REQUEST_OEM_HOOK_RAW] = null;
@@ -3966,19 +4027,25 @@ let GsmPDUHelper = {
   },
 
   /**
-   * Read 1 + UDHL octets and construct user data header at return.
+   * Read 1 + UDHL octets and construct user data header.
    *
-   * @return A header object with properties contained in received message.
-   * The properties set include:
-   * <ul>
-   * <li>length: totoal length of the header, default 0.
-   * <li>langIndex: used locking shift table index, default
-   *     PDU_NL_IDENTIFIER_DEFAULT.
-   * <li>langShiftIndex: used locking shift table index, default
-   *     PDU_NL_IDENTIFIER_DEFAULT.
-   * </ul>
+   * @param msg
+   *        message object for output.
+   *
+   * @see 3GPP TS 23.040 9.2.3.24
    */
-  readUserDataHeader: function readUserDataHeader() {
+  readUserDataHeader: function readUserDataHeader(msg) {
+    /**
+     * A header object with properties contained in received message.
+     * The properties set include:
+     *
+     * length: totoal length of the header, default 0.
+     * langIndex: used locking shift table index, default
+     * PDU_NL_IDENTIFIER_DEFAULT.
+     * langShiftIndex: used locking shift table index, default
+     * PDU_NL_IDENTIFIER_DEFAULT.
+     *
+     */
     let header = {
       length: 0,
       langIndex: PDU_NL_IDENTIFIER_DEFAULT,
@@ -3986,10 +4053,14 @@ let GsmPDUHelper = {
     };
 
     header.length = this.readHexOctet();
+    if (DEBUG) debug("Read UDH length: " + header.length);
+
     let dataAvailable = header.length;
     while (dataAvailable >= 2) {
       let id = this.readHexOctet();
       let length = this.readHexOctet();
+      if (DEBUG) debug("Read UDH id: " + id + ", length: " + length);
+
       dataAvailable -= 2;
 
       switch (id) {
@@ -4005,7 +4076,7 @@ let GsmPDUHelper = {
           }
           break;
         }
-        case PDU_IEI_APPLICATION_PORT_ADDREESING_SCHEME_8BIT: {
+        case PDU_IEI_APPLICATION_PORT_ADDRESSING_SCHEME_8BIT: {
           let dstp = this.readHexOctet();
           let orip = this.readHexOctet();
           dataAvailable -= 2;
@@ -4020,7 +4091,7 @@ let GsmPDUHelper = {
           header.originatorPort = orip;
           break;
         }
-        case PDU_IEI_APPLICATION_PORT_ADDREESING_SCHEME_16BIT: {
+        case PDU_IEI_APPLICATION_PORT_ADDRESSING_SCHEME_16BIT: {
           let dstp = (this.readHexOctet() << 8) | this.readHexOctet();
           let orip = (this.readHexOctet() << 8) | this.readHexOctet();
           dataAvailable -= 4;
@@ -4060,6 +4131,41 @@ let GsmPDUHelper = {
             header.langIndex = langIndex;
           }
           break;
+        case PDU_IEI_SPECIAL_SMS_MESSAGE_INDICATION:
+          let msgInd = this.readHexOctet() & 0xFF;
+          let msgCount = this.readHexOctet();
+          dataAvailable -= 2;
+
+
+          /*
+           * TS 23.040 V6.8.1 Sec 9.2.3.24.2
+           * bits 1 0   : basic message indication type
+           * bits 4 3 2 : extended message indication type
+           * bits 6 5   : Profile id
+           * bit  7     : storage type
+           */
+          let storeType = msgInd & PDU_MWI_STORE_TYPE_BIT;
+          let mwi = msg.mwi;
+          if (!mwi) {
+            mwi = msg.mwi = {};
+          }
+
+          if (storeType == PDU_MWI_STORE_TYPE_STORE) {
+            // Store message because TP_UDH indicates so, note this may override
+            // the setting in DCS, but that is expected
+            mwi.discard = false;
+          } else if (mwi.discard === undefined) {
+            // storeType == PDU_MWI_STORE_TYPE_DISCARD
+            // only override mwi.discard here if it hasn't already been set
+            mwi.discard = true;
+          }
+
+          mwi.msgCount = msgCount & 0xFF;
+          mwi.active = mwi.msgCount > 0;
+
+          if (DEBUG) debug("MWI in TP_UDH received: " + JSON.stringify(mwi));
+
+          break;
         default:
           if (DEBUG) {
             debug("readUserDataHeader: unsupported IEI(" + id
@@ -4087,7 +4193,7 @@ let GsmPDUHelper = {
       throw new Error("Illegal user data header found!");
     }
 
-    return header;
+    msg.header = header;
   },
 
   /**
@@ -4262,9 +4368,21 @@ let GsmPDUHelper = {
         switch (msg.epid) {
           case PDU_PID_SHORT_MESSAGE_TYPE_0:
             return;
+          case PDU_PID_RETURN_CALL_MESSAGE:
+            // Level 1 of message waiting indication:
+            // Only a return call message is provided
+            let mwi = msg.mwi = {};
+
+            // TODO: When should we de-activate the level 1 indicator?
+            mwi.active = true;
+            mwi.discard = false;
+            mwi.msgCount = GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN;
+            if (DEBUG) debug("TP-PID got return call message: " + msg.sender);
+            return;
         }
         break;
     }
+
     msg.epid = PDU_PID_DEFAULT;
   },
 
@@ -4278,6 +4396,10 @@ let GsmPDUHelper = {
    */
   readDataCodingScheme: function readDataCodingScheme(msg) {
     let dcs = this.readHexOctet();
+    if (DEBUG) debug("PDU: read dcs: " + dcs);
+
+    // Level 2 of message waiting indication
+    this.readMessageWaitingFromDCS(msg, dcs);
 
     // 7 bit is the default fallback encoding.
     let encoding = PDU_DCS_MSG_CODING_7BITS_ALPHABET;
@@ -4315,6 +4437,48 @@ let GsmPDUHelper = {
     msg.encoding = encoding;
 
     if (DEBUG) debug("PDU: message encoding is " + encoding + " bit.");
+  },
+
+  readMessageWaitingFromDCS: function readMessageWaitingFromDCS(msg, dcs) {
+    // 0xC0 == 7 bit, don't store
+    // 0xD0 == 7 bit, store
+    // 0xE0 == UCS-2, store
+    let codingGroup = dcs & PDU_DCS_CODING_GROUP_BITS;
+
+    if (codingGroup == PDU_DCS_CODING_GROUP_7BITS_DISCARD ||
+        codingGroup == PDU_DCS_CODING_GROUP_7BITS_STORE ||
+        codingGroup == PDU_DCS_CODING_GROUP_16BITS_STORE) {
+
+      // Indiciates voicemail indicator set or clear
+      let active = (dcs & PDU_DCS_MWI_ACTIVE_BITS) == PDU_DCS_MWI_ACTIVE_VALUE;
+
+      // If TP-UDH is present, these values will be overwritten
+      switch (dcs & PDU_DCS_MWI_TYPE_BITS) {
+        case PDU_DCS_MWI_TYPE_VOICEMAIL:
+          let mwi = msg.mwi;
+          if (!mwi) {
+            mwi = msg.mwi = {};
+          }
+
+          mwi.active = active;
+          mwi.discard = codingGroup == PDU_DCS_CODING_GROUP_7BITS_DISCARD;
+          mwi.msgCount = active ? GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN : 0;
+
+          if (DEBUG) {
+            debug("MWI in DCS received for voicemail: " + JSON.stringify(mwi));
+          }
+          break;
+        case PDU_DCS_MWI_TYPE_FAX:
+          if (DEBUG) debug("MWI in DCS received for fax");
+          break;
+        case PDU_DCS_MWI_TYPE_EMAIL:
+          if (DEBUG) debug("MWI in DCS received for email");
+          break;
+        default:
+          if (DEBUG) debug("MWI in DCS received for \"other\"");
+          break;
+      }
+    }
   },
 
   /**
@@ -4360,7 +4524,7 @@ let GsmPDUHelper = {
 
     let paddingBits = 0;
     if (msg.udhi) {
-      msg.header = this.readUserDataHeader();
+      this.readUserDataHeader(msg);
 
       if (msg.encoding == PDU_DCS_MSG_CODING_7BITS_ALPHABET) {
         let headerBits = (msg.header.length + 1) * 8;
@@ -4372,6 +4536,8 @@ let GsmPDUHelper = {
         length -= (msg.header.length + 1);
       }
     }
+
+    if (DEBUG) debug("After header, " + length + " septets left of user data");
 
     msg.body = null;
     msg.data = null;
@@ -4458,13 +4624,15 @@ let GsmPDUHelper = {
       //                  D  DR S  SR ST C
       SMSC:      null, // M  M  M  M  M  M
       mti:       null, // M  M  M  M  M  M
-      udhi:      null, // M  M  X  M  M  M
+      udhi:      null, // M  M  O  M  M  M
       sender:    null, // M  X  X  X  X  X
       recipient: null, // X  X  M  X  M  M
       pid:       null, // M  O  M  O  O  M
       epid:      null, // M  O  M  O  O  M
       dcs:       null, // M  O  M  O  O  X
-      encoding:  null, // M  O  M  O  O  X
+      mwi:       null, // O  O  O  O  O  O
+      replace:  false, // O  O  O  O  O  O
+      header:    null, // M  M  O  M  M  M
       body:      null, // M  O  M  O  O  O
       data:      null, // M  O  M  O  O  O
       timestamp: null, // M  X  X  X  X  X

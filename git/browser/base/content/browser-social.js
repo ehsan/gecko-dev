@@ -6,29 +6,70 @@ let SocialUI = {
   // Called on delayed startup to initialize UI
   init: function SocialUI_init() {
     Services.obs.addObserver(this, "social:pref-changed", false);
+    Services.obs.addObserver(this, "social:ambient-notification-changed", false);
+    Services.obs.addObserver(this, "social:profile-changed", false);
+
+    Services.prefs.addObserver("social.sidebar.open", this, false);
+
     Social.init(this._providerReady.bind(this));
   },
 
   // Called on window unload
   uninit: function SocialUI_uninit() {
     Services.obs.removeObserver(this, "social:pref-changed");
+    Services.obs.removeObserver(this, "social:ambient-notification-changed");
+    Services.obs.removeObserver(this, "social:profile-changed");
+
+    Services.prefs.removeObserver("social.sidebar.open", this);
   },
 
-  // Called when the social.enabled pref is changed
-  observe: function SocialUI_observe(aSubject, aTopic, aData) {
-    SocialShareButton.updateButtonEnabledState();
+  showProfile: function SocialUI_showProfile() {
+    if (Social.provider)
+      openUILink(Social.provider.profile.profileURL);
+  },
+
+  observe: function SocialUI_observe(subject, topic, data) {
+    switch (topic) {
+      case "social:pref-changed":
+        SocialShareButton.updateButtonHiddenState();
+        SocialToolbar.updateButtonHiddenState();
+        SocialSidebar.updateSidebar();
+        break;
+      case "social:ambient-notification-changed":
+        SocialToolbar.updateButton();
+        break;
+      case "social:profile-changed":
+        SocialToolbar.updateProfile();
+        break;
+      case "nsPref:changed":
+        SocialSidebar.updateSidebar();
+    }
   },
 
   // Called once Social.jsm's provider has been set
   _providerReady: function SocialUI_providerReady() {
+    SocialToolbar.init();
     SocialShareButton.init();
+    SocialSidebar.init();
   }
 }
 
 let SocialShareButton = {
+  // Called once, after window load, when the Social.provider object is initialized
   init: function SSB_init() {
-    this.sharePopup.hidden = false;
-    this.updateButtonEnabledState();
+    this.updateButtonHiddenState();
+
+    let profileRow = document.getElementById("editSharePopupHeader");
+    let profile = Social.provider.profile;
+    if (profile && profile.portrait && profile.displayName) {
+      profileRow.hidden = false;
+      let portrait = document.getElementById("socialUserPortrait");
+      portrait.style.listStyleImage = profile.portrait;
+      let displayName = document.getElementById("socialUserDisplayName");
+      displayName.setAttribute("label", profile.displayName);
+    } else {
+      profileRow.hidden = true;
+    }
   },
 
   get shareButton() {
@@ -42,11 +83,10 @@ let SocialShareButton = {
     this.sharePopup.hidePopup();
   },
 
-  updateButtonEnabledState: function SSB_updateButtonEnabledState() {
+  updateButtonHiddenState: function SSB_updateButtonHiddenState() {
     let shareButton = this.shareButton;
     if (shareButton)
-      shareButton.hidden = !Social.provider || !Social.provider.enabled ||
-                           !Social.provider.port;
+      shareButton.hidden = !Social.uiVisible;
   },
 
   onClick: function SSB_onClick(aEvent) {
@@ -66,6 +106,8 @@ let SocialShareButton = {
   },
 
   sharePage: function SSB_sharePage() {
+    this.sharePopup.hidden = false;
+
     let uri = gBrowser.currentURI;
     if (!Social.isPageShared(uri)) {
       Social.sharePage(uri);
@@ -106,3 +148,170 @@ let SocialShareButton = {
     }
   }
 };
+
+var SocialToolbar = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SocialToolbar_init() {
+    document.getElementById("social-provider-image").setAttribute("image", Social.provider.iconURL);
+    
+    // handle button state
+    document.getElementById("social-statusarea-popup").addEventListener("popupshowing", function(e) {
+      document.getElementById("social-toolbar-button").setAttribute("open", "true");
+    }, false);
+    document.getElementById("social-statusarea-popup").addEventListener("popuphiding", function(e) {
+      document.getElementById("social-toolbar-button").removeAttribute("open");
+    }, false);
+
+    this.updateButton();
+    this.updateProfile();
+  },
+
+  updateButtonHiddenState: function SocialToolbar_updateButtonHiddenState() {
+    let toolbarbutton = document.getElementById("social-toolbar-button");
+    toolbarbutton.hidden = !Social.uiVisible;
+  },
+
+  updateProfile: function SocialToolbar_updateProfile() {
+    // Profile may not have been initialized yet, since it depends on a worker
+    // response. In that case we'll be called again when it's available, via
+    // social:profile-changed
+    let profile = Social.provider.profile || {};
+    let userPortrait = profile.portrait || "chrome://browser/skin/social/social.png";
+    document.getElementById("social-statusarea-user-portrait").setAttribute("src", userPortrait);
+
+    let notLoggedInLabel = document.getElementById("social-statusarea-notloggedin");
+    let userNameBtn = document.getElementById("social-statusarea-username");
+    if (profile.userName) {
+      notLoggedInLabel.hidden = true;
+      userNameBtn.hidden = false;
+      userNameBtn.label = profile.userName;
+    } else {
+      notLoggedInLabel.hidden = false;
+      userNameBtn.hidden = true;
+    }
+  },
+
+  updateButton: function SocialToolbar_updateButton() {
+    this.updateButtonHiddenState();
+
+    let provider = Social.provider;
+    // if there are no ambient icons, we collapse them in the following loop
+    let iconNames = Object.keys(provider.ambientNotificationIcons);
+    let iconBox = document.getElementById("social-status-iconbox");
+    for (var i = 0; i < iconBox.childNodes.length; i++) {
+      let iconContainer = iconBox.childNodes[i];
+      if (i > iconNames.length - 1) {
+        iconContainer.collapsed = true;
+        continue;
+      }
+
+      iconContainer.collapsed = false;
+      let icon = provider.ambientNotificationIcons[iconNames[i]];
+      let iconImage = iconContainer.firstChild;
+      let iconCounter = iconImage.nextSibling;
+
+      iconImage.setAttribute("contentPanel", icon.contentPanel);
+      iconImage.setAttribute("src", icon.iconURL);
+
+      if (iconCounter.firstChild)
+        iconCounter.removeChild(iconCounter.firstChild);
+
+      if (icon.counter) {
+        iconCounter.appendChild(document.createTextNode(icon.counter));
+        iconCounter.collapsed = false;
+      } else {
+        iconCounter.collapsed = true;
+      }
+    }
+  },
+
+  showAmbientPopup: function SocialToolbar_showAmbientPopup(iconContainer) {
+    let iconImage = iconContainer.firstChild;
+    let panel = document.getElementById("social-notification-panel");
+    let notifBrowser = document.getElementById("social-notification-browser");
+
+    panel.hidden = false;
+
+    function sizePanelToContent() {
+      // XXX Maybe we can use nsIDOMWindowUtils.getRootBounds() here?
+      // XXX need to handle dynamic sizing
+      let doc = notifBrowser.contentDocument;
+      // XXX "notif" is an implementation detail that we should get rid of
+      // eventually
+      let body = doc.getElementById("notif") || doc.body.firstChild;
+      if (!body)
+        return;
+      let h = body.scrollHeight > 0 ? body.scrollHeight : 300;
+      notifBrowser.style.width = body.scrollWidth + "px";
+      notifBrowser.style.height = h + "px";
+    }
+
+    notifBrowser.addEventListener("DOMContentLoaded", function onload() {
+      notifBrowser.removeEventListener("DOMContentLoaded", onload);
+      sizePanelToContent();
+    });
+
+    panel.addEventListener("popuphiding", function onpopuphiding() {
+      panel.removeEventListener("popuphiding", onpopuphiding);
+      // unload the panel
+      document.getElementById("social-toolbar-button").removeAttribute("open");
+      notifBrowser.setAttribute("src", "about:blank");
+    });
+
+    notifBrowser.setAttribute("origin", Social.provider.origin);
+    notifBrowser.setAttribute("src", iconImage.getAttribute("contentPanel"));
+    document.getElementById("social-toolbar-button").setAttribute("open", "true");
+    panel.openPopup(iconImage, "bottomcenter topleft", 0, 0, false, false);
+  }
+}
+
+var SocialSidebar = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SocialSidebar_init() {
+    this.updateSidebar();
+  },
+
+  // Whether the sidebar can be shown for this window.
+  get canShow() {
+    return Social.uiVisible && Social.provider.sidebarURL && !this.chromeless;
+  },
+
+  // Whether this is a "chromeless window" (e.g. popup window). We don't show
+  // the sidebar in these windows.
+  get chromeless() {
+    let docElem = document.documentElement;
+    return docElem.getAttribute('disablechrome') ||
+           docElem.getAttribute('chromehidden').indexOf("extrachrome") >= 0;
+  },
+
+  // Whether the user has toggled the sidebar on (for windows where it can appear)
+  get enabled() {
+    return Services.prefs.getBoolPref("social.sidebar.open");
+  },
+
+  updateSidebar: function SocialSidebar_updateSidebar() {
+    // Hide the toggle menu item if the sidebar cannot appear
+    let command = document.getElementById("Social:ToggleSidebar");
+    command.hidden = !this.canShow;
+
+    // Hide the sidebar if it cannot appear, or has been toggled off.
+    // Also set the command "checked" state accordingly.
+    let hideSidebar = !this.canShow || !this.enabled;
+    let broadcaster = document.getElementById("socialSidebarBroadcaster");
+    broadcaster.hidden = hideSidebar;
+    command.setAttribute("checked", !hideSidebar);
+
+    // If the sidebar is hidden, unload its document
+    // XXX this results in a poor UX, we should revisit
+    let sbrowser = document.getElementById("social-sidebar-browser");
+    if (broadcaster.hidden) {
+      sbrowser.removeAttribute("origin");
+      sbrowser.setAttribute("src", "about:blank");
+      return;
+    }
+
+    // Load the sidebar document
+    sbrowser.setAttribute("origin", Social.provider.origin);
+    sbrowser.setAttribute("src", Social.provider.sidebarURL);
+  }
+}

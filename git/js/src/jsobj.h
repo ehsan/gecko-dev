@@ -209,7 +209,6 @@ extern Class DateClass;
 extern Class ErrorClass;
 extern Class ElementIteratorClass;
 extern Class GeneratorClass;
-extern Class IteratorClass;
 extern Class JSONClass;
 extern Class MathClass;
 extern Class NumberClass;
@@ -240,6 +239,7 @@ class NestedScopeObject;
 class NewObjectCache;
 class NormalArgumentsObject;
 class NumberObject;
+class PropertyIteratorObject;
 class ScopeObject;
 class StaticBlockObject;
 class StrictArgumentsObject;
@@ -616,24 +616,25 @@ struct JSObject : public js::ObjectImpl
      */
 
     static const uint32_t JSSLOT_DATE_UTC_TIME = 0;
+    static const uint32_t JSSLOT_DATE_TZA = 1;
 
     /*
      * Cached slots holding local properties of the date.
      * These are undefined until the first actual lookup occurs
      * and are reset to undefined whenever the date's time is modified.
      */
-    static const uint32_t JSSLOT_DATE_COMPONENTS_START = 1;
+    static const uint32_t JSSLOT_DATE_COMPONENTS_START = 2;
 
-    static const uint32_t JSSLOT_DATE_LOCAL_TIME = 1;
-    static const uint32_t JSSLOT_DATE_LOCAL_YEAR = 2;
-    static const uint32_t JSSLOT_DATE_LOCAL_MONTH = 3;
-    static const uint32_t JSSLOT_DATE_LOCAL_DATE = 4;
-    static const uint32_t JSSLOT_DATE_LOCAL_DAY = 5;
-    static const uint32_t JSSLOT_DATE_LOCAL_HOURS = 6;
-    static const uint32_t JSSLOT_DATE_LOCAL_MINUTES = 7;
-    static const uint32_t JSSLOT_DATE_LOCAL_SECONDS = 8;
+    static const uint32_t JSSLOT_DATE_LOCAL_TIME    = JSSLOT_DATE_COMPONENTS_START + 0;
+    static const uint32_t JSSLOT_DATE_LOCAL_YEAR    = JSSLOT_DATE_COMPONENTS_START + 1;
+    static const uint32_t JSSLOT_DATE_LOCAL_MONTH   = JSSLOT_DATE_COMPONENTS_START + 2;
+    static const uint32_t JSSLOT_DATE_LOCAL_DATE    = JSSLOT_DATE_COMPONENTS_START + 3;
+    static const uint32_t JSSLOT_DATE_LOCAL_DAY     = JSSLOT_DATE_COMPONENTS_START + 4;
+    static const uint32_t JSSLOT_DATE_LOCAL_HOURS   = JSSLOT_DATE_COMPONENTS_START + 5;
+    static const uint32_t JSSLOT_DATE_LOCAL_MINUTES = JSSLOT_DATE_COMPONENTS_START + 6;
+    static const uint32_t JSSLOT_DATE_LOCAL_SECONDS = JSSLOT_DATE_COMPONENTS_START + 7;
 
-    static const uint32_t DATE_CLASS_RESERVED_SLOTS = 9;
+    static const uint32_t DATE_CLASS_RESERVED_SLOTS = JSSLOT_DATE_LOCAL_SECONDS + 1;
 
     inline const js::Value &getDateUTCTime() const;
     inline void setDateUTCTime(const js::Value &pthis);
@@ -653,9 +654,6 @@ struct JSObject : public js::ObjectImpl
      */
 
     static const uint32_t ITER_CLASS_NFIXED_SLOTS = 1;
-
-    inline js::NativeIterator *getNativeIterator() const;
-    inline void setNativeIterator(js::NativeIterator *);
 
     /*
      * XML-related getters and setters.
@@ -911,9 +909,9 @@ struct JSObject : public js::ObjectImpl
     inline bool isFunction() const;
     inline bool isGenerator() const;
     inline bool isGlobal() const;
-    inline bool isIterator() const;
     inline bool isObject() const;
     inline bool isPrimitive() const;
+    inline bool isPropertyIterator() const;
     inline bool isProxy() const;
     inline bool isRegExp() const;
     inline bool isRegExpStatics() const;
@@ -967,6 +965,7 @@ struct JSObject : public js::ObjectImpl
     inline js::NestedScopeObject &asNestedScope();
     inline js::NormalArgumentsObject &asNormalArguments();
     inline js::NumberObject &asNumber();
+    inline js::PropertyIteratorObject &asPropertyIterator();
     inline js::RegExpObject &asRegExp();
     inline js::ScopeObject &asScope();
     inline js::StrictArgumentsObject &asStrictArguments();
@@ -1060,12 +1059,6 @@ js_HasOwnProperty(JSContext *cx, js::LookupGenericOp lookup, js::HandleObject ob
 
 extern JSBool
 js_PropertyIsEnumerable(JSContext *cx, js::HandleObject obj, js::HandleId id, js::Value *vp);
-
-#if JS_HAS_OBJ_PROTO_PROP
-extern JSPropertySpec object_props[];
-#else
-#define object_props NULL
-#endif
 
 extern JSFunctionSpec object_methods[];
 extern JSFunctionSpec object_static_methods[];

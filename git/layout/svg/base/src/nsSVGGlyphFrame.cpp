@@ -13,6 +13,7 @@
 #include "gfxPlatform.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsBidiPresUtils.h"
+#include "nsDisplayList.h"
 #include "nsDOMError.h"
 #include "nsIDOMSVGRect.h"
 #include "nsRenderingContext.h"
@@ -198,6 +199,59 @@ private:
   bool mInError;
 };
 
+
+class nsDisplaySVGGlyphs : public nsDisplayItem {
+public:
+  nsDisplaySVGGlyphs(nsDisplayListBuilder* aBuilder,
+                     nsSVGGlyphFrame* aFrame)
+    : nsDisplayItem(aBuilder, aFrame)
+  {
+    MOZ_COUNT_CTOR(nsDisplaySVGGlyphs);
+    NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
+  }
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplaySVGGlyphs() {
+    MOZ_COUNT_DTOR(nsDisplaySVGGlyphs);
+  }
+#endif
+
+  NS_DISPLAY_DECL_NAME("nsDisplaySVGGlyphs", TYPE_SVG_GLYPHS)
+
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsRenderingContext* aCtx);
+};
+
+void
+nsDisplaySVGGlyphs::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                            HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+{
+  nsSVGGlyphFrame *frame = static_cast<nsSVGGlyphFrame*>(mFrame);
+  nsPoint pointRelativeToReferenceFrame = aRect.Center();
+  // ToReferenceFrame() includes frame->GetPosition(), our user space position.
+  nsPoint userSpacePt = pointRelativeToReferenceFrame -
+                          (ToReferenceFrame() - frame->GetPosition());
+  if (frame->GetFrameForPoint(userSpacePt)) {
+    aOutFrames->AppendElement(frame);
+  }
+}
+
+void
+nsDisplaySVGGlyphs::Paint(nsDisplayListBuilder* aBuilder,
+                          nsRenderingContext* aCtx)
+{
+  // ToReferenceFrame includes our mRect offset, but painting takes
+  // account of that too. To avoid double counting, we subtract that
+  // here.
+  nsPoint offset = ToReferenceFrame() - mFrame->GetPosition();
+
+  aCtx->PushState();
+  aCtx->Translate(offset);
+  static_cast<nsSVGGlyphFrame*>(mFrame)->PaintSVG(aCtx, nsnull);
+  aCtx->PopState();
+}
+
 //----------------------------------------------------------------------
 // Implementation
 
@@ -293,6 +347,18 @@ nsIAtom *
 nsSVGGlyphFrame::GetType() const
 {
   return nsGkAtoms::svgGlyphFrame;
+}
+
+NS_IMETHODIMP
+nsSVGGlyphFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                  const nsRect&           aDirtyRect,
+                                  const nsDisplayListSet& aLists)
+{
+  if (GetStyleFont()->mFont.size <= 0) {
+    return NS_OK;
+  }
+  return aLists.Content()->AppendNewToTop(
+           new (aBuilder) nsDisplaySVGGlyphs(aBuilder, this));
 }
 
 //----------------------------------------------------------------------
@@ -426,19 +492,18 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGGlyphFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  return nsSVGUtils::TransformFrameRectToOuterSVG(
+                       mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
 }
 
 void
-nsSVGGlyphFrame::UpdateBounds()
+nsSVGGlyphFrame::ReflowSVG()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
-               "This call is probaby a wasteful mistake");
+  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
+               "This call is probably a wasteful mistake");
 
   NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "UpdateBounds mechanism not designed for this");
+                    "ReflowSVG mechanism not designed for this");
 
   mRect.SetEmpty();
 
@@ -463,10 +528,6 @@ nsSVGGlyphFrame::UpdateBounds()
     mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
               PresContext()->AppUnitsPerCSSPixel());
   }
-
-  // See bug 614732 comment 32.
-  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
 
   // We only invalidate if we are dirty, if our outer-<svg> has already had its
   // initial reflow (since if it hasn't, its entire area will be invalidated
@@ -493,10 +554,6 @@ nsSVGGlyphFrame::UpdateBounds()
 void
 nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
-                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
-
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
@@ -507,7 +564,7 @@ nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
   // our area.
   // XXXjwatt: seems to me that our ancestor's change could change our glyph
   // metrics, in which case we should call NotifyGlyphMetricsChange instead.
-  nsSVGUtils::ScheduleBoundsUpdate(this);
+  nsSVGUtils::ScheduleReflowSVG(this);
 
   if (aFlags & TRANSFORM_CHANGED) {
     ClearTextRun();
@@ -898,7 +955,9 @@ nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePatte
 
     if (ps) {
       // Gradient or Pattern: can get pattern directly from frame
-      strokePattern = ps->GetPaintServerPattern(this, &nsStyleSVG::mStroke, opacity);
+      strokePattern =
+        ps->GetPaintServerPattern(this, aContext->CurrentMatrix(),
+                                  &nsStyleSVG::mStroke, opacity);
     }
 
     if (!strokePattern) {

@@ -26,7 +26,6 @@ chrome.jar:
 * content/browser.xul                  (content/browser.xul)
 * content/browser.js                   (content/browser.js)
   content/bindings/checkbox.xml        (content/bindings/checkbox.xml)
-  content/bindings/content.xml         (content/bindings/content.xml)
   content/bindings/menulist.xml        (content/bindings/menulist.xml)
   content/bindings/settings.xml        (content/bindings/settings.xml)
   content/sanitize.js                  (content/sanitize.js)
@@ -36,6 +35,7 @@ chrome.jar:
   content/SelectHelper.js              (content/SelectHelper.js)
   content/HelperApps.js                (content/HelperApps.js)
   content/dbg-browser-actors.js        (content/dbg-browser-actors.js)
+  content/WebAppRT.js                  (content/WebAppRT.js)
 
 % content branding %content/branding/
 

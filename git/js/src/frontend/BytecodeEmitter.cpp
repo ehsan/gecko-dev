@@ -65,7 +65,7 @@ NewTryNote(JSContext *cx, BytecodeEmitter *bce, JSTryNoteKind kind, unsigned sta
 static bool
 SetSrcNoteOffset(JSContext *cx, BytecodeEmitter *bce, unsigned index, unsigned which, ptrdiff_t offset);
 
-struct js::StmtInfoBCE : public js::StmtInfoBase
+struct frontend::StmtInfoBCE : public StmtInfoBase
 {
     StmtInfoBCE     *down;          /* info for enclosing statement */
     StmtInfoBCE     *downScope;     /* next enclosing lexical scope */
@@ -1178,7 +1178,6 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
           case JSOP_DECNAME:  *op = JSOP_DECGNAME; break;
           case JSOP_NAMEDEC:  *op = JSOP_GNAMEDEC; break;
           case JSOP_SETCONST:
-          case JSOP_DELNAME:
             /* Not supported. */
             return false;
           default: JS_NOT_REACHED("gname");
@@ -1210,12 +1209,14 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(pn->isKind(PNK_NAME));
 
-    /* Don't attempt if 'pn' is already bound, deoptimized, or a nop. */
-    if ((pn->pn_dflags & PND_BOUND) || pn->isDeoptimized() || pn->getOp() == JSOP_NOP)
+    /* Don't attempt if 'pn' is already bound or deoptimized or a nop. */
+    JSOp op = pn->getOp();
+    if (pn->isBound() || pn->isDeoptimized() || op == JSOP_NOP)
         return true;
 
     /* JSOP_CALLEE is pre-bound by definition. */
-    JS_ASSERT(!pn->isOp(JSOP_CALLEE));
+    JS_ASSERT(op != JSOP_CALLEE);
+    JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
     /*
      * The parser already linked name uses to definitions when (where not
@@ -1233,8 +1234,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         return true;
     }
 
-    JSOp op = pn->getOp();
-    JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
     JS_ASSERT_IF(dn->kind() == Definition::CONST, pn->pn_dflags & PND_CONST);
 
     /*
@@ -1249,16 +1248,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     switch (op) {
       case JSOP_NAME:
       case JSOP_SETCONST:
-        break;
-      case JSOP_DELNAME:
-        if (dn->kind() != Definition::UNKNOWN) {
-            if (bce->callerFrame && dn->isTopLevel())
-                JS_ASSERT(bce->script->compileAndGo);
-            else
-                pn->setOp(JSOP_FALSE);
-            pn->pn_dflags |= PND_BOUND;
-            return true;
-        }
         break;
       default:
         if (pn->isConst()) {
@@ -1394,7 +1383,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * heavyweight, ensuring that the function name is represented in
              * the scope chain so that assignment will throw a TypeError.
              */
-            JS_ASSERT(op != JSOP_DELNAME);
             if (!bce->sc->funIsHeavyweight()) {
                 op = JSOP_CALLEE;
                 pn->pn_dflags |= PND_CONST;
@@ -2204,11 +2192,9 @@ MOZ_NEVER_INLINE static bool
 EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JSOp switchOp;
-    bool ok, hasDefault;
+    bool hasDefault;
     ptrdiff_t top, off, defaultOffset;
     ParseNode *pn2, *pn3, *pn4;
-    uint32_t caseCount, tableLength;
-    ParseNode **table;
     int32_t i, low, high;
     int noteIndex;
     size_t switchSize, tableSize;
@@ -2217,7 +2203,6 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Try for most optimal, fall back if not dense ints, and per ECMAv2. */
     switchOp = JSOP_TABLESWITCH;
-    ok = true;
     hasDefault = false;
     defaultOffset = -1;
 
@@ -2269,9 +2254,9 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 #endif
 
-    caseCount = pn2->pn_count;
-    tableLength = 0;
-    table = NULL;
+    uint32_t caseCount = pn2->pn_count;
+    uint32_t tableLength = 0;
+    js::ScopedFreePtr<ParseNode*> table(NULL);
 
     if (caseCount == 0 ||
         (caseCount == 1 &&
@@ -2280,6 +2265,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         low = 0;
         high = -1;
     } else {
+        bool ok = true;
 #define INTMAP_LENGTH   256
         jsbitmap intmap_space[INTMAP_LENGTH];
         jsbitmap *intmap = NULL;
@@ -2510,8 +2496,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             /*
              * Use malloc to avoid arena bloat for programs with many switches.
-             * We free table if non-null at label out, so all control flow must
-             * exit this function through goto out or goto bad.
+             * ScopedFreePtr takes care of freeing it on exit.
              */
             if (tableLength != 0) {
                 tableSize = (size_t)tableLength * sizeof *table;
@@ -2535,13 +2520,6 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             SET_UINT16(pc, caseCount);
             pc += UINT16_LEN;
         }
-
-        /*
-         * After this point, all control flow involving JSOP_TABLESWITCH
-         * must set ok and goto out to exit this function.  To keep things
-         * simple, all switchOp cases exit that way.
-         */
-        MUST_FLOW_THROUGH("out");
     }
 
     /* Emit code for each case's statements, copying pn_offset up to pn3. */
@@ -2549,9 +2527,8 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (switchOp == JSOP_CONDSWITCH && !pn3->isKind(PNK_DEFAULT))
             SetJumpOffsetAt(bce, pn3->pn_offset);
         pn4 = pn3->pn_right;
-        ok = EmitTree(cx, bce, pn4);
-        if (!ok)
-            goto out;
+        if (!EmitTree(cx, bce, pn4))
+            return false;
         pn3->pn_offset = pn4->pn_offset;
         if (pn3->isKind(PNK_DEFAULT))
             off = pn3->pn_offset - top;
@@ -2578,9 +2555,8 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Set the SRC_SWITCH note's offset operand to tell end of switch. */
     off = bce->offset() - top;
-    ok = SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, off);
-    if (!ok)
-        goto out;
+    if (!SetSrcNoteOffset(cx, bce, (unsigned)noteIndex, 0, off))
+        return false;
 
     if (switchOp == JSOP_TABLESWITCH) {
         /* Skip over the already-initialized switch bounds. */
@@ -2601,7 +2577,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (pn3->isKind(PNK_DEFAULT))
                 continue;
             if (!bce->constList.append(*pn3->pn_pval))
-                goto bad;
+                return false;
             SET_UINT32_INDEX(pc, bce->constList.length() - 1);
             pc += UINT32_INDEX_LEN;
 
@@ -2611,22 +2587,15 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         }
     }
 
-out:
-    if (table)
-        cx->free_(table);
-    if (ok) {
-        ok = PopStatementBCE(cx, bce);
+    if (!PopStatementBCE(cx, bce))
+        return false;
 
 #if JS_HAS_BLOCK_SCOPE
-        if (ok && pn->pn_right->isKind(PNK_LEXICALSCOPE))
-            EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, blockObjCount);
+    if (pn->pn_right->isKind(PNK_LEXICALSCOPE))
+        EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, blockObjCount);
 #endif
-    }
-    return ok;
 
-bad:
-    ok = false;
-    goto out;
+    return true;
 }
 
 bool
@@ -2849,7 +2818,9 @@ EmitDestructuringLHS(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
         if (pn->isKind(PNK_NAME)) {
             if (!BindNameToSlot(cx, bce, pn))
                 return false;
-            if (pn->isConst() && !pn->isInitialized())
+
+            /* Allow 'const [x,y] = o', make 'const x,y; [x,y] = o' a nop. */
+            if (pn->isConst() && !pn->isDefn())
                 return Emit1(cx, bce, JSOP_POP) >= 0;
         }
 
@@ -4368,7 +4339,11 @@ EmitLet(JSContext *cx, BytecodeEmitter *bce, ParseNode *pnLet)
 #endif
 
 #if JS_HAS_XML_SUPPORT
-static bool
+/*
+ * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
+ * the comment on EmitSwitch.
+ */
+MOZ_NEVER_INLINE static bool
 EmitXMLTag(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(!bce->sc->inStrictMode());
@@ -4867,9 +4842,6 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         return EmitFunctionDefNop(cx, bce, pn->pn_index);
     }
 
-    JS_ASSERT_IF(pn->pn_funbox->funIsHeavyweight(),
-                 fun->kind() == JSFUN_INTERPRETED);
-
     {
         FunctionBox *funbox = pn->pn_funbox;
         SharedContext sc(cx, /* scopeChain = */ NULL, fun, funbox, funbox->strictModeState);
@@ -4890,7 +4862,10 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                                                       parent->compileAndGo,
                                                       /* noScriptRval = */ false,
                                                       parent->getVersion(),
-                                                      parent->staticLevel + 1));
+                                                      parent->staticLevel + 1,
+                                                      bce->script->source,
+                                                      funbox->bufStart,
+                                                      funbox->bufEnd));
         if (!script)
             return false;
 
@@ -4940,10 +4915,11 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (!EmitFunctionDefNop(cx, bce, index))
             return false;
     } else {
-        unsigned slot;
-        DebugOnly<BindingKind> kind = bce->sc->bindings.lookup(cx, fun->atom, &slot);
-        JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
-        JS_ASSERT(index < JS_BIT(20));
+#ifdef DEBUG
+        BindingIter bi(cx, bce->sc->bindings.lookup(cx, fun->atom->asPropertyName()));
+        JS_ASSERT(bi->kind == VARIABLE || bi->kind == CONSTANT);
+        JS_ASSERT(bi.frameIndex() < JS_BIT(20));
+#endif
         pn->pn_index = index;
         if (bce->shouldNoteClosedName(pn) && !bce->noteClosedVar(pn))
             return false;
@@ -5491,7 +5467,11 @@ EmitLogical(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     return true;
 }
 
-static bool
+/*
+ * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
+ * the comment on EmitSwitch.
+ */
+MOZ_NEVER_INLINE static bool
 EmitIncOrDec(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     /* Emit lvalue-specialized code for ++/-- operators. */
@@ -5688,7 +5668,11 @@ EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ConditionalExpres
     return SetSrcNoteOffset(cx, bce, noteIndex, 0, jmp - beq);
 }
 
-static bool
+/*
+ * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
+ * the comment on EmitSwitch.
+ */
+MOZ_NEVER_INLINE static bool
 EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
 #if JS_HAS_DESTRUCTURING_SHORTHAND
@@ -5969,12 +5953,10 @@ EmitDefaults(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (EmitJump(cx, bce, JSOP_GOTO, 0) < 0)
                 return false;
 
-            unsigned slot;
-            bce->sc->bindings.lookup(cx, arg->pn_left->atom(), &slot);
-
             // It doesn't matter if this is correct with respect to aliasing or
             // not. Only the decompiler is going to see it.
-            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, slot, bce))
+            BindingIter bi(cx, bce->sc->bindings.lookup(cx, arg->pn_left->atom()));
+            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, bi.frameIndex(), bce))
                 return false;
             SET_JUMP_OFFSET(bce->code(hop), bce->offset() - hop);
         }

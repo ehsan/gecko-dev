@@ -13,32 +13,21 @@ import android.widget.TextView;
 import android.view.View;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
-import android.view.MenuItem;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
-import android.app.Activity;
 import android.widget.AdapterView;
 import android.database.Cursor;
-import android.widget.AdapterView;
 import android.util.Log;
-import android.text.TextUtils;
-import android.widget.Toast;
 import android.widget.SimpleCursorAdapter;
 import android.widget.LinearLayout;
 import android.widget.TabHost.TabContentFactory;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.graphics.drawable.Drawable;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.content.Intent;
 import android.widget.FilterQueryProvider;
 import android.os.AsyncTask;
 import android.os.SystemClock;
 import android.view.MenuInflater;
-import android.widget.TabHost;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -64,7 +53,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private ArrayList<SearchEngine> mSearchEngines;
     private SuggestClient mSuggestClient;
     private AsyncTask<String, Void, ArrayList<String>> mSuggestTask;
-    private ListView mView = null;
     private AwesomeBarCursorAdapter mCursorAdapter = null;
 
     private class SearchEntryViewHolder {
@@ -114,10 +102,10 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             ((Activity)mContext).registerForContextMenu(mView);
             mView.setTag(TAG);
             AwesomeBarCursorAdapter adapter = getCursorAdapter();
-            mView.setAdapter(adapter);
+            ((ListView)mView).setAdapter(adapter);
             mView.setOnTouchListener(mListListener);
         }
-        return mView;
+        return (ListView)mView;
     }
 
     public void destroy() {

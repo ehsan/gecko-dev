@@ -21,21 +21,28 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
+#include "LayersBackend.h"
 
 class gfxASurface;
 
 namespace mozilla {
+
+namespace dom {
+class TabChild;
+}
+
 namespace widget {
 
 class PuppetWidget : public nsBaseWidget, public nsSupportsWeakReference
 {
+  typedef mozilla::dom::TabChild TabChild;
   typedef nsBaseWidget Base;
 
   // The width and height of the "widget" are clamped to this.
   static const size_t kMaxDimension;
 
 public:
-  PuppetWidget(PBrowserChild *aTabChild);
+  PuppetWidget(TabChild* aTabChild);
   virtual ~PuppetWidget();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -57,8 +64,9 @@ public:
   NS_IMETHOD Destroy();
 
   NS_IMETHOD Show(bool aState);
-  NS_IMETHOD IsVisible(bool& aState)
-  { aState = mVisible; return NS_OK; }
+
+  virtual bool IsVisible() const
+  { return mVisible; }
 
   NS_IMETHOD ConstrainPosition(bool     /*ignored aAllowSlop*/,
                                PRInt32* aX,
@@ -84,8 +92,8 @@ public:
   // widget is supposed to entail
   NS_IMETHOD Enable(bool aState)
   { mEnabled = aState;  return NS_OK; }
-  NS_IMETHOD IsEnabled(bool *aState)
-  { *aState = mEnabled;  return NS_OK; }
+  virtual bool IsEnabled() const
+  { return mEnabled; }
 
   NS_IMETHOD SetFocus(bool aRaise = false);
 
@@ -129,7 +137,7 @@ public:
 //NS_IMETHOD              CaptureMouse(bool aCapture);
   virtual LayerManager*
   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                  LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
+                  LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                   bool* aAllowRetaining = nsnull);
 //  virtual nsDeviceContext* GetDeviceContext();
@@ -176,12 +184,12 @@ private:
   };
 
   // TabChild normally holds a strong reference to this PuppetWidget
-  // or its root ancestor, but each PuppetWidget also needs a reference
-  // back to TabChild (e.g. to delegate nsIWidget IME calls to chrome)
-  // So we hold a weak reference to TabChild (PBrowserChild) here.
-  // Since it's possible for TabChild to outlive the PuppetWidget,
-  // we clear this weak reference in Destroy()
-  PBrowserChild *mTabChild;
+  // or its root ancestor, but each PuppetWidget also needs a
+  // reference back to TabChild (e.g. to delegate nsIWidget IME calls
+  // to chrome) So we hold a weak reference to TabChild here.  Since
+  // it's possible for TabChild to outlive the PuppetWidget, we clear
+  // this weak reference in Destroy()
+  TabChild* mTabChild;
   // The "widget" to which we delegate events if we don't have an
   // event handler.
   nsRefPtr<PuppetWidget> mChild;

@@ -95,7 +95,6 @@
 
 #include "gc/Marking.h"
 #include "vm/ArgumentsObject.h"
-#include "vm/MethodGuard.h"
 #include "vm/NumericConversions.h"
 #include "vm/StringBuffer.h"
 
@@ -206,45 +205,6 @@ StringIsArrayIndex(JSLinearString *str, uint32_t *indexp)
 
 }
 
-static JSBool
-BigIndexToId(JSContext *cx, JSObject *obj, uint32_t index, JSBool createAtom,
-             jsid *idp)
-{
-
-    JS_ASSERT(index > JSID_INT_MAX);
-
-    jschar buf[10];
-    jschar *start = ArrayEnd(buf);
-    do {
-        --start;
-        *start = (jschar)('0' + index % 10);
-        index /= 10;
-    } while (index != 0);
-
-    /*
-     * Skip the atomization if the class is known to store atoms corresponding
-     * to big indexes together with elements. In such case we know that the
-     * array does not have an element at the given index if its atom does not
-     * exist.  Dense arrays don't use atoms for any indexes, though it would be
-     * rare to see them have a big index in any case.
-     */
-    JSAtom *atom;
-    if (!createAtom && (obj->isSlowArray() || obj->isArguments() || obj->isObject())) {
-        atom = js_GetExistingStringAtom(cx, start, ArrayEnd(buf) - start);
-        if (!atom) {
-            *idp = JSID_VOID;
-            return JS_TRUE;
-        }
-    } else {
-        atom = js_AtomizeChars(cx, start, ArrayEnd(buf) - start);
-        if (!atom)
-            return JS_FALSE;
-    }
-
-    *idp = NON_INTEGER_ATOM_TO_JSID(atom);
-    return JS_TRUE;
-}
-
 bool
 JSObject::willBeSparseDenseArray(unsigned requiredCapacity, unsigned newElementsHint)
 {
@@ -274,32 +234,6 @@ JSObject::willBeSparseDenseArray(unsigned requiredCapacity, unsigned newElements
     return true;
 }
 
-static bool
-ReallyBigIndexToId(JSContext* cx, double index, jsid* idp)
-{
-    return ValueToId(cx, DoubleValue(index), idp);
-}
-
-static bool
-IndexToId(JSContext* cx, JSObject* obj, double index, JSBool* hole, jsid* idp,
-          JSBool createAtom = JS_FALSE)
-{
-    if (index <= JSID_INT_MAX) {
-        *idp = INT_TO_JSID(int(index));
-        return JS_TRUE;
-    }
-
-    if (index <= uint32_t(-1)) {
-        if (!BigIndexToId(cx, obj, uint32_t(index), createAtom, idp))
-            return JS_FALSE;
-        if (hole && JSID_IS_VOID(*idp))
-            *hole = JS_TRUE;
-        return JS_TRUE;
-    }
-
-    return ReallyBigIndexToId(cx, index, idp);
-}
-
 bool
 JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
 {
@@ -313,9 +247,8 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
         return true;
     }
 
-    JSBool hole;
     jsid id;
-    if (!IndexToId(cx, this, i, &hole, &id))
+    if (!IndexToId(cx, i, &id))
         return false;
 
     Shape *shape = nativeLookup(cx, id);
@@ -326,42 +259,47 @@ JSObject::arrayGetOwnDataElement(JSContext *cx, size_t i, Value *vp)
     return true;
 }
 
+bool
+DoubleIndexToId(JSContext *cx, double index, jsid *id)
+{
+    if (index == uint32_t(index))
+        return IndexToId(cx, uint32_t(index), id);
+
+    return ValueToId(cx, DoubleValue(index), id);
+}
+
 /*
  * If the property at the given index exists, get its value into location
  * pointed by vp and set *hole to false. Otherwise set *hole to true and *vp
  * to JSVAL_VOID. This function assumes that the location pointed by vp is
  * properly rooted and can be used as GC-protected storage for temporaries.
  */
-static inline JSBool
+static inline bool
 DoGetElement(JSContext *cx, JSObject *obj_, double index, JSBool *hole, Value *vp)
 {
     RootedObject obj(cx, obj_);
     RootedId id(cx);
 
-    *hole = JS_FALSE;
-    if (!IndexToId(cx, obj, index, hole, id.address()))
-        return JS_FALSE;
-    if (*hole) {
-        vp->setUndefined();
-        return JS_TRUE;
-    }
+    if (!DoubleIndexToId(cx, index, id.address()))
+        return false;
 
     RootedObject obj2(cx);
     RootedShape prop(cx);
     if (!obj->lookupGeneric(cx, id, &obj2, &prop))
-        return JS_FALSE;
+        return false;
+
     if (!prop) {
         vp->setUndefined();
-        *hole = JS_TRUE;
+        *hole = true;
     } else {
         if (!obj->getGeneric(cx, id, vp))
-            return JS_FALSE;
-        *hole = JS_FALSE;
+            return false;
+        *hole = false;
     }
-    return JS_TRUE;
+    return true;
 }
 
-static inline JSBool
+static inline bool
 DoGetElement(JSContext *cx, HandleObject obj, uint32_t index, JSBool *hole, Value *vp)
 {
     bool present;
@@ -380,6 +318,7 @@ static void
 AssertGreaterThanZero(IndexType index)
 {
     JS_ASSERT(index >= 0);
+    JS_ASSERT(index == floor(index));
 }
 
 template<>
@@ -480,9 +419,8 @@ SetArrayElement(JSContext *cx, HandleObject obj, double index, const Value &v)
     }
 
     RootedId id(cx);
-    if (!IndexToId(cx, obj, index, NULL, id.address(), JS_TRUE))
-        return JS_FALSE;
-    JS_ASSERT(!JSID_IS_VOID(id));
+    if (!DoubleIndexToId(cx, index, id.address()))
+        return false;
 
     RootedValue tmp(cx, v);
     return obj->setGeneric(cx, obj, id, tmp.address(), true);
@@ -1189,7 +1127,7 @@ array_trace(JSTracer *trc, JSObject *obj)
 
 Class js::ArrayClass = {
     "Array",
-    Class::NON_NATIVE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_FOR_OF_ITERATION,
+    Class::NON_NATIVE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1207,7 +1145,7 @@ Class js::ArrayClass = {
         NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
-        JS_ElementIteratorStub,
+        NULL,       /* iteratorObject  */
         NULL,       /* unused      */
         false,      /* isWrappedNative */
     },
@@ -1250,7 +1188,7 @@ Class js::ArrayClass = {
 
 Class js::SlowArrayClass = {
     "Array",
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_FOR_OF_ITERATION,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     slowarray_addProperty,
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1268,7 +1206,7 @@ Class js::SlowArrayClass = {
         NULL,       /* equality    */
         NULL,       /* outerObject */
         NULL,       /* innerObject */
-        JS_ElementIteratorStub,
+        NULL,       /* iteratorObject  */
         NULL,       /* unused      */
         false,      /* isWrappedNative */
     }
@@ -1443,17 +1381,18 @@ class ArraySharpDetector
     }
 };
 
-static JSBool
-array_toSource(JSContext *cx, unsigned argc, Value *vp)
+static bool
+IsArray(const Value &v)
 {
-    JS_CHECK_RECURSION(cx, return false);
+    return v.isObject() && v.toObject().isArray();
+}
 
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedObject obj(cx, ToObject(cx, &args.thisv()));
-    if (!obj)
-        return false;
-    if (!obj->isArray())
-        return HandleNonGenericMethodClassMismatch(cx, args, array_toSource, &ArrayClass);
+static bool
+array_toSource_impl(JSContext *cx, CallArgs args)
+{
+    JS_ASSERT(IsArray(args.thisv()));
+
+    Rooted<JSObject*> obj(cx, &args.thisv().toObject());
 
     ArraySharpDetector detector(cx);
     if (!detector.init(obj))
@@ -1515,6 +1454,14 @@ array_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     args.rval().setString(str);
     return true;
+}
+
+static JSBool
+array_toSource(JSContext *cx, unsigned argc, Value *vp)
+{
+    JS_CHECK_RECURSION(cx, return false);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    return CallNonGenericMethod(cx, IsArray, array_toSource_impl, args);
 }
 #endif
 
@@ -3588,6 +3535,7 @@ static JSFunctionSpec array_methods[] = {
     JS_FN("some",               array_some,         1,JSFUN_GENERIC_NATIVE),
     JS_FN("every",              array_every,        1,JSFUN_GENERIC_NATIVE),
 
+    JS_FN("iterator",           JS_ArrayIterator,   0,0),
     JS_FS_END
 };
 

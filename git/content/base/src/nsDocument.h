@@ -425,8 +425,8 @@ protected:
         NS_ASSERTION(mRealPtr, "Expected non-null here");                    \
       }                                                                      \
       NS_DECL_ISUPPORTS                                                      \
-      NS_FORWARD_NSIINTERFACEREQUESTOR(mIfReq->);                            \
-      NS_FORWARD_##_allcaps(mRealPtr->);                                     \
+      NS_FORWARD_NSIINTERFACEREQUESTOR(mIfReq->)                             \
+      NS_FORWARD_##_allcaps(mRealPtr->)                                      \
     private:                                                                 \
       nsCOMPtr<nsIInterfaceRequestor> mIfReq;                                \
       nsCOMPtr<_i> mRealPtr;                                                 \
@@ -1172,11 +1172,6 @@ protected:
   bool mHaveInputEncoding:1;
 
   bool mInXBLUpdate:1;
-
-  // This flag is only set in nsXMLDocument, for e.g. documents used in XBL. We
-  // don't want animations to play in such documents, so we need to store the
-  // flag here so that we can check it in nsDocument::GetAnimationController.
-  bool mLoadedAsInteractiveData:1;
 
   // Whether we're currently holding a lock on all of our images.
   bool mLockingImages:1;

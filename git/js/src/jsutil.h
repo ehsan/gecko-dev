@@ -335,6 +335,21 @@ ClearAllBitArrayElements(size_t *array, size_t length)
         array[i] = 0;
 }
 
+/*
+ * Attempt to compress some bytes. Return true if compression produced a
+ * string smaller than the input. The caller is responsible for allocating
+ * |out| to a string the same length as the input.
+ */
+bool TryCompressString(const unsigned char *inp, size_t inplen,
+                       unsigned char *out, size_t *outlen);
+
+/*
+ * Decompress a string. The caller must know the length of the output and
+ * allocate |out| to a string of that length.
+ */
+bool DecompressString(const unsigned char *inp, size_t inplen,
+                      unsigned char *out, size_t outlen);
+
 }  /* namespace js */
 #endif  /* __cplusplus */
 
@@ -356,19 +371,6 @@ ClearAllBitArrayElements(size_t *array, size_t length)
 #define JS_ROTATE_LEFT32(a, bits) _rotl(a, bits)
 #else
 #define JS_ROTATE_LEFT32(a, bits) (((a) << (bits)) | ((a) >> (32 - (bits))))
-#endif
-
-/* Static control-flow checks. */
-#ifdef NS_STATIC_CHECKING
-/* Trigger a control flow check to make sure that code flows through label */
-inline __attribute__ ((unused)) void MUST_FLOW_THROUGH(const char *label) {}
-
-/* Avoid unused goto-label warnings. */
-# define MUST_FLOW_LABEL(label) goto label; label:
-
-#else
-# define MUST_FLOW_THROUGH(label)            ((void) 0)
-# define MUST_FLOW_LABEL(label)
 #endif
 
 /* Crash diagnostics */

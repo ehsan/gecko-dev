@@ -62,7 +62,7 @@ public:
   // called until after the nsSVGOuterSVGFrame has had its initial reflow
   // (i.e. once the SVG viewport dimensions are known). It should also only
   // be called by nsSVGOuterSVGFrame during its reflow.
-  virtual void UpdateBounds()=0;
+  virtual void ReflowSVG()=0;
 
   /**
    * Flags used to specify to GetCanvasTM what it's being called for so that it
@@ -87,10 +87,9 @@ public:
   // COORD_CONTEXT_CHANGED - the dimensions of this frame's coordinate context has
   //                           changed (percentage lengths must be reevaluated)
   enum SVGChangedFlags {
-    DO_NOT_NOTIFY_RENDERING_OBSERVERS = 0x01,
-    TRANSFORM_CHANGED     = 0x02,
-    COORD_CONTEXT_CHANGED = 0x04,
-    FULL_ZOOM_CHANGED     = 0x08
+    TRANSFORM_CHANGED     = 0x01,
+    COORD_CONTEXT_CHANGED = 0x02,
+    FULL_ZOOM_CHANGED     = 0x04
   };
   /**
    * This is called on a frame when there has been a change to one of its

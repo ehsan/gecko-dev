@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import java.util.HashMap;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 import android.view.Gravity;
@@ -81,7 +80,7 @@ public class DoorHangerPopup extends PopupWindow {
                 int callBackId = buttonObject.getInt("callback");
                 dh.addButton(label, callBackId);
             } catch (JSONException e) {
-                Log.i(LOGTAG, "JSON throws " + e);
+                Log.i(LOGTAG, "JSON throws", e);
             }
          }
         dh.setOptions(options);

@@ -395,7 +395,7 @@ public:
   NS_IMETHOD              Destroy();
 
   NS_IMETHOD              Show(bool aState);
-  NS_IMETHOD              IsVisible(bool& outState);
+  virtual bool            IsVisible() const;
 
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
@@ -408,7 +408,7 @@ public:
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY,PRInt32 aWidth,PRInt32 aHeight, bool aRepaint);
 
   NS_IMETHOD              Enable(bool aState);
-  NS_IMETHOD              IsEnabled(bool *aState);
+  virtual bool            IsEnabled() const;
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
 

@@ -138,9 +138,9 @@ public:
   virtual nsIWidget*    GetParent();
   virtual float         GetDPI();
   NS_IMETHOD            Enable(bool aState);
-  NS_IMETHOD            IsEnabled(bool* aState);
+  virtual bool          IsEnabled() const;
   NS_IMETHOD            Show(bool aState);
-  NS_IMETHOD            IsVisible(bool& aState);
+  virtual bool          IsVisible() const;
   NS_IMETHOD            SetFocus(bool aRaise);
   NS_IMETHOD            Invalidate(const nsIntRect& aRect);
   gfxASurface*          GetThebesSurface();
@@ -271,6 +271,7 @@ protected:
   nsCOMPtr<imgIContainer> mCssCursorImg;// saved by SetCursor(imgIContainer*)
   nsRefPtr<gfxOS2Surface> mThebesSurface;
   bool          mIsComposing;
+  nsString      mLastDispatchedCompositionString;
 #ifdef DEBUG_FOCUS
   int           mWindowIdentifier;  // a serial number for each new window
 #endif

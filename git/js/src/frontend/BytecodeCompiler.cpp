@@ -21,6 +21,33 @@
 using namespace js;
 using namespace js::frontend;
 
+class AutoAttachToRuntime {
+    JSRuntime *rt;
+  public:
+    ScriptSource *ss;
+    AutoAttachToRuntime(JSRuntime *rt)
+      : rt(rt), ss(NULL) {}
+    ~AutoAttachToRuntime() {
+        // This makes the source visible to the GC. If compilation fails, and no
+        // script refers to it, it will be collected.
+        if (ss)
+            ss->attachToRuntime(rt);
+    }
+};
+
+static bool
+CheckLength(JSContext *cx, size_t length)
+{
+    // Note this limit is simply so we can store sourceStart and sourceEnd in
+    // JSScript as 32-bits. It could be lifted fairly easily, since the compiler
+    // is using size_t internally already.
+    if (length > UINT32_MAX) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SOURCE_TOO_LONG);
+        return false;
+    }
+    return true;
+}
+
 JSScript *
 frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
@@ -52,6 +79,18 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     JS_ASSERT_IF(callerFrame, compileAndGo);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
+    if (!CheckLength(cx, length))
+        return NULL;
+    AutoAttachToRuntime attacher(cx->runtime);
+    SourceCompressionToken sct(cx->runtime);
+    ScriptSource *ss = NULL;
+    if (!cx->hasRunOption(JSOPTION_ONLY_CNG_SOURCE) || compileAndGo) {
+        ss = ScriptSource::createFromSource(cx, chars, length, false, &sct);
+        if (!ss)
+            return NULL;
+        attacher.ss = ss;
+    }
+
     Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
                   /* foldConstants = */ true, compileAndGo);
     if (!parser.init())
@@ -72,7 +111,10 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
                                                   compileAndGo,
                                                   noScriptRval,
                                                   version,
-                                                  staticLevel));
+                                                  staticLevel,
+                                                  ss,
+                                                  0,
+                                                  length));
     if (!script)
         return NULL;
 
@@ -189,7 +231,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
             }
         }
         // We're not in a function context, so we don't expect any bindings.
-        JS_ASSERT(sc.bindings.lookup(cx, arguments, NULL) == NONE);
+        JS_ASSERT(!sc.bindings.hasBinding(cx, arguments));
     }
 
     /*
@@ -215,6 +257,15 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
                               Bindings *bindings, const jschar *chars, size_t length,
                               const char *filename, unsigned lineno, JSVersion version)
 {
+    if (!CheckLength(cx, length))
+        return false;
+    AutoAttachToRuntime attacher(cx->runtime);
+    SourceCompressionToken sct(cx->runtime);
+    ScriptSource *ss = ScriptSource::createFromSource(cx, chars, length, true, &sct);
+    if (!ss)
+        return NULL;
+    attacher.ss = ss;
+
     Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
                   /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
@@ -239,7 +290,10 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
                                                   /* compileAndGo = */ false,
                                                   /* noScriptRval = */ false,
                                                   version,
-                                                  staticLevel));
+                                                  staticLevel,
+                                                  ss,
+                                                  0,
+                                                  length));
     if (!script)
         return false;
 
@@ -270,12 +324,12 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
          * NB: do not use AutoLocalNameArray because it will release space
          * allocated from cx->tempLifoAlloc by DefineArg.
          */
-        BindingNames names(cx);
-        if (!funsc.bindings.getLocalNameArray(cx, &names))
+        BindingVector names(cx);
+        if (!GetOrderedBindings(cx, funsc.bindings, &names))
             return false;
 
         for (unsigned i = 0; i < nargs; i++) {
-            if (!DefineArg(fn, names[i].maybeAtom, i, &parser))
+            if (!DefineArg(fn, names[i].maybeName, i, &parser))
                 return false;
         }
     }

@@ -238,6 +238,7 @@ nsSVGGradientFrame::GetRadialGradientWithLength(PRUint32 aIndex,
 
 already_AddRefed<gfxPattern>
 nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
+                                          const gfxMatrix& aContextMatrix,
                                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                                           float aGraphicOpacity,
                                           const gfxRect *aOverrideBounds)
@@ -388,7 +389,7 @@ nsSVGGradientFrame::GetStopFrame(PRInt32 aIndex, nsIFrame * *aStopFrame)
   AutoGradientReferencer gradientRef(this);
   nsSVGGradientFrame* next = GetReferencedGradientIfNotInUse();
   if (!next)
-    return nsnull;
+    return 0;
 
   return next->GetStopFrame(aIndex, aStopFrame);
 }

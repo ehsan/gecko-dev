@@ -61,7 +61,6 @@
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "js/MemoryMetrics.h"
-#include "vm/MethodGuard.h"
 #include "vm/NumericConversions.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
@@ -87,6 +86,25 @@
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+using js::frontend::Parser;
+
+bool
+JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
+                               CallArgs args)
+{
+    const Value &thisv = args.thisv();
+    JS_ASSERT(!test(thisv));
+
+    if (thisv.isObject()) {
+        JSObject &thisObj = args.thisv().toObject();
+        if (thisObj.isProxy())
+            return Proxy::nativeCall(cx, test, impl, args);
+    }
+
+    ReportIncompatible(cx, args);
+    return false;
+}
+
 
 /*
  * This class is a version-establishing barrier at the head of a VM entry or
@@ -729,7 +747,8 @@ JSRuntime::JSRuntime()
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
-    gcVerifyData(NULL),
+    gcVerifyPreData(NULL),
+    gcVerifyPostData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
     gcLastGCTime(0),
@@ -783,6 +802,7 @@ JSRuntime::JSRuntime()
     negativeInfinityValue(UndefinedValue()),
     positiveInfinityValue(UndefinedValue()),
     emptyString(NULL),
+    sourceHook(NULL),
     debugMode(false),
     spsProfiler(thisFromCtor()),
     profilingScripts(false),
@@ -792,6 +812,9 @@ JSRuntime::JSRuntime()
     data(NULL),
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
+#ifdef JS_THREADSAFE
+    sourceCompressorThread(thisFromCtor()),
+#endif
     defaultFreeOp_(thisFromCtor(), false, false),
     debuggerMutations(0),
     securityCallbacks(const_cast<JSSecurityCallbacks *>(&NullSecurityCallbacks)),
@@ -811,6 +834,7 @@ JSRuntime::JSRuntime()
     sameCompartmentWrapObjectCallback(NULL),
     preWrapObjectCallback(NULL),
     preserveWrapperCallback(NULL),
+    scriptSources(NULL),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
@@ -876,6 +900,11 @@ JSRuntime::init(uint32_t maxbytes)
     if (!scriptFilenameTable.init())
         return false;
 
+#ifdef JS_THREADSAFE
+    if (!sourceCompressorThread.init())
+        return false;
+#endif
+
     if (!evalCache.init())
         return false;
 
@@ -900,6 +929,10 @@ JSRuntime::~JSRuntime()
      * some filenames around because of gcKeepAtoms.
      */
     FreeScriptFilenames(this);
+
+#ifdef JS_THREADSAFE
+    sourceCompressorThread.finish();
+#endif
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
@@ -1440,7 +1473,7 @@ JS_LeaveCrossCompartmentCall(JSCrossCompartmentCall *call)
 bool
 JSAutoEnterCompartment::enter(JSContext *cx, JSObject *target)
 {
-    AssertHeapIsIdle(cx);
+    AssertHeapIsIdleOrIterating(cx);
     JS_ASSERT(state == STATE_UNENTERED);
     if (cx->compartment == target->compartment()) {
         state = STATE_SAME_COMPARTMENT;
@@ -1572,6 +1605,17 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
     JS_ASSERT(origobj != target);
     JS_ASSERT(!IsCrossCompartmentWrapper(origobj));
     JS_ASSERT(!IsCrossCompartmentWrapper(target));
+
+    /*
+     * Transplantation typically allocates new wrappers in every compartment. If
+     * an incremental GC is active, this causes every compartment to be leaked
+     * for that GC. Hence, we finish any ongoing incremental GC before the
+     * transplant to avoid leaks.
+     */
+    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL) {
+        PrepareForIncrementalGC(cx->runtime);
+        FinishIncrementalGC(cx->runtime, gcreason::TRANSPLANT);
+    }
 
     JSCompartment *destination = target->compartment();
     WrapperMap &map = destination->crossCompartmentWrappers;
@@ -1838,9 +1882,7 @@ static JSStdName standard_class_names[] = {
     {js_InitXMLClass,           EAGER_ATOM(isXMLName), CLASP(XML)},
 #endif
 
-#if JS_HAS_GENERATORS
-    {js_InitIteratorClasses,    EAGER_ATOM_AND_CLASP(Iterator)},
-#endif
+    {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
 
     /* Typed Arrays */
     {js_InitTypedArrayClasses,  EAGER_CLASS_ATOM(ArrayBuffer),  &ArrayBufferClass},
@@ -3950,11 +3992,15 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
 
 JS_PUBLIC_API(JSBool)
 JS_GetPropertyDescriptorById(JSContext *cx, JSObject *obj_, jsid id_, unsigned flags,
-                             JSPropertyDescriptor *desc)
+                             JSPropertyDescriptor *desc_)
 {
     RootedId id(cx, id_);
     RootedObject obj(cx, obj_);
-    return GetPropertyDescriptorById(cx, obj, id, flags, JS_FALSE, desc);
+    AutoPropertyDescriptorRooter desc(cx);
+    if (!GetPropertyDescriptorById(cx, obj, id, flags, JS_FALSE, &desc))
+        return false;
+    *desc_ = desc;
+    return true;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3964,7 +4010,7 @@ JS_GetPropertyAttrsGetterAndSetterById(JSContext *cx, JSObject *obj_, jsid id_,
 {
     RootedObject obj(cx, obj_);
     RootedId id(cx, id_);
-    PropertyDescriptor desc;
+    AutoPropertyDescriptorRooter desc(cx);
     if (!GetPropertyDescriptorById(cx, obj, id, JSRESOLVE_QUALIFIED, JS_FALSE, &desc))
         return false;
 
@@ -4482,22 +4528,16 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj_)
+JS_PUBLIC_API(JSBool)
+JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
 {
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj_);
-
-    Rooted<JSObject*> obj(cx, obj_);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    Rooted<Value> target(cx, args.thisv());
+    JSObject *iterobj = ElementIteratorObject::create(cx, target);
+    if (!iterobj)
+        return false;
+    vp->setObject(*iterobj);
+    return true;
 }
 
 JS_PUBLIC_API(jsval)
@@ -4863,14 +4903,6 @@ JS_DefineFunctionById(JSContext *cx, JSObject *obj_, jsid id_, JSNative call,
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
     return js_DefineFunction(cx, obj, id, call, nargs, attrs);
-}
-
-extern JS_PUBLIC_API(JSBool)
-JS_CallNonGenericMethodOnProxy(JSContext *cx, unsigned argc, jsval *vp, JSNative native,
-                               JSClass *clasp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return HandleNonGenericMethodClassMismatch(cx, args, native, Valueify(clasp));
 }
 
 struct AutoLastFrameCheck {
@@ -5307,27 +5339,12 @@ JS_PUBLIC_API(JSString *)
 JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    JSPrinter *jp;
-    JSString *str;
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-#ifdef DEBUG
-    if (cx->compartment != script->compartment())
-        CompartmentChecker::fail(cx->compartment, script->compartment());
-#endif
-    jp = js_NewPrinter(cx, name, NULL,
-                       indent & ~JS_DONT_PRETTY_PRINT,
-                       !(indent & JS_DONT_PRETTY_PRINT),
-                       false, false);
-    if (!jp)
-        return NULL;
-    if (js_DecompileScript(jp, script))
-        str = js_GetPrinterOutput(jp);
-    else
-        str = NULL;
-    js_DestroyPrinter(jp);
-    return str;
+    if (script->function())
+        return JS_DecompileFunction(cx, script->function(), indent);
+    return script->sourceData(cx);
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5337,10 +5354,7 @@ JS_DecompileFunction(JSContext *cx, JSFunction *fun, unsigned indent)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, fun);
-    return js_DecompileToString(cx, "JS_DecompileFunction", fun,
-                                indent & ~JS_DONT_PRETTY_PRINT,
-                                !(indent & JS_DONT_PRETTY_PRINT),
-                                false, false, js_DecompileFunction);
+    return fun->toString(cx, false, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
 JS_PUBLIC_API(JSString *)
@@ -5350,10 +5364,7 @@ JS_DecompileFunctionBody(JSContext *cx, JSFunction *fun, unsigned indent)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, fun);
-    return js_DecompileToString(cx, "JS_DecompileFunctionBody", fun,
-                                indent & ~JS_DONT_PRETTY_PRINT,
-                                !(indent & JS_DONT_PRETTY_PRINT),
-                                false, false, js_DecompileFunctionBody);
+    return fun->toString(cx, true, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
 JS_NEVER_INLINE JS_PUBLIC_API(JSBool)
@@ -6286,12 +6297,19 @@ JS_ReportErrorNumber(JSContext *cx, JSErrorCallback errorCallback,
                      void *userRef, const unsigned errorNumber, ...)
 {
     va_list ap;
-
-    AssertHeapIsIdle(cx);
     va_start(ap, errorNumber);
+    JS_ReportErrorNumberVA(cx, errorCallback, userRef, errorNumber, ap);
+    va_end(ap);
+}
+
+JS_PUBLIC_API(void)
+JS_ReportErrorNumberVA(JSContext *cx, JSErrorCallback errorCallback,
+                       void *userRef, const unsigned errorNumber,
+                       va_list ap)
+{
+    AssertHeapIsIdle(cx);
     js_ReportErrorNumberVA(cx, JSREPORT_ERROR, errorCallback, userRef,
                            errorNumber, JS_TRUE, ap);
-    va_end(ap);
 }
 
 JS_PUBLIC_API(void)
@@ -6407,6 +6425,14 @@ JS_ObjectIsDate(JSContext *cx, JSObject *obj)
     AssertHeapIsIdle(cx);
     JS_ASSERT(obj);
     return obj->isDate();
+}
+
+JS_PUBLIC_API(void)
+JS_ClearDateCaches(JSContext *cx)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    js_ClearDateCaches();
 }
 
 /************************************************************************/
@@ -6716,21 +6742,27 @@ JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency)
                    "  1: additional GCs at common danger points\n"
                    "  2: GC every F allocations (default: 100)\n"
                    "  3: GC when the window paints (browser only)\n"
-                   "  4: Verify write barriers between instructions\n"
-                   "  5: Verify write barriers between paints\n"
+                   "  4: Verify pre write barriers between instructions\n"
+                   "  5: Verify pre write barriers between paints\n"
                    "  6: Verify stack rooting (ignoring XML and Reflect)\n"
                    "  7: Verify stack rooting (all roots)\n"
                    "  8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
                    "  9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
-                   " 10: Incremental GC in multiple slices\n");
+                   " 10: Incremental GC in multiple slices\n"
+                   " 11: Verify post write barriers between instructions\n"
+                   " 12: Verify post write barriers between paints\n");
         }
         const char *p = strchr(env, ',');
         zeal = atoi(env);
         frequency = p ? atoi(p + 1) : JS_DEFAULT_ZEAL_FREQ;
     }
 
-    if (zeal == 0 && cx->runtime->gcVerifyData)
-        VerifyBarriers(cx->runtime);
+    if (zeal == 0) {
+        if (cx->runtime->gcVerifyPreData)
+            VerifyBarriers(cx->runtime, PreBarrierVerifier);
+        if (cx->runtime->gcVerifyPostData)
+            VerifyBarriers(cx->runtime, PostBarrierVerifier);
+    }
 
     bool schedule = zeal >= js::gc::ZealAllocValue;
     cx->runtime->gcZeal_ = zeal;
@@ -6776,7 +6808,7 @@ JS_IsIdentifier(JSContext *cx, JSString *str, JSBool *isIdentifier)
     if (!linearStr)
         return false;
 
-    *isIdentifier = js::IsIdentifier(linearStr);
+    *isIdentifier = js::frontend::IsIdentifier(linearStr);
     return true;
 }
 

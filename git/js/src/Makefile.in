@@ -115,7 +115,6 @@ CPPSRCS		= \
 		ScopeObject.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
-		MethodGuard.cpp \
 		ObjectImpl.cpp \
 		Stack.cpp \
 		String.cpp \
@@ -140,6 +139,7 @@ CPPSRCS		= \
 		Marking.cpp \
 		Memory.cpp \
 		Statistics.cpp \
+		StoreBuffer.cpp \
 		StringBuffer.cpp \
 		Unicode.cpp \
 		Xdr.cpp \
@@ -192,6 +192,7 @@ EXPORTS_gc = \
 		Heap.h \
 		Root.h \
 		Statistics.h \
+		StoreBuffer.h \
 		$(NULL)
 
 ######################################################

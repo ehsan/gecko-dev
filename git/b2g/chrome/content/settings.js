@@ -53,7 +53,7 @@ SettingsListener.observe('audio.volume.master', 0.5, function(value) {
   if (!audioManager)
     return;
 
-  audioManager.masterVolume = Math.min(0, Math.max(value, 1));
+  audioManager.masterVolume = Math.max(0.0, Math.min(value, 1.0));
 });
 
 
@@ -74,14 +74,16 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
   let strPrefs = ['ril.data.apn', 'ril.data.user', 'ril.data.passwd',
                   'ril.data.mmsc', 'ril.data.mmsproxy'];
   strPrefs.forEach(function(key) {
-    SettingsListener.observe(key, false, function(value) {
+    SettingsListener.observe(key, "", function(value) {
       Services.prefs.setCharPref(key, value);
     });
   });
 
   ['ril.data.mmsport'].forEach(function(key) {
-    SettingsListener.observe(key, false, function(value) {
-      Services.prefs.setIntPref(key, value);
+    SettingsListener.observe(key, null, function(value) {
+      if (value != null) {
+        Services.prefs.setIntPref(key, value);
+      }
     });
   });
 })();

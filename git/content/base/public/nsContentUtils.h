@@ -32,7 +32,7 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsAString.h"
 #include "nsIStatefulFrame.h"
 #include "nsNodeInfoManager.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIXPCScriptable.h"
 #include "nsDataHashtable.h"
 #include "nsIDOMEvent.h"
 #include "nsTArray.h"
@@ -1631,6 +1631,11 @@ public:
   static nsresult ASCIIToUpper(nsAString& aStr);
   static nsresult ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
+  /**
+   * Return whether aStr contains an ASCII uppercase character.
+   */
+  static bool StringContainsASCIIUpper(const nsAString& aStr);
+
   // Returns NS_OK for same origin, error (NS_ERROR_DOM_BAD_URI) if not.
   static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
@@ -1865,6 +1870,7 @@ public:
   static void GetShiftText(nsAString& text);
   static void GetControlText(nsAString& text);
   static void GetMetaText(nsAString& text);
+  static void GetOSText(nsAString& text);
   static void GetAltText(nsAString& text);
   static void GetModifierSeparatorText(nsAString& text);
 
@@ -2169,6 +2175,7 @@ private:
   static nsString* sShiftText;
   static nsString* sControlText;
   static nsString* sMetaText;
+  static nsString* sOSText;
   static nsString* sAltText;
   static nsString* sModifierSeparator;
 };

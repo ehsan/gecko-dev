@@ -6,8 +6,6 @@
 package org.mozilla.gecko;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
 import java.net.URL;
@@ -42,17 +40,14 @@ import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.style.StyleSpan;
-import android.text.style.UnderlineSpan;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.SimpleCursorAdapter;
@@ -95,6 +90,7 @@ public class AboutHomeContent extends ScrollView
     protected AboutHomeSection mRemoteTabs;
 
     private View.OnClickListener mRemoteTabClickListener;
+    private OnInterceptTouchListener mOnInterceptTouchListener;
 
     public interface UriLoadCallback {
         public void callback(String uriSpec);
@@ -359,6 +355,24 @@ public class AboutHomeContent extends ScrollView
         super.onConfigurationChanged(newConfig);
     }
 
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent event) {
+        if (mOnInterceptTouchListener != null && mOnInterceptTouchListener.onInterceptTouchEvent(this, event))
+            return true;
+        return super.onInterceptTouchEvent(event);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (mOnInterceptTouchListener != null && mOnInterceptTouchListener.onTouch(this, event))
+            return true;
+        return super.onTouchEvent(event);
+    }
+
+    public void setOnInterceptTouchListener(OnInterceptTouchListener listener) {
+        mOnInterceptTouchListener = listener;
+    }
+
     private String readFromZipFile(Activity activity, String filename) {
         ZipFile zip = null;
         String str = null;
@@ -476,7 +490,7 @@ public class AboutHomeContent extends ScrollView
                             }
                         });
 
-                        Favicons favicons = GeckoApp.mAppContext.mFavicons;
+                        Favicons favicons = GeckoApp.mAppContext.getFavicons();
                         favicons.loadFavicon(pageUrl, iconUrl,
                                     new Favicons.OnFaviconLoadedListener() {
                             public void onFaviconLoaded(String url, Drawable favicon) {

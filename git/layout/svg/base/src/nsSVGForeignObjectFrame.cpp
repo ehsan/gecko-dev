@@ -67,7 +67,20 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   AddStateBits(NS_FRAME_FONT_INFLATION_CONTAINER |
                NS_FRAME_FONT_INFLATION_FLOW_ROOT);
+  if (NS_SUCCEEDED(rv) &&
+      !(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+    nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
+  }
   return rv;
+}
+
+void nsSVGForeignObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  // Only unregister if we registered in the first place:
+  if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+      nsSVGUtils::GetOuterSVGFrame(this)->UnregisterForeignObject(this);
+  }
+  nsSVGForeignObjectFrameBase::DestroyFrom(aDestructRoot);
 }
 
 nsIAtom *
@@ -84,7 +97,7 @@ nsSVGForeignObjectFrame::AttributeChanged(PRInt32  aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
       // XXXjwatt: why mark intrinsic widths dirty? can't we just use eResize?
       RequestReflow(nsIPresShell::eStyleChange);
     } else if (aAttribute == nsGkAtoms::x ||
@@ -92,7 +105,7 @@ nsSVGForeignObjectFrame::AttributeChanged(PRInt32  aNameSpaceID,
                aAttribute == nsGkAtoms::transform) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nsnull;
-      nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     } else if (aAttribute == nsGkAtoms::viewBox ||
                aAttribute == nsGkAtoms::preserveAspectRatio) {
       nsSVGUtils::InvalidateBounds(this);
@@ -114,7 +127,7 @@ nsSVGForeignObjectFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     // XXXperf: probably only need a bounds update if 'font-size' changed and
     // we have em unit width/height. Or, once we map 'transform' into style,
     // if some transform property changed.
-    nsSVGUtils::InvalidateAndScheduleBoundsUpdate(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
   }
 }
 
@@ -135,7 +148,7 @@ nsSVGForeignObjectFrame::Reflow(nsPresContext*           aPresContext,
   NS_ASSERTION(!(GetStateBits() & NS_FRAME_IS_DIRTY),
                "Reflowing while a resize is pending is wasteful");
 
-  // UpdateBounds makes sure mRect is up to date before we're called.
+  // ReflowSVG makes sure mRect is up to date before we're called.
 
   NS_ASSERTION(!aReflowState.parentReflowState,
                "should only get reflow from being reflow root");
@@ -152,6 +165,17 @@ nsSVGForeignObjectFrame::Reflow(nsPresContext*           aPresContext,
   aStatus = NS_FRAME_COMPLETE;
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSVGForeignObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                          const nsRect&           aDirtyRect,
+                                          const nsDisplayListSet& aLists)
+{
+  if (!static_cast<const nsSVGElement*>(mContent)->HasValidDimensions()) {
+    return NS_OK;
+  }
+  return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
 }
 
 void
@@ -185,6 +209,31 @@ nsSVGForeignObjectFrame::InvalidateInternal(const nsRect& aDamageRect,
   region->Or(*region, aDamageRect + nsPoint(aX, aY));
 }
 
+bool
+nsSVGForeignObjectFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
+                                         gfxMatrix *aFromParentTransform) const
+{
+  bool foundTransform = false;
+
+  // Check if our parent has children-only transforms:
+  nsIFrame *parent = GetParent();
+  if (parent &&
+      parent->IsFrameOfType(nsIFrame::eSVG | nsIFrame::eSVGContainer)) {
+    foundTransform = static_cast<nsSVGContainerFrame*>(parent)->
+                       HasChildrenOnlyTransform(aFromParentTransform);
+  }
+
+  nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
+  if (content->GetAnimatedTransformList()) {
+    if (aOwnTransform) {
+      *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
+                                  nsSVGElement::eUserSpaceToParent);
+    }
+    foundTransform = true;
+  }
+  return foundTransform;
+}
+
 
 /**
  * Returns the app unit canvas bounds of a userspace rect.
@@ -205,6 +254,11 @@ NS_IMETHODIMP
 nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
                                   const nsIntRect *aDirtyRect)
 {
+  NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
+               "If display lists are enabled, only painting of non-display "
+               "SVG should take this code path");
+
   if (IsDisabled())
     return NS_OK;
 
@@ -223,6 +277,9 @@ nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
 
   /* Check if we need to draw anything. */
   if (aDirtyRect) {
+    NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
+                 (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
+                 "Display lists handle dirty rect intersection test");
     // Transform the dirty rect into app units in our userspace.
     gfxMatrix invmatrix = canvasTM;
     invmatrix.Invert();
@@ -284,6 +341,11 @@ nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
+  NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
+               "If display lists are enabled, only hit-testing of a "
+               "clipPath's contents should take this code path");
+
   if (IsDisabled() || (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     return nsnull;
 
@@ -322,21 +384,26 @@ nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGForeignObjectFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  float x, y, w, h;
+  static_cast<nsSVGForeignObjectElement*>(mContent)->
+    GetAnimatedLengthValues(&x, &y, &w, &h, nsnull);
+  if (w < 0.0f) w = 0.0f;
+  if (h < 0.0f) h = 0.0f;
+  // GetCanvasTM includes the x,y translation
+  return ToCanvasBounds(gfxRect(0.0, 0.0, w, h), GetCanvasTM(FOR_OUTERSVG_TM),
+                        PresContext());
 }
 
 void
-nsSVGForeignObjectFrame::UpdateBounds()
+nsSVGForeignObjectFrame::ReflowSVG()
 {
-  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingUpdateBounds(this),
-               "This call is probaby a wasteful mistake");
+  NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
+               "This call is probably a wasteful mistake");
 
   NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "UpdateBounds mechanism not designed for this");
+                    "ReflowSVG mechanism not designed for this");
 
-  if (!nsSVGUtils::NeedsUpdatedBounds(this)) {
+  if (!nsSVGUtils::NeedsReflowSVG(this)) {
     return;
   }
 
@@ -354,9 +421,6 @@ nsSVGForeignObjectFrame::UpdateBounds()
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(
                            gfxRect(x, y, w, h),
                            PresContext()->AppUnitsPerCSSPixel());
-  // GetCanvasTM includes the x,y translation
-  mCoveredRegion = ToCanvasBounds(gfxRect(0.0, 0.0, w, h),
-                     GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
 
   // Since we'll invalidate our entire area at the end of this method, we
   // empty our cached dirty regions to prevent FlushDirtyRegion under DoReflow
@@ -409,10 +473,6 @@ nsSVGForeignObjectFrame::UpdateBounds()
 void
 nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
-                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
-
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
@@ -459,7 +519,7 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
     // invalidate them. We also don't need to invalidate ourself, since our
     // changed ancestor will have invalidated its entire area, which includes
     // our area.
-    nsSVGUtils::ScheduleBoundsUpdate(this);
+    nsSVGUtils::ScheduleReflowSVG(this);
   }
 
   // If we're called while the PresShell is handling reflow events then we
@@ -531,7 +591,7 @@ nsSVGForeignObjectFrame::GetCanvasTM(PRUint32 aFor)
 void nsSVGForeignObjectFrame::RequestReflow(nsIPresShell::IntrinsicDirty aType)
 {
   if (GetStateBits() & NS_FRAME_FIRST_REFLOW)
-    // If we haven't had a UpdateBounds yet, nothing to do.
+    // If we haven't had a ReflowSVG() yet, nothing to do.
     return;
 
   nsIFrame* kid = GetFirstPrincipalChild();
@@ -592,7 +652,7 @@ nsSVGForeignObjectFrame::DoReflow()
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     // Since we're a reflow root and can be reflowed independently of our
     // outer-<svg>, we can't just blindly pass 'true' here.
-    FlushDirtyRegion(0, nsSVGUtils::OuterSVGIsCallingUpdateBounds(this));
+    FlushDirtyRegion(0, nsSVGUtils::OuterSVGIsCallingReflowSVG(this));
   }
 }
 

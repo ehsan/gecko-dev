@@ -14,6 +14,7 @@
 #include "WrapperFactory.h"
 #include "dom_quickstubs.h"
 
+#include "Element.h"
 #include "nsIMemoryReporter.h"
 #include "nsPIDOMWindow.h"
 #include "nsPrintfCString.h"
@@ -67,25 +68,6 @@ const char* XPCJSRuntime::mStrings[] = {
 };
 
 /***************************************************************************/
-
-static JSDHashOperator
-WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                             uint32_t number, void *arg)
-{
-    nsTArray<nsXPCWrappedJS*>* array = static_cast<nsTArray<nsXPCWrappedJS*>*>(arg);
-    nsXPCWrappedJS* wrapper = ((JSObject2WrappedJSMap::Entry*)hdr)->value;
-    NS_ASSERTION(wrapper, "found a null JS wrapper!");
-
-    // walk the wrapper chain and find any whose JSObject is to be finalized
-    while (wrapper) {
-        if (wrapper->IsSubjectToFinalization()) {
-            if (JS_IsAboutToBeFinalized(wrapper->GetJSObjectPreserveColor()))
-                array->AppendElement(wrapper);
-        }
-        wrapper = wrapper->GetNextWrapper();
-    }
-    return JS_DHASH_NEXT;
-}
 
 struct CX_AND_XPCRT_Data
 {
@@ -651,8 +633,7 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
             // We add them to the array now and Release the array members
             // later to avoid the posibility of doing any JS GCThing
             // allocations during the gc cycle.
-            self->mWrappedJSMap->
-                Enumerate(WrappedJSDyingJSObjectFinder, dyingWrappedJSArray);
+            self->mWrappedJSMap->FindDyingJSObjects(dyingWrappedJSArray);
 
             // Find dying scopes.
             XPCWrappedNativeScope::StartFinalizationPhaseOfGC(fop, self);
@@ -945,18 +926,6 @@ DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
 #endif
 
 static JSDHashOperator
-WrappedJSShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                        uint32_t number, void *arg)
-{
-    JSRuntime* rt = (JSRuntime*) arg;
-    nsXPCWrappedJS* wrapper = ((JSObject2WrappedJSMap::Entry*)hdr)->value;
-    NS_ASSERTION(wrapper, "found a null JS wrapper!");
-    NS_ASSERTION(wrapper->IsValid(), "found an invalid JS wrapper!");
-    wrapper->SystemIsBeingShutDown(rt);
-    return JS_DHASH_NEXT;
-}
-
-static JSDHashOperator
 DetachedWrappedNativeProtoShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                          uint32_t number, void *arg)
 {
@@ -1038,7 +1007,7 @@ XPCJSRuntime::~XPCJSRuntime()
         if (count)
             printf("deleting XPCJSRuntime with %d live wrapped JSObject\n", (int)count);
 #endif
-        mWrappedJSMap->Enumerate(WrappedJSShutdownMarker, mJSRuntime);
+        mWrappedJSMap->ShutdownMarker(mJSRuntime);
         delete mWrappedJSMap;
     }
 
@@ -1575,6 +1544,10 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.scriptFilenames,
                   "Memory used for the table holding script filenames.");
 
+    RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/script-sources"),
+                  nsIMemoryReporter::KIND_HEAP, rtStats.runtime.scriptSources,
+                  "Memory use for storing JavaScript source code.");
+
     RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/compartment-objects"),
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.compartmentObjects,
                   "Memory used for JSCompartment objects.  These are fairly "
@@ -1709,7 +1682,12 @@ public:
     {
         size_t n = 0;
         nsCOMPtr<nsINode> node = do_QueryInterface(static_cast<nsISupports*>(aSupports));
-        if (node && !node->IsInDoc()) {
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=773533#c11 explains
+        // that we have to skip XBL elements because they violate certain
+        // assumptions.  Yuk.
+        if (node && !node->IsInDoc() &&
+            !(node->IsElement() && node->AsElement()->IsInNamespace(kNameSpaceID_XBL)))
+        {
             // This is an orphan node.  If we haven't already handled the
             // sub-tree that this node belongs to, measure the sub-tree's size
             // and then record its root so we don't measure it again.
@@ -1728,22 +1706,14 @@ private:
 
 class XPCJSRuntimeStats : public JS::RuntimeStats
 {
-    JSContext   *mCx;
     WindowPaths *mWindowPaths;
 
   public:
     XPCJSRuntimeStats(WindowPaths *windowPaths)
-      : JS::RuntimeStats(JsMallocSizeOf), mCx(NULL), mWindowPaths(windowPaths)
+      : JS::RuntimeStats(JsMallocSizeOf), mWindowPaths(windowPaths)
     { }
 
-    bool init(XPCJSRuntime *xpcrt) {
-        mCx = JS_NewContext(xpcrt->GetJSRuntime(), 0);
-        return !!mCx;
-    }
-    
     ~XPCJSRuntimeStats() {
-        JS_DestroyContextNoGC(mCx);
-
         for (size_t i = 0; i != compartmentStatsVector.length(); ++i) {
             free(compartmentStatsVector[i].extra1);
             free(compartmentStatsVector[i].extra2);
@@ -1757,22 +1727,32 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         GetCompartmentName(c, cName);
 
         // Get the compartment's global.
-        if (JSObject *global = JS_GetGlobalForCompartmentOrNull(mCx, c)) {
-            nsISupports *native = nsXPConnect::GetXPConnect()->GetNativeOfWrapper(mCx, global);
-            if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
-                // The global is a |window| object.  Use the path prefix that
-                // we should have already created for it.
-                if (mWindowPaths->Get(piwindow->WindowID(), &cJSPathPrefix)) {
-                    cDOMPathPrefix.Assign(cJSPathPrefix);
-                    cDOMPathPrefix.AppendLiteral("/dom/");
-                    cJSPathPrefix.AppendLiteral("/js/");
+        nsXPConnect *xpc = nsXPConnect::GetXPConnect();
+        JSContext *cx = xpc->GetSafeJSContext();
+        if (JSObject *global = JS_GetGlobalForCompartmentOrNull(cx, c)) {
+            // Need to enter the compartment, otherwise GetNativeOfWrapper()
+            // might crash.
+            JSAutoEnterCompartment aec;
+            if (aec.enter(cx, global)) {
+                nsISupports *native = xpc->GetNativeOfWrapper(cx, global);
+                if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
+                    // The global is a |window| object.  Use the path prefix that
+                    // we should have already created for it.
+                    if (mWindowPaths->Get(piwindow->WindowID(), &cJSPathPrefix)) {
+                        cDOMPathPrefix.Assign(cJSPathPrefix);
+                        cDOMPathPrefix.AppendLiteral("/dom/");
+                        cJSPathPrefix.AppendLiteral("/js/");
+                    } else {
+                        cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unknown-window-global/");
+                        cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
+                    }
                 } else {
-                    cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unknown-window-global/");
+                    cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/non-window-global/");
                     cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
                 }
             } else {
-                cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/non-window-global/");
-                cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
+                cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unentered/");
+                cDOMPathPrefix.AssignLiteral("explicit/dom/unentered/");
             }
         } else {
             cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/no-global/");
@@ -1811,9 +1791,6 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
     // stats seems like a bad idea.
 
     XPCJSRuntimeStats rtStats(windowPaths);
-    if (!rtStats.init(xpcrt))
-        return NS_ERROR_FAILURE;
-
     OrphanReporter orphanReporter;
     if (!JS::CollectRuntimeStats(xpcrt->GetJSRuntime(), &rtStats, &orphanReporter))
         return NS_ERROR_FAILURE;
@@ -2205,13 +2182,6 @@ WrappedJSClassMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
-WrappedJSMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                           uint32_t number, void *arg)
-{
-    ((JSObject2WrappedJSMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
-    return JS_DHASH_NEXT;
-}
-static JSDHashOperator
 NativeSetDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                         uint32_t number, void *arg)
 {
@@ -2264,7 +2234,7 @@ XPCJSRuntime::DebugDump(PRInt16 depth)
         // iterate wrappers...
         if (depth && mWrappedJSMap && mWrappedJSMap->Count()) {
             XPC_LOG_INDENT();
-            mWrappedJSMap->Enumerate(WrappedJSMapDumpEnumerator, &depth);
+            mWrappedJSMap->Dump(depth);
             XPC_LOG_OUTDENT();
         }
 

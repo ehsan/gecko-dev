@@ -20,12 +20,32 @@
 #ifndef jsinferinlines_h___
 #define jsinferinlines_h___
 
+namespace js {
+namespace types {
+
+/////////////////////////////////////////////////////////////////////
+// CompilerOutput & RecompileInfo
+/////////////////////////////////////////////////////////////////////
+
+inline bool
+CompilerOutput::isValid() const
+{
+#ifdef JS_METHODJIT
+    if (mjit != NULL && script->getJIT(constructing, barriers) == mjit)
+        return true;
+#endif
+    return false;
+}
+
+inline CompilerOutput*
+RecompileInfo::compilerOutput(JSContext *cx) const
+{
+    return &(*cx->compartment->types.constrainedOutputs)[outputIndex];
+}
+
 /////////////////////////////////////////////////////////////////////
 // Types
 /////////////////////////////////////////////////////////////////////
-
-namespace js {
-namespace types {
 
 /* static */ inline Type
 Type::ObjectType(JSObject *obj)
@@ -223,25 +243,50 @@ struct AutoEnterTypeInference
  */
 struct AutoEnterCompilation
 {
+    JSContext *cx;
     RecompileInfo &info;
 
-    AutoEnterCompilation(JSContext *cx, JSScript *script, bool constructing, unsigned chunkIndex)
-        : info(cx->compartment->types.compiledInfo)
+    AutoEnterCompilation(JSContext *cx)
+      : cx(cx),
+        info(cx->compartment->types.compiledInfo)
     {
-        JS_ASSERT(!info.script);
-        info.script = script;
-        info.constructing = constructing;
-        info.barriers = cx->compartment->needsBarrier();
-        info.chunkIndex = chunkIndex;
+        JS_ASSERT(info.outputIndex == RecompileInfo::NoCompilerRunning);
+    }
+
+    bool init(JSScript *script, bool constructing, unsigned chunkIndex)
+    {
+        CompilerOutput co;
+        co.script = script;
+        co.constructing = constructing;
+        co.barriers = cx->compartment->needsBarrier();
+        co.chunkIndex = chunkIndex;
+
+        TypeCompartment &types = cx->compartment->types;
+        if (!types.constrainedOutputs) {
+            types.constrainedOutputs = cx->new_< Vector<CompilerOutput> >(cx);
+            if (!types.constrainedOutputs) {
+                types.setPendingNukeTypes(cx);
+                return false;
+            }
+        }
+
+        info.outputIndex = cx->compartment->types.constrainedOutputs->length();
+        if (info.outputIndex >= RecompileInfo::NoCompilerRunning)
+            return false;
+
+        if (!cx->compartment->types.constrainedOutputs->append(co))
+            return false;
+        return true;
     }
 
     ~AutoEnterCompilation()
     {
-        JS_ASSERT(info.script);
-        info.script = NULL;
-        info.constructing = false;
-        info.barriers = false;
-        info.chunkIndex = 0;
+        CompilerOutput *co = info.compilerOutput(cx);
+#ifdef JS_METHODJIT
+        if (co->script->hasJITInfo())
+            co->mjit = co->script->getJIT(co->constructing, co->barriers);
+#endif
+        info.outputIndex = RecompileInfo::NoCompilerRunning;
     }
 };
 
@@ -442,6 +487,66 @@ UseNewTypeAtEntry(JSContext *cx, StackFrame *fp)
     return fp->isConstructing() && cx->typeInferenceEnabled() &&
            fp->prev() && fp->prev()->isScriptFrame() &&
            UseNewType(cx, fp->prev()->script(), fp->prevpc());
+}
+
+inline bool
+UseNewTypeForClone(JSFunction *fun)
+{
+    if (fun->hasSingletonType() || !fun->isInterpreted())
+        return false;
+
+    /*
+     * When a function is being used as a wrapper for another function, it
+     * improves precision greatly to distinguish between different instances of
+     * the wrapper; otherwise we will conflate much of the information about
+     * the wrapped functions.
+     *
+     * An important example is the Class.create function at the core of the
+     * Prototype.js library, which looks like:
+     *
+     * var Class = {
+     *   create: function() {
+     *     return function() {
+     *       this.initialize.apply(this, arguments);
+     *     }
+     *   }
+     * };
+     *
+     * Each instance of the innermost function will have a different wrapped
+     * initialize method. We capture this, along with similar cases, by looking
+     * for short scripts which use both .apply and arguments. For such scripts,
+     * whenever creating a new instance of the function we both give that
+     * instance a singleton type and clone the underlying script.
+     */
+
+    JSScript *script = fun->script();
+
+    if (script->length >= 50)
+        return false;
+
+    if (script->hasConsts() ||
+        script->hasObjects() ||
+        script->hasRegexps() ||
+        script->hasClosedArgs() ||
+        script->hasClosedVars())
+    {
+        return false;
+    }
+
+    bool hasArguments = false;
+    bool hasApply = false;
+
+    for (jsbytecode *pc = script->code;
+         pc != script->code + script->length;
+         pc += GetBytecodeLength(pc))
+    {
+        if (*pc == JSOP_ARGUMENTS)
+            hasArguments = true;
+        if (*pc == JSOP_FUNAPPLY)
+            hasApply = true;
+    }
+
+    return hasArguments && hasApply;
 }
 
 /////////////////////////////////////////////////////////////////////

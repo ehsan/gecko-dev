@@ -20,7 +20,6 @@
 #include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
-#include "Layers.h"
 #include "nsRegion.h"
 #include "FrameLayerBuilder.h"
 #include "nsThemeConstants.h"
@@ -222,6 +221,13 @@ public:
    */
   void SetPaintingToWindow(bool aToWindow) { mIsPaintingToWindow = aToWindow; }
   bool IsPaintingToWindow() const { return mIsPaintingToWindow; }
+
+  bool SetIsCompositingCheap(bool aCompositingCheap) { 
+    bool temp = mIsCompositingCheap; 
+    mIsCompositingCheap = aCompositingCheap;
+    return temp;
+  }
+  bool IsCompositingCheap() const { return mIsCompositingCheap; }
   /**
    * Display the caret if needed.
    */
@@ -257,10 +263,9 @@ public:
 
   /**
    * Returns true if we're currently building a display list that's
-   * directly or indirectly under an nsDisplayTransform or SVG
-   * foreignObject.
+   * directly or indirectly under an nsDisplayTransform.
    */
-  bool IsInTransform() { return mInTransform; }
+  bool IsInTransform() const { return mInTransform; }
   /**
    * Indicate whether or not we're directly or indirectly under and
    * nsDisplayTransform or SVG foreignObject.
@@ -328,11 +333,6 @@ public:
    * for intermediate frames may be empty, yet child frames could still be visible.
    */
   void MarkPreserve3DFramesForDisplayList(nsIFrame* aDirtyFrame, const nsRect& aDirtyRect);
-
-  /**
-   * Return the FrameLayerBuilder.
-   */
-  FrameLayerBuilder* LayerBuilder() { return &mLayerBuilder; }
 
   /**
    * Get the area of the final transparent region.
@@ -503,7 +503,6 @@ private:
     return &mPresShellStates[mPresShellStates.Length() - 1];
   }
 
-  FrameLayerBuilder              mLayerBuilder;
   nsIFrame*                      mReferenceFrame;
   nsIFrame*                      mIgnoreScrollFrame;
   PLArenaPool                    mPool;
@@ -536,6 +535,7 @@ private:
   bool                           mIsPaintingToWindow;
   bool                           mHasDisplayPort;
   bool                           mHasFixedItems;
+  bool                           mIsCompositingCheap;
 };
 
 class nsDisplayItem;
@@ -1016,8 +1016,10 @@ public:
   void AppendToBottom(nsDisplayList* aList) {
     if (aList->mSentinel.mAbove) {
       aList->mTop->mAbove = mSentinel.mAbove;
-      mTop = aList->mTop;
       mSentinel.mAbove = aList->mSentinel.mAbove;
+      if (mTop == &mSentinel) {
+        mTop = aList->mTop;
+      }
            
       aList->mTop = &aList->mSentinel;
       aList->mSentinel.mAbove = nsnull;
@@ -1613,6 +1615,7 @@ protected:
                                const nsRect& aRect, bool* aSnap);
 
   bool TryOptimizeToImageLayer(nsDisplayListBuilder* aBuilder);
+  bool IsSingleFixedPositionImage(nsDisplayListBuilder* aBuilder, const nsRect& aClipRect);
   void ConfigureLayer(ImageLayer* aLayer);
 
   /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
@@ -1899,7 +1902,7 @@ public:
                                    LayerManager* aManager,
                                    const ContainerParameters& aParameters)
   {
-    return mozilla::LAYER_ACTIVE;
+    return mozilla::LAYER_ACTIVE_FORCE;
   }
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem)
   {
@@ -1925,7 +1928,7 @@ public:
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,
                                              const ContainerParameters& aContainerParameters);
-  NS_DISPLAY_DECL_NAME("FixedPosition", TYPE_OWN_LAYER)
+  NS_DISPLAY_DECL_NAME("FixedPosition", TYPE_FIXED_POSITION)
 };
 
 /**
@@ -2173,12 +2176,23 @@ public:
     *aSnap = false;
     return mEffectsBounds + ToReferenceFrame();
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion);  
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("SVGEffects", TYPE_SVG_EFFECTS)
+
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager,
+                                   const ContainerParameters& aParameters);
+ 
+  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
+                                             LayerManager* aManager,
+                                             const ContainerParameters& aContainerParameters);
+
+  void PaintAsLayer(nsDisplayListBuilder* aBuilder,
+                    nsRenderingContext* aCtx,
+                    LayerManager* aManager);
 
 #ifdef MOZ_DUMP_PAINTING
   void PrintEffects(FILE* aOutput);
@@ -2230,7 +2244,7 @@ public:
   }
 #endif
 
-  NS_DISPLAY_DECL_NAME("nsDisplayTransform", TYPE_TRANSFORM);
+  NS_DISPLAY_DECL_NAME("nsDisplayTransform", TYPE_TRANSFORM)
 
   virtual nsRect GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder)
   {

@@ -19,15 +19,17 @@
 
 #include "vm/ScopeObject.h"
 
-typedef struct BindData BindData;
-
 namespace js {
+namespace frontend {
 
 class ContextFlags {
 
     // This class's data is all private and so only visible to these friends.
     friend struct SharedContext;
     friend struct FunctionBox;
+
+    // True if "use strict"; appears in the body instead of being inherited.
+    bool            hasExplicitUseStrict:1;
 
     // The (static) bindings of this script need to support dynamic name
     // read/write access. Here, 'dynamic' means dynamic dictionary lookup on
@@ -107,7 +109,8 @@ class ContextFlags {
 
   public:
     ContextFlags(JSContext *cx)
-      : bindingsAccessedDynamically(false),
+     :  hasExplicitUseStrict(false),
+        bindingsAccessedDynamically(false),
         funIsHeavyweight(false),
         funIsGenerator(false),
         funMightAliasLocals(false),
@@ -117,6 +120,12 @@ class ContextFlags {
     { }
 };
 
+/*
+ * The struct SharedContext is part of the current parser context (see
+ * TreeContext). It stores information that is reused between the parser and
+ * the bytecode emitter. Note however, that this information is not shared
+ * between the two; they simply reuse the same data structure.
+ */
 struct SharedContext {
     JSContext       *const context;
 
@@ -168,6 +177,7 @@ struct SharedContext {
     // functions below.
 #define INFUNC JS_ASSERT(inFunction())
 
+    bool hasExplicitUseStrict()        const {         return cxFlags.hasExplicitUseStrict; }
     bool bindingsAccessedDynamically() const {         return cxFlags.bindingsAccessedDynamically; }
     bool funIsHeavyweight()            const { INFUNC; return cxFlags.funIsHeavyweight; }
     bool funIsGenerator()              const { INFUNC; return cxFlags.funIsGenerator; }
@@ -176,6 +186,7 @@ struct SharedContext {
     bool funArgumentsHasLocalBinding() const { INFUNC; return cxFlags.funArgumentsHasLocalBinding; }
     bool funDefinitelyNeedsArgsObj()   const { INFUNC; return cxFlags.funDefinitelyNeedsArgsObj; }
 
+    void setExplicitUseStrict()             {         cxFlags.hasExplicitUseStrict        = true; }
     void setBindingsAccessedDynamically()   {         cxFlags.bindingsAccessedDynamically = true; }
     void setFunIsHeavyweight()              {         cxFlags.funIsHeavyweight            = true; }
     void setFunIsGenerator()                { INFUNC; cxFlags.funIsGenerator              = true; }
@@ -202,6 +213,14 @@ typedef HashSet<JSAtom *> FuncStmtSet;
 struct Parser;
 struct StmtInfoTC;
 
+/*
+ * The struct TreeContext stores information about the current parsing context,
+ * which is part of the parser state (see the field Parser::tc). The current
+ * parsing context is either the global context, or the function currently being
+ * parsed. When the parser encounters a function definition, it creates a new
+ * TreeContext, makes it the new current context, and sets its parent to the
+ * context in which it encountered the definition.
+ */
 struct TreeContext {                /* tree context for semantic checks */
 
     typedef StmtInfoTC StmtInfo;
@@ -393,8 +412,6 @@ struct StmtInfoTC : public StmtInfoBase {
 
     StmtInfoTC(JSContext *cx) : StmtInfoBase(cx), isFunctionBodyBlock(false) {}
 };
-
-namespace frontend {
 
 bool
 GenerateBlockId(TreeContext *tc, uint32_t &blockid);

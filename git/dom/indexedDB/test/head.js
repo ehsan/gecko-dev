@@ -58,6 +58,10 @@ function triggerSecondaryCommand(popup, index)
   ok(notifications.length > 0, "at least one notification displayed");
   let notification = notifications[0];
 
+  // Cancel the arrow panel slide-in transition (bug 767133) such that
+  // it won't interfere with us interacting with the dropdown.
+  document.getAnonymousNodes(popup)[0].style.transition = "none";
+
   notification.button.focus();
 
   popup.addEventListener("popupshown", function () {
@@ -123,9 +127,13 @@ function setPermission(url, permission, value)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
+  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                    .getService(Ci.nsIScriptSecurityManager)
+                    .getNoAppCodebasePrincipal(uri);
+
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .add(uri, permission, value);
+            .addFromPrincipal(principal, permission, value);
 }
 
 function removePermission(url, permission)
@@ -133,9 +141,13 @@ function removePermission(url, permission)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
+  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                    .getService(Ci.nsIScriptSecurityManager)
+                    .getNoAppCodebasePrincipal(uri);
+
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .remove(uri.asciiHost, permission);
+            .removeFromPrincipal(principal, permission);
 }
 
 function getPermission(url, permission)
@@ -143,7 +155,11 @@ function getPermission(url, permission)
   let uri = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService)
                       .newURI(url, null, null);
+  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                    .getService(Ci.nsIScriptSecurityManager)
+                    .getNoAppCodebasePrincipal(uri);
+
   return Components.classes["@mozilla.org/permissionmanager;1"]
                    .getService(Components.interfaces.nsIPermissionManager)
-                   .testPermission(uri, permission);
+                   .testPermissionFromPrincipal(principal, permission);
 }

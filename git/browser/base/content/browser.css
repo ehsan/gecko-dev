@@ -493,7 +493,7 @@ statuspanel {
   position: fixed;
   margin-top: -3em;
   left: 0;
-  max-width: -moz-calc(100% - 5px);
+  max-width: calc(100% - 5px);
   pointer-events: none;
 }
 
@@ -576,6 +576,12 @@ html|*#gcli-output-frame,
   content: attr(error-count);
   display: -moz-box;
   -moz-box-pack: center;
+}
+
+/* We don't show the Style Editor button in the developer toolbar for now.
+   See bug 771203 */
+#developer-toolbar-styleeditor {
+  display: none;
 }
 
 /* Responsive Mode */
