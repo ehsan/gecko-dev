@@ -8,7 +8,7 @@
  * for any requested string id.
  * @type {Object}
  */
-navigator.mozL10n = document.mozL10n = {
+document.webL10n = document.mozL10n = {
   get: function(stringId, vars) {
 
     // upcase the first letter

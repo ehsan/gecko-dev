@@ -60,6 +60,10 @@ namespace layers {
  * time of a layer-tree transaction.  These metrics are especially
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
+ *
+ * Note that the FrameMetrics struct is sometimes stored in shared
+ * memory and shared across processes, so it should be a "Plain Old
+ * Data (POD)" type with no members that use dynamic memory.
  */
 struct FrameMetrics {
   friend struct IPC::ParamTraits<mozilla::layers::FrameMetrics>;
@@ -97,6 +101,7 @@ public:
     , mViewport(0, 0, 0, 0)
     , mBackgroundColor(0, 0, 0, 0)
   {
+    mContentDescription[0] = '\0';
   }
 
   // Default copy ctor and operator= are fine
@@ -123,7 +128,8 @@ public:
            mScrollOffset == aOther.mScrollOffset &&
            mHasScrollgrab == aOther.mHasScrollgrab &&
            mUpdateScrollOffset == aOther.mUpdateScrollOffset &&
-           mBackgroundColor == aOther.mBackgroundColor;
+           mBackgroundColor == aOther.mBackgroundColor &&
+           !strcmp(mContentDescription, aOther.mContentDescription);
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -239,16 +245,6 @@ public:
   {
     mScrollOffset = aOther.mScrollOffset;
     mScrollGeneration = aOther.mScrollGeneration;
-  }
-
-  // Make a copy of this FrameMetrics object which does not have any pointers
-  // to heap-allocated memory (i.e. is Plain Old Data, or 'POD'), and is
-  // therefore safe to be placed into shared memory.
-  FrameMetrics MakePODObject() const
-  {
-    FrameMetrics copy = *this;
-    copy.mContentDescription.Truncate();
-    return copy;
   }
 
   // ---------------------------------------------------------------------------
@@ -488,14 +484,16 @@ public:
     mBackgroundColor = aBackgroundColor;
   }
 
-  const nsCString& GetContentDescription() const
+  nsCString GetContentDescription() const
   {
-    return mContentDescription;
+    return nsCString(mContentDescription);
   }
 
   void SetContentDescription(const nsCString& aContentDescription)
   {
-    mContentDescription = aContentDescription;
+    strncpy(mContentDescription, aContentDescription.get(),
+            sizeof(mContentDescription));
+    mContentDescription[sizeof(mContentDescription) - 1] = 0;
   }
 
 private:
@@ -571,9 +569,9 @@ private:
   gfxRGBA mBackgroundColor;
 
   // A description of the content element corresponding to this frame.
-  // This is empty unless this is a scrollable layer and the
+  // This is empty unless this is a scrollable ContainerLayer and the
   // apz.printtree pref is turned on.
-  nsCString mContentDescription;
+  char mContentDescription[20];
 };
 
 /**

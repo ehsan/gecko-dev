@@ -12,7 +12,7 @@ if not CONFIG['MOZ_JEMALLOC3']:
     SOURCES += [
         'jemalloc.c',
     ]
-    Library('mozjemalloc')
+    LIBRARY_NAME = 'mozjemalloc'
     STATIC_LIBRARY_NAME = 'jemalloc'
     FORCE_STATIC_LIB = True
 

@@ -6,7 +6,7 @@
 
 TEST_DIRS += ['tests']
 
-Library('mfbt')
+LIBRARY_NAME = 'mfbt'
 
 EXPORTS.mozilla = [
     'Alignment.h',

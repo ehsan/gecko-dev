@@ -57,10 +57,12 @@ else:
         'VolatileBufferFallback.cpp',
     ]
 
+LIBRARY_NAME = 'mozalloc'
+
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    Library('mozalloc')
+    FORCE_STATIC_LIB = True
 else:
-    SharedLibrary('mozalloc')
+    FORCE_SHARED_LIB = True
     SDK_LIBRARY = True
 
 # The strndup declaration in string.h is in an ifdef __USE_GNU section

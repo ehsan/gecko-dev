@@ -6,9 +6,9 @@
 
 if not CONFIG['LIBXUL_SDK']:
     if CONFIG['GAIADIR']:
-        Program(CONFIG['MOZ_APP_NAME'] + "-bin")
+        PROGRAM = CONFIG['MOZ_APP_NAME'] + "-bin"
     else:
-        Program(CONFIG['MOZ_APP_NAME'])
+        PROGRAM = CONFIG['MOZ_APP_NAME']
     if CONFIG['MOZ_B2G_LOADER']:
         SOURCES += [
             'B2GLoader.cpp',

@@ -24,7 +24,7 @@ SOURCES += [
     'pkixtestutil.cpp',
 ]
 
-Library('pkixtestutil')
+LIBRARY_NAME = 'pkixtestutil'
 
 LOCAL_INCLUDES += [
     '../../include',

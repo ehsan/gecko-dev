@@ -6,10 +6,14 @@
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
 
-SimplePrograms([
-    'NormalizationTest',
-    'UnicharSelfTest',
-])
+SOURCES += [
+    'NormalizationTest.cpp',
+    'UnicharSelfTest.cpp',
+]
+
+SIMPLE_PROGRAMS += [
+    "%s" % (fyl[0:-4]) for fyl in SOURCES
+]
 
 USE_STATIC_LIBS = True
 
