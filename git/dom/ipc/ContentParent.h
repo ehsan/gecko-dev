@@ -91,7 +91,6 @@ public:
 
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
-    TestShellParent* GetTestShellSingleton();
 
     void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
@@ -99,10 +98,6 @@ public:
     bool IsAlive();
 
     void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
-
-    GeckoChildProcessHost* Process() {
-        return mSubprocess;
-    }
 
     bool NeedsPermissionsUpdate() {
         return mSendPermissionUpdates;
@@ -128,15 +123,8 @@ private:
     virtual PBrowserParent* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserParent* frame);
 
-    virtual PCrashReporterParent* AllocPCrashReporter(const NativeThreadId& tid,
-                                                      const PRUint32& processType);
+    virtual PCrashReporterParent* AllocPCrashReporter();
     virtual bool DeallocPCrashReporter(PCrashReporterParent* crashreporter);
-    virtual bool RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                               const NativeThreadId& tid,
-                                               const PRUint32& processType);
-
-    NS_OVERRIDE virtual PHalParent* AllocPHal();
-    NS_OVERRIDE virtual bool DeallocPHal(PHalParent*);
 
     virtual PMemoryReportRequestParent* AllocPMemoryReportRequest();
     virtual bool DeallocPMemoryReportRequest(PMemoryReportRequestParent* actor);
@@ -242,12 +230,11 @@ private:
 
     bool mIsAlive;
     nsCOMPtr<nsIPrefServiceInternal> mPrefService;
+    time_t mProcessStartTime;
 
     bool mSendPermissionUpdates;
 
     nsRefPtr<nsFrameMessageManager> mMessageManager;
-
-    friend class CrashReporterParent;
 };
 
 } // namespace dom

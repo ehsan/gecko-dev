@@ -45,11 +45,10 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsopcode.h"
+#include "jsregexp.h"
 #include "jsscript.h"
 #include "jsscope.h"
-
 #include "vm/GlobalObject.h"
-#include "vm/RegExpObject.h"
 
 #include "jsscopeinlines.h"
 
@@ -220,13 +219,6 @@ JSScript::clearNesting()
         js::Foreground::delete_(nesting);
         types->nesting = NULL;
     }
-}
-
-inline JSScript *
-JSObject::getScript() const
-{
-    JS_ASSERT(isScript());
-    return static_cast<JSScript *>(getPrivate());
 }
 
 #endif /* jsscriptinlines_h___ */

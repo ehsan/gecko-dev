@@ -44,7 +44,7 @@
 
 #include <stdlib.h>
 
-#include "EndianMacros.h"
+#include "Endian.h"
 #include "nsBMPDecoder.h"
 
 #include "nsIInputStream.h"

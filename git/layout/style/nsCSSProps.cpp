@@ -584,14 +584,12 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
 
 const PRInt32 nsCSSProps::kBackfaceVisibilityKTable[] = {
   eCSSKeyword_visible, NS_STYLE_BACKFACE_VISIBILITY_VISIBLE,
-  eCSSKeyword_hidden, NS_STYLE_BACKFACE_VISIBILITY_HIDDEN,
-  eCSSKeyword_UNKNOWN,-1
+  eCSSKeyword_hidden, NS_STYLE_BACKFACE_VISIBILITY_HIDDEN
 };
 
 const PRInt32 nsCSSProps::kTransformStyleKTable[] = {
   eCSSKeyword_flat, NS_STYLE_TRANSFORM_STYLE_FLAT,
-  eCSSKeyword_preserve_3d, NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D,
-  eCSSKeyword_UNKNOWN,-1
+  eCSSKeyword_preserve_3d, NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D
 };
 
 const PRInt32 nsCSSProps::kBackgroundAttachmentKTable[] = {

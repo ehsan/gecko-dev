@@ -206,13 +206,13 @@ public:
 
   bool IsASCIICapable()
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetBoolProperty(kTISPropertyInputSourceIsASCIICapable);
   }
 
   bool IsEnabled()
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetBoolProperty(kTISPropertyInputSourceIsEnabled);
   }
 
@@ -222,49 +222,49 @@ public:
 
   bool GetLocalizedName(CFStringRef &aName)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyLocalizedName, aName);
   }
 
   bool GetLocalizedName(nsAString &aName)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyLocalizedName, aName);
   }
 
   bool GetInputSourceID(CFStringRef &aID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceID, aID);
   }
 
   bool GetInputSourceID(nsAString &aID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceID, aID);
   }
 
   bool GetBundleID(CFStringRef &aBundleID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyBundleID, aBundleID);
   }
 
   bool GetBundleID(nsAString &aBundleID)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyBundleID, aBundleID);
   }
 
   bool GetInputSourceType(CFStringRef &aType)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceType, aType);
   }
 
   bool GetInputSourceType(nsAString &aType)
   {
-    NS_ENSURE_TRUE(mInputSource, false);
+    NS_ENSURE_TRUE(mInputSource, PR_FALSE);
     return GetStringProperty(kTISPropertyInputSourceType, aType);
   }
 
@@ -484,11 +484,6 @@ protected:
     // Whether the key event causes other key events via IME or something.
     bool mCausedOtherKeyEvents;
 
-    KeyEventState() : mKeyEvent(nsnull)
-    {
-      Clear();
-    }    
-
     KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nsnull)
     {
       Clear();
@@ -498,9 +493,7 @@ protected:
     KeyEventState(const KeyEventState &aOther) : mKeyEvent(nsnull)
     {
       Clear();
-      if (aOther.mKeyEvent) {
-        mKeyEvent = [aOther.mKeyEvent retain];
-      }
+      mKeyEvent = [aOther.mKeyEvent retain];
       mKeyDownHandled = aOther.mKeyDownHandled;
       mKeyPressDispatched = aOther.mKeyPressDispatched;
       mKeyPressHandled = aOther.mKeyPressHandled;
@@ -525,16 +518,21 @@ protected:
         [mKeyEvent release];
         mKeyEvent = nsnull;
       }
-      mKeyDownHandled = false;
-      mKeyPressDispatched = false;
-      mKeyPressHandled = false;
-      mCausedOtherKeyEvents = false;
+      mKeyDownHandled = PR_FALSE;
+      mKeyPressDispatched = PR_FALSE;
+      mKeyPressHandled = PR_FALSE;
+      mCausedOtherKeyEvents = PR_FALSE;
     }
 
     bool KeyDownOrPressHandled()
     {
       return mKeyDownHandled || mKeyPressHandled;
     }
+
+  protected:
+    KeyEventState()
+    {
+    }    
   };
 
   /**
@@ -550,7 +548,9 @@ protected:
 
     ~AutoKeyEventStateCleaner()
     {
-      mHandler->RemoveCurrentKeyEvent();
+      NS_ASSERTION(mHandler->mCurrentKeyEvents.Length() > 0,
+                   "The key event was removed by manually?");
+      mHandler->mCurrentKeyEvents.RemoveElementAt(0);
     }
   private:
     nsRefPtr<TextInputHandlerBase> mHandler;
@@ -561,16 +561,10 @@ protected:
    * When we call interpretKeyEvents, IME may generate other key events.
    * mCurrentKeyEvents[0] is the latest key event.
    */
-  nsTArray<KeyEventState*> mCurrentKeyEvents;
+  nsTArray<KeyEventState> mCurrentKeyEvents;
 
   /**
-   * mFirstKeyEvent must be used for first key event.  This member prevents
-   * memory fragmentation for most key events.
-   */
-  KeyEventState mFirstKeyEvent;
-
-  /**
-   * PushKeyEvent() adds the current key event to mCurrentKeyEvents.
+   *
    */
   KeyEventState* PushKeyEvent(NSEvent* aNativeKeyEvent)
   {
@@ -578,34 +572,10 @@ protected:
     for (PRUint32 i = 0; i < nestCount; i++) {
       // When the key event is caused by another key event, all key events
       // which are being handled should be marked as "consumed".
-      mCurrentKeyEvents[i]->mCausedOtherKeyEvents = true;
+      mCurrentKeyEvents[i].mCausedOtherKeyEvents = PR_TRUE;
     }
-
-    KeyEventState* keyEvent = nsnull;
-    if (nestCount == 0) {
-      mFirstKeyEvent.Set(aNativeKeyEvent);
-      keyEvent = &mFirstKeyEvent;
-    } else {
-      keyEvent = new KeyEventState(aNativeKeyEvent);
-    }
-    return *mCurrentKeyEvents.AppendElement(keyEvent);
-  }
-
-  /**
-   * RemoveCurrentKeyEvent() removes the current key event from
-   * mCurrentKeyEvents.
-   */
-  void RemoveCurrentKeyEvent()
-  {
-    NS_ASSERTION(mCurrentKeyEvents.Length() > 0,
-                 "RemoveCurrentKeyEvent() is called unexpectedly");
-    KeyEventState* keyEvent = GetCurrentKeyEvent();
-    mCurrentKeyEvents.RemoveElementAt(mCurrentKeyEvents.Length() - 1);
-    if (keyEvent == &mFirstKeyEvent) {
-      keyEvent->Clear();
-    } else {
-      delete keyEvent;
-    }
+    KeyEventState keyEventState(aNativeKeyEvent);
+    return mCurrentKeyEvents.InsertElementAt(0, keyEventState);
   }
 
   /**
@@ -616,7 +586,7 @@ protected:
     if (mCurrentKeyEvents.Length() == 0) {
       return nsnull;
     }
-    return mCurrentKeyEvents[mCurrentKeyEvents.Length() - 1];
+    return &mCurrentKeyEvents[0];
   }
 
   /**
@@ -666,7 +636,7 @@ private:
     bool mOverrideEnabled;
 
     KeyboardLayoutOverride() :
-      mKeyboardLayout(0), mOverrideEnabled(false)
+      mKeyboardLayout(0), mOverrideEnabled(PR_FALSE)
     {
     }
   };
@@ -689,7 +659,7 @@ public:
    */
   nsresult StartComplexTextInputForCurrentEvent()
   {
-    mPluginComplexTextInputRequested = true;
+    mPluginComplexTextInputRequested = PR_TRUE;
     return NS_OK;
   }
 

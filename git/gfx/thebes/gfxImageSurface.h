@@ -122,8 +122,6 @@ protected:
 
     static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
-    void MakeInvalid();
-
     gfxIntSize mSize;
     bool mOwnsData;
     unsigned char *mData;

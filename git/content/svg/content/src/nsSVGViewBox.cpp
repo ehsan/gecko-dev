@@ -127,12 +127,12 @@ nsSVGViewBox::SetAnimValue(float aX, float aY, float aWidth, float aHeight,
 
 void
 nsSVGViewBox::SetBaseValue(float aX, float aY, float aWidth, float aHeight,
-                           nsSVGElement *aSVGElement)
+                           nsSVGElement *aSVGElement, bool aDoSetAttr)
 {
   mBaseVal = nsSVGViewBoxRect(aX, aY, aWidth, aHeight);
   mHasBaseVal = PR_TRUE;
 
-  aSVGElement->DidChangeViewBox(true);
+  aSVGElement->DidChangeViewBox(aDoSetAttr);
 #ifdef MOZ_SMIL
   if (mAnimVal) {
     aSVGElement->AnimationNeedsResample();
@@ -178,22 +178,13 @@ ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
 
 nsresult
 nsSVGViewBox::SetBaseValueString(const nsAString& aValue,
-                                 nsSVGElement *aSVGElement)
+                                 nsSVGElement *aSVGElement,
+                                 bool aDoSetAttr)
 {
   nsSVGViewBoxRect viewBox;
   nsresult res = ToSVGViewBoxRect(aValue, &viewBox);
   if (NS_SUCCEEDED(res)) {
-    mBaseVal = nsSVGViewBoxRect(viewBox.x, viewBox.y, viewBox.width, viewBox.height);
-    mHasBaseVal = PR_TRUE;
-
-#ifdef MOZ_SMIL
-    if (mAnimVal) {
-      aSVGElement->AnimationNeedsResample();
-    }
-#endif
-    // We don't need to call DidChange* here - we're only called by
-    // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
-    // which takes care of notifying.
+    SetBaseValue(viewBox.x, viewBox.y, viewBox.width, viewBox.height, aSVGElement, aDoSetAttr);
   }
   return res;
 }
@@ -246,7 +237,7 @@ nsSVGViewBox::DOMBaseVal::SetX(float aX)
   nsSVGViewBoxRect rect = mVal->GetBaseValue();
   rect.x = aX;
   mVal->SetBaseValue(rect.x, rect.y, rect.width, rect.height,
-                     mSVGElement);
+                     mSVGElement, PR_TRUE);
   return NS_OK;
 }
 
@@ -256,7 +247,7 @@ nsSVGViewBox::DOMBaseVal::SetY(float aY)
   nsSVGViewBoxRect rect = mVal->GetBaseValue();
   rect.y = aY;
   mVal->SetBaseValue(rect.x, rect.y, rect.width, rect.height,
-                     mSVGElement);
+                     mSVGElement, PR_TRUE);
   return NS_OK;
 }
 
@@ -266,7 +257,7 @@ nsSVGViewBox::DOMBaseVal::SetWidth(float aWidth)
   nsSVGViewBoxRect rect = mVal->GetBaseValue();
   rect.width = aWidth;
   mVal->SetBaseValue(rect.x, rect.y, rect.width, rect.height,
-                     mSVGElement);
+                     mSVGElement, PR_TRUE);
   return NS_OK;
 }
 
@@ -276,7 +267,7 @@ nsSVGViewBox::DOMBaseVal::SetHeight(float aHeight)
   nsSVGViewBoxRect rect = mVal->GetBaseValue();
   rect.height = aHeight;
   mVal->SetBaseValue(rect.x, rect.y, rect.width, rect.height,
-                     mSVGElement);
+                     mSVGElement, PR_TRUE);
   return NS_OK;
 }
 

@@ -48,7 +48,16 @@
 #include "jspubtd.h"
 #include "jsversion.h"
 
-#include "vm/Stack.h"
+/*
+ * NB: these flag bits are encoded into the bytecode stream in the immediate
+ * operand of JSOP_ITER, so don't change them without advancing jsxdrapi.h's
+ * JSXDR_BYTECODE_VERSION.
+ */
+#define JSITER_ENUMERATE  0x1   /* for-in compatible hidden default iterator */
+#define JSITER_FOREACH    0x2   /* return [key, value] pair rather than key */
+#define JSITER_KEYVALUE   0x4   /* destructuring for-in wants [key, value] */
+#define JSITER_OWNONLY    0x8   /* iterate over obj's own properties only */
+#define JSITER_HIDDEN     0x10  /* also enumerate non-enumerable properties */
 
 /*
  * For cacheable native iterators, whether the iterator is currently active.
@@ -103,6 +112,9 @@ struct NativeIterator {
 bool
 VectorToIdArray(JSContext *cx, js::AutoIdVector &props, JSIdArray **idap);
 
+JS_FRIEND_API(bool)
+GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *props);
+
 bool
 GetIterator(JSContext *cx, JSObject *obj, uintN flags, js::Value *vp);
 
@@ -140,7 +152,7 @@ bool
 js_SuppressDeletedElement(JSContext *cx, JSObject *obj, uint32 index);
 
 bool
-js_SuppressDeletedElements(JSContext *cx, JSObject *obj, uint32 begin, uint32 end);
+js_SuppressDeletedIndexProperties(JSContext *cx, JSObject *obj, jsint begin, jsint end);
 
 /*
  * IteratorMore() indicates whether another value is available. It might

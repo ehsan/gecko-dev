@@ -64,6 +64,7 @@ XPIDL_MODULE = browsercomps
 XPIDLSRCS = nsIShellService.idl
 
 CPPSRCS = \
+	nsSSLCertErrorDialog.cpp \
 	nsBrowserModule.cpp \
 	nsShellService.cpp \
 	$(NULL)

@@ -46,12 +46,16 @@
 #include <string.h>
 
 #include "jsprvtd.h"
-#include "jsatom.h"
 #include "jsclist.h"
+#include "jsatom.h"
 #include "jsdhash.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsgcchunk.h"
 #include "jshashtable.h"
+#include "jsinfer.h"
+#include "jsinterp.h"
+#include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
 #include "jsstaticcheck.h"
@@ -60,7 +64,8 @@
 #include "prmjtime.h"
 
 #include "ds/LifoAlloc.h"
-#include "vm/StackSpace.h"
+#include "vm/Stack.h"
+#include "vm/String.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -85,12 +90,6 @@ JS_BEGIN_EXTERN_C
 struct DtoaState;
 JS_END_EXTERN_C
 
-struct JSSharpObjectMap {
-    jsrefcount  depth;
-    uint32      sharpgen;
-    JSHashTable *table;
-};
-
 namespace js {
 
 /* Tracer constants. */
@@ -110,7 +109,6 @@ template<typename T> class Queue;
 typedef Queue<uint16> SlotList;
 class TypeMap;
 class LoopProfile;
-class InterpreterFrames;
 
 #if defined(JS_JIT_SPEW) || defined(DEBUG)
 struct FragPI;
@@ -411,7 +409,14 @@ struct JSRuntime {
      */
     js::gc::Chunk       *gcSystemAvailableChunkListHead;
     js::gc::Chunk       *gcUserAvailableChunkListHead;
-    js::gc::ChunkPool   gcChunkPool;
+
+    /*
+     * Singly-linked list of empty chunks and its length. We use the list not
+     * to release empty chunks immediately so they can be used for future
+     * allocations. This avoids very high overhead of chunk release/allocation.
+     */
+    js::gc::Chunk       *gcEmptyChunkListHead;
+    size_t              gcEmptyChunkCount;
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
@@ -514,15 +519,11 @@ struct JSRuntime {
 
   public:
     /*
-     * The trace operations to trace embedding-specific GC roots. One is for
-     * tracing through black roots and the other is for tracing through gray
-     * roots. The black/gray distinction is only relevant to the cycle
-     * collector.
+     * The trace operation and its data argument to trace embedding-specific
+     * GC roots.
      */
-    JSTraceDataOp       gcBlackRootsTraceOp;
-    void                *gcBlackRootsData;
-    JSTraceDataOp       gcGrayRootsTraceOp;
-    void                *gcGrayRootsData;
+    JSTraceDataOp       gcExtraRootsTraceOp;
+    void                *gcExtraRootsData;
 
     /* Well-known numbers held for use by this runtime's contexts. */
     js::Value           NaNValue;
@@ -680,6 +681,7 @@ struct JSRuntime {
             firstEnterValid(false)
 #ifdef JSGC_TESTPILOT
             , infoEnabled(false),
+            info(),
             start(0),
             count(0)
 #endif
@@ -1006,11 +1008,11 @@ struct JSContext
     js::ContextStack    stack;
 
     /* ContextStack convenience functions */
-    inline bool hasfp() const;
-    inline js::StackFrame* fp() const;
-    inline js::StackFrame* maybefp() const;
-    inline js::FrameRegs& regs() const;
-    inline js::FrameRegs* maybeRegs() const;
+    bool hasfp() const                { return stack.hasfp(); }
+    js::StackFrame* fp() const        { return stack.fp(); }
+    js::StackFrame* maybefp() const   { return stack.maybefp(); }
+    js::FrameRegs& regs() const       { return stack.regs(); }
+    js::FrameRegs* maybeRegs() const  { return stack.maybeRegs(); }
 
     /* Set cx->compartment based on the current scope chain. */
     void resetCompartment();
@@ -1060,10 +1062,16 @@ struct JSContext
      * The default script compilation version can be set iff there is no code running.
      * This typically occurs via the JSAPI right after a context is constructed.
      */
-    inline bool canSetDefaultVersion() const;
+    bool canSetDefaultVersion() const {
+        return !stack.hasfp() && !hasVersionOverride;
+    }
 
     /* Force a version for future script compilation. */
-    inline void overrideVersion(JSVersion newVersion);
+    void overrideVersion(JSVersion newVersion) {
+        JS_ASSERT(!canSetDefaultVersion());
+        versionOverride = newVersion;
+        hasVersionOverride = true;
+    }
 
     /* Set the default script compilation version. */
     void setDefaultVersion(JSVersion version) {
@@ -1083,7 +1091,14 @@ struct JSContext
      * Set the default version if possible; otherwise, force the version.
      * Return whether an override occurred.
      */
-    inline bool maybeOverrideVersion(JSVersion newVersion);
+    bool maybeOverrideVersion(JSVersion newVersion) {
+        if (canSetDefaultVersion()) {
+            setDefaultVersion(newVersion);
+            return false;
+        }
+        overrideVersion(newVersion);
+        return true;
+    }
 
     /*
      * If there is no code on the stack, turn the override version into the
@@ -1105,7 +1120,21 @@ struct JSContext
      *
      * Note: if this ever shows up in a profile, just add caching!
      */
-    inline JSVersion findVersion() const;
+    JSVersion findVersion() const {
+        if (hasVersionOverride)
+            return versionOverride;
+
+        if (stack.hasfp()) {
+            /* There may be a scripted function somewhere on the stack! */
+            js::StackFrame *f = fp();
+            while (f && !f->isScriptFrame())
+                f = f->prev();
+            if (f)
+                return f->script()->getVersion();
+        }
+
+        return defaultVersion;
+    }
 
     void setRunOptions(uintN ropts) {
         JS_ASSERT((ropts & JSRUNOPTION_MASK) == ropts);
@@ -1113,11 +1142,18 @@ struct JSContext
     }
 
     /* Note: may override the version. */
-    inline void setCompileOptions(uintN newcopts);
+    void setCompileOptions(uintN newcopts) {
+        JS_ASSERT((newcopts & JSCOMPILEOPTION_MASK) == newcopts);
+        if (JS_LIKELY(getCompileOptions() == newcopts))
+            return;
+        JSVersion version = findVersion();
+        JSVersion newVersion = js::OptionFlagsToVersion(newcopts, version);
+        maybeOverrideVersion(newVersion);
+    }
 
     uintN getRunOptions() const { return runOptions; }
-    inline uintN getCompileOptions() const;
-    inline uintN allOptions() const;
+    uintN getCompileOptions() const { return js::VersionFlagsToOptions(findVersion()); }
+    uintN allOptions() const { return getRunOptions() | getCompileOptions(); }
 
     bool hasRunOption(uintN ropt) const {
         JS_ASSERT((ropt & JSRUNOPTION_MASK) == ropt);
@@ -1272,8 +1308,14 @@ struct JSContext
 
     void purge();
 
-    /* For DEBUG. */
-    inline void assertValidStackDepth(uintN depth);
+#ifdef DEBUG
+    void assertValidStackDepth(uintN depth) {
+        JS_ASSERT(0 <= regs().sp - fp()->base());
+        JS_ASSERT(depth <= uintptr_t(regs().sp - fp()->base()));
+    }
+#else
+    void assertValidStackDepth(uintN /*depth*/) {}
+#endif
 
     bool isExceptionPending() {
         return throwing;
@@ -1362,6 +1404,14 @@ class AutoCheckRequestDepth {
 # define CHECK_REQUEST(cx)          ((void) 0)
 # define CHECK_REQUEST_THREAD(cx)   ((void) 0)
 #endif
+
+static inline JSAtom **
+FrameAtomBase(JSContext *cx, js::StackFrame *fp)
+{
+    return fp->hasImacropc()
+           ? cx->runtime->atomState.commonAtomsStart()
+           : fp->script()->atoms;
+}
 
 struct AutoResolving {
   public:
@@ -1689,7 +1739,13 @@ class AutoEnumStateRooter : private AutoGCRooter
         JS_ASSERT(obj);
     }
 
-    ~AutoEnumStateRooter();
+    ~AutoEnumStateRooter() {
+        if (!stateValue.isNull()) {
+            DebugOnly<JSBool> ok =
+                obj->enumerate(context, JSENUMERATE_DESTROY, &stateValue, 0);
+            JS_ASSERT(ok);
+        }
+    }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
@@ -1876,6 +1932,96 @@ class AutoReleaseNullablePtr {
         ptr = ptr2;
     }
     ~AutoReleaseNullablePtr() { if (ptr) cx->free_(ptr); }
+};
+
+template <class RefCountable>
+class AlreadyIncRefed
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    RefCountable *obj;
+
+  public:
+    explicit AlreadyIncRefed(RefCountable *obj) : obj(obj) {}
+
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
+};
+
+template <class RefCountable>
+class NeedsIncRef
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    RefCountable *obj;
+
+  public:
+    explicit NeedsIncRef(RefCountable *obj) : obj(obj) {}
+
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
+};
+
+template <class RefCountable>
+class AutoRefCount
+{
+    typedef RefCountable *****ConvertibleToBool;
+
+    JSContext *const cx;
+    RefCountable *obj;
+
+    AutoRefCount(const AutoRefCount &);
+    void operator=(const AutoRefCount &);
+
+  public:
+    explicit AutoRefCount(JSContext *cx)
+      : cx(cx), obj(NULL)
+    {}
+
+    AutoRefCount(JSContext *cx, NeedsIncRef<RefCountable> aobj)
+      : cx(cx), obj(aobj.get())
+    {
+        if (obj)
+            obj->incref(cx);
+    }
+
+    AutoRefCount(JSContext *cx, AlreadyIncRefed<RefCountable> aobj)
+      : cx(cx), obj(aobj.get())
+    {}
+
+    ~AutoRefCount() {
+        if (obj)
+            obj->decref(cx);
+    }
+
+    void reset(NeedsIncRef<RefCountable> aobj) {
+        if (obj)
+            obj->decref(cx);
+        obj = aobj.get();
+        if (obj)
+            obj->incref(cx);
+    }
+
+    void reset(AlreadyIncRefed<RefCountable> aobj) {
+        if (obj)
+            obj->decref(cx);
+        obj = aobj.get();
+    }
+
+    bool null() const { return obj == NULL; }
+    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
+
+    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
+    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
+    RefCountable *get() const { return obj; }
 };
 
 } /* namespace js */
@@ -2181,6 +2327,25 @@ enum FrameExpandKind {
     FRAME_EXPAND_ALL = 1
 };
 
+/*
+ * Get the current frame, first lazily instantiating stack frames if needed.
+ * (Do not access cx->fp() directly except in JS_REQUIRES_STACK code.)
+ *
+ * LeaveTrace is defined in jstracer.cpp if JS_TRACER is defined.
+ */
+static JS_FORCES_STACK JS_INLINE js::StackFrame *
+js_GetTopStackFrame(JSContext *cx, FrameExpandKind expand)
+{
+    js::LeaveTrace(cx);
+
+#ifdef JS_METHODJIT
+    if (expand)
+        js::mjit::ExpandInlineFrames(cx->compartment);
+#endif
+
+    return cx->maybefp();
+}
+
 static JS_INLINE JSBool
 js_IsPropertyCacheDisabled(JSContext *cx)
 {
@@ -2205,83 +2370,6 @@ js_RegenerateShapeForGC(JSRuntime *rt)
 }
 
 namespace js {
-
-/************************************************************************/
-
-static JS_ALWAYS_INLINE void
-ClearValueRange(Value *vec, uintN len, bool useHoles)
-{
-    if (useHoles) {
-        for (uintN i = 0; i < len; i++)
-            vec[i].setMagic(JS_ARRAY_HOLE);
-    } else {
-        for (uintN i = 0; i < len; i++)
-            vec[i].setUndefined();
-    }
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Value *vec, size_t len)
-{
-    PodZero(vec, len);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Value *beg, Value *end)
-{
-    PodZero(beg, end - beg);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(jsid *beg, jsid *end)
-{
-    for (jsid *id = beg; id != end; ++id)
-        *id = INT_TO_JSID(0);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(jsid *vec, size_t len)
-{
-    MakeRangeGCSafe(vec, vec + len);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(const Shape **beg, const Shape **end)
-{
-    PodZero(beg, end - beg);
-}
-
-static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(const Shape **vec, size_t len)
-{
-    PodZero(vec, len);
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToUndefined(Value *beg, Value *end)
-{
-    for (Value *v = beg; v != end; ++v)
-        v->setUndefined();
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToUndefined(Value *vec, size_t len)
-{
-    SetValueRangeToUndefined(vec, vec + len);
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToNull(Value *beg, Value *end)
-{
-    for (Value *v = beg; v != end; ++v)
-        v->setNull();
-}
-
-static JS_ALWAYS_INLINE void
-SetValueRangeToNull(Value *vec, size_t len)
-{
-    SetValueRangeToNull(vec, vec + len);
-}
 
 template<class T>
 class AutoVectorRooter : protected AutoGCRooter

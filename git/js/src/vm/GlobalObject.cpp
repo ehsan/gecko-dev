@@ -47,9 +47,7 @@
 #include "json.h"
 
 #include "jsobjinlines.h"
-
-#include "builtin/RegExp.h"
-#include "vm/RegExpObject-inl.h"
+#include "jsregexpinlines.h"
 
 using namespace js;
 
@@ -143,9 +141,10 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         script->noScriptRval = true;
         script->code[0] = JSOP_STOP;
         script->code[1] = SRC_NULL;
-        functionProto->setScript(script);
+        functionProto->u.i.script = script;
         functionProto->getType(cx)->interpretedFunction = functionProto;
         script->hasFunction = true;
+        script->setOwnerObject(functionProto);
     }
 
     /* Create the Object function now that we have a [[Prototype]] for it. */
@@ -264,7 +263,7 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     globalObj->syncSpecialEquality();
 
     /* Construct a regexp statics object for this global object. */
-    JSObject *res = RegExpStatics::create(cx, globalObj);
+    JSObject *res = regexp_statics_construct(cx, globalObj);
     if (!res)
         return NULL;
     globalObj->setSlot(REGEXP_STATICS, ObjectValue(*res));
@@ -321,7 +320,7 @@ GlobalObject::clear(JSContext *cx)
         setSlot(key, UndefinedValue());
 
     /* Clear regexp statics. */
-    getRegExpStatics()->clear();
+    RegExpStatics::extractFrom(this)->clear();
 
     /* Clear the runtime-codegen-enabled cache. */
     setSlot(RUNTIME_CODEGEN_ENABLED, UndefinedValue());

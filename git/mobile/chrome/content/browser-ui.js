@@ -63,7 +63,6 @@ let Elements = {};
 [
   ["contentShowing",     "bcast_contentShowing"],
   ["urlbarState",        "bcast_urlbarState"],
-  ["mainKeyset",         "mainKeyset"],
   ["stack",              "stack"],
   ["tabList",            "tabs"],
   ["tabs",               "tabs-container"],
@@ -946,10 +945,6 @@ var BrowserUI = {
         break;
       // Window events
       case "keypress":
-        // Ignore events re-dispatched from content; we already
-        // handled them when they were originally fired.
-        if (aEvent.target == Elements.mainKeyset)
-          break;
         if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
           this.handleEscape(aEvent);
         break;
@@ -1251,10 +1246,7 @@ var BrowserUI = {
         AppMenu.toggle();
         break;
       case "cmd_showTabs":
-        if (Util.isPortrait())
-          TabsPopup.toggle();
-        else
-          TabletSidebar.toggle();
+        TabsPopup.toggle();
         break;
       case "cmd_newTab":
         this.newTab();

@@ -38,6 +38,7 @@
 
 DOMCI_CLASS(Window)
 DOMCI_CLASS(Location)
+DOMCI_CLASS(CaretPosition)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
 DOMCI_CLASS(PluginArray)
@@ -218,6 +219,9 @@ DOMCI_CLASS(XULTreeBuilder)
 
 // DOMStringList object
 DOMCI_CLASS(DOMStringList)
+
+// NameList object used by the DOM
+DOMCI_CLASS(NameList)
 
 #ifdef MOZ_XUL
 DOMCI_CLASS(TreeColumn)
@@ -471,7 +475,6 @@ DOMCI_CLASS(WebGLRenderbuffer)
 DOMCI_CLASS(WebGLUniformLocation)
 DOMCI_CLASS(WebGLActiveInfo)
 DOMCI_CLASS(WebGLExtension)
-DOMCI_CLASS(WebGLExtensionStandardDerivatives)
 
 DOMCI_CLASS(PaintRequest)
 DOMCI_CLASS(PaintRequestList)
@@ -508,6 +511,8 @@ DOMCI_CLASS(IDBIndex)
 DOMCI_CLASS(IDBVersionChangeEvent)
 DOMCI_CLASS(IDBVersionChangeRequest)
 DOMCI_CLASS(IDBDatabaseException)
+
+DOMCI_CLASS(EventException)
 
 DOMCI_CLASS(Touch)
 DOMCI_CLASS(TouchList)

@@ -51,11 +51,11 @@
 #include "jsdhash.h"
 #include "jsbit.h"
 #include "jsgcchunk.h"
-#include "jshashtable.h"
-#include "jslock.h"
 #include "jsutil.h"
 #include "jsvector.h"
 #include "jsversion.h"
+#include "jsobj.h"
+#include "jsfun.h"
 #include "jsgcstats.h"
 #include "jscell.h"
 
@@ -641,6 +641,8 @@ struct Chunk {
         return addr;
     }
 
+    void init();
+
     bool unused() const {
         return info.numFree == ArenasPerChunk;
     }
@@ -655,41 +657,10 @@ struct Chunk {
     ArenaHeader *allocateArena(JSCompartment *comp, AllocKind kind);
 
     void releaseArena(ArenaHeader *aheader);
-
-    static Chunk *allocate();
-    static inline void release(Chunk *chunk);
-
-  private:
-    inline void init();
 };
 
 JS_STATIC_ASSERT(sizeof(Chunk) <= GC_CHUNK_SIZE);
 JS_STATIC_ASSERT(sizeof(Chunk) + BytesPerArena > GC_CHUNK_SIZE);
-
-class ChunkPool {
-    Chunk   *emptyChunkListHead;
-    size_t  emptyCount;
-
-  public:
-    ChunkPool()
-      : emptyChunkListHead(NULL),
-        emptyCount(0) { }
-
-    size_t getEmptyCount() const {
-        return emptyCount;
-    }
-
-    inline bool wantBackgroundAllocation(JSRuntime *rt) const;
-
-    /* Must be called with the GC lock taken. */
-    inline Chunk *get(JSRuntime *rt);
-
-    /* Must be called either during the GC or with the GC lock taken. */
-    inline void put(JSRuntime *rt, Chunk *chunk);
-
-    /* Must be called either during the GC or with the GC lock taken. */
-    void expire(JSRuntime *rt, bool releaseAll);
-};
 
 inline uintptr_t
 Cell::address() const
@@ -1317,44 +1288,32 @@ namespace js {
 
 #ifdef JS_THREADSAFE
 
+/*
+ * During the finalization we do not free immediately. Rather we add the
+ * corresponding pointers to a buffer which we later release on a separated
+ * thread.
+ *
+ * The buffer is implemented as a vector of 64K arrays of pointers, not as a
+ * simple vector, to avoid realloc calls during the vector growth and to not
+ * bloat the binary size of the inlined freeLater method. Any OOM during
+ * buffer growth results in the pointer being freed immediately.
+ */
 class GCHelperThread {
-    enum State {
-        IDLE,
-        SWEEPING,
-        ALLOCATING,
-        CANCEL_ALLOCATION,
-        SHUTDOWN
-    };
-
-    /*
-     * During the finalization we do not free immediately. Rather we add the
-     * corresponding pointers to a buffer which we later release on a
-     * separated thread.
-     *
-     * The buffer is implemented as a vector of 64K arrays of pointers, not as
-     * a simple vector, to avoid realloc calls during the vector growth and to
-     * not bloat the binary size of the inlined freeLater method. Any OOM
-     * during buffer growth results in the pointer being freed immediately.
-     */
     static const size_t FREE_ARRAY_SIZE = size_t(1) << 16;
     static const size_t FREE_ARRAY_LENGTH = FREE_ARRAY_SIZE / sizeof(void *);
 
-    JSRuntime         *const rt;
-    PRThread          *thread;
-    PRCondVar         *wakeup;
-    PRCondVar         *done;
-    volatile State    state;
-
-    JSContext         *context;
-    bool              shrinkFlag;
+    JSContext         *cx;
+    PRThread*         thread;
+    PRCondVar*        wakeup;
+    PRCondVar*        sweepingDone;
+    bool              shutdown;
+    JSGCInvocationKind lastGCKind;
 
     Vector<void **, 16, js::SystemAllocPolicy> freeVector;
     void            **freeCursor;
     void            **freeCursorEnd;
 
     Vector<js::gc::ArenaHeader *, 64, js::SystemAllocPolicy> finalizeVector;
-
-    bool    backgroundAllocation;
 
     friend struct js::gc::ArenaLists;
 
@@ -1369,69 +1328,38 @@ class GCHelperThread {
     }
 
     static void threadMain(void* arg);
-    void threadLoop();
 
-    /* Must be called with the GC lock taken. */
+    void threadLoop(JSRuntime *rt);
     void doSweep();
 
   public:
-    GCHelperThread(JSRuntime *rt)
-      : rt(rt),
-        thread(NULL),
+    GCHelperThread()
+      : thread(NULL),
         wakeup(NULL),
-        done(NULL),
-        state(IDLE),
+        sweepingDone(NULL),
+        shutdown(false),
         freeCursor(NULL),
         freeCursorEnd(NULL),
-        backgroundAllocation(true)
-    { }
+        sweeping(false) { }
 
-    bool init();
-    void finish();
+    volatile bool     sweeping;
+    bool init(JSRuntime *rt);
+    void finish(JSRuntime *rt);
 
-    /* Must be called with the GC lock taken. */
-    inline void startBackgroundSweep(bool shouldShrink);
+    /* Must be called with GC lock taken. */
+    void startBackgroundSweep(JSRuntime *rt, JSGCInvocationKind gckind);
 
-    /* Must be called with the GC lock taken. */
-    void waitBackgroundSweepEnd();
-
-    /* Must be called with the GC lock taken. */
-    void waitBackgroundSweepOrAllocEnd();
-
-    /* Must be called with the GC lock taken. */
-    inline void startBackgroundAllocationIfIdle();
-
-    bool canBackgroundAllocate() const {
-        return backgroundAllocation;
-    }
-
-    void disableBackgroundAllocation() {
-        backgroundAllocation = false;
-    }
-
-    /*
-     * Outside the GC lock may give true answer when in fact the sweeping has
-     * been done.
-     */
-    bool sweeping() const {
-        return state == SWEEPING;
-    }
-
-    bool shouldShrink() const {
-        JS_ASSERT(sweeping());
-        return shrinkFlag;
-    }
+    void waitBackgroundSweepEnd(JSRuntime *rt, bool gcUnlocked = true);
 
     void freeLater(void *ptr) {
-        JS_ASSERT(!sweeping());
+        JS_ASSERT(!sweeping);
         if (freeCursor != freeCursorEnd)
             *freeCursor++ = ptr;
         else
             replenishAndFreeLater(ptr);
     }
 
-    /* Must be called with the GC lock taken. */
-    bool prepareForBackgroundSweep(JSContext *cx);
+    bool prepareForBackgroundSweep(JSContext *context);
 };
 
 #endif /* JS_THREADSAFE */
@@ -1586,18 +1514,9 @@ struct GCMarker : public JSTracer {
         return color;
     }
 
-    /*
-     * The only valid color transition during a GC is from black to gray. It is
-     * wrong to switch the mark color from gray to black. The reason is that the
-     * cycle collector depends on the invariant that there are no black to gray
-     * edges in the GC heap. This invariant lets the CC not trace through black
-     * objects. If this invariant is violated, the cycle collector may free
-     * objects that are still reachable.
-     *
-     * We don't assert this yet, but we should.
-     */
     void setMarkColor(uint32 newColor) {
-        //JS_ASSERT(color == BLACK && newColor == GRAY);
+        /* We must process the mark stack here, otherwise we confuse colors. */
+        drainMarkStack();
         color = newColor;
     }
 
@@ -1613,7 +1532,7 @@ struct GCMarker : public JSTracer {
                largeStack.isEmpty();
     }
 
-    void drainMarkStack();
+    JS_FRIEND_API(void) drainMarkStack();
 
     void pushObject(JSObject *obj) {
         if (!objStack.push(obj))
@@ -1684,11 +1603,13 @@ NewCompartment(JSContext *cx, JSPrincipals *principals);
 void
 RunDebugGC(JSContext *cx);
 
+} /* namespace js */
 } /* namespace gc */
 
-static inline JSCompartment *
-GetObjectCompartment(JSObject *obj) { return reinterpret_cast<js::gc::Cell *>(obj)->compartment(); }
-
-} /* namespace js */
+inline JSCompartment *
+JSObject::getCompartment() const
+{
+    return compartment();
+}
 
 #endif /* jsgc_h___ */

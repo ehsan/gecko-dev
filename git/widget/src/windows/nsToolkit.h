@@ -132,8 +132,8 @@ public:
 
     void                  SetMouseTrailerWindow(HWND aWnd);
     void                  SetCaptureWindow(HWND aWnd);
-    void                  Disable() { mEnabled = false; DestroyTimer(); }
-    void                  Enable() { mEnabled = true; CreateTimer(); }
+    void                  Disable() { mEnabled = PR_FALSE; DestroyTimer(); }
+    void                  Enable() { mEnabled = PR_TRUE; CreateTimer(); }
     void                  DestroyTimer();
 
                           MouseTrailer();

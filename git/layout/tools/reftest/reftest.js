@@ -882,13 +882,14 @@ function Focus()
         return false;
     }
 
-    var fm = CC["@mozilla.org/focus-manager;1"].getService(CI.nsIFocusManager);
-    fm.activeWindow = window;
-    try {
-        var dock = CC["@mozilla.org/widget/macdocksupport;1"].getService(CI.nsIMacDockSupport);
-        dock.activateApplication(true);
-    } catch(ex) {
-    }
+    // FIXME/bug 623625: determine if the window is focused and/or try
+    // to acquire focus if it's not.
+    //
+    // NB: we can't add anything here that would return false on
+    // tinderbox, otherwise we could lose testing coverage due to
+    // problems on the test machines.  We might want a require-focus
+    // mode, defaulting to false for developers, but that's true on
+    // tinderbox.
     return true;
 }
 
@@ -940,9 +941,7 @@ function StartCurrentURI(aState)
         // there's already a canvas for this URL
         setTimeout(RecordResult, 0);
     } else {
-        var currentTest = gTotalTests - gURLs.length;
-        gDumpLog("REFTEST TEST-START | " + gCurrentURL + " | " + currentTest + " / " + gTotalTests +
-            " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)\n");
+        gDumpLog("REFTEST TEST-START | " + gCurrentURL + "\n");
         LogInfo("START " + gCurrentURL);
         var type = gURLs[0].type
         if (TYPE_SCRIPT == type) {

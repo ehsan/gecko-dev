@@ -95,7 +95,7 @@ static bool PeekUIMessage(MSG* aMsg)
   }
 
   if (pMsg && !nsIMM32Handler::CanOptimizeKeyAndIMEMessages(pMsg)) {
-    return false;
+    return PR_FALSE;
   }
 
   if (haveMouseMsg && (!pMsg || mouseMsg.time < pMsg->time)) {
@@ -103,7 +103,7 @@ static bool PeekUIMessage(MSG* aMsg)
   }
 
   if (!pMsg) {
-    return false;
+    return PR_FALSE;
   }
 
   return ::PeekMessageW(aMsg, NULL, pMsg->message, pMsg->message, PM_REMOVE);
@@ -222,7 +222,7 @@ CollectNewLoadedModules()
       if (sLoadedModules[i].mStartAddr == module.modBaseAddr &&
           !strcmp(moduleName.get(),
                   sLoadedModules[i].mName)) {
-        found = true;
+        found = PR_TRUE;
         break;
       }
     }
@@ -300,9 +300,9 @@ nsAppShell::DoProcessMoreGeckoEvents()
   // gecko events get processed.
   if (mEventloopNestingLevel < 2) {
     OnDispatchedEvent(nsnull);
-    mNativeCallbackPending = false;
+    mNativeCallbackPending = PR_FALSE;
   } else {
-    mNativeCallbackPending = true;
+    mNativeCallbackPending = PR_TRUE;
   }
 }
 
@@ -322,7 +322,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
 #if defined(_MSC_VER) && defined(_M_IX86)
   if (sXPCOMHasLoadedNewDLLs && sLoadedModules) {
-    sXPCOMHasLoadedNewDLLs = false;
+    sXPCOMHasLoadedNewDLLs = PR_FALSE;
     CollectNewLoadedModules();
   }
 #endif
@@ -337,7 +337,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     // Give priority to keyboard and mouse messages.
     if (PeekUIMessage(&msg) ||
         ::PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-      gotMessage = true;
+      gotMessage = PR_TRUE;
       if (msg.message == WM_QUIT) {
         ::PostQuitMessage(msg.wParam);
         Exit();

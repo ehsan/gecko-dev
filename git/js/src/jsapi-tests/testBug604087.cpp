@@ -5,7 +5,6 @@
  */
 
 #include "tests.h"
-#include "jsobj.h"
 #include "jswrapper.h"
 
 struct OuterWrapper : js::Wrapper
@@ -58,15 +57,15 @@ BEGIN_TEST(testBug604087)
 
     JSObject *c2wrapper = wrap(cx, outerObj, compartment2);
     CHECK(c2wrapper);
-    js::SetProxyExtra(c2wrapper, 0, js::Int32Value(2));
+    c2wrapper->setProxyExtra(js::Int32Value(2));
 
     JSObject *c3wrapper = wrap(cx, outerObj, compartment3);
     CHECK(c3wrapper);
-    js::SetProxyExtra(c3wrapper, 0, js::Int32Value(3));
+    c3wrapper->setProxyExtra(js::Int32Value(3));
 
     JSObject *c4wrapper = wrap(cx, outerObj, compartment4);
     CHECK(c4wrapper);
-    js::SetProxyExtra(c4wrapper, 0, js::Int32Value(4));
+    c4wrapper->setProxyExtra(js::Int32Value(4));
     compartment4 = c4wrapper = NULL;
 
     JSObject *next;

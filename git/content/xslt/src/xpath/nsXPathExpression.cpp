@@ -41,7 +41,7 @@
 #include "txExprResult.h"
 #include "nsDOMError.h"
 #include "nsIDOMCharacterData.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXPathNamespace.h"
 #include "nsXPathResult.h"

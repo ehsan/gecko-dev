@@ -408,12 +408,14 @@ private:
   
   /** Function for doing the frame compositing of animations
    *
+   * @param aFrameToUse Set by DoComposite
+   *                   (aNextFrame, compositingFrame, or compositingPrevFrame)
    * @param aDirtyRect  Area that the display will need to update
    * @param aPrevFrame  Last Frame seen/processed
    * @param aNextFrame  Frame we need to incorperate/display
    * @param aNextFrameIndex Position of aNextFrame in mFrames list
    */
-  nsresult DoComposite(nsIntRect* aDirtyRect,
+  nsresult DoComposite(imgFrame** aFrameToUse, nsIntRect* aDirtyRect,
                        imgFrame* aPrevFrame,
                        imgFrame* aNextFrame,
                        PRInt32 aNextFrameIndex);

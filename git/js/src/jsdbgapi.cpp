@@ -178,6 +178,34 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
     return script->setStepModeFlag(cx, singleStep);
 }
 
+jsbytecode *
+js_UntrapScriptCode(JSContext *cx, JSScript *script)
+{
+    jsbytecode *code = script->code;
+    BreakpointSiteMap &sites = script->compartment()->breakpointSites;
+    for (BreakpointSiteMap::Range r = sites.all(); !r.empty(); r.popFront()) {
+        BreakpointSite *site = r.front().value;
+        if (site->script == script && size_t(site->pc - script->code) < script->length) {
+            if (code == script->code) {
+                size_t nbytes = script->length * sizeof(jsbytecode);
+                jssrcnote *notes = script->notes();
+                jssrcnote *sn;
+                for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
+                    continue;
+                nbytes += (sn - notes + 1) * sizeof *sn;
+
+                code = (jsbytecode *) cx->malloc_(nbytes);
+                if (!code)
+                    break;
+                memcpy(code, script->code, nbytes);
+                GetGSNCache(cx)->purge();
+            }
+            code[site->pc - script->code] = site->realOpcode;
+        }
+    }
+    return code;
+}
+
 JS_PUBLIC_API(JSBool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc, JSTrapHandler handler, jsval closure)
 {
@@ -576,6 +604,13 @@ JS_PUBLIC_API(JSBool)
 JS_IsScriptFrame(JSContext *cx, JSStackFrame *fp)
 {
     return !Valueify(fp)->isDummyFrame();
+}
+
+/* this is deprecated, use JS_GetFrameScopeChain instead */
+JS_PUBLIC_API(JSObject *)
+JS_GetFrameObject(JSContext *cx, JSStackFrame *fp)
+{
+    return &Valueify(fp)->scopeChain();
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2156,10 +2191,4 @@ JS_PUBLIC_API(void)
 JS_DumpCompartmentBytecode(JSContext *cx)
 {
     IterateCells(cx, cx->compartment, gc::FINALIZE_SCRIPT, NULL, DumpBytecodeScriptCallback);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObject(JSObject *obj)
-{
-    return UnwrapObject(obj);
 }

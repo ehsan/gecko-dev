@@ -129,17 +129,8 @@ namespace js {
 struct ArgumentsData;
 struct Class;
 
-class RegExpPrivate;
+class RegExp;
 class RegExpStatics;
-
-enum RegExpFlag
-{
-    IgnoreCaseFlag  = JS_BIT(0),
-    GlobalFlag      = JS_BIT(1),
-    MultilineFlag   = JS_BIT(2),
-    StickyFlag      = JS_BIT(3)
-};
-
 class AutoStringRooter;
 class ExecuteArgsGuard;
 class InvokeFrameGuard;
@@ -407,6 +398,13 @@ typedef JSObject *
 #else
 extern JSBool js_CStringsAreUTF8;
 #endif
+
+/*
+ * Hack to expose obj->getOps()->outer to the C implementation of the debugger
+ * interface.
+ */
+extern JS_FRIEND_API(JSObject *)
+js_ObjectToOuterObject(JSContext *cx, JSObject *obj);
 
 JS_END_EXTERN_C
 

@@ -46,6 +46,7 @@
 #include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsnum.h"
+#include "jsregexp.h"
 #include "jswrapper.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -53,8 +54,6 @@
 # include "assembler/jit/ExecutableAllocator.h"
 #endif
 #include "jscompartment.h"
-
-#include "vm/RegExpObject.h"
 
 #include "jsobjinlines.h"
 
@@ -69,32 +68,39 @@ Wrapper::getWrapperFamily()
     return &sWrapperFamily;
 }
 
-JS_FRIEND_API(bool)
-js::IsWrapper(const JSObject *wrapper)
+bool
+JSObject::isWrapper() const
 {
-    return wrapper->isProxy() && GetProxyHandler(wrapper)->family() == &sWrapperFamily;
+    return isProxy() && getProxyHandler()->family() == &sWrapperFamily;
 }
 
-JS_FRIEND_API(JSObject *)
-js::UnwrapObject(JSObject *wrapped, uintN *flagsp)
+bool
+JSObject::isCrossCompartmentWrapper() const
 {
+    return isWrapper() && !!(getWrapperHandler()->flags() & Wrapper::CROSS_COMPARTMENT);
+}
+
+Wrapper *
+JSObject::getWrapperHandler() const
+{
+    JS_ASSERT(isWrapper());
+    return static_cast<Wrapper *>(getProxyHandler());
+}
+
+JSObject *
+JSObject::unwrap(uintN *flagsp)
+{
+    JSObject *wrapped = this;
     uintN flags = 0;
     while (wrapped->isWrapper()) {
-        flags |= static_cast<Wrapper *>(GetProxyHandler(wrapped))->flags();
-        wrapped = GetProxyPrivate(wrapped).toObjectOrNull();
+        flags |= static_cast<Wrapper *>(wrapped->getProxyHandler())->flags();
+        wrapped = wrapped->getProxyPrivate().toObjectOrNull();
         if (wrapped->getClass()->ext.innerObject)
             break;
     }
     if (flagsp)
         *flagsp = flags;
     return wrapped;
-}
-
-bool
-js::IsCrossCompartmentWrapper(const JSObject *wrapper)
-{
-    return wrapper->isWrapper() &&
-           !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
 }
 
 Wrapper::Wrapper(uintN flags) : ProxyHandler(&sWrapperFamily), mFlags(flags)
@@ -345,13 +351,13 @@ Wrapper::trace(JSTracer *trc, JSObject *wrapper)
 JSObject *
 Wrapper::wrappedObject(const JSObject *wrapper)
 {
-    return GetProxyPrivate(wrapper).toObjectOrNull();
+    return wrapper->getProxyPrivate().toObjectOrNull();
 }
 
 Wrapper *
 Wrapper::wrapperHandler(const JSObject *wrapper)
 {
-    return static_cast<Wrapper *>(GetProxyHandler(wrapper));
+    return static_cast<Wrapper *>(wrapper->getProxyHandler());
 }
 
 bool
@@ -428,7 +434,7 @@ AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
     : context(cx),
       origin(cx->compartment),
       target(target),
-      destination(target->compartment()),
+      destination(target->getCompartment()),
       entered(false)
 {
 }
@@ -734,17 +740,13 @@ CrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN argc,
     return call.origin->wrap(cx, rval);
 }
 
-extern JSBool
-js_generic_native_method_dispatcher(JSContext *cx, uintN argc, Value *vp);
-
 bool
 CrossCompartmentWrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native, CallArgs srcArgs)
 {
     JS_ASSERT_IF(!srcArgs.calleev().isUndefined(),
-                 srcArgs.callee().getFunctionPrivate()->native() == native ||
-                 srcArgs.callee().getFunctionPrivate()->native() == js_generic_native_method_dispatcher);
+                 srcArgs.callee().getFunctionPrivate()->native() == native);
     JS_ASSERT(&srcArgs.thisv().toObject() == wrapper);
-    JS_ASSERT(!UnwrapObject(wrapper)->isCrossCompartmentWrapper());
+    JS_ASSERT(!wrapper->unwrap(NULL)->isProxy());
 
     JSObject *wrapped = wrappedObject(wrapper);
     AutoCompartment call(cx, wrapped);

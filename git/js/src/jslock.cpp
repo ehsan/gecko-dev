@@ -44,13 +44,6 @@
  */
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef XP_WIN
-# include "jswin.h"
-#else
-# include <unistd.h>
-#endif
-
 #include "jspubtd.h"
 #include "jsutil.h"
 #include "jstypes.h"
@@ -80,6 +73,7 @@ extern long __cdecl
 _InterlockedCompareExchange(long *volatile dest, long exchange, long comp);
 JS_END_EXTERN_C
 #pragma intrinsic(_InterlockedCompareExchange)
+
 JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
 
 static JS_ALWAYS_INLINE int
@@ -98,12 +92,11 @@ NativeCompareAndSwap(volatile jsword *w, jsword ov, jsword nv)
 }
 
 #elif defined(_MSC_VER) && (defined(_M_AMD64) || defined(_M_X64))
-/*
- * Compared with the _InterlockedCompareExchange in the 32 bit case above MSVC
- * declares _InterlockedCompareExchange64 through <windows.h>.
- */
+JS_BEGIN_EXTERN_C
+extern long long __cdecl
+_InterlockedCompareExchange64(long long *volatile dest, long long exchange, long long comp);
+JS_END_EXTERN_C
 #pragma intrinsic(_InterlockedCompareExchange64)
-JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long long));
 
 static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(volatile jsword *w, jsword ov, jsword nv)
@@ -309,23 +302,6 @@ js_AtomicClearMask(volatile jsword *w, jsword mask)
         ov = *w;
         nv = ov & ~mask;
     } while (!js_CompareAndSwap(w, ov, nv));
-}
-
-unsigned
-js_GetCPUCount()
-{
-    static unsigned ncpus = 0;
-    if (ncpus == 0) {
-# ifdef XP_WIN
-        SYSTEM_INFO sysinfo;
-        GetSystemInfo(&sysinfo);
-        ncpus = unsigned(sysinfo.dwNumberOfProcessors);
-# else
-        long n = sysconf(_SC_NPROCESSORS_ONLN);
-        ncpus = (n > 0) ? unsigned(n) : 1;
-# endif
-    }
-    return ncpus;
 }
 
 #ifndef NSPR_LOCK

@@ -69,7 +69,6 @@
 #include "nsEventDispatcher.h"
 #include "mozilla/dom/Element.h"
 #include "mozAutoDocUpdate.h"
-#include "dombindings.h"
 
 using namespace mozilla::dom;
 
@@ -1996,8 +1995,6 @@ nsHTMLSelectElement::VerifyOptionsArray()
 
 nsHTMLOptionCollection::nsHTMLOptionCollection(nsHTMLSelectElement* aSelect)
 {
-  SetIsProxy();
-
   // Do not maintain a reference counted reference. When
   // the select goes away, it will let us know.
   mSelect = aSelect;
@@ -2051,21 +2048,16 @@ nsHTMLOptionCollection::GetOptionIndex(mozilla::dom::Element* aOption,
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLOptionCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHTMLOptionCollection)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mElements)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHTMLOptionCollection)
-  {
-    PRUint32 i;
-    for (i = 0; i < tmp->mElements.Length(); ++i) {
-      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mElements[i]");
-      cb.NoteXPCOMChild(static_cast<Element*>(tmp->mElements[i]));
+    {
+      PRUint32 i;
+      for (i = 0; i < tmp->mElements.Length(); ++i) {
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mElements[i]");
+        cb.NoteXPCOMChild(static_cast<Element*>(tmp->mElements[i]));
+      }
     }
-  }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsHTMLOptionCollection)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 // nsISupports
 
@@ -2073,9 +2065,9 @@ DOMCI_DATA(HTMLOptionsCollection, nsHTMLOptionCollection)
 
 // QueryInterface implementation for nsHTMLOptionCollection
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_TABLE3(nsHTMLOptionCollection,
+  NS_INTERFACE_TABLE4(nsHTMLOptionCollection,
                       nsIHTMLCollection,
+                      nsIDOMNSHTMLOptionCollection,
                       nsIDOMHTMLOptionsCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsHTMLOptionCollection)
@@ -2087,13 +2079,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHTMLOptionCollection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHTMLOptionCollection)
 
 
-JSObject*
-nsHTMLOptionCollection::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                                   bool *triedToWrap)
-{
-  return mozilla::dom::binding::HTMLOptionsCollection::create(cx, scope, this,
-                                                              triedToWrap);
-}
+// nsIDOMNSHTMLOptionCollection interface
 
 NS_IMETHODIMP
 nsHTMLOptionCollection::GetLength(PRUint32* aLength)
@@ -2114,10 +2100,10 @@ nsHTMLOptionCollection::SetLength(PRUint32 aLength)
 }
 
 NS_IMETHODIMP
-nsHTMLOptionCollection::SetOption(PRUint32 aIndex,
+nsHTMLOptionCollection::SetOption(PRInt32 aIndex,
                                   nsIDOMHTMLOptionElement *aOption)
 {
-  if (!mSelect) {
+  if (aIndex < 0 || !mSelect) {
     return NS_OK;
   }
 
@@ -2224,12 +2210,6 @@ nsHTMLOptionCollection::GetNamedItem(const nsAString& aName,
   nsINode *item = GetNamedItemHelper(mElements, aName);
   *aCache = item;
   return item;
-}
-
-nsINode*
-nsHTMLOptionCollection::GetParentObject()
-{
-    return mSelect;
 }
 
 NS_IMETHODIMP

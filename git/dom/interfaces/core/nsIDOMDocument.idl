@@ -52,6 +52,7 @@ interface nsIDOMNodeIterator;
 interface nsIDOMNodeFilter;
 interface nsIDOMTreeWalker;
 interface nsIDOMLocation;
+interface nsIDOMCaretPosition;
 
 /**
  * The nsIDOMDocument interface represents the entire HTML or XML document.
@@ -66,7 +67,7 @@ interface nsIDOMLocation;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html
  */
 
-[scriptable, uuid(3f845f32-cb34-459c-8f79-2dfaa3088bbf)]
+[scriptable, uuid(C54536AF-C238-4D8B-A339-54E2A0649FF5)]
 interface nsIDOMDocument : nsIDOMNode
 {
   readonly attribute nsIDOMDocumentType         doctype;
@@ -105,6 +106,8 @@ interface nsIDOMDocument : nsIDOMNode
   nsIDOMElement                 getElementById(in DOMString elementId);
   // Introduced in DOM Level 3:
   readonly attribute DOMString       inputEncoding;
+  // Introduced in DOM Level 3:
+  readonly attribute DOMString       xmlEncoding;
   // Introduced in DOM Level 3:
            attribute boolean         xmlStandalone;
                                         // raises(DOMException) on setting
@@ -370,6 +373,8 @@ interface nsIDOMDocument : nsIDOMNode
    */
   void mozSetImageElement(in DOMString aImageElementId,
                           in nsIDOMElement aImageElement);
+
+  nsIDOMCaretPosition caretPositionFromPoint(in float x, in float y);
   
   /**
    * Element which is currently the full-screen element as per the DOM
@@ -396,19 +401,7 @@ interface nsIDOMDocument : nsIDOMNode
   readonly attribute boolean mozFullScreen;  
 
   /**
-   * Denotes whether the full-screen-api.enabled is true, no windowed
-   * plugins are present, and all ancestor documents have the
-   * mozallowfullscreen attribute set.
-   *
-   * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
-   */
-  readonly attribute boolean mozFullScreenEnabled;
-
-  /**
    * Inline event handler for readystatechange events.
    */
   [implicit_jscontext] attribute jsval onreadystatechange;
-
-  [implicit_jscontext] attribute jsval onmouseenter;
-  [implicit_jscontext] attribute jsval onmouseleave;
 };

@@ -57,7 +57,7 @@ bool WindowHookProc(void *aContext, HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM 
 {
   TaskbarWindowPreview *preview = reinterpret_cast<TaskbarWindowPreview*>(aContext);
   *aResult = preview->WndProc(nMsg, wParam, lParam);
-  return true;
+  return PR_TRUE;
 }
 }
 
@@ -80,15 +80,15 @@ static TBPFLAG sNativeStates[] =
 
 TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewController *aController, HWND aHWND, nsIDocShell *aShell)
   : TaskbarPreview(aTaskbar, aController, aHWND, aShell),
-    mCustomDrawing(false),
-    mHaveButtons(false),
+    mCustomDrawing(PR_FALSE),
+    mHaveButtons(PR_FALSE),
     mState(TBPF_NOPROGRESS),
     mCurrentValue(0),
     mMaxValue(0),
     mOverlayIcon(NULL)
 {
   // Window previews are visible by default
-  (void) SetVisible(true);
+  (void) SetVisible(PR_TRUE);
 
   memset(mThumbButtons, 0, sizeof mThumbButtons);
   for (PRInt32 i = 0; i < nsITaskbarWindowPreview::NUM_TOOLBAR_BUTTONS; i++) {
@@ -146,7 +146,7 @@ TaskbarWindowPreview::GetButton(PRUint32 index, nsITaskbarPreviewButton **_retVa
   }
 
   if (!mHaveButtons) {
-    mHaveButtons = true;
+    mHaveButtons = PR_TRUE;
 
     WindowHook &hook = GetWindowHook();
     (void) hook.AddHook(WM_COMMAND, WindowHookProc, this);
@@ -297,7 +297,7 @@ TaskbarWindowPreview::TaskbarWindowHook(void *aContext,
     reinterpret_cast<TaskbarWindowPreview*>(aContext);
   // Now we can make all the calls to mTaskbar
   preview->UpdateTaskbarProperties();
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -323,7 +323,7 @@ TaskbarWindowPreview::Disable() {
 void
 TaskbarWindowPreview::DetachFromNSWindow() {
   // Remove the hooks we have for drawing
-  SetEnableCustomDrawing(false);
+  SetEnableCustomDrawing(PR_FALSE);
 
   WindowHook &hook = GetWindowHook();
   (void) hook.RemoveHook(WM_COMMAND, WindowHookProc, this);

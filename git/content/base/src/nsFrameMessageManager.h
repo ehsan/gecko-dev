@@ -51,7 +51,6 @@
 #include "nsDataHashtable.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -121,11 +120,6 @@ public:
       }
       if (this == sChildProcessManager) {
         sChildProcessManager = nsnull;
-        delete sPendingSameProcessAsyncMessages;
-        sPendingSameProcessAsyncMessages = nsnull;
-      }
-      if (this == sSameProcessParentManager) {
-        sSameProcessParentManager = nsnull;
       }
     }
   }
@@ -156,9 +150,7 @@ public:
 
   void Disconnect(bool aRemoveFromParent = true);
   void SetCallbackData(void* aData, bool aLoadScripts = true);
-  void GetParamsForMessage(const jsval& aObject,
-                           JSContext* aCx,
-                           nsAString& aJSON);
+  nsresult GetParamsForMessage(nsAString& aMessageName, nsAString& aJSON);
   nsresult SendAsyncMessageInternal(const nsAString& aMessage,
                                     const nsAString& aJSON);
   JSContext* GetJSContext() { return mContext; }
@@ -196,8 +188,6 @@ protected:
 public:
   static nsFrameMessageManager* sParentProcessManager;
   static nsFrameMessageManager* sChildProcessManager;
-  static nsFrameMessageManager* sSameProcessParentManager;
-  static nsTArray<nsCOMPtr<nsIRunnable> >* sPendingSameProcessAsyncMessages;
 };
 
 void

@@ -99,31 +99,26 @@ NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
 // Caller must root *aJSVal!
 bool
-nsEventListenerInfo::GetJSVal(JSContext* aCx, JSAutoEnterCompartment& aAc, jsval* aJSVal)
+nsEventListenerInfo::GetJSVal(jsval* aJSVal)
 {
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
   if (wrappedJS) {
     JSObject* object = nsnull;
-    if (NS_FAILED(wrappedJS->GetJSObject(&object)) || !aAc.enter(aCx, object)) {
-      return false;
-    }
+    wrappedJS->GetJSObject(&object);
     *aJSVal = OBJECT_TO_JSVAL(object);
-    return true;
+    return PR_TRUE;
   }
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    JSObject *handler = static_cast<JSObject*>(jsl->GetHandler());
+    void *handler = jsl->GetHandler();
     if (handler) {
-      if (!aAc.enter(aCx, handler)) {
-        return false;
-      }
-      *aJSVal = OBJECT_TO_JSVAL(handler);
-      return true;
+      *aJSVal = OBJECT_TO_JSVAL(static_cast<JSObject*>(handler));
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -140,9 +135,8 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
       {
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
-        JSAutoEnterCompartment ac;
         jsval v = JSVAL_NULL;
-        if (GetJSVal(cx, ac, &v)) {
+        if (GetJSVal(&v)) {
           JSString* str = JS_ValueToSource(cx, v);
           if (str) {
             nsDependentJSString depStr;
@@ -183,9 +177,9 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
       {
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
-        JSAutoEnterCompartment ac;
+
         jsval v = JSVAL_NULL;
-        if (GetJSVal(cx, ac, &v)) {
+        if (GetJSVal(&v)) {
           nsCOMPtr<jsdIValue> jsdValue;
           jsd->WrapJSValue(v, getter_AddRefs(jsdValue));
           *aRetVal = jsdValue.forget().get();
@@ -204,7 +198,6 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
                                            PRUint32* aCount,
                                            nsIEventListenerInfo*** aOutArray)
 {
-  NS_ENSURE_ARG_POINTER(aEventTarget);
   *aCount = 0;
   *aOutArray = nsnull;
   nsCOMArray<nsIEventListenerInfo> listenerInfos;

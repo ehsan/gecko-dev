@@ -93,10 +93,15 @@
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsregexpinlines.h"
 #include "jsscriptinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
-#include "vm/RegExpObject-inl.h"
+
+// Grr, windows.h or something under it #defines CONST...
+#ifdef CONST
+#undef CONST
+#endif
 
 using namespace js;
 using namespace js::gc;
@@ -933,7 +938,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
                         : NULL;
 
     JS_ASSERT_IF(globalObj, globalObj->isNative());
-    JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
+    JS_ASSERT_IF(globalObj, (globalObj->getClass()->flags & JSCLASS_GLOBAL_FLAGS) ==
+                            JSCLASS_GLOBAL_FLAGS);
 
     /* Null script early in case of error, to reduce our code footprint. */
     script = NULL;
@@ -8871,26 +8877,29 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
         if (!pn)
             return NULL;
 
-        const jschar *chars = tokenStream.getTokenbuf().begin();
-        size_t length = tokenStream.getTokenbuf().length();
-        RegExpFlag flags = RegExpFlag(tokenStream.currentToken().t_reflags);
-        RegExpStatics *res = context->regExpStatics();
-
-        RegExpObject *reobj;
-        if (context->hasfp())
-            reobj = RegExpObject::create(context, res, chars, length, flags, &tokenStream);
-        else
-            reobj = RegExpObject::createNoStatics(context, chars, length, flags, &tokenStream);
-
-        if (!reobj)
-            return NULL;
-
-        if (!tc->compileAndGo()) {
-            reobj->clearParent();
-            reobj->clearType();
+        JSObject *obj;
+        if (context->hasfp()) {
+            obj = RegExp::createObject(context, context->regExpStatics(),
+                                       tokenStream.getTokenbuf().begin(),
+                                       tokenStream.getTokenbuf().length(),
+                                       tokenStream.currentToken().t_reflags,
+                                       &tokenStream);
+        } else {
+            obj = RegExp::createObjectNoStatics(context,
+                                                tokenStream.getTokenbuf().begin(),
+                                                tokenStream.getTokenbuf().length(),
+                                                tokenStream.currentToken().t_reflags,
+                                                &tokenStream);
         }
 
-        pn->pn_objbox = tc->parser->newObjectBox(reobj);
+        if (!obj)
+            return NULL;
+        if (!tc->compileAndGo()) {
+            obj->clearParent();
+            obj->clearType();
+        }
+
+        pn->pn_objbox = tc->parser->newObjectBox(obj);
         if (!pn->pn_objbox)
             return NULL;
 
@@ -9264,17 +9273,15 @@ FoldXMLConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
 
 #endif /* JS_HAS_XML_SUPPORT */
 
-enum Truthiness { Truthy, Falsy, Unknown };
-
-static Truthiness
+static int
 Boolish(JSParseNode *pn)
 {
     switch (pn->getOp()) {
       case JSOP_DOUBLE:
-        return (pn->pn_dval != 0 && !JSDOUBLE_IS_NaN(pn->pn_dval)) ? Truthy : Falsy;
+        return pn->pn_dval != 0 && !JSDOUBLE_IS_NaN(pn->pn_dval);
 
       case JSOP_STRING:
-        return (pn->pn_atom->length() > 0) ? Truthy : Falsy;
+        return pn->pn_atom->length() != 0;
 
 #if JS_HAS_GENERATOR_EXPRS
       case JSOP_CALL:
@@ -9285,28 +9292,28 @@ Boolish(JSParseNode *pn)
          * is needed for the decompiler. See bug 442342 and bug 443074.
          */
         if (pn->pn_count != 1)
-            return Unknown;
+            break;
         JSParseNode *pn2 = pn->pn_head;
         if (!pn2->isKind(TOK_FUNCTION))
-            return Unknown;
+            break;
         if (!(pn2->pn_funbox->tcflags & TCF_GENEXP_LAMBDA))
-            return Unknown;
-        return Truthy;
+            break;
+        /* FALL THROUGH */
       }
 #endif
 
       case JSOP_DEFFUN:
       case JSOP_LAMBDA:
       case JSOP_TRUE:
-        return Truthy;
+        return 1;
 
       case JSOP_NULL:
       case JSOP_FALSE:
-        return Falsy;
+        return 0;
 
-      default:
-        return Unknown;
+      default:;
     }
+    return -1;
 }
 
 JSBool
@@ -9496,12 +9503,8 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                 JSParseNode **pnp = &pn->pn_head;
                 JS_ASSERT(*pnp == pn1);
                 do {
-                    Truthiness t = Boolish(pn1);
-                    if (t == Unknown) {
-                        pnp = &pn1->pn_next;
-                        continue;
-                    }
-                    if ((t == Truthy) == pn->isKind(TOK_OR)) {
+                    int cond = Boolish(pn1);
+                    if (cond == pn->isKind(TOK_OR)) {
                         for (pn2 = pn1->pn_next; pn2; pn2 = pn3) {
                             pn3 = pn2->pn_next;
                             RecycleTree(pn2, tc);
@@ -9510,12 +9513,16 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                         pn1->pn_next = NULL;
                         break;
                     }
-                    JS_ASSERT((t == Truthy) == pn->isKind(TOK_AND));
-                    if (pn->pn_count == 1)
-                        break;
-                    *pnp = pn1->pn_next;
-                    RecycleTree(pn1, tc);
-                    --pn->pn_count;
+                    if (cond != -1) {
+                        JS_ASSERT(cond == pn->isKind(TOK_AND));
+                        if (pn->pn_count == 1)
+                            break;
+                        *pnp = pn1->pn_next;
+                        RecycleTree(pn1, tc);
+                        --pn->pn_count;
+                    } else {
+                        pnp = &pn1->pn_next;
+                    }
                 } while ((pn1 = *pnp) != NULL);
 
                 // We may have to change arity from LIST to BINARY.
@@ -9532,16 +9539,14 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                     RecycleTree(pn1, tc);
                 }
             } else {
-                Truthiness t = Boolish(pn1);
-                if (t != Unknown) {
-                    if ((t == Truthy) == pn->isKind(TOK_OR)) {
-                        RecycleTree(pn2, tc);
-                        pn->become(pn1);
-                    } else {
-                        JS_ASSERT((t == Truthy) == pn->isKind(TOK_AND));
-                        RecycleTree(pn1, tc);
-                        pn->become(pn2);
-                    }
+                int cond = Boolish(pn1);
+                if (cond == pn->isKind(TOK_OR)) {
+                    RecycleTree(pn2, tc);
+                    pn->become(pn1);
+                } else if (cond != -1) {
+                    JS_ASSERT(cond == pn->isKind(TOK_AND));
+                    RecycleTree(pn1, tc);
+                    pn->become(pn2);
                 }
             }
         }
@@ -9766,8 +9771,8 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
     }
 
     if (inCond) {
-        Truthiness t = Boolish(pn);
-        if (t != Unknown) {
+        int cond = Boolish(pn);
+        if (cond >= 0) {
             /*
              * We can turn function nodes into constant nodes here, but mutating function
              * nodes is tricky --- in particular, mutating a function node that appears on
@@ -9776,7 +9781,7 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
              */
             PrepareNodeForMutation(pn, tc);
             pn->setKind(TOK_PRIMARY);
-            pn->setOp(t == Truthy ? JSOP_TRUE : JSOP_FALSE);
+            pn->setOp(cond ? JSOP_TRUE : JSOP_FALSE);
             pn->setArity(PN_NULLARY);
         }
     }

@@ -64,12 +64,6 @@ public:
     ContentChild();
     virtual ~ContentChild();
 
-    struct AppInfo
-    {
-        nsCString version;
-        nsCString buildID;
-    };
-
     bool Init(MessageLoop* aIOLoop,
               base::ProcessHandle aParentHandle,
               IPC::Channel* aChannel);
@@ -80,24 +74,14 @@ public:
         return sSingleton;
     }
 
-    const AppInfo& GetAppInfo() {
-        return mAppInfo;
-    }
-
     /* if you remove this, please talk to cjones or dougt */
     virtual bool RecvDummy(Shmem& foo) { return true; }
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
-    virtual PCrashReporterChild*
-    AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                        const PRUint32& processType);
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterChild*);
-
-    NS_OVERRIDE virtual PHalChild* AllocPHal();
-    NS_OVERRIDE virtual bool DeallocPHal(PHalChild*);
+    virtual PCrashReporterChild* AllocPCrashReporter();
+    virtual bool DeallocPCrashReporter(PCrashReporterChild*);
 
     virtual PMemoryReportRequestChild*
     AllocPMemoryReportRequest();
@@ -167,8 +151,6 @@ public:
     virtual bool RecvGarbageCollect();
     virtual bool RecvCycleCollect();
 
-    virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif
@@ -195,8 +177,6 @@ private:
 #ifdef ANDROID
     gfxIntSize mScreenSize;
 #endif
-
-    AppInfo mAppInfo;
 
     static ContentChild* sSingleton;
 

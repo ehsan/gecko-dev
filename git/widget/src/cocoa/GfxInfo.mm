@@ -334,7 +334,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
 {
   NS_ENSURE_ARG_POINTER(aStatus);
 
-  aSuggestedDriverVersion.SetIsVoid(true);
+  aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
 
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 
@@ -357,7 +357,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
     bool foundGoodDevice = false;
 
     if (!IsATIRadeonX1000(mAdapterVendorID, mAdapterDeviceID)) {
-      foundGoodDevice = true;
+      foundGoodDevice = PR_TRUE;
     }
 
 #if 0
@@ -392,7 +392,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
           break;
         default:
           if (mRendererIDs[i])
-            foundGoodDevice = true;
+            foundGoodDevice = PR_TRUE;
       }
     }
 #endif

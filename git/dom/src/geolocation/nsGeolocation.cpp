@@ -57,7 +57,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMWindow.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsComponentManagerUtils.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"
@@ -461,16 +461,13 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
     SetTimeoutTimer();
 }
 
-bool
+void
 nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 {
-  if (!mAllowed)
-    return false;
   nsCOMPtr<nsIRunnable> ev  =
       new RequestSendLocationEvent(aPosition, this,
                                    mIsWatchPositionRequest ? nsnull : mLocator);
   NS_DispatchToMainThread(ev);
-  return true;
 }
 
 void
@@ -904,10 +901,10 @@ nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
   if (!WindowOwnerStillExists())
     return Shutdown();
 
-  for (PRUint32 i = mPendingCallbacks.Length(); i> 0; i--) {
-    if (mPendingCallbacks[i-1]->Update(aSomewhere))
-      mPendingCallbacks.RemoveElementAt(i-1);
+  for (PRUint32 i = 0; i< mPendingCallbacks.Length(); i++) {
+    mPendingCallbacks[i]->Update(aSomewhere);
   }
+  mPendingCallbacks.Clear();
 
   // notify everyone that is watching
   for (PRUint32 i = 0; i< mWatchingCallbacks.Length(); i++) {

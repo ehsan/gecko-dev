@@ -80,8 +80,8 @@ GfxInfo::GfxInfo()
     mAdapterVendorID2(0),
     mAdapterDeviceID2(0),
     mWindowsVersion(0),
-    mHasDualGPU(false),
-    mIsGPU2Active(false)
+    mHasDualGPU(PR_FALSE),
+    mIsGPU2Active(PR_FALSE)
 {
 }
 
@@ -104,7 +104,7 @@ GfxInfo::GetDWriteEnabled(bool *aEnabled)
 nsresult
 GfxInfo::GetAzureEnabled(bool *aEnabled)
 {
-  *aEnabled = false;
+  *aEnabled = PR_FALSE;
 
   bool d2dEnabled = 
     gfxWindowsPlatform::GetPlatform()->GetRenderMode() == gfxWindowsPlatform::RENDER_DIRECT2D;
@@ -114,7 +114,7 @@ GfxInfo::GetAzureEnabled(bool *aEnabled)
     nsresult rv = mozilla::Preferences::GetBool("gfx.canvas.azure.enabled", &azure);
 
     if (NS_SUCCEEDED(rv) && azure) {
-      *aEnabled = true;
+      *aEnabled = PR_TRUE;
     }
   }
 
@@ -439,7 +439,7 @@ GfxInfo::Init()
               }
               result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, driverKey.BeginReading(), 0, KEY_QUERY_VALUE, &key);
               if (result == ERROR_SUCCESS) {
-                mHasDualGPU = true;
+                mHasDualGPU = PR_TRUE;
                 mDeviceKey2 = driverKey;
                 dwcbData = sizeof(value);
                 result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
@@ -488,7 +488,7 @@ GfxInfo::Init()
      PR_sscanf(spoofedVendor, "%x", &mAdapterVendorID);
   }
 
-  mHasDriverVersionMismatch = false;
+  mHasDriverVersionMismatch = PR_FALSE;
   if (mAdapterVendorID == vendorIntel) {
     // we've had big crashers (bugs 590373 and 595364) apparently correlated
     // with bad Intel driver installations where the DriverVersion reported
@@ -508,7 +508,7 @@ GfxInfo::Init()
     // so if GetDLLVersion failed, we get dllNumericVersion = 0
     // so this test implicitly handles the case where GetDLLVersion failed
     if (dllNumericVersion != driverNumericVersion)
-      mHasDriverVersionMismatch = true;
+      mHasDriverVersionMismatch = PR_TRUE;
   }
 
   const char *spoofedDevice = PR_GetEnv("MOZ_GFX_SPOOF_DEVICE_ID");
@@ -972,7 +972,7 @@ nsresult
 GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aSuggestedDriverVersion, GfxDriverInfo* aDriverInfo /* = nsnull */)
 {
   *aStatus = nsIGfxInfo::FEATURE_NO_INFO;
-  aSuggestedDriverVersion.SetIsVoid(true);
+  aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
 
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 

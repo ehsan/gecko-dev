@@ -822,14 +822,13 @@ nsHTMLTextAreaElement::GetSelectionStart(PRInt32 *aSelectionStart)
 {
   NS_ENSURE_ARG_POINTER(aSelectionStart);
 
-  PRInt32 selEnd;
-  nsresult rv = GetSelectionRange(aSelectionStart, &selEnd);
-
-  if (NS_FAILED(rv) && mState->IsSelectionCached()) {
+  if (mState->IsSelectionCached()) {
     *aSelectionStart = mState->GetSelectionProperties().mStart;
     return NS_OK;
   }
-  return rv;
+
+  PRInt32 selEnd;
+  return GetSelectionRange(aSelectionStart, &selEnd);
 }
 
 NS_IMETHODIMP
@@ -858,14 +857,13 @@ nsHTMLTextAreaElement::GetSelectionEnd(PRInt32 *aSelectionEnd)
 {
   NS_ENSURE_ARG_POINTER(aSelectionEnd);
 
-  PRInt32 selStart;
-  nsresult rv = GetSelectionRange(&selStart, aSelectionEnd);
-
-  if (NS_FAILED(rv) && mState->IsSelectionCached()) {
+  if (mState->IsSelectionCached()) {
     *aSelectionEnd = mState->GetSelectionProperties().mEnd;
     return NS_OK;
   }
-  return rv;
+
+  PRInt32 selStart;
+  return GetSelectionRange(&selStart, aSelectionEnd);
 }
 
 NS_IMETHODIMP
@@ -922,6 +920,11 @@ DirectionToName(nsITextControlFrame::SelectionDirection dir, nsAString& aDirecti
 nsresult
 nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
 {
+  if (mState->IsSelectionCached()) {
+    DirectionToName(mState->GetSelectionProperties().mDirection, aDirection);
+    return NS_OK;
+  }
+
   nsresult rv = NS_ERROR_FAILURE;
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
@@ -933,13 +936,6 @@ nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
       if (NS_SUCCEEDED(rv)) {
         DirectionToName(dir, aDirection);
       }
-    }
-  }
-
-  if (NS_FAILED(rv)) {
-    if (mState->IsSelectionCached()) {
-      DirectionToName(mState->GetSelectionProperties().mDirection, aDirection);
-      return NS_OK;
     }
   }
 

@@ -77,6 +77,9 @@
 
 using namespace mozilla;
 
+/* Ensure that the result is always equal to either PR_TRUE or PR_FALSE */
+#define MAKE_PR_BOOL(val) ((val)?(PR_TRUE):(PR_FALSE))
+
 #ifdef PR_LOGGING 
 static PRLogModuleInfo *DeviceContextSpecGTKLM = PR_NewLogModule("DeviceContextSpecGTK");
 #endif /* PR_LOGGING */
@@ -220,7 +223,7 @@ nsPrinterFeatures::nsPrinterFeatures( const char *printername )
   DO_PR_DEBUG_LOG(("nsPrinterFeatures::nsPrinterFeatures('%s')\n", printername));
   mPrinterName.Assign(printername);
 
-  SetBoolValue("has_special_printerfeatures", true);
+  SetBoolValue("has_special_printerfeatures", PR_TRUE);
 }
 
 void nsPrinterFeatures::SetCanChangePaperSize( bool aCanSetPaperSize )
@@ -437,7 +440,7 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
     return NS_ERROR_GFX_PRINTER_COULD_NOT_OPEN_FILE;
   close(fd);
 
-  rv = NS_NewNativeLocalFile(nsDependentCString(buf), false,
+  rv = NS_NewNativeLocalFile(nsDependentCString(buf), PR_FALSE,
                              getter_AddRefs(mSpoolFile));
   if (NS_FAILED(rv)) {
     unlink(buf);
@@ -585,7 +588,7 @@ nsresult nsDeviceContextSpecGTK::GetPrintMethod(const char *aPrinter, PrintMetho
 static void
 print_callback(GtkPrintJob *aJob, gpointer aData, GError *aError) {
   g_object_unref(aJob);
-  ((nsILocalFile*) aData)->Remove(false);
+  ((nsILocalFile*) aData)->Remove(PR_FALSE);
 }
 
 static void
@@ -626,7 +629,7 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::EndDocument()
     mPrintSettings->GetToFileName(getter_Copies(targetPath));
 
     nsresult rv = NS_NewNativeLocalFile(NS_ConvertUTF16toUTF8(targetPath),
-                                        false, getter_AddRefs(destFile));
+                                        PR_FALSE, getter_AddRefs(destFile));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoString destLeafName;
@@ -793,7 +796,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
   nsPrintfCString  prefName(256,
     PRINTERFEATURES_PREF ".%s.has_special_printerfeatures",
     fullPrinterName.get());
-  Preferences::SetBool(prefName.get(), false);
+  Preferences::SetBool(prefName.get(), PR_FALSE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
 
   
@@ -813,7 +816,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
   DO_PR_DEBUG_LOG(("Setting default filename to '%s'\n", filename.get()));
   aPrintSettings->SetToFileName(NS_ConvertUTF8toUTF16(filename).get());
 
-  aPrintSettings->SetIsInitializedFromPrinter(true);
+  aPrintSettings->SetIsInitializedFromPrinter(PR_TRUE);
 
   if (type == pmPostScript) {
     DO_PR_DEBUG_LOG(("InitPrintSettingsFromPrinter() for PostScript printer\n"));
@@ -821,15 +824,15 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
     nsPrinterFeatures printerFeatures(fullPrinterName);
 
-    printerFeatures.SetSupportsPaperSizeChange(true);
-    printerFeatures.SetSupportsOrientationChange(true);
-    printerFeatures.SetSupportsPlexChange(false);
-    printerFeatures.SetSupportsResolutionNameChange(false);
-    printerFeatures.SetSupportsColorspaceChange(false);
+    printerFeatures.SetSupportsPaperSizeChange(PR_TRUE);
+    printerFeatures.SetSupportsOrientationChange(PR_TRUE);
+    printerFeatures.SetSupportsPlexChange(PR_FALSE);
+    printerFeatures.SetSupportsResolutionNameChange(PR_FALSE);
+    printerFeatures.SetSupportsColorspaceChange(PR_FALSE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */ 
       
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangeOrientation(true);
+    printerFeatures.SetCanChangeOrientation(PR_TRUE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
 
     nsCAutoString orientation;
@@ -856,7 +859,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 
     /* PostScript module does not support changing the plex mode... */
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangePlex(false);
+    printerFeatures.SetCanChangePlex(PR_FALSE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
     DO_PR_DEBUG_LOG(("setting default plex to '%s'\n", "default"));
     aPrintSettings->SetPlexName(NS_LITERAL_STRING("default").get());
@@ -867,7 +870,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 
     /* PostScript module does not support changing the resolution mode... */
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangeResolutionName(false);
+    printerFeatures.SetCanChangeResolutionName(PR_FALSE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
     DO_PR_DEBUG_LOG(("setting default resolution to '%s'\n", "default"));
     aPrintSettings->SetResolutionName(NS_LITERAL_STRING("default").get());
@@ -878,7 +881,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 
     /* PostScript module does not support changing the colorspace... */
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangeColorspace(false);
+    printerFeatures.SetCanChangeColorspace(PR_FALSE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
     DO_PR_DEBUG_LOG(("setting default colorspace to '%s'\n", "default"));
     aPrintSettings->SetColorspace(NS_LITERAL_STRING("default").get());
@@ -888,7 +891,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */   
 
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangePaperSize(true);
+    printerFeatures.SetCanChangePaperSize(PR_TRUE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
     nsCAutoString papername;
     if (NS_SUCCEEDED(CopyPrinterCharPref("postscript", printerName,
@@ -926,15 +929,15 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
     printerFeatures.SetCanChangeSpoolerCommand(hasSpoolerCmd);
 
     /* Postscript module does not pass the job title to lpr */
-    printerFeatures.SetSupportsJobTitleChange(false);
-    printerFeatures.SetCanChangeJobTitle(false);
+    printerFeatures.SetSupportsJobTitleChange(PR_FALSE);
+    printerFeatures.SetCanChangeJobTitle(PR_FALSE);
     /* Postscript module has no control over builtin fonts yet */
-    printerFeatures.SetSupportsDownloadFontsChange(false);
-    printerFeatures.SetCanChangeDownloadFonts(false);
+    printerFeatures.SetSupportsDownloadFontsChange(PR_FALSE);
+    printerFeatures.SetCanChangeDownloadFonts(PR_FALSE);
     /* Postscript module does not support multiple colorspaces
      * so it has to use the old way */
-    printerFeatures.SetSupportsPrintInColorChange(true);
-    printerFeatures.SetCanChangePrintInColor(true);
+    printerFeatures.SetSupportsPrintInColorChange(PR_TRUE);
+    printerFeatures.SetCanChangePrintInColor(PR_TRUE);
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
 
     if (hasSpoolerCmd) {
@@ -948,7 +951,7 @@ NS_IMETHODIMP nsPrinterEnumeratorGTK::InitPrintSettingsFromPrinter(const PRUnich
     }
     
 #ifdef SET_PRINTER_FEATURES_VIA_PREFS
-    printerFeatures.SetCanChangeNumCopies(true);   
+    printerFeatures.SetCanChangeNumCopies(PR_TRUE);   
 #endif /* SET_PRINTER_FEATURES_VIA_PREFS */
 
     return NS_OK;    

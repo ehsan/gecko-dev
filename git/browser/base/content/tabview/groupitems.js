@@ -175,13 +175,13 @@ function GroupItem(listOfEls, options) {
     // NOTE: When user commits or cancels IME composition, the last key
     //       event fires only a keyup event.  Then, we shouldn't take any
     //       reactions but we should update our status.
+    self.adjustTitleSize();
     self.save();
   };
 
   this.$title
     .blur(function() {
       self._titleFocused = false;
-      self.$title[0].setSelectionRange(0, 0);
       self.$titleShield.show();
       if (self.getTitle())
         gTabView.firstUseExperienced = true;
@@ -390,6 +390,22 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
+  // Function: adjustTitleSize
+  // Used to adjust the width of the title box depending on groupItem width and title size.
+  adjustTitleSize: function GroupItem_adjustTitleSize() {
+    Utils.assert(this.bounds, 'bounds needs to have been set');
+    let closeButton = iQ('.close', this.container);
+    var dimension = UI.rtl ? 'left' : 'right';
+    var w = Math.min(this.bounds.width - parseInt(closeButton.width()) - parseInt(closeButton.css(dimension)),
+                     Math.max(150, this.getTitle().length * 6));
+    // The * 6 multiplier calculation is assuming that characters in the title
+    // are approximately 6 pixels wide. Bug 586545
+    var css = {width: w};
+    this.$title.css(css);
+    this.$titleShield.css(css);
+  },
+
+  // ----------
   // Function: focusTitle
   // Hide the title's shield and focus the underlying input field.
   focusTitle: function GroupItem_focusTitle() {
@@ -509,7 +525,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Sets the bounds with the given <Rect>, animating unless "immediately" is false.
   //
   // Parameters:
-  //   inRect - a <Rect> giving the new bounds
+  //   rect - a <Rect> giving the new bounds
   //   immediately - true if it should not animate; default false
   //   options - an object with additional parameters, see below
   //
@@ -591,8 +607,14 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       });
     }
 
+    if (css.width) {      
+      this.adjustTitleSize();
+    }
+
     UI.clearShouldResizeItems();
+
     this.setTrenches(rect);
+
     this.save();
   },
 
@@ -862,7 +884,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: _fadeAwayUndoButton
   // Fades away the undo button
-  _fadeAwayUndoButton: function GroupItem__fadeAwayUndoButton() {
+  _fadeAwayUndoButton: function GroupItem__fadeAwayUdoButton() {
     let self = this;
 
     if (this.$undoContainer) {
@@ -956,7 +978,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
   // ----------
   // Sets up fade away undo button timeout. 
-  setupFadeAwayUndoButtonTimer: function GroupItem_setupFadeAwayUndoButtonTimer() {
+  setupFadeAwayUndoButtonTimer: function() {
     let self = this;
 
     if (!this._undoButtonTimeoutId) {
@@ -968,7 +990,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   
   // ----------
   // Cancels the fade away undo button timeout. 
-  _cancelFadeAwayUndoButtonTimer: function GroupItem__cancelFadeAwayUndoButtonTimer() {
+  _cancelFadeAwayUndoButtonTimer: function() {
     clearTimeout(this._undoButtonTimeoutId);
     this._undoButtonTimeoutId = null;
   }, 
@@ -1275,6 +1297,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Returns true if the groupItem, given "count", should stack (instead of 
   // grid).
   shouldStack: function GroupItem_shouldStack(count) {
+    if (count <= 1)
+      return false;
+
     let bb = this.getContentBounds();
     let options = {
       return: 'widthAndColumns',
@@ -2089,7 +2114,7 @@ let GroupItems = {
   // ----------
   // Function: getAppTabFavIconUrl
   // Gets the fav icon url for app tab.
-  getAppTabFavIconUrl: function GroupItems_getAppTabFavIconUrl(xulTab) {
+  getAppTabFavIconUrl: function GroupItems__getAppTabFavIconUrl(xulTab) {
     let iconUrl;
 
     if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
@@ -2355,13 +2380,15 @@ let GroupItems = {
     }
 
     let targetGroupItem;
-    // find first non-app visible tab belongs a group, and add the new tabItem
-    // to that group
+    // find first visible non-app tab in the tabbar.
     gBrowser.visibleTabs.some(function(tab) {
       if (!tab.pinned && tab != tabItem.tab) {
-        if (tab._tabViewTabItem && tab._tabViewTabItem.parent &&
-            !tab._tabViewTabItem.parent.hidden) {
-          targetGroupItem = tab._tabViewTabItem.parent;
+        if (tab._tabViewTabItem) {
+          if (!tab._tabViewTabItem.parent && !tab._tabViewTabItem.parent.hidden) {
+            // the first visible tab belongs to a group, add the new tabItem to 
+            // that group
+            targetGroupItem = tab._tabViewTabItem.parent;
+          }
         }
         return true;
       }
@@ -2548,7 +2575,7 @@ let GroupItems = {
   // Paramaters:
   //  tab - the <xul:tab>.
   //  groupItemId - the <groupItem>'s id.  If nothing, create a new <groupItem>.
-  moveTabToGroupItem : function GroupItems_moveTabToGroupItem(tab, groupItemId) {
+  moveTabToGroupItem : function GroupItems_moveTabToGroupItem (tab, groupItemId) {
     if (tab.pinned)
       return;
 

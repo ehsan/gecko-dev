@@ -140,6 +140,7 @@ CPPSRCS		= \
 		jspropertycache.cpp \
 		jspropertytree.cpp \
 		jsreflect.cpp \
+		jsregexp.cpp \
 		jsscan.cpp \
 		jsscope.cpp \
 		jsscript.cpp \
@@ -160,9 +161,6 @@ CPPSRCS		= \
 		String.cpp \
 		ParseMaps.cpp \
 		LifoAlloc.cpp \
-		RegExpObject.cpp \
-		RegExpStatics.cpp \
-		RegExp.cpp \
 		Unicode.cpp \
 		$(NULL)
 
@@ -188,18 +186,25 @@ INSTALLED_HEADERS = \
 		jsdbgapi.h \
 		jsdhash.h \
 		jsemit.h \
+		jsfun.h \
 		jsfriendapi.h \
 		jsgc.h \
 		jscell.h \
 		jsgcchunk.h \
 		jsgcstats.h \
 		jshash.h \
+		jsinfer.h \
+		jsinferinlines.h \
+		jsinterp.h \
 		jsinttypes.h \
+		jsiter.h \
 		jslock.h \
+		jsobj.h \
 		json.h \
 		jsopcode.tbl \
 		jsopcode.h \
 		jsotypes.h \
+		jsparse.h \
 		jsproxy.h \
 		jsprf.h \
 		jsprobes.h \
@@ -210,6 +215,8 @@ INSTALLED_HEADERS = \
 		jspubtd.h \
 		jsreflect.h \
 		jsscan.h \
+		jsscope.h \
+		jsscript.h \
 		jsstaticcheck.h \
 		jsstdint.h \
 		jsstr.h \
@@ -231,17 +238,20 @@ INSTALLED_HEADERS = \
 # BEGIN include sources for the engine subdirectories
 #
 VPATH		+= \
-		$(srcdir)/builtin \
-		$(srcdir)/ds \
-		$(srcdir)/frontend \
 		$(srcdir)/vm \
+		$(srcdir)/frontend \
+		$(srcdir)/ds \
 		$(NULL)
 
 EXPORTS_NAMESPACES = vm ds
 
 EXPORTS_vm = \
+		ArgumentsObject.h \
+		CallObject.h \
+		GlobalObject.h \
+		Stack.h \
 		String.h \
-		StackSpace.h \
+		StringObject.h \
 		Unicode.h  \
 		$(NULL)
 

@@ -62,6 +62,7 @@ import android.util.*;
 import android.net.*;
 import android.database.*;
 import android.provider.*;
+import android.telephony.*;
 import android.content.pm.*;
 import android.content.pm.PackageManager.*;
 import dalvik.system.*;
@@ -86,8 +87,9 @@ abstract public class GeckoApp
     public Handler mMainHandler;
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
+    private PhoneStateListener mPhoneStateListener;
 
-    enum LaunchState {PreLaunch, Launching, WaitForDebugger,
+    enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.PreLaunch;
     private static boolean sTryCatchAttached = false;
@@ -396,6 +398,8 @@ abstract public class GeckoApp
         mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mConnectivityReceiver = new GeckoConnectivityReceiver();
 
+        mPhoneStateListener = new GeckoPhoneStateListener();
+
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
             return;
@@ -427,19 +431,21 @@ abstract public class GeckoApp
         }
         final String action = intent.getAction();
         if (ACTION_DEBUG.equals(action) &&
-            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitForDebugger)) {
-
-            mMainHandler.postDelayed(new Runnable() {
-                public void run() {
-                    Log.i(LOG_FILE_NAME, "Launching from debug intent after 5s wait");
+            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitButton)) {
+            final Button launchButton = new Button(this);
+            launchButton.setText("Launch"); // don't need to localize
+            launchButton.setOnClickListener(new Button.OnClickListener() {
+                public void onClick (View v) {
+                    // hide the button so we can't be launched again
+                    mainLayout.removeView(launchButton);
                     setLaunchState(LaunchState.Launching);
                     launch(null);
                 }
-            }, 1000 * 5 /* 5 seconds */);
-            Log.i(LOG_FILE_NAME, "Intent : ACTION_DEBUG - waiting 5s before launching");
+            });
+            mainLayout.addView(launchButton, 300, 200);
             return;
         }
-        if (checkLaunchState(LaunchState.WaitForDebugger) || launch(intent))
+        if (checkLaunchState(LaunchState.WaitButton) || launch(intent))
             return;
 
         if (Intent.ACTION_MAIN.equals(action)) {
@@ -479,6 +485,10 @@ abstract public class GeckoApp
         super.onPause();
 
         unregisterReceiver(mConnectivityReceiver);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
     }
 
     @Override
@@ -497,6 +507,13 @@ abstract public class GeckoApp
             onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_DATA_CONNECTION_STATE);
+
+        // Notify if network state changed since we paused
+        GeckoAppShell.onNetworkStateChange(true);
     }
 
     @Override
@@ -603,6 +620,16 @@ abstract public class GeckoApp
             ZipEntry entry = zipEntries.nextElement();
             if (entry.getName().startsWith("extensions/") && entry.getName().endsWith(".xpi")) {
                 Log.i("GeckoAppJava", "installing extension : " + entry.getName());
+                unpackFile(zip, buf, entry, entry.getName());
+            }
+        }
+
+        // copy any hyphenation dictionaries file into a hyphenation/ directory
+        Enumeration<? extends ZipEntry> hyphenEntries = zip.entries();
+        while (hyphenEntries.hasMoreElements()) {
+            ZipEntry entry = hyphenEntries.nextElement();
+            if (entry.getName().startsWith("hyphenation/")) {
+                Log.i("GeckoAppJava", "installing hyphenation : " + entry.getName());
                 unpackFile(zip, buf, entry, entry.getName());
             }
         }

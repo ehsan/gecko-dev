@@ -39,7 +39,7 @@
 
 #include "nsDOMStringMap.h"
 
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsGenericHTMLElement.h"
 #include "nsContentUtils.h"
 
@@ -196,7 +196,7 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
 
   jsval val;
   JSContext* cx = nsContentUtils::GetCurrentJSContext();
-  nsresult rv = nsContentUtils::WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+  nsresult rv = nsContentUtils::WrapNative(cx, JS_GetScopeChain(cx),
                                            this, &val);
   NS_ENSURE_SUCCESS(rv, rv);
 

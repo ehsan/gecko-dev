@@ -91,7 +91,7 @@ static void Initialize()
         PR_LOG(sIdleLog, PR_LOG_WARNING, ("Failed to get XSSQueryInfo!\n"));
 #endif
 
-    sInitialized = true;
+    sInitialized = PR_TRUE;
 }
 
 nsIdleServiceGTK::nsIdleServiceGTK()

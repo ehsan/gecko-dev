@@ -75,8 +75,6 @@ members = [
     'nsIDOMWindow.sessionStorage',
     'nsIDOMWindow.localStorage',
     'nsIDOMWindow.globalStorage',
-    'nsIDOMWindow.onmouseenter',
-    'nsIDOMWindow.onmouseleave',
     'nsIDOMJSWindow.dump',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
@@ -128,8 +126,6 @@ members = [
     'nsIDOMDocument.elementFromPoint',
     'nsIDOMDocument.activeElement',
     'nsIDOMDocument.onreadystatechange',
-    'nsIDOMDocument.onmouseenter',
-    'nsIDOMDocument.onmouseleave',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -141,8 +137,6 @@ members = [
     'nsIDOMElement.setAttributeNS',
     'nsIDOMElement.hasAttribute',
     'nsIDOMElement.getAttributeNS',
-    'nsIDOMElement.onmouseenter',
-    'nsIDOMElement.onmouseleave',
     'nsIDOMNamedNodeMap.item',
     'nsIDOMNamedNodeMap.length',
     'nsIDOMNode.*',
@@ -154,6 +148,11 @@ members = [
     'nsIDOMDOMStringList.*',
     'nsIDOMDOMTokenList.*',
     'nsIDOMDOMSettableTokenList.*',
+    'nsIDOMNameList.getName',
+    'nsIDOMNameList.contains',
+    'nsIDOMNameList.containsNS',
+    'nsIDOMNameList.length',
+    'nsIDOMNameList.getNamespaceURI',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMNSElement.*',
 
@@ -341,8 +340,8 @@ members = [
     'nsIDOMNSHTMLElement.offsetWidth',
     'nsIDOMNSHTMLElement.scrollIntoView',
     'nsIDOMNSHTMLFrameElement.contentWindow',
-    'nsIDOMHTMLOptionsCollection.selectedIndex',
-    'nsIDOMHTMLOptionsCollection.add',
+    'nsIDOMNSHTMLOptionCollection.selectedIndex',
+    'nsIDOMNSHTMLOptionCollection.add',
 
     # dom/interfaces/json - None.
     # All methods of nsIJSON call GetCurrentNativeCallContext.
@@ -476,6 +475,7 @@ members = [
 #
 irregularFilenames = {
     # abbreviations
+    'nsIDOMNSHTMLOptionCollection': 'nsIDOMNSHTMLOptionCollectn',
     'nsIDOMHTMLTableSectionElement': 'nsIDOMHTMLTableSectionElem',
 
     # stowaways
@@ -495,7 +495,6 @@ irregularFilenames = {
     'nsIWebGLActiveInfo': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtension': 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtensionStandardDerivatives' : 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
 
@@ -915,54 +914,6 @@ customMethodCalls = {
         },
     'nsIDOMDocument_SetOnreadystatechange' : {
         'thisType' : 'nsDocument',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMDocument_GetOnmouseenter' : {
-        'thisType' : 'nsDocument',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMDocument_SetOnmouseenter' : {
-        'thisType' : 'nsDocument',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMDocument_GetOnmouseleave' : {
-        'thisType' : 'nsDocument',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMDocument_SetOnmouseleave' : {
-        'thisType' : 'nsDocument',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMElement_GetOnmouseenter' : {
-        'thisType' : 'nsGenericElement',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMElement_SetOnmouseenter' : {
-        'thisType' : 'nsGenericElement',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMElement_GetOnmouseleave' : {
-        'thisType' : 'nsGenericElement',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMElement_SetOnmouseleave' : {
-        'thisType' : 'nsGenericElement',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMWindow_GetOnmouseenter' : {
-        'thisType' : 'nsIDOMWindow',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMWindow_SetOnmouseenter' : {
-        'thisType' : 'nsIDOMWindow',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMWindow_GetOnmouseleave' : {
-        'thisType' : 'nsIDOMWindow',
-        'unwrapThisFailureFatal' : False
-        },
-    'nsIDOMWindow_SetOnmouseleave' : {
-        'thisType' : 'nsIDOMWindow',
         'unwrapThisFailureFatal' : False
         },
     # WebGL

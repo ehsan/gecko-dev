@@ -53,9 +53,6 @@
 #include "AccessCheck.h"
 #include "nsJSUtils.h"
 
-#include "dombindings.h"
-#include "nsWrapperCacheInlines.h"
-
 //#define STRICT_CHECK_OF_UNICODE
 #ifdef STRICT_CHECK_OF_UNICODE
 #define ILLEGAL_RANGE(c) (0!=((c) & 0xFF80))
@@ -159,7 +156,7 @@ XPCConvert::IsMethodReflectable(const XPTMethodDescriptor& info)
 JSBool
 XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 {
-    JSClass* jsclass = js::GetObjectJSClass(obj);
+    JSClass* jsclass = obj->getJSClass();
     NS_ASSERTION(jsclass, "obj has no class");
     if(jsclass &&
        (jsclass->flags & JSCLASS_HAS_PRIVATE) &&
@@ -252,7 +249,7 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
     // Allow wrong compartment or unset ScopeForNewObject when the caller knows
     // the value is primitive (viz., XPCNativeMember::GetConstantValue).
     NS_ABORT_IF_FALSE(type.IsArithmetic() ||
-                      cx->compartment == js::GetObjectCompartment(lccx.GetScopeForNewJSObjects()),
+                      cx->compartment == lccx.GetScopeForNewJSObjects()->compartment(),
                       "bad scope for new JSObjects");
 
     if(pErr)
@@ -500,8 +497,8 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
 #ifdef DEBUG
                     JSObject* jsobj = JSVAL_TO_OBJECT(*d);
-                    if(jsobj && !js::GetObjectParent(jsobj))
-                        NS_ASSERTION(js::GetObjectClass(jsobj)->flags & JSCLASS_IS_GLOBAL,
+                    if(jsobj && !jsobj->getParent())
+                        NS_ASSERTION(jsobj->getClass()->flags & JSCLASS_IS_GLOBAL,
                                      "Why did we recreate this wrapper?");
 #endif
                 }
@@ -1141,7 +1138,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     // optimal -- we could detect this and roll the functionality into a
     // single wrapper, but the current solution is good enough for now.
     JSContext* cx = lccx.GetJSContext();
-    NS_ABORT_IF_FALSE(js::GetObjectCompartment(lccx.GetScopeForNewJSObjects()) == cx->compartment,
+    NS_ABORT_IF_FALSE(lccx.GetScopeForNewJSObjects()->compartment() == cx->compartment,
                       "bad scope for new JSObjects");
 
     JSObject *jsscope = lccx.GetScopeForNewJSObjects();
@@ -1155,7 +1152,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     // implementing it doesn't want a wrapped native as its JS Object, but
     // instead it provides its own proxy object. In that case, the object
     // to use is found as cache->GetWrapper(). If that is null, then the
-    // object will create (and fill the cache) from its WrapObject call.
+    // object will create (and fill the cache) from its PreCreate call.
     nsWrapperCache *cache = aHelper.GetWrapperCache();
 
     bool tryConstructSlimWrapper = false;
@@ -1169,23 +1166,13 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             if(!ccx.IsValid())
                 return JS_FALSE;
 
-            if(!flat) {
-                bool triedToWrap;
-                flat = cache->WrapObject(lccx.GetJSContext(), xpcscope,
-                                         &triedToWrap);
-                if(!flat && triedToWrap)
-                    return JS_FALSE;
-                if (!flat) {
-                    flat = ConstructProxyObject(ccx, aHelper, xpcscope);
-                }
-            }
+            if(!flat)
+                flat = ConstructProxyObject(ccx, aHelper, xpcscope);
 
-            if(flat) {
-                if(!JS_WrapObject(ccx, &flat))
-                    return JS_FALSE;
+            if(!JS_WrapObject(ccx, &flat))
+                return JS_FALSE;
 
-                return CreateHolderIfNeeded(ccx, flat, d, dest);
-            }
+            return CreateHolderIfNeeded(ccx, flat, d, dest);
         }
 
         if(!dest)
@@ -1196,7 +1183,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             }
             else if(IS_SLIM_WRAPPER_OBJECT(flat))
             {
-                if(js::GetObjectCompartment(flat) == cx->compartment)
+                if(flat->compartment() == cx->compartment)
                 {
                     *d = OBJECT_TO_JSVAL(flat);
                     return JS_TRUE;
@@ -1259,7 +1246,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         }
     }
 
-    NS_ASSERTION(!flat || IS_WRAPPER_CLASS(js::GetObjectClass(flat)),
+    NS_ASSERTION(!flat || IS_WRAPPER_CLASS(flat->getClass()),
                  "What kind of wrapper is this?");
 
     nsresult rv;
@@ -1381,9 +1368,9 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
         }
         else
         {
-            flat = JS_ObjectToOuterObject(cx, flat);
+            OBJ_TO_OUTER_OBJECT(cx, flat);
             NS_ASSERTION(flat, "bad outer object hook!");
-            NS_ASSERTION(js::GetObjectCompartment(flat) == cx->compartment,
+            NS_ASSERTION(flat->compartment() == cx->compartment,
                          "bad compartment");
         }
     }
@@ -1855,7 +1842,7 @@ XPCConvert::NativeArray2JS(XPCLazyCallContext& lccx,
         return JS_FALSE;
 
     JSContext* cx = ccx.GetJSContext();
-    NS_ABORT_IF_FALSE(js::GetObjectCompartment(lccx.GetScopeForNewJSObjects()) == cx->compartment,
+    NS_ABORT_IF_FALSE(lccx.GetScopeForNewJSObjects()->compartment() == cx->compartment,
                       "bad scope for new JSObjects");
 
     // XXX add support for putting chars in a string rather than an array

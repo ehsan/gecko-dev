@@ -1660,7 +1660,7 @@ nsNativeThemeCocoa::DrawScrollbar(CGContextRef aCGContext, const HIRect& aBoxRec
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   HIThemeTrackDrawInfo tdi;
-  GetScrollbarDrawInfo(tdi, aFrame, aBoxRect.size, true); // True means we want the press states
+  GetScrollbarDrawInfo(tdi, aFrame, aBoxRect.size, PR_TRUE); // True means we want the press states
   RenderTransformedHIThemeControl(aCGContext, aBoxRect, RenderScrollbar, &tdi);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -1684,7 +1684,7 @@ ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* a
 {
   if (![aWindow isKindOfClass:[ToolbarWindow class]] ||
       [(ToolbarWindow*)aWindow drawsContentsIntoWindowFrame])
-    return false;
+    return PR_FALSE;
 
   float unifiedToolbarHeight = [(ToolbarWindow*)aWindow unifiedToolbarHeight];
   return inBoxRect.origin.x == 0 &&
@@ -2015,7 +2015,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       break;
 
     case NS_THEME_DROPDOWN_BUTTON:
-      DrawButton(cgContext, kThemeArrowButton, macRect, false, kThemeButtonOn,
+      DrawButton(cgContext, kThemeArrowButton, macRect, PR_FALSE, kThemeButtonOn,
                  kThemeAdornmentArrowDownArrow, eventState, aFrame);
       break;
 
@@ -2058,7 +2058,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
     case NS_THEME_PROGRESSBAR_VERTICAL:
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame, eventState),
-                   false, GetProgressValue(aFrame),
+                   PR_FALSE, GetProgressValue(aFrame),
                    GetProgressMaxValue(aFrame), aFrame);
       break;
 
@@ -2068,18 +2068,18 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       break;
 
     case NS_THEME_TREEVIEW_TWISTY:
-      DrawButton(cgContext, kThemeDisclosureButton, macRect, false,
+      DrawButton(cgContext, kThemeDisclosureButton, macRect, PR_FALSE,
                  kThemeDisclosureRight, kThemeAdornmentNone, eventState, aFrame);
       break;
 
     case NS_THEME_TREEVIEW_TWISTY_OPEN:
-      DrawButton(cgContext, kThemeDisclosureButton, macRect, false,
+      DrawButton(cgContext, kThemeDisclosureButton, macRect, PR_FALSE,
                  kThemeDisclosureDown, kThemeAdornmentNone, eventState, aFrame);
       break;
 
     case NS_THEME_TREEVIEW_HEADER_CELL: {
       TreeSortDirection sortDirection = GetTreeSortDirection(aFrame);
-      DrawButton(cgContext, kThemeListHeaderButton, macRect, false,
+      DrawButton(cgContext, kThemeListHeaderButton, macRect, PR_FALSE,
                  sortDirection == eTreeSortDirection_Natural ? kThemeButtonOff : kThemeButtonOn,
                  sortDirection == eTreeSortDirection_Ascending ?
                  kThemeAdornmentHeaderButtonSortUp : kThemeAdornmentNone, eventState, aFrame);
@@ -2355,9 +2355,9 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Return false here to indicate that CSS padding values should be used. There is
+// Return PR_FALSE here to indicate that CSS padding values should be used. There is
 // no reason to make a distinction between padding and border values, just specify
-// whatever values you want in GetWidgetBorder and only use this to return true
+// whatever values you want in GetWidgetBorder and only use this to return PR_TRUE
 // if you want to override CSS padding values.
 bool
 nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext, 
@@ -2375,9 +2375,9 @@ nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext,
     case NS_THEME_CHECKBOX:
     case NS_THEME_RADIO:
       aResult->SizeTo(0, 0, 0, 0);
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -2407,11 +2407,11 @@ nsNativeThemeCocoa::GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFram
                  NSIntPixelsToAppUnits(extraSize.right, p2a),
                  NSIntPixelsToAppUnits(extraSize.bottom, p2a));
       aOverflowRect->Inflate(m);
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 static const PRInt32 kRegularScrollbarThumbMinSize = 22;
@@ -2427,7 +2427,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   aResult->SizeTo(0,0);
-  *aIsOverridable = true;
+  *aIsOverridable = PR_TRUE;
 
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
@@ -2449,7 +2449,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       ::GetThemeMetric(kThemeMetricLittleArrowsWidth, &buttonWidth);
       ::GetThemeMetric(kThemeMetricLittleArrowsHeight, &buttonHeight);
       aResult->SizeTo(buttonWidth, buttonHeight);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
 
@@ -2488,7 +2488,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       ::GetThemeMetric(kThemeMetricDisclosureButtonWidth, &twistyWidth);
       ::GetThemeMetric(kThemeMetricDisclosureButtonHeight, &twistyHeight);
       aResult->SizeTo(twistyWidth, twistyHeight);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
     
@@ -2512,7 +2512,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       SInt32 scaleHeight = 0;
       ::GetThemeMetric(kThemeMetricHSliderHeight, &scaleHeight);
       aResult->SizeTo(scaleHeight, scaleHeight);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
 
@@ -2521,7 +2521,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       SInt32 scaleWidth = 0;
       ::GetThemeMetric(kThemeMetricVSliderWidth, &scaleWidth);
       aResult->SizeTo(scaleWidth, scaleWidth);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
       
@@ -2530,7 +2530,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       SInt32 scrollbarWidth = 0;
       ::GetThemeMetric(kThemeMetricSmallScrollBarWidth, &scrollbarWidth);
       aResult->SizeTo(scrollbarWidth, scrollbarWidth);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
 
@@ -2568,7 +2568,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       SInt32 scrollbarWidth = 0;
       ::GetThemeMetric(themeMetric, &scrollbarWidth);
       aResult->SizeTo(scrollbarWidth, scrollbarWidth);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
 
@@ -2593,7 +2593,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       else
         aResult->SizeTo(scrollbarWidth, scrollbarWidth+1);
  
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
       break;
     }
     case NS_THEME_RESIZER:
@@ -2608,7 +2608,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       HIRect bounds;
       HIThemeGetGrowBoxBounds(&pnt, &drawInfo, &bounds);
       aResult->SizeTo(bounds.size.width, bounds.size.height);
-      *aIsOverridable = false;
+      *aIsOverridable = PR_FALSE;
     }
   }
 
@@ -2641,7 +2641,7 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
     case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
     case NS_THEME_PROGRESSBAR:
     case NS_THEME_PROGRESSBAR_VERTICAL:
-      *aShouldRepaint = false;
+      *aShouldRepaint = PR_FALSE;
       return NS_OK;
   }
 
@@ -2650,11 +2650,11 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
   // For example, a toolbar doesn't care about any states.
   if (!aAttribute) {
     // Hover/focus/active changed.  Always repaint.
-    *aShouldRepaint = true;
+    *aShouldRepaint = PR_TRUE;
   } else {
     // Check the attribute to see if it's relevant.  
     // disabled, checked, dlgtype, default, etc.
-    *aShouldRepaint = false;
+    *aShouldRepaint = PR_FALSE;
     if (aAttribute == nsWidgetAtoms::disabled ||
         aAttribute == nsWidgetAtoms::checked ||
         aAttribute == nsWidgetAtoms::selected ||
@@ -2663,7 +2663,7 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
         aAttribute == nsWidgetAtoms::focused ||
         aAttribute == nsWidgetAtoms::_default ||
         aAttribute == nsWidgetAtoms::open)
-      *aShouldRepaint = true;
+      *aShouldRepaint = PR_TRUE;
   }
 
   return NS_OK;
@@ -2685,13 +2685,13 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
   // render natively even if native theme support is disabled.
   if (aWidgetType != NS_THEME_SCROLLBAR &&
       aPresContext && !aPresContext->PresShell()->IsThemeSupportEnabled())
-    return false;
+    return PR_FALSE;
 
   // if this is a dropdown button in a combobox the answer is always no
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON) {
     nsIFrame* parentFrame = aFrame->GetParent();
     if (parentFrame && (parentFrame->GetType() == nsWidgetAtoms::comboboxControlFrame))
-      return false;
+      return PR_FALSE;
   }
 
   switch (aWidgetType) {
@@ -2766,7 +2766,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     {
       nsIFrame* parentFrame = aFrame->GetParent();
       if (!parentFrame || parentFrame->GetType() != nsWidgetAtoms::scrollFrame)
-        return true;
+        return PR_TRUE;
 
       // Note that IsWidgetStyled is not called for resizers on Mac. This is
       // because for scrollable containers, the native resizer looks better
@@ -2779,7 +2779,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -2791,10 +2791,10 @@ nsNativeThemeCocoa::WidgetIsContainer(PRUint8 aWidgetType)
    case NS_THEME_RADIO:
    case NS_THEME_CHECKBOX:
    case NS_THEME_PROGRESSBAR:
-    return false;
+    return PR_FALSE;
     break;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -2805,15 +2805,15 @@ nsNativeThemeCocoa::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFra
       aWidgetType == NS_THEME_BUTTON ||
       aWidgetType == NS_THEME_RADIO ||
       aWidgetType == NS_THEME_CHECKBOX)
-    return true;
+    return PR_TRUE;
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
 nsNativeThemeCocoa::ThemeNeedsComboboxDropmarker()
 {
-  return false;
+  return PR_FALSE;
 }
 
 nsITheme::Transparency

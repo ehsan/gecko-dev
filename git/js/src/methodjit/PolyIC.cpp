@@ -2879,8 +2879,6 @@ ic::CallElement(VMFrame &f, ic::GetElementIC *ic)
         return;
     }
 
-    RecompilationMonitor monitor(cx);
-
     Value thisv = f.regs.sp[-2];
     JSObject *thisObj = ValuePropertyBearer(cx, thisv, -2);
     if (!thisObj)
@@ -2893,7 +2891,7 @@ ic::CallElement(VMFrame &f, ic::GetElementIC *ic)
     else if (!js_InternNonIntElementId(cx, thisObj, idval, &id))
         THROW();
 
-    if (!monitor.recompiled() && ic->shouldUpdate(cx)) {
+    if (ic->shouldUpdate(cx)) {
 #ifdef DEBUG
         f.regs.sp[-2] = MagicValue(JS_GENERIC_MAGIC);
 #endif

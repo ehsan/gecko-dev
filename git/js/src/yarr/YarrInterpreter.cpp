@@ -860,11 +860,12 @@ public:
                     resetMatches(term, context);
                     freeParenthesesDisjunctionContext(context);
 
-                    if (result != JSRegExpNoMatch)
+                    if (result == JSRegExpNoMatch) {
+                        JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
+                        if (backtrackResult != JSRegExpMatch)
+                            return backtrackResult;
+                    } else
                         return result;
-                    JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
-                    if (backtrackResult != JSRegExpMatch)
-                        return backtrackResult;
                 }
             }
 
@@ -946,11 +947,12 @@ public:
                     resetMatches(term, context);
                     freeParenthesesDisjunctionContext(context);
 
-                    if (result != JSRegExpNoMatch)
+                    if (result == JSRegExpNoMatch) {
+                        JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
+                        if (backtrackResult != JSRegExpMatch)
+                            return backtrackResult;
+                    } else
                         return result;
-                    JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
-                    if (backtrackResult != JSRegExpMatch)
-                        return backtrackResult;
                 }
             }
 
@@ -1034,8 +1036,7 @@ public:
                 popParenthesesDisjunctionContext(backTrack);
                 freeParenthesesDisjunctionContext(context);
 
-                if (result != JSRegExpNoMatch)
-                    return result;
+                return result;
             }
 
             return JSRegExpNoMatch;

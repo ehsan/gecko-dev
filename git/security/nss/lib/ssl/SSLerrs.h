@@ -52,8 +52,7 @@ ER3(SSL_ERROR_NO_CERTIFICATE,				SSL_ERROR_BASE + 3,
 ER3(SSL_ERROR_BAD_CERTIFICATE,				SSL_ERROR_BASE + 4,
 "Unable to communicate securely with peer: peers's certificate was rejected.")
 
-ER3(SSL_ERROR_UNUSED_5,					SSL_ERROR_BASE + 5,
-"Unrecognized SSL error code.")
+/* unused						(SSL_ERROR_BASE + 5),*/
 
 ER3(SSL_ERROR_BAD_CLIENT,				SSL_ERROR_BASE + 6,
 "The server has encountered bad data from the client.")
@@ -67,8 +66,7 @@ ER3(SSL_ERROR_UNSUPPORTED_CERTIFICATE_TYPE,		SSL_ERROR_BASE + 8,
 ER3(SSL_ERROR_UNSUPPORTED_VERSION,			SSL_ERROR_BASE + 9,
 "Peer using unsupported version of security protocol.")
 
-ER3(SSL_ERROR_UNUSED_10,				SSL_ERROR_BASE + 10,
-"Unrecognized SSL error code.")
+/* unused						(SSL_ERROR_BASE + 10),*/
 
 ER3(SSL_ERROR_WRONG_CERTIFICATE,			SSL_ERROR_BASE + 11,
 "Client authentication failed: private key in key database does not match public key in certificate database.")
@@ -76,8 +74,9 @@ ER3(SSL_ERROR_WRONG_CERTIFICATE,			SSL_ERROR_BASE + 11,
 ER3(SSL_ERROR_BAD_CERT_DOMAIN,				SSL_ERROR_BASE + 12,
 "Unable to communicate securely with peer: requested domain name does not match the server's certificate.")
 
-ER3(SSL_ERROR_POST_WARNING,				SSL_ERROR_BASE + 13,
-"Unrecognized SSL error code.")
+/* SSL_ERROR_POST_WARNING				(SSL_ERROR_BASE + 13),
+   defined in sslerr.h
+*/
 
 ER3(SSL_ERROR_SSL2_DISABLED,				(SSL_ERROR_BASE + 14),
 "Peer only supports SSL version 2, which is locally disabled.")
@@ -103,6 +102,7 @@ ER3(SSL_ERROR_SSL_DISABLED,				(SSL_ERROR_BASE + 20),
 
 ER3(SSL_ERROR_FORTEZZA_PQG,				(SSL_ERROR_BASE + 21),
 "Cannot connect: SSL peer is in another FORTEZZA domain.")
+
 
 ER3(SSL_ERROR_UNKNOWN_CIPHER_SUITE          , (SSL_ERROR_BASE + 22),
 "An unknown SSL cipher suite has been requested.")

@@ -102,7 +102,8 @@ ParseIntegerOptionalInteger(const nsAString& aValue,
 
 nsresult
 nsSVGIntegerPair::SetBaseValueString(const nsAString &aValueAsString,
-                                     nsSVGElement *aSVGElement)
+                                    nsSVGElement *aSVGElement,
+                                    bool aDoSetAttr)
 {
   PRInt32 val[2];
 
@@ -144,7 +145,8 @@ nsSVGIntegerPair::GetBaseValueString(nsAString &aValueAsString)
 
 void
 nsSVGIntegerPair::SetBaseValue(PRInt32 aValue, PairIndex aPairIndex,
-                               nsSVGElement *aSVGElement)
+                               nsSVGElement *aSVGElement,
+                               bool aDoSetAttr)
 {
   PRUint32 index = (aPairIndex == eFirst ? 0 : 1);
   mBaseVal[index] = aValue;
@@ -157,12 +159,13 @@ nsSVGIntegerPair::SetBaseValue(PRInt32 aValue, PairIndex aPairIndex,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  aSVGElement->DidChangeIntegerPair(mAttrEnum, true);
+  aSVGElement->DidChangeIntegerPair(mAttrEnum, aDoSetAttr);
 }
 
 void
 nsSVGIntegerPair::SetBaseValues(PRInt32 aValue1, PRInt32 aValue2,
-                                nsSVGElement *aSVGElement)
+                                nsSVGElement *aSVGElement,
+                                bool aDoSetAttr)
 {
   mBaseVal[0] = aValue1;
   mBaseVal[1] = aValue2;
@@ -176,7 +179,7 @@ nsSVGIntegerPair::SetBaseValues(PRInt32 aValue1, PRInt32 aValue2,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  aSVGElement->DidChangeIntegerPair(mAttrEnum, true);
+  aSVGElement->DidChangeIntegerPair(mAttrEnum, aDoSetAttr);
 }
 
 void

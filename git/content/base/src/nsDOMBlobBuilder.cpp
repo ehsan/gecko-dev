@@ -37,7 +37,7 @@
 
 #include "jstypedarray.h"
 #include "nsAutoPtr.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMFile.h"
 #include "nsIMultiplexInputStream.h"
 #include "nsStringStream.h"

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,12 +15,11 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -43,6 +42,7 @@
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
+#include "jsinterp.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
@@ -188,60 +188,91 @@ static JSBool
 JSONCreator(const jschar* aBuf, uint32 aLen, void* aData)
 {
   nsAString* result = static_cast<nsAString*>(aData);
-  result->Append(static_cast<const PRUnichar*>(aBuf),
-                 static_cast<PRUint32>(aLen));
-  return true;
+  result->Append((PRUnichar*)aBuf, (PRUint32)aLen);
+  return JS_TRUE;
 }
 
-void
-nsFrameMessageManager::GetParamsForMessage(const jsval& aObject,
-                                           JSContext* aCx,
+nsresult
+nsFrameMessageManager::GetParamsForMessage(nsAString& aMessageName,
                                            nsAString& aJSON)
 {
+  aMessageName.Truncate();
   aJSON.Truncate();
-  JSAutoRequest ar(aCx);
-  jsval v = aObject;
-  JS_Stringify(aCx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+  nsAXPCNativeCallContext* ncc = nsnull;
+  nsresult rv = nsContentUtils::XPConnect()->GetCurrentNativeCallContext(&ncc);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_STATE(ncc);
+
+  JSContext* ctx = nsnull;
+  rv = ncc->GetJSContext(&ctx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint32 argc;
+  jsval* argv = nsnull;
+  ncc->GetArgc(&argc);
+  ncc->GetArgvPtr(&argv);
+
+  JSAutoRequest ar(ctx);
+  JSString* str;
+  if (argc && (str = JS_ValueToString(ctx, argv[0])) && str) {
+    nsDependentJSString depStr;
+    if (!depStr.init(ctx, str)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    aMessageName.Assign(depStr);
+  }
+
+  if (argc >= 2) {
+    jsval v = argv[1];
+    JS_Stringify(ctx, &v, nsnull, JSVAL_NULL, JSONCreator, &aJSON);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::SendSyncMessage(const nsAString& aMessageName,
-                                       const jsval& aObject,
-                                       JSContext* aCx,
-                                       PRUint8 aArgc,
-                                       jsval* aRetval)
+nsFrameMessageManager::SendSyncMessage()
 {
   NS_ASSERTION(!IsGlobal(), "Should not call SendSyncMessage in chrome");
   NS_ASSERTION(!IsWindowLevel(), "Should not call SendSyncMessage in chrome");
   NS_ASSERTION(!mParentManager, "Should not have parent manager in content!");
-  *aRetval = JSVAL_VOID;
   if (mSyncCallback) {
     NS_ENSURE_TRUE(mCallbackData, NS_ERROR_NOT_INITIALIZED);
+    nsString messageName;
     nsString json;
-    if (aArgc >= 2) {
-      GetParamsForMessage(aObject, aCx, json);
-    }
+    nsresult rv = GetParamsForMessage(messageName, json);
+    NS_ENSURE_SUCCESS(rv, rv);
     InfallibleTArray<nsString> retval;
-    if (mSyncCallback(mCallbackData, aMessageName, json, &retval)) {
-      JSAutoRequest ar(aCx);
+    if (mSyncCallback(mCallbackData, messageName, json, &retval)) {
+      nsAXPCNativeCallContext* ncc = nsnull;
+      rv = nsContentUtils::XPConnect()->GetCurrentNativeCallContext(&ncc);
+      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ENSURE_STATE(ncc);
+
+      JSContext* ctx = nsnull;
+      rv = ncc->GetJSContext(&ctx);
+      NS_ENSURE_SUCCESS(rv, rv);
+      JSAutoRequest ar(ctx);
+
       PRUint32 len = retval.Length();
-      JSObject* dataArray = JS_NewArrayObject(aCx, len, NULL);
+      JSObject* dataArray = JS_NewArrayObject(ctx, len, NULL);
       NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
       for (PRUint32 i = 0; i < len; ++i) {
-        if (retval[i].IsEmpty()) {
+        if (retval[i].IsEmpty())
           continue;
-        }
 
         jsval ret = JSVAL_VOID;
-        if (!JS_ParseJSON(aCx, static_cast<const jschar*>(retval[i].get()),
-                          retval[i].Length(), &ret)) {
+        if (!JS_ParseJSON(ctx, (jschar*)retval[i].get(),
+                          (uint32)retval[i].Length(), &ret)) {
           return NS_ERROR_UNEXPECTED;
         }
-        NS_ENSURE_TRUE(JS_SetElement(aCx, dataArray, i, &ret), NS_ERROR_OUT_OF_MEMORY);
+        NS_ENSURE_TRUE(JS_SetElement(ctx, dataArray, i, &ret), NS_ERROR_OUT_OF_MEMORY);
       }
 
-      *aRetval = OBJECT_TO_JSVAL(dataArray);
+      jsval* retvalPtr;
+      ncc->GetRetValPtr(&retvalPtr);
+      *retvalPtr = OBJECT_TO_JSVAL(dataArray);
+      ncc->SetReturnValueWasSet(PR_TRUE);
     }
   }
   return NS_OK;
@@ -264,16 +295,13 @@ nsFrameMessageManager::SendAsyncMessageInternal(const nsAString& aMessage,
 }
 
 NS_IMETHODIMP
-nsFrameMessageManager::SendAsyncMessage(const nsAString& aMessageName,
-                                        const jsval& aObject,
-                                        JSContext* aCx,
-                                        PRUint8 aArgc)
+nsFrameMessageManager::SendAsyncMessage()
 {
+  nsString messageName;
   nsString json;
-  if (aArgc >= 2) {
-    GetParamsForMessage(aObject, aCx, json);
-  }
-  return SendAsyncMessageInternal(aMessageName, json);
+  nsresult rv = GetParamsForMessage(messageName, json);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return SendAsyncMessageInternal(messageName, json);
 }
 
 NS_IMETHODIMP
@@ -400,14 +428,14 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         jsval json = JSVAL_NULL;
         if (!aJSON.IsEmpty()) {
-          if (!JS_ParseJSON(ctx, static_cast<const jschar*>(PromiseFlatString(aJSON).get()),
-                            aJSON.Length(), &json)) {
+          if (!JS_ParseJSON(ctx, (jschar*)nsString(aJSON).get(),
+                            (uint32)aJSON.Length(), &json)) {
             json = JSVAL_NULL;
           }
         }
         JSString* jsMessage =
           JS_NewUCStringCopyN(ctx,
-                              static_cast<const jschar*>(PromiseFlatString(aMessage).get()),
+                              reinterpret_cast<const jschar *>(nsString(aMessage).get()),
                               aMessage.Length());
         NS_ENSURE_TRUE(jsMessage, NS_ERROR_OUT_OF_MEMORY);
         JS_DefineProperty(ctx, param, "target", targetv, NULL, NULL, JSPROP_ENUMERATE);
@@ -815,8 +843,6 @@ NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)
 
 nsFrameMessageManager* nsFrameMessageManager::sChildProcessManager = nsnull;
 nsFrameMessageManager* nsFrameMessageManager::sParentProcessManager = nsnull;
-nsFrameMessageManager* nsFrameMessageManager::sSameProcessParentManager = nsnull;
-nsTArray<nsCOMPtr<nsIRunnable> >* nsFrameMessageManager::sPendingSameProcessAsyncMessages = nsnull;
 
 bool SendAsyncMessageToChildProcess(void* aCallbackData,
                                     const nsAString& aMessage,
@@ -828,35 +854,6 @@ bool SendAsyncMessageToChildProcess(void* aCallbackData,
   if (cp) {
     return cp->SendAsyncMessage(nsString(aMessage), nsString(aJSON));
   }
-  return true;
-}
-
-class nsAsyncMessageToSameProcessChild : public nsRunnable
-{
-public:
-  nsAsyncMessageToSameProcessChild(const nsAString& aMessage, const nsAString& aJSON)
-    : mMessage(aMessage), mJSON(aJSON) {}
-
-  NS_IMETHOD Run()
-  {
-    if (nsFrameMessageManager::sChildProcessManager) {
-      nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sChildProcessManager;
-      ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()), mMessage,
-                          PR_FALSE, mJSON, nsnull, nsnull);
-    }
-    return NS_OK;
-  }
-  nsString mMessage;
-  nsString mJSON;
-};
-
-bool SendAsyncMessageToSameProcessChild(void* aCallbackData,
-                                        const nsAString& aMessage,
-                                        const nsAString& aJSON)
-{
-  nsRefPtr<nsIRunnable> ev =
-    new nsAsyncMessageToSameProcessChild(aMessage, aJSON);
-  NS_DispatchToCurrentThread(ev);
   return true;
 }
 
@@ -874,28 +871,6 @@ bool SendSyncMessageToParentProcess(void* aCallbackData,
   return true;
 }
 
-bool SendSyncMessageToSameProcessParent(void* aCallbackData,
-                                        const nsAString& aMessage,
-                                        const nsAString& aJSON,
-                                        InfallibleTArray<nsString>* aJSONRetVal)
-{
-  nsTArray<nsCOMPtr<nsIRunnable> > asyncMessages;
-  if (nsFrameMessageManager::sPendingSameProcessAsyncMessages) {
-    asyncMessages.SwapElements(*nsFrameMessageManager::sPendingSameProcessAsyncMessages);
-    PRUint32 len = asyncMessages.Length();
-    for (PRUint32 i = 0; i < len; ++i) {
-      nsCOMPtr<nsIRunnable> async = asyncMessages[i];
-      async->Run();
-    }
-  }
-  if (nsFrameMessageManager::sSameProcessParentManager) {
-    nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sSameProcessParentManager;
-    ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()), aMessage,
-                        PR_TRUE, aJSON, nsnull, aJSONRetVal);
-  }
-  return true;
-}
-
 bool SendAsyncMessageToParentProcess(void* aCallbackData,
                                      const nsAString& aMessage,
                                      const nsAString& aJSON)
@@ -908,42 +883,6 @@ bool SendAsyncMessageToParentProcess(void* aCallbackData,
   return true;
 }
 
-class nsAsyncMessageToSameProcessParent : public nsRunnable
-{
-public:
-  nsAsyncMessageToSameProcessParent(const nsAString& aMessage, const nsAString& aJSON)
-    : mMessage(aMessage), mJSON(aJSON) {}
-
-  NS_IMETHOD Run()
-  {
-    if (nsFrameMessageManager::sPendingSameProcessAsyncMessages) {
-      nsFrameMessageManager::sPendingSameProcessAsyncMessages->RemoveElement(this);
-    }
-    if (nsFrameMessageManager::sSameProcessParentManager) {
-      nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sSameProcessParentManager;
-      ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()), mMessage, PR_FALSE,
-                          mJSON, nsnull, nsnull);
-    }
-    return NS_OK;
-  }
-  nsString mMessage;
-  nsString mJSON;
-};
-
-bool SendAsyncMessageToSameProcessParent(void* aCallbackData,
-                                         const nsAString& aMessage,
-                                         const nsAString& aJSON)
-{
-  if (!nsFrameMessageManager::sPendingSameProcessAsyncMessages) {
-    nsFrameMessageManager::sPendingSameProcessAsyncMessages = new nsTArray<nsCOMPtr<nsIRunnable> >;
-  }
-  nsCOMPtr<nsIRunnable> ev =
-    new nsAsyncMessageToSameProcessParent(aMessage, aJSON);
-  nsFrameMessageManager::sPendingSameProcessAsyncMessages->AppendElement(ev);
-  NS_DispatchToCurrentThread(ev);
-  return true;
-}
-
 // This creates the global parent process message manager.
 nsresult
 NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
@@ -951,18 +890,17 @@ NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
   NS_ASSERTION(!nsFrameMessageManager::sParentProcessManager,
                "Re-creating sParentProcessManager");
   NS_ENSURE_TRUE(IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
-  nsRefPtr<nsFrameMessageManager> mm = new nsFrameMessageManager(PR_TRUE,
-                                                                 nsnull,
-                                                                 nsnull,
-                                                                 nsnull,
-                                                                 nsnull,
-                                                                 nsnull,
-                                                                 nsnull,
-                                                                 PR_FALSE,
-                                                                 PR_TRUE);
+  nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
+                                                        nsnull,
+                                                        nsnull,
+                                                        nsnull,
+                                                        nsnull,
+                                                        nsnull,
+                                                        nsnull,
+                                                        PR_FALSE,
+                                                        PR_TRUE);
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sParentProcessManager = mm;
-  nsFrameMessageManager::NewProcessMessageManager(nsnull); // Create same process message manager.
   return CallQueryInterface(mm, aResult);
 }
 
@@ -976,18 +914,13 @@ nsFrameMessageManager::NewProcessMessageManager(mozilla::dom::ContentParent* aPr
 
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
                                                         nsnull,
-                                                        aProcess ? SendAsyncMessageToChildProcess
-                                                                 : SendAsyncMessageToSameProcessChild,
+                                                        SendAsyncMessageToChildProcess,
                                                         nsnull,
-                                                        aProcess ? static_cast<void*>(aProcess)
-                                                                 : static_cast<void*>(&nsFrameMessageManager::sChildProcessManager),
+                                                        aProcess,
                                                         nsFrameMessageManager::sParentProcessManager,
                                                         nsnull,
                                                         PR_FALSE,
                                                         PR_TRUE);
-  if (!aProcess) {
-    sSameProcessParentManager = mm;
-  }
   return mm;
 }
 
@@ -996,12 +929,10 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
-  PRBool isChrome = IsChromeProcess();
+  NS_ENSURE_TRUE(!IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_FALSE,
-                                                        isChrome ? SendSyncMessageToSameProcessParent
-                                                                 : SendSyncMessageToParentProcess,
-                                                        isChrome ? SendAsyncMessageToSameProcessParent
-                                                                 : SendAsyncMessageToParentProcess,
+                                                        SendSyncMessageToParentProcess,
+                                                        SendAsyncMessageToParentProcess,
                                                         nsnull,
                                                         &nsFrameMessageManager::sChildProcessManager,
                                                         nsnull,

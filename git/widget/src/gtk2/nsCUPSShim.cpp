@@ -61,7 +61,7 @@ nsCUPSShim::Init()
 {
     mCupsLib = PR_LoadLibrary("libcups.so.2");
     if (!mCupsLib)
-        return false;
+        return PR_FALSE;
 
     // List of symbol pointers. Must match gSymName[] defined above.
     void **symAddr[] = {
@@ -83,8 +83,8 @@ nsCUPSShim::Init()
 #endif
             PR_UnloadLibrary(mCupsLib);
             mCupsLib = nsnull;
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }

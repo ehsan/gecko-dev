@@ -1525,8 +1525,10 @@ RasterImage::Notify(nsITimer *timer)
   }
 
   nsIntRect dirtyRect;
+  imgFrame *frameToUse = nsnull;
 
   if (nextFrameIndex == 0) {
+    frameToUse = nextFrame;
     dirtyRect = mAnim->firstFrameRefreshArea;
   } else {
     imgFrame *prevFrame = mFrames[previousFrameIndex];
@@ -1534,7 +1536,7 @@ RasterImage::Notify(nsITimer *timer)
       return NS_OK;
 
     // Change frame and announce it
-    if (NS_FAILED(DoComposite(&dirtyRect, prevFrame,
+    if (NS_FAILED(DoComposite(&frameToUse, &dirtyRect, prevFrame,
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("RasterImage::Notify(): Composing Frame Failed\n");
@@ -1557,7 +1559,8 @@ RasterImage::Notify(nsITimer *timer)
 // DoComposite gets called when the timer for animation get fired and we have to
 // update the composited frame of the animation.
 nsresult
-RasterImage::DoComposite(nsIntRect* aDirtyRect,
+RasterImage::DoComposite(imgFrame** aFrameToUse,
+                         nsIntRect* aDirtyRect,
                          imgFrame* aPrevFrame,
                          imgFrame* aNextFrame,
                          PRInt32 aNextFrameIndex)
@@ -1565,6 +1568,7 @@ RasterImage::DoComposite(nsIntRect* aDirtyRect,
   NS_ENSURE_ARG_POINTER(aDirtyRect);
   NS_ENSURE_ARG_POINTER(aPrevFrame);
   NS_ENSURE_ARG_POINTER(aNextFrame);
+  NS_ENSURE_ARG_POINTER(aFrameToUse);
 
   PRInt32 prevFrameDisposalMethod = aPrevFrame->GetFrameDisposalMethod();
   if (prevFrameDisposalMethod == kDisposeRestorePrevious &&
@@ -1593,6 +1597,7 @@ RasterImage::DoComposite(nsIntRect* aDirtyRect,
     //               whole image
     if (prevFrameDisposalMethod == kDisposeClearAll) {
       aDirtyRect->SetRect(0, 0, mSize.width, mSize.height);
+      *aFrameToUse = aNextFrame;
       return NS_OK;
     }
   
@@ -1602,6 +1607,7 @@ RasterImage::DoComposite(nsIntRect* aDirtyRect,
         (nextFrameDisposalMethod != kDisposeRestorePrevious) &&
         !aNextFrame->GetHasAlpha()) {
       aDirtyRect->SetRect(0, 0, mSize.width, mSize.height);
+      *aFrameToUse = aNextFrame;
       return NS_OK;
     }
   }
@@ -1642,6 +1648,7 @@ RasterImage::DoComposite(nsIntRect* aDirtyRect,
   //    On the second loop, we do not need to rebuild the frame
   //    since it's still sitting in compositingFrame)
   if (mAnim->lastCompositedFrameIndex == aNextFrameIndex) {
+    *aFrameToUse = mAnim->compositingFrame;
     return NS_OK;
   }
 
@@ -1810,11 +1817,13 @@ RasterImage::DoComposite(nsIntRect* aDirtyRect,
     if (CopyFrameImage(mAnim->compositingFrame, aNextFrame)) {
       aPrevFrame->SetFrameDisposalMethod(kDisposeClearAll);
       mAnim->lastCompositedFrameIndex = -1;
+      *aFrameToUse = aNextFrame;
       return NS_OK;
     }
   }
 
   mAnim->lastCompositedFrameIndex = aNextFrameIndex;
+  *aFrameToUse = mAnim->compositingFrame;
 
   return NS_OK;
 }

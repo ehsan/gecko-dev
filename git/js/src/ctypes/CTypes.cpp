@@ -144,7 +144,7 @@ namespace StructType {
 namespace FunctionType {
   static JSBool Create(JSContext* cx, uintN argc, jsval* vp);
   static JSBool ConstructData(JSContext* cx, JSObject* typeObj,
-    JSObject* dataObj, JSObject* fnObj, JSObject* thisObj, jsval errVal);
+    JSObject* dataObj, JSObject* fnObj, JSObject* thisObj);
 
   static JSBool Call(JSContext* cx, uintN argc, jsval* vp);
 
@@ -3286,8 +3286,8 @@ PointerType::ConstructData(JSContext* cx,
     return JS_FALSE;
   }
 
-  if (argc > 3) {
-    JS_ReportError(cx, "constructor takes 0, 1, 2, or 3 arguments");
+  if (argc > 2) {
+    JS_ReportError(cx, "constructor takes 0, 1, or 2 arguments");
     return JS_FALSE;
   }
 
@@ -3298,63 +3298,40 @@ PointerType::ConstructData(JSContext* cx,
   // Set return value early, must not observe *vp after
   JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(result));
 
-  // There are 3 things that we might be creating here:
-  // 1 - A null pointer (no arguments)
-  // 2 - An initialized pointer (1 argument)
-  // 3 - A closure (1-3 arguments)
-  //
-  // The API doesn't give us a perfect way to distinguish 2 and 3, but the
-  // heuristics we use should be fine.
-
-  //
-  // Case 1 - Null pointer
-  //
-  if (argc == 0)
+  if (argc == 0) {
+    // Construct a null pointer.
     return JS_TRUE;
+  }
 
-  // Analyze the arguments a bit to decide what to do next.
   jsval* argv = JS_ARGV(cx, vp);
-  JSObject* baseObj = PointerType::GetBaseType(cx, obj);
-  bool looksLikeClosure = CType::GetTypeCode(cx, baseObj) == TYPE_function &&
-                          JSVAL_IS_OBJECT(argv[0]) &&
-                          JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(argv[0]));
+  if (argc >= 1) {
+    JSObject* baseObj = PointerType::GetBaseType(cx, obj);
+    if (CType::GetTypeCode(cx, baseObj) == TYPE_function &&
+        JSVAL_IS_OBJECT(argv[0]) &&
+        JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(argv[0]))) {
+      // Construct a FunctionType.ptr from a JS function, and allow an
+      // optional 'this' argument.
+      JSObject* thisObj = NULL;
+      if (argc == 2) {
+        if (JSVAL_IS_OBJECT(argv[1])) {
+          thisObj = JSVAL_TO_OBJECT(argv[1]);
+        } else if (!JS_ValueToObject(cx, argv[1], &thisObj)) {
+          return JS_FALSE;
+        }
+      }
 
-  //
-  // Case 2 - Initialized pointer
-  //
-  if (!looksLikeClosure) {
-    if (argc != 1) {
+      JSObject* fnObj = JSVAL_TO_OBJECT(argv[0]);
+      return FunctionType::ConstructData(cx, baseObj, result, fnObj, thisObj);
+    }
+
+    if (argc == 2) {
       JS_ReportError(cx, "first argument must be a function");
       return JS_FALSE;
     }
-    return ExplicitConvert(cx, argv[0], obj, CData::GetData(cx, result));
   }
 
-  //
-  // Case 3 - Closure
-  //
-
-  // The second argument is an optional 'this' parameter with which to invoke
-  // the given js function. Callers may leave this blank, or pass null if they
-  // wish to pass the third argument.
-  JSObject* thisObj = NULL;
-  if (argc >= 2) {
-    if (JSVAL_IS_OBJECT(argv[1])) {
-      thisObj = JSVAL_TO_OBJECT(argv[1]);
-    } else if (!JS_ValueToObject(cx, argv[1], &thisObj)) {
-      return JS_FALSE;
-    }
-  }
-
-  // The third argument is an optional error sentinel that js-ctypes will return
-  // if an exception is raised while executing the closure. The type must match
-  // the return type of the callback.
-  jsval errVal = JSVAL_VOID;
-  if (argc == 3)
-    errVal = argv[2];
-
-  JSObject* fnObj = JSVAL_TO_OBJECT(argv[0]);
-  return FunctionType::ConstructData(cx, baseObj, result, fnObj, thisObj, errVal);
+  // Construct from a raw pointer value.
+  return ExplicitConvert(cx, argv[0], obj, CData::GetData(cx, result));
 }
 
 JSObject*
@@ -4945,8 +4922,7 @@ FunctionType::ConstructData(JSContext* cx,
                             JSObject* typeObj,
                             JSObject* dataObj,
                             JSObject* fnObj,
-                            JSObject* thisObj,
-                            jsval errVal)
+                            JSObject* thisObj)
 {
   JS_ASSERT(CType::GetTypeCode(cx, typeObj) == TYPE_function);
 
@@ -4963,7 +4939,7 @@ FunctionType::ConstructData(JSContext* cx,
     return JS_FALSE;
   }
 
-  JSObject* closureObj = CClosure::Create(cx, typeObj, fnObj, thisObj, errVal, data);
+  JSObject* closureObj = CClosure::Create(cx, typeObj, fnObj, thisObj, data);
   if (!closureObj)
     return JS_FALSE;
   js::AutoObjectRooter root(cx, closureObj);
@@ -5244,7 +5220,6 @@ CClosure::Create(JSContext* cx,
                  JSObject* typeObj,
                  JSObject* fnObj,
                  JSObject* thisObj,
-                 jsval errVal,
                  PRFuncPtr* fnptr)
 {
   JS_ASSERT(fnObj);
@@ -5259,7 +5234,7 @@ CClosure::Create(JSContext* cx,
   JS_ASSERT(!fninfo->mIsVariadic);
   JS_ASSERT(GetABICode(cx, fninfo->mABI) != ABI_WINAPI);
 
-  AutoPtr<ClosureInfo> cinfo(cx->new_<ClosureInfo>(JS_GetRuntime(cx)));
+  AutoPtr<ClosureInfo> cinfo(cx->new_<ClosureInfo>());
   if (!cinfo) {
     JS_ReportOutOfMemory(cx);
     return NULL;
@@ -5302,37 +5277,6 @@ CClosure::Create(JSContext* cx,
   cinfo->cxThread = JS_GetContextThread(cx);
 #endif
 
-  // Prepare the error sentinel value. It's important to do this now, because
-  // we might be unable to convert the value to the proper type. If so, we want
-  // the caller to know about it _now_, rather than some uncertain time in the
-  // future when the error sentinel is actually needed.
-  if (!JSVAL_IS_VOID(errVal)) {
-
-    // Make sure the callback returns something.
-    if (CType::GetTypeCode(cx, fninfo->mReturnType) == TYPE_void_t) {
-      JS_ReportError(cx, "A void callback can't pass an error sentinel");
-      return NULL;
-    }
-
-    // With the exception of void, the FunctionType constructor ensures that
-    // the return type has a defined size.
-    JS_ASSERT(CType::IsSizeDefined(cx, fninfo->mReturnType));
-
-    // Allocate a buffer for the return value.
-    size_t rvSize = CType::GetSize(cx, fninfo->mReturnType);
-    cinfo->errResult = cx->malloc_(rvSize);
-    if (!cinfo->errResult)
-      return NULL;
-
-    // Do the value conversion. This might fail, in which case we throw.
-    if (!ImplicitConvert(cx, errVal, fninfo->mReturnType, cinfo->errResult,
-                         false, NULL))
-      return NULL;
-  } else {
-    cinfo->errResult = NULL;
-  }
-
-  // Copy the important bits of context into cinfo.
   cinfo->closureObj = result;
   cinfo->typeObj = typeObj;
   cinfo->thisObj = thisObj;
@@ -5350,14 +5294,17 @@ CClosure::Create(JSContext* cx,
   ffi_status status = ffi_prep_closure_loc(cinfo->closure, &fninfo->mCIF,
     CClosure::ClosureStub, cinfo.get(), code);
   if (status != FFI_OK) {
+    ffi_closure_free(cinfo->closure);
     JS_ReportError(cx, "couldn't create closure - libffi error");
     return NULL;
   }
 
   // Stash the ClosureInfo struct on our new object.
   if (!JS_SetReservedSlot(cx, result, SLOT_CLOSUREINFO,
-         PRIVATE_TO_JSVAL(cinfo.get())))
+         PRIVATE_TO_JSVAL(cinfo.get()))) {
+    ffi_closure_free(cinfo->closure);
     return NULL;
+  }
   cinfo.forget();
 
   // Casting between void* and a function pointer is forbidden in C and C++.
@@ -5397,6 +5344,9 @@ CClosure::Finalize(JSContext* cx, JSObject* obj)
     return;
 
   ClosureInfo* cinfo = static_cast<ClosureInfo*>(JSVAL_TO_PRIVATE(slot));
+  if (cinfo->closure)
+    ffi_closure_free(cinfo->closure);
+
   cx->delete_(cinfo);
 }
 
@@ -5435,9 +5385,8 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   // Initialize the result to zero, in case something fails. Small integer types
   // are promoted to a word-sized ffi_arg, so we must be careful to zero the
   // whole word.
-  size_t rvSize = 0;
   if (cif->rtype != &ffi_type_void) {
-    rvSize = cif->rtype->size;
+    size_t size = cif->rtype->size;
     switch (typeCode) {
 #define DEFINE_INT_TYPE(name, type, ffiType)                                   \
     case TYPE_##name:
@@ -5446,12 +5395,12 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
 #define DEFINE_CHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #define DEFINE_JSCHAR_TYPE(x, y, z) DEFINE_INT_TYPE(x, y, z)
 #include "typedefs.h"
-      rvSize = Align(rvSize, sizeof(ffi_arg));
+      size = Align(size, sizeof(ffi_arg));
       break;
     default:
       break;
     }
-    memset(result, 0, rvSize);
+    memset(result, 0, size);
   }
 
   // Get a death grip on 'closureObj'.
@@ -5476,51 +5425,17 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   // Call the JS function. 'thisObj' may be NULL, in which case the JS engine
   // will find an appropriate object to use.
   jsval rval;
-  JSBool success = JS_CallFunctionValue(cx, thisObj, OBJECT_TO_JSVAL(jsfnObj),
-                                        cif->nargs, argv.begin(), &rval);
+  if (!JS_CallFunctionValue(cx, thisObj, OBJECT_TO_JSVAL(jsfnObj), cif->nargs,
+       argv.begin(), &rval))
+    return;
 
   // Convert the result. Note that we pass 'isArgument = false', such that
   // ImplicitConvert will *not* autoconvert a JS string into a pointer-to-char
   // type, which would require an allocation that we can't track. The JS
   // function must perform this conversion itself and return a PointerType
   // CData; thusly, the burden of freeing the data is left to the user.
-  if (success && cif->rtype != &ffi_type_void)
-    success = ImplicitConvert(cx, rval, fninfo->mReturnType, result, false,
-                              NULL);
-
-  if (!success) {
-    // Something failed. The callee may have thrown, or it may not have
-    // returned a value that ImplicitConvert() was happy with. Depending on how
-    // prudent the consumer has been, we may or may not have a recovery plan.
-
-    // In any case, a JS exception cannot be passed to C code, so report the
-    // exception if any and clear it from the cx.
-    if (JS_IsExceptionPending(cx))
-      JS_ReportPendingException(cx);
-
-    if (cinfo->errResult) {
-      // Good case: we have a sentinel that we can return. Copy it in place of
-      // the actual return value, and then proceed.
-
-      // The buffer we're returning might be larger than the size of the return
-      // type, due to libffi alignment issues (see above). But it should never
-      // be smaller.
-      size_t copySize = CType::GetSize(cx, fninfo->mReturnType);
-      JS_ASSERT(copySize <= rvSize);
-      memcpy(result, cinfo->errResult, copySize);
-    } else {
-      // Bad case: not much we can do here. The rv is already zeroed out, so we
-      // just report (another) error and hope for the best. JS_ReportError will
-      // actually throw an exception here, so then we have to report it. Again.
-      // Ugh.
-      JS_ReportError(cx, "JavaScript callback failed, and an error sentinel "
-                         "was not specified.");
-      if (JS_IsExceptionPending(cx))
-        JS_ReportPendingException(cx);
-
-      return;
-    }
-  }
+  if (!ImplicitConvert(cx, rval, fninfo->mReturnType, result, false, NULL))
+    return;
 
   // Small integer types must be returned as a word-sized ffi_arg. Coerce it
   // back into the size libffi expects.
