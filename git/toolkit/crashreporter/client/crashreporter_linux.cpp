@@ -51,6 +51,10 @@
 
 #include <signal.h>
 
+#ifdef MOZ_ENABLE_GCONF
+#include <gconf/gconf-client.h>
+#endif
+
 #include <gtk/gtk.h>
 #include <glib.h>
 #include <string.h>
@@ -196,39 +200,10 @@ static gboolean ReportCompleted(gpointer success)
 
 static void LoadProxyinfo()
 {
-  class GConfClient;
-  typedef GConfClient * (*_gconf_default_fn)();
-  typedef gboolean (*_gconf_bool_fn)(GConfClient *, const gchar *, GError **);
-  typedef gint (*_gconf_int_fn)(GConfClient *, const gchar *, GError **);
-  typedef gchar * (*_gconf_string_fn)(GConfClient *, const gchar *, GError **);
-
-  if (getenv ("http_proxy"))
-    return; // libcurl can use the value from the environment
-
-  static void* gconfLib = dlopen("libgconf-2.so.4", RTLD_LAZY);
-  if (!gconfLib)
-    return;
-
-  _gconf_default_fn gconf_client_get_default =
-    (_gconf_default_fn)dlsym(gconfLib, "gconf_client_get_default");
-  _gconf_bool_fn gconf_client_get_bool =
-    (_gconf_bool_fn)dlsym(gconfLib, "gconf_client_get_bool");
-  _gconf_int_fn gconf_client_get_int =
-    (_gconf_int_fn)dlsym(gconfLib, "gconf_client_get_int");
-  _gconf_string_fn gconf_client_get_string =
-    (_gconf_string_fn)dlsym(gconfLib, "gconf_client_get_string");
-
-  if(!(gconf_client_get_default &&
-       gconf_client_get_bool &&
-       gconf_client_get_int &&
-       gconf_client_get_string)) {
-    dlclose(gconfLib);
-    return;
-  }
-
   GConfClient *conf = gconf_client_get_default();
 
-  if (gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_http_proxy", NULL)) {
+  if (!getenv ("http_proxy") &&
+      gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_http_proxy", NULL)) {
     gint port;
     gchar *host = NULL, *httpproxy = NULL;
 
@@ -254,7 +229,7 @@ static void LoadProxyinfo()
                                          "/authentication_password",
                                          NULL);
 
-      if (user && password) {
+      if (user != "\0") {
         auth = g_strdup_printf("%s:%s", user, password);
         gAuth = auth;
       }
@@ -266,8 +241,6 @@ static void LoadProxyinfo()
   }
 
   g_object_unref(conf);
-
-  dlclose(gconfLib);
 }
 #endif
 
