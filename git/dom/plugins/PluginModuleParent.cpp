@@ -39,10 +39,6 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #endif
-#ifdef MOZ_WIDGET_QT
-#include <QtCore/QCoreApplication>
-#include <QtCore/QEventLoop>
-#endif
 
 #include "base/process_util.h"
 
@@ -758,20 +754,7 @@ PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariab
     return true;
 }
 
-#if defined(MOZ_WIDGET_QT)
-static const int kMaxtimeToProcessEvents = 30;
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    PLUGIN_LOG_DEBUG(("Spinning mini nested loop ..."));
-    QCoreApplication::processEvents(QEventLoop::AllEvents, kMaxtimeToProcessEvents);
-
-    PLUGIN_LOG_DEBUG(("... quitting mini nested loop"));
-
-    return true;
-}
-
-#elif !defined(MOZ_WIDGET_GTK2)
+#if !defined(MOZ_WIDGET_GTK2)
 bool
 PluginModuleParent::AnswerProcessSomeEvents()
 {

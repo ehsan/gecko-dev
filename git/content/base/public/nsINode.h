@@ -623,10 +623,12 @@ public:
    * using the destruction function given when that value was set.
    *
    * @param aPropertyName  name of property to destroy.
+   *
+   * @throws NS_PROPTABLE_PROP_NOT_THERE if the property was not set
    */
-  void DeleteProperty(nsIAtom *aPropertyName)
+  nsresult DeleteProperty(nsIAtom *aPropertyName)
   {
-    DeleteProperty(0, aPropertyName);
+    return DeleteProperty(0, aPropertyName);
   }
 
   /**
@@ -635,8 +637,10 @@ public:
    *
    * @param aCategory      category of property to destroy.
    * @param aPropertyName  name of property to destroy.
+   *
+   * @throws NS_PROPTABLE_PROP_NOT_THERE if the property was not set
    */
-  virtual void DeleteProperty(PRUint16 aCategory, nsIAtom *aPropertyName);
+  virtual nsresult DeleteProperty(PRUint16 aCategory, nsIAtom *aPropertyName);
 
   /**
    * Unset a property associated with this node. The value will not be

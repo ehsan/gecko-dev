@@ -77,10 +77,6 @@ class PacketQueue : private nsDeque {
     nsDeque::Push(aItem);
   }
   
-  inline void PushFront(nestegg_packet* aItem) {
-    nsDeque::PushFront(aItem);
-  }
-
   inline nestegg_packet* PopFront() {
     return static_cast<nestegg_packet*>(nsDeque::PopFront());
   }

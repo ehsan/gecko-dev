@@ -89,7 +89,6 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
                              ImageContainer* aContainer,
                              PRInt64 aOffset,
                              PRInt64 aTime,
-                             PRInt64 aEndTime,
                              const YCbCrBuffer& aBuffer,
                              PRBool aKeyframe,
                              PRInt64 aTimecode)
@@ -136,7 +135,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     return nsnull;
   }
 
-  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aEndTime, aKeyframe, aTimecode));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aKeyframe, aTimecode));
   // Currently our decoder only knows how to output to PLANAR_YCBCR
   // format.
   Image::Format format = Image::PLANAR_YCBCR;

@@ -1314,58 +1314,55 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
   if (!IsContentLoaded())
     return;
 
-  PRInt32 contentOffset = aInfo->mChangeStart;
-  PRUint32 contentLength = aIsInserted ?
-    aInfo->mReplaceLength: // text has been added
-    aInfo->mChangeEnd - contentOffset; // text has been removed
-
-  if (contentLength == 0)
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aContent));
+  if (!node)
     return;
 
-  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aContent));
-  nsAccessible *accessible = GetAccService()->GetAccessible(node);
+  nsAccessible *accessible = GetAccService()->GetContainerAccessible(node,
+                                                                     PR_TRUE);
   if (!accessible)
     return;
 
-  nsRefPtr<nsHyperTextAccessible> textAccessible =
-    do_QueryObject(accessible->GetParent());
+  nsRefPtr<nsHyperTextAccessible> textAccessible(do_QueryObject(accessible));
   if (!textAccessible)
     return;
 
-  // Get offset within hypertext accessible.
+  PRInt32 start = aInfo->mChangeStart;
+
   PRInt32 offset = 0;
-  textAccessible->DOMPointToHypertextOffset(node, contentOffset, &offset);
+  textAccessible->DOMPointToHypertextOffset(node, start, &offset);
 
-  nsIFrame* frame = aContent->GetPrimaryFrame();
-  if (!frame)
-    return;
+  PRInt32 length = aIsInserted ?
+    aInfo->mReplaceLength: // text has been added
+    aInfo->mChangeEnd - start; // text has been removed
 
-  // Get added or removed text.
-  PRUint32 textOffset = 0;
-  nsresult rv = textAccessible->ContentToRenderedOffset(frame, contentOffset,
-                                                        &textOffset);
-  if (NS_FAILED(rv))
-    return;
+  if (length > 0) {
+    PRUint32 renderedStartOffset, renderedEndOffset;
+    nsIFrame* frame = aContent->GetPrimaryFrame();
+    if (!frame)
+      return;
 
-  nsAutoString text;
-  rv = accessible->AppendTextTo(text, textOffset, contentLength);
-  if (NS_FAILED(rv))
-    return;
+    nsresult rv = textAccessible->ContentToRenderedOffset(frame, start,
+                                                          &renderedStartOffset);
+    if (NS_FAILED(rv))
+      return;
 
-  // Get text length.
-  PRUint32 length = text.Length();
-  if (length == 0)
-    return;
+    rv = textAccessible->ContentToRenderedOffset(frame, start + length,
+                                                 &renderedEndOffset);
+    if (NS_FAILED(rv))
+      return;
 
-  // Normally we only fire delayed events created from the node, not an
-  // accessible object. See the nsAccTextChangeEvent constructor for details
-  // about this exceptional case.
-  nsRefPtr<nsAccEvent> event =
-      new nsAccTextChangeEvent(textAccessible, offset, length, text,
+    // Normally we only fire delayed events created from the node, not an
+    // accessible object. See the nsAccTextChangeEvent constructor for details
+    // about this exceptional case.
+    nsRefPtr<nsAccEvent> event =
+      new nsAccTextChangeEvent(accessible, offset,
+                               renderedEndOffset - renderedStartOffset,
                                aIsInserted, PR_FALSE);
-  FireDelayedAccessibleEvent(event);
+    FireDelayedAccessibleEvent(event);
 
-  FireValueChangeForTextFields(textAccessible);
+    FireValueChangeForTextFields(accessible);
+  }
 }
 
 already_AddRefed<nsAccEvent>
@@ -1382,11 +1379,11 @@ nsDocAccessible::CreateTextChangeEventForNode(nsAccessible *aContainerAccessible
     return nsnull;
   }
 
-  PRInt32 offset = 0;
+  PRInt32 offset;
+  PRInt32 length = 0;
   nsAccessible *changeAcc =
     textAccessible->DOMPointToHypertextOffset(aChangeNode, -1, &offset);
 
-  nsAutoString text;
   if (!aAccessibleForChangeNode) {
     // A span-level object or something else without an accessible is being removed, where
     // it has no accessible but it has descendant content which is aggregated as text
@@ -1399,7 +1396,6 @@ nsDocAccessible::CreateTextChangeEventForNode(nsAccessible *aContainerAccessible
     nsCOMPtr<nsINode> changeNode(do_QueryInterface(aChangeNode));
 
     nsAccessible *parent = changeAcc->GetParent();
-    nsCOMPtr<nsINode> parentNode = do_QueryInterface(parent->GetDOMNode());
     PRInt32 childCount = parent->GetChildCount();
     PRInt32 changeAccIdx = parent->GetIndexOf(changeAcc);
 
@@ -1407,18 +1403,19 @@ nsDocAccessible::CreateTextChangeEventForNode(nsAccessible *aContainerAccessible
       nsAccessible *child = parent->GetChildAt(idx);
       nsCOMPtr<nsINode> childNode(do_QueryInterface(child->GetDOMNode()));
 
-      if (!nsCoreUtils::IsAncestorOf(changeNode, childNode, parentNode)) {
+      if (!nsCoreUtils::IsAncestorOf(changeNode, childNode)) {
         // We only want accessibles with DOM nodes as children of this node
         break;
       }
 
-      child->AppendTextTo(text, 0, PR_UINT32_MAX);
+      length += nsAccUtils::TextLength(child);
     }
   }
   else {
     NS_ASSERTION(!changeAcc || changeAcc == aAccessibleForChangeNode,
                  "Hypertext is reporting a different accessible for this node");
 
+    length = nsAccUtils::TextLength(aAccessibleForChangeNode);
     if (nsAccUtils::Role(aAccessibleForChangeNode) == nsIAccessibleRole::ROLE_WHITESPACE) {  // newline
       // Don't fire event for the first html:br in an editor.
       nsCOMPtr<nsIEditor> editor;
@@ -1431,17 +1428,15 @@ nsDocAccessible::CreateTextChangeEventForNode(nsAccessible *aContainerAccessible
         }
       }
     }
-
-    aAccessibleForChangeNode->AppendTextTo(text, 0, PR_UINT32_MAX);
   }
 
-  PRUint32 length = text.Length();
-  if (length == 0)
+  if (length <= 0) {
     return nsnull;
+  }
 
   nsAccEvent *event =
-      new nsAccTextChangeEvent(aContainerAccessible, offset, length, text,
-                               aIsInserting, aIsAsynch, aIsFromUserInput);
+    new nsAccTextChangeEvent(aContainerAccessible, offset, length, aIsInserting,
+                             aIsAsynch, aIsFromUserInput);
   NS_IF_ADDREF(event);
 
   return event;

@@ -38,9 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_WIDGET_QT
-#include <QtCore/QTimer>
 #include "nsQAppInstance.h"
-#include "NestedLoopTimer.h"
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
@@ -98,8 +96,6 @@ PluginModuleChild::PluginModuleChild() :
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
   , mNestedLoopTimerId(0)
-#elif defined(MOZ_WIDGET_QT)
-  , mNestedLoopTimerObject(0)
 #endif
 #ifdef OS_WIN
   , mNestedEventHook(NULL)
@@ -449,26 +445,6 @@ PluginModuleChild::ExitedCxxStack()
 
     g_source_remove(mNestedLoopTimerId);
     mNestedLoopTimerId = 0;
-}
-#elif defined (MOZ_WIDGET_QT)
-
-void
-PluginModuleChild::EnteredCxxStack()
-{
-    NS_ABORT_IF_FALSE(mNestedLoopTimerObject == NULL,
-                      "previous timer not descheduled");
-    mNestedLoopTimerObject = new NestedLoopTimer(this);
-    QTimer::singleShot(kNestedLoopDetectorIntervalMs,
-                       mNestedLoopTimerObject, SLOT(timeOut()));
-}
-
-void
-PluginModuleChild::ExitedCxxStack()
-{
-    NS_ABORT_IF_FALSE(mNestedLoopTimerObject != NULL,
-                      "nested loop timeout not scheduled");
-    delete mNestedLoopTimerObject;
-    mNestedLoopTimerObject = NULL;
 }
 
 #endif

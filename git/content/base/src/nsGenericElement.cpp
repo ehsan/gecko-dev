@@ -222,12 +222,14 @@ nsINode::SetProperty(PRUint16 aCategory, nsIAtom *aPropertyName, void *aValue,
   return rv;
 }
 
-void
+nsresult
 nsINode::DeleteProperty(PRUint16 aCategory, nsIAtom *aPropertyName)
 {
   nsIDocument *doc = GetOwnerDoc();
-  if (doc)
-    doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
+  if (!doc)
+    return nsnull;
+
+  return doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
 }
 
 void*

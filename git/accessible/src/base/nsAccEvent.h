@@ -221,8 +221,7 @@ class nsAccTextChangeEvent: public nsAccEvent,
                             public nsIAccessibleTextChangeEvent
 {
 public:
-  nsAccTextChangeEvent(nsIAccessible *aAccessible, PRInt32 aStart,
-                       PRUint32 aLength, nsAString& aModifiedText,
+  nsAccTextChangeEvent(nsIAccessible *aAccessible, PRInt32 aStart, PRUint32 aLength,
                        PRBool aIsInserted, PRBool aIsAsynch = PR_FALSE,
                        EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
