@@ -29,8 +29,8 @@
 #ifndef yarr_YarrPattern_h
 #define yarr_YarrPattern_h
 
-#include "yarr/wtfbridge.h"
-#include "yarr/ASCIICType.h"
+#include "wtfbridge.h"
+#include "ASCIICType.h"
 
 namespace JSC { namespace Yarr {
 

@@ -26,17 +26,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "yarr/YarrPattern.h"
+#include "YarrPattern.h"
 
-#include "yarr/Yarr.h"
-#include "yarr/YarrCanonicalizeUCS2.h"
-#include "yarr/YarrParser.h"
+#include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
+#include "YarrParser.h"
 
 using namespace WTF;
 
 namespace JSC { namespace Yarr {
 
-#include "yarr/RegExpJitTables.h"
+#include "RegExpJitTables.h"
 
 #if WTF_CPU_SPARC
 # define BASE_FRAME_SIZE 24

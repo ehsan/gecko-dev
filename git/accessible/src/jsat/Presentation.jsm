@@ -155,7 +155,7 @@ VisualPresenter.prototype = {
         }
       };
     } catch (e) {
-      Logger.logException(e, 'Failed to get bounds');
+      Logger.error('Failed to get bounds: ' + e);
       return null;
     }
   },
@@ -395,19 +395,6 @@ SpeechPresenter.prototype = {
           {method: 'speak',
             data: UtteranceGenerator.genForContext(aContext).join(' '),
             options: {enqueue: true}}
-        ]
-      }
-    };
-  },
-
-  actionInvoked: function SpeechPresenter_actionInvoked(aObject, aActionName) {
-    return {
-      type: this.type,
-      details: {
-        actions: [
-          {method: 'speak',
-           data: UtteranceGenerator.genForAction(aObject, aActionName).join(' '),
-           options: {enqueue: false}}
         ]
       }
     };

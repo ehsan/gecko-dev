@@ -9,13 +9,13 @@
 # include <unistd.h>
 #endif
 
-#include "ion/PerfSpewer.h"
-#include "ion/IonSpewer.h"
-#include "ion/LIR.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/LinearScan.h"
-#include "ion/RangeAnalysis.h"
+#include "PerfSpewer.h"
+#include "IonSpewer.h"
+#include "LIR.h"
+#include "MIR.h"
+#include "MIRGraph.h"
+#include "LinearScan.h"
+#include "RangeAnalysis.h"
 
 using namespace js;
 using namespace js::ion;

@@ -12,9 +12,9 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 
-#include "ion/BaselineJIT.h"
-#include "ion/BaselineIC.h"
-#include "ion/MIR.h"
+#include "BaselineJIT.h"
+#include "BaselineIC.h"
+#include "MIR.h"
 
 namespace js {
 namespace ion {

@@ -28,7 +28,7 @@
 #ifndef yarr_MatchResult_h
 #define yarr_MatchResult_h
 
-#include "yarr/wtfbridge.h"
+#include "wtfbridge.h"
 
 typedef uint64_t EncodedMatchResult;
 

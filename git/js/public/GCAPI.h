@@ -7,7 +7,7 @@
 #ifndef js_GCAPI_h
 #define js_GCAPI_h
 
-#include "js/HeapAPI.h"
+#include "HeapAPI.h"
 
 namespace JS {
 

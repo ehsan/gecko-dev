@@ -11,23 +11,23 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "ion/IonCode.h"
+#include "IonCode.h"
 #include "jsinfer.h"
 
 #include "vm/Interpreter.h"
 
-#include "ion/IonAllocPolicy.h"
-#include "ion/BaselineJIT.h"
-#include "ion/BaselineIC.h"
-#include "ion/FixedList.h"
-#include "ion/BytecodeAnalysis.h"
+#include "IonAllocPolicy.h"
+#include "BaselineJIT.h"
+#include "BaselineIC.h"
+#include "FixedList.h"
+#include "BytecodeAnalysis.h"
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/BaselineCompiler-x86.h"
+# include "x86/BaselineCompiler-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/BaselineCompiler-x64.h"
+# include "x64/BaselineCompiler-x64.h"
 #else
-# include "ion/arm/BaselineCompiler-arm.h"
+# include "arm/BaselineCompiler-arm.h"
 #endif
 
 namespace js {

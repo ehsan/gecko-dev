@@ -26,7 +26,7 @@
 #ifndef assembler_wtf_Assertions_h
 #define assembler_wtf_Assertions_h
 
-#include "assembler/wtf/Platform.h"
+#include "Platform.h"
 #include "mozilla/Assertions.h"
 
 #ifndef DEBUG
@@ -37,9 +37,7 @@
 #  define ASSERT_DISABLED 1
 #endif
 
-#ifndef ASSERT
 #define ASSERT(assertion) MOZ_ASSERT(assertion)
-#endif
 #define ASSERT_UNUSED(variable, assertion) do { \
     (void)variable; \
     ASSERT(assertion); \

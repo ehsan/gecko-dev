@@ -6,10 +6,10 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "ion/LiveRangeAllocator.h"
+#include "LiveRangeAllocator.h"
 
-#include "ion/BacktrackingAllocator.h"
-#include "ion/LinearScan.h"
+#include "BacktrackingAllocator.h"
+#include "LinearScan.h"
 
 using namespace js;
 using namespace js::ion;

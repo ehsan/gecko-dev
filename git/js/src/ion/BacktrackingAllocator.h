@@ -7,7 +7,7 @@
 #ifndef ion_BacktrackingAllocator_h
 #define ion_BacktrackingAllocator_h
 
-#include "ion/LiveRangeAllocator.h"
+#include "LiveRangeAllocator.h"
 
 #include "ds/PriorityQueue.h"
 #include "ds/SplayTree.h"

@@ -31,7 +31,7 @@
 #define yarr_OSAllocator_h
 
 #include <stdlib.h>
-#include "yarr/wtfbridge.h"
+#include "wtfbridge.h"
 #include "assembler/wtf/VMTags.h"
 #include "assembler/wtf/Assertions.h"
 

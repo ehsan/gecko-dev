@@ -9,8 +9,8 @@
 
 #include "jstypes.h"
 #include "vm/Stack.h"
-#include "ion/IonFrameIterator.h"
-#include "ion/IonFrames.h"
+#include "IonFrameIterator.h"
+#include "IonFrames.h"
 
 namespace js {
 namespace ion {

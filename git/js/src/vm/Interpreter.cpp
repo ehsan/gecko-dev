@@ -8,7 +8,7 @@
  * JavaScript bytecode interpreter.
  */
 
-#include "vm/Interpreter.h"
+#include "Interpreter.h"
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"

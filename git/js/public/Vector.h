@@ -11,8 +11,8 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TypeTraits.h"
 
-#include "js/TemplateLib.h"
-#include "js/Utility.h"
+#include "TemplateLib.h"
+#include "Utility.h"
 
 /* Silence dire "bugs in previous versions of MSVC have been fixed" warnings */
 #ifdef _MSC_VER

@@ -35,8 +35,8 @@
 
 #if ENABLE(ASSEMBLER)
 
-#include "assembler/assembler/ARMv7Assembler.h"
-#include "assembler/assembler/AbstractMacroAssembler.h"
+#include "ARMv7Assembler.h"
+#include "AbstractMacroAssembler.h"
 
 namespace JSC {
 

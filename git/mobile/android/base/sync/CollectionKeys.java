@@ -109,9 +109,6 @@ public class CollectionKeys {
    */
   public void setKeyPairsFromWBO(CryptoRecord keys, KeyBundle syncKeyBundle)
       throws CryptoException, IOException, ParseException, NonObjectJSONException {
-    if (keys == null) {
-      throw new IllegalArgumentException("cannot set key pairs from null record");
-    }
     if (syncKeyBundle != null) {
       keys.keyBundle = syncKeyBundle;
       keys.decrypt();

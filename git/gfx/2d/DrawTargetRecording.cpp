@@ -249,16 +249,6 @@ DrawTargetRecording::Mask(const Pattern &aSource,
 }
 
 void
-DrawTargetRecording::MaskSurface(const Pattern &aSource,
-                                 SourceSurface *aMask,
-                                 Point aOffset,
-                                 const DrawOptions &aOptions)
-{
-  mRecorder->RecordEvent(RecordedMaskSurface(this, aSource, aMask, aOffset, aOptions));
-  mFinalDT->MaskSurface(*AdjustedPattern(aSource), GetSourceSurface(aMask), aOffset, aOptions);
-}
-
-void
 DrawTargetRecording::Stroke(const Path *aPath,
                             const Pattern &aPattern,
                             const StrokeOptions &aStrokeOptions,
