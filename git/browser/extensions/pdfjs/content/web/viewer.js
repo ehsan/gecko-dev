@@ -648,7 +648,7 @@ var ViewHistory = (function ViewHistoryClosure() {
         return;
       }
       this.file[name] = val;
-      return this._writeToStorage();
+      this._writeToStorage();
     },
 
     setMultiple: function ViewHistory_setMultiple(properties) {
@@ -658,7 +658,7 @@ var ViewHistory = (function ViewHistoryClosure() {
       for (var name in properties) {
         this.file[name] = properties[name];
       }
-      return this._writeToStorage();
+      this._writeToStorage();
     },
 
     get: function ViewHistory_get(name, defaultValue) {
@@ -3446,15 +3446,14 @@ var PDFView = {
     }
   },
 
-  renderHighestPriority:
-      function pdfViewRenderHighestPriority(currentlyVisiblePages) {
+  renderHighestPriority: function pdfViewRenderHighestPriority() {
     if (PDFView.idleTimeout) {
       clearTimeout(PDFView.idleTimeout);
       PDFView.idleTimeout = null;
     }
 
     // Pages have a higher priority than thumbnails, so check them first.
-    var visiblePages = currentlyVisiblePages || this.getVisiblePages();
+    var visiblePages = this.getVisiblePages();
     var pageView = this.getHighestPriority(visiblePages, this.pages,
                                            this.pageViewScroll.down);
     if (pageView) {
@@ -4019,13 +4018,12 @@ var PageView = function pageView(container, id, scale,
       // the text layer are rotated.
       // TODO: This could probably be simplified by drawing the text layer in
       // one orientation then rotating overall.
-      var textLayerViewport = this.textLayer.viewport;
       var textRelativeRotation = this.viewport.rotation -
-                                 textLayerViewport.rotation;
+                                 this.textLayer.viewport.rotation;
       var textAbsRotation = Math.abs(textRelativeRotation);
-      var scale = width / textLayerViewport.width;
+      var scale = (width / canvas.width);
       if (textAbsRotation === 90 || textAbsRotation === 270) {
-        scale = width / textLayerViewport.height;
+        scale = width / canvas.height;
       }
       var textLayerDiv = this.textLayer.textLayerDiv;
       var transX, transY;
@@ -5375,7 +5373,7 @@ function updateViewarea() {
     return;
   }
 
-  PDFView.renderHighestPriority(visible);
+  PDFView.renderHighestPriority();
 
   var currentId = PDFView.page;
   var firstPage = visible.first;
@@ -5432,8 +5430,6 @@ function updateViewarea() {
       'zoom': normalizedScaleValue,
       'scrollLeft': intLeft,
       'scrollTop': intTop
-    }).catch(function() {
-      // unable to write to storage
     });
   });
   var href = PDFView.getAnchorUrl(pdfOpenParams);
@@ -5813,8 +5809,16 @@ window.addEventListener('afterprint', function afterPrint(evt) {
 (function animationStartedClosure() {
   // The offsetParent is not set until the pdf.js iframe or object is visible.
   // Waiting for first animation.
+  var requestAnimationFrame = window.requestAnimationFrame ||
+                              window.mozRequestAnimationFrame ||
+                              window.webkitRequestAnimationFrame ||
+                              window.oRequestAnimationFrame ||
+                              window.msRequestAnimationFrame ||
+                              function startAtOnce(callback) { callback(); };
   PDFView.animationStartedPromise = new Promise(function (resolve) {
-    window.requestAnimationFrame(resolve);
+    requestAnimationFrame(function onAnimationFrame() {
+      resolve();
+    });
   });
 })();
 

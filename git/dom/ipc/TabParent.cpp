@@ -1017,13 +1017,10 @@ TabParent::RecvAsyncMessage(const nsString& aMessage,
 }
 
 bool
-TabParent::RecvSetCursor(const uint32_t& aCursor, const bool& aForce)
+TabParent::RecvSetCursor(const uint32_t& aCursor)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
-    if (aForce) {
-      widget->ClearCachedCursor();
-    }
     widget->SetCursor((nsCursor) aCursor);
   }
   return true;

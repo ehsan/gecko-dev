@@ -202,6 +202,9 @@ public:
                     int32_t x, int32_t y, int32_t w, int32_t h)
                     { return NS_ERROR_NOT_IMPLEMENTED; }
 
+    bool LoseContext();
+    bool RestoreContext();
+
     void SynthesizeGLError(GLenum err);
     void SynthesizeGLError(GLenum err, const char *fmt, ...);
 
@@ -258,13 +261,10 @@ public:
 
     bool MinCapabilityMode() const { return mMinCapability; }
 
-    void UpdateContextLossStatus();
-    void EnqueueUpdateContextLossStatus();
-    static void ContextLossCallbackStatic(nsITimer* timer, void* thisPointer);
-    void RunContextLossTimer();
+    void RobustnessTimerCallback(nsITimer* timer);
+    static void RobustnessTimerCallbackStatic(nsITimer* timer, void *thisPointer);
+    void SetupContextLossTimer();
     void TerminateContextLossTimer();
-
-    bool TryToRestoreContext();
 
     void AssertCachedBindings();
     void AssertCachedState();
@@ -511,7 +511,6 @@ public:
 
     void Uniform1iv(WebGLUniformLocation* location,
                     const dom::Int32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform1iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform1iv(WebGLUniformLocation* location,
@@ -523,7 +522,6 @@ public:
 
     void Uniform2iv(WebGLUniformLocation* location,
                     const dom::Int32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform2iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform2iv(WebGLUniformLocation* location,
@@ -535,7 +533,6 @@ public:
 
     void Uniform3iv(WebGLUniformLocation* location,
                     const dom::Int32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform3iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform3iv(WebGLUniformLocation* location,
@@ -547,7 +544,6 @@ public:
 
     void Uniform4iv(WebGLUniformLocation* location,
                     const dom::Int32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform4iv_base(location, arr.Length(), arr.Data());
     }
     void Uniform4iv(WebGLUniformLocation* location,
@@ -559,7 +555,6 @@ public:
 
     void Uniform1fv(WebGLUniformLocation* location,
                     const dom::Float32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform1fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform1fv(WebGLUniformLocation* location,
@@ -571,7 +566,6 @@ public:
 
     void Uniform2fv(WebGLUniformLocation* location,
                     const dom::Float32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform2fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform2fv(WebGLUniformLocation* location,
@@ -583,7 +577,6 @@ public:
 
     void Uniform3fv(WebGLUniformLocation* location,
                     const dom::Float32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform3fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform3fv(WebGLUniformLocation* location,
@@ -595,7 +588,6 @@ public:
 
     void Uniform4fv(WebGLUniformLocation* location,
                     const dom::Float32Array& arr) {
-        arr.ComputeLengthAndData();
         Uniform4fv_base(location, arr.Length(), arr.Data());
     }
     void Uniform4fv(WebGLUniformLocation* location,
@@ -608,7 +600,6 @@ public:
     void UniformMatrix2fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           const dom::Float32Array &value) {
-        value.ComputeLengthAndData();
         UniformMatrix2fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix2fv(WebGLUniformLocation* location,
@@ -624,7 +615,6 @@ public:
     void UniformMatrix3fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           const dom::Float32Array &value) {
-        value.ComputeLengthAndData();
         UniformMatrix3fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix3fv(WebGLUniformLocation* location,
@@ -640,7 +630,6 @@ public:
     void UniformMatrix4fv(WebGLUniformLocation* location,
                           WebGLboolean transpose,
                           const dom::Float32Array &value) {
-        value.ComputeLengthAndData();
         UniformMatrix4fv_base(location, transpose, value.Length(), value.Data());
     }
     void UniformMatrix4fv(WebGLUniformLocation* location,
@@ -666,12 +655,8 @@ public:
     bool ValidateSamplerUniformSetter(const char* info,
                                     WebGLUniformLocation *location,
                                     GLint value);
+
     void Viewport(GLint x, GLint y, GLsizei width, GLsizei height);
-// -----------------------------------------------------------------------------
-// WEBGL_lose_context
-public:
-    void LoseContext();
-    void RestoreContext();
 
 // -----------------------------------------------------------------------------
 // Asynchronous Queries (WebGLContextAsyncQueries.cpp)
@@ -768,7 +753,6 @@ public:
                         GLfloat x2, GLfloat x3);
 
     void VertexAttrib1fv(GLuint idx, const dom::Float32Array &arr) {
-        arr.ComputeLengthAndData();
         VertexAttrib1fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib1fv(GLuint idx, const dom::Sequence<GLfloat>& arr) {
@@ -776,7 +760,6 @@ public:
     }
 
     void VertexAttrib2fv(GLuint idx, const dom::Float32Array &arr) {
-        arr.ComputeLengthAndData();
         VertexAttrib2fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib2fv(GLuint idx, const dom::Sequence<GLfloat>& arr) {
@@ -784,7 +767,6 @@ public:
     }
 
     void VertexAttrib3fv(GLuint idx, const dom::Float32Array &arr) {
-        arr.ComputeLengthAndData();
         VertexAttrib3fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib3fv(GLuint idx, const dom::Sequence<GLfloat>& arr) {
@@ -792,7 +774,6 @@ public:
     }
 
     void VertexAttrib4fv(GLuint idx, const dom::Float32Array &arr) {
-        arr.ComputeLengthAndData();
         VertexAttrib4fv_base(idx, arr.Length(), arr.Data());
     }
     void VertexAttrib4fv(GLuint idx, const dom::Sequence<GLfloat>& arr) {
@@ -873,6 +854,7 @@ protected:
     bool mOptionsFrozen;
     bool mMinCapability;
     bool mDisableExtensions;
+    bool mHasRobustness;
     bool mIsMesa;
     bool mLoseContextOnHeapMinimize;
     bool mCanLoseContextInForeground;
@@ -1119,6 +1101,7 @@ protected:
                              GLenum type,
                              const GLvoid *data);
 
+    void MaybeRestoreContext();
     void ForceLoseContext();
     void ForceRestoreContext();
 
@@ -1180,7 +1163,7 @@ protected:
 
     GLint mStencilRefFront, mStencilRefBack;
     GLuint mStencilValueMaskFront, mStencilValueMaskBack,
-           mStencilWriteMaskFront, mStencilWriteMaskBack;
+              mStencilWriteMaskFront, mStencilWriteMaskBack;
     realGLboolean mColorWriteMask[4];
     realGLboolean mDepthWriteMask;
     GLfloat mColorClearValue[4];
@@ -1194,10 +1177,9 @@ protected:
     bool mAlreadyWarnedAboutViewportLargerThanDest;
 
     nsCOMPtr<nsITimer> mContextRestorer;
-    bool mAllowContextRestore;
-    bool mLastLossWasSimulated;
+    bool mAllowRestore;
     bool mContextLossTimerRunning;
-    bool mRunContextLossTimerAgain;
+    bool mDrawSinceContextLossTimerSet;
     ContextStatus mContextStatus;
     bool mContextLostErrorSet;
 

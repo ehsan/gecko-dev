@@ -429,9 +429,6 @@ HyperTextAccessible::FindOffset(uint32_t aOffset, nsDirection aDirection,
                                 nsSelectionAmount aAmount,
                                 EWordMovementType aWordMovementType)
 {
-  NS_ASSERTION(aDirection == eDirPrevious || aAmount != eSelectBeginLine,
-               "eSelectBeginLine should only be used with eDirPrevious");
-
   // Find a leaf accessible frame to start with. PeekOffset wants this.
   HyperTextAccessible* text = this;
   Accessible* child = nullptr;
@@ -450,32 +447,22 @@ HyperTextAccessible::FindOffset(uint32_t aOffset, nsDirection aDirection,
     if (text->IsHTMLListItem()) {
       HTMLLIAccessible* li = text->AsHTMLListItem();
       if (child == li->Bullet()) {
-        // XXX: the logic is broken for multichar bullets in moving by
-        // char/cluster/word cases.
-        if (text != this) {
-          return aDirection == eDirPrevious ?
-            TransformOffset(text, 0, false) :
-            TransformOffset(text, 1, true);
-        }
+        // It works only when the bullet is one single char.
         if (aDirection == eDirPrevious)
-          return 0;
+          return text != this ? TransformOffset(text, 0, false) : 0;
 
-        uint32_t nextOffset = GetChildOffset(1);
-        if (nextOffset == 0)
-          return 0;
+        if (aAmount == eSelectEndLine || aAmount == eSelectLine) {
+          if (text != this)
+            return TransformOffset(text, 1, true);
 
-        switch (aAmount) {
-          case eSelectLine:
-          case eSelectEndLine:
-            // Ask a text leaf next (if not empty) to the bullet for an offset
-            // since list item may be multiline.
-            return nextOffset < CharacterCount() ?
-              FindOffset(nextOffset, aDirection, aAmount, aWordMovementType) :
-              nextOffset;
-
-          default:
-            return nextOffset;
+          // Ask a text leaf next (if not empty) to the bullet for an offset
+          // since list item may be multiline.
+          return aOffset + 1 < CharacterCount() ?
+            FindOffset(aOffset + 1, aDirection, aAmount, aWordMovementType) : 1;
         }
+
+        // Case of word and char boundaries.
+        return text != this ? TransformOffset(text, 1, true) : 1;
       }
     }
 
@@ -534,12 +521,8 @@ HyperTextAccessible::FindOffset(uint32_t aOffset, nsDirection aDirection,
       return 0;
 
     // PeekOffset stops right before bullet so return 0 to workaround it.
-    if (IsHTMLListItem() && aAmount == eSelectBeginLine &&
-        hyperTextOffset > 0) {
-      Accessible* prevOffsetChild = GetChildAtOffset(hyperTextOffset - 1);
-      if (prevOffsetChild == AsHTMLListItem()->Bullet())
-        return 0;
-    }
+    if (IsHTMLListItem() && aAmount == eSelectBeginLine && hyperTextOffset == 1)
+      return 0;
   }
 
   return hyperTextOffset;

@@ -130,7 +130,7 @@
             'trace_win.h',
           ],
         }],
-        ['enable_lazy_trace_alloc==1', {
+        ['enable_lazy_trace_alloc==0', {
           'defines': [
             'WEBRTC_LAZY_TRACE_ALLOC',
           ],

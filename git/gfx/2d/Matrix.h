@@ -73,13 +73,6 @@ public:
     return *this;
   }
 
-  Matrix &PostTranslate(Float aX, Float aY)
-  {
-    _31 += aX;
-    _32 += aY;
-    return *this;
-  }
-
   Matrix &Rotate(Float aAngle)
   {
     return *this = Matrix::Rotation(aAngle) * *this;

@@ -337,14 +337,6 @@ ClientLayerManager::RunOverfillCallback(const uint32_t aOverfill)
   mOverfillCallbacks.Clear();
 }
 
-static nsIntRect
-ToOutsideIntRect(const gfxRect &aRect)
-{
-  gfxRect r = aRect;
-  r.RoundOut();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
-}
-
 void
 ClientLayerManager::MakeSnapshotIfRequired()
 {
@@ -353,22 +345,27 @@ ClientLayerManager::MakeSnapshotIfRequired()
   }
   if (mWidget) {
     if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
-      nsIntRect bounds = ToOutsideIntRect(mShadowTarget->GetClipExtents());
-      SurfaceDescriptor inSnapshot;
-      if (!bounds.IsEmpty() &&
-          mForwarder->AllocSurfaceDescriptor(bounds.Size().ToIntSize(),
+      nsIntRect bounds;
+      mWidget->GetBounds(bounds);
+      IntSize widgetSize = bounds.Size().ToIntSize();
+      SurfaceDescriptor inSnapshot, snapshot;
+      if (mForwarder->AllocSurfaceDescriptor(widgetSize,
                                              gfxContentType::COLOR_ALPHA,
                                              &inSnapshot) &&
-          remoteRenderer->SendMakeSnapshot(inSnapshot, bounds)) {
-        RefPtr<DataSourceSurface> surf = GetSurfaceForDescriptor(inSnapshot);
+          // The compositor will usually reuse |snapshot| and return
+          // it through |outSnapshot|, but if it doesn't, it's
+          // responsible for freeing |snapshot|.
+          remoteRenderer->SendMakeSnapshot(inSnapshot, &snapshot)) {
+        RefPtr<DataSourceSurface> surf = GetSurfaceForDescriptor(snapshot);
         DrawTarget* dt = mShadowTarget->GetDrawTarget();
-        Rect dstRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        Rect srcRect(0, 0, bounds.width, bounds.height);
-        dt->DrawSurface(surf, dstRect, srcRect,
+        Rect widgetRect(Point(0, 0), Size(widgetSize.width, widgetSize.height));
+        dt->DrawSurface(surf, widgetRect, widgetRect,
                         DrawSurfaceOptions(),
                         DrawOptions(1.0f, CompositionOp::OP_OVER));
       }
-      mForwarder->DestroySharedSurface(&inSnapshot);
+      if (IsSurfaceDescriptorValid(snapshot)) {
+        mForwarder->DestroySharedSurface(&snapshot);
+      }
     }
   }
   mShadowTarget = nullptr;

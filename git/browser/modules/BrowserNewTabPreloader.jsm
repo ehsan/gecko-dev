@@ -320,9 +320,9 @@ HiddenBrowser.prototype = {
     // Swap docShells.
     tabbrowser.swapNewTabWithBrowser(aTab, this._browser);
 
-    // Load all delayed frame scripts attached to the "browers" message manager.
+    // Load all default frame scripts attached to the target window.
     let mm = aTab.linkedBrowser.messageManager;
-    let scripts = win.getGroupMessageManager("browsers").getDelayedFrameScripts();
+    let scripts = win.messageManager.getDelayedFrameScripts();
     Array.forEach(scripts, ([script, runGlobal]) => mm.loadFrameScript(script, true, runGlobal));
 
     // Remove the browser, it will be recreated by a timer.
