@@ -4500,8 +4500,7 @@ NS_IMETHODIMP
 nsFrame::GetPointFromOffset(PRInt32 inOffset, nsPoint* outPoint)
 {
   NS_PRECONDITION(outPoint != nsnull, "Null parameter");
-  nsRect contentRect = GetContentRect() - GetPosition();
-  nsPoint pt = contentRect.TopLeft();
+  nsPoint bottomLeft(0, 0);
   if (mContent)
   {
     nsIContent* newContent = mContent->GetParent();
@@ -4510,12 +4509,11 @@ nsFrame::GetPointFromOffset(PRInt32 inOffset, nsPoint* outPoint)
 
       PRBool isRTL = (NS_GET_EMBEDDING_LEVEL(this) & 1) == 1;
       if ((!isRTL && inOffset > newOffset) ||
-          (isRTL && inOffset <= newOffset)) {
-        pt = contentRect.TopRight();
-      }
+          (isRTL && inOffset <= newOffset))
+        bottomLeft.x = GetRect().width;
     }
   }
-  *outPoint = pt;
+  *outPoint = bottomLeft;
   return NS_OK;
 }
 

@@ -37,11 +37,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include <qfile.h>
-#include <qstringlist.h>
-#include <qapplication.h>
-
 #include "nsFilePicker.h"
 
 #include "nsILocalFile.h"
@@ -52,6 +47,10 @@
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsIWidget.h"
+
+#include <qfile.h>
+#include <qstringlist.h>
+#include <qapplication.h>
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)

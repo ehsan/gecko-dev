@@ -1,3 +1,6 @@
+#include "mozqwidget.h"
+#include "nsWindow.h"
+
 #include <QtGui/QApplication>
 #include <QtGui/QCursor>
 #include <QtGui/QInputContext>
@@ -9,9 +12,6 @@
 
 #include <QtCore/QEvent>
 #include <QtCore/QVariant>
-
-#include "mozqwidget.h"
-#include "nsWindow.h"
 
 
 MozQWidget::MozQWidget(nsWindow* aReceiver, QGraphicsItem* aParent)

@@ -2292,17 +2292,13 @@ DocumentViewerImpl::FindContainerView()
 {
   nsIView* containerView = nsnull;
 
-  nsCOMPtr<nsIContent> containerElement;
-  nsCOMPtr<nsIDocShellTreeItem> docShellItem = do_QueryReferent(mContainer);
-  nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
-  if (pwin) {
-    containerElement = do_QueryInterface(pwin->GetFrameElementInternal());
-  }
-        
   if (mParentWidget) {
     containerView = nsIView::GetViewFor(mParentWidget);
-  } else {
-    if (mContainer) {
+  } else if (mContainer) {
+    nsCOMPtr<nsIDocShellTreeItem> docShellItem = do_QueryReferent(mContainer);
+    nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
+    if (pwin) {
+      nsCOMPtr<nsIContent> content = do_QueryInterface(pwin->GetFrameElementInternal());
       nsCOMPtr<nsIPresShell> parentPresShell;
       if (docShellItem) {
         nsCOMPtr<nsIDocShellTreeItem> parentDocShellItem;
@@ -2312,12 +2308,12 @@ DocumentViewerImpl::FindContainerView()
           parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
         }
       }
-      if (!containerElement) {
+      if (!content) {
         NS_WARNING("Subdocument container has no content");
       } else if (!parentPresShell) {
         NS_WARNING("Subdocument container has no presshell");
       } else {
-        nsIFrame* f = parentPresShell->GetRealPrimaryFrameFor(containerElement);
+        nsIFrame* f = parentPresShell->GetRealPrimaryFrameFor(content);
         if (f) {
           nsIFrame* subdocFrame = f->GetContentInsertionFrame();
           // subdocFrame might not be a subdocument frame; the frame
@@ -2342,10 +2338,6 @@ DocumentViewerImpl::FindContainerView()
 
   if (!containerView)
     return nsnull;
-
-  if (containerElement &&
-      containerElement->HasAttr(kNameSpaceID_None, nsGkAtoms::transparent))
-    return containerView;
 
   nsIWidget* outerWidget = containerView->GetNearestWidget(nsnull);
   if (outerWidget &&
