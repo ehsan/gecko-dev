@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: IDL; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,15 +13,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is nsIApplicationCache.idl.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Seth Spitzer <sspitzer@netscape.com>
+ *   Dave Camp <dcamp@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,37 +36,36 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#ifndef __nsUserInfoMac_h
-#define __nsUserInfoMac_h
 
-#include "nsIUserInfo.h"
+#include "nsISupports.idl"
 
+interface nsIApplicationCache;
 
-#include <InternetConfig.h>
-
-class nsUserInfo: public nsIUserInfo
-
+/**
+ * The application cache service manages the set of application cache
+ * groups.
+ */
+[scriptable, uuid(3f411c68-0d17-420d-839a-6355eea877b9)]
+interface nsIApplicationCacheService : nsISupports
 {
-public:
-              nsUserInfo(void);
-  virtual     ~nsUserInfo();
+    /**
+     * Create a new, empty application cache for the given cache
+     * group.
+     */
+    nsIApplicationCache createApplicationCache(in ACString group);
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIUSERINFO
+    /**
+     * Get an application cache object for the given client ID.
+     */
+    nsIApplicationCache getApplicationCache(in ACString clientID);
 
-  
-protected:
+    /**
+     * Get the currently active cache object for a cache group.
+     */
+    nsIApplicationCache getActiveCache(in ACString group);
 
-  nsresult    EnsureInitted();
-
-  static OSType      GetAppCreatorCode();
-  static PRUnichar*  PStringToNewUCS2(ConstStr255Param str);
-  
-protected:
-
-  ICInstance    mInstance;
-  PRBool        mInitted;
-  
+    /**
+     * Try to find the best application cache to serve a resource.
+     */
+    nsIApplicationCache chooseApplicationCache(in ACString key);
 };
-
-#endif /* __nsUserInfo_h */

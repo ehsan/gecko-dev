@@ -1392,7 +1392,7 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
   if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    CheckInvalidateSizeChange(aDesiredSize);
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
   
   FinishAndStoreOverflow(&aDesiredSize);
