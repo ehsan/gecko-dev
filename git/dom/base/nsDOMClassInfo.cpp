@@ -641,6 +641,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   // Misc Core related classes
 
+  // StyleSheet classes
+  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(DocumentStyleSheetList, StyleSheetList,
+                                     nsStyleSheetListSH,
+                                     ARRAY_SCRIPTABLE_FLAGS)
+
   // Event
   NS_DEFINE_CLASSINFO_DATA(Event, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -811,7 +816,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MediaList, nsMediaListSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(StyleSheetList, nsStyleSheetListSH,
+  NS_DEFINE_CLASSINFO_DATA(StyleSheetList, nsDOMGenericSH,
                            ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSStyleSheet, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -2104,6 +2109,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNamedNodeMap)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(DocumentStyleSheetList,
+                                      nsIDOMStyleSheetList)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStyleSheetList)
+  DOM_CLASSINFO_MAP_END
+  
   DOM_CLASSINFO_MAP_BEGIN(Event, nsIDOMEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
@@ -5235,7 +5245,7 @@ public:
       ::JS_DefineUCProperty(cx, target,
                             reinterpret_cast<const jschar *>(mClassName),
                             nsCRT::strlen(mClassName), thisAsVal, nsnull,
-                            nsnull, 0);
+                            nsnull, JSPROP_PERMANENT);
 
     sDoSecurityCheckInAddProperty = doSecurityCheckInAddProperty;
     return ok ? NS_OK : NS_ERROR_UNEXPECTED;

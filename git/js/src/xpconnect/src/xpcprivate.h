@@ -1811,8 +1811,6 @@ public:
 
     void
     SetCallback(nsIXPCScriptable* s) {mCallback = s;}
-    void
-    SetCallback(already_AddRefed<nsIXPCScriptable> s) {mCallback = s;}
 
     void
     SetScriptableShared(XPCNativeScriptableShared* shared) {mShared = shared;}
@@ -1861,9 +1859,6 @@ public:
 
     void
     SetCallback(nsIXPCScriptable* callback) {mCallback = callback;}
-    void
-    SetCallback(already_AddRefed<nsIXPCScriptable> callback)
-      {mCallback = callback;}
 
     void
     SetFlags(const XPCNativeScriptableFlags& flags)  {mFlags = flags;}

@@ -807,7 +807,7 @@ XPCWrappedNative::GatherProtoScriptableCreateInfo(
             if(NS_FAILED(rv))
                 flags = 0;
 
-            sciProto->SetCallback(helper.forget());
+            sciProto->SetCallback(helper);
             sciProto->SetFlags(flags);
         }
     }
@@ -846,7 +846,7 @@ XPCWrappedNative::GatherScriptableCreateInfo(
         if(NS_FAILED(rv))
             flags = 0;
 
-        sciWrapper->SetCallback(helper.forget());
+        sciWrapper->SetCallback(helper);
         sciWrapper->SetFlags(flags);
 
         // A whole series of assertions to catch bad uses of scriptable flags on
