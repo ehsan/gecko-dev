@@ -43,9 +43,8 @@ USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
 using namespace mozilla;
 
-IDBRequest::IDBRequest(IDBDatabase* aDatabase)
-: IDBWrapperCache(aDatabase),
-  mResultVal(JSVAL_VOID),
+IDBRequest::IDBRequest()
+: mResultVal(JSVAL_VOID),
   mActorParent(nullptr),
 #ifdef MOZ_ENABLE_PROFILER_SPS
   mSerialNumber(gNextRequestSerialNumber++),
@@ -55,20 +54,8 @@ IDBRequest::IDBRequest(IDBDatabase* aDatabase)
   mHaveResultOrErrorCode(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-}
 
-IDBRequest::IDBRequest(nsPIDOMWindow* aOwner)
-: IDBWrapperCache(aOwner),
-  mResultVal(JSVAL_VOID),
-  mActorParent(nullptr),
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  mSerialNumber(gNextRequestSerialNumber++),
-#endif
-  mErrorCode(NS_OK),
-  mLineNo(0),
-  mHaveResultOrErrorCode(false)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  SetIsDOMBinding();
 }
 
 IDBRequest::~IDBRequest()
@@ -83,9 +70,10 @@ IDBRequest::Create(IDBDatabase* aDatabase,
                    IDBTransaction* aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  nsRefPtr<IDBRequest> request(new IDBRequest(aDatabase));
+  nsRefPtr<IDBRequest> request(new IDBRequest());
 
   request->mTransaction = aTransaction;
+  request->BindToOwner(aDatabase);
   request->SetScriptOwner(aDatabase->GetScriptOwner());
 
   if (!aDatabase->Factory()->FromIPC()) {
@@ -392,10 +380,11 @@ IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return NS_OK;
 }
 
-IDBOpenDBRequest::IDBOpenDBRequest(nsPIDOMWindow* aOwner)
-  : IDBRequest(aOwner)
+IDBOpenDBRequest::IDBOpenDBRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  SetIsDOMBinding();
 }
 
 IDBOpenDBRequest::~IDBOpenDBRequest()
@@ -412,8 +401,9 @@ IDBOpenDBRequest::Create(IDBFactory* aFactory,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aFactory, "Null pointer!");
 
-  nsRefPtr<IDBOpenDBRequest> request = new IDBOpenDBRequest(aOwner);
+  nsRefPtr<IDBOpenDBRequest> request = new IDBOpenDBRequest();
 
+  request->BindToOwner(aOwner);
   request->SetScriptOwner(aScriptOwner);
   request->mFactory = aFactory;
 

@@ -442,9 +442,8 @@ WebSocket::GetInterface(const nsIID& aIID, void** aResult)
 // WebSocket
 ////////////////////////////////////////////////////////////////////////////////
 
-WebSocket::WebSocket(nsPIDOMWindow* aOwnerWindow)
-: nsDOMEventTargetHelper(aOwnerWindow),
-  mKeepingAlive(false),
+WebSocket::WebSocket()
+: mKeepingAlive(false),
   mCheckMustKeepAlive(true),
   mOnCloseScheduled(false),
   mFailed(false),
@@ -458,8 +457,8 @@ WebSocket::WebSocket(nsPIDOMWindow* aOwnerWindow)
   mInnerWindowID(0)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
-  MOZ_ASSERT(aOwnerWindow);
-  MOZ_ASSERT(aOwnerWindow->IsInnerWindow());
+
+  SetIsDOMBinding();
 }
 
 WebSocket::~WebSocket()
@@ -561,8 +560,8 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
     protocolArray.AppendElement(protocolElement);
   }
 
-  nsRefPtr<WebSocket> webSocket = new WebSocket(ownerWindow);
-  nsresult rv = webSocket->Init(aGlobal.GetContext(), principal,
+  nsRefPtr<WebSocket> webSocket = new WebSocket();
+  nsresult rv = webSocket->Init(aGlobal.GetContext(), principal, ownerWindow,
                                 aUrl, protocolArray);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -641,17 +640,21 @@ WebSocket::DisconnectFromOwner()
 nsresult
 WebSocket::Init(JSContext* aCx,
                 nsIPrincipal* aPrincipal,
+                nsPIDOMWindow* aOwnerWindow,
                 const nsAString& aURL,
                 nsTArray<nsString>& aProtocolArray)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   MOZ_ASSERT(aPrincipal);
+  MOZ_ASSERT(aOwnerWindow);
+  MOZ_ASSERT(aOwnerWindow->IsInnerWindow());
 
   if (!PrefEnabled()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
   mPrincipal = aPrincipal;
+  BindToOwner(aOwnerWindow);
 
   // Attempt to kill "ghost" websocket: but usually too early for check to fail
   nsresult rv = CheckInnerWindowCorrectness();

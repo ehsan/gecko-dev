@@ -140,12 +140,13 @@ public: // WebIDL interface:
             ErrorResult& aRv);
 
 private: // constructor && distructor
-  WebSocket(nsPIDOMWindow* aOwnerWindow);
+  WebSocket();
   virtual ~WebSocket();
 
 protected:
   nsresult Init(JSContext* aCx,
                 nsIPrincipal* aPrincipal,
+                nsPIDOMWindow* aOwnerWindow,
                 const nsAString& aURL,
                 nsTArray<nsString>& aProtocolArray);
 

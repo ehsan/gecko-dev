@@ -32,12 +32,9 @@
 #include "nsDebug.h"                    // for NS_WARNING, NS_ASSERTION
 #include "nsISupportsImpl.h"            // for Image::Release, etc
 #include "nsRect.h"                     // for nsIntRect
-#include "mozilla/gfx/2D.h"
 #ifdef MOZ_WIDGET_GONK
 #include "GrallocImages.h"
 #endif
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
@@ -180,7 +177,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
       bufferCreated = true;
     }
 
-    if (!mFrontBuffer->Lock(OPEN_WRITE_ONLY)) {
+    if (!mFrontBuffer->Lock(OPEN_READ_WRITE)) {
       return false;
     }
     bool status = mFrontBuffer->AsTextureClientYCbCr()->UpdateYCbCr(*data);
@@ -236,29 +233,18 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     if (!mFrontBuffer) {
       gfxImageFormat format
         = gfxPlatform::GetPlatform()->OptimalFormatForContent(surface->GetContentType());
-      mFrontBuffer = CreateTextureClientForDrawing(gfx::ImageFormatToSurfaceFormat(format),
-                                                   mTextureFlags);
-      MOZ_ASSERT(mFrontBuffer->AsTextureClientDrawTarget());
-      if (!mFrontBuffer->AsTextureClientDrawTarget()->AllocateForSurface(size)) {
-        mFrontBuffer = nullptr;
-        return false;
-      }
+      mFrontBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format),
+                                               TEXTURE_FLAGS_DEFAULT);
+      MOZ_ASSERT(mFrontBuffer->AsTextureClientSurface());
+      mFrontBuffer->AsTextureClientSurface()->AllocateForSurface(size);
 
       bufferCreated = true;
     }
 
-    if (!mFrontBuffer->Lock(OPEN_WRITE_ONLY)) {
+    if (!mFrontBuffer->Lock(OPEN_READ_WRITE)) {
       return false;
     }
-
-    {
-      // We must not keep a reference to the DrawTarget after it has been unlocked.
-      RefPtr<DrawTarget> dt = mFrontBuffer->AsTextureClientDrawTarget()->GetAsDrawTarget();
-      RefPtr<SourceSurface> source = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, surface);
-      MOZ_ASSERT(source.get());
-      dt->CopySurface(source, IntRect(IntPoint(), source->GetSize()), IntPoint());
-    }
-
+    bool status = mFrontBuffer->AsTextureClientSurface()->UpdateSurface(surface);
     mFrontBuffer->Unlock();
 
     if (bufferCreated) {
@@ -268,8 +254,12 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
       }
     }
 
-    GetForwarder()->UpdatedTexture(this, mFrontBuffer, nullptr);
-    GetForwarder()->UseTexture(this, mFrontBuffer);
+    if (status) {
+      GetForwarder()->UpdatedTexture(this, mFrontBuffer, nullptr);
+      GetForwarder()->UseTexture(this, mFrontBuffer);
+    } else {
+      return false;
+    }
   }
 
   UpdatePictureRect(image->GetPictureRect());

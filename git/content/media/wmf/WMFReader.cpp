@@ -105,7 +105,6 @@ WMFReader::InitializeDXVA()
   if (!Preferences::GetBool("media.windows-media-foundation.use-dxva", false)) {
     return false;
   }
-  MOZ_ASSERT(mDecoder->GetImageContainer());
 
   // Extract the layer manager backend type so that we can determine
   // whether it's worthwhile using DXVA. If we're not running with a D3D
@@ -152,8 +151,7 @@ WMFReader::Init(MediaDecoderReader* aCloneDonor)
   rv = mByteStream->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mDecoder->GetImageContainer() != nullptr &&
-      IsVideoContentType(mDecoder->GetResource()->GetContentType())) {
+  if (IsVideoContentType(mDecoder->GetResource()->GetContentType())) {
     mUseHwAccel = InitializeDXVA();
   } else {
     mUseHwAccel = false;
@@ -345,11 +343,6 @@ WMFReader::ConfigureVideoDecoder()
       !SourceReaderHasStream(mSourceReader, MF_SOURCE_READER_FIRST_VIDEO_STREAM)) {
     // No stream, no error.
     return S_OK;
-  }
-
-  if (!mDecoder->GetImageContainer()) {
-    // We can't display the video, so don't bother to decode; disable the stream.
-    return mSourceReader->SetStreamSelection(MF_SOURCE_READER_FIRST_VIDEO_STREAM, FALSE);
   }
 
   static const GUID MP4VideoTypes[] = {

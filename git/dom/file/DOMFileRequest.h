@@ -16,7 +16,7 @@ BEGIN_FILE_NAMESPACE
 class DOMFileRequest : public FileRequest
 {
 public:
-  DOMFileRequest(nsPIDOMWindow* aWindow);
+  DOMFileRequest(nsIDOMWindow* aWindow);
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;

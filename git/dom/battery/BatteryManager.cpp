@@ -26,17 +26,19 @@ namespace mozilla {
 namespace dom {
 namespace battery {
 
-BatteryManager::BatteryManager(nsPIDOMWindow* aWindow)
-  : nsDOMEventTargetHelper(aWindow)
-  , mLevel(kDefaultLevel)
+BatteryManager::BatteryManager()
+  : mLevel(kDefaultLevel)
   , mCharging(kDefaultCharging)
   , mRemainingTime(kDefaultRemainingTime)
 {
+  SetIsDOMBinding();
 }
 
 void
-BatteryManager::Init()
+BatteryManager::Init(nsPIDOMWindow *aWindow)
 {
+  BindToOwner(aWindow);
+
   hal::RegisterBatteryObserver(this);
 
   hal::BatteryInformation batteryInfo;

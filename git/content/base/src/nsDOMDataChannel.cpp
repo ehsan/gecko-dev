@@ -80,13 +80,11 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDataChannel)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataChannel)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-nsDOMDataChannel::nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel,
-                                   nsPIDOMWindow* aWindow)
-  : nsDOMEventTargetHelper(aWindow && aWindow->IsOuterWindow() ?
-                             aWindow->GetCurrentInnerWindow() : aWindow)
-  , mDataChannel(aDataChannel)
+nsDOMDataChannel::nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
+  : mDataChannel(aDataChannel)
   , mBinaryType(DC_BINARY_TYPE_BLOB)
 {
+  SetIsDOMBinding();
 }
 
 nsresult
@@ -108,6 +106,13 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   NS_ENSURE_STATE(scriptPrincipal);
   nsCOMPtr<nsIPrincipal> principal = scriptPrincipal->GetPrincipal();
   NS_ENSURE_STATE(principal);
+
+  if (aDOMWindow) {
+    BindToOwner(aDOMWindow->IsOuterWindow() ?
+                aDOMWindow->GetCurrentInnerWindow() : aDOMWindow);
+  } else {
+    BindToOwner(aDOMWindow);
+  }
 
   // Attempt to kill "ghost" DataChannel (if one can happen): but usually too early for check to fail
   rv = CheckInnerWindowCorrectness();
@@ -494,8 +499,7 @@ NS_NewDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** aDomDataChannel)
 {
-  nsRefPtr<nsDOMDataChannel> domdc =
-    new nsDOMDataChannel(aDataChannel, aWindow);
+  nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(aDataChannel);
 
   nsresult rv = domdc->Init(aWindow);
   NS_ENSURE_SUCCESS(rv,rv);

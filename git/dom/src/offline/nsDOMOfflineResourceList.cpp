@@ -79,8 +79,7 @@ NS_IMPL_EVENT_HANDLER(nsDOMOfflineResourceList, obsolete)
 nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
                                                    nsIURI *aDocumentURI,
                                                    nsPIDOMWindow *aWindow)
-  : nsDOMEventTargetHelper(aWindow)
-  , mInitialized(false)
+  : mInitialized(false)
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
   , mExposeCacheUpdateStatus(true)
@@ -88,6 +87,8 @@ nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
   , mCachedKeys(nullptr)
   , mCachedKeysCount(0)
 {
+  BindToOwner(aWindow);
+  SetIsDOMBinding();
 }
 
 nsDOMOfflineResourceList::~nsDOMOfflineResourceList()

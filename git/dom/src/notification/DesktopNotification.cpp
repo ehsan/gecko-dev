@@ -135,14 +135,14 @@ DesktopNotification::DesktopNotification(const nsAString & title,
                                          const nsAString & iconURL,
                                          nsPIDOMWindow *aWindow,
                                          nsIPrincipal* principal)
-  : nsDOMEventTargetHelper(aWindow)
-  , mTitle(title)
+  : mTitle(title)
   , mDescription(description)
   , mIconURL(iconURL)
   , mPrincipal(principal)
   , mAllow(false)
   , mShowHasBeenCalled(false)
 {
+  BindToOwner(aWindow);
   if (Preferences::GetBool("notification.disabled", false)) {
     return;
   }
@@ -153,6 +153,8 @@ DesktopNotification::DesktopNotification(const nsAString & title,
       Preferences::GetBool("notification.prompt.testing.allow", true)) {
     mAllow = true;
   }
+
+  SetIsDOMBinding();
 }
 
 void
