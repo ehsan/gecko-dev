@@ -1029,24 +1029,23 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 }
 
 void
-nsScriptLoader::ParsingComplete(PRBool aTerminated)
+nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
 {
   if (mDeferEnabled) {
-    // Have to check because we apparently get ParsingComplete
+    // Have to check because we apparently get EndDeferringScripts
     // without BeginDeferringScripts in some cases
     mUnblockOnloadWhenDoneProcessing = PR_TRUE;
   }
   mDeferEnabled = PR_FALSE;
-  if (aTerminated) {
-    mRequests.Clear();
-  } else {
-    for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
+  for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
+    if (aKillDeferred && mRequests[i]->mDefer) {
+      mRequests.RemoveObjectAt(i--);
+    }
+    else {
       mRequests[i]->mDefer = PR_FALSE;
     }
   }
 
-  // Have to call this even if aTerminated so we'll correctly unblock
-  // onload and all.
   ProcessPendingRequests();
 }
 

@@ -38,6 +38,7 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
+#include "nsIFactory.h"
 #include "nsIPlugin.h"
 #include "prlink.h"
 #include "npfunctions.h"
@@ -76,9 +77,10 @@ class nsNPAPIPlugin : public nsIPlugin
 public:
   nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
                 NP_PLUGINSHUTDOWN aShutdown);
-  virtual ~nsNPAPIPlugin();
+  virtual ~nsNPAPIPlugin(void);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
@@ -104,7 +106,7 @@ protected:
 
   NP_PLUGINSHUTDOWN fShutdownEntry;
 
-  // Browser-side callbacks that the plugin calls.
+  // The browser-side callbacks that a 4.x-style plugin calls.
   static NPNetscapeFuncs CALLBACKS;
 };
 

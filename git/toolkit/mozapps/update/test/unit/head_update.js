@@ -698,18 +698,9 @@ function removeDirRecursive(aDir) {
  *          toolkit/mozapps/update/test/unit/
  */
 function start_httpserver(aRelativeDirName) {
-  var dir = do_get_file(aRelativeDirName);
-  if (!dir.exists())
-    do_throw("The directory used by nsHttpServer does not exist! path: " +
-             dir.path + "\n");
-
-  if (!dir.isDirectory())
-    do_throw("A file instead of a directory was specified for nsHttpServer " +
-             "registerDirectory! path: " + dir.path + "\n");
-
   do_load_httpd_js();
   gTestserver = new nsHttpServer();
-  gTestserver.registerDirectory("/data/", dir);
+  gTestserver.registerDirectory("/data/", do_get_file(aRelativeDirName));
   gTestserver.start(4444);
 }
 

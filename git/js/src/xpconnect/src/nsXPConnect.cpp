@@ -651,23 +651,21 @@ NoteJSChild(JSTracer *trc, void *thing, uint32 kind)
     if(ADD_TO_CC(kind))
     {
         TraversalTracer *tracer = static_cast<TraversalTracer*>(trc);
-#if defined(DEBUG)
-        if (NS_UNLIKELY(tracer->cb.WantDebugInfo())) {
-            // based on DumpNotify in jsapi.c
-            if (tracer->debugPrinter) {
-                char buffer[200];
-                tracer->debugPrinter(trc, buffer, sizeof(buffer));
-                tracer->cb.NoteNextEdgeName(buffer);
-            } else if (tracer->debugPrintIndex != (size_t)-1) {
-                char buffer[200];
-                JS_snprintf(buffer, sizeof(buffer), "%s[%lu]",
-                            static_cast<const char *>(tracer->debugPrintArg),
-                            tracer->debugPrintIndex);
-                tracer->cb.NoteNextEdgeName(buffer);
-            } else {
-                tracer->cb.NoteNextEdgeName(
-                  static_cast<const char*>(tracer->debugPrintArg));
-            }
+#if defined(DEBUG) && defined(DEBUG_CC)
+        // based on DumpNotify in jsapi.c
+        if (tracer->debugPrinter) {
+            char buffer[200];
+            tracer->debugPrinter(trc, buffer, sizeof(buffer));
+            tracer->cb.NoteNextEdgeName(buffer);
+        } else if (tracer->debugPrintIndex != (size_t)-1) {
+            char buffer[200];
+            JS_snprintf(buffer, sizeof(buffer), "%s[%lu]",
+                        static_cast<const char *>(tracer->debugPrintArg),
+                        tracer->debugPrintIndex);
+            tracer->cb.NoteNextEdgeName(buffer);
+        } else {
+            tracer->cb.NoteNextEdgeName(
+              static_cast<const char*>(tracer->debugPrintArg));
         }
 #endif
         tracer->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, thing);
@@ -734,6 +732,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     CCNodeType type;
 
 #ifdef DEBUG_CC
+    {
     // Note that the conditions under which we specify GCMarked vs.
     // GCUnmarked are different between ExplainLiveExpectedGarbage and
     // the normal case.  In the normal case, we're saying that anything
@@ -753,150 +752,149 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                                                                GCUnmarked;
     }
     else
-#endif
     {
         // Normal codepath (matches non-DEBUG_CC codepath).
         type = !markJSObject && JS_IsAboutToBeFinalized(cx, p) ? GCUnmarked :
                                                                  GCMarked;
     }
 
-    if (cb.WantDebugInfo()) {
-        char name[72];
-        if(traceKind == JSTRACE_OBJECT)
+    char name[72];
+    if(traceKind == JSTRACE_OBJECT)
+    {
+        JSObject *obj = static_cast<JSObject*>(p);
+        JSClass *clazz = OBJ_GET_CLASS(cx, obj);
+        if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
         {
-            JSObject *obj = static_cast<JSObject*>(p);
-            JSClass *clazz = OBJ_GET_CLASS(cx, obj);
-            if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
+            XPCWrappedNative* wn;
+            if(XPCNativeWrapper::GetWrappedNative(cx, obj, &wn) && wn)
             {
-                XPCWrappedNative* wn;
-                if(XPCNativeWrapper::GetWrappedNative(cx, obj, &wn) && wn)
+                XPCNativeScriptableInfo* si = wn->GetScriptableInfo();
+                if(si)
                 {
-                    XPCNativeScriptableInfo* si = wn->GetScriptableInfo();
-                    if(si)
-                    {
-                        JS_snprintf(name, sizeof(name), "XPCNativeWrapper (%s)",
-                                    si->GetJSClass()->name);
-                    }
-                    else
-                    {
-                        nsIClassInfo* ci = wn->GetClassInfo();
-                        char* className = nsnull;
-                        if(ci)
-                            ci->GetClassDescription(&className);
-                        if(className)
-                        {
-                            JS_snprintf(name, sizeof(name),
-                                        "XPCNativeWrapper (%s)", className);
-                            PR_Free(className);
-                        }
-                        else
-                        {
-                            XPCNativeSet* set = wn->GetSet();
-                            XPCNativeInterface** array =
-                                set->GetInterfaceArray();
-                            PRUint16 count = set->GetInterfaceCount();
-
-                            if(count > 0)
-                                JS_snprintf(name, sizeof(name),
-                                            "XPCNativeWrapper (%s)",
-                                            array[0]->GetNameString());
-                            else
-                                JS_snprintf(name, sizeof(name),
-                                            "XPCNativeWrapper");
-                        }
-                    }
+                    JS_snprintf(name, sizeof(name), "XPCNativeWrapper (%s)",
+                                si->GetJSClass()->name);
                 }
                 else
                 {
-                    JS_snprintf(name, sizeof(name), "XPCNativeWrapper");
+                    nsIClassInfo* ci = wn->GetClassInfo();
+                    char* className = nsnull;
+                    if(ci)
+                        ci->GetClassDescription(&className);
+                    if(className)
+                    {
+                        JS_snprintf(name, sizeof(name), "XPCNativeWrapper (%s)",
+                                    className);
+                        PR_Free(className);
+                    }
+                    else
+                    {
+                        XPCNativeSet* set = wn->GetSet();
+                        XPCNativeInterface** array = set->GetInterfaceArray();
+                        PRUint16 count = set->GetInterfaceCount();
+
+                        if(count > 0)
+                            JS_snprintf(name, sizeof(name),
+                                        "XPCNativeWrapper (%s)",
+                                        array[0]->GetNameString());
+                        else
+                            JS_snprintf(name, sizeof(name), "XPCNativeWrapper");
+                    }
                 }
             }
             else
             {
-                XPCNativeScriptableInfo* si = nsnull;
-                if(IS_PROTO_CLASS(clazz))
-                {
-                    XPCWrappedNativeProto* p =
-                        (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
-                    si = p->GetScriptableInfo();
-                }
-                if(si)
-                {
-                    JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
-                                clazz->name, si->GetJSClass()->name);
-                }
-                else if(clazz == &js_ScriptClass)
-                {
-                    JSScript* script = (JSScript*) xpc_GetJSPrivate(obj);
-                    if(script->filename)
-                    {
-                        JS_snprintf(name, sizeof(name),
-                                    "JS Object (Script - %s)",
-                                    script->filename);
-                    }
-                    else
-                    {
-                        JS_snprintf(name, sizeof(name), "JS Object (Script)");
-                    }
-                }
-                else if(clazz == &js_FunctionClass)
-                {
-                    JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
-                    JSString* str = JS_GetFunctionId(fun);
-                    if(str)
-                    {
-                        NS_ConvertUTF16toUTF8
-                            fname(JS_GetStringChars(str));
-                        JS_snprintf(name, sizeof(name),
-                                    "JS Object (Function - %s)", fname.get());
-                    }
-                    else
-                    {
-                        JS_snprintf(name, sizeof(name), "JS Object (Function)");
-                    }
-                }
-                else
-                {
-                    JS_snprintf(name, sizeof(name), "JS Object (%s)",
-                                clazz->name);
-                }
+                JS_snprintf(name, sizeof(name), "XPCNativeWrapper");
             }
         }
         else
         {
-            static const char trace_types[JSTRACE_LIMIT][7] = {
-                "Object",
-                "Double",
-                "String",
-                "Xml"
-            };
-            JS_snprintf(name, sizeof(name), "JS %s", trace_types[traceKind]);
+            XPCNativeScriptableInfo* si = nsnull;
+            if(IS_PROTO_CLASS(clazz))
+            {
+                XPCWrappedNativeProto* p =
+                    (XPCWrappedNativeProto*) xpc_GetJSPrivate(obj);
+                si = p->GetScriptableInfo();
+            }
+            if(si)
+            {
+                JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
+                            clazz->name, si->GetJSClass()->name);
+            }
+            else if(clazz == &js_ScriptClass)
+            {
+                JSScript* script = (JSScript*) xpc_GetJSPrivate(obj);
+                if(script->filename)
+                {
+                    JS_snprintf(name, sizeof(name), "JS Object (Script - %s)",
+                                script->filename);
+                }
+                else
+                {
+                    JS_snprintf(name, sizeof(name), "JS Object (Script)");
+                }
+            }
+            else if(clazz == &js_FunctionClass)
+            {
+                JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
+                JSString* str = JS_GetFunctionId(fun);
+                if(str)
+                {
+                    NS_ConvertUTF16toUTF8
+                        fname(JS_GetStringChars(str));
+                    JS_snprintf(name, sizeof(name), "JS Object (Function - %s)",
+                                fname.get());
+                }
+                else
+                {
+                    JS_snprintf(name, sizeof(name), "JS Object (Function)");
+                }
+            }
+            else
+            {
+                JS_snprintf(name, sizeof(name), "JS Object (%s)", clazz->name);
+            }
         }
-
-        if(traceKind == JSTRACE_OBJECT) {
-            JSObject *global = static_cast<JSObject*>(p), *parent;
-            while((parent = JS_GetParent(cx, global)))
-                global = parent;
-            char fullname[100];
-            JS_snprintf(fullname, sizeof(fullname),
-                        "%s (global=%p)", name, global);
-            cb.DescribeNode(type, 0, sizeof(JSObject), fullname);
-        } else {
-            cb.DescribeNode(type, 0, sizeof(JSObject), name);
-        }
-    } else {
-        cb.DescribeNode(type, 0, sizeof(JSObject), "JS Object");
     }
+    else
+    {
+        static const char trace_types[JSTRACE_LIMIT][7] = {
+            "Object",
+            "Double",
+            "String",
+            "Xml"
+        };
+        JS_snprintf(name, sizeof(name), "JS %s", trace_types[traceKind]);
+    }
+
+    if(traceKind == JSTRACE_OBJECT) {
+        JSObject *global = static_cast<JSObject*>(p), *parent;
+        while((parent = JS_GetParent(cx, global)))
+            global = parent;
+        char fullname[100];
+        JS_snprintf(fullname, sizeof(fullname), "%s (global=%p)", name, global);
+        cb.DescribeNode(type, 0, sizeof(JSObject), fullname);
+    } else {
+        cb.DescribeNode(type, 0, sizeof(JSObject), name);
+    }
+
+    }
+#else
+    type = !markJSObject && JS_IsAboutToBeFinalized(cx, p) ? GCUnmarked :
+                                                             GCMarked;
+    cb.DescribeNode(type, 0);
+#endif
 
     if(!ADD_TO_CC(traceKind))
         return NS_OK;
 
+#ifndef DEBUG_CC
     // There's no need to trace objects that have already been marked by the JS
     // GC. Any JS objects hanging from them will already be marked. Only do this
     // if DEBUG_CC is not defined, else we do want to know about all JS objects
     // to get better graphs and explanations.
-    if(!cb.WantAllTraces() && type == GCMarked)
+    if(type == GCMarked)
         return NS_OK;
+#endif
 
     TraversalTracer trc(cb);
 
@@ -970,9 +968,13 @@ public:
         // collected.
         PRInt32 refCount = nsXPConnect::GetXPConnect()->GetRequestDepth(cx) + 1;
 
+#ifdef DEBUG_CC
         cb.DescribeNode(RefCounted, refCount, sizeof(JSContext),
                         "JSContext");
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[global object]");
+        cb.NoteNextEdgeName("[global object]");
+#else
+        cb.DescribeNode(RefCounted, refCount);
+#endif
         cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
                            cx->globalObject);
 

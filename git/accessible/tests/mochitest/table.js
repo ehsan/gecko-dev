@@ -109,7 +109,8 @@ function testTableIndexes(aIdentifier, aIdxes)
  *                       cells states.
  * @param  aMsg         [in] text appended before every message
  */
-function testTableSelection(aIdentifier, aCellsArray, aMsg)
+function testTableSelection(aIdentifier, aCellsArray, aMsg,
+                            aSkipStatesTesting) // bug 501656
 {
   var msg = aMsg ? aMsg : "";
   var acc = getAccessible(aIdentifier, [nsIAccessibleTable]);
@@ -234,6 +235,9 @@ function testTableSelection(aIdentifier, aCellsArray, aMsg)
         msg + "Cell at index " + selCells[i] + " should be selected.");
   }
 
+  if (aSkipStatesTesting)
+    return;
+
   // selected states tests
   for (var rowIdx = 0; rowIdx < rowsCount; rowIdx++) {
     for (var colIdx = 0; colIdx < colsCount; colIdx++) {
@@ -245,7 +249,7 @@ function testTableSelection(aIdentifier, aCellsArray, aMsg)
       if (isSel)
         testStates(cell, STATE_SELECTED);
       else
-        testStates(cell, STATE_SELECTABLE, 0, STATE_SELECTED);
+        testStates(cell, 0, 0, STATE_SELECTED);
     }
   }
 }
@@ -317,7 +321,8 @@ function testUnselectTableRow(aIdentifier, aRowIdx, aCellsArray)
 /**
  * Test selectRow method of accessible table.
  */
-function testSelectTableRow(aIdentifier, aRowIdx, aCellsArray)
+function testSelectTableRow(aIdentifier, aRowIdx, aCellsArray,
+                            aSkipStatesTesting) // bug 501656
 {
   var acc = getAccessible(aIdentifier, [nsIAccessibleTable]);
   if (!acc)
@@ -335,5 +340,6 @@ function testSelectTableRow(aIdentifier, aRowIdx, aCellsArray)
 
   acc.selectRow(aRowIdx);
   testTableSelection(aIdentifier, aCellsArray,
-                     "Select " + aRowIdx + " row: ");
+                     "Select " + aRowIdx + " row: ",
+                     aSkipStatesTesting);
 }

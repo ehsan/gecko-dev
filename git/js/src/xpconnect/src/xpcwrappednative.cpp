@@ -69,21 +69,20 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
     if(!tmp->IsValid())
         return NS_OK;
 
-    if (NS_UNLIKELY(cb.WantDebugInfo())) {
-        char name[72];
-        XPCNativeScriptableInfo* si = tmp->GetScriptableInfo();
-        if(si)
-            JS_snprintf(name, sizeof(name), "XPCWrappedNative (%s)",
-                        si->GetJSClass()->name);
-        else
-            JS_snprintf(name, sizeof(name), "XPCWrappedNative");
+#ifdef DEBUG_CC
+    char name[72];
+    XPCNativeScriptableInfo* si = tmp->GetScriptableInfo();
+    if(si)
+        JS_snprintf(name, sizeof(name), "XPCWrappedNative (%s)",
+                    si->GetJSClass()->name);
+    else
+        JS_snprintf(name, sizeof(name), "XPCWrappedNative");
 
-        cb.DescribeNode(RefCounted, tmp->mRefCnt.get(),
-                        sizeof(XPCWrappedNative), name);
-    } else {
-        cb.DescribeNode(RefCounted, tmp->mRefCnt.get(),
-                        sizeof(XPCWrappedNative), "XPCWrappedNative");
-    }
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(XPCWrappedNative),
+                    name);
+#else
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get());
+#endif
 
     if(tmp->mRefCnt.get() > 1) {
 

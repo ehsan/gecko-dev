@@ -48,18 +48,16 @@
 struct nsRuleData;
 
 class nsCSSExpandedDataBlock;
-class nsCSSDeclaration;
 
 /**
- * An |nsCSSCompressedDataBlock| holds a usually-immutable chunk of
+ * An |nsCSSCompressedDataBlock| holds an immutable chunk of
  * property-value data for a CSS declaration block (which we misname a
  * |nsCSSDeclaration|).  Mutation is accomplished through
- * |nsCSSExpandedDataBlock| or in some cases via direct slot access.
+ * |nsCSSExpandedDataBlock|.
  */
 class nsCSSCompressedDataBlock {
 public:
     friend class nsCSSExpandedDataBlock;
-    friend class nsCSSDeclaration;
 
     /**
      * Do what |nsIStyleRule::MapRuleInfoInto| needs to do for a style
@@ -74,8 +72,6 @@ public:
      * |nsCSSValueList**|, etc.
      *
      * Inefficient (by design).
-     *
-     * Must not be called for shorthands.
      */
     const void* StorageFor(nsCSSProperty aProperty) const;
 
@@ -157,12 +153,6 @@ private:
     const char* Block() const { return mBlock_; }
     const char* BlockEnd() const { return mBlockEnd; }
     ptrdiff_t DataSize() const { return BlockEnd() - Block(); }
-
-    // Direct slot access to our values.  See StorageFor above.  Can
-    // return null.  Must not be called for shorthand properties.
-    void* SlotForValue(nsCSSProperty aProperty) {
-      return const_cast<void*>(StorageFor(aProperty));
-    }
 };
 
 class nsCSSExpandedDataBlock {

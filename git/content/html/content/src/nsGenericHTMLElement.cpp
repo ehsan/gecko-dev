@@ -1139,14 +1139,14 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   PRBool contentEditable = PR_FALSE;
   PRInt32 contentEditableChange;
 
+  if (aNameSpaceID == kNameSpaceID_None) {
+    contentEditable = PR_TRUE;
+    contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
+  }
+
   // Check for event handlers
   if (aNameSpaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::contenteditable) {
-      contentEditable = PR_TRUE;
-      contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
-    }
-    else if (nsContentUtils::IsEventAttributeName(aAttribute,
-                                                  EventNameType_HTML)) {
+    if (nsContentUtils::IsEventAttributeName(aAttribute, EventNameType_HTML)) {
       nsIEventListenerManager* manager = GetListenerManager(PR_FALSE);
       if (manager) {
         manager->RemoveScriptEventListener(aAttribute);
@@ -2694,9 +2694,11 @@ nsGenericHTMLFormElement::FocusState()
   // If the window is not active, do not allow the focus to bring the
   // window to the front.  We update the focus controller, but do
   // nothing else.
-  nsPIDOMWindow* win = doc->GetWindow();
-  if (win) {
-    nsCOMPtr<nsIDOMWindow> rootWindow = do_QueryInterface(win->GetPrivateRoot());
+  nsCOMPtr<nsIDocShellTreeItem> dsti = do_GetInterface(doc->GetWindow());
+  if (dsti) {
+    nsCOMPtr<nsIDocShellTreeItem> root;
+    dsti->GetRootTreeItem(getter_AddRefs(root));
+    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(root);
 
     nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
     if (fm && rootWindow) {

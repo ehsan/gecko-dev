@@ -81,7 +81,6 @@
   </commandset>
 
   <popupset id="mainPopupSet">
-    <tooltip id="aHTMLTooltip" onpopupshowing="return FillInHTMLTooltip(document.tooltipNode);"/>
     <popup id="contentAreaContextMenu"
            onpopupshowing="if (event.target != this)
                              return true;
@@ -95,6 +94,6 @@
 
   <commandset id="editMenuCommands"/> 
   <browser id="web-panels-browser" persist="cachedurl" type="content" flex="1"
-           context="contentAreaContextMenu" tooltip="aHTMLTooltip"
+           context="contentAreaContextMenu"
            onclick="return window.parent.contentAreaClick(event, true);"/>
 </page>

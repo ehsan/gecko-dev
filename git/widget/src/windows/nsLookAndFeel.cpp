@@ -332,8 +332,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 #ifndef WINCE
       idx = COLOR_HOTLIGHT;
 #else
-      aColor = NS_RGB(0, 0, 0xee);
-      return NS_OK;
+      idx = COLOR_HIGHLIGHTTEXT;
 #endif
       break;
     default:
@@ -438,6 +437,16 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         // we want XUL popups to be able to overlap the task bar.
         aMetric = 1;
         break;
+    case eMetric_DragFullWindow:
+        // This will default to the Windows' default
+        // (on by default) on error.
+#ifndef WINCE
+        aMetric = GetSystemParam(SPI_GETDRAGFULLWINDOWS, 1);
+#else
+        aMetric = 1;
+#endif
+        break;
+
 #ifndef WINCE
     case eMetric_DragThresholdX:
         // The system metric is the number of pixels at which a drag should
@@ -652,18 +661,15 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
 /* virtual */
 PRUnichar nsLookAndFeel::GetPasswordCharacter()
 {
-#define UNICODE_BLACK_CIRCLE_CHAR 0x25cf
-#ifdef WINCE
-  return UNICODE_BLACK_CIRCLE_CHAR;
-#else
   static PRUnichar passwordCharacter = 0;
   if (!passwordCharacter) {
     passwordCharacter = '*';
+#ifndef WINCE
     if (nsUXThemeData::sIsXPOrLater)
-      passwordCharacter = UNICODE_BLACK_CIRCLE_CHAR;
+      passwordCharacter = 0x25cf;
+#endif
   }
   return passwordCharacter;
-#endif
 }
 
 #ifdef NS_DEBUG

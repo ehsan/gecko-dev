@@ -25,7 +25,6 @@ main(int argc, char **argv)
 #ifdef MOZ_MEMORY
   args[i++] = "/DMOZ_MEMORY";
 #endif
-  args[i++] = "/I\"" ATL_INC "\"";
   args[i++] = "/DMOZCE_STATIC_BUILD";
   args[i++] = "/DUNICODE";
   args[i++] = "/D_UNICODE_";
@@ -39,7 +38,6 @@ main(int argc, char **argv)
 //  args[i++] = "/DPOCKETPC2003_UI_MODEL";
   args[i++] = "/D_WINDOWS";
   args[i++] = "/DNO_ERRNO";
-  args[i++] = "/D_CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA";
 
   args[i++] = "/GS-";                  // disable security checks
   args[i++] = "/GR-";                  // disable C++ RTTI

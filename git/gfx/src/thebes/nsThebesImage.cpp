@@ -48,29 +48,13 @@
 
 static PRBool gDisableOptimize = PR_FALSE;
 
-/*XXX get CAIRO_HAS_DDRAW_SURFACE */
-#include "cairo.h"
-
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-#include "gfxDDrawSurface.h"
-#endif
-
-#if defined(XP_WIN) || defined(WINCE)
-#include "gfxWindowsPlatform.h"
-#endif
-
-#if defined(XP_WIN) && !defined(WINCE)
-
-/* Whether to use the windows surface; only for desktop win32 */
-#define USE_WIN_SURFACE 1
-
+#ifdef XP_WIN
 static PRUint32 gTotalDDBs = 0;
 static PRUint32 gTotalDDBSize = 0;
 // only use up a maximum of 64MB in DDBs
 #define kMaxDDBSize (64*1024*1024)
 // and don't let anything in that's bigger than 4MB
 #define kMaxSingleDDBSize (4*1024*1024)
-
 #endif
 
 NS_IMPL_ISUPPORTS1(nsThebesImage, nsIImage)
@@ -95,7 +79,7 @@ nsThebesImage::nsThebesImage()
         hasCheckedOptimize = PR_TRUE;
     }
 
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
     mIsDDBSurface = PR_FALSE;
 #endif
 }
@@ -143,7 +127,7 @@ nsThebesImage::Init(PRInt32 aWidth, PRInt32 aHeight, PRInt32 aDepth, nsMaskRequi
     // For Windows, we must create the device surface first (if we're
     // going to) so that the image surface can wrap it.  Can't be done
     // the other way around.
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
     if (!mNeverUseDeviceSurface && !ShouldUseImageSurfaces()) {
         mWinSurface = new gfxWindowsSurface(gfxIntSize(mWidth, mHeight), format);
         if (mWinSurface && mWinSurface->CairoStatus() == 0) {
@@ -181,7 +165,7 @@ nsThebesImage::Init(PRInt32 aWidth, PRInt32 aHeight, PRInt32 aDepth, nsMaskRequi
 
 nsThebesImage::~nsThebesImage()
 {
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
     if (mIsDDBSurface) {
         gTotalDDBs--;
         gTotalDDBSize -= mWidth*mHeight*4;
@@ -318,7 +302,7 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
 
                 mImageSurface = nsnull;
                 mOptSurface = nsnull;
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
                 mWinSurface = nsnull;
 #endif
 #ifdef XP_MACOSX
@@ -338,7 +322,7 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
 
     mOptSurface = nsnull;
 
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
     // we need to special-case windows here, because windows has
     // a distinction between DIB and DDB and we want to use DDBs as much
     // as we can.
@@ -391,7 +375,7 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
 
     if (mOptSurface) {
         mImageSurface = nsnull;
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
         mWinSurface = nsnull;
 #endif
 #ifdef XP_MACOSX
@@ -439,7 +423,7 @@ nsThebesImage::LockImagePixels(PRBool aMaskPixels)
             context.SetSource(mOptSurface);
         context.Paint();
 
-#ifdef USE_WIN_SURFACE
+#ifdef XP_WIN
         mWinSurface = nsnull;
 #endif
 #ifdef XP_MACOSX
@@ -735,9 +719,6 @@ nsThebesImage::Draw(gfxContext*        aContext,
 
     // Phew! Now we can actually draw this image
     aContext->NewPath();
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    pattern->SetFilter(gfxPattern::FILTER_FAST); 
-#endif
     aContext->SetPattern(pattern);
     aContext->Rectangle(fill);
     aContext->Fill();
@@ -816,11 +797,9 @@ nsThebesImage::ShouldUseImageSurfaces()
 #if defined(WINCE)
     // There is no test on windows mobile to check for Gui resources.
     // Allocate, until we run out of memory.
-    gfxWindowsPlatform::RenderMode rmode = gfxWindowsPlatform::GetPlatform()->GetRenderMode();
-    return rmode != gfxWindowsPlatform::RENDER_DDRAW &&
-        rmode != gfxWindowsPlatform::RENDER_DDRAW_GL;
+    return PR_TRUE;
 
-#elif defined(USE_WIN_SURFACE)
+#elif defined(XP_WIN)
     static const DWORD kGDIObjectsHighWaterMark = 7000;
 
     // at 7000 GDI objects, stop allocating normal images to make sure

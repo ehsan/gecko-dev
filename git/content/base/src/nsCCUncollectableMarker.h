@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIObserver.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsCCUncollectableMarker : public nsIObserver
 {
@@ -51,11 +50,8 @@ class nsCCUncollectableMarker : public nsIObserver
   /**
    * Checks if we're collecting during a given generation
    */
-  static PRBool InGeneration(nsCycleCollectionTraversalCallback &cb,
-                             PRUint32 aGeneration) {
-    return !cb.WantAllTraces() &&
-           aGeneration &&
-           aGeneration == sGeneration;
+  static PRBool InGeneration(PRUint32 aGeneration) {
+    return aGeneration && aGeneration == sGeneration;
   }
 
   static PRUint32 sGeneration;

@@ -213,7 +213,7 @@ const AppInstall = {
         iid.equals(nsISupports))
       return this;
 
-    throw Components.results.NS_ERROR_NO_INTERFACE;
+    throw Components.result.NS_ERROR_NO_INTERFACE;
   },
 
   /* nsIXULAppInstall */

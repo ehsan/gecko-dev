@@ -456,7 +456,10 @@ public:
 
   PRInt32 DestroyAnonymousColFrames(PRInt32 aNumFrames);
 
-  void AppendAnonymousColFrames(PRInt32 aNumColsToAdd);
+  void CreateAnonymousColFrames(PRInt32         aNumColsToAdd,
+                                nsTableColType  aColType,
+                                PRBool          aDoAppend,
+                                nsIFrame*       aPrevCol = nsnull);
 
   void CreateAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
                                 PRInt32               aNumColsToAdd,

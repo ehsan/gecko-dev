@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: linear scale -> dB, Bark and Mel scales
- last mod: $Id$
+ last mod: $Id: scales.h 13293 2007-07-24 00:09:47Z xiphmont $
 
  ********************************************************************/
 
@@ -21,16 +21,11 @@
 #include <math.h>
 #include "os.h"
 
-#ifdef _MSC_VER
-/* MS Visual Studio doesn't have C99 inline keyword. */
-#define inline __inline
-#endif
-
 /* 20log10(x) */
 #define VORBIS_IEEE_FLOAT32 1
 #ifdef VORBIS_IEEE_FLOAT32
 
-static inline float unitnorm(float x){
+static float unitnorm(float x){
   union {
     ogg_uint32_t i;
     float f;
@@ -41,7 +36,7 @@ static inline float unitnorm(float x){
 }
 
 /* Segher was off (too high) by ~ .3 decibel.  Center the conversion correctly. */
-static inline float todB(const float *x){
+static float todB(const float *x){
   union {
     ogg_uint32_t i;
     float f;

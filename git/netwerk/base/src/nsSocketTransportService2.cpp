@@ -560,7 +560,7 @@ nsSocketTransportService::Run()
     gSocketThread = PR_GetCurrentThread();
 
 #ifdef WINCE
-    CeSetThreadPriority(GetCurrentThread(), 116);
+    SetThreadPriority(GetCurrentThread(), 116);
 #endif
 
     // add thread event to poll list (mThreadEvent may be NULL)

@@ -264,7 +264,7 @@ nsNPAPIPlugin::CheckClassInitialized(void)
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL,("NPN callbacks initialized\n"));
 }
 
-NS_IMPL_ISUPPORTS1(nsNPAPIPlugin, nsIPlugin)
+NS_IMPL_ISUPPORTS2(nsNPAPIPlugin, nsIPlugin, nsIFactory)
 
 nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
                              NP_PLUGINSHUTDOWN aShutdown)
@@ -334,7 +334,7 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
   fLibrary = aLibrary;
 }
 
-nsNPAPIPlugin::~nsNPAPIPlugin()
+nsNPAPIPlugin::~nsNPAPIPlugin(void)
 {
   // reset the callbacks list
   memset((void*) &fCallbacks, 0, sizeof(fCallbacks));
@@ -576,8 +576,9 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   return NS_OK;
 }
 
-NS_METHOD
-nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
+nsresult
+nsNPAPIPlugin::CreateInstance(nsISupports *aOuter, const nsIID &aIID,
+                              void **aResult)
 {
   if (!aResult)
     return NS_ERROR_NULL_POINTER;
@@ -586,12 +587,25 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 
   nsRefPtr<nsNPAPIPluginInstance> inst =
     new nsNPAPIPluginInstance(&fCallbacks, fLibrary);
+
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_ADDREF(inst);
-  *aResult = static_cast<nsIPluginInstance*>(inst);
+  return inst->QueryInterface(aIID, aResult);
+}
+
+nsresult
+nsNPAPIPlugin::LockFactory(PRBool aLock)
+{
+  // Not implemented in simplest case.
   return NS_OK;
+}
+
+NS_METHOD
+nsNPAPIPlugin::CreatePluginInstance(nsISupports *aOuter, REFNSIID aIID,
+                                    const char *aPluginMIMEType, void **aResult)
+{
+  return CreateInstance(aOuter, aIID, aResult);
 }
 
 nsresult
@@ -2476,9 +2490,6 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
   return NPERR_NO_ERROR;
 }
 
-// We need extern "C" here because it has a function pointer as an argument.
-// See Bug 501889.
-PR_BEGIN_EXTERN_C
 uint32_t NP_CALLBACK
 _scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID))
 {
@@ -2488,7 +2499,6 @@ _scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)
 
   return inst->ScheduleTimer(interval, repeat, timerFunc);
 }
-PR_END_EXTERN_C
 
 void NP_CALLBACK
 _unscheduletimer(NPP instance, uint32_t timerID)

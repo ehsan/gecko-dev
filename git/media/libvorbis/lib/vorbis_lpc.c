@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: LPC low level routines
-  last mod: $Id$
+  last mod: $Id: lpc.c 13293 2007-07-24 00:09:47Z xiphmont $
 
  ********************************************************************/
 
@@ -62,7 +62,6 @@ float vorbis_lpc_from_data(float *data,float *lpci,int n,int m){
   double *aut=alloca(sizeof(*aut)*(m+1));
   double *lpc=alloca(sizeof(*lpc)*(m));
   double error;
-  double epsilon;
   int i,j;
 
   /* autocorrelation, p+1 lag coefficients */
@@ -75,16 +74,14 @@ float vorbis_lpc_from_data(float *data,float *lpci,int n,int m){
   
   /* Generate lpc coefficients from autocorr values */
 
-  /* set our noise floor to about -100dB */
-  error=aut[0] * (1. + 1e-10);
-  epsilon=1e-9*aut[0]+1e-10;
-
+  error=aut[0];
+  
   for(i=0;i<m;i++){
     double r= -aut[i+1];
 
-    if(error<epsilon){
-      memset(lpc+i,0,(m-i)*sizeof(*lpc));
-      goto done;
+    if(error==0){
+      memset(lpci,0,m*sizeof(*lpci));
+      return 0;
     }
 
     /* Sum up this iteration's reflection coefficient; note that in
@@ -104,22 +101,9 @@ float vorbis_lpc_from_data(float *data,float *lpci,int n,int m){
       lpc[j]+=r*lpc[i-1-j];
       lpc[i-1-j]+=r*tmp;
     }
-    if(i&1)lpc[j]+=lpc[j]*r;
+    if(i%2)lpc[j]+=lpc[j]*r;
 
-    error*=1.-r*r;
-
-  }
-
- done:
-   
-  /* slightly damp the filter */ 
-  {
-    double g = .99;
-    double damp = g;
-    for(j=0;j<m;j++){
-      lpc[j]*=damp;
-      damp*=g;
-    }
+    error*=1.f-r*r;
   }
 
   for(j=0;j<m;j++)lpci[j]=(float)lpc[j];

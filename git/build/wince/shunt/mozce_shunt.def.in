@@ -6,7 +6,6 @@ SetEnvironmentVariableW
 _unlink
 _wfullpath
 _wgetcwd
-_wchdir
 abort
 clock
 errno

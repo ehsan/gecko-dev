@@ -412,16 +412,9 @@ TaggingService.prototype = {
              getService(Ci.nsIThreadManager);
     tm.mainThread.dispatch({
       run: function() {
-        try {
-          if (!self._tagFolders[aItemId] &&
-              self._bms.getItemType(aItemId) == self._bms.TYPE_FOLDER)
-            self._tagFolders[aItemId] = self._bms.getItemTitle(aItemId);
-        }
-        catch(ex) {
-          // Could happen that the tag is removed just after it is added, for
-          // example with transactions.  in such a case getting item type
-          // will fail and there's no reason to register the addition.
-        }
+        if (!self._tagFolders[aItemId] &&
+            self._bms.getItemType(aItemId) == self._bms.TYPE_FOLDER)
+          self._tagFolders[aItemId] = self._bms.getItemTitle(aItemId);
       }
     }, Ci.nsIThread.DISPATCH_NORMAL);
   },

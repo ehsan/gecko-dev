@@ -192,11 +192,7 @@ public:
   // @return PR_TRUE if cycle collector was called.
   static PRBool MaybeCC(PRBool aHigherProbability);
 
-  // IntervalCC() calls CC() if at least NS_MIN_CC_INTERVAL milliseconds have
-  // elapsed since the previous cycle collector call.
-  static PRBool IntervalCC();
-
-  // Calls IntervalCC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
+  // Calls CC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
   static void CCIfUserInactive();
 
   static void FireGCTimer(PRBool aLoadInProgress);

@@ -209,15 +209,16 @@ public:
   }
 
   /**
-   * Notifies the script loader that parsing is done.  If aTerminated is true,
-   * this will drop any pending scripts that haven't run yet.  Otherwise, it
-   * will stops deferring scripts and immediately processes the
-   * mDeferredRequests queue.
+   * Stops defering scripts and immediately processes the mDeferredRequests
+   * queue.
    *
-   * WARNING: This function will synchronously execute content scripts, so be
+   * WARNING: This function will syncronously execute content scripts, so be
    * prepared that the world might change around you.
+   *
+   * If aKillDeferred is PR_TRUE, deferred scripts won't be run, but instead
+   * removed.
    */
-  void ParsingComplete(PRBool aTerminated);
+  void EndDeferringScripts(PRBool aKillDeferred);
 
   /**
    * Returns the number of pending scripts, deferred or not.
