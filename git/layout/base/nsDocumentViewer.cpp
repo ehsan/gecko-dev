@@ -53,8 +53,6 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIDocShellTreeItem.h"
-#include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
@@ -1330,14 +1328,11 @@ AttachContainerRecurse(nsIDocShell* aShell)
   }
 
   // Now recurse through the children
-  nsCOMPtr<nsIDocShellTreeNode> node = do_QueryInterface(aShell);
-  NS_ASSERTION(node, "docshells must implement nsIDocShellTreeNode");
-
   int32_t childCount;
-  node->GetChildCount(&childCount);
+  aShell->GetChildCount(&childCount);
   for (int32_t i = 0; i < childCount; ++i) {
     nsCOMPtr<nsIDocShellTreeItem> childItem;
-    node->GetChildAt(i, getter_AddRefs(childItem));
+    aShell->GetChildAt(i, getter_AddRefs(childItem));
     AttachContainerRecurse(nsCOMPtr<nsIDocShell>(do_QueryInterface(childItem)));
   }
 }
@@ -1487,14 +1482,11 @@ DetachContainerRecurse(nsIDocShell *aShell)
   }
 
   // Now recurse through the children
-  nsCOMPtr<nsIDocShellTreeNode> node = do_QueryInterface(aShell);
-  NS_ASSERTION(node, "docshells must implement nsIDocShellTreeNode");
-
   int32_t childCount;
-  node->GetChildCount(&childCount);
+  aShell->GetChildCount(&childCount);
   for (int32_t i = 0; i < childCount; ++i) {
     nsCOMPtr<nsIDocShellTreeItem> childItem;
-    node->GetChildAt(i, getter_AddRefs(childItem));
+    aShell->GetChildAt(i, getter_AddRefs(childItem));
     DetachContainerRecurse(nsCOMPtr<nsIDocShell>(do_QueryInterface(childItem)));
   }
 }
@@ -1624,6 +1616,9 @@ nsDocumentViewer::Destroy()
 
   // The document was not put in the bfcache
 
+  if (mPresShell) {
+    DestroyPresShell();
+  }
   if (mDocument) {
     mDocument->Destroy();
     mDocument = nullptr;
@@ -1656,10 +1651,6 @@ nsDocumentViewer::Destroy()
   }
 
   mDeviceContext = nullptr;
-
-  if (mPresShell) {
-    DestroyPresShell();
-  }
 
   if (mPresContext) {
     DestroyPresContext();

@@ -4,15 +4,18 @@
 
 "use strict";
 
+#ifndef MERGED_COMPARTMENT
 this.EXPORTED_SYMBOLS = ["Collector"];
 
 const {utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
+Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
+#endif
+
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
 
 
 /**
@@ -40,6 +43,19 @@ Collector.prototype = Object.freeze({
     }
 
     return providers;
+  },
+
+  /**
+   * Obtain a provider from its name.
+   */
+  getProvider: function (name) {
+    let provider = this._providers.get(name);
+
+    if (!provider) {
+      return null;
+    }
+
+    return provider.provider;
   },
 
   /**
@@ -78,6 +94,16 @@ Collector.prototype = Object.freeze({
     return deferred.promise;
   },
 
+  /**
+   * Remove a named provider from the collector.
+   *
+   * It is the caller's responsibility to shut down the provider
+   * instance.
+   */
+  unregisterProvider: function (name) {
+    this._providers.delete(name);
+  },
+
   _popAndInitProvider: function () {
     if (!this._providerInitQueue.length || this._providerInitializing) {
       return;
@@ -87,22 +113,11 @@ Collector.prototype = Object.freeze({
     this._providerInitializing = true;
 
     this._log.info("Initializing provider with storage: " + provider.name);
-    let initPromise;
-    try {
-      initPromise = provider.init(this._storage);
-    } catch (ex) {
-      this._log.warn("Provider failed to initialize: " +
-                     CommonUtils.exceptionStr(ex));
-      this._providerInitializing = false;
-      deferred.reject(ex);
-      this._popAndInitProvider();
-      return;
-    }
 
-    initPromise.then(
-      function onSuccess(result) {
-        this._log.info("Provider finished initialization: " + provider.name);
-        this._providerInitializing = false;
+    Task.spawn(function initProvider() {
+      try {
+        let result = yield provider.init(this._storage);
+        this._log.info("Provider successfully initialized: " + provider.name);
 
         this._providers.set(provider.name, {
           provider: provider,
@@ -112,17 +127,15 @@ Collector.prototype = Object.freeze({
         this.providerErrors.set(provider.name, []);
 
         deferred.resolve(result);
-        this._popAndInitProvider();
-      }.bind(this),
-      function onError(error) {
-        this._log.warn("Provider initialization failed: " +
-                       CommonUtils.exceptionStr(error));
+      } catch (ex) {
+        this._log.warn("Provider failed to initialize: " + provider.name +
+                       ": " + CommonUtils.exceptionStr(ex));
+        deferred.reject(ex);
+      } finally {
         this._providerInitializing = false;
-        deferred.reject(error);
         this._popAndInitProvider();
-      }.bind(this)
-    );
-
+      }
+    }.bind(this));
   },
 
   /**
@@ -134,7 +147,7 @@ Collector.prototype = Object.freeze({
    * The resolved value to the promise is this `Collector` instance.
    */
   collectConstantData: function () {
-    let promises = [];
+    let entries = [];
 
     for (let [name, entry] of this._providers) {
       if (entry.constantsCollected) {
@@ -143,29 +156,60 @@ Collector.prototype = Object.freeze({
         continue;
       }
 
+      entries.push(entry);
+    }
+
+    let onCollect = function (entry, result) {
+      entry.constantsCollected = true;
+    };
+
+    return this._callCollectOnProviders(entries, "collectConstantData",
+                                        onCollect);
+  },
+
+  /**
+   * Calls collectDailyData on all providers.
+   */
+  collectDailyData: function () {
+    return this._callCollectOnProviders(this._providers.values(),
+                                        "collectDailyData");
+  },
+
+  _callCollectOnProviders: function (entries, fnProperty, onCollect=null) {
+    let promises = [];
+
+    for (let entry of entries) {
+      let provider = entry.provider;
       let collectPromise;
       try {
-        collectPromise = entry.provider.collectConstantData();
+        collectPromise = provider[fnProperty].call(provider);
       } catch (ex) {
-        this._log.warn("Exception when calling " + name +
-                       ".collectConstantData: " +
-                       CommonUtils.exceptionStr(ex));
-        this.providerErrors.get(name).push(ex);
+        this._log.warn("Exception when calling " + provider.name + "." +
+                       fnProperty + ": " + CommonUtils.exceptionStr(ex));
+        this.providerErrors.get(provider.name).push(ex);
         continue;
       }
 
       if (!collectPromise) {
-        throw new Error("Provider does not return a promise from " +
-                        "collectConstantData():" + name);
+        this._log.warn("Provider does not return a promise from " +
+                       fnProperty + "(): " + provider.name);
+        continue;
       }
 
       let promise = collectPromise.then(function onCollected(result) {
-        entry.constantsCollected = true;
+        if (onCollect) {
+          try {
+            onCollect(entry, result);
+          } catch (ex) {
+            this._log.warn("onCollect callback threw: " +
+                           CommonUtils.exceptionStr(ex));
+          }
+        }
 
         return Promise.resolve(result);
       });
 
-      promises.push([name, promise]);
+      promises.push([provider.name, promise]);
     }
 
     return this._handleCollectionPromises(promises);
@@ -181,31 +225,25 @@ Collector.prototype = Object.freeze({
    * promises is rejected.
    */
   _handleCollectionPromises: function (promises) {
-    if (!promises.length) {
-      return Promise.resolve(this);
-    }
-
-    let deferred = Promise.defer();
-    let finishedCount = 0;
-
-    let onComplete = function () {
-      finishedCount++;
-      if (finishedCount >= promises.length) {
-        deferred.resolve(this);
+    return Task.spawn(function waitForPromises() {
+      for (let [name, promise] of promises) {
+        try {
+          yield promise;
+          this._log.debug("Provider collected successfully: " + name);
+        } catch (ex) {
+          this._log.warn("Provider failed to collect: " + name + ": " +
+                         CommonUtils.exceptionStr(ex));
+          try {
+            this.providerErrors.get(name).push(ex);
+          } catch (ex2) {
+            this._log.error("Error updating provider errors. This should " +
+                            "never happen: " + CommonUtils.exceptionStr(ex2));
+          }
+        }
       }
-    }.bind(this);
 
-    for (let [name, promise] of promises) {
-      let onError = function (error) {
-        this._log.warn("Collection promise was rejected: " +
-                       CommonUtils.exceptionStr(error));
-        this.providerErrors.get(name).push(error);
-        onComplete();
-      }.bind(this);
-      promise.then(onComplete, onError);
-    }
-
-    return deferred.promise;
+      throw new Task.Result(this);
+    }.bind(this));
   },
 });
 

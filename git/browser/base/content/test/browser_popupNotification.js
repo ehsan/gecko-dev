@@ -18,21 +18,24 @@ function cleanUp() {
     Services.obs.removeObserver(gActiveObservers[topic], topic);
   for (var eventName in gActiveListeners)
     PopupNotifications.panel.removeEventListener(eventName, gActiveListeners[eventName], false);
+  PopupNotifications.buttonDelay = PREF_SECURITY_DELAY_INITIAL;
 }
+
+const PREF_SECURITY_DELAY_INITIAL = Services.prefs.getIntPref("security.notification_enable_delay");
 
 var gActiveListeners = {};
 var gActiveObservers = {};
 var gShownState = {};
 
+function goNext() {
+  if (++gTestIndex == tests.length)
+    executeSoon(finish);
+  else
+    executeSoon(runNextTest);
+}
+
 function runNextTest() {
   let nextTest = tests[gTestIndex];
-
-  function goNext() {
-    if (++gTestIndex == tests.length)
-      executeSoon(finish);
-    else
-      executeSoon(runNextTest);
-  }
 
   function addObserver(topic) {
     function observer() {
@@ -51,7 +54,7 @@ function runNextTest() {
     addObserver("backgroundShow");
   } else if (nextTest.updateNotShowing) {
     addObserver("updateNotShowing");
-  } else {
+  } else if (nextTest.onShown) {
     doOnPopupEvent("popupshowing", function () {
       info("[Test #" + gTestIndex + "] popup showing");
     });
@@ -675,6 +678,80 @@ var tests = [
         this.notificationOld.remove();
       }
     ]
+  },
+  { // Test #23 - test security delay - too early
+    run: function () {
+      // Set the security delay to 100s
+      PopupNotifications.buttonDelay = 100000;
+
+      this.notifyObj = new basicNotification();
+      showNotification(this.notifyObj);
+    },
+    onShown: function (popup) {
+      checkPopup(popup, this.notifyObj);
+      triggerMainCommand(popup);
+
+      // Wait to see if the main command worked
+      executeSoon(function delayedDismissal() {
+        dismissNotification(popup);
+      });
+
+    },
+    onHidden: function (popup) {
+      ok(!this.notifyObj.mainActionClicked, "mainAction was not clicked because it was too soon");
+      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal callback was triggered");
+    },
+  },
+  { // Test #24  - test security delay - after delay
+    run: function () {
+      // Set the security delay to 10ms
+      PopupNotifications.buttonDelay = 10;
+
+      this.notifyObj = new basicNotification();
+      showNotification(this.notifyObj);
+    },
+    onShown: function (popup) {
+      checkPopup(popup, this.notifyObj);
+
+      // Wait until after the delay to trigger the main action
+      setTimeout(function delayedDismissal() {
+        triggerMainCommand(popup);
+      }, 500);
+
+    },
+    onHidden: function (popup) {
+      ok(this.notifyObj.mainActionClicked, "mainAction was clicked after the delay");
+      ok(!this.notifyObj.dismissalCallbackTriggered, "dismissal callback was not triggered");
+      PopupNotifications.buttonDelay = PREF_SECURITY_DELAY_INITIAL;
+    },
+  },
+  { // Test #25 - location change in background tab removes notification
+    run: function () {
+      this.oldSelectedTab = gBrowser.selectedTab;
+      this.newTab = gBrowser.addTab("about:blank");
+      gBrowser.selectedTab = this.newTab;
+
+      loadURI("http://example.com/", function() {
+        gBrowser.selectedTab = this.oldSelectedTab;
+        let browser = gBrowser.getBrowserForTab(this.newTab);
+
+        this.notifyObj = new basicNotification();
+        this.notifyObj.browser = browser;
+        this.notifyObj.options.eventCallback = function (eventName) {
+          if (eventName == "removed") {
+            ok(true, "Notification removed in background tab after reloading");
+            executeSoon(function () {
+              gBrowser.removeTab(this.newTab);
+              goNext();
+            }.bind(this));
+          }
+        }.bind(this);
+        this.notification = showNotification(this.notifyObj);
+        executeSoon(function () {
+          browser.reload();
+        });
+      }.bind(this));
+    }
   }
 ];
 

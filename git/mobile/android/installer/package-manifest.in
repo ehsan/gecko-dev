@@ -58,6 +58,7 @@
 @BINPATH@/res/drawable-hdpi
 @BINPATH@/res/layout
 @BINPATH@/recommended-addons.json
+@BINPATH@/distribution/*
 
 [browser]
 ; [Base Browser Files]
@@ -128,6 +129,7 @@
 @BINPATH@/components/dom_range.xpt
 @BINPATH@/components/dom_settings.xpt
 @BINPATH@/components/dom_sidebar.xpt
+@BINPATH@/components/dom_mobilemessage.xpt
 @BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
@@ -208,6 +210,9 @@
 @BINPATH@/components/saxparser.xpt
 @BINPATH@/components/sessionstore.xpt
 @BINPATH@/components/services-crypto-component.xpt
+#ifdef MOZ_CAPTIVEDETECT
+@BINPATH@/components/captivedetect.xpt
+#endif
 @BINPATH@/components/shellservice.xpt
 @BINPATH@/components/shistory.xpt
 @BINPATH@/components/spellchecker.xpt
@@ -373,6 +378,11 @@
 #ifdef MOZ_SERVICES_HEALTHREPORT
 @BINPATH@/components/HealthReportComponents.manifest
 @BINPATH@/components/HealthReportService.js
+#endif
+
+#ifdef MOZ_CAPTIVEDETECT
+@BINPATH@/components/CaptivePortalDetectComponents.manifest
+@BINPATH@/components/captivedetect.js
 #endif
 
 ; Modules
@@ -541,6 +551,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/LoginManagerPrompter.js
 @BINPATH@/components/MobileComponents.manifest
 @BINPATH@/components/MobileComponents.xpt
+@BINPATH@/components/NSSDialogService.js
 @BINPATH@/components/PromptService.js
 @BINPATH@/components/SessionStore.js
 @BINPATH@/components/Sidebar.js

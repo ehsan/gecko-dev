@@ -61,7 +61,7 @@ namespace {
 // to avoid the default allocator lock contention when firing timer events.
 // It is a thread-safe wrapper around nsFixedSizeAllocator.  The thread-safety
 // is required because nsTimerEvent objects are allocated on the timer thread,
-// and freed on the main thread.  Since this is a TimerEventAllocator specific
+// and freed on another thread.  Since this is a TimerEventAllocator specific
 // lock, the lock contention issue is only limited to the allocation and
 // deallocation of nsTimerEvent objects.
 class TimerEventAllocator : public nsFixedSizeAllocator {
@@ -136,7 +136,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 {
   nsrefcnt count;
 
-  NS_PRECONDITION(0 != mRefCnt, "dup release");
+  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
   count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "nsTimerImpl");
   if (count == 0) {
@@ -180,7 +180,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
   if (count == 1 && mArmed) {
     mCanceled = true;
 
-    NS_ASSERTION(gThread, "An armed timer exists after the thread timer stopped.");
+    MOZ_ASSERT(gThread, "Armed timer exists after the thread timer stopped.");
     if (NS_SUCCEEDED(gThread->RemoveTimer(this)))
       return 0;
   }

@@ -7,11 +7,12 @@
 this.EXPORTED_SYMBOLS = [
   "DummyMeasurement",
   "DummyProvider",
+  "DummyConstantProvider",
 ];
 
 const {utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
@@ -53,6 +54,8 @@ this.DummyProvider = function DummyProvider(name="DummyProvider") {
   this.throwDuringCollectConstantData = null;
   this.throwDuringConstantPopulate = null;
 
+  this.collectDailyCount = 0;
+
   this.havePushedMeasurements = true;
 }
 
@@ -85,5 +88,21 @@ DummyProvider.prototype = {
     }.bind(this));
   },
 
+  collectDailyData: function () {
+    this.collectDailyCount++;
+
+    return Promise.resolve();
+  },
+};
+
+
+this.DummyConstantProvider = function () {
+  DummyProvider.call(this, "DummyConstantProvider");
+}
+
+DummyConstantProvider.prototype = {
+  __proto__: DummyProvider.prototype,
+
+  pullOnly: true,
 };
 

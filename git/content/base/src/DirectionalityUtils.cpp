@@ -222,12 +222,12 @@ namespace mozilla {
 typedef mozilla::dom::Element Element;
 
 /**
- * Returns true if aNode is one of the elements whose text content should not
+ * Returns true if aElement is one of the elements whose text content should not
  * affect its own direction, nor the direction of ancestors with dir=auto.
  *
  * Note that this does not include <bdi>, whose content does affect its own
  * direction when it has dir=auto (which it has by default), so one needs to
- * test for it separately.
+ * test for it separately, e.g. with DoesNotAffectDirectionOfAncestors.
  * It *does* include textarea, because even if a textarea has dir=auto, it has
  * unicode-bidi: plaintext and is handled automatically in bidi resolution.
  */
@@ -245,6 +245,19 @@ static inline bool
 IsBdiWithoutDirAuto(const Element* aElement)
 {
   return aElement->IsHTML(nsGkAtoms::bdi) && !aElement->HasDirAuto();
+}
+
+/**
+ * Returns true if aElement is one of the element whose text content should not
+ * affect the direction of ancestors with dir=auto (though it may affect its own
+ * direction, e.g. <bdi>)
+ */
+static bool
+DoesNotAffectDirectionOfAncestors(const Element* aElement)
+{
+  return (DoesNotParticipateInAutoDirection(aElement) ||
+          IsBdiWithoutDirAuto(aElement) ||
+          aElement->HasFixedDir());
 }
 
 /**
@@ -268,7 +281,7 @@ GetDirectionFromChar(uint32_t ch)
 
 inline static bool NodeAffectsDirAutoAncestor(nsINode* aTextNode)
 {
-  Element* parent = aTextNode->GetElementParent();
+  Element* parent = aTextNode->GetParentElement();
   return (parent &&
           !DoesNotParticipateInAutoDirection(parent) &&
           parent->NodeOrAncestorHasDirAuto());
@@ -371,9 +384,7 @@ WalkDescendantsSetDirectionFromText(Element* aElement, bool aNotify = true)
   nsIContent* child = aElement->GetFirstChild();
   while (child) {
     if (child->IsElement() &&
-        (DoesNotParticipateInAutoDirection(child->AsElement()) ||
-         child->NodeInfo()->Equals(nsGkAtoms::bdi) ||
-         child->HasFixedDir())) {
+        DoesNotAffectDirectionOfAncestors(child->AsElement())) {
       child = child->GetNextNonChildNode(aElement);
       continue;
     }
@@ -539,7 +550,7 @@ RecomputeDirectionality(Element* aElement, bool aNotify)
   if (aElement->HasValidDir()) {
     dir = aElement->GetDirectionality();
   } else {
-    Element* parent = aElement->GetElementParent();
+    Element* parent = aElement->GetParentElement();
     if (parent) {
       // If the element doesn't have an explicit dir attribute with a valid
       // value, the directionality is the same as the parent element (but
@@ -592,7 +603,7 @@ void
 WalkAncestorsResetAutoDirection(Element* aElement, bool aNotify)
 {
   nsINode* setByNode;
-  Element* parent = aElement->GetElementParent();
+  Element* parent = aElement->GetParentElement();
 
   while (parent && parent->NodeOrAncestorHasDirAuto()) {
     if (parent->HasDirAutoSet()) {
@@ -613,7 +624,7 @@ WalkAncestorsResetAutoDirection(Element* aElement, bool aNotify)
       }
       break;
     }
-    parent = parent->GetElementParent();
+    parent = parent->GetParentElement();
   }
 }
 
@@ -651,9 +662,7 @@ WalkDescendantsSetDirAuto(Element* aElement, bool aNotify)
       nsIContent* child = aElement->GetFirstChild();
       while (child) {
         if (child->IsElement() &&
-            (DoesNotParticipateInAutoDirection(child->AsElement()) ||
-             IsBdiWithoutDirAuto(child->AsElement()) ||
-             child->HasFixedDir())) {
+            DoesNotAffectDirectionOfAncestors(child->AsElement())) {
           child = child->GetNextNonChildNode(aElement);
           continue;
         }
@@ -694,7 +703,7 @@ void SetAncestorDirectionIfAuto(nsINode* aTextNode, Directionality aDir,
   MOZ_ASSERT(aTextNode->NodeType() == nsIDOMNode::TEXT_NODE,
              "Must be a text node");
 
-  Element* parent = aTextNode->GetElementParent();
+  Element* parent = aTextNode->GetParentElement();
   while (parent && parent->NodeOrAncestorHasDirAuto()) {
     if (DoesNotParticipateInAutoDirection(parent) || parent->HasFixedDir()) {
       break;
@@ -722,9 +731,7 @@ void SetAncestorDirectionIfAuto(nsINode* aTextNode, Directionality aDir,
           nsIContent* child = aTextNode->GetNextNode(parent);
           while (child) {
             if (child->IsElement() &&
-                (DoesNotParticipateInAutoDirection(child->AsElement()) ||
-                 IsBdiWithoutDirAuto(child->AsElement()) ||
-                 child->HasFixedDir())) {
+                DoesNotAffectDirectionOfAncestors(child->AsElement())) {
               child = child->GetNextNonChildNode(parent);
               continue;
             }
@@ -755,7 +762,7 @@ void SetAncestorDirectionIfAuto(nsINode* aTextNode, Directionality aDir,
       // any of its descendants.
       return;
     }
-    parent = parent->GetElementParent();
+    parent = parent->GetParentElement();
   }
 }
 
@@ -842,7 +849,7 @@ void
 OnSetDirAttr(Element* aElement, const nsAttrValue* aNewValue,
              bool hadValidDir, bool aNotify)
 {
-  if (aElement->IsHTML() && aElement->NodeInfo()->Equals(nsGkAtoms::input)) {
+  if (aElement->IsHTML(nsGkAtoms::input)) {
     return;
   }
 
@@ -890,9 +897,7 @@ SetDirOnBind(mozilla::dom::Element* aElement, nsIContent* aParent)
       // for nodes that don't affect the direction of their ancestors.
       do {
         if (child->IsElement() &&
-            (DoesNotParticipateInAutoDirection(child->AsElement()) ||
-             IsBdiWithoutDirAuto(child->AsElement()) ||
-             child->HasFixedDir())) {
+            DoesNotAffectDirectionOfAncestors(child->AsElement())) {
           child = child->GetNextNonChildNode(aElement);
           continue;
         }

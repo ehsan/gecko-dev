@@ -16,7 +16,6 @@
 #include "mozilla/css/StyleRule.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
-#include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocumentFragment.h"
@@ -44,7 +43,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsINameSpaceManager.h"
 #include "nsError.h"
 #include "nsScriptLoader.h"
@@ -81,8 +79,8 @@
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
 #include "mozilla/dom/Element.h"
-#include "nsHTMLFieldSetElement.h"
-#include "nsHTMLMenuElement.h"
+#include "HTMLFieldSetElement.h"
+#include "HTMLMenuElement.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsDOMMutationObserver.h"
 #include "mozilla/Preferences.h"
@@ -100,6 +98,7 @@
 #include "nsHTMLDocument.h"
 #include "nsDOMTouchEvent.h"
 #include "nsGlobalWindow.h"
+#include "mozilla/dom/HTMLBodyElement.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -233,9 +232,8 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
 
   NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
   {
-    mozilla::ErrorResult rv;
-    NS_IF_ADDREF(*aStyle = mElement->GetStyle(rv));
-    return rv.ErrorCode();
+    NS_ADDREF(*aStyle = mElement->Style());
+    return NS_OK;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
@@ -472,8 +470,8 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect)
 
   // Subtract the parent border unless it uses border-box sizing.
   if (parent &&
-      parent->GetStylePosition()->mBoxSizing != NS_STYLE_BOX_SIZING_BORDER) {
-    const nsStyleBorder* border = parent->GetStyleBorder();
+      parent->StylePosition()->mBoxSizing != NS_STYLE_BOX_SIZING_BORDER) {
+    const nsStyleBorder* border = parent->StyleBorder();
     origin.x -= border->GetComputedBorderWidth(NS_SIDE_LEFT);
     origin.y -= border->GetComputedBorderWidth(NS_SIDE_TOP);
   }
@@ -1872,16 +1870,6 @@ nsGenericHTMLElement::SetAttrHelper(nsIAtom* aAttr, const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, aAttr, aValue, true);
 }
 
-nsresult
-nsGenericHTMLElement::SetBoolAttr(nsIAtom* aAttr, bool aValue)
-{
-  if (aValue) {
-    return SetAttr(kNameSpaceID_None, aAttr, EmptyString(), true);
-  }
-
-  return UnsetAttr(kNameSpaceID_None, aAttr, true);
-}
-
 int32_t
 nsGenericHTMLElement::GetIntAttr(nsIAtom* aAttr, int32_t aDefault) const
 {
@@ -2041,18 +2029,33 @@ nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
                                   const char* aDefault,
                                   nsAString& aResult) const
 {
+  GetEnumAttr(aAttr, aDefault, aDefault, aResult);
+}
+
+void
+nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
+                                  const char* aDefaultMissing,
+                                  const char* aDefaultInvalid,
+                                  nsAString& aResult) const
+{
   const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
 
   aResult.Truncate();
 
-  if (attrVal && attrVal->Type() == nsAttrValue::eEnum) {
-    attrVal->GetEnumString(aResult, true);
-  } else if (aDefault) {
-    AppendASCIItoUTF16(nsDependentCString(aDefault), aResult);
+  if (!attrVal) {
+    if (aDefaultMissing) {
+      AppendASCIItoUTF16(nsDependentCString(aDefaultMissing), aResult);
+    }
+  } else {
+    if (attrVal->Type() == nsAttrValue::eEnum) {
+      attrVal->GetEnumString(aResult, true);
+    } else if (aDefaultInvalid) {
+      AppendASCIItoUTF16(nsDependentCString(aDefaultInvalid), aResult);
+    }
   }
 }
 
-nsHTMLMenuElement*
+HTMLMenuElement*
 nsGenericHTMLElement::GetContextMenu() const
 {
   nsAutoString value;
@@ -2060,7 +2063,7 @@ nsGenericHTMLElement::GetContextMenu() const
   if (!value.IsEmpty()) {
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
-      return nsHTMLMenuElement::FromContentOrNull(doc->GetElementById(value));
+      return HTMLMenuElement::FromContentOrNull(doc->GetElementById(value));
     }
   }
   return nullptr;
@@ -2696,7 +2699,7 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(uint32_t aMessage,
 {
   bool disabled = IsDisabled();
   if (!disabled && aFrame) {
-    const nsStyleUserInterface* uiStyle = aFrame->GetStyleUserInterface();
+    const nsStyleUserInterface* uiStyle = aFrame->StyleUserInterface();
     disabled = uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE ||
       uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED;
 
@@ -2787,8 +2790,8 @@ nsGenericHTMLFormElement::UpdateFieldSet(bool aNotify)
 
   for (parent = GetParent(); parent;
        prev = parent, parent = parent->GetParent()) {
-    nsHTMLFieldSetElement* fieldset =
-      nsHTMLFieldSetElement::FromContent(parent);
+    HTMLFieldSetElement* fieldset =
+      HTMLFieldSetElement::FromContent(parent);
     if (fieldset &&
         (!prev || fieldset->GetFirstLegend() != prev)) {
       if (mFieldSet == fieldset) {
@@ -3045,8 +3048,7 @@ nsGenericHTMLElement::IsCurrentBodyElement()
 {
   // TODO Bug 698498: Should this handle the case where GetBody returns a
   //                  frameset?
-  nsCOMPtr<nsIDOMHTMLBodyElement> bodyElement = do_QueryInterface(this);
-  if (!bodyElement) {
+  if (!IsHTML(nsGkAtoms::body)) {
     return false;
   }
 
@@ -3058,7 +3060,7 @@ nsGenericHTMLElement::IsCurrentBodyElement()
 
   nsCOMPtr<nsIDOMHTMLElement> htmlElement;
   htmlDocument->GetBody(getter_AddRefs(htmlElement));
-  return htmlElement == bodyElement;
+  return htmlElement == static_cast<HTMLBodyElement*>(this);
 }
 
 // static
@@ -3294,16 +3296,16 @@ nsGenericHTMLElement::GetTokenList(nsIAtom* aAtom)
     list = new nsDOMSettableTokenList(this, aAtom);
     NS_ADDREF(list);
     SetProperty(aAtom, list, nsDOMSettableTokenListPropertyDestructor);
-  }                       
+  }
   return list;
-}  
+}
 
 void
 nsGenericHTMLElement::GetTokenList(nsIAtom* aAtom, nsIVariant** aResult)
 {
-  nsIDOMDOMSettableTokenList* itemType = GetTokenList(aAtom);
+  nsISupports* itemType = GetTokenList(aAtom);
   nsCOMPtr<nsIWritableVariant> out = new nsVariant();
-  out->SetAsInterface(NS_GET_IID(nsIDOMDOMSettableTokenList), itemType);
+  out->SetAsInterface(NS_GET_IID(nsISupports), itemType);
   out.forget(aResult);
 }
 
@@ -3313,14 +3315,16 @@ nsGenericHTMLElement::SetTokenList(nsIAtom* aAtom, nsIVariant* aValue)
   nsDOMSettableTokenList* itemType = GetTokenList(aAtom);
   nsAutoString string;
   aValue->GetAsAString(string);
-  return itemType->SetValue(string);
+  ErrorResult rv;
+  itemType->SetValue(string, rv);
+  return rv.ErrorCode();
 }
 
 static void
 HTMLPropertiesCollectionDestructor(void *aObject, nsIAtom *aProperty,
                                    void *aPropertyValue, void *aData)
 {
-  HTMLPropertiesCollection* properties = 
+  HTMLPropertiesCollection* properties =
     static_cast<HTMLPropertiesCollection*>(aPropertyValue);
   NS_IF_RELEASE(properties);
 }
@@ -3328,7 +3332,7 @@ HTMLPropertiesCollectionDestructor(void *aObject, nsIAtom *aProperty,
 HTMLPropertiesCollection*
 nsGenericHTMLElement::Properties()
 {
-  HTMLPropertiesCollection* properties = 
+  HTMLPropertiesCollection* properties =
     static_cast<HTMLPropertiesCollection*>(GetProperty(nsGkAtoms::microdataProperties));
   if (!properties) {
      properties = new HTMLPropertiesCollection(this);

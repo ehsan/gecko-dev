@@ -112,7 +112,6 @@ public:
   NS_IMETHOD_(int32_t) GetCols();
   NS_IMETHOD_(int32_t) GetWrapCols();
   NS_IMETHOD_(int32_t) GetRows();
-  NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
   NS_IMETHOD_(bool) ValueChanged() const;
   NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
   NS_IMETHOD_(nsIEditor*) GetTextEditor();
@@ -300,14 +299,15 @@ nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNode
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTextAreaElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                 nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mControllers)
   tmp->mState.Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                   nsGenericHTMLFormElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControllers)
   tmp->mState.Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -578,9 +578,6 @@ nsHTMLTextAreaElement::SetValueChanged(bool aValueChanged)
   bool previousValue = mValueChanged;
 
   mValueChanged = aValueChanged;
-  if (!aValueChanged && !mState.IsEmpty()) {
-    mState.EmptyValue();
-  }
 
   if (mValueChanged != previousValue) {
     UpdateState(true);
@@ -1489,12 +1486,6 @@ nsHTMLTextAreaElement::GetRows()
   }
 
   return DEFAULT_ROWS_TEXTAREA;
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::GetDefaultValueFromContent(nsAString& aValue)
-{
-  GetDefaultValue(aValue);
 }
 
 NS_IMETHODIMP_(bool)

@@ -279,7 +279,7 @@ public:
   // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539), mTitleChangedListener
   // - HTMLBodyElement:       mContentStyleRule
   // - HTMLDataListElement:   mOptions
-  // - nsHTMLFieldSetElement: mElements, mDependentElements, mFirstLegend
+  // - HTMLFieldSetElement:   mElements, mDependentElements, mFirstLegend
   // - nsHTMLFormElement:     many!
   // - HTMLFrameSetElement:   mRowSpecs, mColSpecs
   // - nsHTMLInputElement:    mInputData, mFiles, mFileList, mStaticDocfileList
@@ -388,6 +388,7 @@ protected:
   virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope,
                              bool *aTriedToWrap)
   {
+    MOZ_ASSERT(!IsDOMBinding(), "Someone forgot to override WrapNode");
     *aTriedToWrap = false;
     return nullptr;
   }
@@ -767,7 +768,7 @@ public:
    * Get the parent nsINode for this node if it is an Element.
    * @return the parent node
    */
-  mozilla::dom::Element* GetElementParent() const
+  mozilla::dom::Element* GetParentElement() const
   {
     return mParent && mParent->IsElement() ? mParent->AsElement() : nullptr;
   }
@@ -1319,6 +1320,11 @@ private:
     NodeHasDirAuto,
     // Set if a node in the node's parent chain has dir=auto.
     NodeAncestorHasDirAuto,
+    // Set if the element is in the scope of a scoped style sheet; this flag is
+    // only accurate for elements bounds to a document
+    ElementIsInStyleScope,
+    // Set if the element is a scoped style sheet root
+    ElementIsScopedStyleRoot,
     // Guard value
     BooleanFlagCount
   };
@@ -1435,6 +1441,24 @@ public:
 
   bool NodeOrAncestorHasDirAuto() const
     { return HasDirAuto() || AncestorHasDirAuto(); }
+
+  void SetIsElementInStyleScope(bool aValue) {
+    MOZ_ASSERT(IsElement(), "SetIsInStyleScope on a non-Element node");
+    SetBoolFlag(ElementIsInStyleScope, aValue);
+  }
+  void SetIsElementInStyleScope() {
+    MOZ_ASSERT(IsElement(), "SetIsInStyleScope on a non-Element node");
+    SetBoolFlag(ElementIsInStyleScope);
+  }
+  void ClearIsElementInStyleScope() {
+    MOZ_ASSERT(IsElement(), "ClearIsInStyleScope on a non-Element node");
+    ClearBoolFlag(ElementIsInStyleScope);
+  }
+  bool IsElementInStyleScope() const { return GetBoolFlag(ElementIsInStyleScope); }
+
+  void SetIsScopedStyleRoot() { SetBoolFlag(ElementIsScopedStyleRoot); }
+  void ClearIsScopedStyleRoot() { ClearBoolFlag(ElementIsScopedStyleRoot); }
+  bool IsScopedStyleRoot() { return GetBoolFlag(ElementIsScopedStyleRoot); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
@@ -1455,7 +1479,7 @@ protected:
   bool HasLockedStyleStates() const
     { return GetBoolFlag(ElementHasLockedStyleStates); }
 
-    void SetSubtreeRootPointer(nsINode* aSubtreeRoot)
+  void SetSubtreeRootPointer(nsINode* aSubtreeRoot)
   {
     NS_ASSERTION(aSubtreeRoot, "aSubtreeRoot can never be null!");
     NS_ASSERTION(!(IsNodeOfType(eCONTENT) && IsInDoc()), "Shouldn't be here!");
@@ -1469,7 +1493,10 @@ protected:
 
 public:
   // Optimized way to get classinfo.
-  virtual nsXPCClassInfo* GetClassInfo() = 0;
+  virtual nsXPCClassInfo* GetClassInfo()
+  {
+    return nullptr;
+  }
 
   // Makes nsINode object to keep aObject alive.
   void BindObject(nsISupports* aObject);
@@ -1488,7 +1515,6 @@ public:
     aNodeName = NodeName();
   }
   void GetBaseURI(nsAString& aBaseURI) const;
-  mozilla::dom::Element* GetParentElement() const;
   bool HasChildNodes() const
   {
     return HasChildren();
@@ -1528,9 +1554,9 @@ public:
   already_AddRefed<nsINode> CloneNode(bool aDeep, mozilla::ErrorResult& aError);
   bool IsEqualNode(nsINode* aNode);
   bool IsSupported(const nsAString& aFeature, const nsAString& aVersion);
-  void GetNamespaceURI(nsAString& aNamespaceURI, mozilla::ErrorResult& aError) const
+  void GetNamespaceURI(nsAString& aNamespaceURI) const
   {
-    aError = mNodeInfo->GetNamespaceURI(aNamespaceURI);
+    mNodeInfo->GetNamespaceURI(aNamespaceURI);
   }
 #ifdef MOZILLA_INTERNAL_API
   void GetPrefix(nsAString& aPrefix)
@@ -1978,9 +2004,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
   } \
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI) __VA_ARGS__ \
   { \
-    mozilla::ErrorResult rv; \
-    nsINode::GetNamespaceURI(aNamespaceURI, rv); \
-    return rv.ErrorCode(); \
+    nsINode::GetNamespaceURI(aNamespaceURI); \
+    return NS_OK; \
   } \
   NS_IMETHOD GetPrefix(nsAString& aPrefix) __VA_ARGS__ \
   { \

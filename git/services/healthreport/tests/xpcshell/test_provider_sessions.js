@@ -6,7 +6,7 @@
 const {utils: Cu} = Components;
 
 
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/services-common/utils.js");
@@ -83,7 +83,7 @@ add_task(function test_current_session() {
   yield sleep(25);
   recorder.onActivity(true);
 
-  let current = provider.getMeasurement("current", 2);
+  let current = provider.getMeasurement("current", 3);
   let values = yield current.getValues();
   let fields = values.singular;
 
@@ -124,7 +124,7 @@ add_task(function test_collect() {
   let sessions = recorder.getPreviousSessions();
   do_check_eq(Object.keys(sessions).length, 0);
 
-  let daily = provider.getMeasurement("previous", 2);
+  let daily = provider.getMeasurement("previous", 3);
   let values = yield daily.getValues();
   do_check_true(values.days.hasDay(now));
   do_check_eq(values.days.size, 1);
@@ -163,14 +163,18 @@ add_task(function test_collect() {
 add_task(function test_serialization() {
   let [provider, storage, recorder] = yield getProvider("serialization");
 
-  let current = provider.getMeasurement("current", 2);
+  yield sleep(1025);
+  recorder.onActivity(true);
+
+  let current = provider.getMeasurement("current", 3);
   let data = yield current.getValues();
   do_check_true("singular" in data);
 
   let serializer = current.serializer(current.SERIALIZE_JSON);
   let fields = serializer.singular(data.singular);
 
-  do_check_eq(fields.activeTicks, 0);
+  do_check_eq(fields._v, 3);
+  do_check_eq(fields.activeTicks, 1);
   do_check_eq(fields.startDay, Metrics.dateToDays(recorder.startDate));
   do_check_eq(fields.main, 500);
   do_check_eq(fields.firstPaint, 1000);
@@ -180,3 +184,4 @@ add_task(function test_serialization() {
   yield provider.shutdown();
   yield storage.close();
 });
+

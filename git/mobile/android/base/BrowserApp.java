@@ -29,6 +29,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -41,15 +42,10 @@ import android.view.animation.Interpolator;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import dalvik.system.DexClassLoader;
-
-import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.EnumSet;
 import java.util.Vector;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 abstract public class BrowserApp extends GeckoApp
                                  implements TabsPanel.TabsLayoutChangeListener,
@@ -103,6 +99,9 @@ abstract public class BrowserApp extends GeckoApp
                         showAboutHome();
                     else
                         hideAboutHome();
+
+                    // Dismiss any SiteIdentity Popup
+                    SiteIdentityPopup.getInstance().dismiss();
 
                     final TabsPanel.Panel panel = tab.isPrivate()
                                                 ? TabsPanel.Panel.PRIVATE_TABS
@@ -235,8 +234,10 @@ abstract public class BrowserApp extends GeckoApp
         registerEventListener("Feedback:LastUrl");
         registerEventListener("Feedback:OpenPlayStore");
         registerEventListener("Feedback:MaybeLater");
-        registerEventListener("Dex:Load");
         registerEventListener("Telemetry:Gather");
+
+        Distribution.init(this);
+        JavaAddonManager.getInstance().init(getApplicationContext());
     }
 
     @Override
@@ -244,13 +245,14 @@ abstract public class BrowserApp extends GeckoApp
         super.onDestroy();
         if (mAboutHomeContent != null)
             mAboutHomeContent.onDestroy();
+        if (mBrowserToolbar != null)
+            mBrowserToolbar.onDestroy();
 
         unregisterEventListener("CharEncoding:Data");
         unregisterEventListener("CharEncoding:State");
         unregisterEventListener("Feedback:LastUrl");
         unregisterEventListener("Feedback:OpenPlayStore");
         unregisterEventListener("Feedback:MaybeLater");
-        unregisterEventListener("Dex:Load");
         unregisterEventListener("Telemetry:Gather");
     }
 
@@ -485,18 +487,6 @@ abstract public class BrowserApp extends GeckoApp
                 Telemetry.HistogramAdd("PLACES_BOOKMARKS_COUNT", BrowserDB.getCount(getContentResolver(), "bookmarks"));
                 Telemetry.HistogramAdd("FENNEC_FAVICONS_COUNT", BrowserDB.getCount(getContentResolver(), "favicons"));
                 Telemetry.HistogramAdd("FENNEC_THUMBNAILS_COUNT", BrowserDB.getCount(getContentResolver(), "thumbnails"));
-            } else if (event.equals("Dex:Load")) {
-                String zipFile = message.getString("zipfile");
-                String implClass = message.getString("impl");
-                Log.d(LOGTAG, "Attempting to load classes.dex file from " + zipFile + " and instantiate " + implClass);
-                try {
-                    File tmpDir = getDir("dex", 0);
-                    DexClassLoader loader = new DexClassLoader(zipFile, tmpDir.getAbsolutePath(), null, ClassLoader.getSystemClassLoader());
-                    Class<?> c = loader.loadClass(implClass);
-                    c.newInstance();
-                } catch (Exception e) {
-                    Log.e(LOGTAG, "Unable to initialize addon", e);
-                }
             } else {
                 super.handleMessage(event, message);
             }
@@ -983,7 +973,7 @@ abstract public class BrowserApp extends GeckoApp
         if (aMenu == null)
             return false;
 
-        if (!checkLaunchState(LaunchState.GeckoRunning))
+        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning))
             aMenu.findItem(R.id.settings).setEnabled(false);
 
         Tab tab = Tabs.getInstance().getSelectedTab();
@@ -1049,16 +1039,17 @@ abstract public class BrowserApp extends GeckoApp
                 return true;
 
             case R.id.abouthome_topsites_unpin:
-                mAboutHomeContent.unpinSite();
-                return true;
-
-            case R.id.abouthome_topsites_unpinall:
-                mAboutHomeContent.unpinAllSites();
+                mAboutHomeContent.unpinSite(AboutHomeContent.UnpinFlags.REMOVE_PIN);
                 return true;
 
             case R.id.abouthome_topsites_pin:
                 mAboutHomeContent.pinSite();
                 return true;
+
+            case R.id.abouthome_topsites_remove:
+                mAboutHomeContent.unpinSite(AboutHomeContent.UnpinFlags.REMOVE_HISTORY);
+                return true;
+
         }
         return super.onContextItemSelected(item);
     }
@@ -1139,6 +1130,20 @@ abstract public class BrowserApp extends GeckoApp
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    /**
+     * This will detect if the key pressed is back. If so, will show the history.
+     */
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            Tab tab = Tabs.getInstance().getSelectedTab();
+            if (tab != null) {
+                return tab.showAllHistory();
+            }
+        }
+        return super.onKeyLongPress(keyCode, event);
     }
 
     /*

@@ -9,7 +9,6 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.accounts.Account;
@@ -17,8 +16,8 @@ import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.database.ContentObserver;
 import android.net.Uri;
-import android.os.SystemClock;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -57,6 +56,7 @@ public class Tabs implements GeckoEventListener {
     private static AtomicInteger sTabId = new AtomicInteger(0);
 
     private GeckoApp mActivity;
+    private ContentObserver mContentObserver;
 
     private Tabs() {
         registerEventListener("SessionHistory:New");
@@ -84,6 +84,9 @@ public class Tabs implements GeckoEventListener {
                 persistAllTabs();
             }
         }, GeckoAppShell.getHandler(), false);
+        if (mContentObserver != null) {
+            BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
+        }
     }
 
     public void detachFromActivity(GeckoApp activity) {
@@ -91,13 +94,31 @@ public class Tabs implements GeckoEventListener {
             mAccountManager.removeOnAccountsUpdatedListener(mAccountListener);
             mAccountListener = null;
         }
+        if (mContentObserver != null) {
+            BrowserDB.unregisterContentObserver(getContentResolver(), mContentObserver);
+        }
     }
 
     public int getCount() {
         return mTabs.size();
     }
 
+    private void lazyRegisterBookmarkObserver() {
+        if (mContentObserver == null) {
+            mContentObserver = new ContentObserver(null) {
+                public void onChange(boolean selfChange) {
+                    for (Tab tab : mTabs.values()) {
+                        tab.updateBookmark();
+                    }
+                }
+            };
+            BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
+        }
+    }
+
     private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate) {
+        lazyRegisterBookmarkObserver();
+
         final Tab tab = isPrivate ? new PrivateTab(id, url, external, parentId, title) :
                                     new Tab(id, url, external, parentId, title);
         mTabs.put(id, tab);
@@ -133,7 +154,6 @@ public class Tabs implements GeckoEventListener {
         mSelectedTab = tab;
         mActivity.runOnUiThread(new Runnable() { 
             public void run() {
-                mActivity.hideFormAssistPopup();
                 if (isSelectedTab(tab)) {
                     notifyListeners(tab, TabEvents.SELECTED);
 
@@ -266,9 +286,14 @@ public class Tabs implements GeckoEventListener {
                 int id = message.getInt("tabID");
                 Tab tab = null;
 
-                if (mTabs.containsKey(id)) {
-                    tab = mTabs.get(id);
-                    tab.updateURL(url);
+                if (message.getBoolean("stub")) {
+                    if (mTabs.containsKey(id)) {
+                        tab = mTabs.get(id);
+                        tab.updateURL(url);
+                    } else {
+                        // Tab was already closed; abort
+                        return;
+                    }
                 } else {
                     tab = addTab(id, url, message.getBoolean("external"),
                                           message.getInt("parentId"),

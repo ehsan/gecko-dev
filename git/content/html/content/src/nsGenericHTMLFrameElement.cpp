@@ -13,11 +13,11 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMApplicationRegistry.h"
 #include "nsIPermissionManager.h"
+#include "sampler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericHTMLFrameElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFrameLoader)
@@ -180,6 +180,9 @@ nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
   if (aDocument) {
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Missing a script blocker!");
+
+    SAMPLE_LABEL("nsGenericHTMLFrameElement", "BindToTree");
+
     // We're in a document now.  Kick off the frame load.
     LoadSrc();
   }
@@ -315,6 +318,19 @@ nsGenericHTMLFrameElement::GetReallyIsApp(bool *aOut)
   GetAppManifestURL(manifestURL);
 
   *aOut = !manifestURL.IsEmpty();
+  return NS_OK;
+}
+
+/* [infallible] */ NS_IMETHODIMP
+nsGenericHTMLFrameElement::GetIsExpectingSystemMessage(bool *aOut)
+{
+  *aOut = false;
+
+  if (!nsIMozBrowserFrame::GetReallyIsApp()) {
+    return NS_OK;
+  }
+
+  *aOut = HasAttr(kNameSpaceID_None, nsGkAtoms::expectingSystemMessage);
   return NS_OK;
 }
 

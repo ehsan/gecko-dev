@@ -6,7 +6,7 @@
 #include "base/basictypes.h"
 #include "CanvasRenderingContext2D.h"
 
-#include "nsIDOMXULElement.h"
+#include "nsXULElement.h"
 
 #include "prenv.h"
 
@@ -43,8 +43,6 @@
 #include "nsIDocShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
-#include "nsIDocShellTreeItem.h"
-#include "nsIDocShellTreeNode.h"
 #include "nsIXPConnect.h"
 #include "nsDisplayList.h"
 
@@ -129,7 +127,6 @@ static NS_NAMED_LITERAL_STRING(kDefaultFontStyle, "10px sans-serif");
 const Float SIGMA_MAX = 100;
 
 /* Memory reporter stuff */
-static nsIMemoryReporter *gCanvasAzureMemoryReporter = nullptr;
 static int64_t gCanvasAzureMemoryUsed = 0;
 
 static int64_t GetCanvasAzureMemoryUsed() {
@@ -302,10 +299,10 @@ public:
 
     // We need to enlarge and possibly offset our temporary surface
     // so that things outside of the canvas may cast shadows.
-    mTempRect.Inflate(Margin(blurRadius + NS_MAX<Float>(state.shadowOffset.x, 0),
-                             blurRadius + NS_MAX<Float>(state.shadowOffset.y, 0),
-                             blurRadius + NS_MAX<Float>(-state.shadowOffset.x, 0),
-                             blurRadius + NS_MAX<Float>(-state.shadowOffset.y, 0)));
+    mTempRect.Inflate(Margin(blurRadius + std::max<Float>(state.shadowOffset.x, 0),
+                             blurRadius + std::max<Float>(state.shadowOffset.y, 0),
+                             blurRadius + std::max<Float>(-state.shadowOffset.x, 0),
+                             blurRadius + std::max<Float>(-state.shadowOffset.y, 0)));
 
     if (aBounds) {
       // We actually include the bounds of the shadow blur, this makes it
@@ -791,9 +788,10 @@ CanvasRenderingContext2D::EnsureTarget()
   }
 
   if (mTarget) {
-    if (gCanvasAzureMemoryReporter == nullptr) {
-        gCanvasAzureMemoryReporter = new NS_MEMORY_REPORTER_NAME(CanvasAzureMemory);
-      NS_RegisterMemoryReporter(gCanvasAzureMemoryReporter);
+    static bool registered = false;
+    if (!registered) {
+      registered = true;
+      NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(CanvasAzureMemory));
     }
 
     gCanvasAzureMemoryUsed += mWidth * mHeight * 4;
@@ -1635,9 +1633,9 @@ CanvasRenderingContext2D::BeginPath()
 }
 
 void
-CanvasRenderingContext2D::Fill()
+CanvasRenderingContext2D::Fill(const CanvasWindingRule& winding)
 {
-  EnsureUserSpacePath();
+  EnsureUserSpacePath(winding);
 
   if (!mPath) {
     return;
@@ -1686,9 +1684,9 @@ CanvasRenderingContext2D::Stroke()
 }
 
 void
-CanvasRenderingContext2D::Clip()
+CanvasRenderingContext2D::Clip(const CanvasWindingRule& winding)
 {
-  EnsureUserSpacePath();
+  EnsureUserSpacePath(winding);
 
   if (!mPath) {
     return;
@@ -1847,9 +1845,11 @@ CanvasRenderingContext2D::EnsureWritablePath()
 }
 
 void
-CanvasRenderingContext2D::EnsureUserSpacePath()
+CanvasRenderingContext2D::EnsureUserSpacePath(const CanvasWindingRule& winding)
 {
   FillRule fillRule = CurrentState().fillRule;
+  if(winding == CanvasWindingRuleValues::Evenodd)
+    fillRule = FILL_EVEN_ODD;
 
   if (!mPath && !mPathBuilder && !mDSPathBuilder) {
     EnsureTarget();
@@ -2059,11 +2059,11 @@ CanvasRenderingContext2D::SetFont(const nsAString& font,
     return;
   }
 
-  const nsStyleFont* fontStyle = sc->GetStyleFont();
+  const nsStyleFont* fontStyle = sc->StyleFont();
 
   NS_ASSERTION(fontStyle, "Could not obtain font style");
 
-  nsIAtom* language = sc->GetStyleFont()->mLanguage;
+  nsIAtom* language = sc->StyleFont()->mLanguage;
   if (!language) {
     language = presShell->GetPresContext()->GetLanguageFromCharset();
   }
@@ -2484,7 +2484,7 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
       return NS_ERROR_FAILURE;
     }
 
-    isRTL = canvasStyle->GetStyleVisibility()->mDirection ==
+    isRTL = canvasStyle->StyleVisibility()->mDirection ==
       NS_STYLE_DIRECTION_RTL;
   } else {
     isRTL = GET_BIDI_OPTION_DIRECTION(document->GetBidiOptions()) == IBMBIDI_TEXTDIRECTION_RTL;
@@ -2791,19 +2791,21 @@ CanvasRenderingContext2D::SetMozDashOffset(double mozDashOffset)
 }
 
 bool
-CanvasRenderingContext2D::IsPointInPath(double x, double y)
+CanvasRenderingContext2D::IsPointInPath(double x, double y, const CanvasWindingRule& winding)
 {
   if (!FloatValidate(x,y)) {
     return false;
   }
 
-  EnsureUserSpacePath();
+  EnsureUserSpacePath(winding);
   if (!mPath) {
     return false;
   }
+
   if (mPathTransformWillUpdate) {
     return mPath->ContainsPoint(Point(x, y), mPathToDS);
   }
+
   return mPath->ContainsPoint(Point(x, y), mTarget->GetTransform());
 }
 
@@ -3185,7 +3187,7 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
 }
 
 void
-CanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* elem,
+CanvasRenderingContext2D::AsyncDrawXULElement(nsXULElement& elem,
                                               double x, double y,
                                               double w, double h,
                                               const nsAString& bgColor,
@@ -3206,7 +3208,7 @@ CanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* elem,
   }
 
 #if 0
-  nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(elem);
+  nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(&elem);
   if (!loaderOwner) {
     error.Throw(NS_ERROR_FAILURE);
     return;
@@ -3373,6 +3375,20 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
+  IntRect srcRect(0, 0, mWidth, mHeight);
+  IntRect destRect(aX, aY, aWidth, aHeight);
+  IntRect srcReadRect = srcRect.Intersect(destRect);
+  RefPtr<DataSourceSurface> readback;
+  if (!srcReadRect.IsEmpty() && !mZero) {
+    RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
+    if (snapshot) {
+      readback = snapshot->GetDataSurface();
+    }
+    if (!readback || !readback->GetData()) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
+
   JSObject* darray = JS_NewUint8ClampedArray(aCx, len.value());
   if (!darray) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -3385,25 +3401,14 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
 
   uint8_t* data = JS_GetUint8ClampedArrayData(darray);
 
-  IntRect srcRect(0, 0, mWidth, mHeight);
-  IntRect destRect(aX, aY, aWidth, aHeight);
-
-  IntRect srcReadRect = srcRect.Intersect(destRect);
   IntRect dstWriteRect = srcReadRect;
   dstWriteRect.MoveBy(-aX, -aY);
 
   uint8_t* src = data;
   uint32_t srcStride = aWidth * 4;
-
-  RefPtr<DataSourceSurface> readback;
-  if (!srcReadRect.IsEmpty()) {
-    RefPtr<SourceSurface> snapshot = mTarget->Snapshot();
-    if (snapshot) {
-      readback = snapshot->GetDataSurface();
-
-      srcStride = readback->Stride();
-      src = readback->GetData() + srcReadRect.y * srcStride + srcReadRect.x * 4;
-    }
+  if (readback) {
+    srcStride = readback->Stride();
+    src = readback->GetData() + srcReadRect.y * srcStride + srcReadRect.x * 4;
   }
 
   // NOTE! dst is the same as src, and this relies on reading

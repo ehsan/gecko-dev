@@ -1271,7 +1271,6 @@ DownloadsPlacesView.prototype = {
   nodeKeywordChanged: function() {},
   nodeDateAddedChanged: function() {},
   nodeLastModifiedChanged: function() {},
-  nodeReplaced: function() {},
   nodeHistoryDetailsChanged: function() {},
   nodeTagsChanged: function() {},
   sortingChanged: function() {},
