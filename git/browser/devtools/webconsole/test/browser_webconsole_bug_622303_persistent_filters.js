@@ -12,8 +12,7 @@ let prefs = {
   ],
   "js": [
     "exception",
-    "jswarn",
-    "jslog",
+    "jswarn"
   ],
   "logging": [
      "error",
