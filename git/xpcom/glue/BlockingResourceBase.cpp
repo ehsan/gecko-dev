@@ -84,7 +84,7 @@ BlockingResourceBase::DeadlockDetectorEntry::Print(
     out += mName;
 
     if (maybeCurrentlyAcquired) {
-        fputs(" (currently acquired)\n", stderr);
+        fputs(" (currently acquired)", stderr);
         out += " (currently acquired)\n";
     }
 
@@ -237,7 +237,7 @@ BlockingResourceBase::PrintCycle(const DDT::ResourceAcquisitionArray* aCycle,
     const DDT::ResourceAcquisition* it = 1 + aCycle->Elements();
     for (i = 1; i < len - 1; ++i, ++it) {
         fputs("\n--- Next dependency:\n", stderr);
-        out += "\nNext dependency:\n";
+        out += "Next dependency:\n";
 
         maybeImminent &= it->mResource->Print(*it, out);
     }

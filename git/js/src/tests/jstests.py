@@ -43,18 +43,6 @@ def check_manifest(test_list):
     else:
         print 'All test files are listed in manifests'
 
-def print_tinderbox_result(label, path, message=None, skip=False, time=None):
-    result = label
-    result += " | " + path
-    result += " |" + OPTIONS.shell_args
-    if message:
-        result += " | " + message
-    if skip:
-        result += ' | (SKIP)'
-    if time > OPTIONS.timeout:
-        result += ' | (TIMEOUT)'
-    print result
-
 class TestTask:
     js_cmd_prefix = None
 
@@ -94,7 +82,7 @@ class ResultsSink:
     def push(self, output):
         if isinstance(output, NullTestOutput):
             if OPTIONS.tinderbox:
-                print_tinderbox_result('TEST-KNOWN-FAIL', output.test.path, time=output.dt, skip=True)
+                print '%s | %s (SKIP)' % ('TEST-KNOWN-FAIL', output.test.path)
             self.counts[2] += 1
             self.n += 1
         else:
@@ -126,10 +114,10 @@ class ResultsSink:
                         label = self.LABELS[(sub_ok, result.test.expect, result.test.random)][0]
                         if label == 'TEST-UNEXPECTED-PASS':
                             label = 'TEST-PASS (EXPECTED RANDOM)'
-                        print_tinderbox_result(label, result.test.path, time=output.dt, message=msg)
-                print_tinderbox_result(self.LABELS[
-                    (result.result, result.test.expect, result.test.random)][0],
-                    result.test.path, time=output.dt)
+                        print '%s | %s | %s' % (label, result.test.path, msg)
+                print '%s | %s' % (self.LABELS[(result.result, 
+                                              result.test.expect, result.test.random)][0],
+                                 result.test.path)
            
         if self.pb:
             self.pb.label = '[%4d|%4d|%4d]'%tuple(self.counts)
@@ -329,8 +317,7 @@ if __name__ == '__main__':
         test_list = exclude_tests(test_list, OPTIONS.exclude_file)
 
     if OPTIONS.no_extensions:
-        pattern = os.sep + 'extensions' + os.sep
-        test_list = [_ for _ in test_list if pattern not in _.path]
+        test_list = [_ for _ in test_list if '/extensions/' not in _.path]
 
     if not OPTIONS.random:
         test_list = [ _ for _ in test_list if not _.random ]

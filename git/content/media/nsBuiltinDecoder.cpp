@@ -220,28 +220,11 @@ nsresult nsBuiltinDecoder::Load(nsMediaStream* aStream,
     MonitorAutoEnter mon(mMonitor);
     mDecoderStateMachine->SetSeekable(mSeekable);
     mDecoderStateMachine->SetDuration(mDuration);
-    
-    if (mFrameBufferLength > 0) {
-      // The valid mFrameBufferLength value was specified earlier
-      mDecoderStateMachine->SetFrameBufferLength(mFrameBufferLength);
-    }
   }
 
   ChangeState(PLAY_STATE_LOADING);
 
   return StartStateMachineThread();
-}
-
-nsresult nsBuiltinDecoder::RequestFrameBufferLength(PRUint32 aLength)
-{
-  nsresult res = nsMediaDecoder::RequestFrameBufferLength(aLength);
-  NS_ENSURE_SUCCESS(res,res);
-
-  MonitorAutoEnter mon(mMonitor);
-  if (mDecoderStateMachine) {
-      mDecoderStateMachine->SetFrameBufferLength(aLength);
-  }
-  return res;
 }
 
 nsresult nsBuiltinDecoder::StartStateMachineThread()
@@ -345,12 +328,15 @@ void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
 }
 
 void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
-                                      PRUint32 aRate)
+                                      PRUint32 aRate,
+                                      PRUint32 aFrameBufferLength)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mShuttingDown) {
     return;
   }
+
+  mFrameBufferLength = aFrameBufferLength;
 
   // Only inform the element of MetadataLoaded if not doing a load() in order
   // to fulfill a seek, otherwise we'll get multiple metadataloaded events.

@@ -38,8 +38,10 @@
 #ifndef GFX_IMAGELAYEROGL_H
 #define GFX_IMAGELAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
+#ifdef MOZ_IPC
+# include "mozilla/layers/PLayers.h"
+# include "mozilla/layers/ShadowLayers.h"
+#endif  // MOZ_IPC
 
 #include "LayerManagerOGL.h"
 #include "ImageLayers.h"
@@ -230,11 +232,9 @@ public:
   GLTexture mTexture;
   gfxIntSize mSize;
   gl::ShaderProgramType mLayerProgram;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  nsRefPtr<gfxASurface> mSurface;
-#endif
 };
 
+#ifdef MOZ_IPC
 class ShadowImageLayerOGL : public ShadowImageLayer,
                             public LayerOGL
 {
@@ -271,6 +271,7 @@ private:
 
 
 };
+#endif
 
 } /* layers */
 } /* mozilla */

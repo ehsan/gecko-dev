@@ -68,8 +68,7 @@ inline PRBool nsStyleBorder::IsBorderImageLoaded() const
   PRUint32 status;
   return mBorderImage &&
          NS_SUCCEEDED(mBorderImage->GetImageStatus(&status)) &&
-         (status & imgIRequest::STATUS_LOAD_COMPLETE) &&
-         !(status & imgIRequest::STATUS_ERROR);
+         (status & imgIRequest::STATUS_LOAD_COMPLETE);
 }
 
 inline void

@@ -677,8 +677,6 @@ public:
     Mutated();
   }
 
-  void SetIsFixedPosition(PRBool aFixedPosition) { mIsFixedPosition = aFixedPosition; }
-
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nsnull; }
@@ -691,7 +689,6 @@ public:
   virtual Layer* GetLastChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
   const nsIntRect* GetTileSourceRect() { return mUseTileSourceRect ? &mTileSourceRect : nsnull; }
-  bool GetIsFixedPosition() { return mIsFixedPosition; }
 
   /**
    * DRAWING PHASE ONLY
@@ -761,12 +758,6 @@ public:
    * a ThebesLayer.
    */
   virtual ThebesLayer* AsThebesLayer() { return nsnull; }
-
-  /**
-   * Dynamic cast to a ContainerLayer. Returns null if this is not
-   * a ContainerLayer.
-   */
-  virtual ContainerLayer* AsContainerLayer() { return nsnull; }
 
   /**
    * Dynamic cast to a ShadowLayer.  Return null if this is not a
@@ -872,8 +863,7 @@ protected:
     mOpacity(1.0),
     mContentFlags(0),
     mUseClipRect(PR_FALSE),
-    mUseTileSourceRect(PR_FALSE),
-    mIsFixedPosition(PR_FALSE)
+    mUseTileSourceRect(PR_FALSE)
     {}
 
   void Mutated() { mManager->Mutated(this); }
@@ -921,7 +911,6 @@ protected:
   PRUint32 mContentFlags;
   PRPackedBool mUseClipRect;
   PRPackedBool mUseTileSourceRect;
-  PRPackedBool mIsFixedPosition;
 };
 
 /**
@@ -1034,8 +1023,6 @@ public:
   }
 
   // These getters can be used anytime.
-
-  virtual ContainerLayer* AsContainerLayer() { return this; }
 
   virtual Layer* GetFirstChild() { return mFirstChild; }
   virtual Layer* GetLastChild() { return mLastChild; }

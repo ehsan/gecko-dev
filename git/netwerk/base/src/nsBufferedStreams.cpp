@@ -35,8 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "IPC/IPCMessageUtils.h"
 #include "mozilla/net/NeckoMessageUtils.h"
+#endif
 
 #include "nsBufferedStreams.h"
 #include "nsStreamUtils.h"
@@ -163,7 +165,7 @@ nsBufferedStream::Seek(PRInt32 whence, PRInt64 offset)
     nsCOMPtr<nsISeekableStream> ras = do_QueryInterface(mStream, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    PRInt64 absPos = 0;
+    nsInt64 absPos;
     switch (whence) {
       case nsISeekableStream::NS_SEEK_SET:
         absPos = offset;
@@ -203,8 +205,8 @@ nsBufferedStream::Seek(PRInt32 whence, PRInt64 offset)
 
     METER(if (bufstats.mBigSeekIndex < MAX_BIG_SEEKS)
               bufstats.mBigSeek[bufstats.mBigSeekIndex].mOldOffset =
-                  mBufferStartOffset + PRInt64(mCursor));
-    const PRInt64 minus1 = -1;
+                  mBufferStartOffset + nsInt64(mCursor));
+    const nsInt64 minus1 = -1;
     if (absPos == minus1) {
         // then we had the SEEK_END case, above
         PRInt64 tellPos;
@@ -229,7 +231,7 @@ nsBufferedStream::Tell(PRInt64 *result)
     if (mStream == nsnull)
         return NS_BASE_STREAM_CLOSED;
     
-    PRInt64 result64 = mBufferStartOffset;
+    nsInt64 result64 = mBufferStartOffset;
     result64 += mCursor;
     *result = result64;
     return NS_OK;
@@ -489,6 +491,7 @@ nsBufferedInputStream::GetUnbufferedStream(nsISupports* *aStream)
 PRBool
 nsBufferedInputStream::Read(const IPC::Message *aMsg, void **aIter)
 {
+#ifdef MOZ_IPC
     using IPC::ReadParam;
 
     PRUint32 bufferSize;
@@ -503,17 +506,22 @@ nsBufferedInputStream::Read(const IPC::Message *aMsg, void **aIter)
         return PR_FALSE;
 
     return PR_TRUE;
+#else
+    return PR_FALSE;
+#endif
 }
 
 void
 nsBufferedInputStream::Write(IPC::Message *aMsg)
 {
+#ifdef MOZ_IPC
     using IPC::WriteParam;
 
     WriteParam(aMsg, mBufferSize);
 
     IPC::InputStream inputStream(Source());
     WriteParam(aMsg, inputStream);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

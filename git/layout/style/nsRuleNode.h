@@ -53,6 +53,7 @@ struct PLDHashTable;
 class nsILanguageAtomService;
 struct nsRuleData;
 class nsIStyleRule;
+struct nsCSSStruct;
 struct nsCSSValueList;
 
 class nsCSSValue;

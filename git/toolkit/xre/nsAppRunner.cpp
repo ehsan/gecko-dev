@@ -56,8 +56,10 @@
 #include <QtGui/QInputContext>
 #endif // MOZ_WIDGET_QT
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/ContentParent.h"
 using mozilla::dom::ContentParent;
+#endif
 
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
@@ -207,7 +209,9 @@ using mozilla::dom::ContentParent;
 #include "nsIPrefService.h"
 #endif
 
+#ifdef MOZ_IPC
 #include "base/command_line.h"
+#endif
 
 #include "mozilla/FunctionTimer.h"
 
@@ -774,6 +778,7 @@ nsXULAppInfo::GetProcessType(PRUint32* aResult)
 NS_IMETHODIMP
 nsXULAppInfo::EnsureContentProcess()
 {
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -781,6 +786,9 @@ nsXULAppInfo::EnsureContentProcess()
   if (!c)
     return NS_ERROR_NOT_AVAILABLE;
   return NS_OK;
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }
 
 NS_IMETHODIMP
@@ -1323,7 +1331,10 @@ DumpHelp()
 #ifdef MOZ_X11
   printf("X11 options\n"
          "  --display=DISPLAY  X display to use\n"
-         "  --sync             Make X calls synchronous\n");
+         "  --sync             Make X calls synchronous\n"
+         "  --no-xshm          Don't use X shared memory extension\n"
+         "  --xim-preedit=STYLE\n"
+         "  --xim-status=STYLE\n");
 #endif
 #ifdef XP_UNIX
   printf("  --g-fatal-warnings Make all warnings fatal\n"
@@ -3843,6 +3854,8 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 {
   nsresult rv = NS_OK;
 
+#if defined(MOZ_IPC)
+
 #if defined(OS_WIN)
   CommandLine::Init(aArgc, aArgv);
 #else
@@ -3876,6 +3889,7 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
       free(canonArgs[i]);
   delete[] canonArgs;
 #endif
+#endif
 
 #ifdef MOZ_OMNIJAR
   const char *omnijarPath = nsnull;
@@ -3903,7 +3917,9 @@ XRE_DeinitCommandLine()
 {
   nsresult rv = NS_OK;
 
+#if defined(MOZ_IPC)
   CommandLine::Terminate();
+#endif
 
   return rv;
 }
@@ -3911,7 +3927,11 @@ XRE_DeinitCommandLine()
 GeckoProcessType
 XRE_GetProcessType()
 {
+#ifdef MOZ_IPC
   return mozilla::startup::sChildProcessType;
+#else
+  return GeckoProcessType_Default;
+#endif
 }
 
 void

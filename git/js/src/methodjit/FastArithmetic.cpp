@@ -1298,7 +1298,6 @@ mjit::Compiler::jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *targe
         OOL_STUBCALL(stub);
 
         frame.popn(2);
-        frame.takeReg(Registers::ReturnReg);
         frame.syncAndForgetEverything();
 
         Jump j = masm.branchDouble(dblCond, fpLeft, fpRight);

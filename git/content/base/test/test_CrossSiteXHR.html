@@ -567,13 +567,6 @@ function runTest() {
                  exposeHeaders: "  ,  ,,y-my-header,z-my-header,  ",
                  expectedResponseHeaders: ["y-my-header"],
                },
-               
-               // Check that sending a body in the OPTIONS response works
-               { pass: 1,
-                 method: "DELETE",
-                 allowMethods: "DELETE",
-                 preflightBody: "I'm a preflight response body",
-               },
                ];
 
   if (!runPreflightTests) {
@@ -642,8 +635,6 @@ function runTest() {
       req.url += "&responseHeaders=" + escape(test.responseHeaders.toSource());
     if (test.exposeHeaders)
       req.url += "&exposeHeaders=" + escape(test.exposeHeaders);
-    if (test.preflightBody)
-      req.url += "&preflightBody=" + escape(test.preflightBody);
 
     loaderWindow.postMessage(req.toSource(), origin);
     res = eval(yield);
@@ -665,7 +656,7 @@ function runTest() {
         is(res.responseText, "<res>hello pass</res>\n",
            "wrong responseText in test for " + test.toSource());
         is(res.events.join(","),
-           "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load,loadend",
+           "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load",
            "wrong responseText in test for " + test.toSource());
       }
       else {
@@ -674,7 +665,7 @@ function runTest() {
         is(res.responseText, "",
            "wrong responseText in test for " + test.toSource());
         is(res.events.join(","),
-           "opening,rs1,sending,rs1,loadstart,rs2,rs4,load,loadend",
+           "opening,rs1,sending,rs1,loadstart,rs2,rs4,load",
            "wrong responseText in test for " + test.toSource());
       }
       if (test.responseHeaders) {
@@ -703,7 +694,7 @@ function runTest() {
          "wrong responseText in test for " + test.toSource());
       if (!res.sendThrew) {
         is(res.events.join(","),
-           "opening,rs1,sending,rs1,loadstart,rs2,rs4,error,loadend",
+           "opening,rs1,sending,rs1,loadstart,rs2,rs4,error",
            "wrong events in test for " + test.toSource());
       }
       is(res.progressEvents, 0,
@@ -831,7 +822,7 @@ function runTest() {
       is(res.responseText, "<res>hello pass</res>\n",
          "wrong responseText in test for " + test.toSource());
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load",
          "wrong responseText in test for " + test.toSource());
     }
     else {
@@ -844,17 +835,12 @@ function runTest() {
       is(res.responseText, "",
          "wrong responseText in test for " + test.toSource());
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error",
          "wrong events in test for " + test.toSource());
       is(res.progressEvents, 0,
          "wrong events in test for " + test.toSource());
     }
   }
-
-  // Make sure to clear cookies to avoid affecting other tests
-  document.cookie = "a=; path=/; expires=Thu, 01-Jan-1970 00:00:01 GMT"
-  is(document.cookie, "", "No cookies should be left over");
-
 
   // Test redirects
   is(loader.src, "http://example.org/tests/content/base/test/file_CrossSiteXHR_inner.html");
@@ -1105,7 +1091,7 @@ function runTest() {
       is(res.responseText, "<res>hello pass</res>\n",
          "wrong responseText in test for " + test.toSource());
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs3,rs4,load",
          "wrong responseText in test for " + test.toSource());
     }
     else {
@@ -1118,7 +1104,7 @@ function runTest() {
       is(res.responseText, "",
          "wrong responseText in test for " + test.toSource());
       is(res.events.join(","),
-         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error,loadend",
+         "opening,rs1,sending,rs1,loadstart,rs2,rs4,error",
          "wrong events in test for " + test.toSource());
       is(res.progressEvents, 0,
          "wrong progressevents in test for " + test.toSource());

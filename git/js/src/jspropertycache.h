@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=98:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -168,9 +168,8 @@ class PropertyCache
 
     PropertyCacheEntry  table[SIZE];
     JSBool              empty;
-
-  public:
 #ifdef JS_PROPERTY_CACHE_METERING
+  public:
     PropertyCacheEntry  *pctestentry;   /* entry of the last PC-based test */
     uint32              fills;          /* number of cache entry fills */
     uint32              nofills;        /* couldn't fill (e.g. default get) */
@@ -201,17 +200,12 @@ class PropertyCache
     uint32              misses;         /* cache misses */
     uint32              flushes;        /* cache flushes */
     uint32              pcpurges;       /* shadowing purges on proto chain */
-
+  private:
 # define PCMETER(x)     x
 #else
 # define PCMETER(x)     ((void)0)
 #endif
 
-    PropertyCache() {
-        PodZero(this);
-    }
-    
-  private:
     /*
      * Add kshape rather than xor it to avoid collisions between nearby bytecode
      * that are evolving an object by setting successive properties, incrementing
@@ -276,9 +270,6 @@ class PropertyCache
 
     void purge(JSContext *cx);
     void purgeForScript(JSContext *cx, JSScript *script);
-
-    /* Restore an entry that may have been purged during a GC. */
-    void restore(PropertyCacheEntry *entry);
 };
 
 } /* namespace js */

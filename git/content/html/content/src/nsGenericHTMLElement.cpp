@@ -42,6 +42,7 @@
 #include "nsIAtom.h"
 #include "nsIContentViewer.h"
 #include "mozilla/css/StyleRule.h"
+#include "nsCSSStruct.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIDOMHTMLBodyElement.h"
@@ -266,8 +267,10 @@ private:
 
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericHTMLElementTearoff)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGenericHTMLElementTearoff)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGenericHTMLElementTearoff,
+                                          nsIDOMNSHTMLElement)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsGenericHTMLElementTearoff,
+                                           nsIDOMNSHTMLElement)
 
 NS_INTERFACE_TABLE_HEAD(nsGenericHTMLElementTearoff)
   NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLElementTearoff,
@@ -381,6 +384,20 @@ nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
   return NS_OK;
 }
 
+nsresult
+nsGenericHTMLElement::GetElementsByTagName(const nsAString& aTagname,
+                                           nsIDOMNodeList** aReturn)
+{
+  // Only lowercase the name if this is an HTML document.
+  if (IsInHTMLDocument()) {
+    nsAutoString lower;
+    nsContentUtils::ASCIIToLower(aTagname, lower);
+    return nsGenericHTMLElementBase::GetElementsByTagName(lower, aReturn);
+  }
+
+  return nsGenericHTMLElementBase::GetElementsByTagName(aTagname, aReturn);
+}
+
 // Implementation for nsIDOMHTMLElement
 nsresult
 nsGenericHTMLElement::GetId(nsAString& aId)
@@ -465,8 +482,6 @@ nsGenericHTMLElement::SetClassName(const nsAString& aClassName)
   SetAttr(kNameSpaceID_None, nsGkAtoms::_class, aClassName, PR_TRUE);
   return NS_OK;
 }
-
-NS_IMPL_STRING_ATTR(nsGenericHTMLElement, AccessKey, accesskey)
 
 static PRBool
 IsBody(nsIContent *aContent)
@@ -948,8 +963,7 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
-    if (HasName()) {
+    if (HasFlag(NODE_HAS_NAME)) {
       aDocument->
         AddToNameTable(this, GetParsedAttr(nsGkAtoms::name)->GetAtomValue());
     }
@@ -967,10 +981,6 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericHTMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  if (IsInDoc()) {
-    UnregAccessKey();
-  }
-
   RemoveFromNameTable();
 
   if (GetContentEditableValue() == eTrue) {
@@ -1190,17 +1200,10 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 {
   PRBool contentEditable = aNameSpaceID == kNameSpaceID_None &&
                            aName == nsGkAtoms::contenteditable;
-  PRBool accessKey = aName == nsGkAtoms::accesskey && 
-                     aNameSpaceID == kNameSpaceID_None;
-
   PRInt32 change;
   if (contentEditable) {
     change = GetContentEditableValue() == eTrue ? -1 : 0;
-    SetMayHaveContentEditableAttr();
-  }
-
-  if (accessKey) {
-    UnregAccessKey();
+    SetFlags(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR);
   }
 
   nsresult rv = nsStyledElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -1213,11 +1216,6 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     }
 
     ChangeEditableState(change);
-  }
-
-  if (accessKey && !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
   }
 
   return NS_OK;
@@ -1235,16 +1233,11 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
     if (aAttribute == nsGkAtoms::name) {
       // Have to do this before clearing flag. See RemoveFromNameTable
       RemoveFromNameTable();
-      ClearHasName();
+      UnsetFlags(NODE_HAS_NAME);
     }
     else if (aAttribute == nsGkAtoms::contenteditable) {
       contentEditable = PR_TRUE;
       contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
-    }
-    else if (aAttribute == nsGkAtoms::accesskey) {
-      // Have to unregister before clearing flag. See UnregAccessKey
-      UnregAccessKey();
-      UnsetFlags(NODE_HAS_ACCESSKEY);
     }
     else if (nsContentUtils::IsEventAttributeName(aAttribute,
                                                   EventNameType_HTML)) {
@@ -1309,14 +1302,14 @@ nsGenericHTMLElement::ParseAttribute(PRInt32 aNamespaceID,
       // not that it has an emptystring as the name.
       RemoveFromNameTable();
       if (aValue.IsEmpty()) {
-        ClearHasName();
+        UnsetFlags(NODE_HAS_NAME);
         return PR_FALSE;
       }
 
       aResult.ParseAtom(aValue);
 
       if (CanHaveName(Tag())) {
-        SetHasName();
+        SetFlags(NODE_HAS_NAME);
         AddToNameTable(aResult.GetAtomValue());
       }
       
@@ -2631,7 +2624,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       // AfterSetAttr.
       if (doc && aNotify) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, NS_EVENT_STATE_DEFAULT);
+        doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_DEFAULT);
       }
     }
 
@@ -2689,7 +2682,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       // changes can't affect that.
       if (doc && aNotify) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, NS_EVENT_STATE_DEFAULT);
+        doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_DEFAULT);
       }
     }
 
@@ -3005,7 +2998,7 @@ nsGenericHTMLFormElement::FieldSetDisabledChanged(nsEventStates aStates, PRBool 
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-    doc->ContentStateChanged(this, aStates);
+    doc->ContentStatesChanged(this, nsnull, aStates);
   }
 }
 
@@ -3251,38 +3244,6 @@ nsGenericHTMLElement::Focus()
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
   return fm ? fm->SetFocus(elem, 0) : NS_OK;
-}
-
-nsresult nsGenericHTMLElement::Click()
-{
-  if (HasFlag(NODE_HANDLING_CLICK))
-    return NS_OK;
-
-  // Strong in case the event kills it
-  nsCOMPtr<nsIDocument> doc = GetCurrentDoc();
-
-  nsCOMPtr<nsIPresShell> shell = nsnull;
-  nsRefPtr<nsPresContext> context = nsnull;
-  if (doc) {
-    shell = doc->GetShell();
-    if (shell) {
-      context = shell->GetPresContext();
-    }
-  }
-
-  SetFlags(NODE_HANDLING_CLICK);
-
-  // Click() is never called from native code, but it may be
-  // called from chrome JS. Mark this event trusted if Click()
-  // is called from chrome code.
-  nsMouseEvent event(nsContentUtils::IsCallerChrome(),
-                     NS_MOUSE_CLICK, nsnull, nsMouseEvent::eReal);
-  event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
-
-  nsEventDispatcher::Dispatch(this, context, &event);
-
-  UnsetFlags(NODE_HANDLING_CLICK);
-  return NS_OK;
 }
 
 PRBool
@@ -3535,9 +3496,9 @@ MakeContentDescendantsEditable(nsIContent *aContent, nsIDocument *aDocument)
   aContent->UpdateEditableState();
 
   if (aDocument && stateBefore != aContent->IntrinsicState()) {
-    aDocument->ContentStateChanged(aContent,
-                                   NS_EVENT_STATE_MOZ_READONLY |
-                                   NS_EVENT_STATE_MOZ_READWRITE);
+    aDocument->ContentStatesChanged(aContent, nsnull,
+                                    NS_EVENT_STATE_MOZ_READONLY |
+                                    NS_EVENT_STATE_MOZ_READWRITE);
   }
 
   PRUint32 i, n = aContent->GetChildCount();
@@ -3569,7 +3530,7 @@ nsGenericHTMLElement::ChangeEditableState(PRInt32 aChange)
     document = nsnull;
   }
 
-  // MakeContentDescendantsEditable is going to call ContentStateChanged for
+  // MakeContentDescendantsEditable is going to call ContentStatesChanged for
   // this element and all descendants if editable state has changed.
   // We have to create a document update batch now so it's created once.
   MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);

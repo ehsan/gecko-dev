@@ -5,23 +5,8 @@
 // contributor Siarhei Siamashka <siarhei.siamashka@gmail.com>
 
 #include "yuv_convert.h"
-#include "ycbcr_to_rgb565.h"
 
-
-
-#ifdef HAVE_YCBCR_TO_RGB565
-
-namespace mozilla {
-
-namespace gfx {
-
-#  if defined(MOZILLA_MAY_SUPPORT_NEON)
-void __attribute((noinline)) yuv42x_to_rgb565_row_neon(uint16 *dst,
-                                                       const uint8 *y,
-                                                       const uint8 *u,
-                                                       const uint8 *v,
-                                                       int n,
-                                                       int oddflag)
+void __attribute((noinline)) yv12_to_rgb565_neon(uint16 *dst, const uint8 *y, const uint8 *u, const uint8 *v, int n, int oddflag)
 {
     static __attribute__((aligned(16))) uint16 acc_r[8] = {
         22840, 22840, 22840, 22840, 22840, 22840, 22840, 22840,
@@ -214,10 +199,3 @@ void __attribute((noinline)) yuv42x_to_rgb565_row_neon(uint16 *dst,
 	  "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31"
     );
 }
-#  endif // MOZILLA_MAY_SUPPORT_NEON
-
-} // namespace gfx
-
-} // namespace mozilla
-
-#endif // HAVE_YCBCR_TO_RGB565

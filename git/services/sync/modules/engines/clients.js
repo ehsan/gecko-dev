@@ -45,7 +45,6 @@ Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/ext/StringBundle.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 
 const CLIENTS_TTL = 1814400; // 21 days
@@ -194,26 +193,19 @@ ClientEngine.prototype = {
     SyncEngine.prototype._resetClient.call(this);
     this._store.wipe();
   },
-
-  removeClientData: function removeClientData() {
-    let res = new Resource(this.engineURL + "/" + this.localID);
-    res.delete();
-  },
-
+  
   // Override the default behavior to delete bad records from the server.
-  handleHMACMismatch: function handleHMACMismatch(item, mayRetry) {
+  handleHMACMismatch: function handleHMACMismatch(item) {
     this._log.debug("Handling HMAC mismatch for " + item.id);
-    
-    let base = SyncEngine.prototype.handleHMACMismatch.call(this, item, mayRetry);
-    if (base != SyncEngine.kRecoveryStrategy.error)
-      return base;
+    if (SyncEngine.prototype.handleHMACMismatch.call(this, item))
+      return true;
 
     // It's a bad client record. Save it to be deleted at the end of the sync.
     this._log.debug("Bad client record detected. Scheduling for deletion.");
     this._deleteId(item.id);
 
-    // Neither try again nor error; we're going to delete it.
-    return SyncEngine.kRecoveryStrategy.ignore;
+    // Don't try again.
+    return false;
   }
 };
 

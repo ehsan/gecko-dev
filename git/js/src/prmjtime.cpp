@@ -64,8 +64,8 @@
 #include <winbase.h>
 #include <math.h>     /* for fabs */
 #include <mmsystem.h> /* for timeBegin/EndPeriod */
-/* VC++ 8.0 or later */
-#if _MSC_VER >= 1400
+/* VC++ 8.0 or later, and not WINCE */
+#if _MSC_VER >= 1400 && !defined(WINCE)
 #define NS_HAVE_INVALID_PARAMETER_HANDLER 1
 #endif
 #ifdef NS_HAVE_INVALID_PARAMETER_HANDLER
@@ -119,7 +119,7 @@ ComputeLocalTime(time_t local, struct tm *ptm)
 JSInt32
 PRMJ_LocalGMTDifference()
 {
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     /* Windows does not follow POSIX. Updates to the
      * TZ environment variable are not reflected
      * immediately on that platform as they are
@@ -200,6 +200,9 @@ typedef struct CalibrationData {
     CRITICAL_SECTION data_lock;
     CRITICAL_SECTION calibration_lock;
 #endif
+#ifdef WINCE
+    JSInt64 granularity;
+#endif
 } CalibrationData;
 
 static CalibrationData calibration = { 0 };
@@ -230,6 +233,10 @@ NowCalibrate()
         } while (memcmp(&ftStart,&ft, sizeof(ft)) == 0);
         timeEndPeriod(1);
 
+#ifdef WINCE
+        calibration.granularity = (FILETIME2INT64(ft) -
+                                   FILETIME2INT64(ftStart))/10;
+#endif
         /*
         calibrationDelta = (FILETIME2INT64(ft) - FILETIME2INT64(ftStart))/10;
         fprintf(stderr, "Calibration delta was %I64d us\n", calibrationDelta);
@@ -261,8 +268,13 @@ NowInit(void)
 {
     memset(&calibration, 0, sizeof(calibration));
     NowCalibrate();
+#ifdef WINCE
+    InitializeCriticalSection(&calibration.calibration_lock);
+    InitializeCriticalSection(&calibration.data_lock);
+#else
     InitializeCriticalSectionAndSpinCount(&calibration.calibration_lock, CALIBRATIONLOCK_SPINCOUNT);
     InitializeCriticalSectionAndSpinCount(&calibration.data_lock, DATALOCK_SPINCOUNT);
+#endif
     return PR_SUCCESS;
 }
 
@@ -276,7 +288,11 @@ PRMJ_NowShutdown()
 #define MUTEX_LOCK(m) EnterCriticalSection(m)
 #define MUTEX_TRYLOCK(m) TryEnterCriticalSection(m)
 #define MUTEX_UNLOCK(m) LeaveCriticalSection(m)
+#ifdef WINCE
+#define MUTEX_SETSPINCOUNT(m, c)
+#else
 #define MUTEX_SETSPINCOUNT(m, c) SetCriticalSectionSpinCount((m),(c))
+#endif
 
 static PRCallOnceType calibrationOnce = { 0 };
 
@@ -475,6 +491,10 @@ PRMJ_Now(void)
             returnedTime = calibration.last;
             MUTEX_UNLOCK(&calibration.data_lock);
 
+#ifdef WINCE
+            /* Get an estimate of clock ticks per second from our own test */
+            skewThreshold = calibration.granularity;
+#else
             /* Rather than assume the NT kernel ticks every 15.6ms, ask it */
             if (GetSystemTimeAdjustment(&timeAdjustment,
                                         &timeIncrement,
@@ -487,7 +507,7 @@ PRMJ_Now(void)
                     skewThreshold = timeIncrement/10.0;
                 }
             }
-
+#endif
             /* Check for clock skew */
             diff = lowresTime - highresTime;
 
@@ -678,7 +698,7 @@ DSTOffsetCache::computeDSTOffsetMilliseconds(int64 localTimeSeconds)
     JS_ASSERT(localTimeSeconds >= 0);
     JS_ASSERT(localTimeSeconds <= MAX_UNIX_TIMET);
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     /* Windows does not follow POSIX. Updates to the
      * TZ environment variable are not reflected
      * immediately on that platform as they are

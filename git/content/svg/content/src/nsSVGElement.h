@@ -68,7 +68,6 @@ class nsSVGEnum;
 struct nsSVGEnumMapping;
 class nsSVGViewBox;
 class nsSVGString;
-class nsSVGClass;
 struct gfxMatrix;
 namespace mozilla {
 class SVGAnimatedNumberList;
@@ -80,7 +79,7 @@ class SVGAnimatedPathSegList;
 class SVGAnimatedPreserveAspectRatio;
 }
 
-typedef nsStyledElementNotElementCSSInlineStyle nsSVGElementBase;
+typedef nsStyledElement nsSVGElementBase;
 
 class nsSVGElement : public nsSVGElementBase,    // nsIContent
                      public nsISVGValueObserver  // :nsISupportsWeakReference
@@ -199,7 +198,6 @@ public:
   virtual void DidAnimatePathSegList();
   virtual void DidAnimateTransform();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
-  virtual void DidAnimateClass();
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
@@ -468,7 +466,6 @@ protected:
   virtual NumberListAttributesInfo GetNumberListInfo();
   virtual LengthListAttributesInfo GetLengthListInfo();
   virtual StringAttributesInfo GetStringInfo();
-  virtual nsSVGClass *GetClass();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 

@@ -242,21 +242,10 @@ Tester.prototype = {
 
       // Run the test
       this.lastStartTime = Date.now();
-      if ("generatorTest" in this.currentTest.scope) {
-        if ("test" in this.currentTest.scope)
-          throw "Cannot run both a generator test and a normal test at the same time.";
-
-        // This test is a generator. It will not finish immediately.
-        this.currentTest.scope.waitForExplicitFinish();
-        var result = this.currentTest.scope.generatorTest();
-        this.currentTest.scope.__generator = result;
-        result.next();
-      } else {
-        this.currentTest.scope.test();
-      }
+      this.currentTest.scope.test();
     } catch (ex) {
       this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
-      this.currentTest.scope.finish();
+      this.currentTest.scope.__done = true;
     }
 
     // If the test ran synchronously, move to the next test, otherwise the test
@@ -365,29 +354,6 @@ function testScope(aTester, aTest) {
     }, Ci.nsIThread.DISPATCH_NORMAL);
   };
 
-  this.nextStep = function test_nextStep(arg) {
-    if (self.__done) {
-      aTest.addResult(new testResult(false, "nextStep was called too many times", "", false));
-      return;
-    }
-
-    if (!self.__generator) {
-      aTest.addResult(new testResult(false, "nextStep called with no generator", "", false));
-      self.finish();
-      return;
-    }
-
-    try {
-      self.__generator.send(arg);
-    } catch (ex if ex instanceof StopIteration) {
-      // StopIteration means test is finished.
-      self.finish();
-    } catch (ex) {
-      aTest.addResult(new testResult(false, "Exception thrown", ex, false));
-      self.finish();
-    }
-  };
-
   this.waitForExplicitFinish = function test_waitForExplicitFinish() {
     self.__done = false;
   };
@@ -427,7 +393,6 @@ function testScope(aTester, aTest) {
 }
 testScope.prototype = {
   __done: true,
-  __generator: null,
   __waitTimer: null,
   __cleanupFunctions: [],
   __timeoutFactor: 1,

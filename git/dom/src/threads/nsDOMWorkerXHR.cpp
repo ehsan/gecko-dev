@@ -45,6 +45,7 @@
 #include "nsIXPConnect.h"
 
 // Other includes
+#include "nsAutoLock.h"
 #include "nsAXPCNativeCallContext.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
@@ -57,8 +58,6 @@
 #include "nsDOMWorkerEvents.h"
 #include "nsDOMWorkerPool.h"
 #include "nsDOMWorkerXHRProxy.h"
-
-using namespace mozilla;
 
 // The list of event types that we support. This list and the defines based on
 // it determine the sizes of the listener arrays in nsDOMWorkerXHRProxy. Make
@@ -494,7 +493,7 @@ nsDOMWorkerXHR::Cancel()
   {
     // This lock is here to prevent a race between Cancel and GetUpload, not to
     // protect mCanceled.
-    MutexAutoLock lock(mWorker->GetLock());
+    nsAutoLock lock(mWorker->Lock());
 
     mCanceled = PR_TRUE;
     mUpload = nsnull;
@@ -641,6 +640,25 @@ nsDOMWorkerXHR::GetResponseHeader(const nsACString& aHeader,
 }
 
 NS_IMETHODIMP
+nsDOMWorkerXHR::OpenRequest(const nsACString& aMethod,
+                            const nsACString& aUrl,
+                            PRBool aAsync,
+                            const nsAString& aUser,
+                            const nsAString& aPassword)
+{
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+
+  if (mCanceled) {
+    return NS_ERROR_ABORT;
+  }
+
+  nsresult rv = mXHRProxy->OpenRequest(aMethod, aUrl, aAsync, aUser, aPassword);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMWorkerXHR::Open(const nsACString& aMethod, const nsACString& aUrl,
                      PRBool aAsync, const nsAString& aUser,
                      const nsAString& aPassword, PRUint8 optional_argc)
@@ -655,10 +673,7 @@ nsDOMWorkerXHR::Open(const nsACString& aMethod, const nsACString& aUrl,
       aAsync = PR_TRUE;
   }
 
-  nsresult rv = mXHRProxy->Open(aMethod, aUrl, aAsync, aUser, aPassword);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return OpenRequest(aMethod, aUrl, aAsync, aUser, aPassword);
 }
 
 NS_IMETHODIMP
@@ -830,7 +845,7 @@ nsDOMWorkerXHR::GetUpload(nsIXMLHttpRequestUpload** aUpload)
     return NS_ERROR_ABORT;
   }
 
-  MutexAutoLock lock(worker->GetLock());
+  nsAutoLock lock(worker->Lock());
 
   if (mCanceled) {
     return NS_ERROR_ABORT;

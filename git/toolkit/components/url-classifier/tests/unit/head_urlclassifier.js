@@ -4,9 +4,9 @@ function dumpn(s) {
 
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_USER_PROFILE_LOCAL_50_DIR = "ProfLD";
-
-// This loads Ci, Cc, Cr and Cu.
-do_load_httpd_js();
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const Cr = Components.results;
 
 do_get_profile();
 

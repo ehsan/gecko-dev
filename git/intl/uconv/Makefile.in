@@ -57,7 +57,15 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= uconv
 
-DIRS		= idl public util ucvja ucvcn ucvlatin ucvtw ucvtw2 ucvko ucvibm src
+DIRS		= idl public util
+
+ifdef MOZ_USE_NATIVE_UCONV
+DIRS		+= native
+else
+DIRS		+= ucvja ucvcn ucvlatin ucvtw ucvtw2 ucvko ucvibm
+endif
+
+DIRS		+= src
 
 ifdef ENABLE_TESTS
 TOOL_DIRS += tests

@@ -46,7 +46,8 @@
 #define mozilla_css_StyleRule_h__
 
 //#include <stdio.h>
-#include "Rule.h"
+#include "nsICSSRule.h"
+#include "nsCSSRule.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsCSSPseudoElements.h"
@@ -294,8 +295,8 @@ class Declaration;
 class ImportantRule;
 class DOMCSSStyleRule;
 
-class NS_FINAL_CLASS StyleRule : public Rule
-{
+class NS_FINAL_CLASS StyleRule : public nsCSSRule,
+                                 public nsICSSRule {
  public:
   StyleRule(nsCSSSelectorList* aSelector,
             Declaration *aDeclaration);
@@ -308,7 +309,7 @@ private:
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CSS_STYLE_RULE_IMPL_CID)
 
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // null for style attribute
   nsCSSSelectorList* Selector() { return mSelector; }
@@ -342,11 +343,15 @@ public:
   void GetCssText(nsAString& aCssText);
   void SetCssText(const nsAString& aCssText);
   nsCSSStyleSheet* GetParentStyleSheet() { return mSheet; }
-  GroupRule* GetParentRule() { return mParentRule; }
+  nsICSSGroupRule* GetParentRule() { return mParentRule; }
   void GetSelectorText(nsAString& aSelectorText);
   void SetSelectorText(const nsAString& aSelectorText);
 
   virtual PRInt32 GetType() const;
+
+  virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const;
+  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
+  virtual void SetParentRule(nsICSSGroupRule* aRule);
 
   virtual already_AddRefed<nsICSSRule> Clone() const;
 
@@ -380,5 +385,9 @@ private:
 } // namespace mozilla
 
 NS_DEFINE_STATIC_IID_ACCESSOR(mozilla::css::StyleRule, NS_CSS_STYLE_RULE_IMPL_CID)
+
+already_AddRefed<mozilla::css::StyleRule>
+NS_NewCSSStyleRule(nsCSSSelectorList* aSelector,
+                   mozilla::css::Declaration* aDeclaration);
 
 #endif /* mozilla_css_StyleRule_h__ */

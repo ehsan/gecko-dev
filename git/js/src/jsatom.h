@@ -48,7 +48,6 @@
 #include "jsprvtd.h"
 #include "jshash.h"
 #include "jshashtable.h"
-#include "jsnum.h"
 #include "jspubtd.h"
 #include "jsstr.h"
 #include "jslock.h"
@@ -57,6 +56,12 @@
 #define ATOM_PINNED     0x1       /* atom is pinned against GC */
 #define ATOM_INTERNED   0x2       /* pinned variant for JS_Intern* API */
 #define ATOM_NOCOPY     0x4       /* don't copy atom string bytes */
+#define ATOM_TMPSTR     0x8       /* internal, to avoid extra string */
+
+#define STRING_TO_ATOM(str)       (JS_ASSERT(str->isAtomized()),             \
+                                   (JSAtom *)str)
+#define ATOM_TO_STRING(atom)      (atom)
+#define ATOM_TO_JSVAL(atom)       STRING_TO_JSVAL(ATOM_TO_STRING(atom))
 
 /* Engine-internal extensions of jsid */
 
@@ -113,16 +118,6 @@ static JS_ALWAYS_INLINE jsval
 IdToJsval(jsid id)
 {
     return Jsvalify(IdToValue(id));
-}
-
-static JS_ALWAYS_INLINE JSString *
-IdToString(JSContext *cx, jsid id)
-{
-    if (JSID_IS_STRING(id))
-        return JSID_TO_STRING(id);
-    if (JS_LIKELY(JSID_IS_INT(id)))
-        return js_IntToString(cx, JSID_TO_INT(id));
-    return js_ValueToString(cx, IdToValue(id));
 }
 
 }
@@ -279,23 +274,14 @@ AtomEntryToKey(AtomEntryType entry)
 
 struct AtomHasher
 {
-    struct Lookup
-    {
-        const jschar *chars;
-        size_t length;
-        Lookup(const jschar *chars, size_t length) : chars(chars), length(length) {}
-    };
+    typedef JSLinearString *Lookup;
 
-    static HashNumber hash(const Lookup &l) {
-        return HashChars(l.chars, l.length);
+    static HashNumber hash(JSLinearString *str) {
+        return js_HashString(str);
     }
 
-    static bool match(AtomEntryType entry, const Lookup &lookup) {
-        JS_ASSERT(entry);
-        JSAtom *key = AtomEntryToKey(entry);
-        if (key->length() != lookup.length)
-            return false;
-        return PodEqual(key->chars(), lookup.chars, lookup.length);
+    static bool match(AtomEntryType entry, JSLinearString *lookup) {
+        return entry ? EqualStrings(AtomEntryToKey(entry), lookup) : false;
     }
 };
 

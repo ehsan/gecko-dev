@@ -51,6 +51,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jsdbgapi.h"
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsinterp.h"
@@ -88,7 +89,7 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
 Class js_ErrorClass = {
     js_Error_str,
-    JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
+    JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_MARK_IS_TRACE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Error),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
@@ -104,7 +105,7 @@ Class js_ErrorClass = {
     NULL,                 /* construct   */
     NULL,                 /* xdrObject   */
     NULL,                 /* hasInstance */
-    exn_trace
+    JS_CLASS_TRACE(exn_trace)
 };
 
 typedef struct JSStackTraceElem {
@@ -181,7 +182,7 @@ CopyErrorReport(JSContext *cx, JSErrorReport *report)
      */
     mallocSize = sizeof(JSErrorReport) + argsArraySize + argsCopySize +
                  ucmessageSize + uclinebufSize + linebufSize + filenameSize;
-    cursor = (uint8 *)cx->malloc_(mallocSize);
+    cursor = (uint8 *)cx->malloc(mallocSize);
     if (!cursor)
         return NULL;
 
@@ -297,7 +298,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     for (fp = js_GetTopStackFrame(cx); fp; fp = fp->prev()) {
         if (fp->scopeChain().compartment() != cx->compartment)
             break;
-        if (fp->isNonEvalFunctionFrame()) {
+        if (fp->isFunctionFrame() && !fp->isEvalFrame()) {
             Value v = NullValue();
             if (checkAccess &&
                 !checkAccess(cx, &fp->callee(), callerid, JSACC_READ, &v)) {
@@ -320,7 +321,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
         js_ReportAllocationOverflow(cx);
         return JS_FALSE;
     }
-    priv = (JSExnPrivate *)cx->malloc_(size);
+    priv = (JSExnPrivate *)cx->malloc(size);
     if (!priv)
         return JS_FALSE;
 
@@ -345,7 +346,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
             elem->argc = 0;
         } else {
             elem->funName = fp->fun()->atom
-                            ? fp->fun()->atom
+                            ? ATOM_TO_STRING(fp->fun()->atom)
                             : cx->runtime->emptyString;
             elem->argc = fp->numActualArgs();
             fp->forEachCanonicalActualArg(CopyTo(Valueify(values)));
@@ -427,8 +428,8 @@ exn_finalize(JSContext *cx, JSObject *obj)
     priv = GetExnPrivate(cx, obj);
     if (priv) {
         if (priv->errorReport)
-            cx->free_(priv->errorReport);
-        cx->free_(priv);
+            cx->free(priv->errorReport);
+        cx->free(priv);
     }
 }
 
@@ -475,40 +476,31 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         str = JSID_TO_STRING(id);
 
         atom = cx->runtime->atomState.messageAtom;
-        if (str == atom) {
+        if (str == ATOM_TO_STRING(atom)) {
             prop = js_message_str;
-
-            /*
-             * Per ES5 15.11.1.1, if Error is called with no argument or with
-             * undefined as the argument, it returns an Error object with no
-             * own message property.
-             */
-            if (!priv->message)
-                return true;
-
             v = STRING_TO_JSVAL(priv->message);
             goto define;
         }
 
         atom = cx->runtime->atomState.fileNameAtom;
-        if (str == atom) {
+        if (str == ATOM_TO_STRING(atom)) {
             prop = js_fileName_str;
             v = STRING_TO_JSVAL(priv->filename);
             goto define;
         }
 
         atom = cx->runtime->atomState.lineNumberAtom;
-        if (str == atom) {
+        if (str == ATOM_TO_STRING(atom)) {
             prop = js_lineNumber_str;
             v = INT_TO_JSVAL(priv->lineno);
             goto define;
         }
 
         atom = cx->runtime->atomState.stackAtom;
-        if (str == atom) {
+        if (str == ATOM_TO_STRING(atom)) {
             stack = StackTraceToString(cx, priv);
             if (!stack)
-                return false;
+                return JS_FALSE;
 
             /* Allow to GC all things that were used to build stack trace. */
             priv->stackDepth = 0;
@@ -517,13 +509,13 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             goto define;
         }
     }
-    return true;
+    return JS_TRUE;
 
   define:
     if (!JS_DefineProperty(cx, obj, prop, v, NULL, NULL, JSPROP_ENUMERATE))
-        return false;
+        return JS_FALSE;
     *objp = obj;
-    return true;
+    return JS_TRUE;
 }
 
 JSErrorReport *
@@ -613,7 +605,7 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
             if (stackmax >= STACK_LENGTH_LIMIT)                               \
                 goto done;                                                    \
             stackmax = stackmax ? 2 * stackmax : 64;                          \
-            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));      \
+            ptr_ = cx->realloc(stackbuf, (stackmax+1) * sizeof(jschar));      \
             if (!ptr_)                                                        \
                 goto bad;                                                     \
             stackbuf = (jschar *) ptr_;                                       \
@@ -636,7 +628,7 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
                 goto done;                                                    \
             }                                                                 \
             stackmax = JS_BIT(JS_CeilingLog2(stacklen + length_));            \
-            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));      \
+            ptr_ = cx->realloc(stackbuf, (stackmax+1) * sizeof(jschar));      \
             if (!ptr_)                                                        \
                 goto bad;                                                     \
             stackbuf = (jschar *) ptr_;                                       \
@@ -687,7 +679,7 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
          * don't use JS_realloc here; simply let the oversized allocation
          * be owned by the string in that rare case.
          */
-        void *shrunk = cx->realloc_(stackbuf, (stacklen+1) * sizeof(jschar));
+        void *shrunk = cx->realloc(stackbuf, (stacklen+1) * sizeof(jschar));
         if (shrunk)
             stackbuf = (jschar *) shrunk;
     }
@@ -699,7 +691,7 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
 
   bad:
     if (stackbuf)
-        cx->free_(stackbuf);
+        cx->free(stackbuf);
     return NULL;
 }
 
@@ -748,13 +740,13 @@ Exception(JSContext *cx, uintN argc, Value *vp)
 
     /* Set the 'message' property. */
     Value *argv = vp + 2;
-    if (argc != 0 && !argv[0].isUndefined()) {
+    if (argc != 0) {
         message = js_ValueToString(cx, argv[0]);
         if (!message)
             return JS_FALSE;
         argv[0].setString(message);
     } else {
-        message = NULL;
+        message = cx->runtime->emptyString;
     }
 
     /* Set the 'fileName' property. */
@@ -827,7 +819,7 @@ exn_toString(JSContext *cx, uintN argc, Value *vp)
         name_length = name->length();
         message_length = message->length();
         length = (name_length ? name_length + 2 : 0) + message_length;
-        cp = chars = (jschar *) cx->malloc_((length + 1) * sizeof(jschar));
+        cp = chars = (jschar *) cx->malloc((length + 1) * sizeof(jschar));
         if (!chars)
             return JS_FALSE;
 
@@ -848,7 +840,7 @@ exn_toString(JSContext *cx, uintN argc, Value *vp)
 
         result = js_NewString(cx, chars, length);
         if (!result) {
-            cx->free_(chars);
+            cx->free(chars);
             return JS_FALSE;
         }
     } else {
@@ -938,7 +930,7 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
             }
         }
 
-        cp = chars = (jschar *) cx->malloc_((length + 1) * sizeof(jschar));
+        cp = chars = (jschar *) cx->malloc((length + 1) * sizeof(jschar));
         if (!chars)
             return false;
 
@@ -988,7 +980,7 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
 
         result = js_NewString(cx, chars, length);
         if (!result) {
-            cx->free_(chars);
+            cx->free(chars);
             return false;
         }
         vp->setString(result);
@@ -1066,7 +1058,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         /* Add properties to the prototype. */
         JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_DECLARING);
         if (!js_DefineNativeProperty(cx, proto, nameId, StringValue(atom),
-                                     PropertyStub, StrictPropertyStub,
+                                     PropertyStub, StrictPropertyStub, 
                                      JSPROP_ENUMERATE, 0, 0, NULL) ||
             !js_DefineNativeProperty(cx, proto, messageId, empty,
                                      PropertyStub, StrictPropertyStub,
@@ -1288,10 +1280,9 @@ js_ReportUncaughtException(JSContext *cx)
         report.filename = filename.ptr();
         report.lineno = (uintN) lineno;
         if (JSVAL_IS_STRING(roots[2])) {
-            JSFixedString *fixed = JSVAL_TO_STRING(roots[2])->ensureFixed(cx);
-            if (!fixed)
+            report.ucmessage = js_GetStringChars(cx, JSVAL_TO_STRING(roots[2]));
+            if (!report.ucmessage)
                 return false;
-            report.ucmessage = fixed->chars();
         }
     }
 

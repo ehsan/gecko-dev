@@ -60,12 +60,8 @@
 
 class nsIURI;
 class nsCSSFontFaceRule;
-#ifdef MOZ_CSS_ANIMATIONS
-class nsCSSKeyframesRule;
-#endif
 class nsRuleWalker;
 struct RuleProcessorData;
-struct TreeMatchContext;
 
 class nsEmptyStyleRule : public nsIStyleRule
 {
@@ -103,11 +99,6 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleFor(mozilla::dom::Element* aElement,
                   nsStyleContext* aParentContext);
-
-  already_AddRefed<nsStyleContext>
-  ResolveStyleFor(mozilla::dom::Element* aElement,
-                  nsStyleContext* aParentContext,
-                  TreeMatchContext& aTreeMatchContext);
 
   // Get a style context (with the given parent) for the
   // sequence of style rules in the |aRules| array.
@@ -147,11 +138,6 @@ class nsStyleSet
   ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext);
-  already_AddRefed<nsStyleContext>
-  ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
-                          nsCSSPseudoElements::Type aType,
-                          nsStyleContext* aParentContext,
-                          TreeMatchContext& aTreeMatchContext);
   
   // Get a style context for an anonymous box.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.
@@ -173,13 +159,6 @@ class nsStyleSet
   // true for success and false for failure.
   PRBool AppendFontFaceRules(nsPresContext* aPresContext,
                              nsTArray<nsFontFaceRuleContainer>& aArray);
-
-#ifdef MOZ_CSS_ANIMATIONS
-  // Append all the currently-active keyframes rules to aArray.  Return
-  // true for success and false for failure.
-  PRBool AppendKeyframesRules(nsPresContext* aPresContext,
-                              nsTArray<nsCSSKeyframesRule*>& aArray);
-#endif
 
   // Begin ignoring style context destruction, to avoid lots of unnecessary
   // work on document teardown.
@@ -243,9 +222,6 @@ class nsStyleSet
     eDocSheet, // CSS
     eStyleAttrSheet,
     eOverrideSheet, // CSS
-#ifdef MOZ_CSS_ANIMATIONS
-    eAnimationSheet,
-#endif
     eTransitionSheet,
     eSheetTypeCount
     // be sure to keep the number of bits in |mDirty| below and in
@@ -371,9 +347,7 @@ class nsStyleSet
              PRBool aIsLink,
              PRBool aIsVisitedLink,
              nsIAtom* aPseudoTag,
-             nsCSSPseudoElements::Type aPseudoType,
-             PRBool aDoAnimation,
-             mozilla::dom::Element* aElementForAnimation);
+             nsCSSPseudoElements::Type aPseudoType);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
 

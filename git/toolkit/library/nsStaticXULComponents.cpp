@@ -127,15 +127,19 @@
 #define LAYOUT_DEBUG_MODULE
 #endif
 
-#if defined(ENABLE_JETPACK_SERVICE)
+#if defined(MOZ_IPC) && defined(ENABLE_JETPACK_SERVICE)
 #define JETPACK_MODULES \
     MODULE(jetpack)
 #else
 #define JETPACK_MODULES
 #endif
 
+#ifdef MOZ_PLUGINS
 #define PLUGINS_MODULES \
     MODULE(nsPluginModule)
+#else
+#define PLUGINS_MODULES
+#endif
 
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \
@@ -223,13 +227,10 @@
 
 #define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
 
-#ifndef MOZ_APP_COMPONENT_MODULES
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
-#define MOZ_APP_COMPONENT_MODULES APP_COMPONENT_MODULES
 #else
-#define MOZ_APP_COMPONENT_MODULES
-#endif
+#define APP_COMPONENT_MODULES
 #endif
 
 #define XUL_MODULES                          \
@@ -282,7 +283,7 @@
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
     SERVICES_CRYPTO_MODULE                   \
-    MOZ_APP_COMPONENT_MODULES                \
+    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \

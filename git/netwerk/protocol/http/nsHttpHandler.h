@@ -305,6 +305,7 @@ private:
     nsCString      mLegacyAppVersion;
     nsCString      mPlatform;
     nsCString      mOscpu;
+    nsCString      mLanguage;
     nsCString      mMisc;
     nsCString      mProduct;
     nsXPIDLCString mProductSub;

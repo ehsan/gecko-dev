@@ -40,6 +40,7 @@
 #include "nsHttpConnection.h"
 #include "nsHttpPipeline.h"
 #include "nsHttpHandler.h"
+#include "nsAutoLock.h"
 #include "nsNetCID.h"
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
@@ -47,8 +48,6 @@
 #include "nsIServiceManager.h"
 
 #include "nsIObserverService.h"
-
-using namespace mozilla;
 
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
@@ -81,7 +80,7 @@ InsertTransactionSorted(nsTArray<nsHttpTransaction*> &pendingQ, nsHttpTransactio
 
 nsHttpConnectionMgr::nsHttpConnectionMgr()
     : mRef(0)
-    , mMonitor("nsHttpConnectionMgr.mMonitor")
+    , mMonitor(nsAutoMonitor::NewMonitor("nsHttpConnectionMgr"))
     , mMaxConns(0)
     , mMaxConnsPerHost(0)
     , mMaxConnsPerProxy(0)
@@ -98,6 +97,9 @@ nsHttpConnectionMgr::nsHttpConnectionMgr()
 nsHttpConnectionMgr::~nsHttpConnectionMgr()
 {
     LOG(("Destroying nsHttpConnectionMgr @%x\n", this));
+ 
+    if (mMonitor)
+        nsAutoMonitor::DestroyMonitor(mMonitor);
 }
 
 nsresult
@@ -115,7 +117,7 @@ nsHttpConnectionMgr::EnsureSocketThreadTargetIfOnline()
         }
     }
 
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
 
     // do nothing if already initialized or if we've shut down
     if (mSocketThreadTarget || mIsShuttingDown)
@@ -138,7 +140,7 @@ nsHttpConnectionMgr::Init(PRUint16 maxConns,
     LOG(("nsHttpConnectionMgr::Init\n"));
 
     {
-        MonitorAutoEnter mon(mMonitor);
+        nsAutoMonitor mon(mMonitor);
 
         mMaxConns = maxConns;
         mMaxConnsPerHost = maxConnsPerHost;
@@ -159,7 +161,7 @@ nsHttpConnectionMgr::Shutdown()
 {
     LOG(("nsHttpConnectionMgr::Shutdown\n"));
 
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
 
     // do nothing if already shutdown
     if (!mSocketThreadTarget)
@@ -192,7 +194,7 @@ nsHttpConnectionMgr::PostEvent(nsConnEventHandler handler, PRInt32 iparam, void 
     // care of initializing the socket thread target if that's the case.
     EnsureSocketThreadTargetIfOnline();
 
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
 
     nsresult rv;
     if (!mSocketThreadTarget) {
@@ -317,7 +319,7 @@ nsHttpConnectionMgr::GetSocketThreadTarget(nsIEventTarget **target)
     // care of initializing the socket thread target if that's the case.
     EnsureSocketThreadTargetIfOnline();
 
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
     NS_IF_ADDREF(*target = mSocketThreadTarget);
     return NS_OK;
 }
@@ -818,18 +820,22 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
         mCT.Put(&key, ent);
     }
 
-    // Check if the transaction already has a sticky reference to a connection.
-    // If so, then we can just use it directly by transferring its reference
-    // to the new connection var instead of calling GetConnection() to search
-    // for an available one.
+    nsHttpConnection *conn;
 
-    nsAHttpConnection *wrappedConnection = trans->Connection();
-    nsHttpConnection  *conn;
-    conn = wrappedConnection ? wrappedConnection->TakeHttpConnection() : nsnull;
-
-    if (conn) {
+    // check if the transaction already has a sticky reference to a connection.
+    // if so, then we can just use it directly.  XXX check if alive??
+    // XXX add a TakeConnection method or something to make this clearer!
+    nsConnectionHandle *handle = (nsConnectionHandle *) trans->Connection();
+    if (handle) {
         NS_ASSERTION(caps & NS_HTTP_STICKY_CONNECTION, "unexpected caps");
+        NS_ASSERTION(handle->mConn, "no connection");
 
+        // steal reference from connection handle.
+        // XXX prevent SetConnection(nsnull) from calling ReclaimConnection
+        conn = handle->mConn;
+        handle->mConn = nsnull;
+
+        // destroy connection handle.
         trans->SetConnection(nsnull);
 
         // remove sticky connection from active connection list; we'll add it
@@ -871,7 +877,7 @@ nsHttpConnectionMgr::OnMsgShutdown(PRInt32, void *)
     mCT.Reset(ShutdownPassCB, this);
 
     // signal shutdown complete
-    MonitorAutoEnter mon(mMonitor);
+    nsAutoMonitor mon(mMonitor);
     mon.Notify();
 }
 
@@ -996,23 +1002,11 @@ nsHttpConnectionMgr::OnMsgReclaimConnection(PRInt32, void *param)
         mNumActiveConns--;
         if (conn->CanReuse()) {
             LOG(("  adding connection to idle list\n"));
-            // Keep The idle connection list sorted with the connections that
-            // have moved the largest data pipelines at the front because these
-            // connections have the largest cwnds on the server.
-
-            // The linear search is ok here because the number of idleconns
-            // in a single entry is generally limited to a small number (i.e. 6)
-
-            PRInt32 idx;
-            for (idx = 0; idx < ent->mIdleConns.Length(); idx++) {
-                nsHttpConnection *idleConn = ent->mIdleConns[idx];
-                if (idleConn->MaxBytesRead() < conn->MaxBytesRead())
-                    break;
-            }
-
-            ent->mIdleConns.InsertElementAt(idx, conn);
+            // hold onto this connection in the idle list.  we push it to
+            // the end of the list so as to ensure that we'll visit older
+            // connections first before getting to this one.
+            ent->mIdleConns.AppendElement(conn);
             mNumIdleConns++;
-
             // If the added connection was first idle connection or has shortest
             // time to live among the idle connections, pruning dead
             // connections needs to be done when it can't be reused anymore.
@@ -1134,18 +1128,6 @@ nsresult
 nsHttpConnectionMgr::nsConnectionHandle::PushBack(const char *buf, PRUint32 bufLen)
 {
     return mConn->PushBack(buf, bufLen);
-}
-
-nsHttpConnection *
-nsHttpConnectionMgr::nsConnectionHandle::TakeHttpConnection()
-{
-    // return our connection object to the caller and clear it internally
-    // do not drop our reference - the caller now owns it.
-
-    NS_ASSERTION(mConn, "no connection");
-    nsHttpConnection *conn = mConn;
-    mConn = nsnull;
-    return conn;
 }
 
 PRBool

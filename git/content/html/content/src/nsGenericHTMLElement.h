@@ -109,6 +109,8 @@ public:
   NS_METHOD SetAttribute(const nsAString& aName,
                          const nsAString& aValue);
   NS_METHOD GetTagName(nsAString& aTagName);
+  NS_METHOD GetElementsByTagName(const nsAString& aTagname,
+                                 nsIDOMNodeList** aReturn);
 
   // nsIDOMHTMLElement methods. Note that these are non-virtual
   // methods, implementations are expected to forward calls to these
@@ -140,7 +142,6 @@ public:
   // classes that inherit interfaces with those methods properly override them.
   NS_IMETHOD Focus();
   NS_IMETHOD Blur();
-  NS_IMETHOD Click();
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
   NS_IMETHOD GetHidden(PRBool* aHidden);
@@ -149,9 +150,7 @@ public:
   NS_IMETHOD SetSpellcheck(PRBool aSpellcheck);
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
   NS_IMETHOD SetDraggable(PRBool aDraggable);
-  NS_IMETHOD GetAccessKey(nsAString &aAccessKey);
-  NS_IMETHOD SetAccessKey(const nsAString& aAccessKey);
-  nsresult GetContentEditable(nsAString& aContentEditable);
+  nsresult GetContentEditable(nsAString &aContentEditable);
   nsresult GetIsContentEditable(PRBool* aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
 
@@ -530,14 +529,14 @@ protected:
    * Add/remove this element to the documents name cache
    */
   void AddToNameTable(nsIAtom* aName) {
-    NS_ASSERTION(HasName(), "Node doesn't have name?");
+    NS_ASSERTION(HasFlag(NODE_HAS_NAME), "Node lacking NODE_HAS_NAME flag");
     nsIDocument* doc = GetCurrentDoc();
     if (doc && !IsInAnonymousSubtree()) {
       doc->AddToNameTable(this, aName);
     }
   }
   void RemoveFromNameTable() {
-    if (HasName()) {
+    if (HasFlag(NODE_HAS_NAME)) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         doc->RemoveFromNameTable(this, GetParsedAttr(nsGkAtoms::name)->
@@ -794,7 +793,7 @@ protected:
     static const nsIContent::AttrValuesArray values[] =
       { &nsGkAtoms::_false, &nsGkAtoms::_true, &nsGkAtoms::_empty, nsnull };
 
-    if (!MayHaveContentEditableAttr())
+    if (!HasFlag(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR))
       return eInherit;
 
     PRInt32 value = FindAttrValueIn(kNameSpaceID_None,
@@ -1483,22 +1482,6 @@ protected:
     NS_INTERFACE_TABLE_ENTRY(_class, _i10)                                    \
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
-/* Use this macro to declare functions that forward the behavior of this interface to another object. 
-   This macro doesn't forward Focus or Click because sometimes elements will want to override them. */
-#define NS_FORWARD_NSIDOMHTMLELEMENT_NOFOCUSCLICK(_to) \
-  NS_SCRIPTABLE NS_IMETHOD GetId(nsAString & aId) { return _to GetId(aId); } \
-  NS_SCRIPTABLE NS_IMETHOD SetId(const nsAString & aId) { return _to SetId(aId); } \
-  NS_SCRIPTABLE NS_IMETHOD GetTitle(nsAString & aTitle) { return _to GetTitle(aTitle); } \
-  NS_SCRIPTABLE NS_IMETHOD SetTitle(const nsAString & aTitle) { return _to SetTitle(aTitle); } \
-  NS_SCRIPTABLE NS_IMETHOD GetLang(nsAString & aLang) { return _to GetLang(aLang); } \
-  NS_SCRIPTABLE NS_IMETHOD SetLang(const nsAString & aLang) { return _to SetLang(aLang); } \
-  NS_SCRIPTABLE NS_IMETHOD GetDir(nsAString & aDir) { return _to GetDir(aDir); } \
-  NS_SCRIPTABLE NS_IMETHOD SetDir(const nsAString & aDir) { return _to SetDir(aDir); } \
-  NS_SCRIPTABLE NS_IMETHOD GetClassName(nsAString & aClassName) { return _to GetClassName(aClassName); } \
-  NS_SCRIPTABLE NS_IMETHOD SetClassName(const nsAString & aClassName) { return _to SetClassName(aClassName); } \
-  NS_SCRIPTABLE NS_IMETHOD GetAccessKey(nsAString & aAccessKey) { return _to GetAccessKey(aAccessKey); } \
-  NS_SCRIPTABLE NS_IMETHOD SetAccessKey(const nsAString & aAccessKey) { return _to SetAccessKey(aAccessKey); } \
-  NS_SCRIPTABLE NS_IMETHOD Blur(void) { return _to Blur(); }
 
 /**
  * A macro to declare the NS_NewHTMLXXXElement() functions.

@@ -247,7 +247,8 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
   // get image bytes
   nsCOMPtr<nsIInputStream> imgStream;
-  NS_ConvertUTF16toUTF8 encoderType(aType);
+  nsCAutoString encoderType;
+  encoderType.Assign(NS_ConvertUTF16toUTF8(aType));
 
  try_again:
   if (mCurrentContext) {
@@ -333,13 +334,10 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
 {
   bool fallbackToPNG = false;
 
-  nsAutoString type;
-  nsContentUtils::ASCIIToLower(aMimeType, type);
-
   PRUint32 imgSize = 0;
   char* imgData;
 
-  nsresult rv = ExtractData(type, aEncoderOptions, imgData,
+  nsresult rv = ExtractData(aMimeType, aEncoderOptions, imgData,
                             imgSize, fallbackToPNG);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -354,7 +352,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
     aDataURL = NS_LITERAL_STRING("data:image/png;base64,") +
       NS_ConvertUTF8toUTF16(encodedImg);
   else
-    aDataURL = NS_LITERAL_STRING("data:") + type +
+    aDataURL = NS_LITERAL_STRING("data:") + aMimeType +
       NS_LITERAL_STRING(";base64,") + NS_ConvertUTF8toUTF16(encodedImg);
 
   PR_Free(encodedImg);
@@ -553,6 +551,7 @@ NS_IMETHODIMP
 nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
                                       nsISupports **aContext)
 {
+#ifdef MOZ_IPC
   if(!nsContentUtils::IsCallerTrustedForRead()) {
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -587,6 +586,9 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
 
   NS_ADDREF (*aContext = mCurrentContext);
   return NS_OK;
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 nsresult
@@ -638,7 +640,7 @@ nsHTMLCanvasElement::SetWriteOnly()
 }
 
 void
-nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
+nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
 {
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
@@ -673,18 +675,6 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
   if (layer) {
     static_cast<CanvasLayer*>(layer)->Updated();
   }
-}
-
-void
-nsHTMLCanvasElement::InvalidateCanvas()
-{
-  // We don't need to flush anything here; if there's no frame or if
-  // we plan to reframe we don't need to invalidate it anyway.
-  nsIFrame *frame = GetPrimaryFrame();
-  if (!frame)
-    return;
-
-  frame->Invalidate(frame->GetContentRect() - frame->GetPosition());
 }
 
 PRInt32

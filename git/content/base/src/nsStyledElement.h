@@ -57,12 +57,12 @@ class StyleRule;
 
 typedef nsGenericElement nsStyledElementBase;
 
-class nsStyledElementNotElementCSSInlineStyle : public nsStyledElementBase
+class nsStyledElement : public nsStyledElementBase
 {
 
 protected:
 
-  inline nsStyledElementNotElementCSSInlineStyle(already_AddRefed<nsINodeInfo> aNodeInfo)
+  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsStyledElementBase(aNodeInfo)
   {}
 
@@ -112,13 +112,6 @@ protected:
    * document.
    */
   nsresult  ReparseStyleAttribute(PRBool aForceInDataDoc);
-};
-
-class nsStyledElement : public nsStyledElementNotElementCSSInlineStyle {
-protected:
-  inline nsStyledElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsStyledElementNotElementCSSInlineStyle(aNodeInfo)
-  {}
 };
 
 #endif // __NS_STYLEDELEMENT_H_

@@ -92,21 +92,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGNumberList)
 NS_INTERFACE_MAP_END
 
 
-nsIDOMSVGNumber*
-DOMSVGNumberList::GetItemWithoutAddRef(PRUint32 aIndex)
-{
-#ifdef MOZ_SMIL
-  if (IsAnimValList()) {
-    Element()->FlushAnimations();
-  }
-#endif
-  if (aIndex < Length()) {
-    EnsureItemAt(aIndex);
-    return mItems[aIndex];
-  }
-  return nsnull;
-}
-
 void
 DOMSVGNumberList::InternalListLengthWillChange(PRUint32 aNewLength)
 {
@@ -116,13 +101,6 @@ DOMSVGNumberList::InternalListLengthWillChange(PRUint32 aNewLength)
     // It's safe to get out of sync with our internal list as long as we have
     // FEWER items than it does.
     aNewLength = DOMSVGNumber::MaxListIndex();
-  }
-
-  nsRefPtr<DOMSVGNumberList> kungFuDeathGrip;
-  if (oldLength && !aNewLength) {
-    // RemovingFromList() might clear last reference to |this|.
-    // Retain a temporary reference to keep from dying before returning.
-    kungFuDeathGrip = this;
   }
 
   // If our length will decrease, notify the items that will be removed:
@@ -225,12 +203,18 @@ NS_IMETHODIMP
 DOMSVGNumberList::GetItem(PRUint32 index,
                           nsIDOMSVGNumber **_retval)
 {
-  *_retval = GetItemWithoutAddRef(index);
-  if (!*_retval) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+#ifdef MOZ_SMIL
+  if (IsAnimValList()) {
+    Element()->FlushAnimations();
   }
-  NS_ADDREF(*_retval);
-  return NS_OK;
+#endif
+  if (index < Length()) {
+    EnsureItemAt(index);
+    NS_ADDREF(*_retval = mItems[index]);
+    return NS_OK;
+  }
+  *_retval = nsnull;
+  return NS_ERROR_DOM_INDEX_SIZE_ERR;
 }
 
 NS_IMETHODIMP
@@ -376,12 +360,6 @@ DOMSVGNumberList::AppendItem(nsIDOMSVGNumber *newItem,
   return InsertItemBefore(newItem, Length(), _retval);
 }
 
-NS_IMETHODIMP
-DOMSVGNumberList::GetLength(PRUint32 *aNumberOfItems)
-{
-  return GetNumberOfItems(aNumberOfItems);
-}
-
 void
 DOMSVGNumberList::EnsureItemAt(PRUint32 aIndex)
 {
@@ -415,9 +393,7 @@ DOMSVGNumberList::MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex)
 {
   NS_ABORT_IF_FALSE(!IsAnimValList(), "call from baseVal to animVal");
 
-  // This needs to be a strong reference; otherwise, the RemovingFromList call
-  // below might drop the last reference to animVal before we're done with it.
-  nsRefPtr<DOMSVGNumberList> animVal = mAList->mAnimVal;
+  DOMSVGNumberList* animVal = mAList->mAnimVal;
 
   if (!animVal || mAList->IsAnimating()) {
     // No animVal list wrapper, or animVal not a clone of baseVal

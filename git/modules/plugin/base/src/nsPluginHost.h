@@ -90,6 +90,7 @@ public:
 };
 
 class nsPluginHost : public nsIPluginHost,
+                     public nsIPluginHost_MOZILLA_2_0_BRANCH,
                      public nsIObserver,
                      public nsITimerCallback,
                      public nsSupportsWeakReference
@@ -104,8 +105,32 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINHOST
+  NS_DECL_NSIPLUGINHOST_MOZILLA_2_0_BRANCH
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
+
+  NS_IMETHOD
+  GetURL(nsISupports* pluginInst, 
+         const char* url, 
+         const char* target = NULL,
+         nsIPluginStreamListener* streamListener = NULL,
+         const char* altHost = NULL,
+         const char* referrer = NULL,
+         PRBool forceJSEnabled = PR_FALSE);
+  
+  NS_IMETHOD
+  PostURL(nsISupports* pluginInst,
+          const char* url,
+          PRUint32 postDataLen, 
+          const char* postData,
+          PRBool isFile = PR_FALSE,
+          const char* target = NULL,
+          nsIPluginStreamListener* streamListener = NULL,
+          const char* altHost = NULL, 
+          const char* referrer = NULL,
+          PRBool forceJSEnabled = PR_FALSE,
+          PRUint32 postHeadersLength = 0, 
+          const char* postHeaders = NULL);
 
   nsresult
   NewPluginURLStream(const nsString& aURL, 
@@ -148,9 +173,14 @@ public:
 
   static nsresult PostPluginUnloadEvent(PRLibrary* aLibrary);
 
+  void AddIdleTimeTarget(nsIPluginInstanceOwner* objectFrame, PRBool isVisible);
+  void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame);
+
+#ifdef MOZ_IPC
   void PluginCrashed(nsNPAPIPlugin* plugin,
                      const nsAString& pluginDumpID,
                      const nsAString& browserDumpID);
+#endif
 
   nsNPAPIPluginInstance *FindInstance(const char *mimetype);
   nsNPAPIPluginInstance *FindStoppedInstance(const char * url);
@@ -206,14 +236,18 @@ private:
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
 
   nsresult
-  ScanPluginsDirectory(nsIFile *pluginsDir,
+  ScanPluginsDirectory(nsIFile * pluginsDir, 
+                       nsIComponentManager * compManager, 
                        PRBool aCreatePluginList,
-                       PRBool *aPluginsChanged);
-
+                       PRBool * aPluginsChanged,
+                       PRBool checkForUnwantedPlugins = PR_FALSE);
+                       
   nsresult
-  ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
+  ScanPluginsDirectoryList(nsISimpleEnumerator * dirEnum,
+                           nsIComponentManager * compManager, 
                            PRBool aCreatePluginList,
-                           PRBool *aPluginsChanged);
+                           PRBool * aPluginsChanged,
+                           PRBool checkForUnwantedPlugins = PR_FALSE);
 
   nsresult EnsurePluginLoaded(nsPluginTag* plugin);
 

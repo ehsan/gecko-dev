@@ -108,8 +108,6 @@ public:
     return mItems.Length();
   }
 
-  nsIDOMSVGNumber* GetItemWithoutAddRef(PRUint32 aIndex);
-
   /// Called to notify us to syncronize our length and detach excess items.
   void InternalListLengthWillChange(PRUint32 aNewLength);
 

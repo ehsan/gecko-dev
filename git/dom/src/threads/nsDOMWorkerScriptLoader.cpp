@@ -49,6 +49,7 @@
 #include "nsIStreamLoader.h"
 
 // Other includes
+#include "nsAutoLock.h"
 #include "nsContentErrors.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
@@ -68,8 +69,6 @@
 #include "nsDOMWorkerSecurityManager.h"
 #include "nsDOMThreadService.h"
 #include "nsDOMWorkerTimeout.h"
-
-using namespace mozilla;
 
 #define LOG(_args) PR_LOG(gDOMThreadsLog, PR_LOG_DEBUG, _args)
 
@@ -256,8 +255,9 @@ nsDOMWorkerScriptLoader::ExecuteScripts(JSContext* aCx)
 
     JSAutoRequest ar(aCx);
 
-    JSObject* scriptObj = loadInfo.scriptObj.ToJSObject();
-    NS_ASSERTION(scriptObj, "This shouldn't ever be null!");
+    JSScript* script =
+      static_cast<JSScript*>(JS_GetPrivate(aCx, loadInfo.scriptObj.ToJSObject()));
+    NS_ASSERTION(script, "This shouldn't ever be null!");
 
     JSObject* global = mWorker->mGlobal ?
                        mWorker->mGlobal :
@@ -269,7 +269,7 @@ nsDOMWorkerScriptLoader::ExecuteScripts(JSContext* aCx)
     uint32 oldOpts =
       JS_SetOptions(aCx, JS_GetOptions(aCx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
-    PRBool success = JS_ExecuteScript(aCx, global, scriptObj, NULL);
+    PRBool success = JS_ExecuteScript(aCx, global, script, NULL);
 
     JS_SetOptions(aCx, oldOpts);
 
@@ -304,7 +304,7 @@ nsDOMWorkerScriptLoader::Cancel()
 
   nsAutoTArray<ScriptLoaderRunnable*, 10> runnables;
   {
-    MutexAutoLock lock(mWorker->GetLock());
+    nsAutoLock lock(mWorker->Lock());
     runnables.AppendElements(mPendingRunnables);
     mPendingRunnables.Clear();
   }
@@ -754,7 +754,7 @@ ScriptLoaderRunnable::ScriptLoaderRunnable(nsDOMWorkerScriptLoader* aLoader)
 : mRevoked(PR_FALSE),
   mLoader(aLoader)
 {
-  MutexAutoLock lock(aLoader->GetLock());
+  nsAutoLock lock(aLoader->Lock());
 #ifdef DEBUG
   nsDOMWorkerScriptLoader::ScriptLoaderRunnable** added =
 #endif
@@ -766,7 +766,7 @@ nsDOMWorkerScriptLoader::
 ScriptLoaderRunnable::~ScriptLoaderRunnable()
 {
   if (!mRevoked) {
-    MutexAutoLock lock(mLoader->GetLock());
+    nsAutoLock lock(mLoader->Lock());
 #ifdef DEBUG
     PRBool removed =
 #endif
@@ -827,7 +827,7 @@ nsDOMWorkerScriptLoader::ScriptCompiler::Run()
 
   JSPrincipals* principal = nsDOMWorkerSecurityManager::WorkerPrincipal();
 
-  JSObject* scriptObj =
+  JSScript* script =
     JS_CompileUCScriptForPrincipals(cx, global, principal,
                                     reinterpret_cast<const jschar*>
                                                (mScriptText.BeginReading()),
@@ -835,11 +835,12 @@ nsDOMWorkerScriptLoader::ScriptCompiler::Run()
 
   JS_SetOptions(cx, oldOpts);
 
-  if (!scriptObj) {
+  if (!script) {
     return NS_ERROR_FAILURE;
   }
 
-  mScriptObj = scriptObj;
+  mScriptObj = JS_NewScriptObject(cx, script);
+  NS_ENSURE_STATE(mScriptObj.ToJSObject());
 
   return NS_OK;
 }

@@ -112,7 +112,6 @@ interface nsIDOMCSSValueList;
 interface nsIDOMCSSPrimitiveValue;
 interface nsIDOMCSSRule;
 interface nsIDOMCSSRuleList;
-interface nsIDOMMozCSSKeyframeRule;
 interface nsIDOMCSSStyleSheet;
 interface nsIDOMCSSStyleDeclaration;
 interface nsIDOMCounter;

@@ -455,7 +455,7 @@ public:
   {
     return nsnull;
   }
-  virtual nsIDOMCSSStyleDeclaration* GetSMILOverrideStyle();
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle);
   virtual mozilla::css::StyleRule* GetSMILOverrideStyleRule();
   virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
                                             PRBool aNotify);
@@ -506,6 +506,7 @@ public:
   NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI);
   NS_IMETHOD GetPrefix(nsAString& aPrefix);
+  NS_IMETHOD SetPrefix(const nsAString& aPrefix);
   NS_IMETHOD Normalize();
   NS_IMETHOD IsSupported(const nsAString& aFeature,
                          const nsAString& aVersion, PRBool* aReturn);
@@ -942,7 +943,7 @@ public:
   class nsDOMSlots : public nsINode::nsSlots
   {
   public:
-    nsDOMSlots();
+    nsDOMSlots(PtrBits aFlags);
     virtual ~nsDOMSlots();
 
     /**
@@ -1023,14 +1024,14 @@ protected:
    * Add/remove this element to the documents id cache
    */
   void AddToIdTable(nsIAtom* aId) {
-    NS_ASSERTION(HasID(), "Node doesn't have an ID?");
+    NS_ASSERTION(HasFlag(NODE_HAS_ID), "Node lacking NODE_HAS_ID flag");
     nsIDocument* doc = GetCurrentDoc();
     if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
       doc->AddToIdTable(this, aId);
     }
   }
   void RemoveFromIdTable() {
-    if (HasID()) {
+    if (HasFlag(NODE_HAS_ID)) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         nsIAtom* id = DoGetID();

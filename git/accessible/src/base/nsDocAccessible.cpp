@@ -1231,17 +1231,19 @@ void nsDocAccessible::ContentAppended(nsIDocument *aDocument,
 {
 }
 
-void nsDocAccessible::ContentStateChanged(nsIDocument* aDocument,
-                                          nsIContent* aContent,
-                                          nsEventStates aStateMask)
+void nsDocAccessible::ContentStatesChanged(nsIDocument* aDocument,
+                                           nsIContent* aContent1,
+                                           nsIContent* aContent2,
+                                           nsEventStates aStateMask)
 {
   if (aStateMask.HasState(NS_EVENT_STATE_CHECKED)) {
-    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent);
+    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent1);
+    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent2);
   }
 
   if (aStateMask.HasState(NS_EVENT_STATE_INVALID)) {
     nsRefPtr<AccEvent> event =
-      new AccStateChangeEvent(aContent, nsIAccessibleStates::STATE_INVALID,
+      new AccStateChangeEvent(aContent1, nsIAccessibleStates::STATE_INVALID,
                               PR_FALSE, PR_TRUE);
     FireDelayedAccessibleEvent(event);
    }
@@ -1427,7 +1429,7 @@ nsDocAccessible::ContentRemoved(nsIContent* aContainerNode,
   nsAccessible* container = aContainerNode ?
     GetAccessibleOrContainer(aContainerNode) : this;
 
-  UpdateTree(container, aChildNode, false);
+  UpdateTree(container, aChildNode, PR_FALSE);
 }
 
 void
@@ -1444,9 +1446,9 @@ nsDocAccessible::RecreateAccessible(nsIContent* aContent)
     nsAccessible* container = GetAccessibleOrContainer(parentContent);
 
     // Remove and reinsert.
-    UpdateTree(container, aContent, false);
+    UpdateTree(container, aContent, PR_FALSE);
     container->UpdateChildren();
-    UpdateTree(container, aContent, true);
+    UpdateTree(container, aContent, PR_TRUE);
   }
 }
 
@@ -1468,20 +1470,15 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
     // invalidation list.
     for (PRUint32 idx = 0; idx < mInvalidationList.Length(); idx++) {
       nsIContent* content = mInvalidationList[idx];
-      nsAccessible* accessible = GetAccessible(content);
-      if (!accessible) {
+      if (!HasAccessible(content)) {
+        // Make sure we keep children updated. While we're inside of caching
+        // loop then we must exist it with cached children.
         nsAccessible* container = GetContainerAccessible(content);
         NS_ASSERTION(container,
                      "Got a referenced element that is not in document!");
-        if (container) {
+        if (container)
           container->UpdateChildren();
-          accessible = GetAccessible(content);
-        }
       }
-
-      // Make sure the subtree is created.
-      if (accessible)
-        CacheChildrenInSubtree(accessible);
     }
     mInvalidationList.Clear();
 
@@ -1501,8 +1498,8 @@ nsDocAccessible::CacheChildren()
   nsAccTreeWalker walker(mWeakShell, mDocument->GetRootElement(),
                          GetAllowsAnonChildAccessibles());
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild()) && AppendChild(child));
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1802,28 +1799,16 @@ nsDocAccessible::ProcessContentInserted(nsAccessible* aContainer,
     nsAccessible* directContainer =
       GetContainerAccessible(aInsertedContent->ElementAt(idx));
     if (directContainer)
-      UpdateTree(directContainer, aInsertedContent->ElementAt(idx), true);
+      UpdateTree(directContainer, aInsertedContent->ElementAt(idx), PR_TRUE);
   }
 }
 
 void
 nsDocAccessible::UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
-                            bool aIsInsert)
+                            PRBool aIsInsert)
 {
-  PRUint32 updateFlags = eNoAccessible;
-
-  // If child node is not accessible then look for its accessible children.
-  nsAccessible* child = GetAccessible(aChildNode);
-  if (child) {
-    updateFlags |= UpdateTreeInternal(child, aIsInsert);
-
-  } else {
-    nsAccTreeWalker walker(mWeakShell, aChildNode,
-                           aContainer->GetAllowsAnonChildAccessibles(), true);
-
-    while ((child = walker.NextChild()))
-      updateFlags |= UpdateTreeInternal(child, aIsInsert);
-  }
+  PRUint32 updateFlags =
+    UpdateTreeInternal(aChildNode, aChildNode->GetNextSibling(), aIsInsert);
 
   // Content insertion/removal is not cause of accessible tree change.
   if (updateFlags == eNoAccessible)
@@ -1866,77 +1851,97 @@ nsDocAccessible::UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
 }
 
 PRUint32
-nsDocAccessible::UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert)
+nsDocAccessible::UpdateTreeInternal(nsIContent* aStartNode,
+                                    nsIContent* aEndNode,
+                                    PRBool aIsInsert)
 {
-  PRUint32 updateFlags = eAccessible;
+  PRUint32 updateFlags = eNoAccessible;
+  for (nsIContent* node = aStartNode; node != aEndNode;
+       node = node->GetNextSibling()) {
 
-  nsINode* node = aChild->GetNode();
-  if (aIsInsert) {
-    // Create accessible tree for shown accessible.
-    CacheChildrenInSubtree(aChild);
+    // Tree update triggers for content insertion even if no content was
+    // inserted actually, check if the given content has a frame to discard
+    // this case early.
+    if (aIsInsert && !node->GetPrimaryFrame())
+      continue;
 
-  } else {
-    // Fire menupopup end event before hide event if a menu goes away.
+    nsAccessible* accessible = GetAccessible(node);
 
-    // XXX: We don't look into children of hidden subtree to find hiding
-    // menupopup (as we did prior bug 570275) because we don't do that when
-    // menu is showing (and that's impossible until bug 606924 is fixed).
-    // Nevertheless we should do this at least because layout coalesces
-    // the changes before our processing and we may miss some menupopup
-    // events. Now we just want to be consistent in content insertion/removal
-    // handling.
-    if (aChild->ARIARole() == nsIAccessibleRole::ROLE_MENUPOPUP) {
-      nsRefPtr<AccEvent> event =
-        new AccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END, aChild);
-
-      if (event)
-        FireDelayedAccessibleEvent(event);
-    }
-  }
-
-  // Fire show/hide event.
-  nsRefPtr<AccEvent> event;
-  if (aIsInsert)
-    event = new AccShowEvent(aChild, node);
-  else
-    event = new AccHideEvent(aChild, node);
-
-  if (event)
-    FireDelayedAccessibleEvent(event);
-
-  if (aIsInsert) {
-    PRUint32 ariaRole = aChild->ARIARole();
-    if (ariaRole == nsIAccessibleRole::ROLE_MENUPOPUP) {
-      // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
-      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
-                                 node, AccEvent::eRemoveDupes);
-
-    } else if (ariaRole == nsIAccessibleRole::ROLE_ALERT) {
-      // Fire EVENT_ALERT if ARIA alert appears.
-      updateFlags = eAlertAccessible;
-      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
-                                 AccEvent::eRemoveDupes);
+    if (!accessible) {
+      updateFlags |= UpdateTreeInternal(node->GetFirstChild(), nsnull,
+                                        aIsInsert);
+      continue;
     }
 
-    // If focused node has been shown then it means its frame was recreated
-    // while it's focused. Fire focus event on new focused accessible. If
-    // the queue contains focus event for this node then it's suppressed by
-    // this one.
-    if (node == gLastFocusedNode) {
-      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                                 node, AccEvent::eCoalesceFromSameDocument);
-    }
-  } else {
-    // Update the tree for content removal.
-    // The accessible parent may differ from container accessible if
-    // the parent doesn't have own DOM node like list accessible for HTML
-    // selects.
-    nsAccessible* parent = aChild->GetParent();
-    NS_ASSERTION(parent, "No accessible parent?!");
-    if (parent)
-      parent->RemoveChild(aChild);
+    updateFlags |= eAccessible;
 
-    UncacheChildrenInSubtree(aChild);
+    if (aIsInsert) {
+      // Create accessible tree for shown accessible.
+      CacheChildrenInSubtree(accessible);
+
+    } else {
+      // Fire menupopup end event before hide event if a menu goes away.
+
+      // XXX: We don't look into children of hidden subtree to find hiding
+      // menupopup (as we did prior bug 570275) because we don't do that when
+      // menu is showing (and that's impossible until bug 606924 is fixed).
+      // Nevertheless we should do this at least because layout coalesces
+      // the changes before our processing and we may miss some menupopup
+      // events. Now we just want to be consistent in content insertion/removal
+      // handling.
+      if (accessible->ARIARole() == nsIAccessibleRole::ROLE_MENUPOPUP) {
+        nsRefPtr<AccEvent> event =
+          new AccEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END, accessible);
+
+        if (event)
+          FireDelayedAccessibleEvent(event);
+      }
+    }
+
+    // Fire show/hide event.
+    nsRefPtr<AccEvent> event;
+    if (aIsInsert)
+      event = new AccShowEvent(accessible, node);
+    else
+      event = new AccHideEvent(accessible, node);
+
+    if (event)
+      FireDelayedAccessibleEvent(event);
+
+    if (aIsInsert) {
+      PRUint32 ariaRole = accessible->ARIARole();
+      if (ariaRole == nsIAccessibleRole::ROLE_MENUPOPUP) {
+        // Fire EVENT_MENUPOPUP_START if ARIA menu appears.
+        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
+                                   node, AccEvent::eRemoveDupes);
+
+      } else if (ariaRole == nsIAccessibleRole::ROLE_ALERT) {
+        // Fire EVENT_ALERT if ARIA alert appears.
+        updateFlags = eAlertAccessible;
+        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_ALERT, node,
+                                   AccEvent::eRemoveDupes);
+      }
+
+      // If focused node has been shown then it means its frame was recreated
+      // while it's focused. Fire focus event on new focused accessible. If
+      // the queue contains focus event for this node then it's suppressed by
+      // this one.
+      if (node == gLastFocusedNode) {
+        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
+                                   node, AccEvent::eCoalesceFromSameDocument);
+      }
+    } else {
+      // Update the tree for content removal.
+      // The accessible parent may differ from container accessible if
+      // the parent doesn't have own DOM node like list accessible for HTML
+      // selects.
+      nsAccessible* parent = accessible->GetParent();
+      NS_ASSERTION(parent, "No accessible parent?!");
+      if (parent)
+        parent->RemoveChild(accessible);
+
+      UncacheChildrenInSubtree(accessible);
+    }
   }
 
   return updateFlags;

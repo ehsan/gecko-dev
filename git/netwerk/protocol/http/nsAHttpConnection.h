@@ -44,7 +44,6 @@ class nsAHttpTransaction;
 class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpConnectionInfo;
-class nsHttpConnection;
 
 //-----------------------------------------------------------------------------
 // Abstract base class for a HTTP connection
@@ -111,10 +110,6 @@ public:
     // the same connection and work around buggy servers.
     virtual PRBool LastTransactionExpectedNoContent() = 0;
     virtual void   SetLastTransactionExpectedNoContent(PRBool) = 0;
-
-    // Transfer the base http connection object along with a
-    // reference to it to the caller.
-    virtual nsHttpConnection *TakeHttpConnection() = 0;
 };
 
 #define NS_DECL_NSAHTTPCONNECTION \
@@ -128,7 +123,6 @@ public:
     PRBool IsReused(); \
     nsresult PushBack(const char *, PRUint32); \
     PRBool LastTransactionExpectedNoContent(); \
-    void   SetLastTransactionExpectedNoContent(PRBool); \
-    nsHttpConnection *TakeHttpConnection();
+    void   SetLastTransactionExpectedNoContent(PRBool);
 
 #endif // nsAHttpConnection_h__

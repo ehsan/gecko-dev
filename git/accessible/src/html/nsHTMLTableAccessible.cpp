@@ -439,11 +439,11 @@ nsHTMLTableAccessible::CacheChildren()
   // visible.
   nsAccTreeWalker walker(mWeakShell, mContent, GetAllowsAnonChildAccessibles());
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild())) {
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild())) {
     if (child->Role() == nsIAccessibleRole::ROLE_CAPTION) {
       InsertChildAt(0, child);
-      while ((child = walker.NextChild()) && AppendChild(child));
+      while ((child = walker.GetNextChild()) && AppendChild(child));
       break;
     }
     AppendChild(child);

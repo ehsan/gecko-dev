@@ -45,6 +45,7 @@
 #define nsRuleData_h_
 
 #include "nsCSSProps.h"
+#include "nsCSSStruct.h"
 #include "nsStyleStructFwd.h"
 
 class nsPresContext;
@@ -126,8 +127,9 @@ struct nsRuleData
    * mSIDs.
    */
   #define CSS_PROP_DOMPROP_PREFIXED(prop_) prop_
-  #define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,     \
-                   stylestruct_, stylestructoffset_, animtype_)              \
+  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,        \
+                   parsevariant_, kwtable_, stylestruct_, stylestructoffset_,\
+                   animtype_)                                                \
     nsCSSValue* ValueFor##method_() {                                        \
       NS_ABORT_IF_FALSE(mSIDs & NS_STYLE_INHERIT_BIT(stylestruct_),          \
                         "Calling nsRuleData::ValueFor" #method_ " without "  \
@@ -143,8 +145,8 @@ struct nsRuleData
     const nsCSSValue* ValueFor##method_() const {                            \
       return const_cast<nsRuleData*>(this)->ValueFor##method_();             \
     }
-  #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, parsevariant_,   \
-                               kwtable_)                                     \
+  #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_,     \
+                               member_, parsevariant_, kwtable_)             \
     /* empty; backend-only structs are not in nsRuleData  */
   #include "nsCSSPropList.h"
   #undef CSS_PROP

@@ -60,12 +60,14 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 
+#ifdef MOZ_IPC
 namespace mozilla {
 namespace dom {
   class PBrowserParent;
   class PBrowserChild;
 }
 }
+#endif // MOZ_IPC
 
 #ifdef ACCESSIBILITY
 class nsAccessible;
@@ -102,11 +104,8 @@ class nsHashKey;
 #define NS_COMMAND_EVENT                  24
 #define NS_SCROLLAREA_EVENT               25
 #define NS_TRANSITION_EVENT               26
-#ifdef MOZ_CSS_ANIMATIONS
-#define NS_ANIMATION_EVENT                27
-#endif
 
-#define NS_UI_EVENT                       28
+#define NS_UI_EVENT                       27
 #ifdef MOZ_SVG
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
@@ -495,13 +494,6 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
-#ifdef MOZ_CSS_ANIMATIONS
-#define NS_ANIMATION_EVENT_START     4250
-#define NS_ANIMATION_START           (NS_ANIMATION_EVENT_START)
-#define NS_ANIMATION_END             (NS_ANIMATION_EVENT_START + 1)
-#define NS_ANIMATION_ITERATION       (NS_ANIMATION_EVENT_START + 2)
-#endif
-
 #ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT_START     4300
 #define NS_SMIL_BEGIN                (NS_SMIL_TIME_EVENT_START)
@@ -551,9 +543,11 @@ protected:
     MOZ_COUNT_CTOR(nsEvent);
   }
 
+#ifdef MOZ_IPC
   nsEvent()
   {
   }
+#endif // MOZ_IPC
 
 public:
   nsEvent(PRBool isTrusted, PRUint32 msg)
@@ -606,10 +600,12 @@ protected:
   {
   }
 
+#ifdef MOZ_IPC
   nsGUIEvent()
     : pluginEvent(nsnull)
   {
   }
+#endif // MOZ_IPC
 
 public:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -775,9 +771,11 @@ protected:
   {
   }
 
+#ifdef MOZ_IPC
   nsInputEvent()
   {
   }
+#endif // MOZ_IPC
 
 public:
   nsInputEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1075,6 +1073,7 @@ typedef nsTextRange* nsTextRangeArray;
 
 class nsTextEvent : public nsInputEvent
 {
+#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1085,6 +1084,7 @@ private:
 
 public:
   PRUint32 seqno;
+#endif // MOZ_IPC
 
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1104,6 +1104,7 @@ public:
 
 class nsCompositionEvent : public nsInputEvent
 {
+#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1114,6 +1115,7 @@ private:
 
 public:
   PRUint32 seqno;
+#endif // MOZ_IPC
 
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
@@ -1232,6 +1234,7 @@ public:
 
 class nsQueryContentEvent : public nsGUIEvent
 {
+#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1241,6 +1244,7 @@ private:
     mReply.mContentsRoot = nsnull;
     mReply.mFocusedWidget = nsnull;
   }
+#endif // MOZ_IPC
 
 public:
   nsQueryContentEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
@@ -1334,6 +1338,7 @@ public:
 
 class nsSelectionEvent : public nsGUIEvent
 {
+#ifdef MOZ_IPC
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
@@ -1344,6 +1349,7 @@ private:
 
 public:
   PRUint32 seqno;
+#endif // MOZ_IPC
 
 public:
   nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
@@ -1496,21 +1502,6 @@ public:
   float elapsedTime;
 };
 
-#ifdef MOZ_CSS_ANIMATIONS
-class nsAnimationEvent : public nsEvent
-{
-public:
-  nsAnimationEvent(PRBool isTrusted, PRUint32 msg,
-                   const nsString &animationNameArg, float elapsedTimeArg)
-    : nsEvent(isTrusted, msg, NS_ANIMATION_EVENT),
-      animationName(animationNameArg), elapsedTime(elapsedTimeArg)
-  {
-  }
-
-  nsString animationName;
-  float elapsedTime;
-};
-#endif
 
 class nsUIStateChangeEvent : public nsGUIEvent
 {

@@ -21,7 +21,6 @@
  *  Dan Mills <thunder@mozilla.com>
  *  Anant Narayanan <anant@kix.in>
  *  Philipp von Weitershausen <philipp@weitershausen.de>
- *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -71,7 +70,7 @@ function BrokenBasicAuthenticator(identity) {
 }
 BrokenBasicAuthenticator.prototype = {
   onRequest: function BasicAuth_onRequest(headers) {
-    headers['authorization'] = 'Basic ' +
+    headers['Authorization'] = 'Basic ' +
       btoa(this._id.username + ':' + this._id.password);
     return headers;
   }
@@ -82,7 +81,7 @@ function BasicAuthenticator(identity) {
 }
 BasicAuthenticator.prototype = {
   onRequest: function onRequest(headers) {
-    headers['authorization'] = 'Basic ' +
+    headers['Authorization'] = 'Basic ' +
       btoa(this._id.username + ':' + this._id.passwordUTF8);
     return headers;
   }
@@ -128,7 +127,7 @@ AuthMgr.prototype = {
  *   function callback(error, result) {...}
  * 
  * 'error' will be null on successful requests. Likewise, result will not be
- * passed (=undefined) when an error occurs. Note that this is independent of
+ * passes (=undefined) when an error occurs. Note that this is independent of
  * the status of the HTTP response.
  */
 function AsyncResource(uri) {
@@ -142,21 +141,7 @@ function AsyncResource(uri) {
 AsyncResource.prototype = {
   _logName: "Net.Resource",
 
-  // The string to use as the base User-Agent in Sync requests.
-  // These strings will look something like
-  // 
-  //   Firefox/4.0 FxSync/1.8.0.20100101.mobile
-  //   
-  // or
-  // 
-  //   Firefox Aurora/5.0a1 FxSync/1.9.0.20110409.desktop
-  //
-  _userAgent:
-    Svc.AppInfo.name + "/" + Svc.AppInfo.version +     // Product.
-    " FxSync/" + WEAVE_VERSION + "." +                 // Sync.
-    Svc.AppInfo.appBuildID + ".",                      // Build.
-
-  // Wait 5 minutes before killing a request.
+  // Wait 5 minutes before killing a request
   ABORT_TIMEOUT: 300000,
 
   // ** {{{ Resource.authenticator }}} **
@@ -186,8 +171,12 @@ AsyncResource.prototype = {
   set headers(value) {
     this._headers = value;
   },
-  setHeader: function Res_setHeader(header, value) {
-    this._headers[header.toLowerCase()] = value;
+  setHeader: function Res_setHeader() {
+    if (arguments.length % 2)
+      throw "setHeader only accepts arguments in multiples of 2";
+    for (let i = 0; i < arguments.length; i += 2) {
+      this._headers[arguments[i].toLowerCase()] = arguments[i + 1];
+    }
   },
 
   // ** {{{ Resource.uri }}} **
@@ -238,16 +227,10 @@ AsyncResource.prototype = {
     // Setup a callback to handle bad HTTPS certificates.
     channel.notificationCallbacks = new BadCertListener();
 
-    // Compose a UA string fragment from the various available identifiers.
-    if (Svc.Prefs.get("sendVersionInfo", true)) {
-      let ua = this._userAgent + Svc.Prefs.get("client.type", "desktop");
-      channel.setRequestHeader("user-agent", ua, false);
-    }
-    
-    // Avoid calling the authorizer more than once.
+    // Avoid calling the authorizer more than once
     let headers = this.headers;
     for (let key in headers) {
-      if (key == 'authorization')
+      if (key == 'Authorization')
         this._log.trace("HTTP Header " + key + ": ***** (suppressed)");
       else
         this._log.trace("HTTP Header " + key + ": " + headers[key]);
@@ -259,14 +242,14 @@ AsyncResource.prototype = {
   _onProgress: function Res__onProgress(channel) {},
 
   _doRequest: function _doRequest(action, data, callback) {
-    this._log.trace("In _doRequest.");
     this._callback = callback;
     let channel = this._channel = this._createRequest();
 
     if ("undefined" != typeof(data))
       this._data = data;
 
-    // PUT and POST are treated differently because they have payload data.
+    // PUT and POST are trreated differently because
+    // they have payload data.
     if ("PUT" == action || "POST" == action) {
       // Convert non-string bodies into JSON
       if (this._data.constructor.toString() != String)
@@ -295,8 +278,6 @@ AsyncResource.prototype = {
   },
 
   _onComplete: function _onComplete(error, data) {
-    this._log.trace("In _onComplete. Error is " + error + ".");
-
     if (error) {
       this._callback(error);
       return;
@@ -306,54 +287,29 @@ AsyncResource.prototype = {
     let channel = this._channel;
     let action = channel.requestMethod;
 
-    this._log.trace("Channel: " + channel);
-    this._log.trace("Action: "  + action);
-
-    // Process status and success first. This way a problem with headers
-    // doesn't fail to include accurate status information.
+    // Set some default values in-case there's no response header
+    let headers = {};
     let status = 0;
     let success = false;
-
     try {
-      status  = channel.responseStatus;
-      success = channel.requestSucceeded;    // HTTP status.
-
-      this._log.trace("Status: " + status);
-      this._log.trace("Success: " + success);
-
-      // Log the status of the request.
-      let mesg = [action, success ? "success" : "fail", status,
-                  channel.URI.spec].join(" ");
-      this._log.debug("mesg: " + mesg);
-
-      if (mesg.length > 200)
-        mesg = mesg.substr(0, 200) + "…";
-      this._log.debug(mesg);
-
-      // Additionally give the full response body when Trace logging.
-      if (this._log.level <= Log4Moz.Level.Trace)
-        this._log.trace(action + " body: " + data);
-
-    } catch(ex) {
-      // Got a response, but an exception occurred during processing.
-      // This shouldn't occur.
-      this._log.warn("Caught unexpected exception " + Utils.exceptionStr(ex) +
-                     " in _onComplete.");
-      this._log.debug(Utils.stackTrace(ex));
-    }
-
-    // Process headers. They can be empty, or the call can otherwise fail, so
-    // put this in its own try block.
-    let headers = {};
-    try {
-      this._log.trace("Processing response headers.");
-
-      // Read out the response headers if available.
+      // Read out the response headers if available
       channel.visitResponseHeaders({
         visitHeader: function visitHeader(header, value) {
           headers[header.toLowerCase()] = value;
         }
       });
+      status = channel.responseStatus;
+      success = channel.requestSucceeded;
+
+      // Log the status of the request
+      let mesg = [action, success ? "success" : "fail", status,
+                  channel.URI.spec].join(" ");
+      if (mesg.length > 200)
+        mesg = mesg.substr(0, 200) + "…";
+      this._log.debug(mesg);
+      // Additionally give the full response body when Trace logging
+      if (this._log.level <= Log4Moz.Level.Trace)
+        this._log.trace(action + " body: " + data);
 
       // This is a server-side safety valve to allow slowing down
       // clients without hurting performance.
@@ -364,26 +320,23 @@ AsyncResource.prototype = {
       if (success && headers["x-weave-quota-remaining"])
         Observers.notify("weave:service:quota:remaining",
                          parseInt(headers["x-weave-quota-remaining"], 10));
-    } catch (ex) {
-      this._log.debug("Caught exception " + Utils.exceptionStr(ex) +
-                      " visiting headers in _onComplete.");
-      this._log.debug(Utils.stackTrace(ex));
+    }
+    // Got a response but no header; must be cached (use default values)
+    catch(ex) {
+      this._log.debug(action + " cached: " + status);
     }
 
-    let ret     = new String(data);
-    ret.status  = status;
-    ret.success = success;
+    let ret = new String(data);
     ret.headers = headers;
+    ret.status = status;
+    ret.success = success;
 
-    // Make a lazy getter to convert the json response into an object.
-    // Note that this can cause a parse error to be thrown far away from the
-    // actual fetch, so be warned!
+    // Make a lazy getter to convert the json response into an object
     Utils.lazy2(ret, "obj", function() JSON.parse(ret));
 
-    // Notify if we get a 401 to maybe try again with a new URI.
-    // TODO: more retry logic.
+    // Notify if we get a 401 to maybe try again with a new uri
     if (status == 401) {
-      // Create an object to allow observers to decide if we should try again.
+      // Create an object to allow observers to decide if we should try again
       let subject = {
         newUri: "",
         resource: this,
@@ -391,7 +344,7 @@ AsyncResource.prototype = {
       }
       Observers.notify("weave:resource:status:401", subject);
 
-      // Do the same type of request but with the new URI.
+      // Do the same type of request but with the new uri
       if (subject.newUri != "") {
         this.uri = subject.newUri;
         this._doRequest(action, this._data, this._callback);
@@ -528,29 +481,22 @@ function ChannelListener(onComplete, onProgress, logger, timeout) {
 ChannelListener.prototype = {
 
   onStartRequest: function Channel_onStartRequest(channel) {
-    this._log.trace("onStartRequest called for channel " + channel + ".");
     channel.QueryInterface(Ci.nsIHttpChannel);
 
-    // Save the latest server timestamp when possible.
+    // Save the latest server timestamp when possible
     try {
       Resource.serverTime = channel.getResponseHeader("X-Weave-Timestamp") - 0;
     }
     catch(ex) {}
 
-    this._log.trace("onStartRequest: " + channel.requestMethod + " " +
-                    channel.URI.spec);
+    this._log.trace(channel.requestMethod + " " + channel.URI.spec);
     this._data = '';
     this.delayAbort();
   },
 
   onStopRequest: function Channel_onStopRequest(channel, context, status) {
-    // Clear the abort timer now that the channel is done.
+    // Clear the abort timer now that the channel is done
     this.abortTimer.clear();
-
-    let success = Components.isSuccessCode(status);
-    this._log.trace("Channel for " + channel.requestMethod + " " +
-                    channel.URI.spec + ": isSuccessCode(" + status + ")? " +
-                    success);
 
     if (this._data == '')
       this._data = null;
@@ -558,16 +504,13 @@ ChannelListener.prototype = {
     // Throw the failure code and stop execution.  Use Components.Exception()
     // instead of Error() so the exception is QI-able and can be passed across
     // XPCOM borders while preserving the status code.
-    if (!success) {
+    if (!Components.isSuccessCode(status)) {
       let message = Components.Exception("", status).name;
       let error = Components.Exception(message, status);
       this._onComplete(error);
       return;
     }
 
-    this._log.trace("Channel: flags = " + channel.loadFlags +
-                    ", URI = " + channel.URI.spec +
-                    ", HTTP success? " + channel.requestSucceeded);
     this._onComplete(null, this._data);
   },
 

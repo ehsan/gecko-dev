@@ -62,7 +62,7 @@ function ContentSecurityPolicy() {
   CSPdebug("CSP CREATED");
   this._isInitialized = false;
   this._reportOnlyMode = false;
-  this._policy = CSPRep.fromString("default-src *");
+  this._policy = CSPRep.fromString("allow *");
 
   // default options "wide open" since this policy will be intersected soon
   this._policy._allowInlineScripts = true;
@@ -71,7 +71,7 @@ function ContentSecurityPolicy() {
   this._requestHeaders = []; 
   this._request = "";
   this._docRequest = null;
-  CSPdebug("CSP POLICY INITED TO 'default-src *'");
+  CSPdebug("CSP POLICY INITED TO 'allow *'");
 }
 
 /*
@@ -85,7 +85,7 @@ function ContentSecurityPolicy() {
   csp._MAPPINGS=[];
 
   /* default, catch-all case */
-  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd.ALLOW;
 
   /* self */
   csp._MAPPINGS[cp.TYPE_DOCUMENT]          =  null;
@@ -106,9 +106,9 @@ function ContentSecurityPolicy() {
 
 
   /* These must go through the catch-all */
-  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd.ALLOW;
+  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd.ALLOW;
+  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd.ALLOW;
 }
 
 ContentSecurityPolicy.prototype = {
@@ -386,7 +386,7 @@ ContentSecurityPolicy.prototype = {
         // report the frame-ancestor violation
         let directive = this._policy._directives[cspContext];
         let violatedPolicy = (directive._isImplicit
-                                ? 'default-src' : 'frame-ancestors ')
+                                ? 'allow' : 'frame-ancestors ')
                                 + directive.toString();
 
         this._asyncReportViolation(ancestors[i], violatedPolicy);
@@ -441,7 +441,7 @@ ContentSecurityPolicy.prototype = {
       try {
         let directive = this._policy._directives[cspContext];
         let violatedPolicy = (directive._isImplicit
-                                ? 'default-src' : cspContext)
+                                ? 'allow' : cspContext)
                                 + ' ' + directive.toString();
         this._asyncReportViolation(aContentLocation, violatedPolicy);
       } catch(e) {

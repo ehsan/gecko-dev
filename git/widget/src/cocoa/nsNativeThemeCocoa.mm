@@ -233,10 +233,6 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // provide a local autorelease pool, as this is called during startup
-  // before the main event-loop pool is in place
-  nsAutoreleasePool pool;
-
   mPushButtonCell = [[NSButtonCell alloc] initTextCell:nil];
   [mPushButtonCell setButtonType:NSMomentaryPushInButton];
   [mPushButtonCell setHighlightsBy:NSPushInCellMask];
@@ -443,7 +439,7 @@ struct CellRenderSettings {
   // If a control has no minimum dimensions in either/both axes, set to 0.0f.
   NSSize minimumSizes[3];
 
-  // A three-dimensional array,
+  // A multidimensional array of [2][3][4],
   // with the first dimension being the OS version (only Leopard for the moment),
   // the second being the control size (mini, small, regular), and the third
   // being the 4 margin values (left, top, right, bottom).
@@ -1296,12 +1292,9 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
 
   aTdi.trackInfo.scrollbar.pressState = 0;
 
-  // Only go get these scrollbar button states if we need it. For example,
-  // there's no reason to look up scrollbar button states when we're only
-  // creating a TrackDrawInfo to determine the size of the thumb. There's
-  // also no reason to do this on Lion or later, whose scrollbars have no
-  // arrow buttons.
-  if (aShouldGetButtonStates && !nsToolkit::OnLionOrLater()) {
+  // Only go get these scrollbar button states if we need it. For example, there's no reaon to look up scrollbar button 
+  // states when we're only creating a TrackDrawInfo to determine the size of the thumb.
+  if (aShouldGetButtonStates) {
     nsEventStates buttonStates[4];
     GetScrollbarPressStates(aFrame, buttonStates);
     NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
@@ -2025,26 +2018,23 @@ nsNativeThemeCocoa::GetWidgetBorder(nsIDeviceContext* aContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     {
-      // On Lion and later, scrollbars have no arrows.
-      if (!nsToolkit::OnLionOrLater()) {
-        // There's only an endcap to worry about when both arrows are on the bottom
-        NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
-        if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
-          PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
+      // There's only an endcap to worry about when both arrows are on the bottom
+      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+      if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
+        PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
 
-          nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
-          if (!scrollbarFrame) return NS_ERROR_FAILURE;
-          PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
+        nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
+        if (!scrollbarFrame) return NS_ERROR_FAILURE;
+        PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
 
-          // There isn't a metric for this, so just hardcode a best guess at the value.
-          // This value is even less exact due to the fact that the endcap is partially concave.
-          PRInt32 endcapSize = isSmall ? 5 : 6;
+        // There isn't a metric for this, so just hardcode a best guess at the value.
+        // This value is even less exact due to the fact that the endcap is partially concave.
+        PRInt32 endcapSize = isSmall ? 5 : 6;
 
-          if (isHorizontal)
-            aResult->SizeTo(endcapSize, 0, 0, 0);
-          else
-            aResult->SizeTo(0, endcapSize, 0, 0);
-        }
+        if (isHorizontal)
+          aResult->SizeTo(endcapSize, 0, 0, 0);
+        else
+          aResult->SizeTo(0, endcapSize, 0, 0);
       }
       break;
     }

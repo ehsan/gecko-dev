@@ -588,8 +588,6 @@ private:
   void DisableAccelerationUpdates();
 
 protected:
-  friend class nsBarProp;
-
   // Object Management
   virtual ~nsGlobalWindow();
   void CleanUp(PRBool aIgnoreModalDialog);

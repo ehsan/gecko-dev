@@ -114,8 +114,13 @@ function PasswordStore(name) {
     "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
 
   Utils.lazy2(this, "DBConnection", function() {
-    return Svc.Login.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.mozIStorageConnection);
+    try {
+      return Svc.Login.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.mozIStorageConnection);
+    } catch (ex if (ex.result == Cr.NS_ERROR_NO_INTERFACE)) {
+      // Gecko <2.0 *sadface*
+      return null;
+    }
   });
 }
 PasswordStore.prototype = {

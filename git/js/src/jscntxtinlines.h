@@ -94,6 +94,21 @@ JSContext::ensureGeneratorStackSpace()
     return ok;
 }
 
+JSStackFrame *
+JSContext::computeNextFrame(JSStackFrame *fp)
+{
+    JSStackFrame *next = NULL;
+    for (js::StackSegment *ss = currentSegment; ; ss = ss->getPreviousInContext()) {
+        JSStackFrame *end = ss->getInitialFrame()->prev();
+        for (JSStackFrame *f = ss->getCurrentFrame(); f != end; next = f, f = f->prev()) {
+            if (f == fp)
+                return next;
+        }
+        if (end != ss->getPreviousInContext()->getCurrentFrame())
+            next = NULL;
+    }
+}
+
 inline js::RegExpStatics *
 JSContext::regExpStatics()
 {
@@ -359,8 +374,6 @@ StackSpace::popInvokeFrame(const InvokeFrameGuard &fg)
     JSContext *cx = fg.cx_;
     JSStackFrame *fp = fg.regs_.fp;
 
-    PutActivationObjects(cx, fp);
-
     JS_ASSERT(isCurrentAndActive(cx));
     if (JS_UNLIKELY(currentSegment->getInitialFrame() == fp)) {
         cx->popSegmentAndFrame();
@@ -418,18 +431,14 @@ StackSpace::pushInlineFrame(JSContext *cx, JSScript *script, JSStackFrame *fp,
 JS_REQUIRES_STACK JS_ALWAYS_INLINE void
 StackSpace::popInlineFrame(JSContext *cx, JSStackFrame *prev, Value *newsp)
 {
-    JSFrameRegs *regs = cx->regs;
-    JSStackFrame *fp = regs->fp;
-
     JS_ASSERT(isCurrentAndActive(cx));
     JS_ASSERT(cx->hasActiveSegment());
-    JS_ASSERT(fp->prev_ == prev);
-    JS_ASSERT(!fp->hasImacropc());
-    JS_ASSERT(prev->base() <= newsp && newsp <= fp->formalArgsEnd());
+    JS_ASSERT(cx->regs->fp->prev_ == prev);
+    JS_ASSERT(!cx->regs->fp->hasImacropc());
+    JS_ASSERT(prev->base() <= newsp && newsp <= cx->regs->fp->formalArgsEnd());
 
-    PutActivationObjects(cx, fp);
-
-    regs->pc = prev->pc(cx, fp);
+    JSFrameRegs *regs = cx->regs;
+    regs->pc = prev->pc(cx, regs->fp);
     regs->fp = prev;
     regs->sp = newsp;
 }
@@ -494,12 +503,6 @@ FrameRegsIter::operator++()
 
     cursp = fp->formalArgsEnd();
     return *this;
-}
-
-inline GSNCache *
-GetGSNCache(JSContext *cx)
-{
-    return &JS_THREAD_DATA(cx)->gsnCache;
 }
 
 class AutoNamespaceArray : protected AutoGCRooter {
@@ -567,8 +570,8 @@ class CompartmentChecker
     }
 
     void check(JSString *str) {
-        if (!str->isAtom())
-            check(str->compartment());
+        if (!JSString::isStatic(str) && !str->isAtomized())
+            check(str->asCell()->compartment());
     }
 
     void check(const js::Value &v) {
@@ -741,12 +744,12 @@ CallJSNativeConstructor(JSContext *cx, js::Native native, uintN argc, js::Value 
 }
 
 JS_ALWAYS_INLINE bool
-CallJSPropertyOp(JSContext *cx, js::PropertyOp op, JSObject *receiver, jsid id, js::Value *vp)
+CallJSPropertyOp(JSContext *cx, js::PropertyOp op, JSObject *obj, jsid id, js::Value *vp)
 {
-    assertSameCompartment(cx, receiver, id, *vp);
-    JSBool ok = op(cx, receiver, id, vp);
+    assertSameCompartment(cx, obj, id, *vp);
+    JSBool ok = op(cx, obj, id, vp);
     if (ok)
-        assertSameCompartment(cx, receiver, *vp);
+        assertSameCompartment(cx, obj, *vp);
     return ok;
 }
 

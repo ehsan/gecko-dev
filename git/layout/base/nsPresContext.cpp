@@ -95,12 +95,8 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsAnimationManager.h"
-#endif
 #include "mozilla/dom/Element.h"
 #include "nsIFrameMessageManager.h"
-#include "FrameLayerBuilder.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
@@ -120,7 +116,8 @@
 //needed for resetting of image service color
 #include "nsLayoutCID.h"
 
-using namespace mozilla;
+using mozilla::TimeDuration;
+using mozilla::TimeStamp;
 using namespace mozilla::dom;
 
 static nscolor
@@ -775,26 +772,6 @@ nsPresContext::GetUserPreferences()
 }
 
 void
-nsPresContext::AppUnitsPerDevPixelChanged()
-{
-  nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
-  if (rootFrame) {
-    // FrameLayerBuilder caches invalidation-related values that depend on the
-    // appunits-per-dev-pixel ratio, so ensure that all ThebesLayer drawing
-    // is completely flushed.
-    FrameLayerBuilder::InvalidateThebesLayersInSubtree(rootFrame);
-  }
-
-  mDeviceContext->FlushFontCache();
-
-  // All cached style data must be recomputed.
-  if (HasCachedStyleData()) {
-    MediaFeatureValuesChanged(PR_TRUE);
-    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-  }
-}
-
-void
 nsPresContext::PreferenceChanged(const char* aPrefName)
 {
   nsDependentCString prefName(aPrefName);
@@ -802,6 +779,8 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       prefName.EqualsLiteral("layout.css.devPixelsPerPx")) {
     PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
     if (mDeviceContext->CheckDPIChange() && mShell) {
+      mDeviceContext->FlushFontCache();
+
       // Re-fetch the view manager's window dimensions in case there's a deferred
       // resize which hasn't affected our mVisibleArea yet
       nscoord oldWidthAppUnits, oldHeightAppUnits;
@@ -814,7 +793,8 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       nscoord height = NSToCoordRound(oldHeightDevPixels*AppUnitsPerDevPixel());
       vm->SetWindowDimensions(width, height);
 
-      AppUnitsPerDevPixelChanged();
+      MediaFeatureValuesChanged(PR_TRUE);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
     return;
   }
@@ -916,12 +896,6 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   mTransitionManager = new nsTransitionManager(this);
   if (!mTransitionManager)
     return NS_ERROR_OUT_OF_MEMORY;
-
-#ifdef MOZ_CSS_ANIMATIONS
-  mAnimationManager = new nsAnimationManager(this);
-  if (!mAnimationManager)
-    return NS_ERROR_OUT_OF_MEMORY;
-#endif
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -1085,12 +1059,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       mTransitionManager->Disconnect();
       mTransitionManager = nsnull;
     }
-#ifdef MOZ_CSS_ANIMATIONS
-    if (mAnimationManager) {
-      mAnimationManager->Disconnect();
-      mAnimationManager = nsnull;
-    }
-#endif
   }
 }
 
@@ -1346,14 +1314,15 @@ nsPresContext::SetFullZoom(float aZoom)
   if (!mShell || mFullZoom == aZoom) {
     return;
   }
-
   // Re-fetch the view manager's window dimensions in case there's a deferred
   // resize which hasn't affected our mVisibleArea yet
   nscoord oldWidthAppUnits, oldHeightAppUnits;
   mShell->GetViewManager()->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
   float oldWidthDevPixels = oldWidthAppUnits / float(mCurAppUnitsPerDevPixel);
   float oldHeightDevPixels = oldHeightAppUnits / float(mCurAppUnitsPerDevPixel);
-  mDeviceContext->SetPixelScale(aZoom);
+  if (mDeviceContext->SetPixelScale(aZoom)) {
+    mDeviceContext->FlushFontCache();
+  }
 
   NS_ASSERTION(!mSupressResizeReflow, "two zooms happening at the same time? impossible!");
   mSupressResizeReflow = PR_TRUE;
@@ -1362,8 +1331,10 @@ nsPresContext::SetFullZoom(float aZoom)
   mShell->GetViewManager()->
     SetWindowDimensions(NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
                         NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
-
-  AppUnitsPerDevPixelChanged();
+  if (HasCachedStyleData()) {
+    MediaFeatureValuesChanged(PR_TRUE);
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+  }
 
   mSupressResizeReflow = PR_FALSE;
 
@@ -1640,9 +1611,6 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
   }
 
   RebuildUserFontSet();
-#ifdef MOZ_CSS_ANIMATIONS
-  AnimationManager()->KeyframesListIsDirty();
-#endif
 
   mShell->FrameConstructor()->RebuildAllStyleData(aExtraHint);
 }
@@ -2468,8 +2436,9 @@ nsPresContext::IsRootContentDocument()
     return PR_FALSE;
   }
   // We may not have a root frame, so use views.
-  nsIView* view = PresShell()->GetViewManager()->GetRootView();
-  if (!view) {
+  nsIViewManager* vm = PresShell()->GetViewManager();
+  nsIView* view = nsnull;
+  if (NS_FAILED(vm->GetRootView(view)) || !view) {
     return PR_FALSE;
   }
   view = view->GetParent(); // anonymous inner view
@@ -2559,7 +2528,7 @@ PluginHideEnumerator(nsPtrHashKey<nsObjectFrame>* aEntry, void* userArg)
 
 static void
 RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
-    nsDisplayList* aList, PRBool aInTransform, PluginGeometryClosure* aClosure)
+    nsDisplayList* aList, PluginGeometryClosure* aClosure)
 {
   for (nsDisplayItem* i = aList->GetBottom(); i; i = i->GetAbove()) {
     switch (i->GetType()) {
@@ -2573,9 +2542,7 @@ RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
       // would be incorrect
       nsPtrHashKey<nsObjectFrame>* entry =
         aClosure->mAffectedPlugins.GetEntry(f);
-      // Windowed plugins in transforms are always ignored, we don't
-      // create configurations for them
-      if (entry && (!aInTransform || !f->GetWidget())) {
+      if (entry) {
         displayPlugin->GetWidgetConfiguration(aBuilder,
                                               aClosure->mOutputConfigurations);
         // we've dealt with this plugin now
@@ -2583,16 +2550,10 @@ RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
       }
       break;
     }
-    case nsDisplayItem::TYPE_TRANSFORM: {
-      nsDisplayList* sublist =
-          static_cast<nsDisplayTransform*>(i)->GetStoredList()->GetList();
-      RecoverPluginGeometry(aBuilder, sublist, PR_TRUE, aClosure);
-      break;
-    }
     default: {
       nsDisplayList* sublist = i->GetList();
       if (sublist) {
-        RecoverPluginGeometry(aBuilder, sublist, aInTransform, aClosure);
+        RecoverPluginGeometry(aBuilder, sublist, aClosure);
       }
       break;
     }
@@ -2658,7 +2619,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
     }
 #endif
 
-    RecoverPluginGeometry(&builder, &list, PR_FALSE, &closure);
+    RecoverPluginGeometry(&builder, &list, &closure);
     list.DeleteAll();
   }
 
@@ -2839,16 +2800,6 @@ nsRootPresContext::RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame)
   if (aFrame == mUpdatePluginGeometryForFrame) {
     mUpdatePluginGeometryForFrame->PresContext()->
       SetContainsUpdatePluginGeometryFrame(PR_FALSE);
-    mUpdatePluginGeometryForFrame = nsnull;
-  }
-}
-
-void
-nsRootPresContext::RootForgetUpdatePluginGeometryFrameForPresContext(
-  nsPresContext* aPresContext)
-{
-  if (aPresContext->GetContainsUpdatePluginGeometryFrame()) {
-    aPresContext->SetContainsUpdatePluginGeometryFrame(PR_FALSE);
     mUpdatePluginGeometryForFrame = nsnull;
   }
 }

@@ -38,25 +38,33 @@
 #ifndef nsInternetCiter_h__
 #define nsInternetCiter_h__
 
+#include "nsICiter.h"
+
 #include "nsString.h"
 
 /** Mail citations using standard Internet style.
   */
-class nsInternetCiter
+class nsInternetCiter  : public nsICiter
 {
 public:
-  static nsresult GetCiteString(const nsAString & aInString, nsAString & aOutString);
+  nsInternetCiter();
+  virtual ~nsInternetCiter();
+//Interfaces for addref and release and queryinterface
+//NOTE: Use   NS_DECL_ISUPPORTS_INHERITED in any class inherited from nsEditor
+  NS_DECL_ISUPPORTS
 
-  static nsresult StripCites(const nsAString & aInString, nsAString & aOutString);
+  NS_IMETHOD GetCiteString(const nsAString & aInString, nsAString & aOutString);
 
-  static nsresult Rewrap(const nsAString & aInString,
-                         PRUint32 aWrapCol, PRUint32 aFirstLineOffset,
-                         PRBool aRespectNewlines,
-                         nsAString & aOutString);
+  NS_IMETHOD StripCites(const nsAString & aInString, nsAString & aOutString);
+
+  NS_IMETHOD Rewrap(const nsAString & aInString,
+                    PRUint32 aWrapCol, PRUint32 aFirstLineOffset,
+                    PRBool aRespectNewlines,
+                    nsAString & aOutString);
 
 protected:
-  static nsresult StripCitesAndLinebreaks(const nsAString& aInString, nsAString& aOutString,
-                                          PRBool aLinebreaksToo, PRInt32* aCiteLevel);
+  nsresult StripCitesAndLinebreaks(const nsAString& aInString, nsAString& aOutString,
+                                   PRBool aLinebreaksToo, PRInt32* aCiteLevel);
 };
 
 #endif //nsInternetCiter_h__

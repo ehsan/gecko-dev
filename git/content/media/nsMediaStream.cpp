@@ -35,11 +35,11 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include "mozilla/Mutex.h"
 #include "nsDebug.h"
 #include "nsMediaStream.h"
 #include "nsMediaDecoder.h"
 #include "nsNetUtil.h"
+#include "nsAutoLock.h"
 #include "nsThreadUtils.h"
 #include "nsIFile.h"
 #include "nsIFileChannel.h"
@@ -61,7 +61,7 @@
 #define HTTP_OK_CODE 200
 #define HTTP_PARTIAL_RESPONSE_CODE 206
 
-using namespace mozilla;
+using mozilla::TimeStamp;
 
 nsMediaChannelStream::nsMediaChannelStream(nsMediaDecoder* aDecoder,
     nsIChannel* aChannel, nsIURI* aURI)
@@ -69,9 +69,8 @@ nsMediaChannelStream::nsMediaChannelStream(nsMediaDecoder* aDecoder,
     mOffset(0), mSuspendCount(0),
     mReopenOnError(PR_FALSE), mIgnoreClose(PR_FALSE),
     mCacheStream(this),
-    mLock("nsMediaChannelStream.mLock"),
-    mCacheSuspendCount(0),
-    mIgnoreResume(PR_FALSE)
+    mLock(nsAutoLock::NewLock("media.channel.stream")),
+    mCacheSuspendCount(0)
 {
 }
 
@@ -80,6 +79,9 @@ nsMediaChannelStream::~nsMediaChannelStream()
   if (mListener) {
     // Kill its reference to us since we're going away
     mListener->Revoke();
+  }
+  if (mLock) {
+    nsAutoLock::DestroyLock(mLock);
   }
 }
 
@@ -159,8 +161,8 @@ nsMediaChannelStream::OnStartRequest(nsIRequest* aRequest)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (element->ShouldCheckAllowOrigin()) {
-    // If the request was cancelled by nsCORSListenerProxy due to failing
-    // the CORS security check, send an error through to the media element.
+    // If the request was cancelled by nsCrossSiteListenerProxy due to failing
+    // the Access Control check, send an error through to the media element.
     if (status == NS_ERROR_DOM_BAD_URI) {
       mDecoder->NetworkError();
       return NS_ERROR_DOM_BAD_URI;
@@ -269,7 +271,7 @@ nsMediaChannelStream::OnStartRequest(nsIRequest* aRequest)
   }
 
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     mChannelStatistics.Start(TimeStamp::Now());
   }
 
@@ -277,10 +279,7 @@ nsMediaChannelStream::OnStartRequest(nsIRequest* aRequest)
   mIgnoreClose = PR_FALSE;
   if (mSuspendCount > 0) {
     // Re-suspend the channel if it needs to be suspended
-    // No need to call PossiblySuspend here since the channel is
-    // definitely in the right state for us in OneStartRequest.
     mChannel->Suspend();
-    mIgnoreResume = PR_FALSE;
   }
 
   // Fires an initial progress event and sets up the stall counter so stall events
@@ -298,7 +297,7 @@ nsMediaChannelStream::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
                "How can OnStopRequest fire while we're suspended?");
 
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     mChannelStatistics.Stop(TimeStamp::Now());
   }
 
@@ -384,7 +383,7 @@ nsMediaChannelStream::OnDataAvailable(nsIRequest* aRequest,
   NS_ASSERTION(mChannel.get() == aRequest, "Wrong channel!");
 
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     mChannelStatistics.AddBytes(aCount);
   }
 
@@ -413,6 +412,8 @@ nsresult nsMediaChannelStream::Open(nsIStreamListener **aStreamListener)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
+  if (!mLock)
+    return NS_ERROR_OUT_OF_MEMORY;
   nsresult rv = mCacheStream.Init();
   if (NS_FAILED(rv))
     return rv;
@@ -456,12 +457,12 @@ nsresult nsMediaChannelStream::OpenChannel(nsIStreamListener** aStreamListener)
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
     if (element->ShouldCheckAllowOrigin()) {
       nsresult rv;
-      nsCORSListenerProxy* crossSiteListener =
-        new nsCORSListenerProxy(mListener,
-                                element->NodePrincipal(),
-                                mChannel,
-                                PR_FALSE,
-                                &rv);
+      nsCrossSiteListenerProxy* crossSiteListener =
+        new nsCrossSiteListenerProxy(mListener,
+                                     element->NodePrincipal(),
+                                     mChannel,
+                                     PR_FALSE,
+                                     &rv);
       listener = crossSiteListener;
       NS_ENSURE_TRUE(crossSiteListener, NS_ERROR_OUT_OF_MEMORY);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -548,7 +549,7 @@ void nsMediaChannelStream::CloseChannel()
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     mChannelStatistics.Stop(TimeStamp::Now());
   }
 
@@ -560,7 +561,7 @@ void nsMediaChannelStream::CloseChannel()
   if (mChannel) {
     if (mSuspendCount > 0) {
       // Resume the channel before we cancel it
-      PossiblyResume();
+      mChannel->Resume();
     }
     // The status we use here won't be passed to the decoder, since
     // we've already revoked the listener. It can however be passed
@@ -627,10 +628,10 @@ void nsMediaChannelStream::Suspend(PRBool aCloseImmediately)
       element->DownloadSuspended();
     } else if (mSuspendCount == 0) {
       {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         mChannelStatistics.Stop(TimeStamp::Now());
       }
-      PossiblySuspend();
+      mChannel->Suspend();
       element->DownloadSuspended();
     }
   }
@@ -655,13 +656,13 @@ void nsMediaChannelStream::Resume()
     if (mChannel) {
       // Just wake up our existing channel
       {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
         mChannelStatistics.Start(TimeStamp::Now());
       }
       // if an error occurs after Resume, assume it's because the server
       // timed out the connection and we should reopen it.
       mReopenOnError = PR_TRUE;
-      PossiblyResume();
+      mChannel->Resume();
       element->DownloadResumed();
     } else {
       PRInt64 totalLength = mCacheStream.GetLength();
@@ -761,7 +762,7 @@ nsMediaChannelStream::CacheClientSeek(PRInt64 aOffset, PRBool aResume)
     // No need to mess with the channel, since we're making a new one
     --mSuspendCount;
     {
-      MutexAutoLock lock(mLock);
+      nsAutoLock lock(mLock);
       NS_ASSERTION(mCacheSuspendCount > 0, "CacheClientSeek(aResume=true) without previous CacheClientSuspend!");
       --mCacheSuspendCount;
     }
@@ -779,7 +780,7 @@ nsresult
 nsMediaChannelStream::CacheClientSuspend()
 {
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     ++mCacheSuspendCount;
   }
   Suspend(PR_FALSE);
@@ -793,7 +794,7 @@ nsMediaChannelStream::CacheClientResume()
 {
   Resume();
   {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
     NS_ASSERTION(mCacheSuspendCount > 0, "CacheClientResume without previous CacheClientSuspend!");
     --mCacheSuspendCount;
   }
@@ -823,14 +824,14 @@ nsMediaChannelStream::IsDataCachedToEndOfStream(PRInt64 aOffset)
 PRBool
 nsMediaChannelStream::IsSuspendedByCache()
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   return mCacheSuspendCount > 0;
 }
 
 PRBool
 nsMediaChannelStream::IsSuspended()
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   return mSuspendCount > 0;
 }
 
@@ -861,7 +862,7 @@ nsMediaChannelStream::Unpin()
 double
 nsMediaChannelStream::GetDownloadRate(PRPackedBool* aIsReliable)
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   return mChannelStatistics.GetRate(TimeStamp::Now(), aIsReliable);
 }
 
@@ -871,39 +872,19 @@ nsMediaChannelStream::GetLength()
   return mCacheStream.GetLength();
 }
 
-void
-nsMediaChannelStream::PossiblySuspend()
-{
-  PRBool isPending = PR_FALSE;
-  nsresult rv = mChannel->IsPending(&isPending);
-  if (NS_SUCCEEDED(rv) && isPending) {
-    mChannel->Suspend();
-    mIgnoreResume = PR_FALSE;
-  } else {
-    mIgnoreResume = PR_TRUE;
-  }
-}
-
-void
-nsMediaChannelStream::PossiblyResume()
-{
-  if (!mIgnoreResume) {
-    mChannel->Resume();
-  } else {
-    mIgnoreResume = PR_FALSE;
-  }
-}
-
 class nsMediaFileStream : public nsMediaStream
 {
 public:
   nsMediaFileStream(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
     nsMediaStream(aDecoder, aChannel, aURI), mSize(-1),
-    mLock("nsMediaFileStream.mLock")
+    mLock(nsAutoLock::NewLock("media.file.stream"))
   {
   }
   ~nsMediaFileStream()
   {
+    if (mLock) {
+      nsAutoLock::DestroyLock(mLock);
+    }
   }
 
   // Main thread
@@ -954,7 +935,7 @@ private:
   // Read or Seek is in progress since it resets various internal
   // values to null.
   // This lock protects mSeekable and mInput.
-  Mutex mLock;
+  PRLock* mLock;
 
   // Seekable stream interface to file. This can be used from any
   // thread.
@@ -1060,7 +1041,7 @@ nsresult nsMediaFileStream::Close()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   if (mChannel) {
     mChannel->Cancel(NS_ERROR_PARSED_DATA_CACHED);
     mChannel = nsnull;
@@ -1106,7 +1087,7 @@ nsMediaStream* nsMediaFileStream::CloneData(nsMediaDecoder* aDecoder)
 
 nsresult nsMediaFileStream::ReadFromCache(char* aBuffer, PRInt64 aOffset, PRUint32 aCount)
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   if (!mInput || !mSeekable)
     return NS_ERROR_FAILURE;
   PRInt64 offset = 0;
@@ -1135,7 +1116,7 @@ nsresult nsMediaFileStream::ReadFromCache(char* aBuffer, PRInt64 aOffset, PRUint
 
 nsresult nsMediaFileStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aBytes)
 {
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   if (!mInput)
     return NS_ERROR_FAILURE;
   return mInput->Read(aBuffer, aCount, aBytes);
@@ -1145,7 +1126,7 @@ nsresult nsMediaFileStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   if (!mSeekable)
     return NS_ERROR_FAILURE;
   return mSeekable->Seek(aWhence, aOffset);
@@ -1155,7 +1136,7 @@ PRInt64 nsMediaFileStream::Tell()
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-  MutexAutoLock lock(mLock);
+  nsAutoLock lock(mLock);
   if (!mSeekable)
     return 0;
 

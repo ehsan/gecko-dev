@@ -50,19 +50,11 @@ namespace js {
 /* Integral types for all hash functions. */
 typedef uint32 HashNumber;
 
-/*****************************************************************************/
-
 namespace detail {
-
-/*
- * js::detail::HashTable is an implementation detail of the js::HashMap and
- * js::HashSet templates. For js::Hash{Map,Set} API documentation and examples,
- * skip to the end of the detail namespace.
- */
 
 /* Reusable implementation of HashMap and HashSet. */
 template <class T, class HashPolicy, class AllocPolicy>
-class HashTable : private AllocPolicy
+class HashTable : AllocPolicy
 {
     typedef typename tl::StripConst<T>::result NonConstT;
     typedef typename HashPolicy::KeyType Key;
@@ -120,13 +112,6 @@ class HashTable : private AllocPolicy
         Ptr(Entry &entry) : entry(&entry) {}
 
       public:
-        /* Leaves Ptr uninitialized. */
-        Ptr() {
-#ifdef DEBUG
-            entry = (Entry *)0xbad;
-#endif
-        }
-
         bool found() const                    { return entry->isLive(); }
         operator ConvertibleToBool() const    { return found() ? &Ptr::nonNull : 0; }
         bool operator==(const Ptr &rhs) const { JS_ASSERT(found() && rhs.found()); return entry == rhs.entry; }
@@ -149,9 +134,6 @@ class HashTable : private AllocPolicy
 #else
         AddPtr(Entry &entry, HashNumber hn) : Ptr(entry), keyHash(hn) {}
 #endif
-      public:
-        /* Leaves AddPtr uninitialized. */
-        AddPtr() {}
     };
 
     /*
@@ -310,7 +292,7 @@ class HashTable : private AllocPolicy
 
     static Entry *createTable(AllocPolicy &alloc, uint32 capacity)
     {
-        Entry *newTable = (Entry *)alloc.malloc_(capacity * sizeof(Entry));
+        Entry *newTable = (Entry *)alloc.malloc(capacity * sizeof(Entry));
         if (!newTable)
             return NULL;
         for (Entry *e = newTable, *end = e + capacity; e != end; ++e)
@@ -322,7 +304,7 @@ class HashTable : private AllocPolicy
     {
         for (Entry *e = oldTable, *end = e + capacity; e != end; ++e)
             e->~Entry();
-        alloc.free_(oldTable);
+        alloc.free(oldTable);
     }
 
   public:
@@ -581,23 +563,6 @@ class HashTable : private AllocPolicy
 #endif
     }
 
-    void finish()
-    {
-        JS_ASSERT(!entered);
-
-        if (!table)
-            return;
-        
-        destroyTable(*this, table, tableCapacity);
-        table = NULL;
-        gen++;
-        entryCount = 0;
-        removedCount = 0;
-#ifdef DEBUG
-        mutationCount++;
-#endif
-    }
-
     Range all() const {
         return Range(table, table + tableCapacity);
     }
@@ -719,9 +684,7 @@ class HashTable : private AllocPolicy
 #undef METER
 };
 
-}  /* namespace detail */
-
-/*****************************************************************************/
+}
 
 /*
  * Hash policy
@@ -765,35 +728,23 @@ struct DefaultHasher
     }
 };
 
-/*
- * Pointer hashing policy that strips the lowest zeroBits when calculating the
- * hash to improve key distribution.
- */
-template <typename Key, size_t zeroBits>
-struct PointerHasher
+/* Specialized hashing policy for pointer types. */
+template <class T>
+struct DefaultHasher<T *>
 {
-    typedef Key Lookup;
-    static HashNumber hash(const Lookup &l) {
-        size_t word = reinterpret_cast<size_t>(l) >> zeroBits;
-        JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
-#if JS_BYTES_PER_WORD == 4
-        return HashNumber(word);
-#else
-        JS_STATIC_ASSERT(sizeof word == 8);
-        return HashNumber((word >> 32) ^ word);
-#endif
+    typedef T *Lookup;
+    static HashNumber hash(T *l) {
+        /*
+         * Strip often-0 lower bits for better distribution after multiplying
+         * by the sGoldenRatio.
+         */
+        return HashNumber(reinterpret_cast<size_t>(l) >>
+                          tl::FloorLog2<sizeof(void *)>::result);
     }
-    static bool match(const Key &k, const Lookup &l) {
+    static bool match(T *k, T *l) {
         return k == l;
     }
 };
-
-/*
- * Specialized hashing policy for pointer types. It assumes that the type is
- * at least word-aligned. For types with smaller size use PointerHasher.
- */
-template <class T>
-struct DefaultHasher<T *>: PointerHasher<T *, tl::FloorLog2<sizeof(void *)>::result> { };
 
 /*
  * JS-friendly, STL-like container providing a hash-based map from keys to
@@ -968,19 +919,10 @@ class HashMap
      */
     typedef typename Impl::Enum Enum;
 
-    /*
-     * Remove all entries. This does not shrink the table. For that consider
-     * using the finish() method.
-     */
+    /* Remove all entries. */
     void clear()                                      { impl.clear(); }
 
-    /*
-     * Remove all the entries and release all internal buffers. The map must
-     * be initialized again before any use.
-     */
-    void finish()                                     { impl.finish(); }
-
-   /* Does the table contain any entries? */
+    /* Does the table contain any entries? */
     bool empty() const                                { return impl.empty(); }
 
     /*
@@ -995,7 +937,6 @@ class HashMap
         return impl.lookup(l) != NULL;
     }
 
-    /* Overwrite existing value with v. Return NULL on oom. */
     Entry *put(const Key &k, const Value &v) {
         AddPtr p = lookupForAdd(k);
         if (p) {
@@ -1005,23 +946,6 @@ class HashMap
         return add(p, k, v) ? &*p : NULL;
     }
 
-    /* Like put, but assert that the given key is not already present. */
-    bool putNew(const Key &k, const Value &v) {
-        AddPtr p = lookupForAdd(k);
-        JS_ASSERT(!p);
-        return add(p, k, v);
-    }
-
-    /* Add (k,defaultValue) if k no found. Return false-y Ptr on oom. */
-    Ptr lookupWithDefault(const Key &k, const Value &defaultValue) {
-        AddPtr p = lookupForAdd(k);
-        if (p)
-            return p;
-        (void)add(p, k, defaultValue);  /* p is left false-y on oom. */
-        return p;
-    }
-
-    /* Remove if present. */
     void remove(const Lookup &l) {
         if (Ptr p = lookup(l))
             remove(p);
@@ -1166,17 +1090,8 @@ class HashSet
      */
     typedef typename Impl::Enum Enum;
 
-    /*
-     * Remove all entries. This does not shrink the table. For that consider
-     * using the finish() method.
-     */
+    /* Remove all entries. */
     void clear()                                      { impl.clear(); }
-
-    /*
-     * Remove all the entries and release all internal buffers. The set must
-     * be initialized again before any use.
-     */
-    void finish()                                     { impl.finish(); }
 
     /* Does the table contain any entries? */
     bool empty() const                                { return impl.empty(); }
@@ -1193,17 +1108,9 @@ class HashSet
         return impl.lookup(l) != NULL;
     }
 
-    /* Overwrite existing value with v. Return NULL on oom. */
     const T *put(const T &t) {
         AddPtr p = lookupForAdd(t);
         return p ? &*p : (add(p, t) ? &*p : NULL);
-    }
-
-    /* Like put, but assert that the given key is not already present. */
-    bool putNew(const T &t) {
-        AddPtr p = lookupForAdd(t);
-        JS_ASSERT(!p);
-        return add(p, t);
     }
 
     void remove(const Lookup &l) {

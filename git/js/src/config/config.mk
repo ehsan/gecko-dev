@@ -159,9 +159,6 @@ endif
 
 CC := $(CC_WRAPPER) $(CC)
 CXX := $(CXX_WRAPPER) $(CXX)
-MKDIR ?= mkdir
-SLEEP ?= sleep
-TOUCH ?= touch
 
 # determine debug-related options
 _DEBUG_CFLAGS :=
@@ -834,8 +831,6 @@ STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
 endif
 
 OPTIMIZE_JARS_CMD = $(PYTHON) $(call core_abspath,$(topsrcdir)/config/optimizejars.py)
-
-CREATE_PRECOMPLETE_CMD = $(PYTHON) $(call core_abspath,$(topsrcdir)/config/createprecomplete.py)
 
 EXPAND_LIBS = $(PYTHON) -I$(DEPTH)/config $(topsrcdir)/config/expandlibs.py
 EXPAND_LIBS_EXEC = $(PYTHON) $(topsrcdir)/config/pythonpath.py -I$(DEPTH)/config $(topsrcdir)/config/expandlibs_exec.py

@@ -61,6 +61,8 @@ public:
 
     virtual gfxFont* CopyWithAntialiasOption(AntialiasOption anAAOption);
 
+    virtual nsString GetUniqueName();
+
     virtual const gfxFont::Metrics& GetMetrics();
 
     virtual PRUint32 GetSpaceGlyph();

@@ -61,6 +61,10 @@
 // just for CONTRACTIDs
 #include "nsCharsetConverterManager.h"
 
+#ifdef MOZ_USE_NATIVE_UCONV
+#include "nsNativeUConvService.h"
+#endif
+
 // Class nsCharsetConverterManager [implementation]
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCharsetConverterManager,
@@ -150,6 +154,21 @@ nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest,
   *aResult= nsnull;
   nsCOMPtr<nsIUnicodeEncoder> encoder;
 
+#ifdef MOZ_USE_NATIVE_UCONV
+  if (mNativeUC) {
+    nsCOMPtr<nsISupports> supports;
+    mNativeUC->GetNativeConverter("UCS-2", 
+                                  aDest,
+                                  getter_AddRefs(supports));
+
+    encoder = do_QueryInterface(supports);
+
+    if (encoder) {
+      NS_ADDREF(*aResult = encoder);
+      return NS_OK;
+    }
+  }
+#endif  
   nsresult rv = NS_OK;
 
   nsCAutoString
@@ -218,6 +237,21 @@ nsCharsetConverterManager::GetUnicodeDecoderRawInternal(const char * aSrc,
   *aResult= nsnull;
   nsCOMPtr<nsIUnicodeDecoder> decoder;
 
+#ifdef MOZ_USE_NATIVE_UCONV
+  if (mNativeUC) {
+    nsCOMPtr<nsISupports> supports;
+    mNativeUC->GetNativeConverter(aSrc,
+                                  "UCS-2", 
+                                  getter_AddRefs(supports));
+    
+    decoder = do_QueryInterface(supports);
+
+    if (decoder) {
+      NS_ADDREF(*aResult = decoder);
+      return NS_OK;
+    }
+  }
+#endif
   nsresult rv = NS_OK;
 
   NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);

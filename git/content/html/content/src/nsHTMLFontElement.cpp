@@ -43,6 +43,7 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsMappedAttributes.h"
+#include "nsCSSStruct.h"
 #include "nsRuleData.h"
 #include "nsIDocument.h"
 

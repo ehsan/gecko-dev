@@ -367,6 +367,18 @@ nsHTMLTextAreaElement::GetForm(nsIDOMHTMLFormElement** aForm)
 // nsIContent
 
 NS_IMETHODIMP
+nsHTMLTextAreaElement::Blur()
+{
+  return nsGenericHTMLElement::Blur();
+}
+
+NS_IMETHODIMP
+nsHTMLTextAreaElement::Focus()
+{
+  return nsGenericHTMLElement::Focus();
+}
+
+NS_IMETHODIMP
 nsHTMLTextAreaElement::Select()
 {
   // XXX Bug?  We have to give the input focus before contents can be
@@ -437,6 +449,7 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
   return PR_FALSE;
 }
 
+NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Autofocus, autofocus)
 NS_IMPL_UINT_ATTR_NON_ZERO_DEFAULT_VALUE(nsHTMLTextAreaElement, Cols, cols, DEFAULT_COLS)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
@@ -590,7 +603,7 @@ nsHTMLTextAreaElement::SetValueChanged(PRBool aValueChanged)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, states);
+      doc->ContentStatesChanged(this, nsnull, states);
     }
   }
 
@@ -768,7 +781,7 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(this, states);
+      doc->ContentStatesChanged(this, nsnull, states);
     }
   }
 
@@ -1221,7 +1234,7 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       if (doc && !states.IsEmpty()) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, states);
+        doc->ContentStatesChanged(this, nsnull, states);
       }
     }
   }
@@ -1260,10 +1273,10 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-    doc->ContentStateChanged(this, NS_EVENT_STATE_INVALID |
-                                   NS_EVENT_STATE_VALID |
-                                   NS_EVENT_STATE_MOZ_UI_INVALID |
-                                   NS_EVENT_STATE_MOZ_UI_VALID);
+    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
+                                            NS_EVENT_STATE_VALID |
+                                            NS_EVENT_STATE_MOZ_UI_INVALID |
+                                            NS_EVENT_STATE_MOZ_UI_VALID);
   }
 
   return NS_OK;
@@ -1494,7 +1507,7 @@ nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, states);
+        doc->ContentStatesChanged(this, nsnull, states);
       }
     }
   }

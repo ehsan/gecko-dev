@@ -1243,9 +1243,8 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
          * in more than GLYPH_BUFFER_SIZE glyphs.  Do this before we
          * flush, since that'll blow away the num_glyphs.
          */
-        gfxFontTestStore::CurrentStore()->AddItem(GetName(),
-                                                  glyphs.mGlyphBuffer,
-                                                  glyphs.mNumGlyphs);
+        gfxFontTestStore::CurrentStore()->AddItem(GetUniqueName(),
+                                                  glyphs.mGlyphBuffer, glyphs.mNumGlyphs);
     }
 
     // draw any remaining glyphs
@@ -1527,7 +1526,8 @@ gfxFont::InitTextRun(gfxContext *aContext,
     PRBool ok = PR_FALSE;
 
     if (mHarfBuzzShaper && !aPreferPlatformShaping) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
+            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
             ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
                                               aRunStart, aRunLength,
                                               aRunScript);
@@ -2674,7 +2674,7 @@ gfxFontGroup::UpdateFontList()
         mSkipDrawing = PR_FALSE;
 
         // bug 548184 - need to clean up FT2, OS/2 platform code to use BuildFontList
-#if defined(XP_MACOSX) || (defined(XP_WIN) && !defined(WINCE)) || defined(ANDROID)
+#if defined(XP_MACOSX) || defined(XP_WIN)
         BuildFontList();
 #else
         ForEachFont(FindPlatformFont, this);

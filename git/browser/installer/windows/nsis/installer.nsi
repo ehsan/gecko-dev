@@ -123,7 +123,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro UnloadUAC
 !insertmacro WriteRegStr2
 !insertmacro WriteRegDWORD2
-!insertmacro CheckIfRegistryKeyExists
 
 !include shared.nsh
 

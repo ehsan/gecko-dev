@@ -67,7 +67,6 @@ CPPSRCS		= \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGCircleElement.cpp \
-		nsSVGClass.cpp \
 		nsSVGClipPathElement.cpp \
 		nsSVGDataParser.cpp \
 		nsSVGDefsElement.cpp \

@@ -75,6 +75,7 @@
 #include "nsReadableUtils.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
+#include "nsAutoLock.h"
 #include "nsCRT.h"
 #include "nsCOMArray.h"
 #include "nsISimpleEnumerator.h"
@@ -397,8 +398,6 @@ nsDiskCacheDevice::Init()
 nsresult
 nsDiskCacheDevice::Shutdown()
 {
-    nsCacheService::AssertOwnsLock();
-
     nsresult rv = Shutdown_Private(PR_TRUE);
     if (NS_FAILED(rv))
         return rv;
@@ -785,10 +784,8 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
     PRUint32  newSizeK =  ((newSize + 0x3FF) >> 10);
 
     // If the new size is larger than max. file size or larger than
-    // 1/8 the cache capacity (which is in KiB's), and the entry has
-    // not been marked for file storage, doom the entry and abort.
-    if (EntryIsTooBig(newSize) &&
-        entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE) {
+    // 1/8 the cache capacity (which is in KiB's), doom the entry and abort
+    if (EntryIsTooBig(newSize)) {
 #ifdef DEBUG
         nsresult rv =
 #endif

@@ -5,7 +5,12 @@ Cu.import("resource://services-sync/engines/bookmarks.js");
 Cu.import("resource://services-sync/util.js");
 
 Cu.import("resource://services-sync/service.js");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
+try {
+  Cu.import("resource://gre/modules/PlacesUtils.jsm");
+}
+catch(ex) {
+  Cu.import("resource://gre/modules/utils.js");
+}
 
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 

@@ -433,8 +433,12 @@ Blocklist.prototype = {
     var pingCountVersion = getPref("getIntPref", PREF_BLOCKLIST_PINGCOUNTVERSION, 0);
     var pingCountTotal = getPref("getIntPref", PREF_BLOCKLIST_PINGCOUNTTOTAL, 1);
     var daysSinceLastPing = 0;
-    if (pingCountVersion == 0) {
-      daysSinceLastPing = "new";
+    if (pingCountVersion < 1 || pingCountTotal < 1) {
+      daysSinceLastPing = pingCountVersion == 0 ? "new" : "reset";
+      if (pingCountVersion < 1)
+        pingCountVersion = 1;
+      if (pingCountTotal < 1)
+        pingCountTotal = 1;
     }
     else {
       // Seconds in one day is used because nsIUpdateTimerManager stores the
@@ -453,11 +457,6 @@ Blocklist.prototype = {
         pingCountVersion = pingCountTotal = "invalid";
       }
     }
-
-    if (pingCountVersion < 1)
-      pingCountVersion = 1;
-    if (pingCountTotal < 1)
-      pingCountTotal = 1;
 
     dsURI = dsURI.replace(/%APP_ID%/g, gApp.ID);
     dsURI = dsURI.replace(/%APP_VERSION%/g, gApp.version);

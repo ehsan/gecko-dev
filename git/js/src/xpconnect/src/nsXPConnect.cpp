@@ -538,7 +538,7 @@ nsXPConnect::ToParticipant(void *p)
 }
 
 NS_IMETHODIMP
-nsXPConnect::Root(void *p)
+nsXPConnect::RootAndUnlinkJSObjects(void *p)
 {
     return NS_OK;
 }
@@ -566,13 +566,6 @@ NS_IMETHODIMP
 nsXPConnect::Unroot(void *p)
 {
     return NS_OK;
-}
-
-JSBool
-xpc_GCThingIsGrayCCThing(void *thing)
-{
-    uint32 kind = js_GetGCThingTraceKind(thing);
-    return ADD_TO_CC(kind) && xpc_IsGrayGCThing(thing);
 }
 
 static void
@@ -734,8 +727,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 #endif
     {
         // Normal codepath (matches non-DEBUG_CC codepath).
-        NS_ASSERTION(xpc_IsGrayGCThing(p), "Tried to traverse a non-gray object.");
-        type = markJSObject ? GCMarked : GCUnmarked;
+        type = !markJSObject && xpc_IsGrayGCThing(p) ? GCUnmarked : GCMarked;
     }
 
     if (cb.WantDebugInfo()) {
@@ -871,15 +863,17 @@ nsXPConnect::GetOutstandingRequests(JSContext* cx)
 class JSContextParticipant : public nsCycleCollectionParticipant
 {
 public:
-    NS_IMETHOD Root(void *n)
-    {
-        return NS_OK;
-    }
-    NS_IMETHOD Unlink(void *n)
+    NS_IMETHOD RootAndUnlinkJSObjects(void *n)
     {
         JSContext *cx = static_cast<JSContext*>(n);
         NS_ASSERTION(cx->globalObject, "global object NULL before unlinking");
         cx->globalObject = nsnull;
+        return NS_OK;
+    }
+    NS_IMETHOD Unlink(void *n)
+    {
+        // We must not unlink a JSContext because Root/Unroot don't ensure that
+        // the pointer is still valid.
         return NS_OK;
     }
     NS_IMETHOD Unroot(void *n)
@@ -2365,6 +2359,23 @@ nsXPConnect::JSToVariant(JSContext* ctx, const jsval &value, nsIVariant** _retva
     return NS_OK;
 }
 
+/* void flagSystemFilenamePrefix (in string filenamePrefix,
+ *                                in PRBool aWantNativeWrappers); */
+NS_IMETHODIMP 
+nsXPConnect::FlagSystemFilenamePrefix(const char *aFilenamePrefix,
+                                      PRBool aWantNativeWrappers)
+{
+    NS_PRECONDITION(aFilenamePrefix, "bad param");
+
+    JSRuntime* rt = GetRuntime()->GetJSRuntime();;
+    uint32 flags = JSFILENAME_SYSTEM;
+    if(aWantNativeWrappers)
+        flags |= JSFILENAME_PROTECTED;
+    if(!JS_FlagScriptFilenamePrefix(rt, aFilenamePrefix, flags))
+        return NS_ERROR_OUT_OF_MEMORY;
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsXPConnect::OnProcessNextEvent(nsIThreadInternal *aThread, PRBool aMayWait,
                                 PRUint32 aRecursionDepth)
@@ -2550,7 +2561,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
         } adc(cx);
         JSAutoRequest ar(cx);
 
-        js::CompartmentVector &vector = rt->compartments;
+        js::WrapperVector &vector = rt->compartments;
         for (JSCompartment **p = vector.begin(); p != vector.end(); ++p) {
             JSCompartment *comp = *p;
             if (!comp->principals) {

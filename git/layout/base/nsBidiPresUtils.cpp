@@ -58,9 +58,6 @@
 #include "gfxUnicodeProperties.h"
 #include "nsIThebesFontMetrics.h"
 
-#undef NOISY_BIDI
-#undef REALLY_NOISY_BIDI
-
 using namespace mozilla;
 
 static const PRUnichar kSpace            = 0x0020;
@@ -427,17 +424,6 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
     }
   }
   
-#ifdef DEBUG
-#ifdef NOISY_BIDI
-  printf("Before Resolve(), aBlockFrame=0x%p, mBuffer='%s', frameCount=%d\n",
-         (void*)aBlockFrame, NS_ConvertUTF16toUTF8(mBuffer).get(), frameCount);
-#ifdef REALLY_NOISY_BIDI
-  printf(" block frame tree=:\n");
-  aBlockFrame->List(stdout, 0);
-#endif
-#endif
-#endif
-
   for (; ;) {
     if (fragmentLength <= 0) {
       // Get the next frame from mLogicalFrames
@@ -621,15 +607,6 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
       }
     }
   } // for
-
-#ifdef DEBUG
-#ifdef REALLY_NOISY_BIDI
-  printf("---\nAfter Resolve(), frameTree =:\n");
-  aBlockFrame->List(stdout, 0);
-  printf("===\n");
-#endif
-#endif
-
   return mSuccess;
 }
 

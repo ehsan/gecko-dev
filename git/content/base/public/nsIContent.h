@@ -76,8 +76,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x32b94ba0, 0x1ebc, 0x4dfc, \
- { 0xba, 0x8c, 0x5f, 0x24, 0x2b, 0xcb, 0xaf, 0xce } }
+{ 0x8331ca9f, 0x8717, 0x4ab4, \
+  { 0xad, 0x17, 0xb4, 0x9d, 0xdc, 0xe8, 0xb6, 0x77 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -800,7 +800,7 @@ public:
    * GetIDAttributeName().  This may be null if there is no ID.
    */
   nsIAtom* GetID() const {
-    if (HasID()) {
+    if (HasFlag(NODE_HAS_ID)) {
       return DoGetID();
     }
     return nsnull;
@@ -906,15 +906,15 @@ public:
    */
   virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
 
-  /**
-   * Get the SMIL override style for this content node.  This is a style
-   * declaration that is applied *after* the inline style, and it can be used
-   * e.g. to store animated style values.
-   *
-   * Note: This method is analogous to the 'GetStyle' method in
-   * nsGenericHTMLElement and nsStyledElement.
-   */
-  virtual nsIDOMCSSStyleDeclaration* GetSMILOverrideStyle() = 0;
+   /**
+    * Get the SMIL override style for this content node.  This is a style
+    * declaration that is applied *after* the inline style, and it can be used
+    * e.g. to store animated style values.
+    *
+    * Note: This method is analogous to the 'GetStyle' method in
+    * nsGenericHTMLElement and nsStyledElement.
+    */
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle) = 0;
 
   /**
    * Get the SMIL override style rule for this content node.  If the rule
@@ -960,7 +960,7 @@ public:
 protected:
   /**
    * Hook for implementing GetID.  This is guaranteed to only be
-   * called if HasID() is true.
+   * called if the NODE_HAS_ID flag is set.
    */
   virtual nsIAtom* DoGetID() const = 0;
 

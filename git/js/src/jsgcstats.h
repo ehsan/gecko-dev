@@ -161,7 +161,7 @@ struct GCTimer {
 
 # define GCTIMER_PARAM      , GCTimer &gcTimer
 # define GCTIMER_ARG        , gcTimer
-# define TIMESTAMP(x)       (gcTimer.x = PRMJ_Now())
+# define TIMESTAMP(x)       (gcTimer.x = rdtsc())
 # define GCTIMER_BEGIN()    GCTimer gcTimer
 # define GCTIMER_END(last)  (gcTimer.finish(last))
 #else

@@ -673,6 +673,16 @@ PluginModuleParent::AsyncSetWindow(NPP instance, NPWindow* window)
 }
 
 nsresult
+PluginModuleParent::GetSurface(NPP instance, gfxASurface** aSurface)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->GetSurface(aSurface);
+}
+
+nsresult
 PluginModuleParent::GetImage(NPP instance,
                              mozilla::layers::ImageContainer* aContainer,
                              mozilla::layers::Image** aImage)

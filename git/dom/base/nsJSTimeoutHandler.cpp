@@ -50,6 +50,9 @@
 #include "nsServiceManagerUtils.h"
 #include "nsDOMError.h"
 #include "nsGlobalWindow.h"
+#include "jsobj.h"
+#include "jsatom.h"
+#include "jsfun.h"
 #include "nsIContentSecurityPolicy.h"
 
 static const char kSetIntervalStr[] = "setInterval";
@@ -114,9 +117,10 @@ private:
 // nsJSScriptTimeoutHandler
 // QueryInterface implementation for nsJSScriptTimeoutHandler
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSScriptTimeoutHandler)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsJSScriptTimeoutHandler)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     nsCAutoString foo("nsJSScriptTimeoutHandler");
@@ -130,11 +134,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
     else if (tmp->mFunObj) {
       JSFunction* fun = (JSFunction*)tmp->mFunObj->getPrivate();
       if (fun->atom) {
-        JSFlatString *funId = JS_ASSERT_STRING_IS_FLAT(JS_GetFunctionId(fun));
-        size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, funId, 0);
+        size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, ATOM_TO_STRING(fun->atom), 0);
         char *name = new char[size];
         if (name) {
-          JS_PutEscapedFlatString(name, size, funId, 0);
+          JS_PutEscapedFlatString(name, size, ATOM_TO_STRING(fun->atom), 0);
           foo.AppendLiteral(" [");
           foo.Append(name);
           delete[] name;
@@ -314,9 +317,11 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
 
     mExpr = expr;
 
+    nsIPrincipal *prin = aWindow->GetPrincipal();
+
     // Get the calling location.
     const char *filename;
-    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo)) {
+    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo, prin)) {
       mFileName.Assign(filename);
     }
   } else if (funobj) {

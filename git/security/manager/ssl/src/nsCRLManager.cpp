@@ -81,7 +81,7 @@ nsCRLManager::~nsCRLManager()
 }
 
 NS_IMETHODIMP 
-nsCRLManager::ImportCrl (PRUint8 *aData, PRUint32 aLength, nsIURI * aURI, PRUint32 aType, PRBool doSilentDownload, const PRUnichar* crlKey)
+nsCRLManager::ImportCrl (PRUint8 *aData, PRUint32 aLength, nsIURI * aURI, PRUint32 aType, PRBool doSilentDonwload, const PRUnichar* crlKey)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
@@ -180,7 +180,7 @@ loser:
 
 done:
           
-  if(!doSilentDownload){
+  if(!doSilentDonwload){
     if (!importSuccessful){
       nsString message;
       nsString temp;
@@ -344,11 +344,12 @@ nsCRLManager::RescheduleCRLAutoUpdate(void)
   return rv;
 }
 
-/**
+/*
  * getCRLs
  *
  * Export a set of certs and keys from the database to a PKCS#12 file.
- */
+*/
+
 NS_IMETHODIMP 
 nsCRLManager::GetCrls(nsIArray ** aCrls)
 {
@@ -366,7 +367,7 @@ nsCRLManager::GetCrls(nsIArray ** aCrls)
   // Get the list of certs //
   sec_rv = SEC_LookupCrls(CERT_GetDefaultCertDB(), &head, -1);
   if (sec_rv != SECSuccess) {
-    return NS_ERROR_FAILURE;
+    goto loser;
   }
 
   if (head) {
@@ -381,13 +382,15 @@ nsCRLManager::GetCrls(nsIArray ** aCrls)
   *aCrls = crlsArray;
   NS_IF_ADDREF(*aCrls);
   return NS_OK;
+loser:
+  return NS_ERROR_FAILURE;;
 }
 
-/**
- * deleteCrl
+/*
+ * deletetCrl
  *
  * Delete a Crl entry from the cert db.
- */
+*/
 NS_IMETHODIMP 
 nsCRLManager::DeleteCrl(PRUint32 aCrlIndex)
 {
@@ -401,7 +404,7 @@ nsCRLManager::DeleteCrl(PRUint32 aCrlIndex)
   // Get the list of certs //
   sec_rv = SEC_LookupCrls(CERT_GetDefaultCertDB(), &head, -1);
   if (sec_rv != SECSuccess) {
-    return NS_ERROR_FAILURE;
+    goto loser;
   }
 
   if (head) {
@@ -417,6 +420,8 @@ nsCRLManager::DeleteCrl(PRUint32 aCrlIndex)
     PORT_FreeArena(head->arena, PR_FALSE);
   }
   return NS_OK;
+loser:
+  return NS_ERROR_FAILURE;;
 }
 
 NS_IMETHODIMP

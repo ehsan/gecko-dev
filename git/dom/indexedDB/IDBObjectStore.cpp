@@ -737,21 +737,18 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
                                aObjectDataId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!updateInfo.info.autoIncrement) {
-      NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
+    NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
 
-      if (aObjectStoreKey.IsInt()) {
-        rv = stmt->BindInt64ByName(objectDataKey, aObjectStoreKey.IntValue());
-      }
-      else if (aObjectStoreKey.IsString()) {
-        rv = stmt->BindStringByName(objectDataKey,
-                                    aObjectStoreKey.StringValue());
-      }
-      else {
-        NS_NOTREACHED("Unknown key type!");
-      }
-      NS_ENSURE_SUCCESS(rv, rv);
+    if (aObjectStoreKey.IsInt()) {
+      rv = stmt->BindInt64ByName(objectDataKey, aObjectStoreKey.IntValue());
     }
+    else if (aObjectStoreKey.IsString()) {
+      rv = stmt->BindStringByName(objectDataKey, aObjectStoreKey.StringValue());
+    }
+    else {
+      NS_NOTREACHED("Unknown key type!");
+    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     NS_NAMED_LITERAL_CSTRING(value, "value");
 

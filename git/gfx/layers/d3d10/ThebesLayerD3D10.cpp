@@ -54,7 +54,6 @@ namespace layers {
 ThebesLayerD3D10::ThebesLayerD3D10(LayerManagerD3D10 *aManager)
   : ThebesLayer(aManager, NULL)
   , LayerD3D10(aManager)
-  , mCurrentSurfaceMode(SURFACE_OPAQUE)
 {
   mImplData = static_cast<LayerD3D10*>(this);
 }
@@ -120,23 +119,19 @@ ThebesLayerD3D10::RenderLayer()
     return;
   }
 
+  nsIntRect visibleRect = mVisibleRegion.GetBounds();
+
   SetEffectTransformAndOpacity();
 
   ID3D10EffectTechnique *technique;
-  switch (mCurrentSurfaceMode) {
-  case SURFACE_COMPONENT_ALPHA:
+  if (mTextureOnWhite) {
     technique = effect()->GetTechniqueByName("RenderComponentAlphaLayer");
-    break;
-  case SURFACE_OPAQUE:
+  } else if (CanUseOpaqueSurface()) {
     technique = effect()->GetTechniqueByName("RenderRGBLayerPremul");
-    break;
-  case SURFACE_SINGLE_CHANNEL_ALPHA:
+  } else {
     technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
-    break;
-  default:
-    NS_ERROR("Unknown mode");
-    return;
   }
+
 
   nsIntRegionRectIterator iter(mVisibleRegion);
 
@@ -159,10 +154,10 @@ ThebesLayerD3D10::RenderLayer()
 
     effect()->GetVariableByName("vTextureCoords")->AsVector()->SetFloatVector(
       ShaderConstantRectD3D10(
-        (float)(iterRect->x - mTextureRect.x) / (float)mTextureRect.width,
-        (float)(iterRect->y - mTextureRect.y) / (float)mTextureRect.height,
-        (float)iterRect->width / (float)mTextureRect.width,
-        (float)iterRect->height / (float)mTextureRect.height)
+        (float)(iterRect->x - visibleRect.x) / (float)visibleRect.width,
+        (float)(iterRect->y - visibleRect.y) / (float)visibleRect.height,
+        (float)iterRect->width / (float)visibleRect.width,
+        (float)iterRect->height / (float)visibleRect.height)
       );
 
     technique->GetPassByIndex(0)->Apply(0);
@@ -181,34 +176,11 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
     return;
   }
 
-  nsIntRect newTextureRect = mVisibleRegion.GetBounds();
-
   SurfaceMode mode = GetSurfaceMode();
   if (mode == SURFACE_COMPONENT_ALPHA &&
       (!mParent || !mParent->SupportsComponentAlphaChildren())) {
     mode = SURFACE_SINGLE_CHANNEL_ALPHA;
   }
-  // If we have a transform that requires resampling of our texture, then
-  // we need to make sure we don't sample pixels that haven't been drawn.
-  // We clamp sample coordinates to the texture rect, but when the visible region
-  // doesn't fill the entire texture rect we need to make sure we draw all the
-  // pixels in the texture rect anyway in case they get sampled.
-  nsIntRegion neededRegion = mVisibleRegion;
-  if (neededRegion.GetBounds() != newTextureRect ||
-      neededRegion.GetNumRects() > 1) {
-    gfxMatrix transform2d;
-    if (!GetEffectiveTransform().Is2D(&transform2d) ||
-        transform2d.HasNonIntegerTranslation()) {
-      neededRegion = newTextureRect;
-      if (mode == SURFACE_OPAQUE) {
-        // We're going to paint outside the visible region, but layout hasn't
-        // promised that it will paint opaquely there, so we'll have to
-        // treat this layer as transparent.
-        mode = SURFACE_SINGLE_CHANNEL_ALPHA;
-      }
-    }
-  }
-  mCurrentSurfaceMode = mode;
 
   VerifyContentType(mode);
 
@@ -227,21 +199,26 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
     aReadback->GetThebesLayerUpdates(this, &readbackUpdates, &readbackRegion);
   }
 
+  nsIntRect visibleRect = mVisibleRegion.GetBounds();
+
   if (mTexture) {
-    if (mTextureRect != newTextureRect) {
+    if (!mTextureRegion.IsEqual(mVisibleRegion)) {
       nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
       mTexture = nsnull;
       nsRefPtr<ID3D10Texture2D> oldTextureOnWhite = mTextureOnWhite;
       mTextureOnWhite = nsnull;
 
-      nsIntRegion retainRegion = mTextureRect;
+      nsIntRegion retainRegion = mTextureRegion;
+      nsIntRect oldBounds = mTextureRegion.GetBounds();
+      nsIntRect newBounds = mVisibleRegion.GetBounds();
+
+      CreateNewTextures(gfxIntSize(newBounds.width, newBounds.height), mode);
+
       // Old visible region will become the region that is covered by both the
       // old and the new visible region.
       retainRegion.And(retainRegion, mVisibleRegion);
       // No point in retaining parts which were not valid.
       retainRegion.And(retainRegion, mValidRegion);
-
-      CreateNewTextures(gfxIntSize(newTextureRect.width, newTextureRect.height), mode);
 
       nsIntRect largeRect = retainRegion.GetLargestRectangle();
 
@@ -257,41 +234,47 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
           ResolutionChanged(xres, yres)) {
         mValidRegion.SetEmpty();
       } else {
-        CopyRegion(oldTexture, mTextureRect.TopLeft(),
-                   mTexture, newTextureRect.TopLeft(),
+        CopyRegion(oldTexture, oldBounds.TopLeft(),
+                   mTexture, newBounds.TopLeft(),
                    retainRegion, &mValidRegion,
                    xres, yres);
         if (oldTextureOnWhite) {
-          CopyRegion(oldTextureOnWhite, mTextureRect.TopLeft(),
-                     mTextureOnWhite, newTextureRect.TopLeft(),
+          CopyRegion(oldTextureOnWhite, oldBounds.TopLeft(),
+                     mTextureOnWhite, newBounds.TopLeft(),
                      retainRegion, &mValidRegion,
                      xres, yres);
         }
       }
     }
   }
-  mTextureRect = newTextureRect;
+  mTextureRegion = mVisibleRegion;
 
   if (!mTexture || (mode == SURFACE_COMPONENT_ALPHA && !mTextureOnWhite)) {
-    CreateNewTextures(gfxIntSize(newTextureRect.width, newTextureRect.height), mode);
+    CreateNewTextures(gfxIntSize(visibleRect.width, visibleRect.height), mode);
     mValidRegion.SetEmpty();
   }
 
-  nsIntRegion drawRegion;
-  drawRegion.Sub(neededRegion, mValidRegion);
-
-  if (!drawRegion.IsEmpty()) {
+  if (!mValidRegion.IsEqual(mVisibleRegion)) {
     LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
     if (!cbInfo.Callback) {
       NS_ERROR("D3D10 should never need to update ThebesLayers in an empty transaction");
       return;
     }
 
-    DrawRegion(drawRegion, mode);
+    /* We use the bounds of the visible region because we draw the bounds of
+     * this region when we draw this entire texture. We have to make sure that
+     * the areas that aren't filled with content get their background drawn.
+     * This is an issue for opaque surfaces, which otherwise won't get their
+     * background painted.
+     */
+    nsIntRegion region;
+    region.Sub(mVisibleRegion, mValidRegion);
+
+    DrawRegion(region, mode);
 
     if (readbackUpdates.Length() > 0) {
       CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM,
-                                 newTextureRect.width, newTextureRect.height,
+                                 visibleRect.width, visibleRect.height,
                                  1, 1, 0, D3D10_USAGE_STAGING,
                                  D3D10_CPU_ACCESS_READ);
 
@@ -302,11 +285,11 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
       for (int i = 0; i < readbackUpdates.Length(); i++) {
         mD3DManager->readbackManager()->PostTask(readbackTexture,
                                                  &readbackUpdates[i],
-                                                 gfxPoint(newTextureRect.x, newTextureRect.y));
+                                                 gfxPoint(visibleRect.x, visibleRect.y));
       }
     }
 
-    mValidRegion = neededRegion;
+    mValidRegion = mVisibleRegion;
   }
 }
 

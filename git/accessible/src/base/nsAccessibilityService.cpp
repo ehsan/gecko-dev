@@ -101,7 +101,6 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/dom/Element.h"
-#include "nsImageMapUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService
@@ -265,12 +264,21 @@ already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateHTMLImageAccessible(nsIContent* aContent,
                                                   nsIPresShell* aPresShell)
 {
-  nsAutoString mapElmName;
-  aContent->GetAttr(kNameSpaceID_None,
-                    nsAccessibilityAtoms::usemap,
-                    mapElmName);
-  nsCOMPtr<nsIDOMHTMLMapElement> mapElm =
-    nsImageMapUtils::FindImageMap(aContent->GetCurrentDoc(), mapElmName);
+  nsCOMPtr<nsIHTMLDocument> htmlDoc =
+    do_QueryInterface(aContent->GetCurrentDoc());
+
+  nsCOMPtr<nsIDOMHTMLMapElement> mapElm;
+  if (htmlDoc) {
+    nsAutoString mapElmName;
+    aContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::usemap,
+                      mapElmName);
+
+    if (!mapElmName.IsEmpty()) {
+      if (mapElmName.CharAt(0) == '#')
+        mapElmName.Cut(0,1);
+      mapElm = do_QueryInterface(htmlDoc->GetImageMap(mapElmName));
+    }
+  }
 
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(aPresShell));
   nsAccessible* accessible = mapElm ?
@@ -858,7 +866,7 @@ static PRBool HasRelatedContent(nsIContent *aContent)
   return PR_FALSE;
 }
 
-nsAccessible*
+already_AddRefed<nsAccessible>
 nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
                                               nsIPresShell* aPresShell,
                                               nsIWeakReference* aWeakShell,
@@ -872,8 +880,10 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 
   // Check to see if we already have an accessible for this node in the cache.
   nsAccessible* cachedAccessible = GetAccessibleInWeakShell(aNode, aWeakShell);
-  if (cachedAccessible)
+  if (cachedAccessible) {
+    NS_ADDREF(cachedAccessible);
     return cachedAccessible;
+  }
 
   // No cache entry, so we must create the accessible.
 
@@ -881,7 +891,9 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     // If it's document node then ask accessible document loader for
     // document accessible, otherwise return null.
     nsCOMPtr<nsIDocument> document(do_QueryInterface(aNode));
-    return GetDocAccessible(document);
+    nsAccessible *accessible = GetDocAccessible(document);
+    NS_IF_ADDREF(accessible);
+    return accessible;
   }
 
   // We have a content node.
@@ -920,13 +932,16 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     // for the image frame is the image content. If the frame is not an image
     // frame or the node is not an area element then null is returned.
     // This setup will change when bug 135040 is fixed.
-    return GetAreaAccessible(weakFrame.GetFrame(), aNode, aWeakShell);
+    nsAccessible* areaAcc = GetAreaAccessible(weakFrame.GetFrame(),
+                                              aNode, aWeakShell);
+    NS_IF_ADDREF(areaAcc);
+    return areaAcc;
   }
 
   nsDocAccessible* docAcc =
     GetAccService()->GetDocAccessible(aNode->GetOwnerDoc());
   if (!docAcc) {
-    NS_NOTREACHED("Node has no host document accessible!");
+    NS_NOTREACHED("No document for accessible being created!");
     return nsnull;
   }
 
@@ -947,7 +962,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     newAcc = weakFrame->CreateAccessible();
     if (docAcc->BindToDocument(newAcc, nsnull)) {
       newAcc->AsTextLeaf()->SetText(text);
-      return newAcc;
+      return newAcc.forget();
     }
 
     return nsnull;
@@ -974,7 +989,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 
     newAcc = new nsHyperTextAccessibleWrap(content, aWeakShell);
     if (docAcc->BindToDocument(newAcc, nsAccUtils::GetRoleMapEntry(aNode)))
-      return newAcc;
+      return newAcc.forget();
     return nsnull;
   }
 
@@ -1160,7 +1175,9 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
   }
 
-  return docAcc->BindToDocument(newAcc, roleMapEntry) ? newAcc : nsnull;
+  if (docAcc->BindToDocument(newAcc, roleMapEntry))
+    return newAcc.forget();
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

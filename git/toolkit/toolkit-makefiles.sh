@@ -124,12 +124,11 @@ MAKEFILES_gfx="
   gfx/ycbcr/Makefile
   gfx/layers/Makefile
   gfx/src/Makefile
+  gfx/src/thebes/Makefile
   gfx/tests/Makefile
   gfx/thebes/Makefile
   gfx/qcms/Makefile
   gfx/angle/Makefile
-  gfx/angle/src/libGLESv2/Makefile
-  gfx/angle/src/libEGL/Makefile
 "
 
 MAKEFILES_htmlparser="
@@ -162,6 +161,7 @@ MAKEFILES_intl="
   intl/uconv/ucvtw2/Makefile
   intl/uconv/ucvko/Makefile
   intl/uconv/ucvibm/Makefile
+  intl/uconv/native/Makefile
   intl/locale/Makefile
   intl/locale/public/Makefile
   intl/locale/idl/Makefile
@@ -459,6 +459,11 @@ MAKEFILES_docshell="
   docshell/build/Makefile
 "
 
+MAKEFILES_webshell="
+  webshell/Makefile
+  webshell/public/Makefile
+"
+
 MAKEFILES_widget="
   widget/Makefile
   widget/public/Makefile
@@ -554,6 +559,9 @@ MAKEFILES_embedding="
   embedding/browser/activex/src/plugin/Makefile
   embedding/browser/build/Makefile
   embedding/browser/webBrowser/Makefile
+  embedding/browser/gtk/Makefile
+  embedding/browser/gtk/src/Makefile
+  embedding/browser/gtk/tests/Makefile
   embedding/components/Makefile
   embedding/components/appstartup/Makefile
   embedding/components/appstartup/src/Makefile
@@ -761,6 +769,7 @@ add_makefiles "
   $MAKEFILES_chrome
   $MAKEFILES_view
   $MAKEFILES_docshell
+  $MAKEFILES_webshell
   $MAKEFILES_widget
   $MAKEFILES_xpcom
   $MAKEFILES_xpcom_tests
@@ -1138,6 +1147,16 @@ if [ "$MOZ_XTF" ]; then
     content/xtf/Makefile
     content/xtf/public/Makefile
     content/xtf/src/Makefile
+  "
+fi
+
+if [ "$MOZ_JAVAXPCOM" ]; then
+  add_makefiles "
+    extensions/java/Makefile
+    extensions/java/xpcom/Makefile
+    extensions/java/xpcom/interfaces/Makefile
+    extensions/java/xpcom/src/Makefile
+    extensions/java/xpcom/glue/Makefile
   "
 fi
 

@@ -91,6 +91,7 @@ LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 # dependent libraries
+ifdef MOZ_IPC
 STATIC_LIBS += \
   jsipc_s \
   domipc_s \
@@ -110,12 +111,17 @@ ifneq (Android,$(OS_TARGET))
 OS_LIBS += -lrt
 endif
 endif
+endif
 
 STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
-	chromium_s \
+	gkgfx \
 	$(NULL)
+
+ifdef MOZ_IPC
+STATIC_LIBS += chromium_s
+endif
 
 ifndef WINCE
 STATIC_LIBS += \
@@ -134,7 +140,6 @@ COMPONENT_LIBS += \
 	pref \
 	htmlpars \
 	imglib2 \
-	gkgfx \
 	gklayout \
 	docshell \
 	embedcomponents \
@@ -147,8 +152,11 @@ COMPONENT_LIBS += \
 	pipnss \
 	appcomps \
 	composer \
-	jetpack_s \
 	$(NULL)
+
+ifdef MOZ_IPC
+COMPONENT_LIBS +=  jetpack_s
+endif
 
 ifdef BUILD_CTYPES
 COMPONENT_LIBS += \
@@ -156,10 +164,14 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
+COMPONENT_LIBS += jsperf
+
+ifdef MOZ_PLUGINS
+DEFINES += -DMOZ_PLUGINS
 COMPONENT_LIBS += \
-  jsperf \
-  gkplugin \
-  $(NULL)
+	gkplugin \
+	$(NULL)
+endif
 
 ifdef MOZ_XUL
 ifdef MOZ_ENABLE_GTK2
@@ -287,6 +299,8 @@ endif
 STATIC_LIBS += thebes ycbcr
 
 STATIC_LIBS += angle
+
+COMPONENT_LIBS += gkgfxthebes
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget

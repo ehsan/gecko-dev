@@ -166,15 +166,13 @@ nsScriptElement::MaybeProcessScript()
   mAlreadyStarted = PR_TRUE;
 
   nsIDocument* ownerDoc = cont->GetOwnerDoc();
-  nsCOMPtr<nsIParser> parser = ((nsIScriptElement*) this)->GetCreatorParser();
+  nsCOMPtr<nsIParser> parser = ((nsIScriptElement*)this)->GetCreatorParser();
   if (parser) {
-    nsCOMPtr<nsIContentSink> sink = parser->GetContentSink();
-    if (sink) {
-      nsCOMPtr<nsIDocument> parserDoc = do_QueryInterface(sink->GetTarget());
-      if (ownerDoc != parserDoc) {
-        // Willful violation of HTML5 as of 2010-12-01
-        return NS_OK;
-      }
+    nsCOMPtr<nsIDocument> parserDoc =
+        do_QueryInterface(parser->GetContentSink()->GetTarget());
+    if (ownerDoc != parserDoc) {
+      // Willful violation of HTML5 as of 2010-12-01
+      return NS_OK;
     }
   }
 

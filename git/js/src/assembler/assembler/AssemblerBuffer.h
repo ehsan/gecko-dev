@@ -137,19 +137,18 @@ namespace JSC {
          * The user must check for a NULL return value, which means
          * no code was generated, or there was an OOM.
          */
-        void* executableAllocAndCopy(ExecutableAllocator* allocator, ExecutablePool** poolp)
+        void* executableCopy(ExecutablePool* allocator)
         {
-            if (m_oom || m_size == 0) {
-                *poolp = NULL;
+            if (m_oom)
                 return 0;
-            }
 
-            void* result = allocator->alloc(m_size, poolp);
-            if (!result) {
-                *poolp = NULL;
+            if (!m_size)
                 return 0;
-            }
-            JS_ASSERT(*poolp);
+
+            void* result = allocator->alloc(m_size);
+
+            if (!result)
+                return 0;
 
             ExecutableAllocator::makeWritable(result, m_size);
 
@@ -186,7 +185,7 @@ namespace JSC {
          * can continue assembling into the buffer, deferring OOM checking
          * until the user wants to read code out of the buffer.
          *
-         * See also the |executableAllocAndCopy| and |buffer| methods.
+         * See also the |executableCopy| and |buffer| methods.
          */
 
         void grow(int extraCapacity = 0)

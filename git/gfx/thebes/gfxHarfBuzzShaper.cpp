@@ -105,17 +105,7 @@ static hb_blob_t *
 HBGetTable(hb_tag_t aTag, void *aUserData)
 {
     gfxHarfBuzzShaper *shaper = static_cast<gfxHarfBuzzShaper*>(aUserData);
-    gfxFont *font = shaper->GetFont();
-
-    // bug 589682 - ignore the GDEF table in buggy fonts (applies to
-    // Italic and BoldItalic faces of Times New Roman)
-    if (aTag == TRUETYPE_TAG('G','D','E','F') &&
-        font->GetFontEntry()->IgnoreGDEF())
-    {
-        return nsnull;
-    }
-
-    return font->GetFontTable(aTag);
+    return shaper->GetFont()->GetFontTable(aTag);
 }
 
 /*

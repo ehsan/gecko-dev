@@ -233,8 +233,10 @@ nsHTMLFragmentContentSink::~nsHTMLFragmentContentSink()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHTMLFragmentContentSink)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHTMLFragmentContentSink)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsHTMLFragmentContentSink,
+                                          nsIContentSink)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsHTMLFragmentContentSink,
+                                           nsIContentSink)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsHTMLFragmentContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIFragmentContentSink)
@@ -1172,8 +1174,7 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                             0, PR_FALSE);
           // Mark the sheet as complete.
           if (NS_SUCCEEDED(rv)) {
-            NS_ABORT_IF_FALSE(!sheet->IsModified(),
-                              "should not get marked modified during parsing");
+            sheet->SetModified(PR_FALSE);
             sheet->SetComplete();
           }
           if (NS_SUCCEEDED(rv)) {
@@ -1186,7 +1187,11 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                 continue;
               NS_ASSERTION(rule, "We should have a rule by now");
               switch (rule->GetType()) {
-                default:
+                case nsICSSRule::UNKNOWN_RULE:
+                case nsICSSRule::CHARSET_RULE:
+                case nsICSSRule::IMPORT_RULE:
+                case nsICSSRule::MEDIA_RULE:
+                case nsICSSRule::PAGE_RULE:
                   didSanitize = PR_TRUE;
                   // Ignore these rule types.
                   break;

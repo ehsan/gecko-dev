@@ -394,16 +394,16 @@ nsHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       for (PRUint32 i = 0, length = mControls->mElements.Length();
            i < length; ++i) {
-        doc->ContentStateChanged(mControls->mElements[i],
-                                 NS_EVENT_STATE_MOZ_UI_VALID |
-                                 NS_EVENT_STATE_MOZ_UI_INVALID);
+        doc->ContentStatesChanged(mControls->mElements[i], nsnull,
+                                  NS_EVENT_STATE_MOZ_UI_VALID |
+                                  NS_EVENT_STATE_MOZ_UI_INVALID);
       }
 
       for (PRUint32 i = 0, length = mControls->mNotInElements.Length();
            i < length; ++i) {
-        doc->ContentStateChanged(mControls->mNotInElements[i],
-                                 NS_EVENT_STATE_MOZ_UI_VALID |
-                                 NS_EVENT_STATE_MOZ_UI_INVALID);
+        doc->ContentStatesChanged(mControls->mNotInElements[i], nsnull,
+                                  NS_EVENT_STATE_MOZ_UI_VALID |
+                                  NS_EVENT_STATE_MOZ_UI_INVALID);
       }
     }
   }
@@ -547,7 +547,7 @@ CollectOrphans(nsINode* aRemovalRoot, nsTArray<nsGenericHTMLFormElement*> aArray
         }
 
         if (doc) {
-          doc->ContentStateChanged(node, states);
+          doc->ContentStatesChanged(node, nsnull, states);
         }
 #ifdef DEBUG
         removed = PR_TRUE;
@@ -1234,7 +1234,7 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
 
     // Notify that the state of the previous default submit element has changed
     // if the element which is the default submit element has changed.  The new
-    // default submit element is responsible for its own ContentStateChanged
+    // default submit element is responsible for its own ContentStatesChanged
     // call.
     if (aNotify && oldDefaultSubmit &&
         oldDefaultSubmit != mDefaultSubmitElement) {
@@ -1242,7 +1242,8 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
       if (document) {
         MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
         nsCOMPtr<nsIContent> oldElement(do_QueryInterface(oldDefaultSubmit));
-        document->ContentStateChanged(oldElement, NS_EVENT_STATE_DEFAULT);
+        document->ContentStatesChanged(oldElement, nsnull,
+                                       NS_EVENT_STATE_DEFAULT);
       }
     }
   }
@@ -1379,8 +1380,8 @@ nsHTMLFormElement::HandleDefaultSubmitRemoval()
     nsIDocument* document = GetCurrentDoc();
     if (document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
-      document->ContentStateChanged(mDefaultSubmitElement,
-                                    NS_EVENT_STATE_DEFAULT);
+      document->ContentStatesChanged(mDefaultSubmitElement, nsnull,
+                                     NS_EVENT_STATE_DEFAULT);
     }
   }
 }
@@ -1753,7 +1754,7 @@ nsHTMLFormElement::CheckValidFormSubmission()
         nsIDocument* doc = GetCurrentDoc();
         if (doc) {
           /*
-           * We are going to call ContentStateChanged assuming elements want to
+           * We are going to call ContentStatesChanged assuming elements want to
            * be notified because we can't know.
            * Submissions shouldn't happen during parsing so it _should_ be safe.
            */
@@ -1770,9 +1771,9 @@ nsHTMLFormElement::CheckValidFormSubmission()
                 ->UpdateValidityUIBits(true);
             }
 
-            doc->ContentStateChanged(mControls->mElements[i],
-                                     NS_EVENT_STATE_MOZ_UI_VALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+            doc->ContentStatesChanged(mControls->mElements[i], nsnull,
+                                      NS_EVENT_STATE_MOZ_UI_VALID |
+                                      NS_EVENT_STATE_MOZ_UI_INVALID);
           }
 
           // Because of backward compatibility, <input type='image'> is not in
@@ -1780,9 +1781,9 @@ nsHTMLFormElement::CheckValidFormSubmission()
           // TODO: should probably be removed when bug 606491 will be fixed.
           for (PRUint32 i = 0, length = mControls->mNotInElements.Length();
                i < length; ++i) {
-            doc->ContentStateChanged(mControls->mNotInElements[i],
-                                     NS_EVENT_STATE_MOZ_UI_VALID |
-                                     NS_EVENT_STATE_MOZ_UI_INVALID);
+            doc->ContentStatesChanged(mControls->mNotInElements[i], nsnull,
+                                      NS_EVENT_STATE_MOZ_UI_VALID |
+                                      NS_EVENT_STATE_MOZ_UI_INVALID);
           }
         }
       }
@@ -1837,7 +1838,7 @@ nsHTMLFormElement::UpdateValidity(PRBool aElementValidity)
   }
 
   /*
-   * We are going to call ContentStateChanged assuming submit controls want to
+   * We are going to call ContentStatesChanged assuming submit controls want to
    * be notified because we can't know.
    * UpdateValidity shouldn't be called so much during parsing so it _should_
    * be safe.
@@ -1849,8 +1850,8 @@ nsHTMLFormElement::UpdateValidity(PRBool aElementValidity)
   for (PRUint32 i = 0, length = mControls->mElements.Length();
        i < length; ++i) {
     if (mControls->mElements[i]->IsSubmitControl()) {
-      doc->ContentStateChanged(mControls->mElements[i],
-                               NS_EVENT_STATE_MOZ_SUBMITINVALID);
+      doc->ContentStatesChanged(mControls->mElements[i], nsnull,
+                                NS_EVENT_STATE_MOZ_SUBMITINVALID);
     }
   }
 
@@ -1859,8 +1860,8 @@ nsHTMLFormElement::UpdateValidity(PRBool aElementValidity)
   PRUint32 length = mControls->mNotInElements.Length();
   for (PRUint32 i = 0; i < length; ++i) {
     if (mControls->mNotInElements[i]->IsSubmitControl()) {
-      doc->ContentStateChanged(mControls->mNotInElements[i],
-                               NS_EVENT_STATE_MOZ_SUBMITINVALID);
+      doc->ContentStatesChanged(mControls->mNotInElements[i], nsnull,
+                                NS_EVENT_STATE_MOZ_SUBMITINVALID);
     }
   }
 }
@@ -2055,6 +2056,8 @@ nsHTMLFormElement::WalkRadioGroup(const nsAString& aName,
 {
   nsresult rv = NS_OK;
 
+  PRBool stopIterating = PR_FALSE;
+
   if (aName.IsEmpty()) {
     //
     // XXX If the name is empty, it's not stored in the control list.  There
@@ -2069,7 +2072,8 @@ nsHTMLFormElement::WalkRadioGroup(const nsAString& aName,
         if (controlContent) {
           if (controlContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
                                           EmptyString(), eCaseMatters)) {
-            if (!aVisitor->Visit(control)) {
+            aVisitor->Visit(control, &stopIterating);
+            if (stopIterating) {
               break;
             }
           }
@@ -2091,7 +2095,7 @@ nsHTMLFormElement::WalkRadioGroup(const nsAString& aName,
       nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(item));
       if (formControl) {
         if (formControl->GetType() == NS_FORM_INPUT_RADIO) {
-          aVisitor->Visit(formControl);
+          aVisitor->Visit(formControl, &stopIterating);
         }
       } else {
         nsCOMPtr<nsIDOMNodeList> nodeList(do_QueryInterface(item));
@@ -2104,7 +2108,8 @@ nsHTMLFormElement::WalkRadioGroup(const nsAString& aName,
             nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(node));
             if (formControl) {
               if (formControl->GetType() == NS_FORM_INPUT_RADIO) {
-                if (!aVisitor->Visit(formControl)) {
+                aVisitor->Visit(formControl, &stopIterating);
+                if (stopIterating) {
                   break;
                 }
               }
@@ -2289,8 +2294,8 @@ NS_INTERFACE_TABLE_HEAD(nsFormControlList)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFormControlList)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFormControlList)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFormControlList, nsIHTMLCollection)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFormControlList, nsIHTMLCollection)
 
 
 // nsIDOMHTMLCollection interface

@@ -225,7 +225,6 @@ AndroidAddress::CreateGeoPositionAddress(JNIEnv *jenv, jobject jobj)
     nsJNIString postalCode(static_cast<jstring>(jenv->CallObjectMethod(jobj, jGetPostalCodeMethod)), jenv);
     nsJNIString region(static_cast<jstring>(jenv->CallObjectMethod(jobj, jGetAdminAreaMethod, 0)), jenv);
 
-#ifdef DEBUG
     printf_stderr("!!!!!!!!!!!!!! AndroidAddress::CreateGeoPositionAddress:\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n",
                   NS_LossyConvertUTF16toASCII(streetNumber).get(),
                   NS_LossyConvertUTF16toASCII(street).get(),
@@ -236,7 +235,6 @@ AndroidAddress::CreateGeoPositionAddress(JNIEnv *jenv, jobject jobj)
                   NS_LossyConvertUTF16toASCII(country).get(),
                   NS_LossyConvertUTF16toASCII(countryCode).get(),
                   NS_LossyConvertUTF16toASCII(postalCode).get());
-#endif
 
     return new nsGeoPositionAddress(streetNumber,
                                     street,

@@ -54,8 +54,6 @@ const TYPE_INT_32 = 0;
 const TYPE_DOUBLE = 1;
 const TYPE_STRING = 2;
 
-const EXCEPTION_TABLE_NAME = "exceptions";
-
 function ExperimentDataStore(fileName, tableName, columns) {
   this._init(fileName, tableName, columns);
 }
@@ -89,17 +87,9 @@ ExperimentDataStore.prototype = {
                   + schemaClauses.join(", ") + ");";
     // CreateTable creates the table only if it does not already exist:
     try {
-      DbUtils.createTable(this._connection, this._tableName, schema);
-    } catch(e) {
-      logger.warn("Error in createTable: " + e + "\n");
-    }
-
-    // Create a second table for storing exceptions for this study.  It has a fixed
-    // name and schema:
-    let exceptionTableSchema = "CREATE TABLE " + EXCEPTION_TABLE_NAME +
-      " (time INTEGER, trace TEXT);";
-    try {
-      DbUtils.createTable(this._connection, "exceptions", exceptionTableSchema);
+      this._connection = DbUtils.createTable(this._connection,
+                                             this._tableName,
+                                             schema);
     } catch(e) {
       logger.warn("Error in createTable: " + e + "\n");
     }
@@ -129,11 +119,14 @@ ExperimentDataStore.prototype = {
     for (i = 0; i < this._columns.length; i++) {
       let datum =  uiEvent[this._columns[i].property];
       switch (this._columns[i].type) {
-        case TYPE_INT_32: case TYPE_DOUBLE:
-          insStmt.params[i] = datum;
+        case TYPE_INT_32:
+          insStmt.bindInt32Parameter(i, datum);
+        break;
+        case TYPE_DOUBLE:
+          insStmt.bindDoubleParameter(i, datum);
         break;
         case TYPE_STRING:
-          insStmt.params[i] = sanitizeString(datum);
+          insStmt.bindUTF8StringParameter(i, sanitizeString(datum));
         break;
       }
     }
@@ -160,21 +153,8 @@ ExperimentDataStore.prototype = {
     insStmt.finalize();
   },
 
-  logException: function EDS_logException(exception) {
-    let insertSql = "INSERT INTO " + EXCEPTION_TABLE_NAME + " VALUES (?1, ?2);";
-    let insStmt =  this._createStatement(insertSql);
-    // Even though the SQL says ?1 and ?2, the param indices count from 0.
-    insStmt.params[0] = Date.now();
-    let txt = exception.message ? exception.message : exception.toString();
-    insStmt.params[1] = txt;
-    insStmt.executeAsync();
-    insStmt.finalize(); // TODO Is this the right thing to do when calling asynchronously?
-  },
-
   getJSONRows: function EDS_getJSONRows(callback) {
-    // TODO why do both this function and getAllDataAsJSON exist when they both do
-    // the same thing?
-    let selectSql = "SELECT * FROM " + this._tableName;
+        let selectSql = "SELECT * FROM " + this._tableName;
     let selStmt = this._createStatement(selectSql);
     let records = [];
     let self = this;
@@ -278,61 +258,33 @@ ExperimentDataStore.prototype = {
     selStmt.finalize();
   },
 
-  getExceptionsAsJson: function(callback) {
-    let selectSql = "SELECT * FROM " + EXCEPTION_TABLE_NAME;
-    let selStmt = this._createStatement(selectSql);
-    let records = [];
-    let self = this;
-
-    selStmt.executeAsync({
-      handleResult: function(aResultSet) {
-        for (let row = aResultSet.getNextRow(); row;
-             row = aResultSet.getNextRow()) {
-          records.push({ time: row.getDouble(0),
-                         exception: row.getString(1)});
-        }
-      },
-      handleError: function(aError) {
-        callback(records);
-      },
-      handleCompletion: function(aReason) {
-        callback(records);
-      }
-    });
-  },
-
   wipeAllData: function EDS_wipeAllData(callback) {
-    // Wipe both the data table and the exception table; call callback when both
-    // are wiped.
     let logger = Log4Moz.repository.getLogger("TestPilot.Database");
     logger.trace("ExperimentDataStore.wipeAllData called.\n");
-    let wipeDataStmt = this._createStatement("DELETE FROM " + this._tableName);
-    let wipeExcpStmt = this._createStatement("DELETE FROM " + EXCEPTION_TABLE_NAME);
-
-    let numberWiped = 0;
-    let onComplete = function() {
-      numberWiped ++;
-      if (numberWiped == 2 && callback) {
-        callback();
-      }
-    };
-    wipeDataStmt.executeAsync({
-      handleResult: function(aResultSet) {},
-      handleError: function(aError) { onComplete(); },
+    let wipeSql = "DELETE FROM " + this._tableName;
+    let wipeStmt = this._createStatement(wipeSql);
+    wipeStmt.executeAsync({
+      handleResult: function(aResultSet) {
+      },
+      handleError: function(aError) {
+        if (callback) {
+          callback(false);
+        }
+      },
       handleCompletion: function(aReason) {
         if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
           logger.trace("ExperimentDataStore.wipeAllData complete.\n");
+          if (callback) {
+            callback(true);
+          }
+        } else {
+          if (callback) {
+            callback(false);
+          }
         }
-        onComplete();
       }
     });
-    wipeExcpStmt.executeAsync({
-      handleResult: function(aResultSet) {},
-      handleError: function(aError) {  onComplete(); },
-      handleCompletion: function(aReason) { onComplete(); }
-    });
-    wipeDataStmt.finalize();
-    wipeExcpStmt.finalize();
+    wipeStmt.finalize();
   },
 
   nukeTable: function EDS_nukeTable() {

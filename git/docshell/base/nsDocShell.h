@@ -338,8 +338,7 @@ protected:
 
     // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.
-    nsresult StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
-                                   nsAString &aResult);
+    nsresult StringifyJSValVariant(nsIVariant *aData, nsAString &aResult);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
@@ -357,13 +356,10 @@ protected:
     // In all other cases PR_FALSE is returned.
     // Either aChannel or aOwner must be null.  If aChannel is
     // present, the owner should be gotten from it.
-    // If OnNewURI calls AddToSessionHistory, it will pass its
-    // aCloneSHChildren argument as aCloneChildren.
     PRBool OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
                     PRUint32 aLoadType,
                     PRBool aFireOnLocationChange,
-                    PRBool aAddToGlobalHistory,
-                    PRBool aCloneSHChildren);
+                    PRBool aAddToGlobalHistory = PR_TRUE);
 
     virtual void SetReferrerURI(nsIURI * aURI);
 
@@ -371,16 +367,10 @@ protected:
     virtual PRBool ShouldAddToSessionHistory(nsIURI * aURI);
     // Either aChannel or aOwner must be null.  If aChannel is
     // present, the owner should be gotten from it.
-    // If aCloneChildren is true, then our current session history's
-    // children will be cloned onto the new entry.  This should be
-    // used when we aren't actually changing the document while adding
-    // the new session history entry.
     virtual nsresult AddToSessionHistory(nsIURI * aURI, nsIChannel * aChannel,
                                          nsISupports* aOwner,
-                                         PRBool aCloneChildren,
                                          nsISHEntry ** aNewEntry);
-    nsresult DoAddChildSHEntry(nsISHEntry* aNewEntry, PRInt32 aChildOffset,
-                               PRBool aCloneChildren);
+    nsresult DoAddChildSHEntry(nsISHEntry* aNewEntry, PRInt32 aChildOffset);
 
     NS_IMETHOD LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType);
     NS_IMETHOD PersistLayoutHistoryState();

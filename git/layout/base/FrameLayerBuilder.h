@@ -59,9 +59,7 @@ enum LayerState {
   LAYER_ACTIVE,
   // Force an active layer even if it causes incorrect rendering, e.g.
   // when the layer has rounded rect clips.
-  LAYER_ACTIVE_FORCE,
-  // Special layer that is metadata only.
-  LAYER_ACTIVE_EMPTY
+  LAYER_ACTIVE_FORCE
 };
 
 /**
@@ -224,9 +222,7 @@ public:
   /**
    * Record aItem as a display item that is rendered by aLayer.
    */
-  void AddLayerDisplayItem(Layer* aLayer,
-                           nsDisplayItem* aItem,
-                           LayerState aLayerState = LAYER_ACTIVE);
+  void AddLayerDisplayItem(Layer* aLayer, nsDisplayItem* aItem);
 
   /**
    * Record aItem as a display item that is rendered by the ThebesLayer
@@ -372,12 +368,11 @@ protected:
    */
   class DisplayItemData {
   public:
-    DisplayItemData(Layer* aLayer, PRUint32 aKey, LayerState aLayerState)
-      : mLayer(aLayer), mDisplayItemKey(aKey), mLayerState(aLayerState) {}
+    DisplayItemData(Layer* aLayer, PRUint32 aKey)
+      : mLayer(aLayer), mDisplayItemKey(aKey) {}
 
     nsRefPtr<Layer> mLayer;
     PRUint32        mDisplayItemKey;
-    LayerState    mLayerState;
   };
 
   static void InternalDestroyDisplayItemData(nsIFrame* aFrame,
@@ -407,7 +402,7 @@ protected:
       NS_ERROR("Should never be called, since we ALLOW_MEMMOVE");
     }
 
-    PRBool HasNonEmptyContainerLayer();
+    PRBool HasContainerLayer();
 
     nsTArray<DisplayItemData> mData;
 

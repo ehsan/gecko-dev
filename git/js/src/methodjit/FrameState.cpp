@@ -62,7 +62,7 @@ FrameState::FrameState(JSContext *cx, JSScript *script, JSFunction *fun, Assembl
 
 FrameState::~FrameState()
 {
-    cx->free_(entries);
+    cx->free(entries);
 }
 
 bool
@@ -86,7 +86,7 @@ FrameState::init()
                          ? 0
                          : sizeof(JSPackedBool) * nargs);                   // closedArgs[]
 
-    uint8 *cursor = (uint8 *)cx->calloc_(totalBytes);
+    uint8 *cursor = (uint8 *)cx->calloc(totalBytes);
     if (!cursor)
         return false;
 

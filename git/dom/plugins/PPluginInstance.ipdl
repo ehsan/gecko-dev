@@ -157,8 +157,6 @@ parent:
     returns (NPError result);
   rpc NPN_SetValue_NPPVpluginTransparent(bool transparent)
     returns (NPError result);
-  rpc NPN_SetValue_NPPVpluginUsesDOMForCursor(bool useDOMForCursor)
-    returns (NPError result);
   rpc NPN_SetValue_NPPVpluginDrawingModel(int drawingModel)
     returns (NPError result);
   rpc NPN_SetValue_NPPVpluginEventModel(int eventModel)

@@ -1886,8 +1886,6 @@ if test "$_python_res" != 0; then
 fi
 AC_MSG_RESULT([yes])
 
-MOZ_DOING_LTO(lto_is_enabled)
-
 dnl ========================================================
 dnl System overrides of the defaults for target
 dnl ========================================================
@@ -1992,11 +1990,9 @@ case "$target" in
     # builds.
     MOZ_DEBUG_LDFLAGS="$MOZ_DEBUG_LDFLAGS -framework ExceptionHandling"
 
-    if test "x$lto_is_enabled" = "xyes"; then
-        echo "Skipping -dead_strip because lto is enabled."
     dnl DTrace and -dead_strip don't interact well. See bug 403132.
     dnl ===================================================================
-    elif test "x$enable_dtrace" = "xyes"; then
+    if test "x$enable_dtrace" = "xyes"; then
         echo "Skipping -dead_strip because DTrace is enabled. See bug 403132."
     else
         dnl check for the presence of the -dead_strip linker flag
@@ -2668,6 +2664,7 @@ alpha*-*-osf*)
                        ,
                        [LDFLAGS=$_SAVE_LDFLAGS])
        fi
+       WARNINGS_AS_ERRORS='-Werror'
        MOZ_OPTIMIZE_FLAGS="-xO4"
        MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
        MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_FLAGS) $(DSO_LDOPTS) -h $@ -o $@'
@@ -2717,7 +2714,6 @@ alpha*-*-osf*)
        MKSHLIB_UNFORCE_ALL='-Wl,-z -Wl,defaultextract'
        ASFLAGS="$ASFLAGS -fPIC"
        DSO_LDOPTS='-shared'
-       WARNINGS_AS_ERRORS='-Werror'
        _WARNINGS_CFLAGS=''
        _WARNINGS_CXXFLAGS=''
        if test "$OS_RELEASE" = "5.3"; then
@@ -3390,16 +3386,7 @@ case $target in
 esac
 
 dnl Performance measurement headers.
-AC_CHECK_HEADER(linux/perf_event.h,
-    [AC_CACHE_CHECK(for perf_event_open system call,ac_cv_perf_event_open,
-        [AC_TRY_COMPILE([#include <sys/syscall.h>],[return sizeof(__NR_perf_event_open);],
-        ac_cv_perf_event_open=yes,
-        ac_cv_perf_event_open=no)])])
-if test "$ac_cv_perf_event_open" = "yes"; then
-    HAVE_LINUX_PERF_EVENT_H=1
-else
-    HAVE_LINUX_PERF_EVENT_H=
-fi
+AC_CHECK_HEADER(linux/perf_event.h, HAVE_LINUX_PERF_EVENT_H=1)
 AC_SUBST(HAVE_LINUX_PERF_EVENT_H)
 
 dnl Checks for libraries.
@@ -4783,17 +4770,6 @@ if test "$MOZ_DISABLE_WARNINGS_AS_ERRORS"; then
    WARNINGS_AS_ERRORS=''
 fi
 
-dnl ========================================================
-dnl = Enable treating compile warnings as errors
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(sm-fail-on-warnings,
-[  --enable-sm-fail-on-warnings
-                          Enable warnings as errors],
-    FAIL_ON_WARNINGS=1,
-    FAIL_ON_WARNINGS= )
-
-AC_SUBST(FAIL_ON_WARNINGS)
-
 dnl = Enable trace malloc
 dnl ========================================================
 NS_TRACE_MALLOC=${MOZ_TRACE_MALLOC}
@@ -6008,6 +5984,9 @@ if test "$JS_HAS_CTYPES"; then
   fi
   if test "$CROSS_COMPILE"; then
     case "$target" in
+    *-mingw*)
+      ac_configure_args="$ac_configure_args --build=$build --host=${target_cpu}-${target_os} HOST_CC=\"$HOST_CC\" CC=\"$CC\""
+      ;;
     *-android*)
       CFLAGS="$ANDROID_CFLAGS"
       CPPFLAGS="$ANDROID_CPPFLAGS"
