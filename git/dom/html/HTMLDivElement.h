@@ -27,9 +27,9 @@ public:
   // nsIDOMHTMLDivElement
   NS_IMETHOD GetAlign(nsAString& aAlign) MOZ_OVERRIDE
   {
-    DOMString align;
+    nsString align;
     GetAlign(align);
-    align.ToString(aAlign);
+    aAlign = align;
     return NS_OK;
   }
   NS_IMETHOD SetAlign(const nsAString& aAlign) MOZ_OVERRIDE
@@ -39,7 +39,7 @@ public:
     return rv.ErrorCode();
   }
 
-  void GetAlign(DOMString& aAlign)
+  void GetAlign(nsString& aAlign)
   {
     GetHTMLAttr(nsGkAtoms::align, aAlign);
   }

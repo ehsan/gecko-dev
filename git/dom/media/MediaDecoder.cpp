@@ -144,7 +144,6 @@ void MediaDecoder::UpdateDormantState(bool aDormantTimeout, bool aActivity)
   if (!mDecoderStateMachine ||
       mPlayState == PLAY_STATE_SHUTDOWN ||
       !mOwner->GetVideoFrameContainer() ||
-      (mOwner->GetMediaElement() && mOwner->GetMediaElement()->IsBeingDestroyed()) ||
       !mDecoderStateMachine->IsDormantNeeded())
   {
     return;
@@ -985,8 +984,8 @@ bool MediaDecoder::IsSameOriginMedia()
 bool MediaDecoder::IsSeeking() const
 {
   MOZ_ASSERT(NS_IsMainThread());
-  return !mIsDormant && (mPlayState == PLAY_STATE_SEEKING ||
-    (mPlayState == PLAY_STATE_LOADING && mRequestedSeekTarget.IsValid()));
+  return mPlayState == PLAY_STATE_SEEKING ||
+    (mPlayState == PLAY_STATE_LOADING && mRequestedSeekTarget.IsValid());
 }
 
 bool MediaDecoder::IsEnded() const

@@ -13,7 +13,7 @@
 #include "nsContentCID.h"
 #include "nsServiceManagerUtils.h"
 #include "MainThreadUtils.h"
-#include "mozilla/EMEUtils.h"
+#include "EMELog.h"
 
 namespace mozilla {
 

@@ -195,8 +195,6 @@ public:
 
   void SendPing() MOZ_OVERRIDE;
 
-  bool MaybeReTunnel(nsAHttpTransaction *) MOZ_OVERRIDE;
-
 private:
 
   enum stateType {
@@ -417,7 +415,6 @@ private:
 private:
 /// connect tunnels
   void DispatchOnTunnel(nsAHttpTransaction *, nsIInterfaceRequestor *);
-  void CreateTunnel(nsHttpTransaction *, nsHttpConnectionInfo *, nsIInterfaceRequestor *);
   void RegisterTunnel(SpdyStream31 *);
   void UnRegisterTunnel(SpdyStream31 *);
   uint32_t FindTunnelCount(nsHttpConnectionInfo *);

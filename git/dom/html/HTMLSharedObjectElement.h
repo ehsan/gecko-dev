@@ -32,11 +32,6 @@ public:
 
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
-#ifdef XP_MACOSX
-  // nsIDOMEventTarget
-  NS_IMETHOD PostHandleEvent(EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-#endif
-
   // nsIDOMHTMLAppletElement
   NS_DECL_NSIDOMHTMLAPPLETELEMENT
 
@@ -211,7 +206,7 @@ private:
   // always true for <embed>, per the documentation in nsIContent.h.
   bool mIsDoneAddingChildren;
 
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;

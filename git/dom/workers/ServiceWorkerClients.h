@@ -9,14 +9,16 @@
 
 #include "nsAutoPtr.h"
 #include "nsWrapperCache.h"
-
 #include "mozilla/dom/WorkerScope.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/ClientsBinding.h"
-#include "mozilla/ErrorResult.h"
 
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
+
+class Promise;
+
 namespace workers {
 
 class ServiceWorkerClients MOZ_FINAL : public nsISupports,
@@ -28,14 +30,12 @@ public:
 
   explicit ServiceWorkerClients(ServiceWorkerGlobalScope* aWorkerScope);
 
-  already_AddRefed<Promise>
-  MatchAll(const ClientQueryOptions& aOptions, ErrorResult& aRv);
+  already_AddRefed<Promise> GetServiced(ErrorResult& aRv);
+  already_AddRefed<Promise> ReloadAll(ErrorResult& aRv);
 
-  JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
-  ServiceWorkerGlobalScope*
-  GetParentObject() const
+  ServiceWorkerGlobalScope* GetParentObject() const
   {
     return mWorkerScope;
   }

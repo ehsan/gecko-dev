@@ -17,7 +17,6 @@
             title="&fontsDialog.title;"
             dlgbuttons="accept,cancel,help"
             ondialoghelp="openPrefsHelp()"
-            onbeforeaccept="return gFontsDialog.onBeforeAccept();"
             style="">
 
   <script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>

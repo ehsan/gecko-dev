@@ -188,7 +188,6 @@ function MarionetteServerConnection(aPrefix, aTransport, aServer)
   };
 
   this.observing = null;
-  this._browserIds = new WeakMap();
 }
 
 MarionetteServerConnection.prototype = {
@@ -1433,33 +1432,6 @@ MarionetteServerConnection.prototype = {
     }
   },
 
-  /**
-   * Retrieves a listener id for the given xul browser element. In case
-   * the browser is not known, an attempt is made to retrieve the id from
-   * a CPOW, and null is returned if this fails.
-   */
-  getIdForBrowser: function (browser) {
-    if (browser === null) {
-      return null;
-    }
-    let permKey = browser.permanentKey;
-    if (this._browserIds.has(permKey)) {
-      return this._browserIds.get(permKey);
-    }
-
-    let contentWindow = browser.contentWindowAsCPOW;
-    if (contentWindow !== null && !Cu.isDeadWrapper(contentWindow)) {
-      let winId = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIDOMWindowUtils)
-                               .outerWindowID;
-      if (winId) {
-        winId += "";
-        this._browserIds.set(permKey, winId);
-        return winId;
-      }
-    }
-    return null;
-  },
 
   /**
    * Get a list of top-level browsing contexts. On desktop this typically
@@ -1479,8 +1451,12 @@ MarionetteServerConnection.prototype = {
       if (win.gBrowser && appName != 'B2G') {
         let tabbrowser = win.gBrowser;
         for (let i = 0; i < tabbrowser.browsers.length; ++i) {
-          let winId = this.getIdForBrowser(tabbrowser.getBrowserAtIndex(i));
-          if (winId !== null) {
+          let contentWindow = tabbrowser.getBrowserAtIndex(i).contentWindowAsCPOW;
+          if (contentWindow !== null) {
+            let winId = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                     .getInterface(Ci.nsIDOMWindowUtils)
+                                     .outerWindowID;
+            winId += (appName == "B2G") ? "-b2g" : "";
             res.push(winId);
           }
         }
@@ -1620,11 +1596,15 @@ MarionetteServerConnection.prototype = {
       if (win.gBrowser && appName != 'B2G') {
         let tabbrowser = win.gBrowser;
         for (let i = 0; i < tabbrowser.browsers.length; ++i) {
-          let browser = tabbrowser.getBrowserAtIndex(i);
-          let contentWindowId = this.getIdForBrowser(browser);
-          if (contentWindowId !== null &&
-              checkWindow.call(this, win, outerId, contentWindowId, i)) {
-            return;
+          let contentWindow = tabbrowser.getBrowserAtIndex(i).contentWindowAsCPOW;
+          if (contentWindow) {
+            let contentWindowId = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                               .getInterface(Ci.nsIDOMWindowUtils)
+                                               .outerWindowID;
+            contentWindowId += (appName == "B2G") ? "-b2g" : "";
+            if (checkWindow.call(this, win, outerId, contentWindowId, i)) {
+              return;
+            }
           }
         }
       } else {
@@ -3181,8 +3161,8 @@ MarionetteServerConnection.prototype = {
         let mainContent = (this.curBrowser.mainContentId == null);
         if (!browserType || browserType != "content") {
           //curBrowser holds all the registered frames in knownFrames
-          let listenerId = this.generateFrameId(message.json.value);
-          reg.id = this.curBrowser.register(listenerId);
+          let listenerId = message.json.value;
+          reg.id = this.curBrowser.register(this.generateFrameId(listenerId), listenerId);
         }
         // set to true if we updated mainContentId
         mainContent = ((mainContent == true) && (this.curBrowser.mainContentId != null));
@@ -3338,7 +3318,6 @@ function BrowserObj(win, server) {
 
   //register all message listeners
   this.frameManager.addMessageManagerListeners(server.messageManager);
-  this.getIdForBrowser = server.getIdForBrowser.bind(server);
 }
 
 BrowserObj.prototype = {
@@ -3424,21 +3403,25 @@ BrowserObj.prototype = {
    *
    * @param string uid
    *        frame uid for use by marionette
+   * @param number id
+   *        incoming window id assigned by gecko
    */
-  register: function BO_register(uid) {
+  register: function BO_register(uid, id) {
     if (this.curFrameId == null) {
       let currWinId = null;
       if (this.browser) {
         // If we're setting up a new session on Firefox, we only process the
         // registration for this frame if it belongs to the tab we've just
         // created.
-        let browser = this.browser.getBrowserForTab(this.tab);
-        currWinId = this.getIdForBrowser(browser);
+        let winAsCPOW = this.browser.getBrowserForTab(this.tab).contentWindowAsCPOW;
+        currWinId = winAsCPOW.QueryInterface(Ci.nsIInterfaceRequestor)
+                             .getInterface(Ci.nsIDOMWindowUtils)
+                             .outerWindowID;
       }
       if ((!this.newSession) ||
           (this.newSession &&
             ((appName != "Firefox") ||
-             uid === currWinId))) {
+             id === currWinId))) {
         this.curFrameId = uid;
         this.mainContentId = uid;
       }

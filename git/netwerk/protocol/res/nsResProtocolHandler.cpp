@@ -288,13 +288,22 @@ nsResProtocolHandler::NewChannel2(nsIURI* uri,
     nsresult rv = ResolveURI(uri, spec);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    // Bug 1087720 (and Bug 1099296):
+    // Once all callsites have been updated to call NewChannel2() instead of NewChannel()
+    // we should have a non-null loadInfo consistently. Until then we have to branch on the
+    // loadInfo.
     nsCOMPtr<nsIURI> newURI;
     rv = NS_NewURI(getter_AddRefs(newURI), spec);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = NS_NewChannelInternal(result,
-                               newURI,
-                               aLoadInfo);
+    if (aLoadInfo) {
+        rv = NS_NewChannelInternal(result,
+                                   newURI,
+                                   aLoadInfo);
+    }
+    else {
+        rv = mIOService->NewChannelFromURI(newURI, result);
+    }
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsLoadFlags loadFlags = 0;

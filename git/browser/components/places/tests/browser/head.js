@@ -43,31 +43,17 @@ function openLibrary(callback, aLeftPaneRoot) {
  *        Hierarchy to open and select in the left pane.
  */
 function promiseLibrary(aLeftPaneRoot) {
-  return new Promise(resolve => {
-    let library = Services.wm.getMostRecentWindow("Places:Organizer");
-    if (library && !library.closed) {
-      if (aLeftPaneRoot) {
-        library.PlacesOrganizer.selectLeftPaneContainerByHierarchy(aLeftPaneRoot);
-      }
-      resolve(library);
-    }
-    else {
-      openLibrary(resolve, aLeftPaneRoot);
-    }
-  });
-}
-
-function promiseLibraryClosed(organizer) {
-  return new Promise(resolve => {
-    // Wait for the Organizer window to actually be closed
-    organizer.addEventListener("unload", function onUnload() {
-      organizer.removeEventListener("unload", onUnload);
-      resolve();
-    });
-
-    // Close Library window.
-    organizer.close();
-  });
+  let deferred = Promise.defer();
+  let library = Services.wm.getMostRecentWindow("Places:Organizer");
+  if (library && !library.closed) {
+    if (aLeftPaneRoot)
+      library.PlacesOrganizer.selectLeftPaneContainerByHierarchy(aLeftPaneRoot);
+    deferred.resolve(library);
+  }
+  else {
+    openLibrary(aLibrary => deferred.resolve(aLibrary), aLeftPaneRoot);
+  }
+  return deferred.promise;
 }
 
 /**
@@ -81,9 +67,12 @@ function promiseLibraryClosed(organizer) {
  *        Data flavor to expect.
  */
 function promiseClipboard(aPopulateClipboardFn, aFlavor) {
-  return new Promise(resolve => {
-    waitForClipboard(data => !!data, aPopulateClipboardFn, resolve, aFlavor);
-  });
+  let deferred = Promise.defer();
+  waitForClipboard(function (aData) !!aData,
+                   aPopulateClipboardFn,
+                   function () { deferred.resolve(); },
+                   aFlavor);
+  return deferred.promise;
 }
 
 /**

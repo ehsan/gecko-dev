@@ -67,7 +67,28 @@ public:
   {
   }
 
-  already_AddRefed<InternalRequest> Clone();
+  explicit InternalRequest(const InternalRequest& aOther)
+    : mMethod(aOther.mMethod)
+    , mURL(aOther.mURL)
+    , mHeaders(aOther.mHeaders)
+    , mBodyStream(aOther.mBodyStream)
+    , mContentPolicyType(aOther.mContentPolicyType)
+    , mReferrer(aOther.mReferrer)
+    , mMode(aOther.mMode)
+    , mCredentialsMode(aOther.mCredentialsMode)
+    , mResponseTainting(aOther.mResponseTainting)
+    , mCacheMode(aOther.mCacheMode)
+    , mAuthenticationFlag(aOther.mAuthenticationFlag)
+    , mForceOriginHeader(aOther.mForceOriginHeader)
+    , mPreserveContentCodings(aOther.mPreserveContentCodings)
+    , mSameOriginDataURL(aOther.mSameOriginDataURL)
+    , mSandboxedStorageAreaURLs(aOther.mSandboxedStorageAreaURLs)
+    , mSkipServiceWorker(aOther.mSkipServiceWorker)
+    , mSynchronous(aOther.mSynchronous)
+    , mUnsafeRequest(aOther.mUnsafeRequest)
+    , mUseURLCredentials(aOther.mUseURLCredentials)
+  {
+  }
 
   void
   GetMethod(nsCString& aMethod) const
@@ -272,9 +293,6 @@ public:
   GetRequestConstructorCopy(nsIGlobalObject* aGlobal, ErrorResult& aRv) const;
 
 private:
-  // Does not copy mBodyStream.  Use fallible Clone() for complete copy.
-  explicit InternalRequest(const InternalRequest& aOther);
-
   ~InternalRequest();
 
   nsCString mMethod;

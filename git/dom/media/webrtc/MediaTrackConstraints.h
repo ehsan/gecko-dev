@@ -9,7 +9,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
-#include "mozilla/dom/MediaTrackConstraintSetBinding.h"
 
 namespace mozilla {
 
@@ -19,8 +18,8 @@ static const char* EnumToASCII(const EnumValuesStrings& aStrings, Enum aValue) {
 }
 
 template<class EnumValuesStrings, class Enum>
-static Enum StringToEnum(const EnumValuesStrings& aStrings,
-                         const nsAString& aValue, Enum aDefaultValue) {
+static Enum StringToEnum(const EnumValuesStrings& aStrings, const nsAString& aValue,
+                         Enum aDefaultValue) {
   for (size_t i = 0; aStrings[i].value; i++) {
     if (aValue.EqualsASCII(aStrings[i].value)) {
       return Enum(i);
@@ -29,57 +28,101 @@ static Enum StringToEnum(const EnumValuesStrings& aStrings,
   return aDefaultValue;
 }
 
-// Helper classes for orthogonal constraints without interdependencies.
-// Instead of constraining values, constrain the constraints themselves.
+// Normalized internal version of MediaTrackConstraints to simplify downstream
+// processing. This implementation-only helper is included as needed by both
+// MediaManager (for gUM camera selection) and MediaEngine (for applyConstraints).
 
-struct NormalizedConstraintSet
+template<typename T>
+class MediaTrackConstraintsN : public dom::MediaTrackConstraints
 {
-  template<class ValueType>
-  struct Range
+public:
+  typedef T Kind;
+  dom::Sequence<Kind> mRequireN;
+  bool mUnsupportedRequirement;
+  MediaTrackConstraintSet mRequired;
+  dom::Sequence<MediaTrackConstraintSet> mNonrequired;
+  dom::MediaSourceEnum mMediaSourceEnumValue;
+
+  MediaTrackConstraintsN(const dom::MediaTrackConstraints &aOther,
+                         const dom::EnumEntry* aStrings)
+  : dom::MediaTrackConstraints(aOther)
+  , mUnsupportedRequirement(false)
+  , mStrings(aStrings)
   {
-    ValueType mMin, mMax;
-    dom::Optional<ValueType> mIdeal;
-
-    Range(ValueType aMin, ValueType aMax) : mMin(aMin), mMax(aMax) {}
-
-    template<class ConstrainRange>
-    void SetFrom(const ConstrainRange& aOther);
-    ValueType Clamp(ValueType n) const { return std::max(mMin, std::min(n, mMax)); }
-    bool Intersects(const Range& aOther) const {
-      return mMax >= aOther.mMin && mMin <= aOther.mMax;
+    if (mRequire.WasPassed()) {
+      auto& array = mRequire.Value();
+      for (size_t i = 0; i < array.Length(); i++) {
+        auto value = StringToEnum(mStrings, array[i], Kind::Other);
+        if (value != Kind::Other) {
+          mRequireN.AppendElement(value);
+        } else {
+          mUnsupportedRequirement = true;
+        }
+      }
     }
-    void Intersect(const Range& aOther) {
-      MOZ_ASSERT(Intersects(aOther));
-      mMin = std::max(mMin, aOther.mMin);
-      mMax = std::min(mMax, aOther.mMax);
+    // treat MediaSource special because it's always required
+    mRequired.mMediaSource = mMediaSource;
+
+    mMediaSourceEnumValue = StringToEnum(dom::MediaSourceEnumValues::strings,
+                                         mMediaSource,
+                                         dom::MediaSourceEnum::Other);
+    if (mAdvanced.WasPassed()) {
+      if(mMediaSourceEnumValue != dom::MediaSourceEnum::Camera) {
+        // iterate through advanced, forcing mediaSource to match "root"
+        auto& array = mAdvanced.Value();
+        for (uint32_t i = 0; i < array.Length(); i++) {
+          auto& ms = array[i].mMediaSource;
+          if (ms.EqualsASCII(EnumToASCII(dom::MediaSourceEnumValues::strings,
+                                         dom::MediaSourceEnum::Camera))) {
+            ms = mMediaSource;
+          }
+        }
+      }
     }
-  };
-
-  struct LongRange : public Range<int32_t>
-  {
-    LongRange(const dom::OwningLongOrConstrainLongRange& aOther, bool advanced);
-  };
-
-  struct DoubleRange : public Range<double>
-  {
-    DoubleRange(const dom::OwningDoubleOrConstrainDoubleRange& aOther,
-                bool advanced);
-  };
-
-  // Do you need to add your constraint here? Only if your code uses flattening
-  LongRange mWidth, mHeight;
-  DoubleRange mFrameRate;
-
-  NormalizedConstraintSet(const dom::MediaTrackConstraintSet& aOther,
-                          bool advanced)
-  : mWidth(aOther.mWidth, advanced)
-  , mHeight(aOther.mHeight, advanced)
-  , mFrameRate(aOther.mFrameRate, advanced) {}
+  }
+protected:
+  MediaTrackConstraintSet& Triage(const Kind kind) {
+    if (mRequireN.IndexOf(kind) != mRequireN.NoIndex) {
+      return mRequired;
+    } else {
+      mNonrequired.AppendElement(MediaTrackConstraintSet());
+      return mNonrequired[mNonrequired.Length()-1];
+    }
+  }
+private:
+  const dom::EnumEntry* mStrings;
 };
 
-struct FlattenedConstraints : public NormalizedConstraintSet
+struct AudioTrackConstraintsN :
+  public MediaTrackConstraintsN<dom::SupportedAudioConstraints>
 {
-  explicit FlattenedConstraints(const dom::MediaTrackConstraints& aOther);
+  MOZ_IMPLICIT AudioTrackConstraintsN(const dom::MediaTrackConstraints &aOther)
+  : MediaTrackConstraintsN<dom::SupportedAudioConstraints>(aOther, // B2G ICS compiler bug
+                           dom::SupportedAudioConstraintsValues::strings) {}
+};
+
+struct VideoTrackConstraintsN :
+    public MediaTrackConstraintsN<dom::SupportedVideoConstraints>
+{
+  MOZ_IMPLICIT VideoTrackConstraintsN(const dom::MediaTrackConstraints &aOther)
+  : MediaTrackConstraintsN<dom::SupportedVideoConstraints>(aOther,
+                           dom::SupportedVideoConstraintsValues::strings) {
+    if (mFacingMode.WasPassed()) {
+      Triage(Kind::FacingMode).mFacingMode.Construct(mFacingMode.Value());
+    }
+    // Reminder: add handling for new constraints both here & SatisfyConstraintSet
+    Triage(Kind::Width).mWidth = mWidth;
+    Triage(Kind::Height).mHeight = mHeight;
+    Triage(Kind::FrameRate).mFrameRate = mFrameRate;
+    if (mBrowserWindow.WasPassed()) {
+      Triage(Kind::BrowserWindow).mBrowserWindow.Construct(mBrowserWindow.Value());
+    }
+    if (mScrollWithPage.WasPassed()) {
+      Triage(Kind::ScrollWithPage).mScrollWithPage.Construct(mScrollWithPage.Value());
+    }
+    // treat MediaSource special because it's always required
+    mRequired.mMediaSource = mMediaSource;
+  }
 };
 
 }

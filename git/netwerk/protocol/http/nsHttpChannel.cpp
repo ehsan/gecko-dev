@@ -791,10 +791,13 @@ nsHttpChannel::SetupTransaction()
     nsCOMPtr<nsIInterfaceRequestor> callbacks;
     NS_NewNotificationCallbacksAggregation(mCallbacks, mLoadGroup,
                                            getter_AddRefs(callbacks));
+    if (!callbacks)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     // create the transaction object
     mTransaction = new nsHttpTransaction();
-    LOG(("nsHttpChannel %p created nsHttpTransaction %p\n", this, mTransaction.get()));
+    if (!mTransaction)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
     if (mLoadFlags & LOAD_ANONYMOUS)
@@ -2851,15 +2854,6 @@ nsHttpChannel::CheckPartial(nsICacheEntry* aEntry, int64_t *aSize, int64_t *aCon
     return NS_OK;
 }
 
-void
-nsHttpChannel::UntieValidationRequest()
-{
-    // Make the request unconditional again.
-    mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
-    mRequestHead.ClearHeader(nsHttp::If_None_Match);
-    mRequestHead.ClearHeader(nsHttp::ETag);
-}
-
 NS_IMETHODIMP
 nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appCache,
                                  uint32_t* aResult)
@@ -3211,7 +3205,10 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
             // If we can't get the entity then we have to act as though we
             // don't have the cache entry.
             if (mDidReval) {
-                UntieValidationRequest();
+                // Make the request unconditional again.
+                mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
+                mRequestHead.ClearHeader(nsHttp::If_None_Match);
+                mRequestHead.ClearHeader(nsHttp::ETag);
                 mDidReval = false;
             }
             mCachedContentIsValid = false;
@@ -3302,14 +3299,12 @@ nsHttpChannel::OnCacheEntryAvailableInternal(nsICacheEntry *entry,
         return NS_ERROR_DOCUMENT_NOT_CACHED;
     }
 
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
+    if (NS_FAILED(rv))
+      return rv;
 
     // We may be waiting for more callbacks...
-    if (AwaitingCacheCallbacks()) {
-        return NS_OK;
-    }
+    if (AwaitingCacheCallbacks())
+      return NS_OK;
 
     return ContinueConnect();
 }
@@ -3325,14 +3320,6 @@ nsHttpChannel::OnNormalCacheEntryAvailable(nsICacheEntry *aEntry,
         // Make sure this flag is dropped.  It may happen the entry is doomed
         // between OnCacheEntryCheck and OnCacheEntryAvailable.
         mCachedContentIsValid = false;
-
-        // From the same reason remove any conditional headers added
-        // in OnCacheEntryCheck.
-        if (mDidReval) {
-            LOG(("  Removing conditional request headers"));
-            UntieValidationRequest();
-            mDidReval = false;
-        }
 
         if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
             // if this channel is only allowed to pull from the cache, then

@@ -58,7 +58,7 @@ public:
   {
     SetHTMLIntAttr(nsGkAtoms::start, aStart, rv);
   }
-  void GetType(DOMString& aType)
+  void GetType(nsString& aType)
   {
     GetHTMLAttr(nsGkAtoms::type, aType);
   }

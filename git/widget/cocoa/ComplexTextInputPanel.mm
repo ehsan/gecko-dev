@@ -132,8 +132,23 @@ extern "C" OSStatus TSMProcessRawKeyEvent(EventRef anEvent);
 {
   *string = nil;
 
-  if (![[mInputTextView inputContext] handleEvent:event]) {
-    return;
+  if (!nsCocoaFeatures::OnMountainLionOrLater()) {
+    // This "works" on OS X 10.7 and below, but at the cost of breaking plugin
+    // IME, even in non-e10s mode: In an IME like Kotoeri Hiragana, every key
+    // gets sent to the plugin individually.
+    if (![[mInputTextView inputContext] handleEvent:event]) {
+      return;
+    }
+  } else {
+    // On OS X 10.8 and above we can't use -[NSTextInputContext handleEvent:]
+    // -- it doesn't work with a synthesized event. We need to activate the
+    // input context and call TSMProcessRawKeyEvent instead. This also allows
+    // plugin IME to work properly in non-e10s mode.
+    [[mInputTextView inputContext] activate];
+    OSErr err = TSMProcessRawKeyEvent((EventRef)[event eventRef]);
+    if (err != noErr) {
+      return;
+    }
   }
 
   if ([mInputTextView hasMarkedText]) {
@@ -207,12 +222,9 @@ class ComplexTextInputPanelPrivate : public ComplexTextInputPanel
 public:
   ComplexTextInputPanelPrivate();
 
-  virtual void InterpretKeyEvent(void* aEvent, nsAString& aOutText);
+  virtual void InterpretKeyEvent(NPCocoaEvent* aEvent, nsAString& aOutText);
   virtual bool IsInComposition();
   virtual void PlacePanel(int32_t x, int32_t y);
-  virtual void* GetInputContext() { return [mPanel inputContext]; }
-  virtual void CancelComposition() { [mPanel cancelComposition]; }
-
 private:
   ~ComplexTextInputPanelPrivate();
   ComplexTextInputPanelImpl* mPanel;
@@ -239,10 +251,21 @@ ComplexTextInputPanel::GetSharedComplexTextInputPanel()
 }
 
 void
-ComplexTextInputPanelPrivate::InterpretKeyEvent(void* aEvent, nsAString& aOutText)
+ComplexTextInputPanelPrivate::InterpretKeyEvent(NPCocoaEvent* aEvent, nsAString& aOutText)
 {
+  NSEvent* nativeEvent = [NSEvent keyEventWithType:NSKeyDown
+                                          location:NSMakePoint(0,0)
+                                     modifierFlags:aEvent->data.key.modifierFlags
+                                         timestamp:0
+                                      windowNumber:[mPanel windowNumber]
+                                           context:[mPanel graphicsContext]
+                                        characters:(NSString*)aEvent->data.key.characters
+                       charactersIgnoringModifiers:(NSString*)aEvent->data.key.charactersIgnoringModifiers
+                                         isARepeat:aEvent->data.key.isARepeat
+                                           keyCode:aEvent->data.key.keyCode];
+
   NSString* textString = nil;
-  [mPanel interpretKeyEvent:(NSEvent*)aEvent string:&textString];
+  [mPanel interpretKeyEvent:nativeEvent string:&textString];
 
   if (textString) {
     nsCocoaUtils::GetStringForNSString(textString, aOutText);

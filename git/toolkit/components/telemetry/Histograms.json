@@ -4532,6 +4532,15 @@
     "description": "The way the GeckoApp was launched. (Normal, URL, Prefetch, Redirector)",
     "cpp_guard": "ANDROID"
   },
+  "FENNEC_STARTUP_TIME_ABOUTHOME": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "low": 100,
+    "high": "10000",
+    "n_buckets": 20,
+    "description": "Time for the about:home page to be displayed (ms)",
+    "cpp_guard": "ANDROID"
+  },
   "FENNEC_STARTUP_TIME_GECKOREADY": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -7246,12 +7255,6 @@
     "high": "1024",
     "n_buckets": 16,
     "description": "The number of entries in persistent DataStorage (HSTS and HPKP data, basically)"
-  },
-  "VIDEO_MSE_UNLOAD_STATE": {
-    "expires_in_version": "45",
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "MSE video state when unloading. ended = 0, paused = 1, stalled = 2, seeking = 3, other = 4"
   },
   "FX_SANITIZE_TOTAL": {
     "alert_emails": ["firefox-dev@mozilla.org", "gavin@mozilla.com"],

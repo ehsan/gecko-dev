@@ -181,7 +181,7 @@ HTMLImageElement::GetCurrentSrc(nsAString& aValue)
 }
 
 void
-HTMLImageElement::GetItemValueText(DOMString& aValue)
+HTMLImageElement::GetItemValueText(nsAString& aValue)
 {
   GetSrc(aValue);
 }

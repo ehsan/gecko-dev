@@ -9,7 +9,7 @@
  */
 
 [Exposed=ServiceWorker]
-interface Client {
+interface ServiceWorkerClient {
   readonly attribute unsigned long id;
 
   [Throws]

@@ -1,6 +1,3 @@
-if (!this.hasOwnProperty("SIMD"))
-  quit();
-
 var int32x4 = SIMD.int32x4;
 function test() {
   var a = int32x4();

@@ -89,13 +89,14 @@ loop.OTSdkDriver = (function() {
     /**
      * Initiates a screen sharing publisher.
      */
-    startScreenShare: function(actionData) {
+    startScreenShare: function() {
       this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
         state: SCREEN_SHARE_STATES.PENDING
       }));
 
       var config = this._getCopyPublisherConfig();
-      config.videoSource = actionData.type;
+      // This is temporary until we get a sharing type selector
+      config.videoSource = "window";
 
       this.screenshare = this.sdk.initPublisher(this.getScreenShareElementFunc(),
         config);

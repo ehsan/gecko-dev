@@ -46,7 +46,7 @@ NS_IMPL_BOOL_ATTR(HTMLIFrameElement, AllowFullscreen, allowfullscreen)
 NS_IMPL_STRING_ATTR(HTMLIFrameElement, Srcdoc, srcdoc)
 
 void
-HTMLIFrameElement::GetItemValueText(DOMString& aValue)
+HTMLIFrameElement::GetItemValueText(nsAString& aValue)
 {
   GetSrc(aValue);
 }

@@ -4180,14 +4180,6 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
 }
 
 bool
-ContentParent::DoLoadMessageManagerScript(const nsAString& aURL,
-                                          bool aRunInGlobalScope)
-{
-    MOZ_ASSERT(!aRunInGlobalScope);
-    return SendLoadProcessScript(nsString(aURL));
-}
-
-bool
 ContentParent::DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const mozilla::dom::StructuredCloneData& aData,

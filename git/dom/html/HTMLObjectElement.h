@@ -30,12 +30,6 @@ public:
 
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
-#ifdef XP_MACOSX
-  // nsIDOMEventTarget
-  NS_IMETHOD PostHandleEvent(EventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-  static void HandleFocusBlurPlugin(Element* aElement, WidgetEvent* aEvent);
-#endif
-
   // Element
   virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
 
@@ -241,7 +235,7 @@ private:
    */
   bool IsFocusableForTabIndex();
   
-  virtual void GetItemValueText(DOMString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 
   virtual ~HTMLObjectElement();

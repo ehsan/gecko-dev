@@ -320,19 +320,17 @@ AndroidPresenter.prototype.actionInvoked =
   function AndroidPresenter_actionInvoked(aObject, aActionName) {
     let state = Utils.getState(aObject);
 
-    // Checkable objects use TalkBack's text derived from the event state,
-    // so we don't populate the text here.
-    let text = '';
-    if (!state.contains(States.CHECKABLE)) {
-      text = Utils.localize(UtteranceGenerator.genForAction(aObject,
-        aActionName));
+    // Checkable objects will have a state changed event we will use instead.
+    if (state.contains(States.CHECKABLE)) {
+      return null;
     }
 
     return {
       type: this.type,
       details: [{
         eventType: this.ANDROID_VIEW_CLICKED,
-        text: text,
+        text: Utils.localize(UtteranceGenerator.genForAction(aObject,
+          aActionName)),
         checked: state.contains(States.CHECKED)
       }]
     };

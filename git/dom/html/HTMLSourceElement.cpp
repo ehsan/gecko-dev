@@ -121,7 +121,7 @@ HTMLSourceElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 void
-HTMLSourceElement::GetItemValueText(DOMString& aValue)
+HTMLSourceElement::GetItemValueText(nsAString& aValue)
 {
   GetSrc(aValue);
 }
