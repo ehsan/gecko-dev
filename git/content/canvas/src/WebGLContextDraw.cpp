@@ -103,8 +103,6 @@ bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcoun
             ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
             return false;
         }
-    } else {
-        ClearBackbufferIfNeeded();
     }
 
     if (!DoFakeVertexAttrib0(checked_firstPlusCount.value())) {
@@ -266,8 +264,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
             ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
             return false;
         }
-    } else {
-        ClearBackbufferIfNeeded();
     }
 
     if (!DoFakeVertexAttrib0(mMaxFetchedVertices)) {
@@ -337,7 +333,7 @@ void WebGLContext::Draw_cleanup()
     if (!mBoundFramebuffer) {
         Invalidate();
         mShouldPresent = true;
-        MOZ_ASSERT(!mBackbufferNeedsClear);
+        mIsScreenCleared = false;
     }
 
     if (gl->WorkAroundDriverBugs()) {

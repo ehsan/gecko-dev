@@ -28,7 +28,8 @@ interface HTMLLinkElement : HTMLElement {
            attribute DOMString hreflang;
   [SetterThrows, Pure]
            attribute DOMString type;
-  [PutForwards=value] readonly attribute DOMSettableTokenList sizes;
+// Not supported yet:
+//  [PutForwards=value] readonly attribute DOMSettableTokenList sizes;
 };
 HTMLLinkElement implements LinkStyle;
 

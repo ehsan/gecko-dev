@@ -619,13 +619,18 @@ nsSocketTransportService::CreateTransport(const char **types,
     NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(port >= 0 && port <= 0xFFFF, NS_ERROR_ILLEGAL_VALUE);
 
-    nsRefPtr<nsSocketTransport> trans = new nsSocketTransport();
+    nsSocketTransport *trans = new nsSocketTransport();
+    if (!trans)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(trans);
+
     nsresult rv = trans->Init(types, typeCount, host, port, proxyInfo);
     if (NS_FAILED(rv)) {
+        NS_RELEASE(trans);
         return rv;
     }
 
-    trans.forget(result);
+    *result = trans;
     return NS_OK;
 }
 
@@ -643,6 +648,8 @@ nsSocketTransportService::CreateUnixDomainTransport(nsIFile *aPath,
         return rv;
 
     nsRefPtr<nsSocketTransport> trans = new nsSocketTransport();
+    if (!trans)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     rv = trans->InitWithFilename(path.get());
     if (NS_FAILED(rv))

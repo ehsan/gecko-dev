@@ -29,7 +29,6 @@
 #include "nsLayoutUtils.h"
 
 #include "CanvasUtils.h"
-#include "gfxUtils.h"
 
 #include "jsfriendapi.h"
 
@@ -473,8 +472,6 @@ WebGLContext::CopyTexImage2D(GLenum target,
             return ErrorInvalidOperation("copyTexImage2D: Read source attachment doesn't have the"
                                          " correct color/depth/stencil type.");
         }
-    } else {
-      ClearBackbufferIfNeeded();
     }
 
     bool texFormatRequiresAlpha = internalformat == LOCAL_GL_RGBA ||
@@ -587,8 +584,6 @@ WebGLContext::CopyTexSubImage2D(GLenum target,
             return ErrorInvalidOperation("copyTexSubImage2D: Read source attachment doesn't have the"
                                          " correct color/depth/stencil type.");
         }
-    } else {
-        ClearBackbufferIfNeeded();
     }
 
     bool texFormatRequiresAlpha = (internalFormat == LOCAL_GL_RGBA ||
@@ -2199,8 +2194,6 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
             return ErrorInvalidOperation("readPixels: Read source attachment doesn't have the"
                                          " correct color/depth/stencil type.");
         }
-    } else {
-      ClearBackbufferIfNeeded();
     }
     // Now that the errors are out of the way, on to actually reading
 
@@ -2526,10 +2519,6 @@ WebGLContext::SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromE
     if (!data) {
         // SurfaceFromElement lied!
         return NS_OK;
-    }
-
-    if (!mPixelStorePremultiplyAlpha && res.mIsPremultiplied) {
-      data = gfxUtils::UnpremultiplyDataSurface(data);
     }
 
     // We disallow loading cross-domain images and videos that have not been validated

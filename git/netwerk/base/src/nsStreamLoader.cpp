@@ -18,7 +18,9 @@ nsStreamLoader::nsStreamLoader()
 
 nsStreamLoader::~nsStreamLoader()
 {
-  ReleaseData();
+  if (mData) {
+    NS_Free(mData);
+  }
 }
 
 NS_IMETHODIMP
@@ -101,9 +103,10 @@ nsStreamLoader::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
       // the observer now owns the data buffer, and the loader must
       // not deallocate it
       mData = nullptr;
+      mLength = 0;
+      mAllocated = 0;
     }
     // done.. cleanup
-    ReleaseData();
     mRequest = 0;
     mObserver = 0;
     mContext = 0;
@@ -129,7 +132,8 @@ nsStreamLoader::WriteSegmentFun(nsIInputStream *inStr,
     self->mData = static_cast<uint8_t*>(NS_Realloc(self->mData,
                                                    self->mLength + count));
     if (!self->mData) {
-      self->ReleaseData();
+      self->mLength = 0;
+      self->mAllocated = 0;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     self->mAllocated = self->mLength + count;
@@ -150,15 +154,4 @@ nsStreamLoader::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
 {
   uint32_t countRead;
   return inStr->ReadSegments(WriteSegmentFun, this, count, &countRead);
-}
-
-void
-nsStreamLoader::ReleaseData()
-{
-  if (mData) {
-    NS_Free(mData);
-    mData = nullptr;
-  }
-  mLength = 0;
-  mAllocated = 0;
 }

@@ -23,7 +23,6 @@
 #include "nsASocketHandler.h"
 
 #include "prerror.h"
-#include "nsAutoPtr.h"
 
 class nsSocketTransport;
 class nsICancelable;
@@ -329,11 +328,6 @@ private:
     LockedPRFileDesc mFD;
     nsrefcnt         mFDref;       // mFD is closed when mFDref goes to zero.
     bool             mFDconnected; // mFD is available to consumer when TRUE.
-
-    // A delete protector reference to gSocketTransportService held for lifetime
-    // of 'this'. Sometimes used interchangably with gSocketTransportService due
-    // to scoping.
-    nsRefPtr<nsSocketTransportService> mSocketTransportService;
 
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     nsCOMPtr<nsITransportEventSink> mEventSink;

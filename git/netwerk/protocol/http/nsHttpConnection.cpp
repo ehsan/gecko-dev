@@ -48,6 +48,7 @@ nsHttpConnection::nsHttpConnection()
     : mTransaction(nullptr)
     , mHttpHandler(gHttpHandler)
     , mCallbacksLock("nsHttpConnection::mCallbacksLock")
+    , mIdleTimeout(0)
     , mConsiderReusedAfterInterval(0)
     , mConsiderReusedAfterEpoch(0)
     , mCurrentBytesRead(0)
@@ -79,12 +80,6 @@ nsHttpConnection::nsHttpConnection()
     , mTCPKeepaliveConfig(kTCPKeepaliveDisabled)
 {
     LOG(("Creating nsHttpConnection @%x\n", this));
-
-    // the default timeout is for when this connection has not yet processed a
-    // transaction
-    static const PRIntervalTime k5Sec = PR_SecondsToInterval(5);
-    mIdleTimeout =
-        (k5Sec < gHttpHandler->IdleTimeout()) ? k5Sec : gHttpHandler->IdleTimeout();
 }
 
 nsHttpConnection::~nsHttpConnection()

@@ -9,7 +9,6 @@
 #include "prlog.h"
 
 #include "gfxPlatformFontList.h"
-#include "gfxUserFontSet.h"
 
 #include "nsUnicharUtils.h"
 #include "nsUnicodeRange.h"
@@ -302,21 +301,6 @@ gfxPlatformFontList::ResolveFontName(const nsAString& aFontName, nsAString& aRes
         return true;
     }
     return false;
-}
-
-static PLDHashOperator
-RebuildLocalFonts(nsPtrHashKey<gfxUserFontSet>* aKey,
-                  void* aClosure)
-{
-    aKey->GetKey()->RebuildLocalRules();
-    return PL_DHASH_NEXT;
-}
-
-void
-gfxPlatformFontList::UpdateFontList()
-{
-    InitFontList();
-    mUserFontSetList.EnumerateEntries(RebuildLocalFonts, nullptr);
 }
 
 struct FontListData {
@@ -813,11 +797,6 @@ gfxPlatformFontList::LoadFontInfo()
     }
 #endif
 
-    if (done) {
-        mOtherFamilyNamesInitialized = true;
-        mFaceNamesInitialized = true;
-    }
-
     return done;
 }
 
@@ -841,6 +820,8 @@ gfxPlatformFontList::CleanupLoader()
     }
 #endif
 
+    mOtherFamilyNamesInitialized = true;
+    mFaceNamesInitialized = true;
     gfxFontInfoLoader::CleanupLoader();
 }
 
@@ -856,15 +837,6 @@ gfxPlatformFontList::GetPrefsAndStartLoader()
         std::max(1u, Preferences::GetUint(FONT_LOADER_INTERVAL_PREF));
 
     StartLoader(delay, interval);
-}
-
-void
-gfxPlatformFontList::ForceGlobalReflow()
-{
-    // modify a preference that will trigger reflow everywhere
-    static const char kPrefName[] = "font.internaluseonly.changed";
-    bool fontInternalChange = Preferences::GetBool(kPrefName, false);
-    Preferences::SetBool(kPrefName, !fontInternalChange);
 }
 
 // Support for memory reporting

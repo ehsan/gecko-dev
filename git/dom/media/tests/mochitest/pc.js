@@ -493,21 +493,12 @@ function PeerConnectionTest(options) {
 PeerConnectionTest.prototype.close = function PCT_close(onSuccess) {
   info("Closing peer connections. Connection state=" + this.connected);
 
-  function signalingstatechangeClose(state) {
-    info("'onsignalingstatechange' event '" + state + "' received");
-    is(state, "closed", "onsignalingstatechange event is closed");
-  }
-
   // There is no onclose event for the remote peer existent yet. So close it
   // side-by-side with the local peer.
-  if (this.pcLocal) {
-    this.pcLocal.onsignalingstatechange = signalingstatechangeClose;
+  if (this.pcLocal)
     this.pcLocal.close();
-  }
-  if (this.pcRemote) {
-    this.pcRemote.onsignalingstatechange = signalingstatechangeClose;
+  if (this.pcRemote)
     this.pcRemote.close();
-  }
   this.connected = false;
 
   onSuccess();
@@ -594,9 +585,8 @@ function PCT_setLocalDescription(peer, desc, onSuccess) {
     }
   }
 
-  peer.onsignalingstatechange = function (state) {
-    //info(peer + ": 'onsignalingstatechange' event registered, signalingState: " + peer.signalingState);
-    info(peer + ": 'onsignalingstatechange' event '" + state + "' received");
+  peer.onsignalingstatechange = function () {
+    info(peer + ": 'onsignalingstatechange' event registered, signalingState: " + peer.signalingState);
 
     eventFired = true;
     check_next_test();
@@ -656,8 +646,8 @@ function PCT_setRemoteDescription(peer, desc, onSuccess) {
     }
   }
 
-  peer.onsignalingstatechange = function (state) {
-    info(peer + ": 'onsignalingstatechange' event '" + state + "' received");
+  peer.onsignalingstatechange = function () {
+    info(peer + ": 'onsignalingstatechange' event registered, signalingState: " + peer.signalingState);
 
     eventFired = true;
     check_next_test();
@@ -1178,9 +1168,7 @@ function PeerConnectionWrapper(label, configuration) {
   this._pc.onsignalingstatechange = function (aEvent) {
     info(self + ": 'onsignalingstatechange' event fired");
 
-    // this calls the eventhandler only once and then overwrites it with the
-    // default unexpectedEvent handler
-    self.onsignalingstatechange(aEvent);
+    self.onsignalingstatechange();
     self.onsignalingstatechange = unexpectedEventAndFinish(self, 'onsignalingstatechange');
   };
 }

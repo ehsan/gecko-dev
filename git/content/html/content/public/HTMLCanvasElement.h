@@ -13,6 +13,7 @@
 #include "nsSize.h"
 #include "nsError.h"
 
+#include "nsICanvasElementExternal.h"
 #include "mozilla/gfx/Rect.h"
 
 class nsICanvasRenderingContextInternal;
@@ -25,9 +26,6 @@ namespace layers {
 class CanvasLayer;
 class LayerManager;
 }
-namespace gfx {
-class SourceSurface;
-}
 
 namespace dom {
 
@@ -36,6 +34,7 @@ class HTMLCanvasPrintState;
 class PrintCallback;
 
 class HTMLCanvasElement MOZ_FINAL : public nsGenericHTMLElement,
+                                    public nsICanvasElementExternal,
                                     public nsIDOMHTMLCanvasElement
 {
   enum {
@@ -160,7 +159,13 @@ public:
    */
   bool GetIsOpaque();
 
-  virtual TemporaryRef<gfx::SourceSurface> GetSurfaceSnapshot(bool* aPremultAlpha = nullptr);
+  /*
+   * nsICanvasElementExternal -- for use outside of content/layout
+   */
+  NS_IMETHOD_(nsIntSize) GetSizeExternal() MOZ_OVERRIDE;
+  NS_IMETHOD RenderContextsExternal(gfxContext *aContext,
+                                    GraphicsFilter aFilter,
+                                    uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
 
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom* aAttribute,

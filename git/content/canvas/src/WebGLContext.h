@@ -165,11 +165,15 @@ public:
         { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD Reset() MOZ_OVERRIDE
         { /* (InitializeWithSurface) */ return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD Render(gfxContext *ctx,
+                      GraphicsFilter f,
+                      uint32_t aFlags = RenderFlagPremultAlpha) MOZ_OVERRIDE;
     virtual void GetImageBuffer(uint8_t** aImageBuffer, int32_t* aFormat);
     NS_IMETHOD GetInputStream(const char* aMimeType,
                               const char16_t* aEncoderOptions,
                               nsIInputStream **aStream) MOZ_OVERRIDE;
-    mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot(bool* aPremultAlpha) MOZ_OVERRIDE;
+    NS_IMETHOD GetThebesSurface(gfxASurface **surface) MOZ_OVERRIDE;
+    mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() MOZ_OVERRIDE;
 
     NS_IMETHOD SetIsOpaque(bool b) MOZ_OVERRIDE { return NS_OK; };
     bool GetIsOpaque() MOZ_OVERRIDE { return false; }
@@ -239,7 +243,6 @@ public:
 
     // Calls ForceClearFramebufferWithDefaultValues() for the Context's 'screen'.
     void ClearScreen();
-    void ClearBackbufferIfNeeded();
 
     bool MinCapabilityMode() const { return mMinCapability; }
 
@@ -838,7 +841,7 @@ protected:
     bool mLoseContextOnHeapMinimize;
     bool mCanLoseContextInForeground;
     bool mShouldPresent;
-    bool mBackbufferNeedsClear;
+    bool mIsScreenCleared;
     bool mDisableFragHighP;
 
     template<typename WebGLObjectType>
@@ -1031,7 +1034,7 @@ protected:
         if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)
             flags |= nsLayoutUtils::SFE_NO_COLORSPACE_CONVERSION;
         if (!mPixelStorePremultiplyAlpha)
-            flags |= nsLayoutUtils::SFE_PREFER_NO_PREMULTIPLY_ALPHA;
+            flags |= nsLayoutUtils::SFE_NO_PREMULTIPLY_ALPHA;
         return nsLayoutUtils::SurfaceFromElement(aElement, flags);
     }
     template<class ElementType>

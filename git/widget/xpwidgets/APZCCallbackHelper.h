@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_layers_APZCCallbackHelper_h
-#define mozilla_layers_APZCCallbackHelper_h
+#ifndef __mozilla_widget_APZCCallbackHelper_h__
+#define __mozilla_widget_APZCCallbackHelper_h__
 
 #include "FrameMetrics.h"
 #include "nsIContent.h"
@@ -12,7 +12,7 @@
 #include "nsIDOMWindowUtils.h"
 
 namespace mozilla {
-namespace layers {
+namespace widget {
 
 /* This class contains some helper methods that facilitate implementing the
    GeckoContentController callback interface required by the AsyncPanZoomController.
@@ -100,4 +100,4 @@ public:
 }
 }
 
-#endif /* mozilla_layers_APZCCallbackHelper_h */
+#endif /*__mozilla_widget_APZCCallbackHelper_h__ */

@@ -9,7 +9,7 @@
 #include "MetroUtils.h"
 #include "nsPrintfCString.h"
 #include "nsIWidgetListener.h"
-#include "mozilla/layers/APZCCallbackHelper.h"
+#include "APZCCallbackHelper.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsIDOMElement.h"
@@ -114,7 +114,7 @@ public:
 #ifdef DEBUG_CONTROLLER
       WinUtils::Log("APZController: detected subframe or content editable");
 #endif
-      mozilla::layers::APZCCallbackHelper::UpdateSubFrame(targetContent, mFrameMetrics);
+      APZCCallbackHelper::UpdateSubFrame(targetContent, mFrameMetrics);
       return NS_OK;
     }
 
@@ -128,7 +128,7 @@ public:
     if (window) {
       utils = do_GetInterface(window);
       if (utils) {
-        mozilla::layers::APZCCallbackHelper::UpdateRootFrame(utils, mFrameMetrics);
+        APZCCallbackHelper::UpdateRootFrame(utils, mFrameMetrics);
 
 #ifdef DEBUG_CONTROLLER
         WinUtils::Log("APZController: %I64d mDisplayPortMargins: %0.2f %0.2f %0.2f %0.2f",
@@ -224,7 +224,7 @@ APZController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
   WinUtils::Log("APZController::AcknowledgeScrollUpdate scrollid=%I64d gen=%lu",
     aScrollId, aScrollGeneration);
 #endif
-  mozilla::layers::APZCCallbackHelper::AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
+  APZCCallbackHelper::AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
 }
 
 void

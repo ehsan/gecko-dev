@@ -65,12 +65,8 @@ exports.install = function install(xpiPath) {
 
   // Order AddonManager to install the addon
   AddonManager.getInstallForFile(file, function(install) {
-    if (install.error != null) {
-      install.addListener(listener);
-      install.install();
-    } else {
-      reject(install.error);
-    }
+    install.addListener(listener);
+    install.install();
   });
 
   return promise;

@@ -13,7 +13,6 @@
 <!ENTITY port       "Port:">
 <!ENTITY connect    "Connect">
 <!ENTITY connecting "Connecting…">
-<!ENTITY availableAddons "Available remote add-ons:">
 <!ENTITY availableTabs "Available remote tabs:">
 <!ENTITY availableProcesses "Available remote processes:">
 <!ENTITY connectionError "Error:">

@@ -90,7 +90,6 @@ const char* const text[] = {
     "YarrCompile",
     "YarrInterpret",
     "YarrJIT",
-    "VM",
     "SplitCriticalEdges",
     "RenumberBlocks",
     "DominatorTree",
@@ -110,7 +109,6 @@ const char* const text[] = {
 
 TraceLogger::TraceLogger()
  : enabled(false),
-   enabledTimes(0),
    failed(false),
    nextTextId(0),
    treeOffset(0),
@@ -129,7 +127,7 @@ TraceLogger::init(uint32_t loggerId)
     if (!events.init())
         return false;
 
-    MOZ_ASSERT(loggerId <= 999);
+    JS_ASSERT(loggerId <= 999);
 
     char dictFilename[sizeof TRACE_LOG_DIR "tl-dict.100.json"];
     sprintf(dictFilename, TRACE_LOG_DIR "tl-dict.%d.json", loggerId);
@@ -160,16 +158,16 @@ TraceLogger::init(uint32_t loggerId)
     uint64_t start = rdtsc() - traceLoggers.startupTime;
 
     TreeEntry &treeEntry = tree.pushUninitialized();
-    treeEntry.setStart(start);
-    treeEntry.setStop(0);
-    treeEntry.setTextId(0);
-    treeEntry.setHasChildren(false);
-    treeEntry.setNextId(0);
+    treeEntry.start = start;
+    treeEntry.stop = 0;
+    treeEntry.u.s.textId = 0;
+    treeEntry.u.s.hasChildren = false;
+    treeEntry.nextId = 0;
 
     StackEntry &stackEntry = stack.pushUninitialized();
-    stackEntry.setTreeId(0);
-    stackEntry.setLastChildId(0);
-    stackEntry.setActive(true);
+    stackEntry.treeId = 0;
+    stackEntry.lastChildId = 0;
+    stackEntry.active = true;
 
     int written = fprintf(dictFile, "[");
     if (written < 0)
@@ -178,127 +176,17 @@ TraceLogger::init(uint32_t loggerId)
     // Eagerly create the default textIds, to match their Tracelogger::TextId.
     for (uint32_t i = 0; i < LAST; i++) {
         mozilla::DebugOnly<uint32_t> textId = createTextId(text[i]);
-        MOZ_ASSERT(textId == i);
+        JS_ASSERT(textId == i);
     }
 
     enabled = true;
-    enabledTimes = 1;
-    return true;
-}
-
-bool
-TraceLogger::enable()
-{
-    if (enabled) {
-        enabledTimes++;
-        return true;
-    }
-
-    if (failed)
-        return false;
-
-    if (!tree.ensureSpaceBeforeAdd(stack.size())) {
-        if (!flush()) {
-            fprintf(stderr, "TraceLogging: Couldn't write the data to disk.\n");
-            failed = true;
-            return false;
-        }
-        if (!tree.ensureSpaceBeforeAdd(stack.size())) {
-            fprintf(stderr, "TraceLogging: Couldn't reserve enough space.\n");
-            failed = true;
-            return false;
-        }
-    }
-
-    uint64_t start = rdtsc() - traceLoggers.startupTime;
-    StackEntry *parent = &stack[0];
-    for (uint32_t i = 1; i < stack.size(); i++) {
-        if (!traceLoggers.isTextIdEnabled(stack[i].textId()))
-            continue;
-#ifdef DEBUG
-        TreeEntry entry;
-        if (!getTreeEntry(parent->treeId(), &entry))
-            return false;
-#endif
-
-        if (parent->lastChildId() == 0) {
-            MOZ_ASSERT(!entry.hasChildren());
-            MOZ_ASSERT(parent->treeId() == tree.currentId() + treeOffset);
-            if (!updateHasChildren(parent->treeId())) {
-                fprintf(stderr, "TraceLogging: Couldn't update an entry.\n");
-                failed = true;
-                return false;
-            }
-        } else {
-            MOZ_ASSERT(entry.hasChildren() == 1);
-            if (!updateNextId(parent->lastChildId(), tree.nextId() + treeOffset)) {
-                fprintf(stderr, "TraceLogging: Couldn't update an entry.\n");
-                failed = true;
-                return false;
-            }
-        }
-
-        TreeEntry &treeEntry = tree.pushUninitialized();
-        treeEntry.setStart(start);
-        treeEntry.setStop(0);
-        treeEntry.setTextId(stack[i].textId());
-        treeEntry.setHasChildren(false);
-        treeEntry.setNextId(0);
-
-        stack[i].setActive(true);
-        stack[i].setTreeId(tree.currentId() + treeOffset);
-
-        parent->setLastChildId(tree.currentId() + treeOffset);
-
-        parent = &stack[i];
-    }
-
-    enabled = true;
-    enabledTimes = 1;
-
-    return true;
-}
-
-bool
-TraceLogger::disable()
-{
-    if (failed)
-        return false;
-
-    if (!enabled)
-        return true;
-
-    if (enabledTimes > 1) {
-        enabledTimes--;
-        return true;
-    }
-
-    uint64_t stop = rdtsc() - traceLoggers.startupTime;
-    for (uint32_t i = 1; i < stack.size(); i++) {
-        if (!stack[i].active())
-            continue;
-
-        if (!updateStop(stack[i].treeId(), stop)) {
-            fprintf(stderr, "TraceLogging: Failed to stop an event.\n");
-            failed = true;
-            enabled = false;
-            return false;
-        }
-
-        stack[i].setActive(false);
-    }
-
-
-    enabled = false;
-    enabledTimes = 0;
-
     return true;
 }
 
 bool
 TraceLogger::flush()
 {
-    MOZ_ASSERT(!failed);
+    JS_ASSERT(!failed);
 
     if (treeFile) {
         // Format data in big endian.
@@ -475,23 +363,23 @@ TraceLogger::logTimestamp(uint32_t id)
 void
 TraceLogger::entryToBigEndian(TreeEntry *entry)
 {
-    entry->start_ = htobe64(entry->start_);
-    entry->stop_ = htobe64(entry->stop_);
-    entry->u.value_ = htobe32((entry->u.s.textId_ << 1) + entry->u.s.hasChildren_);
-    entry->nextId_ = htobe32(entry->nextId_);
+    entry->start = htobe64(entry->start);
+    entry->stop = htobe64(entry->stop);
+    entry->u.value = htobe32((entry->u.s.textId << 1) + entry->u.s.hasChildren);
+    entry->nextId = htobe32(entry->nextId);
 }
 
 void
 TraceLogger::entryToSystemEndian(TreeEntry *entry)
 {
-    entry->start_ = be64toh(entry->start_);
-    entry->stop_ = be64toh(entry->stop_);
+    entry->start = be64toh(entry->start);
+    entry->stop = be64toh(entry->stop);
 
-    uint32_t data = be32toh(entry->u.value_);
-    entry->u.s.textId_ = data >> 1;
-    entry->u.s.hasChildren_ = data & 0x1;
+    uint32_t data = be32toh(entry->u.value);
+    entry->u.s.textId = data >> 1;
+    entry->u.s.hasChildren = data & 0x1;
 
-    entry->nextId_ = be32toh(entry->nextId_);
+    entry->nextId = be32toh(entry->nextId);
 }
 
 bool
@@ -538,13 +426,13 @@ TraceLogger::updateHasChildren(uint32_t treeId, bool hasChildren)
         TreeEntry entry;
         if (!getTreeEntry(treeId, &entry))
             return false;
-        entry.setHasChildren(hasChildren);
+        entry.u.s.hasChildren = hasChildren;
         if (!saveTreeEntry(treeId, &entry))
             return false;
         return true;
     }
 
-    tree[treeId - treeOffset].setHasChildren(hasChildren);
+    tree[treeId - treeOffset].u.s.hasChildren = hasChildren;
     return true;
 }
 
@@ -555,13 +443,13 @@ TraceLogger::updateNextId(uint32_t treeId, uint32_t nextId)
         TreeEntry entry;
         if (!getTreeEntry(treeId, &entry))
             return false;
-        entry.setNextId(nextId);
+        entry.nextId = nextId;
         if (!saveTreeEntry(treeId, &entry))
             return false;
         return true;
     }
 
-    tree[treeId - treeOffset].setNextId(nextId);
+    tree[treeId - treeOffset].nextId = nextId;
     return true;
 }
 
@@ -572,35 +460,26 @@ TraceLogger::updateStop(uint32_t treeId, uint64_t timestamp)
         TreeEntry entry;
         if (!getTreeEntry(treeId, &entry))
             return false;
-        entry.setStop(timestamp);
+        entry.stop = timestamp;
         if (!saveTreeEntry(treeId, &entry))
             return false;
         return true;
     }
 
-    tree[treeId - treeOffset].setStop(timestamp);
+    tree[treeId - treeOffset].stop = timestamp;
     return true;
 }
 
 void
 TraceLogger::startEvent(uint32_t id)
 {
-    if (failed)
+    if (!enabled)
         return;
 
     if (!stack.ensureSpaceBeforeAdd()) {
         fprintf(stderr, "TraceLogging: Failed to allocate space to keep track of the stack.\n");
         enabled = false;
         failed = true;
-        return;
-    }
-
-    if (!enabled) {
-        StackEntry &stackEntry = stack.pushUninitialized();
-        stackEntry.setTreeId(tree.currentId() + treeOffset);
-        stackEntry.setLastChildId(0);
-        stackEntry.setTextId(id);
-        stackEntry.setActive(false);
         return;
     }
 
@@ -637,7 +516,7 @@ TraceLogger::StackEntry &
 TraceLogger::getActiveAncestor()
 {
     uint32_t parentId = stack.currentId();
-    while (!stack[parentId].active())
+    while (!stack[parentId].active)
         parentId--;
     return stack[parentId];
 }
@@ -650,7 +529,7 @@ TraceLogger::startEvent(uint32_t id, uint64_t timestamp)
     // the stop event.
     if (!traceLoggers.isTextIdEnabled(id)) {
         StackEntry &stackEntry = stack.pushUninitialized();
-        stackEntry.setActive(false);
+        stackEntry.active = false;
         return true;
     }
 
@@ -661,39 +540,39 @@ TraceLogger::startEvent(uint32_t id, uint64_t timestamp)
     StackEntry &parent = getActiveAncestor();
 #ifdef DEBUG
     TreeEntry entry;
-    if (!getTreeEntry(parent.treeId(), &entry))
+    if (!getTreeEntry(parent.treeId, &entry))
         return false;
 #endif
 
-    if (parent.lastChildId() == 0) {
-        MOZ_ASSERT(!entry.hasChildren());
-        MOZ_ASSERT(parent.treeId() == tree.currentId() + treeOffset);
+    if (parent.lastChildId == 0) {
+        JS_ASSERT(entry.u.s.hasChildren == 0);
+        JS_ASSERT(parent.treeId == tree.currentId() + treeOffset);
 
-        if (!updateHasChildren(parent.treeId()))
+        if (!updateHasChildren(parent.treeId))
             return false;
     } else {
-        MOZ_ASSERT(entry.hasChildren());
+        JS_ASSERT(entry.u.s.hasChildren == 1);
 
-        if (!updateNextId(parent.lastChildId(), tree.nextId() + treeOffset))
+        if (!updateNextId(parent.lastChildId, tree.nextId() + treeOffset))
             return false;
     }
 
     // Add a new tree entry.
     TreeEntry &treeEntry = tree.pushUninitialized();
-    treeEntry.setStart(timestamp);
-    treeEntry.setStop(0);
-    treeEntry.setTextId(id);
-    treeEntry.setHasChildren(false);
-    treeEntry.setNextId(0);
+    treeEntry.start = timestamp;
+    treeEntry.stop = 0;
+    treeEntry.u.s.textId = id;
+    treeEntry.u.s.hasChildren = false;
+    treeEntry.nextId = 0;
 
     // Add a new stack entry.
     StackEntry &stackEntry = stack.pushUninitialized();
-    stackEntry.setTreeId(tree.currentId() + treeOffset);
-    stackEntry.setLastChildId(0);
-    stackEntry.setActive(true);
+    stackEntry.treeId = tree.currentId() + treeOffset;
+    stackEntry.lastChildId = 0;
+    stackEntry.active = true;
 
     // Set the last child of the parent to this newly added entry.
-    parent.setLastChildId(tree.currentId() + treeOffset);
+    parent.lastChildId = tree.currentId() + treeOffset;
 
     return true;
 }
@@ -703,8 +582,8 @@ TraceLogger::stopEvent(uint32_t id)
 {
 #ifdef DEBUG
     TreeEntry entry;
-    MOZ_ASSERT_IF(stack.current().active(), getTreeEntry(stack.current().treeId(), &entry));
-    MOZ_ASSERT_IF(stack.current().active(), entry.textId() == id);
+    JS_ASSERT(getTreeEntry(stack.current().treeId, &entry));
+    JS_ASSERT(entry.u.s.textId == id);
 #endif
     stopEvent();
 }
@@ -712,9 +591,12 @@ TraceLogger::stopEvent(uint32_t id)
 void
 TraceLogger::stopEvent()
 {
-    if (enabled && stack.current().active()) {
+    if (!enabled)
+        return;
+
+    if (stack.current().active) {
         uint64_t stop = rdtsc() - traceLoggers.startupTime;
-        if (!updateStop(stack.current().treeId(), stop)) {
+        if (!updateStop(stack.current().treeId, stop)) {
             fprintf(stderr, "TraceLogging: Failed to stop an event.\n");
             enabled = false;
             failed = true;
@@ -728,8 +610,6 @@ TraceLogging::TraceLogging()
 {
     initialized = false;
     enabled = false;
-    mainThreadEnabled = true;
-    offThreadEnabled = true;
     loggerId = 0;
 
 #ifdef JS_THREADSAFE
@@ -802,7 +682,7 @@ TraceLogging::lazyInit()
 
     const char *env = getenv("TLLOG");
     if (!env)
-        env = "";
+        return false;
 
     if (strstr(env, "help")) {
         fflush(nullptr);
@@ -869,28 +749,6 @@ TraceLogging::lazyInit()
         enabledTextIds[TraceLogger::EliminateRedundantChecks] = true;
     }
 
-    const char *options = getenv("TLOPTIONS");
-    if (options) {
-        if (strstr(options, "help")) {
-            fflush(nullptr);
-            printf(
-                "\n"
-                "usage: TLOPTIONS=option,option,option,... where options can be:\n"
-                "\n"
-                "  DisableMainThread        Don't start logging the mainThread automatically.\n"
-                "  DisableOffThread         Don't start logging the off mainThread automatically.\n"
-            );
-            printf("\n");
-            exit(0);
-            /*NOTREACHED*/
-        }
-
-        if (strstr(options, "DisableMainThread"))
-           mainThreadEnabled = false;
-        if (strstr(options, "DisableOffThread"))
-           offThreadEnabled = false;
-    }
-
     startupTime = rdtsc();
     enabled = true;
     return true;
@@ -934,9 +792,6 @@ TraceLogging::forMainThread(PerThreadData *mainThread)
 
         if (!mainThreadLoggers.append(logger))
             return nullptr;
-
-        if (!mainThreadEnabled)
-            logger->disable();
     }
 
     return mainThread->traceLogger;
@@ -975,9 +830,6 @@ TraceLogging::forThread(PRThread *thread)
         return nullptr;
     }
 
-    if (!offThreadEnabled)
-        logger->disable();
-
     return logger;
 }
 #endif // JS_THREADSAFE
@@ -1014,10 +866,4 @@ TraceLogging::create()
     }
 
     return logger;
-}
-
-bool
-js::TraceLogTextIdEnabled(uint32_t textId)
-{
-    return traceLoggers.isTextIdEnabled(textId);
 }

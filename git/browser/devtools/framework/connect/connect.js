@@ -9,11 +9,9 @@
 const Cu = Components.utils;
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
 let gClient;
 let gConnectionTimeout;
@@ -77,97 +75,59 @@ function submit() {
 /**
  * Connection is ready. List actors and build buttons.
  */
-let onConnectionReady = Task.async(function*(aType, aTraits) {
+function onConnectionReady(aType, aTraits) {
   clearTimeout(gConnectionTimeout);
+  gClient.listTabs(function(aResponse) {
+    document.body.classList.remove("connecting");
+    document.body.classList.add("actors-mode");
 
-  let deferred = promise.defer();
-  gClient.listAddons(deferred.resolve);
-  let response = yield deferred.promise;
+    let parent = document.getElementById("tabActors");
 
-  let parent = document.getElementById("addonActors")
-  if (!response.error && response.addons.length > 0) {
-    // Add one entry for each add-on.
-    for (let addon of response.addons) {
-      if (!addon.debuggable) {
-        continue;
+    // Add Global Process debugging...
+    let globals = JSON.parse(JSON.stringify(aResponse));
+    delete globals.tabs;
+    delete globals.selected;
+    // ...only if there are appropriate actors (a 'from' property will always
+    // be there).
+
+    // Add one entry for each open tab.
+    for (let i = 0; i < aResponse.tabs.length; i++) {
+      buildLink(aResponse.tabs[i], parent, i == aResponse.selected);
+    }
+
+    let gParent = document.getElementById("globalActors");
+
+    // Build the Remote Process button
+    if (Object.keys(globals).length > 1) {
+      let a = document.createElement("a");
+      a.onclick = function() {
+        openToolbox(globals, true);
+
       }
-      buildAddonLink(addon, parent);
+      a.title = a.textContent = window.l10n.GetStringFromName("mainProcess");
+      a.className = "remote-process";
+      a.href = "#";
+      gParent.appendChild(a);
     }
-  }
-  else {
-    // Hide the section when there are no add-ons
-    parent.previousElementSibling.remove();
-    parent.remove();
-  }
-
-  deferred = promise.defer();
-  gClient.listTabs(deferred.resolve);
-  response = yield deferred.promise;
-
-  parent = document.getElementById("tabActors");
-
-  // Add Global Process debugging...
-  let globals = JSON.parse(JSON.stringify(response));
-  delete globals.tabs;
-  delete globals.selected;
-  // ...only if there are appropriate actors (a 'from' property will always
-  // be there).
-
-  // Add one entry for each open tab.
-  for (let i = 0; i < response.tabs.length; i++) {
-    buildTabLink(response.tabs[i], parent, i == response.selected);
-  }
-
-  let gParent = document.getElementById("globalActors");
-
-  // Build the Remote Process button
-  if (Object.keys(globals).length > 1) {
-    let a = document.createElement("a");
-    a.onclick = function() {
-      openToolbox(globals, true);
-
+    // Move the selected tab on top
+    let selectedLink = parent.querySelector("a.selected");
+    if (selectedLink) {
+      parent.insertBefore(selectedLink, parent.firstChild);
     }
-    a.title = a.textContent = window.l10n.GetStringFromName("mainProcess");
-    a.className = "remote-process";
-    a.href = "#";
-    gParent.appendChild(a);
-  }
-  // Move the selected tab on top
-  let selectedLink = parent.querySelector("a.selected");
-  if (selectedLink) {
-    parent.insertBefore(selectedLink, parent.firstChild);
-  }
 
-  document.body.classList.remove("connecting");
-  document.body.classList.add("actors-mode");
+    // Ensure the first link is focused
+    let firstLink = parent.querySelector("a:first-of-type");
+    if (firstLink) {
+      firstLink.focus();
+    }
 
-  // Ensure the first link is focused
-  let firstLink = parent.querySelector("a:first-of-type");
-  if (firstLink) {
-    firstLink.focus();
-  }
-});
-
-/**
- * Build one button for an add-on actor.
- */
-function buildAddonLink(addon, parent) {
-  let a = document.createElement("a");
-  a.onclick = function() {
-    openToolbox({ addonActor: addon.actor, title: addon.name }, true, "jsdebugger");
-  }
-
-  a.textContent = addon.name;
-  a.title = addon.id;
-  a.href = "#";
-
-  parent.appendChild(a);
+  });
 }
 
 /**
- * Build one button for a tab actor.
+ * Build one button for an actor.
  */
-function buildTabLink(tab, parent, selected) {
+function buildLink(tab, parent, selected) {
   let a = document.createElement("a");
   a.onclick = function() {
     openToolbox(tab);
@@ -213,7 +173,7 @@ function handleConnectionTimeout() {
  * The user clicked on one of the buttons.
  * Opens the toolbox.
  */
-function openToolbox(form, chrome=false, tool="webconsole") {
+function openToolbox(form, chrome=false) {
   let options = {
     form: form,
     client: gClient,
@@ -221,7 +181,7 @@ function openToolbox(form, chrome=false, tool="webconsole") {
   };
   devtools.TargetFactory.forRemoteTab(options).then((target) => {
     let hostType = devtools.Toolbox.HostType.WINDOW;
-    gDevTools.showToolbox(target, tool, hostType).then((toolbox) => {
+    gDevTools.showToolbox(target, "webconsole", hostType).then((toolbox) => {
       toolbox.once("destroyed", function() {
         gClient.close();
       });

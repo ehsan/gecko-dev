@@ -764,7 +764,6 @@ nsSocketTransport::nsSocketTransport()
     , mFD(MOZ_THIS_IN_INITIALIZER_LIST())
     , mFDref(0)
     , mFDconnected(false)
-    , mSocketTransportService(gSocketTransportService)
     , mInput(MOZ_THIS_IN_INITIALIZER_LIST())
     , mOutput(MOZ_THIS_IN_INITIALIZER_LIST())
     , mQoSBits(0x00)
@@ -774,6 +773,8 @@ nsSocketTransport::nsSocketTransport()
     , mKeepaliveProbeCount(-1)
 {
     SOCKET_LOG(("creating nsSocketTransport @%p\n", this));
+
+    NS_ADDREF(gSocketTransportService);
 
     mTimeouts[TIMEOUT_CONNECT]    = UINT16_MAX; // no timeout
     mTimeouts[TIMEOUT_READ_WRITE] = UINT16_MAX; // no timeout
@@ -790,6 +791,9 @@ nsSocketTransport::~nsSocketTransport()
             PL_strfree(mTypes[i]);
         free(mTypes);
     }
+ 
+    nsSocketTransportService *serv = gSocketTransportService;
+    NS_RELEASE(serv); // nulls argument
 }
 
 nsresult
@@ -957,7 +961,7 @@ nsSocketTransport::PostEvent(uint32_t type, nsresult status, nsISupports *param)
     if (!event)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    return mSocketTransportService->Dispatch(event, NS_DISPATCH_NORMAL);
+    return gSocketTransportService->Dispatch(event, NS_DISPATCH_NORMAL);
 }
 
 void
@@ -1215,19 +1219,19 @@ nsSocketTransport::InitiateSocket()
     // FIFO ordering (which wouldn't even be that valuable IMO).  see bug
     // 194402 for more info.
     //
-    if (!mSocketTransportService->CanAttachSocket()) {
+    if (!gSocketTransportService->CanAttachSocket()) {
         nsCOMPtr<nsIRunnable> event =
                 new nsSocketEvent(this, MSG_RETRY_INIT_SOCKET);
         if (!event)
             return NS_ERROR_OUT_OF_MEMORY;
-        return mSocketTransportService->NotifyWhenCanAttachSocket(event);
+        return gSocketTransportService->NotifyWhenCanAttachSocket(event);
     }
 
     //
     // if we already have a connected socket, then just attach and return.
     //
     if (mFD.IsInitialized()) {
-        rv = mSocketTransportService->AttachSocket(mFD, this);
+        rv = gSocketTransportService->AttachSocket(mFD, this);
         if (NS_SUCCEEDED(rv))
             mAttached = true;
         return rv;
@@ -1269,7 +1273,7 @@ nsSocketTransport::InitiateSocket()
     // The Windows default of 8KB is too small and as of vista sp1, autotuning
     // only applies to receive window
     int32_t sndBufferSize;
-    mSocketTransportService->GetSendBufferSize(&sndBufferSize);
+    gSocketTransportService->GetSendBufferSize(&sndBufferSize);
     if (sndBufferSize > 0) {
         opt.option = PR_SockOpt_SendBufferSize;
         opt.value.send_buffer_size = sndBufferSize;
@@ -1283,7 +1287,7 @@ nsSocketTransport::InitiateSocket()
     }
 
     // inform socket transport about this newly created socket...
-    rv = mSocketTransportService->AttachSocket(fd, this);
+    rv = gSocketTransportService->AttachSocket(fd, this);
     if (NS_FAILED(rv)) {
         PR_Close(fd);
         return rv;
@@ -1460,7 +1464,7 @@ nsSocketTransport::RecoverFromError()
     // Retry if that connection is made.
     if (!tryAgain) {
         bool autodialEnabled;
-        mSocketTransportService->GetAutodialEnabled(&autodialEnabled);
+        gSocketTransportService->GetAutodialEnabled(&autodialEnabled);
         if (autodialEnabled) {
           tryAgain = nsNativeConnectionHelper::OnConnectionFailed(
                        NS_ConvertUTF8toUTF16(SocketHost()).get());
@@ -1962,7 +1966,7 @@ nsSocketTransport::OpenInputStream(uint32_t flags,
         if (NS_FAILED(rv)) return rv;
 
         // async copy from socket to pipe
-        rv = NS_AsyncCopy(&mInput, pipeOut, mSocketTransportService,
+        rv = NS_AsyncCopy(&mInput, pipeOut, gSocketTransportService,
                           NS_ASYNCCOPY_VIA_WRITESEGMENTS, segsize);
         if (NS_FAILED(rv)) return rv;
 
@@ -2008,7 +2012,7 @@ nsSocketTransport::OpenOutputStream(uint32_t flags,
         if (NS_FAILED(rv)) return rv;
 
         // async copy from socket to pipe
-        rv = NS_AsyncCopy(pipeIn, &mOutput, mSocketTransportService,
+        rv = NS_AsyncCopy(pipeIn, &mOutput, gSocketTransportService,
                           NS_ASYNCCOPY_VIA_READSEGMENTS, segsize);
         if (NS_FAILED(rv)) return rv;
 
@@ -2447,7 +2451,7 @@ nsSocketTransport::SetKeepaliveEnabledInternal(bool aEnable)
 
     // Only enable if keepalives are globally enabled, but ensure other
     // options are set correctly on the fd.
-    bool enable = aEnable && mSocketTransportService->IsKeepaliveEnabled();
+    bool enable = aEnable && gSocketTransportService->IsKeepaliveEnabled();
     nsresult rv = fd.SetKeepaliveVals(enable,
                                       mKeepaliveIdleTimeS,
                                       mKeepaliveRetryIntervalS,
@@ -2479,21 +2483,21 @@ nsSocketTransport::EnsureKeepaliveValsAreInitialized()
     nsresult rv = NS_OK;
     int32_t val = -1;
     if (mKeepaliveIdleTimeS == -1) {
-        rv = mSocketTransportService->GetKeepaliveIdleTime(&val);
+        rv = gSocketTransportService->GetKeepaliveIdleTime(&val);
         if (NS_WARN_IF(NS_FAILED(rv))) {
             return rv;
         }
         mKeepaliveIdleTimeS = val;
     }
     if (mKeepaliveRetryIntervalS == -1) {
-        rv = mSocketTransportService->GetKeepaliveRetryInterval(&val);
+        rv = gSocketTransportService->GetKeepaliveRetryInterval(&val);
         if (NS_WARN_IF(NS_FAILED(rv))) {
             return rv;
         }
         mKeepaliveRetryIntervalS = val;
     }
     if (mKeepaliveProbeCount == -1) {
-        rv = mSocketTransportService->GetKeepaliveProbeCount(&val);
+        rv = gSocketTransportService->GetKeepaliveProbeCount(&val);
         if (NS_WARN_IF(NS_FAILED(rv))) {
             return rv;
         }
@@ -2530,7 +2534,7 @@ nsSocketTransport::SetKeepaliveEnabled(bool aEnable)
                 this, aEnable ? "enabled" : "disabled",
                 mKeepaliveIdleTimeS, mKeepaliveRetryIntervalS,
                 mKeepaliveProbeCount,
-                mSocketTransportService->IsKeepaliveEnabled() ?
+                gSocketTransportService->IsKeepaliveEnabled() ?
                 "enabled" : "disabled"));
 
     // Set mKeepaliveEnabled here so that state is maintained; it is possible
@@ -2579,7 +2583,7 @@ nsSocketTransport::SetKeepaliveVals(int32_t aIdleTime,
     nsresult rv = NS_OK;
     if (mKeepaliveProbeCount == -1) {
         int32_t val = -1;
-        nsresult rv = mSocketTransportService->GetKeepaliveProbeCount(&val);
+        nsresult rv = gSocketTransportService->GetKeepaliveProbeCount(&val);
         if (NS_WARN_IF(NS_FAILED(rv))) {
             return rv;
         }

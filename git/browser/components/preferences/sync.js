@@ -163,8 +163,8 @@ let gSyncPane = {
           checkbox.checked = false;
         }
 
-        checkbox.disabled = !allowPasswordsEngine || enginesListDisabled;
-        help.hidden = allowPasswordsEngine || enginesListDisabled;
+        checkbox.disabled = !allowPasswordsEngine;
+        help.hidden = allowPasswordsEngine;
       });
     // If fxAccountEnabled is false and we are in a "not configured" state,
     // then fxAccounts is probably fully disabled rather than just unconfigured,

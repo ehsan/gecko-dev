@@ -3154,7 +3154,6 @@ static nsIAtom** sPropertiesToTraverseAndUnlink[] =
     &nsGkAtoms::itemref,
     &nsGkAtoms::itemprop,
     &nsGkAtoms::sandbox,
-    &nsGkAtoms::sizes,
     nullptr
   };
 

@@ -6,7 +6,7 @@
 #include "ParentProcessController.h"
 #include "nsIContent.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/layers/APZCCallbackHelper.h"
+#include "APZCCallbackHelper.h"
 #include "base/message_loop.h"
 
 namespace mozilla {
@@ -26,7 +26,7 @@ public:
         MOZ_ASSERT(NS_IsMainThread());
         nsCOMPtr<nsIContent> content = nsLayoutUtils::FindContentFor(mFrameMetrics.GetScrollId());
         if (content) {
-            mozilla::layers::APZCCallbackHelper::UpdateSubFrame(content, mFrameMetrics);
+            APZCCallbackHelper::UpdateSubFrame(content, mFrameMetrics);
         }
         return NS_OK;
     }
@@ -54,7 +54,7 @@ void
 ParentProcessController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
                                                  const uint32_t& aScrollGeneration)
 {
-    mozilla::layers::APZCCallbackHelper::AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
+    APZCCallbackHelper::AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
 }
 
 void
