@@ -529,6 +529,7 @@ StrictArgGetter(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 static JSBool
+
 StrictArgSetter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 {
     if (!obj->isStrictArguments())
@@ -554,7 +555,7 @@ StrictArgSetter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
      */
     AutoValueRooter tvr(cx);
     return js_DeleteProperty(cx, argsobj, id, tvr.addr(), strict) &&
-           js_SetPropertyHelper(cx, argsobj, id, 0, vp, strict);
+           js_SetProperty(cx, argsobj, id, vp, strict);
 }
 
 static JSBool
@@ -869,8 +870,9 @@ inline static void
 CopyValuesToCallObject(JSObject &callobj, uintN nargs, Value *argv, uintN nvars, Value *slots)
 {
     JS_ASSERT(callobj.numSlots() >= JSObject::CALL_RESERVED_SLOTS + nargs + nvars);
-    callobj.copySlots(JSObject::CALL_RESERVED_SLOTS, argv, nargs);
-    callobj.copySlots(JSObject::CALL_RESERVED_SLOTS + nargs, slots, nvars);
+    Value *base = callobj.getSlots() + JSObject::CALL_RESERVED_SLOTS;
+    memcpy(base, argv, nargs * sizeof(Value));
+    memcpy(base + nargs, slots, nvars * sizeof(Value));
 }
 
 void
@@ -1012,11 +1014,14 @@ SetCallArg(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
+    Value *argp;
     if (StackFrame *fp = obj->maybeCallObjStackFrame())
-        fp->formalArg(i) = *vp;
+        argp = &fp->formalArg(i);
     else
-        obj->setCallObjArg(i, *vp);
+        argp = &obj->callObjArg(i);
 
+    GCPoke(cx, *argp);
+    *argp = *vp;
     return true;
 }
 
@@ -1036,7 +1041,10 @@ SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     JS_ASSERT((int16) JSID_TO_INT(id) == JSID_TO_INT(id));
     uintN i = (uint16) JSID_TO_INT(id);
 
-    obj->getCallObjCallee()->setFlatClosureUpvar(i, *vp);
+    Value *up = &obj->getCallObjCallee()->getFlatClosureUpvar(i);
+
+    GCPoke(cx, *up);
+    *up = *vp;
     return true;
 }
 
@@ -1076,11 +1084,14 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
     }
 #endif
 
+    Value *varp;
     if (StackFrame *fp = obj->maybeCallObjStackFrame())
-        fp->varSlot(i) = *vp;
+        varp = &fp->varSlot(i);
     else
-        obj->setCallObjVar(i, *vp);
+        varp = &obj->callObjVar(i);
 
+    GCPoke(cx, *varp);
+    *varp = *vp;
     return true;
 }
 
@@ -1163,7 +1174,7 @@ call_trace(JSTracer *trc, JSObject *obj)
         uintN count = fp->script()->bindings.countArgsAndVars();
 
         JS_ASSERT(obj->numSlots() >= first + count);
-        obj->setSlotsUndefined(first, count);
+        SetValueRangeToUndefined(obj->getSlots() + first, count);
     }
 
     MaybeMarkGenerator(trc, obj);
@@ -1295,6 +1306,12 @@ StackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
 static JSBool
 fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
+    /*
+     * Note how that clobbering is what simulates JSPROP_READONLY for all of
+     * the non-standard properties when the directly addressed object (obj)
+     * is a function object (i.e., when this loop does not iterate).
+     */
+
     while (!obj->isFunction()) {
         obj = obj->getProto();
         if (!obj)
@@ -1591,7 +1608,6 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 
     if (xdr->mode == JSXDR_DECODE) {
         *objp = FUN_OBJECT(fun);
-        fun->u.i.script->setOwnerObject(fun);
 #ifdef CHECK_SCRIPT_OWNER
         fun->script()->owner = NULL;
 #endif
@@ -1663,8 +1679,12 @@ fun_trace(JSTracer *trc, JSObject *obj)
     if (fun->atom)
         MarkString(trc, fun->atom, "atom");
 
-    if (fun->isInterpreted() && fun->script())
-        js_TraceScript(trc, fun->script(), obj);
+    if (fun->isInterpreted() && fun->script()) {
+        if (fun->script()->compartment != obj->compartment())
+            JS_Assert("compartment mismatch", __FILE__, __LINE__);
+
+        js_TraceScript(trc, fun->script());
+    }
 }
 
 static void
@@ -1686,7 +1706,7 @@ fun_finalize(JSContext *cx, JSObject *obj)
      * Null-check fun->script() because the parser sets interpreted very early.
      */
     if (fun->isInterpreted() && fun->script())
-        js_DestroyScriptFromGC(cx, fun->script(), obj);
+        js_DestroyScriptFromGC(cx, fun->script());
 }
 
 /*
@@ -1906,11 +1926,11 @@ JSObject::initBoundFunction(JSContext *cx, const Value &thisArg,
     JS_ASSERT(isFunction());
 
     flags |= JSObject::BOUND_FUNCTION;
-    setSlot(JSSLOT_BOUND_FUNCTION_THIS, thisArg);
-    setSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT, PrivateUint32Value(argslen));
+    getSlotRef(JSSLOT_BOUND_FUNCTION_THIS) = thisArg;
+    getSlotRef(JSSLOT_BOUND_FUNCTION_ARGS_COUNT).setPrivateUint32(argslen);
     if (argslen != 0) {
         /* FIXME? Burn memory on an empty scope whose shape covers the args slots. */
-        EmptyShape *empty = EmptyShape::create(cx, getClass());
+        EmptyShape *empty = EmptyShape::create(cx, clasp);
         if (!empty)
             return false;
 
@@ -1921,7 +1941,7 @@ JSObject::initBoundFunction(JSContext *cx, const Value &thisArg,
             return false;
 
         JS_ASSERT(numSlots() >= argslen + FUN_CLASS_RESERVED_SLOTS);
-        copySlots(FUN_CLASS_RESERVED_SLOTS, args, argslen);
+        memcpy(getSlots() + FUN_CLASS_RESERVED_SLOTS, args, argslen * sizeof(Value));
     }
     return true;
 }
@@ -2366,7 +2386,6 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
     script->owner = NULL;
 #endif
     fun->u.i.script = script;
-    script->setOwnerObject(fun);
     js_CallNewScriptHook(cx, script, fun);
 
     if (obj->isGlobal()) {
@@ -2469,12 +2488,10 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
             JS_ASSERT(script);
             JS_ASSERT(script->compartment == fun->compartment());
             JS_ASSERT(script->compartment != cx->compartment);
-            JS_OPT_ASSERT(script->ownerObject == fun);
 
             cfun->u.i.script = js_CloneScript(cx, script);
             if (!cfun->script())
                 return NULL;
-            cfun->script()->setOwnerObject(cfun);
 #ifdef CHECK_SCRIPT_OWNER
             cfun->script()->owner = NULL;
 #endif

@@ -68,17 +68,14 @@
 #define TO_CONTAINER(_node)                                                   \
     static_cast<nsNavHistoryContainerResultNode*>(_node)
 
-#define NOTIFY_RESULT_OBSERVERS_RET(_result, _method, _ret)                   \
+#define NOTIFY_RESULT_OBSERVERS(_result, _method)                             \
   PR_BEGIN_MACRO                                                              \
-  NS_ENSURE_TRUE(_result, _ret);                                              \
+  NS_ENSURE_STATE(_result);                                                   \
   if (!_result->mSuppressNotifications) {                                     \
     ENUMERATE_WEAKARRAY(_result->mObservers, nsINavHistoryResultObserver,     \
                         _method)                                              \
   }                                                                           \
   PR_END_MACRO
-
-#define NOTIFY_RESULT_OBSERVERS(_result, _method)                             \
-  NOTIFY_RESULT_OBSERVERS_RET(_result, _method, NS_ERROR_UNEXPECTED)
 
 // What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
 // but some of our classes (like nsNavHistoryResult) have an ambiguous base
@@ -1646,9 +1643,8 @@ nsNavHistoryContainerResultNode::EnsureItemPosition(PRUint32 aIndex) {
 
   if (AreChildrenVisible()) {
     nsNavHistoryResult* result = GetResult();
-    NOTIFY_RESULT_OBSERVERS_RET(result,
-                                NodeMoved(node, this, aIndex, this, newIndex),
-                                PR_FALSE);
+    NOTIFY_RESULT_OBSERVERS(result,
+                            NodeMoved(node, this, aIndex, this, newIndex));
   }
 
   return PR_TRUE;
@@ -3929,7 +3925,7 @@ nsNavHistoryFolderResultNode::StartIncrementalUpdate()
       return PR_TRUE;
 
     nsNavHistoryResult* result = GetResult();
-    NS_ENSURE_TRUE(result, PR_FALSE);
+    NS_ENSURE_STATE(result);
 
     // When any observers are attached also do incremental updates if our
     // parent is visible, so that twisties are drawn correctly.

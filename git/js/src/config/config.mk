@@ -164,10 +164,10 @@ SLEEP ?= sleep
 TOUCH ?= touch
 
 ifndef .PYMAKE
-PYTHON_PATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
+PYTHONPATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
 else
 PYCOMMANDPATH += $(topsrcdir)/config
-PYTHON_PATH = %pythonpath main
+PYTHONPATH = %pythonpath main
 endif
 
 # determine debug-related options

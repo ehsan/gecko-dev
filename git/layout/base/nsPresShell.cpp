@@ -133,6 +133,7 @@
 #include "nsIAttribute.h"
 #include "nsIGlobalHistory2.h"
 #include "nsDisplayList.h"
+#include "nsIRegion.h"
 #include "nsRegion.h"
 #include "nsRenderingContext.h"
 

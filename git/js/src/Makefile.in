@@ -178,7 +178,6 @@ CPPSRCS		= \
 		jsstr.cpp \
 		jstypedarray.cpp \
 		jsutil.cpp \
-		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jswrapper.cpp \
 		jsxdrapi.cpp \
@@ -189,7 +188,6 @@ CPPSRCS		= \
 		Stack.cpp \
 		String.cpp \
 		ParseMaps.cpp \
-		Unicode.cpp \
 		$(NULL)
 
 # Changes to internal header files, used externally, massively slow down
@@ -278,7 +276,6 @@ EXPORTS_vm = \
 		Stack.h \
 		String.h \
 		StringObject.h \
-		Unicode.h  \
 		$(NULL)
 
 ###############################################

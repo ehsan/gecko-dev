@@ -309,12 +309,6 @@ nsHttpConnectionMgr::PruneDeadConnections()
 }
 
 nsresult
-nsHttpConnectionMgr::ClosePersistentConnections()
-{
-    return PostEvent(&nsHttpConnectionMgr::OnMsgClosePersistentConnections);
-}
-
-nsresult
 nsHttpConnectionMgr::GetSocketThreadTarget(nsIEventTarget **target)
 {
     // This object doesn't get reinitialized if the offline state changes, so our
@@ -707,16 +701,6 @@ nsHttpConnectionMgr::ClosePersistentConnections(nsConnectionEntry *ent)
         ent->mActiveConns[i]->DontReuse();
 }
 
-PRIntn
-nsHttpConnectionMgr::ClosePersistentConnectionsCB(nsHashKey *key,
-                                                  void *data, void *closure)
-{
-    nsHttpConnectionMgr *self = static_cast<nsHttpConnectionMgr *>(closure);
-    nsConnectionEntry *ent = static_cast<nsConnectionEntry *>(data);
-    self->ClosePersistentConnections(ent);
-    return kHashEnumerateNext;
-}
-
 void
 nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent,
                                    nsHttpTransaction *trans,
@@ -1106,14 +1090,6 @@ nsHttpConnectionMgr::OnMsgPruneDeadConnections(PRInt32, void *)
     mTimeOfNextWakeUp = LL_MAXUINT;
     if (mNumIdleConns > 0) 
         mCT.Enumerate(PruneDeadConnectionsCB, this);
-}
-
-void
-nsHttpConnectionMgr::OnMsgClosePersistentConnections(PRInt32, void *)
-{
-    LOG(("nsHttpConnectionMgr::OnMsgClosePersistentConnections\n"));
-
-    mCT.Enumerate(ClosePersistentConnectionsCB, this);
 }
 
 void

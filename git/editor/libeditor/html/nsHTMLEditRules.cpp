@@ -1549,7 +1549,7 @@ nsHTMLEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBo
   // initialize out param
   // we want to ignore result of WillInsert()
   *aCancel = PR_FALSE;
-
+  
   // split any mailcites in the way.
   // should we abort this if we encounter table cell boundaries?
   if (IsMailEditor())
@@ -1562,36 +1562,25 @@ nsHTMLEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBo
   // smart splitting rules
   nsCOMPtr<nsIDOMNode> node;
   PRInt32 offset;
-
+  
   res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(node), &offset);
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
-
-  // do nothing if the node is read-only
-  if (!mHTMLEditor->IsModifiableNode(node))
-  {
-    *aCancel = PR_TRUE;
-    return NS_OK;
-  }
-
+    
   // identify the block
   nsCOMPtr<nsIDOMNode> blockParent;
+  
   if (IsBlockNode(node)) 
     blockParent = node;
   else 
     blockParent = mHTMLEditor->GetBlockNodeParent(node);
+    
   NS_ENSURE_TRUE(blockParent, NS_ERROR_FAILURE);
-
-  // if the active editing host is an inline element,
-  // or if the active editing host is the block parent itself,
-  // just append a br.
-  nsCOMPtr<nsIContent> hostContent = mHTMLEditor->GetActiveEditingHost();
-  nsCOMPtr<nsIDOMNode> hostNode = do_QueryInterface(hostContent);
-  if (!nsEditorUtils::IsDescendantOf(blockParent, hostNode)) 
+  
+  // do nothing if the node is read-only
+  if (!mHTMLEditor->IsModifiableNode(blockParent))
   {
-    res = StandardBreakImpl(node, offset, aSelection);
-    NS_ENSURE_SUCCESS(res, res);
-    *aHandled = PR_TRUE;
+    *aCancel = PR_TRUE;
     return NS_OK;
   }
 
@@ -2541,10 +2530,6 @@ nsHTMLEditRules::InsertBRIfNeeded(nsISelection *aSelection)
   nsresult res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(node), &offset);
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
-
-  // inline elements don't need any br
-  if (!IsBlockNode(node))
-    return res;
 
   // examine selection
   nsWSRunObject wsObj(mHTMLEditor, node, offset);
@@ -5084,7 +5069,7 @@ nsHTMLEditRules::GetInnerContent(nsIDOMNode *aNode, nsCOMArray<nsIDOMNode> &outA
 // ExpandSelectionForDeletion: this promotes our selection to include blocks
 // that have all their children selected.
 //                  
-nsresult
+PRBool
 nsHTMLEditRules::ExpandSelectionForDeletion(nsISelection *aSelection)
 {
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
@@ -5130,8 +5115,7 @@ nsHTMLEditRules::ExpandSelectionForDeletion(nsISelection *aSelection)
   nsCOMPtr<nsIDOMNode> visNode, firstBRParent;
   PRInt32 visOffset=0, firstBROffset=0;
   PRInt16 wsType;
-  nsCOMPtr<nsIContent> rootContent = mHTMLEditor->GetActiveEditingHost();
-  nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(rootContent);
+  nsIDOMElement *rootElement = mHTMLEditor->GetRoot();
   NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
 
   // find previous visible thingy before start of selection

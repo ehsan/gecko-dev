@@ -37,10 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <string.h>
 #include "mozilla/Telemetry.h"
 #include "sqlite3.h"
-#include "nsThreadUtils.h"
+#include <string.h>
 
 namespace {
 
@@ -75,27 +74,6 @@ Histograms gHistograms[] = {
    Telemetry::MOZ_SQLITE_OTHER_SYNC }
 };
 
-
-/** RAII class for measuring how long io takes on/off main thread */
-class IOThreadAutoTimer {
-public:
-  IOThreadAutoTimer(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
-    : start(TimeStamp::Now())
-  {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-  }
-
-  ~IOThreadAutoTimer() {
-    Accumulate(NS_IsMainThread() ? Telemetry::MOZ_SQLITE_MAIN_THREAD_WAIT_MS
-               : Telemetry::MOZ_SQLITE_OTHER_THREAD_WAIT_MS
-               , (TimeStamp::Now() - start).ToMilliseconds());
-  }
-
-private:
-  const TimeStamp start;
-  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 struct telemetry_file {
   sqlite3_file base;        // Base class.  Must be first
   Histograms *histograms;   // histograms pertaining to this file
@@ -124,7 +102,6 @@ xClose(sqlite3_file *pFile)
 int
 xRead(sqlite3_file *pFile, void *zBuf, int iAmt, sqlite_int64 iOfst)
 {
-  IOThreadAutoTimer ioTimer;
   telemetry_file *p = (telemetry_file *)pFile;
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_READ_MS> timer;
   int rc;
@@ -141,7 +118,6 @@ xRead(sqlite3_file *pFile, void *zBuf, int iAmt, sqlite_int64 iOfst)
 int
 xWrite(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite_int64 iOfst)
 {
-  IOThreadAutoTimer ioTimer;
   telemetry_file *p = (telemetry_file *)pFile;
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_WRITE_MS> timer;
   int rc;
@@ -156,7 +132,6 @@ xWrite(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite_int64 iOfst)
 int
 xTruncate(sqlite3_file *pFile, sqlite_int64 size)
 {
-  IOThreadAutoTimer ioTimer;
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_TRUNCATE> timer;
@@ -170,7 +145,6 @@ xTruncate(sqlite3_file *pFile, sqlite_int64 size)
 int
 xSync(sqlite3_file *pFile, int flags)
 {
-  IOThreadAutoTimer ioTimer;
   telemetry_file *p = (telemetry_file *)pFile;
   const TimeStamp start = TimeStamp::Now();
   int rc = p->pReal->pMethods->xSync(p->pReal, flags);
@@ -297,7 +271,6 @@ int
 xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
           int flags, int *pOutFlags)
 {
-  IOThreadAutoTimer ioTimer;
   Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_OPEN> timer;
   sqlite3_vfs *orig_vfs = static_cast<sqlite3_vfs*>(vfs->pAppData);
   int rc;

@@ -59,12 +59,8 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
 
-#include "mozilla/Telemetry.h"
-
 #include <unistd.h>
 #include <time.h>
-
-using namespace mozilla;
 
 class nsAutoreleasePool {
 public:
@@ -720,8 +716,6 @@ gfxMacPlatformFontList::InitFontList()
     // need to ignore notifications after adding each font
     if (mATSGeneration == currentGeneration)
         return NS_OK;
-
-    Telemetry::AutoTimer<Telemetry::MAC_INITFONTLIST_TOTAL> timer;
 
     mATSGeneration = currentGeneration;
 #ifdef PR_LOGGING

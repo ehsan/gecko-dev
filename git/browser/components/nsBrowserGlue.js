@@ -151,8 +151,9 @@ BrowserGlue.prototype = {
     }
     delay = delay <= MAX_DELAY ? delay : MAX_DELAY;
 
-    Cu.import("resource://services-sync/main.js");
-    Weave.SyncScheduler.delayedAutoConnect(delay);
+    let syncTemp = {};
+    Cu.import("resource://services-sync/service.js", syncTemp);
+    syncTemp.Weave.Service.delayedAutoConnect(delay);
   },
 #endif
 

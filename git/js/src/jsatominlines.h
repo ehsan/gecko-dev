@@ -42,7 +42,6 @@
 
 #include "jsatom.h"
 #include "jsnum.h"
-#include "jsobj.h"
 
 inline bool
 js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)

@@ -67,9 +67,10 @@ JS_PUBLIC_DATA(JSUint32) OOM_counter = 0;
  */
 JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 
-static JS_NEVER_INLINE void
-CrashInJS()
+JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
+    fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
+    fflush(stderr);
 #if defined(WIN32)
     /*
      * We used to call DebugBreak() on Windows, but amazingly, it causes
@@ -87,13 +88,6 @@ CrashInJS()
 #else
     raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
 #endif
-}
-
-JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
-{
-    fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
-    CrashInJS();
 }
 
 #ifdef JS_BASIC_STATS

@@ -550,8 +550,9 @@ date_regionMatches(const char* s1, int s1off, const jschar* s2, int s2off,
 
     while (count > 0 && s1[s1off] && s2[s2off]) {
         if (ignoreCase) {
-            if (unicode::ToLowerCase(s1[s1off]) != unicode::ToLowerCase(s2[s2off]))
+            if (JS_TOLOWER((jschar)s1[s1off]) != JS_TOLOWER(s2[s2off])) {
                 break;
+            }
         } else {
             if ((jschar)s1[s1off] != s2[s2off]) {
                 break;
@@ -1241,7 +1242,7 @@ SetUTCTime(JSContext *cx, JSObject *obj, jsdouble t, Value *vp = NULL)
 
     size_t slotCap = JS_MIN(obj->numSlots(), JSObject::DATE_CLASS_RESERVED_SLOTS);
     for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START; ind < slotCap; ind++)
-        obj->setSlot(ind, UndefinedValue());
+        obj->getSlotRef(ind).setUndefined();
 
     obj->setDateUTCTime(DoubleValue(t));
     if (vp)
