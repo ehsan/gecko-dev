@@ -49,11 +49,6 @@ describe("loop.panel", function() {
           callback(null, []);
         },
         on: sandbox.stub()
-      },
-      rooms: {
-        getAll: function(callback) {
-          callback(null, []);
-        }
       }
     };
 

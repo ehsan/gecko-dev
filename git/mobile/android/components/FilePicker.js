@@ -157,8 +157,7 @@ FilePicker.prototype = {
     let win = this._domWin;
     return this.getEnumerator([this.file], function(file) {
       if (win) {
-        let utils = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-        return utils.wrapDOMFile(file);
+        return new win.File(file);
       }
 
       return new File(file);

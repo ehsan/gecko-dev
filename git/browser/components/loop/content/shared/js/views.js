@@ -135,7 +135,7 @@ loop.shared.views = (function(_, OT, l10n) {
    * Conversation view.
    */
   var ConversationView = React.createClass({displayName: 'ConversationView',
-    mixins: [Backbone.Events, sharedMixins.AudioMixin],
+    mixins: [Backbone.Events],
 
     propTypes: {
       sdk: React.PropTypes.object.isRequired,
@@ -183,7 +183,7 @@ loop.shared.views = (function(_, OT, l10n) {
     componentDidMount: function() {
       if (this.props.initiate) {
         this.listenTo(this.props.model, "session:connected",
-                                        this._onSessionConnected);
+                                        this.startPublishing);
         this.listenTo(this.props.model, "session:stream-created",
                                         this._streamCreated);
         this.listenTo(this.props.model, ["session:peer-hungup",
@@ -223,11 +223,6 @@ loop.shared.views = (function(_, OT, l10n) {
     hangup: function() {
       this.stopPublishing();
       this.props.model.endSession();
-    },
-
-    _onSessionConnected: function(event) {
-      this.startPublishing(event);
-      this.play("connected");
     },
 
     /**
@@ -402,9 +397,8 @@ loop.shared.views = (function(_, OT, l10n) {
       var categories = this._getCategories();
       return Object.keys(categories).map(function(category, key) {
         return (
-          React.DOM.label({key: key, className: "feedback-category-label"}, 
+          React.DOM.label({key: key}, 
             React.DOM.input({type: "radio", ref: "category", name: "category", 
-                   className: "feedback-category-radio", 
                    value: category, 
                    onChange: this.handleCategoryChange, 
                    checked: this.state.category === category}), 
@@ -472,7 +466,6 @@ loop.shared.views = (function(_, OT, l10n) {
             this._getCategoryFields(), 
             React.DOM.p(null, 
               React.DOM.input({type: "text", ref: "description", name: "description", 
-                className: "feedback-description", 
                 onChange: this.handleDescriptionFieldChange, 
                 onFocus: this.handleDescriptionFieldFocus, 
                 value: descriptionDisplayValue, 

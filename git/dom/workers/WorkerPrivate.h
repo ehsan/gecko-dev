@@ -9,7 +9,6 @@
 #include "Workers.h"
 
 #include "nsIContentSecurityPolicy.h"
-#include "nsIWorkerDebugger.h"
 #include "nsPIDOMWindow.h"
 
 #include "mozilla/CondVar.h"
@@ -62,7 +61,6 @@ class WorkerControlRunnable;
 class WorkerGlobalScope;
 class WorkerPrivate;
 class WorkerRunnable;
-class WorkerDebugger;
 
 enum WorkerType
 {
@@ -295,12 +293,6 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(WorkerPrivateParent,
                                                          DOMEventTargetHelper)
-
-  void
-  EnableDebugger();
-
-  void
-  DisableDebugger();
 
   void
   ClearSelfRef()
@@ -729,34 +721,6 @@ public:
 #endif
 };
 
-class WorkerDebugger : public nsIWorkerDebugger {
-  mozilla::Mutex mMutex;
-  mozilla::CondVar mCondVar;
-
-  // Protected by mMutex
-  WorkerPrivate* mWorkerPrivate;
-  bool mIsEnabled;
-
-public:
-  WorkerDebugger(WorkerPrivate* aWorkerPrivate);
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIWORKERDEBUGGER
-
-  void AssertIsOnParentThread();
-
-  void WaitIsEnabled(bool aIsEnabled);
-
-  void Enable();
-
-  void Disable();
-
-private:
-  virtual ~WorkerDebugger();
-
-  void NotifyIsEnabled(bool aIsEnabled);
-};
-
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 {
   friend class WorkerPrivateParent<WorkerPrivate>;
@@ -774,8 +738,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
     IdleTimer,
     NoTimer
   };
-
-  nsRefPtr<WorkerDebugger> mDebugger;
 
   Queue<WorkerControlRunnable*, 4> mControlQueue;
 

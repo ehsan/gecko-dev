@@ -27,7 +27,6 @@
 #include "nsITimer.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
-#include "nsIWorkerDebugger.h"
 #include "nsIXPConnect.h"
 
 #include <algorithm>
@@ -81,7 +80,6 @@
 #include "ScriptLoader.h"
 #include "ServiceWorkerManager.h"
 #include "SharedWorker.h"
-#include "WorkerDebuggerManager.h"
 #include "WorkerFeature.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
@@ -658,8 +656,6 @@ private:
     RuntimeService* runtime = RuntimeService::GetService();
     NS_ASSERTION(runtime, "This should never be null!");
 
-    mFinishedWorker->DisableDebugger();
-
     runtime->UnregisterWorker(aCx, mFinishedWorker);
 
     mFinishedWorker->ClearSelfRef();
@@ -693,8 +689,6 @@ private:
 
     AutoSafeJSContext cx;
     JSAutoRequest ar(cx);
-
-    mFinishedWorker->DisableDebugger();
 
     runtime->UnregisterWorker(cx, mFinishedWorker);
 
@@ -2149,42 +2143,6 @@ WorkerPrivateParent<Derived>::DispatchPrivate(WorkerRunnable* aRunnable,
 }
 
 template <class Derived>
-void
-WorkerPrivateParent<Derived>::EnableDebugger()
-{
-  AssertIsOnParentThread();
-
-  WorkerPrivate* self = ParentAsWorkerPrivate();
-
-  MOZ_ASSERT(!self->mDebugger);
-  self->mDebugger = new WorkerDebugger(self);
-
-  if (NS_FAILED(RegisterWorkerDebugger(self->mDebugger))) {
-    NS_WARNING("Failed to register worker debugger!");
-    self->mDebugger = nullptr;
-  }
-}
-
-template <class Derived>
-void
-WorkerPrivateParent<Derived>::DisableDebugger()
-{
-  AssertIsOnParentThread();
-
-  WorkerPrivate* self = ParentAsWorkerPrivate();
-
-  if (!self->mDebugger) {
-    return;
-  }
-
-  if (NS_FAILED(UnregisterWorkerDebugger(self->mDebugger))) {
-    NS_WARNING("Failed to unregister worker debugger!");
-  }
-
-  self->mDebugger = nullptr;
-}
-
-template <class Derived>
 nsresult
 WorkerPrivateParent<Derived>::DispatchControlRunnable(
                                   WorkerControlRunnable* aWorkerControlRunnable)
@@ -3490,94 +3448,6 @@ WorkerPrivateParent<Derived>::AssertInnerWindowIsCorrect() const
 }
 
 #endif
-
-WorkerDebugger::WorkerDebugger(WorkerPrivate* aWorkerPrivate)
-: mMutex("WorkerDebugger::mMutex"),
-  mCondVar(mMutex, "WorkerDebugger::mCondVar"),
-  mWorkerPrivate(aWorkerPrivate),
-  mIsEnabled(false)
-{
-  mWorkerPrivate->AssertIsOnParentThread();
-}
-
-WorkerDebugger::~WorkerDebugger()
-{
-  MOZ_ASSERT(!mWorkerPrivate);
-}
-
-NS_IMPL_ISUPPORTS(WorkerDebugger, nsIWorkerDebugger)
-
-NS_IMETHODIMP
-WorkerDebugger::GetIsClosed(bool* aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  *aResult = !mWorkerPrivate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WorkerDebugger::GetUrl(nsAString& aResult)
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  if (!mWorkerPrivate) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  aResult = mWorkerPrivate->ScriptURL();
-  return NS_OK;
-}
-
-void
-WorkerDebugger::WaitIsEnabled(bool aIsEnabled)
-{
-  MutexAutoLock lock(mMutex);
-
-  while (mIsEnabled != aIsEnabled) {
-    mCondVar.Wait();
-  }
-}
-
-void
-WorkerDebugger::NotifyIsEnabled(bool aIsEnabled)
-{
-  mMutex.AssertCurrentThreadOwns();
-
-  MOZ_ASSERT(mIsEnabled != aIsEnabled);
-  mIsEnabled = aIsEnabled;
-  mCondVar.Notify();
-}
-
-void
-WorkerDebugger::Enable()
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  MOZ_ASSERT(mWorkerPrivate);
-
-  NotifyIsEnabled(true);
-}
-
-void
-WorkerDebugger::Disable()
-{
-  AssertIsOnMainThread();
-
-  MutexAutoLock lock(mMutex);
-
-  MOZ_ASSERT(mWorkerPrivate);
-  mWorkerPrivate = nullptr;
-
-  NotifyIsEnabled(false);
-}
-
 WorkerPrivate::WorkerPrivate(JSContext* aCx,
                              WorkerPrivate* aParent,
                              const nsAString& aScriptURL,
@@ -3750,8 +3620,6 @@ WorkerPrivate::Constructor(JSContext* aCx,
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
   }
-
-  worker->EnableDebugger();
 
   nsRefPtr<CompileScriptRunnable> compiler = new CompileScriptRunnable(worker);
   if (!compiler->Dispatch(aCx)) {
