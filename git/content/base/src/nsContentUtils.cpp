@@ -2708,6 +2708,7 @@ static const char gPropertiesFiles[nsContentUtils::PropertiesFile_COUNT][56] = {
   "chrome://global/locale/layout/HtmlForm.properties",
   "chrome://global/locale/printing.properties",
   "chrome://global/locale/dom/dom.properties",
+  "chrome://global/locale/layout/htmlparser.properties",
   "chrome://global/locale/svg/svg.properties",
   "chrome://branding/locale/brand.properties",
   "chrome://global/locale/commonDialogs.properties"
@@ -5441,10 +5442,15 @@ void
 nsContentUtils::CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
                                         nsWrapperCache* aCache)
 {
+  JSObject* wrapper = aCache->GetWrapper();
+  if (!wrapper) {
+    return;
+  }
+
   nsXPCOMCycleCollectionParticipant* participant;
   CallQueryInterface(aScriptObjectHolder, &participant);
 
-  DebugWrapperTraversalCallback callback(aCache->GetWrapper());
+  DebugWrapperTraversalCallback callback(wrapper);
 
   participant->Traverse(aScriptObjectHolder, callback);
   NS_ASSERTION(callback.mFound,
@@ -5812,7 +5818,9 @@ nsContentUtils::IsFullScreenApiEnabled()
 
 bool nsContentUtils::IsRequestFullScreenAllowed()
 {
-  return !sTrustedFullScreenOnly || nsEventStateManager::IsHandlingUserInput();
+  return !sTrustedFullScreenOnly ||
+         nsEventStateManager::IsHandlingUserInput() ||
+         IsCallerChrome();
 }
 
 bool
@@ -5904,9 +5912,11 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
                              void *aClosure)
 {
   if (aCache->PreservingWrapper()) {
-    aCallback(nsIProgrammingLanguage::JAVASCRIPT,
-              aCache->GetWrapperPreserveColor(),
-              "Preserved wrapper", aClosure);
+    JSObject *wrapper = aCache->GetWrapperPreserveColor();
+    if (wrapper) {
+      aCallback(nsIProgrammingLanguage::JAVASCRIPT, wrapper,
+                "Preserved wrapper", aClosure);
+    }
   }
   else {
     JSObject *expando = aCache->GetExpandoObjectPreserveColor();

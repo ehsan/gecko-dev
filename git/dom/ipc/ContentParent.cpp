@@ -51,7 +51,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -162,6 +161,9 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
 }
 
 nsTArray<ContentParent*>* ContentParent::gContentParents;
+
+// The first content child has ID 1, so the chrome process can have ID 0.
+static PRUint64 gContentChildID = 1;
 
 ContentParent*
 ContentParent::GetNewOrUsed()
@@ -425,6 +427,7 @@ ContentParent::ContentParent()
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
     mSubprocess->AsyncLaunch();
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
+    unused << SendSetID(gContentChildID++);
 
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryChrome* chromeRegistry =
@@ -461,7 +464,7 @@ bool
 ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
 {
     EnsurePrefService();
-    mPrefService->MirrorPreferences(prefs);
+    Preferences::MirrorPreferences(prefs);
     return true;
 }
 
@@ -707,33 +710,9 @@ ContentParent::Observe(nsISupports* aSubject,
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
 
-        nsCOMPtr<nsIPrefServiceInternal> prefService =
-          do_GetService("@mozilla.org/preferences-service;1");
-
-        bool prefNeedUpdate;
-        prefService->PrefHasUserValue(strData, &prefNeedUpdate);
-
-        // If the pref does not have a user value, check if it exist on the
-        // default branch or not
-        if (!prefNeedUpdate) {
-          nsCOMPtr<nsIPrefBranch> defaultBranch;
-          nsCOMPtr<nsIPrefService> prefsService = do_QueryInterface(prefService);
-          prefsService->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
-
-          PRInt32 prefType = nsIPrefBranch::PREF_INVALID;
-          defaultBranch->GetPrefType(strData.get(), &prefType);
-          prefNeedUpdate = (prefType != nsIPrefBranch::PREF_INVALID);
-        }
-
+        PrefTuple pref;
+        bool prefNeedUpdate = Preferences::MirrorPreference(strData.get(), &pref);
         if (prefNeedUpdate) {
-          // Pref was created, or previously existed and its value
-          // changed.
-          PrefTuple pref;
-#ifdef DEBUG
-          nsresult rv =
-#endif
-          prefService->MirrorPreference(strData, &pref);
-          NS_ASSERTION(NS_SUCCEEDED(rv), "Pref has value but can't mirror?");
           if (!SendPreferenceUpdate(pref)) {
               return NS_ERROR_NOT_AVAILABLE;
           }

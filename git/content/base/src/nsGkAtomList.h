@@ -589,6 +589,7 @@ GK_ATOM(mouseover, "mouseover")
 GK_ATOM(mousethrough, "mousethrough")
 GK_ATOM(mouseup, "mouseup")
 GK_ATOM(mozfullscreenchange, "mozfullscreenchange")
+GK_ATOM(mozfullscreenerror, "mozfullscreenerror")
 GK_ATOM(moz_opaque, "moz-opaque")
 GK_ATOM(moz_action_hint, "mozactionhint")
 GK_ATOM(x_moz_errormessage, "x-moz-errormessage")
@@ -707,6 +708,7 @@ GK_ATOM(onmouseup, "onmouseup")
 GK_ATOM(onMozAfterPaint, "onMozAfterPaint")
 GK_ATOM(onMozBeforePaint, "onMozBeforePaint")
 GK_ATOM(onmozfullscreenchange, "onmozfullscreenchange")
+GK_ATOM(onmozfullscreenerror, "onmozfullscreenerror")
 GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
 GK_ATOM(onMozScrolledAreaChanged, "onMozScrolledAreaChanged")
 GK_ATOM(ononline, "ononline")
@@ -1366,7 +1368,6 @@ GK_ATOM(yChannelSelector, "yChannelSelector")
 GK_ATOM(z, "z")
 GK_ATOM(zoomAndPan, "zoomAndPan")
 
-#ifdef MOZ_SMIL
 GK_ATOM(accumulate, "accumulate")
 GK_ATOM(additive, "additive")
 GK_ATOM(attributeName, "attributeName")
@@ -1393,7 +1394,6 @@ GK_ATOM(repeatEvent, "repeatEvent")
 GK_ATOM(restart, "restart")
 GK_ATOM(to, "to")
 GK_ATOM(XML, "XML")
-#endif
 
 // internal MathML attributes: different from columnalign_, columnlines_,
 // fontstyle_, rowalign_ and rowlines_

@@ -54,6 +54,10 @@ pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
 
+// Enables strict compatibility. To be toggled in bug 698653, to make addons
+// compatibile by default.
+pref("extensions.strictCompatibility", true);
+
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
@@ -1000,9 +1004,13 @@ pref("devtools.errorconsole.enabled", false);
 
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
+pref("devtools.inspector.htmlHeight", 112);
 
 // Enable the style inspector
 pref("devtools.styleinspector.enabled", true);
+
+// Enable the rules view
+pref("devtools.ruleview.enabled", true);
 
 // Enable the Scratchpad tool.
 pref("devtools.scratchpad.enabled", true);
@@ -1056,3 +1064,6 @@ pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.prop
 pref("prompts.tab_modal.enabled", true);
 // Whether the Panorama should animate going in/out of tabs
 pref("browser.panorama.animate_zoom", true);
+
+// Enable the DOM full-screen API.
+pref("full-screen-api.enabled", true);

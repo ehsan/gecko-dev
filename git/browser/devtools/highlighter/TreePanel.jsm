@@ -227,16 +227,18 @@ TreePanel.prototype = {
     treeBox = this.document.createElement("vbox");
     treeBox.id = "inspector-tree-box";
     treeBox.state = "open"; // for the registerTools API.
-    treeBox.minHeight = 10;
+    try {
+      treeBox.height =
+        Services.prefs.getIntPref("devtools.inspector.htmlHeight");
+    } catch(e) {
+      treeBox.height = 112;
+    }
+                      
+    treeBox.minHeight = 64;
     treeBox.flex = 1;
     toolbarParent.insertBefore(treeBox, toolbar);
 
-    let resizerTop =
-      this.IUI.browser.ownerDocument.getElementById("inspector-top-resizer");
-    let resizerEnd =
-      this.IUI.browser.ownerDocument.getElementById("inspector-end-resizer");
-    resizerTop.removeAttribute("disabled");
-    resizerEnd.removeAttribute("disabled");
+    this.IUI.toolbar.setAttribute("treepanel-open", "true");
 
     treeBox.appendChild(this.treeIFrame);
 
@@ -264,14 +266,10 @@ TreePanel.prototype = {
   close: function TP_close()
   {
     if (this.openInDock) {
-      let resizerTop = 
-        this.IUI.browser.ownerDocument.getElementById("inspector-top-resizer");
-      let resizerEnd = 
-        this.IUI.browser.ownerDocument.getElementById("inspector-end-resizer");
-      resizerTop.setAttribute("disabled", "true");
-      resizerEnd.setAttribute("disabled", "true");
+      this.IUI.toolbar.removeAttribute("treepanel-open");
 
       let treeBox = this.container;
+      Services.prefs.setIntPref("devtools.inspector.htmlHeight", treeBox.height);
       let treeBoxParent = treeBox.parentNode;
       treeBoxParent.removeChild(treeBox);
     } else {
@@ -468,6 +466,9 @@ TreePanel.prototype = {
     editorInput.value = aAttrVal;
     editorInput.select();
 
+    // remove tree key navigation events
+    this.treeIFrame.removeEventListener("keypress", this.IUI, false);
+
     // listen for editor specific events
     this.bindEditorEvent(editor, "click", function(aEvent) {
       aEvent.stopPropagation();
@@ -525,8 +526,12 @@ TreePanel.prototype = {
   {
     if (aEvent.which == this.window.KeyEvent.DOM_VK_RETURN) {
       this.saveEditor();
+      aEvent.preventDefault();
+      aEvent.stopPropagation();
     } else if (aEvent.keyCode == this.window.KeyEvent.DOM_VK_ESCAPE) {
       this.closeEditor();
+      aEvent.preventDefault();
+      aEvent.stopPropagation();
     }
   },
 
@@ -556,6 +561,9 @@ TreePanel.prototype = {
     this.editingContext = null;
     this.editingEvents = {};
 
+    // re-add navigation listener
+    this.treeIFrame.addEventListener("keypress", this.IUI, false);
+
     // event notification
     Services.obs.notifyObservers(null, this.IUI.INSPECTOR_NOTIFICATIONS.EDITOR_CLOSED,
                                   null);
@@ -577,6 +585,7 @@ TreePanel.prototype = {
     this.editingContext.attrObj.innerHTML = editorInput.value;
 
     this.IUI.isDirty = true;
+    this.IUI.nodeChanged(this.registrationObject);
 
     // event notification
     Services.obs.notifyObservers(null, this.IUI.INSPECTOR_NOTIFICATIONS.EDITOR_SAVED,
