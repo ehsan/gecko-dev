@@ -44,9 +44,10 @@ function testSetupConcurrentDataCalls() {
   log("= testSetupConcurrentDataCalls =");
 
   let promise = Promise.resolve();
+  let types = Object.keys(mobileTypeMapping);
   // Skip default mobile type.
   for (let i = 1; i < MAX_DATA_CONTEXTS; i++) {
-    let type = networkTypes[i];
+    let type = types[i];
     promise = promise.then(() => setupDataCallAndWait(type));
   }
   return promise;
@@ -56,9 +57,10 @@ function testDeactivateConcurrentDataCalls() {
   log("= testDeactivateConcurrentDataCalls =");
 
   let promise = Promise.resolve();
+  let types = Object.keys(mobileTypeMapping);
   // Skip default mobile type.
   for (let i = 1; i < MAX_DATA_CONTEXTS; i++) {
-    let type = networkTypes[i];
+    let type = types[i];
     promise = promise.then(() => deactivateDataCallAndWait(type));
   }
   return promise;

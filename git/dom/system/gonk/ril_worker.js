@@ -5275,13 +5275,13 @@ RilObject.prototype = {
       return;
     }
 
-    this.context.StkCommandParamsFactory.createParam(cmdDetails,
-                                                     ctlvs,
-                                                     (aResult) => {
-      cmdDetails.options = aResult;
-      cmdDetails.rilMessageType = "stkcommand";
+    cmdDetails.rilMessageType = "stkcommand";
+    cmdDetails.options =
+      this.context.StkCommandParamsFactory.createParam(cmdDetails, ctlvs);
+
+    if (!cmdDetails.options || !cmdDetails.options.pending) {
       this.sendChromeMessage(cmdDetails);
-    });
+    }
   },
 
   /**
@@ -10541,48 +10541,42 @@ function StkCommandParamsFactoryObject(aContext) {
 StkCommandParamsFactoryObject.prototype = {
   context: null,
 
-  createParam: function(cmdDetails, ctlvs, onComplete) {
+  createParam: function(cmdDetails, ctlvs) {
     let method = this[cmdDetails.typeOfCommand];
     if (typeof method != "function") {
       if (DEBUG) {
         this.context.debug("Unknown proactive command " +
                            cmdDetails.typeOfCommand.toString(16));
       }
-      return;
+      return null;
     }
-    method.call(this, cmdDetails, ctlvs, onComplete);
+    return method.call(this, cmdDetails, ctlvs);
   },
 
-  loadIcons: function(iconIdCtlvs, callback) {
-    if (!iconIdCtlvs ||
-        !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
-      callback(null);
-      return;
+  loadIconIfNecessary: function(cmdDetails, ctlvs, ret) {
+    let ctlv =
+      this.context.StkProactiveCmdHelper
+                  .searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return ret;
     }
+
+    let iconId = ctlv.value;
+    ret.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
 
     let onerror = (function() {
-      callback(null);
+      this.context.RIL.sendChromeMessage(cmdDetails);
     }).bind(this);
 
-    let onsuccess = (function(aIcons) {
-      callback(aIcons);
+    let onsuccess = (function(result) {
+      ret.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
     }).bind(this);
 
-    this.context.IconLoader.loadIcons(iconIdCtlvs.map(aCtlv => aCtlv.value.identifier),
-                                      onsuccess,
-                                      onerror);
-  },
+    ret.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
 
-  appendIconIfNecessary: function(iconIdCtlvs, result, onComplete) {
-    this.loadIcons(iconIdCtlvs, (aIcons) => {
-      if (aIcons) {
-        result.icons = aIcons[0];
-        result.iconSelfExplanatory =
-          iconIdCtlvs[0].value.qualifier == 0 ? true : false;
-      }
-
-      onComplete(result);
-    });
+    return ret;
   },
 
   /**
@@ -10593,7 +10587,7 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processRefresh: function(cmdDetails, ctlvs, onComplete) {
+  processRefresh: function(cmdDetails, ctlvs) {
     let refreshType = cmdDetails.commandQualifier;
     switch (refreshType) {
       case STK_REFRESH_FILE_CHANGE:
@@ -10609,8 +10603,7 @@ StkCommandParamsFactoryObject.prototype = {
         }
         break;
     }
-
-    onComplete(null);
+    return null;
   },
 
   /**
@@ -10621,7 +10614,7 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processPollInterval: function(cmdDetails, ctlvs, onComplete) {
+  processPollInterval: function(cmdDetails, ctlvs) {
     let ctlv = this.context.StkProactiveCmdHelper.searchForTag(
         COMPREHENSIONTLV_TAG_DURATION, ctlvs);
     if (!ctlv) {
@@ -10631,7 +10624,7 @@ StkCommandParamsFactoryObject.prototype = {
       throw new Error("Stk Poll Interval: Required value missing : Duration");
     }
 
-    onComplete(ctlv.value);
+    return ctlv.value;
   },
 
   /**
@@ -10642,8 +10635,8 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processPollOff: function(cmdDetails, ctlvs, onComplete) {
-    onComplete(null);
+  processPollOff: function(cmdDetails, ctlvs) {
+    return null;
   },
 
   /**
@@ -10654,7 +10647,7 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processSetUpEventList: function(cmdDetails, ctlvs, onComplete) {
+  processSetUpEventList: function(cmdDetails, ctlvs) {
     let ctlv = this.context.StkProactiveCmdHelper.searchForTag(
         COMPREHENSIONTLV_TAG_EVENT_LIST, ctlvs);
     if (!ctlv) {
@@ -10664,7 +10657,7 @@ StkCommandParamsFactoryObject.prototype = {
       throw new Error("Stk Event List: Required value missing : Event List");
     }
 
-    onComplete(ctlv.value || { eventList: null });
+    return ctlv.value || {eventList: null};
   },
 
   /**
@@ -10675,34 +10668,31 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processSelectItem: function(cmdDetails, ctlvs, onComplete) {
+  processSelectItem: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let menu = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_ITEM,
-      COMPREHENSIONTLV_TAG_ITEM_ID,
-      COMPREHENSIONTLV_TAG_NEXT_ACTION_IND,
-      COMPREHENSIONTLV_TAG_ICON_ID,
-      COMPREHENSIONTLV_TAG_ICON_ID_LIST
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
     if (ctlv) {
       menu.title = ctlv.value.identifier;
     }
 
-    let menuCtlvs = selectedCtlvs[COMPREHENSIONTLV_TAG_ITEM];
-    if (!menuCtlvs) {
+    menu.items = [];
+    for (let i = 0; i < ctlvs.length; i++) {
+      let ctlv = ctlvs[i];
+      if (ctlv.tag == COMPREHENSIONTLV_TAG_ITEM) {
+        menu.items.push(ctlv.value);
+      }
+    }
+
+    if (menu.items.length === 0) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
         resultCode: STK_RESULT_REQUIRED_VALUES_MISSING});
       throw new Error("Stk Menu: Required value missing : items");
     }
-    menu.items = menuCtlvs.map(aCtlv => aCtlv.value);
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ITEM_ID);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ITEM_ID, ctlvs);
     if (ctlv) {
       menu.defaultItem = ctlv.value.identifier - 1;
     }
@@ -10715,61 +10705,61 @@ StkCommandParamsFactoryObject.prototype = {
       menu.isHelpAvailable = true;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_NEXT_ACTION_IND);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_NEXT_ACTION_IND, ctlvs);
     if (ctlv) {
       menu.nextActionList = ctlv.value;
     }
 
-    let iconIdCtlvs = null;
-    let menuIconCtlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ICON_ID);
-    if (menuIconCtlv) {
-      iconIdCtlvs = [menuIconCtlv];
-    }
-
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ICON_ID_LIST);
+    let iconId;
+    let ids = [];
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
     if (ctlv) {
-      if (!iconIdCtlvs) {
-        iconIdCtlvs = [];
-      };
-      let iconIdList = ctlv.value;
-      iconIdCtlvs = iconIdCtlvs.concat(iconIdList.identifiers.map((aId) => {
-        return {
-          value: { qualifier: iconIdList.qualifier, identifier: aId }
-        };
-      }));
+      iconId = ctlv.value;
+      menu.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+      ids[0] = iconId.identifier;
     }
 
-    this.loadIcons(iconIdCtlvs, (aIcons) => {
-      if (aIcons) {
-        if (menuIconCtlv) {
-          menu.iconSelfExplanatory =
-            (iconIdCtlvs.shift().value.qualifier == 0) ? true: false;
-          menu.icons = aIcons.shift();
-        }
+    let iconIdList;
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID_LIST, ctlvs);
+    if (ctlv) {
+      iconIdList = ctlv.value;
+      ids = ids.concat(iconIdList.identifiers);
+    }
 
-        for (let i = 0; i < aIcons.length; i++) {
-          menu.items[i].icons = aIcons[i];
-          menu.items[i].iconSelfExplanatory =
-            (iconIdCtlvs[i].value.qualifier == 0) ? true: false;
-        }
+    if (!ids.length ||
+        !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return menu;
+    }
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      if (iconId) {
+        menu.icons = result.shift();
       }
 
-      onComplete(menu);
-    });
+      let iconSelfExplanatory = iconIdList.qualifier == 0 ? true : false;
+      for (let i = 0; i < result.length; i++) {
+        menu.items[i].icons = result[i];
+        menu.items[i].iconSelfExplanatory = iconSelfExplanatory;
+      }
+
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    menu.pending = true;
+    this.context.IconLoader.loadIcons(ids, onsuccess, onerror);
+
+    return menu;
   },
 
-  processDisplayText: function(cmdDetails, ctlvs, onComplete) {
+  processDisplayText: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let textMsg = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_TEXT_STRING,
-      COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE,
-      COMPREHENSIONTLV_TAG_DURATION,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TEXT_STRING);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_TEXT_STRING, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -10778,12 +10768,12 @@ StkCommandParamsFactoryObject.prototype = {
     }
     textMsg.text = ctlv.value.textString;
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE, ctlvs);
     if (ctlv) {
       textMsg.responseNeeded = true;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_DURATION);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_DURATION, ctlvs);
     if (ctlv) {
       textMsg.duration = ctlv.value;
     }
@@ -10798,21 +10788,15 @@ StkCommandParamsFactoryObject.prototype = {
       textMsg.userClear = true;
     }
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               textMsg,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
   },
 
-  processSetUpIdleModeText: function(cmdDetails, ctlvs, onComplete) {
+  processSetUpIdleModeText: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let textMsg = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_TEXT_STRING,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TEXT_STRING);
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_TEXT_STRING, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -10821,22 +10805,14 @@ StkCommandParamsFactoryObject.prototype = {
     }
     textMsg.text = ctlv.value.textString;
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               textMsg,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
   },
 
-  processGetInkey: function(cmdDetails, ctlvs, onComplete) {
+  processGetInkey: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let input = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_TEXT_STRING,
-      COMPREHENSIONTLV_TAG_DURATION,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TEXT_STRING);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_TEXT_STRING, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -10846,7 +10822,8 @@ StkCommandParamsFactoryObject.prototype = {
     input.text = ctlv.value.textString;
 
     // duration
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_DURATION);
+    ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_DURATION, ctlvs);
     if (ctlv) {
       input.duration = ctlv.value;
     }
@@ -10875,23 +10852,14 @@ StkCommandParamsFactoryObject.prototype = {
       input.isHelpAvailable = true;
     }
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               input,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, input);
   },
 
-  processGetInput: function(cmdDetails, ctlvs, onComplete) {
+  processGetInput: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let input = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_TEXT_STRING,
-      COMPREHENSIONTLV_TAG_RESPONSE_LENGTH,
-      COMPREHENSIONTLV_TAG_DEFAULT_TEXT,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TEXT_STRING);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_TEXT_STRING, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -10900,13 +10868,13 @@ StkCommandParamsFactoryObject.prototype = {
     }
     input.text = ctlv.value.textString;
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_RESPONSE_LENGTH);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_RESPONSE_LENGTH, ctlvs);
     if (ctlv) {
       input.minLength = ctlv.value.minLength;
       input.maxLength = ctlv.value.maxLength;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_DEFAULT_TEXT);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_DEFAULT_TEXT, ctlvs);
     if (ctlv) {
       input.defaultText = ctlv.value.textString;
     }
@@ -10936,102 +10904,60 @@ StkCommandParamsFactoryObject.prototype = {
       input.isHelpAvailable = true;
     }
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               input,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, input);
   },
 
-  processEventNotify: function(cmdDetails, ctlvs, onComplete) {
+  processEventNotify: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let textMsg = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
     if (ctlv) {
       textMsg.text = ctlv.value.identifier;
     }
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               textMsg,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
   },
 
-  processSetupCall: function(cmdDetails, ctlvs, onComplete) {
+  processSetupCall: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let call = {};
-    let confirmMessage = {};
-    let callMessage = {};
+    let iter = Iterator(ctlvs);
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_ADDRESS,
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_ICON_ID,
-      COMPREHENSIONTLV_TAG_DURATION
-    ]);
+    let ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
+    if (ctlv) {
+      call.confirmMessage = ctlv.value.identifier;
+    }
 
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ADDRESS);
+    ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
+    if (ctlv) {
+      call.callMessage = ctlv.value.identifier;
+    }
+
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ADDRESS, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
         resultCode: STK_RESULT_REQUIRED_VALUES_MISSING});
-      throw new Error("Stk Set Up Call: Required value missing : Address");
+      throw new Error("Stk Set Up Call: Required value missing : Adress");
     }
     call.address = ctlv.value.number;
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
-    if (ctlv) {
-      confirmMessage.text = ctlv.value.identifier;
-      call.confirmMessage = confirmMessage;
-    }
-
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
-    if (ctlv) {
-      callMessage.text = ctlv.value.identifier;
-      call.callMessage = callMessage;
-    }
-
     // see 3GPP TS 31.111 section 6.4.13
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_DURATION);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_DURATION, ctlvs);
     if (ctlv) {
       call.duration = ctlv.value;
     }
 
-    let iconIdCtlvs = selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null;
-    this.loadIcons(iconIdCtlvs, (aIcons) => {
-      if (aIcons) {
-        confirmMessage.icons = aIcons[0];
-        confirmMessage.iconSelfExplanatory =
-          (iconIdCtlvs[0].value.qualifier == 0) ? true: false;
-        call.confirmMessage = confirmMessage;
-
-        if (aIcons.length > 1) {
-          callMessage.icons = aIcons[1];
-          callMessage.iconSelfExplanatory =
-            (iconIdCtlvs[1].value.qualifier == 0) ? true: false;
-          call.callMessage = callMessage;
-        }
-      }
-
-      onComplete(call);
-    });
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, call);
   },
 
-  processLaunchBrowser: function(cmdDetails, ctlvs, onComplete) {
+  processLaunchBrowser: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let browser = {};
-    let confirmMessage = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_URL,
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_URL);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_URL, ctlvs);
     if (!ctlv) {
       this.context.RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -11040,49 +10966,33 @@ StkCommandParamsFactoryObject.prototype = {
     }
     browser.url = ctlv.value.url;
 
-    browser.mode = cmdDetails.commandQualifier & 0x03;
-
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
     if (ctlv) {
-      confirmMessage.text = ctlv.value.identifier;
-      browser.confirmMessage = confirmMessage;
+      browser.confirmMessage = ctlv.value.identifier;
     }
 
-    let iconIdCtlvs = selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null;
-    this.loadIcons(iconIdCtlvs, (aIcons) => {
-       if (aIcons) {
-         confirmMessage.icons = aIcons[0];
-         confirmMessage.iconSelfExplanatory =
-           (iconIdCtlvs[0].value.qualifier == 0) ? true: false;
-         browser.confirmMessage = confirmMessage;
-       }
+    browser.mode = cmdDetails.commandQualifier & 0x03;
 
-       onComplete(browser);
-    });
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, browser);
   },
 
-  processPlayTone: function(cmdDetails, ctlvs, onComplete) {
+  processPlayTone: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let playTone = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_TONE,
-      COMPREHENSIONTLV_TAG_DURATION,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
     if (ctlv) {
       playTone.text = ctlv.value.identifier;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TONE);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_TONE, ctlvs);
     if (ctlv) {
       playTone.tone = ctlv.value.tone;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_DURATION);
+    ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_DURATION, ctlvs);
     if (ctlv) {
       playTone.duration = ctlv.value;
     }
@@ -11090,9 +11000,7 @@ StkCommandParamsFactoryObject.prototype = {
     // vibrate is only defined in TS 102.223
     playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) !== 0x00;
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               playTone,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, playTone);
   },
 
   /**
@@ -11103,36 +11011,32 @@ StkCommandParamsFactoryObject.prototype = {
    * @param ctlvs
    *        The all TLVs in this proactive command.
    */
-  processProvideLocalInfo: function(cmdDetails, ctlvs, onComplete) {
+  processProvideLocalInfo: function(cmdDetails, ctlvs) {
     let provideLocalInfo = {
       localInfoType: cmdDetails.commandQualifier
     };
-
-    onComplete(provideLocalInfo);
+    return provideLocalInfo;
   },
 
-  processTimerManagement: function(cmdDetails, ctlvs, onComplete) {
+  processTimerManagement: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let timer = {
       timerAction: cmdDetails.commandQualifier
     };
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER,
-      COMPREHENSIONTLV_TAG_TIMER_VALUE
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER);
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER, ctlvs);
     if (ctlv) {
       timer.timerId = ctlv.value.timerId;
     }
 
-    ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_TIMER_VALUE);
+    ctlv = StkProactiveCmdHelper.searchForTag(
+        COMPREHENSIONTLV_TAG_TIMER_VALUE, ctlvs);
     if (ctlv) {
       timer.timerValue = ctlv.value.timerValue;
     }
 
-    onComplete(timer);
+    return timer;
   },
 
    /**
@@ -11143,93 +11047,87 @@ StkCommandParamsFactoryObject.prototype = {
     * @param ctlvs
     *        The all TLVs in this proactive command.
     */
-  processBipMessage: function(cmdDetails, ctlvs, onComplete) {
+  processBipMessage: function(cmdDetails, ctlvs) {
     let StkProactiveCmdHelper = this.context.StkProactiveCmdHelper;
     let bipMsg = {};
 
-    let selectedCtlvs = StkProactiveCmdHelper.searchForSelectedTags(ctlvs, [
-      COMPREHENSIONTLV_TAG_ALPHA_ID,
-      COMPREHENSIONTLV_TAG_ICON_ID
-    ]);
-
-    let ctlv = selectedCtlvs.retrieve(COMPREHENSIONTLV_TAG_ALPHA_ID);
+    let ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
     if (ctlv) {
       bipMsg.text = ctlv.value.identifier;
     }
 
-    this.appendIconIfNecessary(selectedCtlvs[COMPREHENSIONTLV_TAG_ICON_ID] || null,
-                               bipMsg,
-                               onComplete);
+    return this.loadIconIfNecessary(cmdDetails, ctlvs, bipMsg);
   }
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_REFRESH] = function STK_CMD_REFRESH(cmdDetails, ctlvs, onComplete) {
-  return this.processRefresh(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_REFRESH] = function STK_CMD_REFRESH(cmdDetails, ctlvs) {
+  return this.processRefresh(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_POLL_INTERVAL] = function STK_CMD_POLL_INTERVAL(cmdDetails, ctlvs, onComplete) {
-  return this.processPollInterval(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_POLL_INTERVAL] = function STK_CMD_POLL_INTERVAL(cmdDetails, ctlvs) {
+  return this.processPollInterval(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_POLL_OFF] = function STK_CMD_POLL_OFF(cmdDetails, ctlvs, onComplete) {
-  return this.processPollOff(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_POLL_OFF] = function STK_CMD_POLL_OFF(cmdDetails, ctlvs) {
+  return this.processPollOff(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_PROVIDE_LOCAL_INFO] = function STK_CMD_PROVIDE_LOCAL_INFO(cmdDetails, ctlvs, onComplete) {
-  return this.processProvideLocalInfo(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_PROVIDE_LOCAL_INFO] = function STK_CMD_PROVIDE_LOCAL_INFO(cmdDetails, ctlvs) {
+  return this.processProvideLocalInfo(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_EVENT_LIST] = function STK_CMD_SET_UP_EVENT_LIST(cmdDetails, ctlvs, onComplete) {
-  return this.processSetUpEventList(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_EVENT_LIST] = function STK_CMD_SET_UP_EVENT_LIST(cmdDetails, ctlvs) {
+  return this.processSetUpEventList(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_MENU] = function STK_CMD_SET_UP_MENU(cmdDetails, ctlvs, onComplete) {
-  return this.processSelectItem(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_MENU] = function STK_CMD_SET_UP_MENU(cmdDetails, ctlvs) {
+  return this.processSelectItem(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SELECT_ITEM] = function STK_CMD_SELECT_ITEM(cmdDetails, ctlvs, onComplete) {
-  return this.processSelectItem(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SELECT_ITEM] = function STK_CMD_SELECT_ITEM(cmdDetails, ctlvs) {
+  return this.processSelectItem(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_DISPLAY_TEXT] = function STK_CMD_DISPLAY_TEXT(cmdDetails, ctlvs, onComplete) {
-  return this.processDisplayText(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_DISPLAY_TEXT] = function STK_CMD_DISPLAY_TEXT(cmdDetails, ctlvs) {
+  return this.processDisplayText(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_IDLE_MODE_TEXT] = function STK_CMD_SET_UP_IDLE_MODE_TEXT(cmdDetails, ctlvs, onComplete) {
-  return this.processSetUpIdleModeText(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_IDLE_MODE_TEXT] = function STK_CMD_SET_UP_IDLE_MODE_TEXT(cmdDetails, ctlvs) {
+  return this.processSetUpIdleModeText(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_GET_INKEY] = function STK_CMD_GET_INKEY(cmdDetails, ctlvs, onComplete) {
-  return this.processGetInkey(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_GET_INKEY] = function STK_CMD_GET_INKEY(cmdDetails, ctlvs) {
+  return this.processGetInkey(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_GET_INPUT] = function STK_CMD_GET_INPUT(cmdDetails, ctlvs, onComplete) {
-  return this.processGetInput(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_GET_INPUT] = function STK_CMD_GET_INPUT(cmdDetails, ctlvs) {
+  return this.processGetInput(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_SS] = function STK_CMD_SEND_SS(cmdDetails, ctlvs, onComplete) {
-  return this.processEventNotify(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_SS] = function STK_CMD_SEND_SS(cmdDetails, ctlvs) {
+  return this.processEventNotify(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_USSD] = function STK_CMD_SEND_USSD(cmdDetails, ctlvs, onComplete) {
-  return this.processEventNotify(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_USSD] = function STK_CMD_SEND_USSD(cmdDetails, ctlvs) {
+  return this.processEventNotify(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_SMS] = function STK_CMD_SEND_SMS(cmdDetails, ctlvs, onComplete) {
-  return this.processEventNotify(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_SMS] = function STK_CMD_SEND_SMS(cmdDetails, ctlvs) {
+  return this.processEventNotify(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_DTMF] = function STK_CMD_SEND_DTMF(cmdDetails, ctlvs, onComplete) {
-  return this.processEventNotify(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_DTMF] = function STK_CMD_SEND_DTMF(cmdDetails, ctlvs) {
+  return this.processEventNotify(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_CALL] = function STK_CMD_SET_UP_CALL(cmdDetails, ctlvs, onComplete) {
-  return this.processSetupCall(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SET_UP_CALL] = function STK_CMD_SET_UP_CALL(cmdDetails, ctlvs) {
+  return this.processSetupCall(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_LAUNCH_BROWSER] = function STK_CMD_LAUNCH_BROWSER(cmdDetails, ctlvs, onComplete) {
-  return this.processLaunchBrowser(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_LAUNCH_BROWSER] = function STK_CMD_LAUNCH_BROWSER(cmdDetails, ctlvs) {
+  return this.processLaunchBrowser(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_PLAY_TONE] = function STK_CMD_PLAY_TONE(cmdDetails, ctlvs, onComplete) {
-  return this.processPlayTone(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_PLAY_TONE] = function STK_CMD_PLAY_TONE(cmdDetails, ctlvs) {
+  return this.processPlayTone(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_TIMER_MANAGEMENT] = function STK_CMD_TIMER_MANAGEMENT(cmdDetails, ctlvs, onComplete) {
-  return this.processTimerManagement(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_TIMER_MANAGEMENT] = function STK_CMD_TIMER_MANAGEMENT(cmdDetails, ctlvs) {
+  return this.processTimerManagement(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_OPEN_CHANNEL] = function STK_CMD_OPEN_CHANNEL(cmdDetails, ctlvs, onComplete) {
-  return this.processBipMessage(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_OPEN_CHANNEL] = function STK_CMD_OPEN_CHANNEL(cmdDetails, ctlvs) {
+  return this.processBipMessage(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_CLOSE_CHANNEL] = function STK_CMD_CLOSE_CHANNEL(cmdDetails, ctlvs, onComplete) {
-  return this.processBipMessage(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_CLOSE_CHANNEL] = function STK_CMD_CLOSE_CHANNEL(cmdDetails, ctlvs) {
+  return this.processBipMessage(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_RECEIVE_DATA] = function STK_CMD_RECEIVE_DATA(cmdDetails, ctlvs, onComplete) {
-  return this.processBipMessage(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_RECEIVE_DATA] = function STK_CMD_RECEIVE_DATA(cmdDetails, ctlvs) {
+  return this.processBipMessage(cmdDetails, ctlvs);
 };
-StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_DATA] = function STK_CMD_SEND_DATA(cmdDetails, ctlvs, onComplete) {
-  return this.processBipMessage(cmdDetails, ctlvs, onComplete);
+StkCommandParamsFactoryObject.prototype[STK_CMD_SEND_DATA] = function STK_CMD_SEND_DATA(cmdDetails, ctlvs) {
+  return this.processBipMessage(cmdDetails, ctlvs);
 };
 
 function StkProactiveCmdHelperObject(aContext) {
@@ -11634,34 +11532,16 @@ StkProactiveCmdHelperObject.prototype = {
 
   searchForTag: function(tag, ctlvs) {
     let iter = Iterator(ctlvs);
+    return this.searchForNextTag(tag, iter);
+  },
+
+  searchForNextTag: function(tag, iter) {
     for (let [index, ctlv] in iter) {
       if ((ctlv.tag & ~COMPREHENSIONTLV_FLAG_CR) == tag) {
         return ctlv;
       }
     }
     return null;
-  },
-
-  searchForSelectedTags: function(ctlvs, tags) {
-    let ret = {
-      // Handy utility to de-queue the 1st ctlv of the specified tag.
-      retrieve: function(aTag) {
-        return (this[aTag]) ? this[aTag].shift() : null;
-      }
-    };
-
-    ctlvs.forEach((aCtlv) => {
-      tags.forEach((aTag) => {
-        if ((aCtlv.tag & ~COMPREHENSIONTLV_FLAG_CR) == aTag) {
-          if (!ret[aTag]) {
-            ret[aTag] = [];
-          }
-          ret[aTag].push(aCtlv);
-        }
-      });
-    });
-
-    return ret;
   },
 };
 StkProactiveCmdHelperObject.prototype[COMPREHENSIONTLV_TAG_COMMAND_DETAILS] = function COMPREHENSIONTLV_TAG_COMMAND_DETAILS(length) {

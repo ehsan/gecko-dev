@@ -40,7 +40,7 @@ let DEBUG = NFC.DEBUG_NFC;
 
 let debug;
 function updateDebug() {
-  if (DEBUG || NFC.DEBUG_NFC) {
+  if (DEBUG) {
     debug = function (s) {
       dump("-*- Nfc: " + s + "\n");
     };
@@ -108,12 +108,10 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     init: function init(nfc) {
       this.nfc = nfc;
 
-      if (!NFC.DEBUG_NFC) {
-        let lock = gSettingsService.createLock();
-        lock.get(NFC.SETTING_NFC_DEBUG, this.nfc);
-        Services.obs.addObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED, false);
-      }
+      let lock = gSettingsService.createLock();
+      lock.get(NFC.SETTING_NFC_DEBUG, this.nfc);
 
+      Services.obs.addObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED, false);
       Services.obs.addObserver(this, NFC.TOPIC_XPCOM_SHUTDOWN, false);
       this._registerMessageListeners();
     },

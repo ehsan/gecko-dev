@@ -52,10 +52,7 @@
 #define TARGET_SANDBOX_EXPORTS
 #include "mozilla/sandboxTarget.h"
 #include "nsDirectoryServiceDefs.h"
-#elif defined(XP_LINUX)
-#include "mozilla/Sandbox.h"
-#include "mozilla/SandboxInfo.h"
-#elif defined(XP_MACOSX)
+#elif defined(XP_LINUX) || defined(XP_MACOSX)
 #include "mozilla/Sandbox.h"
 #endif
 #endif
@@ -1135,10 +1132,10 @@ ContentChild::RecvSetProcessSandbox()
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
     // For B2G >= KitKat, sandboxing is mandatory; this has already
     // been enforced by ContentParent::StartUp().
-    MOZ_ASSERT(SandboxInfo::Get().CanSandboxContent());
+    MOZ_ASSERT(ContentProcessSandboxStatus() != kSandboxingWouldFail);
 #else
     // Otherwise, sandboxing is best-effort.
-    if (!SandboxInfo::Get().CanSandboxContent()) {
+    if (ContentProcessSandboxStatus() == kSandboxingWouldFail) {
         return true;
     }
 #endif

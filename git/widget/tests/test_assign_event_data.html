@@ -186,7 +186,16 @@ const kTests = [
         "caret": { "start": 1, "length": 0 }
       });
       synthesizeKey("a", { type: "keyup" });
-      synthesizeComposition({ type: "compositioncommitasis" });
+      synthesizeCompositionChange({ "composition":
+        { "string": "\u306D",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 1, "length": 0 }
+      });
+      synthesizeComposition({ type: "compositionend", data: "\u732B" });
     },
     canRun: function () {
       return true;
@@ -209,7 +218,16 @@ const kTests = [
         "caret": { "start": 1, "length": 0 }
       });
       synthesizeKey("VK_RETURN", { type: "keydown" });
-      synthesizeComposition({ type: "compositioncommitasis" });
+      synthesizeCompositionChange({ "composition":
+        { "string": "\u306D",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 1, "length": 0 }
+      });
+      synthesizeComposition({ type: "compositionend", data: "\u732B" });
       synthesizeKey("VK_RETURN", { type: "keyup" });
     },
     canRun: function () {
@@ -270,7 +288,16 @@ const kTests = [
       document.getElementById(this.targetID).value = "";
       document.getElementById(this.targetID).focus();
       synthesizeComposition({ type: "compositionstart" });
-      synthesizeComposition({ type: "compositioncommit", data: "\u306D" });
+      synthesizeCompositionChange({ "composition":
+        { "string": "\u306D",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 1, "length": 0 }
+      });
+      synthesizeComposition({ type: "compositionend", data: "\u732B" });
     },
     canRun: function () {
       return true;
@@ -283,7 +310,16 @@ const kTests = [
       document.getElementById(this.targetID).value = "";
       document.getElementById(this.targetID).focus();
       synthesizeComposition({ type: "compositionstart" });
-      synthesizeComposition({ type: "compositioncommit", data: "\u30E9\u30FC\u30E1\u30F3" });
+      synthesizeCompositionChange({ "composition":
+        { "string": "\u30E9\u30FC\u30E1\u30F3",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 4, "length": 0 }
+      });
+      synthesizeComposition({ type: "compositionend", data: "\u30E9\u30FC\u30E1\u30F3" });
     },
     canRun: function () {
       return true;
@@ -327,7 +363,16 @@ const kTests = [
   { description: "InternalEditorInputEvent (input at committing)",
     targetID: "input-text", eventType: "input",
     dispatchEvent: function () {
-      synthesizeComposition({ type: "compositioncommitasis" });
+      synthesizeCompositionChange({ "composition":
+        { "string": "\u30E9\u30FC\u30E1\u30F3",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 4, "length": 0 }
+      });
+      synthesizeComposition({ type: "compositionend", data: "\u30E9\u30FC\u30E1\u30F3" });
     },
     canRun: function () {
       return true;

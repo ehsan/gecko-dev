@@ -1638,11 +1638,11 @@ TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
     return false;
   }
 
-  if (event.CausesDOMTextEvent()) {
+  if (event.message == NS_COMPOSITION_CHANGE) {
     return SendCompositionChangeEvent(event);
   }
 
-  mIMEComposing = !event.CausesDOMCompositionEndEvent();
+  mIMEComposing = event.message != NS_COMPOSITION_END;
   mIMECompositionStart = std::min(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
     return true;
@@ -1673,7 +1673,6 @@ TabParent::SendCompositionChangeEvent(WidgetCompositionEvent& event)
   }
   mIMESelectionAnchor = mIMESelectionFocus =
       mIMECompositionStart + event.mData.Length();
-  mIMEComposing = !event.CausesDOMCompositionEndEvent();
 
   event.mSeqno = ++mIMESeqno;
   return PBrowserParent::SendCompositionEvent(event);

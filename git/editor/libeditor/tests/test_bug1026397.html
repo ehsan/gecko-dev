@@ -60,7 +60,17 @@ function runTests()
     is(input.value, aExpectedValueDuringComposition,
        "The value of input whose maxlength is " + maxLengthStr + " should be "
          + aExpectedValueDuringComposition + " during composition" + aAdditionalExplanation);
-    synthesizeComposition({ type: "compositioncommitasis" });
+    synthesizeCompositionChange(
+      { "composition":
+        { "string": aInsertString,
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": aInsertString.length, "length": 0 }
+      });
+    synthesizeComposition({ type: "compositionend" });
     is(input.value, aExpectedValueAfterCompositionEnd,
        "The value of input whose maxlength is " + maxLengthStr + " should be "
          + aExpectedValueAfterCompositionEnd + " after compositionend" + aAdditionalExplanation);
