@@ -91,6 +91,7 @@ protected:
   nsresult CopyUserContentSheet();
 
   nsresult CopyCookies(PRBool aReplace);
+  nsresult CopyHistory(PRBool aReplace);
   nsresult CopyPasswords(PRBool aReplace);
   nsresult LocateSignonsFile(char** aResult);
   nsresult CopyBookmarks(PRBool aReplace);

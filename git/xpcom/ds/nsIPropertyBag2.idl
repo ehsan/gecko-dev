@@ -71,5 +71,5 @@ interface nsIPropertyBag2 : nsIPropertyBag
   /**
    * Check for the existence of a key.
    */
-  boolean     hasKey                   (in AString prop);
+  PRBool      hasKey                   (in AString prop);
 };

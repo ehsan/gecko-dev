@@ -142,7 +142,6 @@ COMPONENT_LIBS += \
 	composer \
 	jetpack_s \
 	telemetry \
-	storagecomps \
 	$(NULL)
 
 ifdef BUILD_CTYPES
@@ -227,10 +226,27 @@ DEFINES += -DMOZ_FILEVIEW
 endif
 endif
 
+ifdef MOZ_STORAGE
+COMPONENT_LIBS += storagecomps
+EXTRA_DSO_LDOPTS += $(SQLITE_LIBS)
+endif
+
 ifdef MOZ_PLACES
+ifdef MOZ_MORKREADER
+STATIC_LIBS += morkreader_s
+endif
+
 COMPONENT_LIBS += \
 	places \
 	$(NULL)
+endif
+
+ifdef MOZ_MORK
+ifdef MOZ_XUL
+COMPONENT_LIBS += \
+	mork \
+	$(NULL)
+endif
 endif
 
 ifdef MOZ_XUL
@@ -326,7 +342,6 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_HARFBUZZ_LIBS) \
 	$(MOZ_OTS_LIBS) \
 	$(MOZ_APP_EXTRA_LIBS) \
-	$(SQLITE_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB

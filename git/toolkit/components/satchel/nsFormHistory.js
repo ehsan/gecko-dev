@@ -322,6 +322,12 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
+
+        // privacy cleanup, if there's an old mork formhistory around, just delete it
+        let oldFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+        oldFile.append("formhistory.dat");
+        if (oldFile.exists())
+            oldFile.remove(false);
     },
 
 

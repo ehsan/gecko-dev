@@ -36,7 +36,6 @@
 #
 # ***** END LICENSE BLOCK *****
 
-      <menuseparator id="page-menu-separator"/>
       <menuitem id="spell-no-suggestions"
                 disabled="true"
                 label="&spellNoSuggestions.label;"/>

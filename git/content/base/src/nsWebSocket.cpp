@@ -382,8 +382,6 @@ nsWebSocketEstablishedConnection::Close()
 
   if (mOwner->mReadyState == nsIMozWebSocket::CONNECTING) {
     mOwner->SetReadyState(nsIMozWebSocket::CLOSED);
-    mWebSocketChannel->Close(mOwner->mClientReasonCode,
-                             mOwner->mClientReason);
     Disconnect();
     return NS_OK;
   }
@@ -1496,7 +1494,7 @@ nsWebSocketEstablishedConnection::GetStatus(nsresult *aStatus)
   return NS_OK;
 }
 
-// Window closed, stop/reload button pressed, user navigated away from page, etc.
+// probably means window went away or stop button pressed
 NS_IMETHODIMP
 nsWebSocketEstablishedConnection::Cancel(nsresult aStatus)
 {

@@ -249,7 +249,7 @@ nsFrameMessageManager::SendSyncMessage()
       NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
       for (PRUint32 i = 0; i < len; ++i) {
-        if (retval[i].IsEmpty())
+        if (!retval[i].Length())
           continue;
 
         jsval ret = JSVAL_VOID;

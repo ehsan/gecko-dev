@@ -138,7 +138,6 @@ public:
     eDOMEvents_paste,
     eDOMEvents_open,
     eDOMEvents_message,
-    eDOMEvents_show,
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,

@@ -195,8 +195,6 @@ static const PRUnichar sHTMLTagUnicodeName_marquee[] =
   {'m', 'a', 'r', 'q', 'u', 'e', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_menu[] =
   {'m', 'e', 'n', 'u', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_menuitem[] =
-  {'m', 'e', 'n', 'u', 'i', 't', 'e', 'm', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_meta[] =
   {'m', 'e', 't', 'a', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_multicol[] =

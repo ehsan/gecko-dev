@@ -152,7 +152,6 @@ OS_LIBS += \
 	-framework SystemConfiguration \
 	-framework QuickTime \
 	-framework IOKit \
-	-F/System/Library/PrivateFrameworks -framework CoreUI \
 	$(TK_LIBS) \
 	$(NULL)
 endif

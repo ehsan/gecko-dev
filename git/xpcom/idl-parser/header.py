@@ -178,10 +178,6 @@ include = """
 #endif
 """
 
-jspubtd_include = """
-#include "jspubtd.h"
-"""
-
 header_end = """/* For IDL files that don't want to include root IDL files. */
 #ifndef NS_NO_VTABLE
 #define NS_NO_VTABLE
@@ -210,9 +206,6 @@ def print_header(idl, fd, filename):
             foundinc = True
             fd.write('\n')
         fd.write(include % {'basename': idl_basename(inc.filename)})
-
-    if idl.needsJSTypes():
-        fd.write(jspubtd_include)
 
     fd.write('\n')
     fd.write(header_end)

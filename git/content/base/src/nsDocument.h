@@ -865,10 +865,7 @@ public:
 
   virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents);
   
-  void DecreaseEventSuppression() {
-    --mEventsSuppressed;
-    MaybeRescheduleAnimationFrameNotifications();
-  }
+  void DecreaseEventSuppression() { --mEventsSuppressed; }
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDocument,
                                                          nsIDocument)
@@ -1152,9 +1149,8 @@ private:
 
   // Revoke any pending notifications due to mozRequestAnimationFrame calls
   void RevokeAnimationFrameNotifications();
-  // Reschedule any notifications we need to handle
-  // mozRequestAnimationFrame, if it's OK to do so.
-  void MaybeRescheduleAnimationFrameNotifications();
+  // Reschedule any notifications we need to handle mozRequestAnimationFrame
+  void RescheduleAnimationFrameNotifications();
 
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);
