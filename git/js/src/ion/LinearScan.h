@@ -550,23 +550,25 @@ typedef HashMap<uint32,
                 IonAllocPolicy> LiveMap;
 
 typedef InlineList<LiveInterval>::iterator IntervalIterator;
-typedef InlineList<LiveInterval>::reverse_iterator IntervalReverseIterator;
 
 class LinearScanAllocator
 {
+  private:
     friend class C1Spewer;
     friend class JSONSpewer;
 
-    // Work set of LiveIntervals, sorted by start() and then by priority,
-    // non-monotonically descending from tail to head.
-    class UnhandledQueue : public InlineList<LiveInterval>
+    // FIXME (668302): This could be implemented as a more efficient structure.
+    class UnhandledQueue : private InlineList<LiveInterval>
     {
       public:
-        void enqueueForward(LiveInterval *after, LiveInterval *interval);
-        void enqueueBackward(LiveInterval *interval);
-        void enqueueAtHead(LiveInterval *interval);
-
-        void assertSorted();
+        void enqueue(LiveInterval *interval);
+        void enqueue(InlineList<LiveInterval> &list) {
+            for (IntervalIterator i(list.begin()); i != list.end(); ) {
+                LiveInterval *save = *i;
+                i = list.removeAt(i);
+                enqueue(save);
+            }
+        }
 
         LiveInterval *dequeue();
     };
@@ -599,9 +601,6 @@ class LinearScanAllocator
     bool resolveControlFlow();
     bool reifyAllocations();
     bool populateSafepoints();
-
-    // Optimization for the UnsortedQueue.
-    void enqueueVirtualRegisterIntervals();
 
     uint32 allocateSlotFor(const LiveInterval *interval);
     bool splitInterval(LiveInterval *interval, CodePosition pos);
@@ -653,9 +652,10 @@ class LinearScanAllocator
     { }
 
     bool go();
+
 };
 
-} // namespace ion
-} // namespace js
+}
+}
 
 #endif
