@@ -6392,14 +6392,22 @@ TypeObject::sweep(FreeOp *fop)
         flags |= OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
 }
 
+struct SweepTypeObjectOp
+{
+    FreeOp *fop;
+    SweepTypeObjectOp(FreeOp *fop) : fop(fop) {}
+    void operator()(gc::Cell *cell) {
+        TypeObject *object = static_cast<TypeObject *>(cell);
+        object->sweep(fop);
+    }
+};
+
 void
 SweepTypeObjects(FreeOp *fop, JSCompartment *compartment)
 {
     JS_ASSERT(compartment->zone()->isGCSweeping());
-    for (gc::CellIterUnderGC iter(compartment, gc::FINALIZE_TYPE_OBJECT); !iter.done(); iter.next()) {
-        TypeObject *object = iter.get<TypeObject>();
-        object->sweep(fop);
-    }
+    SweepTypeObjectOp op(fop);
+    gc::ForEachArenaAndCell(compartment, gc::FINALIZE_TYPE_OBJECT, gc::EmptyArenaOp, op);
 }
 
 void

@@ -23,7 +23,8 @@ window.addEventListener("load", function() {
   var walker = document.createTreeWalker(
     document,
     nsIDOMNodeFilter.SHOW_TEXT | nsIDOMNodeFilter.SHOW_DOCUMENT,
-    null
+    null,
+    true
   );
   setPass(walker.firstChild());
   while (walker.nextSibling()) {
@@ -42,7 +43,7 @@ appear as direct children of the root node, no matter how deeply nested the
 structure of the original document.
 */
 
-  walker2 = document.createTreeWalker(document, nsIDOMNodeFilter.SHOW_TEXT, null);
+  walker2 = document.createTreeWalker(document, nsIDOMNodeFilter.SHOW_TEXT, null, true);
   while (walker2.nextNode()) {
     var cNode = walker2.currentNode;
     ok(cNode.getUserData("pass"), "Every text node should appear: " + walker2.currentNode.nodeValue);

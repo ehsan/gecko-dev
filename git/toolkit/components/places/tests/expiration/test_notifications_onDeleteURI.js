@@ -82,6 +82,7 @@ add_task(function test_notifications_onDeleteURI() {
       onClearHistory: function() {},
       onVisit: function() {},
       onTitleChanged: function() {},
+      onBeforeDeleteURI: function() {},
       onDeleteURI: function(aURI, aGUID, aReason) {
         currentTest.receivedNotifications++;
         // Check this uri was not bookmarked.

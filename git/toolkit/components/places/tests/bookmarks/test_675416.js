@@ -17,6 +17,7 @@ function run_test() {
     onItemAdded: forceBookmarkCaching,
     onItemChanged: forceBookmarkCaching,
     onItemMoved: forceBookmarkCaching,
+    onBeforeItemRemoved: forceBookmarkCaching,
     onItemRemoved: function(id) {
       try {
         forceBookmarkCaching(id);

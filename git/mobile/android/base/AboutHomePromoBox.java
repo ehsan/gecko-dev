@@ -50,14 +50,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
             return true;
         }
         public void onClick(View v) { }
-        public void onDestroy() { }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        for (Type type : mTypes) {
-            type.onDestroy();
-        }
     }
 
     private class SyncType extends Type {
@@ -83,7 +75,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
             context.startActivity(intent);
         }
 
-        @Override
         public void onDestroy() {
             if (mAccountListener != null) {
                 AccountManager.get(mContext).removeOnAccountsUpdatedListener(mAccountListener);

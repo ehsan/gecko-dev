@@ -3370,7 +3370,12 @@ bool
 IonBuilder::inlineScriptedCalls(AutoObjectVector &targets, AutoObjectVector &originals,
                                 CallInfo &callInfo)
 {
-    JS_ASSERT(callInfo.hasTypeInfo());
+    // Add typeInference hints if not set
+    if (!callInfo.hasTypeInfo()) {
+        types::StackTypeSet *barrier;
+        types::StackTypeSet *types = oracle->returnTypeSet(script(), pc, &barrier);
+        callInfo.setTypeInfo(types, barrier);
+    }
 
     // Unwrap the arguments
     JS_ASSERT(callInfo.isWrapped());
@@ -4058,22 +4063,18 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
             return false;
     }
 
-    CallInfo callInfo(cx, constructing);
-    if (!callInfo.init(current, argc))
-        return false;
-
-    types::StackTypeSet *barrier;
-    types::StackTypeSet *types = oracle->returnTypeSet(script(), pc, &barrier);
-    callInfo.setTypeInfo(types, barrier);
-
     // Inline native call.
     if (inliningEnabled() && targets.length() == 1 && targets[0]->toFunction()->isNative()) {
-        InliningStatus status = inlineNativeCall(callInfo, targets[0]->toFunction()->native());
+        RootedFunction target(cx, targets[0]->toFunction());
+        InliningStatus status = inlineNativeCall(target->native(), argc, constructing);
         if (status != InliningStatus_NotInlined)
             return status != InliningStatus_Error;
     }
 
     // Inline scriped call(s).
+    CallInfo callInfo(cx, constructing);
+    if (!callInfo.init(current, argc))
+        return false;
     if (inliningEnabled() && targets.length() > 0 && makeInliningDecision(targets, argc))
         return inlineScriptedCalls(targets, originals, callInfo);
 
@@ -4082,7 +4083,7 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     if (targets.length() == 1)
         target = targets[0]->toFunction();
 
-    return makeCallBarrier(target, callInfo, calleeTypes, hasClones);
+    return makeCall(target, callInfo, calleeTypes, hasClones);
 }
 
 MDefinition *

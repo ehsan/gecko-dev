@@ -213,9 +213,6 @@ StoreBuffer::enable()
 void
 StoreBuffer::disable()
 {
-    if (!enabled)
-        return;
-
     bufferVal.disable();
     bufferCell.disable();
     bufferSlot.disable();

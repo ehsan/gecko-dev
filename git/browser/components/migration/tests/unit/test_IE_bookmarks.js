@@ -35,6 +35,7 @@ function run_test() {
     },
     onBeginUpdateBatch: function () {},
     onEndUpdateBatch: function () {},
+    onBeforeItemRemoved: function () {},
     onItemRemoved: function () {},
     onItemChanged: function () {},
     onItemVisited: function () {},

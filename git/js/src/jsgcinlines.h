@@ -24,27 +24,27 @@ class Shape;
 
 /*
  * This auto class should be used around any code that might cause a mark bit to
- * be set on an object in a dead zone. See AutoMaybeTouchDeadZones
+ * be set on an object in a dead compartment. See AutoMaybeTouchDeadCompartments
  * for more details.
  */
-struct AutoMarkInDeadZone
+struct AutoMarkInDeadCompartment
 {
-    AutoMarkInDeadZone(JS::Zone *zone)
-      : zone(zone),
-        scheduled(zone->scheduledForDestruction)
+    AutoMarkInDeadCompartment(JSCompartment *comp)
+      : compartment(comp),
+        scheduled(comp->scheduledForDestruction)
     {
-        if (zone->rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
-            zone->rt->gcObjectsMarkedInDeadZones++;
-            zone->scheduledForDestruction = false;
+        if (comp->rt->gcManipulatingDeadCompartments && comp->scheduledForDestruction) {
+            comp->rt->gcObjectsMarkedInDeadCompartments++;
+            comp->scheduledForDestruction = false;
         }
     }
 
-    ~AutoMarkInDeadZone() {
-        zone->scheduledForDestruction = scheduled;
+    ~AutoMarkInDeadCompartment() {
+        compartment->scheduledForDestruction = scheduled;
     }
 
   private:
-    JS::Zone *zone;
+    JSCompartment *compartment;
     bool scheduled;
 };
 
@@ -518,7 +518,7 @@ NewGCThing(JSContext *cx, AllocKind kind, size_t thingSize, InitialHeap heap)
         !IsAtomsCompartment(cx->compartment) &&
         heap != TenuredHeap)
     {
-        cx->runtime->gcNursery.insertPointer(t);
+        zone->gcNursery.insertPointer(t);
     }
 #endif
 

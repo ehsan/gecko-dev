@@ -204,9 +204,7 @@ URL::CreateObjectURL(const WorkerGlobalObject& aGlobal, JSObject* aBlob,
   nsCOMPtr<nsIDOMBlob> blob = file::GetDOMBlobFromJSObject(aBlob);
   if (!blob) {
     SetDOMStringToNull(aResult);
-
-    NS_NAMED_LITERAL_STRING(blobStr, "Blob");
-    aRv.ThrowTypeError(MSG_DOES_NOT_IMPLEMENT_INTERFACE, &blobStr);
+    aRv.Throw(NS_ERROR_TYPE_ERR);
     return;
   }
 

@@ -226,9 +226,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
-                                    mUuids,
-                                    &mJsUuids))) {
+    if (!SetJsObject(sc->GetNativeContext(), value, mJsUuids)) {
       NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
@@ -239,9 +237,7 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
-                                    mDeviceAddresses,
-                                    &mJsDeviceAddresses))) {
+    if (!SetJsObject(sc->GetNativeContext(), value, mJsDeviceAddresses)) {
       NS_WARNING("Cannot set JS Devices object!");
       return;
     }
@@ -580,7 +576,7 @@ BluetoothAdapter::SetPinCode(const nsAString& aDeviceAddress,
   }
 
   req.forget(aRequest);
-  return NS_OK;
+  return NS_OK;  
 }
 
 nsresult
@@ -603,7 +599,7 @@ BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, uint32_t aPasskey,
   }
 
   req.forget(aRequest);
-  return NS_OK;
+  return NS_OK;  
 }
 
 nsresult
@@ -629,7 +625,7 @@ BluetoothAdapter::SetPairingConfirmation(const nsAString& aDeviceAddress,
   }
 
   req.forget(aRequest);
-  return NS_OK;
+  return NS_OK;  
 }
 
 nsresult
@@ -652,7 +648,7 @@ BluetoothAdapter::SetAuthorization(const nsAString& aDeviceAddress, bool aAllow,
   }
 
   req.forget(aRequest);
-  return NS_OK;
+  return NS_OK;  
 }
 
 NS_IMETHODIMP

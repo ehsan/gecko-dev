@@ -65,6 +65,7 @@ function waitForLivemarkLoad(aLivemark, aCallback) {
     nodeAnnotationChanged: function() {},
     nodeTitleChanged: function() {},
     nodeHistoryDetailsChanged: function() {},
+    nodeReplaced: function() {},
     nodeMoved: function() {},
     ontainerStateChanged: function () {},
     sortingChanged: function() {},

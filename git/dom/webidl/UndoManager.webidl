@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface DOMTransaction;
+
 [PrefControlled]
 interface UndoManager {
   [Throws] void transact(DOMTransaction transaction, boolean merge);

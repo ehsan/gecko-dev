@@ -769,22 +769,22 @@ EnterWith(JSContext *cx, int stackIndex)
 
 /* Unwind block and scope chains to match the given depth. */
 void
-js::UnwindScope(JSContext *cx, AbstractFramePtr frame, uint32_t stackDepth)
+js::UnwindScope(JSContext *cx, uint32_t stackDepth)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), cx->fp() == frame.asStackFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), stackDepth <= cx->regs().stackDepth());
+    StackFrame *fp = cx->fp();
+    JS_ASSERT(stackDepth <= cx->regs().stackDepth());
 
-    for (ScopeIter si(frame, cx); !si.done(); ++si) {
+    for (ScopeIter si(fp, cx); !si.done(); ++si) {
         switch (si.type()) {
           case ScopeIter::Block:
             if (si.staticBlock().stackDepth() < stackDepth)
                 return;
-            frame.popBlock(cx);
+            fp->popBlock(cx);
             break;
           case ScopeIter::With:
             if (si.scope().asWith().stackDepth() < stackDepth)
                 return;
-            frame.popWith(cx);
+            fp->popWith(cx);
             break;
           case ScopeIter::Call:
           case ScopeIter::StrictEvalScope:
@@ -3257,7 +3257,7 @@ END_CASE(JSOP_ARRAYPUSH)
         for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 
-            UnwindScope(cx, cx->fp(), tn->stackDepth);
+            UnwindScope(cx, tn->stackDepth);
 
             /*
              * Set pc to the first bytecode after the the try note to point
@@ -3328,7 +3328,7 @@ END_CASE(JSOP_ARRAYPUSH)
     }
 
   forced_return:
-    UnwindScope(cx, cx->fp(), 0);
+    UnwindScope(cx, 0);
     regs.setToEndOfScript();
 
     if (entryFrame != regs.fp())

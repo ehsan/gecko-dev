@@ -15,7 +15,8 @@
 
 #include "jsgc.h"
 #include "jsalloc.h"
-#include "jsobj.h"
+
+#include "gc/Marking.h"
 
 namespace js {
 namespace gc {
@@ -41,11 +42,6 @@ class Nursery
         if (!nursery.initialized())
             return;
         nursery.finish();
-    }
-
-    bool clear() {
-        disable();
-        return enable();
     }
 
     bool isInside(void *cell) const {
@@ -361,11 +357,6 @@ class StoreBuffer
     bool enable();
     void disable();
     bool isEnabled() { return enabled; }
-
-    bool clear() {
-        disable();
-        return enable();
-    }
 
     /* Get the overflowed status. */
     bool hasOverflowed() const { return overflowed; }

@@ -1,10 +1,8 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/UndoManager.h"
-#include "mozilla/dom/DOMTransactionBinding.h"
 
 #include "nsDOMClassInfoID.h"
 #include "nsIClassInfo.h"
@@ -19,6 +17,8 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/ErrorResult.h"
+
+#include "nsIUndoManagerTransaction.h"
 
 // Includes for mutation observer.
 #include "nsIDOMHTMLElement.h"
@@ -725,13 +725,14 @@ class FunctionCallTxn : public UndoTxn {
 
   NS_IMETHOD RedoTransaction();
   NS_IMETHOD UndoTransaction();
-  FunctionCallTxn(DOMTransaction* aTransaction, uint32_t aFlags);
+  FunctionCallTxn(nsIUndoManagerTransaction* aTransaction, uint32_t aFlags);
 protected:
   /**
    * Call a function member on the transaction object with the
    * specified function name.
    */
-  nsRefPtr<DOMTransaction> mTransaction;
+  nsresult CallTransactionMember(const char* aFunctionName);
+  nsCOMPtr<nsIUndoManagerTransaction> mTransaction;
   uint32_t mFlags;
 };
 
@@ -745,7 +746,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(FunctionCallTxn)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(FunctionCallTxn)
 
-FunctionCallTxn::FunctionCallTxn(DOMTransaction* aTransaction,
+FunctionCallTxn::FunctionCallTxn(nsIUndoManagerTransaction* aTransaction,
                                  uint32_t aFlags)
   : mTransaction(aTransaction), mFlags(aFlags) {}
 
@@ -756,13 +757,7 @@ FunctionCallTxn::RedoTransaction()
     return NS_OK;
   }
 
-  ErrorResult rv;
-  nsRefPtr<DOMTransactionCallback> redo = mTransaction->GetRedo(rv);
-  if (!rv.Failed() && redo) {
-    redo->Call(mTransaction.get(), rv);
-  }
-  // We ignore rv because we want to avoid the rollback behavior of the
-  // nsITransactionManager.
+  mTransaction->Redo();
 
   return NS_OK;
 }
@@ -774,13 +769,7 @@ FunctionCallTxn::UndoTransaction()
     return NS_OK;
   }
 
-  ErrorResult rv;
-  nsRefPtr<DOMTransactionCallback> undo = mTransaction->GetUndo(rv);
-  if (!rv.Failed() && undo) {
-    undo->Call(mTransaction.get(), rv);
-  }
-  // We ignore rv because we want to avoid the rollback behavior of the
-  // nsITransactionManager.
+  mTransaction->Undo();
 
   return NS_OK;
 }
@@ -833,7 +822,7 @@ UndoManager::UndoManager(nsIContent* aNode)
 UndoManager::~UndoManager() {}
 
 void
-UndoManager::Transact(JSContext* aCx, DOMTransaction& aTransaction,
+UndoManager::Transact(JSContext* aCx, nsIUndoManagerTransaction& aTransaction,
                       bool aMerge, ErrorResult& aRv)
 {
   if (mIsDisconnected || mInTransaction) {
@@ -844,15 +833,12 @@ UndoManager::Transact(JSContext* aCx, DOMTransaction& aTransaction,
   TxnScopeGuard guard(this);
 
   // First try executing an automatic transaction.
+  AutomaticTransact(&aTransaction, aRv);
 
-  nsRefPtr<DOMTransactionCallback> executeAutomatic =
-    aTransaction.GetExecuteAutomatic(aRv);
-  if (aRv.Failed()) {
-    return;
-  }
-  if (executeAutomatic) {
-    AutomaticTransact(&aTransaction, executeAutomatic, aRv);
-  } else {
+  if (aRv.ErrorCode() == NS_ERROR_XPC_JSOBJECT_HAS_NO_FUNCTION_NAMED) {
+    // If the automatic transaction didn't work due to the function being
+    // undefined, then try a manual transaction.
+    aRv = NS_OK;
     ManualTransact(&aTransaction, aRv);
   }
 
@@ -875,12 +861,9 @@ UndoManager::Transact(JSContext* aCx, DOMTransaction& aTransaction,
 }
 
 void
-UndoManager::AutomaticTransact(DOMTransaction* aTransaction,
-                               DOMTransactionCallback* aCallback,
+UndoManager::AutomaticTransact(nsIUndoManagerTransaction* aTransaction,
                                ErrorResult& aRv)
 {
-  MOZ_ASSERT(aCallback);
-
   nsCOMPtr<nsIMutationObserver> mutationObserver =
     new UndoMutationObserver(mTxnManager);
 
@@ -898,29 +881,29 @@ UndoManager::AutomaticTransact(DOMTransaction* aTransaction,
   mTxnManager->DoTransaction(undoTxn);
   mHostNode->AddMutationObserver(mutationObserver);
 
-  aCallback->Call(aTransaction, aRv);
+  nsresult rv = aTransaction->ExecuteAutomatic();
 
   mHostNode->RemoveMutationObserver(mutationObserver);
   mTxnManager->DoTransaction(redoTxn);
   mTxnManager->EndBatch(true);
 
-  if (aRv.Failed()) {
+  if (NS_FAILED(rv)) {
     mTxnManager->RemoveTopUndo();
+    aRv.Throw(rv);
+    return;
   }
 }
 
 void
-UndoManager::ManualTransact(DOMTransaction* aTransaction,
+UndoManager::ManualTransact(nsIUndoManagerTransaction* aTransaction,
                             ErrorResult& aRv)
 {
   nsRefPtr<FunctionCallTxn> txn = new FunctionCallTxn(aTransaction,
       FunctionCallTxn::CALL_ON_REDO | FunctionCallTxn::CALL_ON_UNDO);
 
-  nsRefPtr<DOMTransactionCallback> execute = aTransaction->GetExecute(aRv);
-  if (!aRv.Failed() && execute) {
-    execute->Call(aTransaction, aRv);
-  }
-  if (aRv.Failed()) {
+  nsresult rv = aTransaction->Execute();
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
     return;
   }
 
@@ -965,7 +948,7 @@ UndoManager::GetLength(ErrorResult& aRv)
 
 void
 UndoManager::ItemInternal(uint32_t aIndex,
-                          nsTArray<DOMTransaction*>& aItems,
+                          nsTArray<nsIUndoManagerTransaction*>& aItems,
                           ErrorResult& aRv)
 {
   int32_t numRedo;
@@ -1001,7 +984,7 @@ UndoManager::ItemInternal(uint32_t aIndex,
   }
 
   // Obtain data from transaction list and convert to list of
-  // DOMTransaction*.
+  // nsIUndoManagerTransaction.
   nsISupports** listData;
   uint32_t listDataLength;
   rv = txnList->GetData(listIndex, &listDataLength, &listData);
@@ -1011,7 +994,11 @@ UndoManager::ItemInternal(uint32_t aIndex,
   }
 
   for (uint32_t i = 0; i < listDataLength; i++) {
-    aItems.AppendElement(static_cast<DOMTransaction*>(listData[i]));
+    nsCOMPtr<nsIUndoManagerTransaction> transaction =
+        do_QueryInterface(listData[i]);
+    MOZ_ASSERT(transaction,
+               "Only nsIUndoManagerTransaction should be stored as data.");
+    aItems.AppendElement(transaction);
     NS_RELEASE(listData[i]);
   }
   NS_Free(listData);
@@ -1019,7 +1006,7 @@ UndoManager::ItemInternal(uint32_t aIndex,
 
 void
 UndoManager::Item(uint32_t aIndex,
-                  Nullable<nsTArray<nsRefPtr<DOMTransaction> > >& aItems,
+                  Nullable<nsTArray<nsRefPtr<nsIUndoManagerTransaction> > >& aItems,
                   ErrorResult& aRv)
 {
   int32_t numRedo;
@@ -1044,13 +1031,13 @@ UndoManager::Item(uint32_t aIndex,
     return;
   }
 
-  nsTArray<DOMTransaction*> transactions;
+  nsTArray<nsIUndoManagerTransaction*> transactions;
   ItemInternal(aIndex, transactions, aRv);
   if (aRv.Failed()) {
     return;
   }
 
-  nsTArray<nsRefPtr<DOMTransaction> >& items = aItems.SetValue();
+  nsTArray<nsRefPtr<nsIUndoManagerTransaction> >& items = aItems.SetValue();
   for (uint32_t i = 0; i < transactions.Length(); i++) {
     items.AppendElement(transactions[i]);
   }
@@ -1130,7 +1117,7 @@ UndoManager::DispatchTransactionEvent(JSContext* aCx, const nsAString& aType,
                                       uint32_t aPreviousPosition,
                                       ErrorResult& aRv)
 {
-  nsTArray<DOMTransaction*> items;
+  nsTArray<nsIUndoManagerTransaction*> items;
   ItemInternal(aPreviousPosition, items, aRv);
   if (aRv.Failed()) {
     return;
@@ -1158,12 +1145,16 @@ UndoManager::DispatchTransactionEvent(JSContext* aCx, const nsAString& aType,
 
   nsCOMPtr<nsIWritableVariant> transactions = new nsVariant();
 
-  // Unwrap the DOMTransactions into jsvals, then convert
+  // Unwrap the nsIUndoManagerTransactions into jsvals, then convert
   // to nsIVariant then put into a nsIVariant array. Arrays in XPIDL suck.
+  JSObject* obj;
   nsCOMArray<nsIVariant> keepAlive;
   nsTArray<nsIVariant*> transactionItems;
   for (uint32_t i = 0; i < items.Length(); i++) {
-    JS::Value txVal = JS::ObjectValue(*items[i]->Callback());
+    nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(items[i]);
+    MOZ_ASSERT(wrappedJS, "All transactions should be WrappedJS.");
+    wrappedJS->GetJSObject(&obj);
+    jsval txVal = JS::ObjectValue(*obj);
     if (!JS_WrapValue(aCx, &txVal)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;

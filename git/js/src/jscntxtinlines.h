@@ -587,10 +587,4 @@ JSContext::zone()
     return compartment->zone();
 }
 
-inline void
-JSContext::updateMallocCounter(size_t nbytes)
-{
-    runtime->updateMallocCounter(zone(), nbytes);
-}
-
 #endif /* jscntxtinlines_h___ */

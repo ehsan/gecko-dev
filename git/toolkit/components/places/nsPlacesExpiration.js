@@ -579,6 +579,7 @@ nsPlacesExpiration.prototype = {
 
   onVisit: function() {},
   onTitleChanged: function() {},
+  onBeforeDeleteURI: function() {},
   onDeleteURI: function() {},
   onPageChanged: function() {},
   onDeleteVisits: function() {},

@@ -17,6 +17,7 @@
 #include "jsgc.h"
 #include "jsobj.h"
 
+#include "gc/StoreBuffer.h"
 #include "gc/FindSCCs.h"
 #include "vm/GlobalObject.h"
 #include "vm/RegExpObject.h"
@@ -193,6 +194,11 @@ struct JSCompartment : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS
      * allocator.  This is used at the end of a parallel section.
      */
     void adoptWorkerAllocator(js::Allocator *workerAllocator);
+
+#ifdef JSGC_GENERATIONAL
+    js::gc::Nursery              gcNursery;
+    js::gc::StoreBuffer          gcStoreBuffer;
+#endif
 
   private:
     bool                         ionUsingBarriers_;

@@ -2013,16 +2013,7 @@ nsCSSKeyframeRule::Clone() const
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSKeyframeRule)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSKeyframeRule)
 
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSKeyframeRule)
-  if (tmp->mDOMDeclaration) {
-    tmp->mDOMDeclaration->DropReference();
-    ImplCycleCollectionUnlink(tmp->mDOMDeclaration);
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSKeyframeRule)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMDeclaration)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_1(nsCSSKeyframeRule, mDOMDeclaration);
 
 DOMCI_DATA(MozCSSKeyframeRule, nsCSSKeyframeRule)
 

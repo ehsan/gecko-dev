@@ -513,6 +513,7 @@ let PageThumbsHistoryObserver = {
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
   onVisit: function () {},
+  onBeforeDeleteURI: function () {},
   onPageChanged: function () {},
   onDeleteVisits: function () {},
 

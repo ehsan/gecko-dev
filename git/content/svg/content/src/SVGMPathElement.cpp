@@ -87,7 +87,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGMPathElement)
 already_AddRefed<nsIDOMSVGAnimatedString>
 SVGMPathElement::Href()
 {
-  return mStringAttributes[HREF].ToDOMAnimatedString(this);
+  nsCOMPtr<nsIDOMSVGAnimatedString> href;
+  mStringAttributes[HREF].ToDOMAnimatedString(getter_AddRefs(href), this);
+  return href.forget();
 }
 
 NS_IMETHODIMP

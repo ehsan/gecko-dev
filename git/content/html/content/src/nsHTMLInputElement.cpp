@@ -180,10 +180,7 @@ static const nsAttrValue::EnumTable* kInputDefaultInputmode = &kInputInputmodeTa
 
 const double nsHTMLInputElement::kStepScaleFactorDate = 86400000;
 const double nsHTMLInputElement::kStepScaleFactorNumber = 1;
-const double nsHTMLInputElement::kStepScaleFactorTime = 1000;
 const double nsHTMLInputElement::kDefaultStepBase = 0;
-const double nsHTMLInputElement::kDefaultStep = 1;
-const double nsHTMLInputElement::kDefaultStepTime = 60;
 const double nsHTMLInputElement::kStepAny = 0;
 
 #define NS_INPUT_ELEMENT_STATE_IID                 \
@@ -1489,8 +1486,7 @@ double
 nsHTMLInputElement::GetStepBase() const
 {
   MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER ||
-             mType == NS_FORM_INPUT_DATE ||
-             mType == NS_FORM_INPUT_TIME,
+             mType == NS_FORM_INPUT_DATE,
              "Check that kDefaultStepBase is correct for this new type");
 
   double stepBase;
@@ -1505,9 +1501,12 @@ nsHTMLInputElement::GetStepBase() const
 
   // If @min is not a double, we should use @value.
   nsAutoString valueStr;
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::value, valueStr) &&
-      ConvertStringToNumber(valueStr, stepBase)) {
-    return stepBase;
+  if (GetAttr(kNameSpaceID_None, nsGkAtoms::value, valueStr)) {
+    nsresult ec;
+    stepBase = valueStr.ToDouble(&ec);
+    if (NS_SUCCEEDED(ec)) {
+      return stepBase;
+    }
   }
 
   return kDefaultStepBase;
@@ -4493,22 +4492,24 @@ nsHTMLInputElement::GetStep() const
 {
   MOZ_ASSERT(DoesStepApply(), "GetStep() can only be called if @step applies");
 
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::step)) {
-    return GetDefaultStep() * GetStepScaleFactor();
-  }
+  // NOTE: should be defaultStep, which is 1 for type=number and date.
+  double step = 1;
 
-  nsAutoString stepStr;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::step, stepStr);
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::step)) {
+    nsAutoString stepStr;
+    GetAttr(kNameSpaceID_None, nsGkAtoms::step, stepStr);
 
-  if (stepStr.LowerCaseEqualsLiteral("any")) {
-    // The element can't suffer from step mismatch if there is no step.
-    return kStepAny;
-  }
+    if (stepStr.LowerCaseEqualsLiteral("any")) {
+      // The element can't suffer from step mismatch if there is no step.
+      return kStepAny;
+    }
 
-  nsresult ec;
-  double step = stepStr.ToDouble(&ec);
-  if (NS_FAILED(ec) || step <= 0) {
-    step = GetDefaultStep();
+    nsresult ec;
+    step = stepStr.ToDouble(&ec);
+    if (NS_FAILED(ec) || step <= 0) {
+      // NOTE: we should use defaultStep, which is 1 for type=number and date.
+      step = 1;
+    }
   }
 
   // TODO: This multiplication can lead to inexact results, we should use a
@@ -5010,24 +5011,17 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
         ConvertNumberToString(valueLow, valueLowStr);
         ConvertNumberToString(valueHigh, valueHighStr);
 
-        if (valueLowStr.Equals(valueHighStr)) {
-          const PRUnichar* params[] = { valueLowStr.get() };
-          rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                     "FormValidationStepMismatchOneValue",
-                                                     params, message);
-        } else {
-          const PRUnichar* params[] = { valueLowStr.get(), valueHighStr.get() };
-          rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                     "FormValidationStepMismatch",
-                                                     params, message);
-        }
+        const PRUnichar* params[] = { valueLowStr.get(), valueHighStr.get() };
+        rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                                   "FormValidationStepMismatch",
+                                                   params, message);
       } else {
         nsAutoString valueLowStr;
         ConvertNumberToString(valueLow, valueLowStr);
 
         const PRUnichar* params[] = { valueLowStr.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                   "FormValidationStepMismatchOneValue",
+                                                   "FormValidationStepMismatchWithoutMax",
                                                    params, message);
       }
 
@@ -5450,25 +5444,6 @@ nsHTMLInputElement::GetStepScaleFactor() const
       return kStepScaleFactorDate;
     case NS_FORM_INPUT_NUMBER:
       return kStepScaleFactorNumber;
-    case NS_FORM_INPUT_TIME:
-      return kStepScaleFactorTime;
-    default:
-      MOZ_NOT_REACHED();
-      return MOZ_DOUBLE_NaN();
-  }
-}
-
-double
-nsHTMLInputElement::GetDefaultStep() const
-{
-  MOZ_ASSERT(DoesStepApply());
-
-  switch (mType) {
-    case NS_FORM_INPUT_DATE:
-    case NS_FORM_INPUT_NUMBER:
-      return kDefaultStep;
-    case NS_FORM_INPUT_TIME:
-      return kDefaultStepTime;
     default:
       MOZ_NOT_REACHED();
       return MOZ_DOUBLE_NaN();

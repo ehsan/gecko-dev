@@ -16,7 +16,6 @@
 #include "mozilla/RefPtr.h"
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
-#include <algorithm>
 
 namespace mozilla {
 

@@ -246,13 +246,13 @@ js::ObjectImpl::checkShapeConsistency()
 void
 js::ObjectImpl::initSlotRange(uint32_t start, const Value *vector, uint32_t length)
 {
-    JSRuntime *rt = runtime();
+    JS::Zone *zone = this->zone();
     HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
     getSlotRange(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
     for (HeapSlot *sp = fixedStart; sp < fixedEnd; sp++)
-        sp->init(rt, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
+        sp->init(zone, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
     for (HeapSlot *sp = slotsStart; sp < slotsEnd; sp++)
-        sp->init(rt, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
+        sp->init(zone, this->asObjectPtr(), HeapSlot::Slot, start++, *vector++);
 }
 
 void

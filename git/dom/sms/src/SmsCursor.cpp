@@ -6,7 +6,7 @@
 #include "SmsCursor.h"
 #include "nsIDOMClassInfo.h"
 #include "nsError.h"
-#include "nsIDOMMozSmsMessage.h"
+#include "nsIDOMSmsMessage.h"
 #include "SmsRequest.h"
 #include "nsIMobileMessageDatabaseService.h"
 

@@ -95,6 +95,9 @@ let gDataNotificationInfoBar = {
       }.bind(this)
     );
 
+    // Keep open until user closes it.
+    notification.persistence = -1;
+
     // Tell the notification request we have displayed the notification.
     request.onUserNotifyComplete();
   },

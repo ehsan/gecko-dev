@@ -808,7 +808,7 @@ struct Chunk
     }
 
   private:
-    inline void init(JSRuntime *rt);
+    inline void init();
 
     /* Search for a decommitted arena to allocate. */
     unsigned findDecommittedArenaOffset();

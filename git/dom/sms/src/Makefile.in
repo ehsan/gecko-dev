@@ -59,6 +59,7 @@ CPPSRCS = \
   SmsServicesFactory.cpp \
   SmsParent.cpp \
   SmsMessage.cpp \
+  SmsEvent.cpp \
   Constants.cpp \
   SmsChild.cpp \
   SmsRequest.cpp \

@@ -628,20 +628,6 @@ class CallArgs : public CallReceiver
     friend CallArgs CallArgsFromArgv(unsigned, Value *);
     friend CallArgs CallArgsFromSp(unsigned, Value *);
     Value &operator[](unsigned i) const { JS_ASSERT(i < argc_); return argv_[i]; }
-    MutableHandleValue handleAt(unsigned i)
-    {
-        JS_ASSERT(i < argc_);
-        return MutableHandleValue::fromMarkedLocation(&argv_[i]);
-    }
-    HandleValue handleAt(unsigned i) const
-    {
-        JS_ASSERT(i < argc_);
-        return HandleValue::fromMarkedLocation(&argv_[i]);
-    }
-    Value get(unsigned i) const
-    {
-        return i < length() ? argv_[i] : UndefinedValue();
-    }
     Value *array() const { return argv_; }
     unsigned length() const { return argc_; }
     Value *end() const { return argv_ + argc_; }
@@ -2408,11 +2394,11 @@ JS_strdup(JSContext *cx, const char *s);
  *
  *   void some_function() {
  *     jsval v;
- *     JS_AddNamedValueRoot(cx, &v, "name");
+ *     JS_AddNamedRootedValue(cx, &v, "name");
  *
  * the caller must perform
  *
- *     JS_RemoveValueRoot(cx, &v);
+ *     JS_RemoveRootedValue(cx, &v);
  *
  * before some_function() returns.
  *

@@ -385,13 +385,7 @@ ContactManager.prototype = {
         if (req) {
           let result = contacts.map(function(c) {
             let contact = new Contact();
-            let prop = {name: [c.alphaId], tel: [ { value: c.number } ]};
-
-            if (c.email) {
-              prop.email = [{value: c.email}];
-            }
-
-            contact.init(prop);
+            contact.init( { name: [c.alphaId], tel: [ { value: c.number } ] } );
             return contact;
           });
           if (DEBUG) debug("result: " + JSON.stringify(result));

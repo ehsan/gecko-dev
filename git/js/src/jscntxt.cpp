@@ -1338,8 +1338,8 @@ JSRuntime::setGCMaxMallocBytes(size_t value)
      * mean that value.
      */
     gcMaxMallocBytes = (ptrdiff_t(value) >= 0) ? value : size_t(-1) >> 1;
-    for (ZonesIter zone(this); !zone.done(); zone.next())
-        zone->setGCMaxMallocBytes(value);
+    for (CompartmentsIter c(this); !c.done(); c.next())
+        c->setGCMaxMallocBytes(value);
 }
 
 void

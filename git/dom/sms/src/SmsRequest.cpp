@@ -8,7 +8,7 @@
 #include "nsDOMEvent.h"
 #include "nsDOMString.h"
 #include "nsContentUtils.h"
-#include "nsIDOMMozSmsMessage.h"
+#include "nsIDOMSmsMessage.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsPIDOMWindow.h"
 #include "SmsCursor.h"

@@ -1901,8 +1901,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
                               gfxRect glyphRect(pt.x, pt.y - height, advanceDevUnits, height);
                               gfxFontMissingGlyphs::DrawMissingGlyph(aContext,
                                                                      glyphRect,
-                                                                     details->mGlyphID,
-                                                                     appUnitsPerDevUnit);
+                                                                     details->mGlyphID);
                           }
                       } else {
                           double glyphX = x + details->mXOffset;
@@ -2105,8 +2104,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
                               gfxRect glyphRect(pt.x, pt.y - height, advanceDevUnits, height);
                               gfxFontMissingGlyphs::DrawMissingGlyph(aContext,
                                                                      glyphRect,
-                                                                     details->mGlyphID,
-                                                                     appUnitsPerDevUnit);
+                                                                     details->mGlyphID);
                           }
                       } else {
                           double glyphX = x + details->mXOffset;
@@ -4567,10 +4565,8 @@ gfxShapedText::SetMissingGlyph(uint32_t aIndex, uint32_t aChar, gfxFont *aFont)
         // Setting advance width to zero will prevent drawing the hexbox
         details->mAdvance = 0;
     } else {
-        gfxFloat width =
-            std::max(aFont->GetMetrics().aveCharWidth,
-                     gfxFontMissingGlyphs::GetDesiredMinWidth(aChar,
-                         mAppUnitsPerDevUnit));
+        gfxFloat width = std::max(aFont->GetMetrics().aveCharWidth,
+                                gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
         details->mAdvance = uint32_t(width * mAppUnitsPerDevUnit);
     }
     details->mXOffset = 0;

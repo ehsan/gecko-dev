@@ -11,15 +11,14 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "Constants.h"
-#include "nsIDOMMozSmsEvent.h"
-#include "nsIDOMMozSmsMessage.h"
+#include "SmsEvent.h"
+#include "nsIDOMSmsMessage.h"
 #include "SmsRequest.h"
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIMobileMessageDatabaseService.h"
 #include "nsIXPConnect.h"
 #include "nsIPermissionManager.h"
-#include "GeneratedEvents.h"
 
 #define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
 #define SENDING_EVENT_NAME          NS_LITERAL_STRING("sending")
@@ -319,13 +318,9 @@ SmsManager::GetThreadList(nsIDOMMozSmsRequest** aRequest)
 nsresult
 SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMozSmsMessage* aMessage)
 {
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMMozSmsEvent(getter_AddRefs(event), nullptr, nullptr);
-  NS_ASSERTION(event, "This should never fail!");
-
-  nsCOMPtr<nsIDOMMozSmsEvent> se = do_QueryInterface(event);
-  MOZ_ASSERT(se);
-  nsresult rv = se->InitMozSmsEvent(aEventName, false, false, aMessage);
+  nsRefPtr<nsDOMEvent> event = new SmsEvent(nullptr, nullptr);
+  nsresult rv = static_cast<SmsEvent*>(event.get())->Init(aEventName, false,
+                                                          false, aMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchTrustedEvent(event);

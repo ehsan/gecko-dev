@@ -34,6 +34,9 @@ let observer = {
   _itemAddedIndex: null,
   _itemAddedType: null,
 
+  onBeforeItemRemoved: function(id) {
+  },
+
   onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;

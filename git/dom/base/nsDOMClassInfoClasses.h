@@ -314,6 +314,7 @@ DOMCI_CLASS(MozWakeLock)
 
 DOMCI_CLASS(MozSmsManager)
 DOMCI_CLASS(MozSmsMessage)
+DOMCI_CLASS(MozSmsEvent)
 DOMCI_CLASS(MozSmsRequest)
 DOMCI_CLASS(MozSmsFilter)
 DOMCI_CLASS(MozSmsCursor)
@@ -323,7 +324,12 @@ DOMCI_CLASS(MozConnection)
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozMobileConnection)
 DOMCI_CLASS(MozCellBroadcast)
+DOMCI_CLASS(CFStateChangeEvent)
 #endif
+
+DOMCI_CLASS(USSDReceivedEvent)
+
+DOMCI_CLASS(DataErrorEvent)
 
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)

@@ -104,10 +104,8 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
   function onSmsSending(event) {
     log("SmsManager.onsending event received.");
 
-    // Bug 838542: following check throws an exception and fails this case.
-    // ok(event instanceof MozSmsEvent,
-    //    "event is instanceof " + event.constructor)
-    ok(event, "event is valid");
+    ok(event instanceof MozSmsEvent,
+       "event is instanceof " + event.constructor);
 
     let message = event.message;
     checkMessage(message, "sending", body);
@@ -135,10 +133,8 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
   function onSmsSent(event) {
     log("SmsManager.onsent event received.");
 
-    // Bug 838542: following check throws an exception and fails this case.
-    // ok(event instanceof MozSmsEvent,
-    //    "event is instanceof " + event.constructor)
-    ok(event, "event is valid");
+    ok(event instanceof MozSmsEvent,
+       "event is instanceof " + event.constructor);
 
     checkSentMessage(event.message, "onSentCalled");
   }

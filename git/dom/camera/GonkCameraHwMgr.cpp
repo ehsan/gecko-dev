@@ -365,7 +365,10 @@ GonkCameraHardware::PullParameters(uint32_t aHwHandle, CameraParameters& aParams
 int
 GonkCameraHardware::StartPreview()
 {
-  if (!mWindow.get()) {
+  if (mWindow.get()) {
+    GonkNativeWindow* window = static_cast<GonkNativeWindow*>(mWindow.get());
+    window->abandon();
+  } else {
     mWindow = new GonkNativeWindow(this);
     mHardware->setPreviewWindow(mWindow);
   }

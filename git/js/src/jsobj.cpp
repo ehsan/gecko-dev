@@ -1013,7 +1013,6 @@ js::ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccesso
     return true;
 }
 
-// Duplicated in Object.cpp
 static bool
 DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
 {
@@ -1024,7 +1023,7 @@ DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
 
     bool dummy;
     for (size_t i = 0, len = ids.length(); i < len; i++) {
-        if (!DefineProperty(cx, obj, ids.handleAt(i), descs[i], true, &dummy))
+        if (!DefineProperty(cx, obj, Handle<jsid>::fromMarkedLocation(&ids[i]), descs[i], true, &dummy))
             return false;
     }
 
@@ -1936,9 +1935,10 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
          * Trigger post barriers for fixed slots. JSObject bits are barriered
          * below, in common with the other case.
          */
+        JSCompartment *comp = cx->compartment;
         for (size_t i = 0; i < a->numFixedSlots(); ++i) {
-            HeapSlot::writeBarrierPost(cx->runtime, a, HeapSlot::Slot, i);
-            HeapSlot::writeBarrierPost(cx->runtime, b, HeapSlot::Slot, i);
+            HeapSlot::writeBarrierPost(comp, a, HeapSlot::Slot, i);
+            HeapSlot::writeBarrierPost(comp, b, HeapSlot::Slot, i);
         }
 #endif
     } else {
@@ -2016,8 +2016,8 @@ JSObject::swap(JSContext *cx, JSObject *other_)
     RootedObject self(cx, this);
     RootedObject other(cx, other_);
 
-    AutoMarkInDeadZone adc1(self->zone());
-    AutoMarkInDeadZone adc2(other->zone());
+    AutoMarkInDeadCompartment adc1(self->compartment());
+    AutoMarkInDeadCompartment adc2(other->compartment());
 
     // Ensure swap doesn't cause a finalizer to not be run.
     JS_ASSERT(IsBackgroundFinalized(getAllocKind()) ==
@@ -2668,7 +2668,7 @@ JSObject::growElements(JSContext *cx, unsigned newcap)
 {
     size_t oldSize = Probes::objectResizeActive() ? computedSizeOfThisSlotsElements() : 0;
 
-    if (!growElements(&cx->zone()->allocator, newcap)) {
+    if (!growElements(&cx->compartment->allocator, newcap)) {
         JS_ReportOutOfMemory(cx);
         return false;
     }

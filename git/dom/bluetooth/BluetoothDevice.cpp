@@ -12,8 +12,6 @@
 
 #include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
-#include "nsTArrayHelpers.h"
-
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 
 USING_BLUETOOTH_NAMESPACE
@@ -119,9 +117,7 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
-                                    mUuids,
-                                    &mJsUuids))) {
+    if (!SetJsObject(sc->GetNativeContext(), value, mJsUuids)) {
       NS_WARNING("Cannot set JS UUIDs object!");
       return;
     }
@@ -132,10 +128,8 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     nsIScriptContext* sc = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    if (NS_FAILED(nsTArrayToJSArray(sc->GetNativeContext(),
-                                    mServices,
-                                    &mJsServices))) {
-      NS_WARNING("Cannot set JS Services object!");
+    if (!SetJsObject(sc->GetNativeContext(), value, mJsServices)) {
+      NS_WARNING("Cannot set JS Devices object!");
       return;
     }
     Root();
@@ -175,8 +169,8 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
   if (aData.name().EqualsLiteral("PropertyChanged")) {
     NS_ASSERTION(v.type() == BluetoothValue::TArrayOfBluetoothNamedValue,
                  "PropertyChanged: Invalid value type");
-    const InfallibleTArray<BluetoothNamedValue>& arr =
-      v.get_ArrayOfBluetoothNamedValue();
+     const InfallibleTArray<BluetoothNamedValue>& arr =
+       v.get_ArrayOfBluetoothNamedValue();
 
     NS_ASSERTION(arr.Length() == 1,
                  "Got more than one property in a change message!");

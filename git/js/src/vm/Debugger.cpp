@@ -56,6 +56,7 @@ extern Class DebuggerEnv_class;
 
 enum {
     JSSLOT_DEBUGENV_OWNER,
+    JSSLOT_DEBUGENV_GC_GRAY_LINK,
     JSSLOT_DEBUGENV_COUNT
 };
 
@@ -63,6 +64,7 @@ extern Class DebuggerObject_class;
 
 enum {
     JSSLOT_DEBUGOBJECT_OWNER,
+    JSSLOT_DEBUGOBJECT_GC_GRAY_LINK,
     JSSLOT_DEBUGOBJECT_COUNT
 };
 
@@ -70,6 +72,7 @@ extern Class DebuggerScript_class;
 
 enum {
     JSSLOT_DEBUGSCRIPT_OWNER,
+    JSSLOT_DEBUGSCRIPT_GC_GRAY_LINK,
     JSSLOT_DEBUGSCRIPT_COUNT
 };
 
@@ -696,7 +699,7 @@ Debugger::wrapDebuggeeValue(JSContext *cx, MutableHandleValue vp)
                 js_ReportOutOfMemory(cx);
                 return false;
             }
-            HashTableWriteBarrierPost(cx->runtime, &objects, obj);
+            HashTableWriteBarrierPost(cx->zone(), &objects, obj);
 
             if (obj->compartment() != object->compartment()) {
                 CrossCompartmentKey key(CrossCompartmentKey::DebuggerObject, object, obj);
@@ -1352,6 +1355,17 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
 
 /*** Debugger JSObjects **************************************************************************/
 
+JS_STATIC_ASSERT(unsigned(JSSLOT_DEBUGENV_GC_GRAY_LINK) ==
+                 unsigned(JSSLOT_DEBUGOBJECT_GC_GRAY_LINK));
+JS_STATIC_ASSERT(unsigned(JSSLOT_DEBUGENV_GC_GRAY_LINK) ==
+                 unsigned(JSSLOT_DEBUGSCRIPT_GC_GRAY_LINK));
+
+/* static */ unsigned
+Debugger::gcGrayLinkSlot()
+{
+    return JSSLOT_DEBUGOBJECT_GC_GRAY_LINK;
+}
+
 /* static */ bool
 Debugger::isDebugWrapper(RawObject o)
 {
@@ -1894,7 +1908,7 @@ Debugger::addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp)
     for (CompartmentsIter c(cx->runtime); !c.done(); c.next()) {
         if (c == dbg->object->compartment())
             continue;
-        c->zone()->scheduledForDestruction = false;
+        c->scheduledForDestruction = false;
         GlobalObject *global = c->maybeGlobal();
         if (global) {
             Rooted<GlobalObject*> rg(cx, global);
@@ -2541,7 +2555,8 @@ Debugger::findScripts(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseInitializedLength(cx, 0, scripts.length());
 
     for (size_t i = 0; i < scripts.length(); i++) {
-        JSObject *scriptObject = dbg->wrapScript(cx, scripts.handleAt(i));
+        JSObject *scriptObject =
+            dbg->wrapScript(cx, Handle<JSScript*>::fromMarkedLocation(&scripts[i]));
         if (!scriptObject)
             return false;
         result->setDenseElement(i, ObjectValue(*scriptObject));
@@ -2561,7 +2576,7 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     for (CompartmentsIter c(cx->runtime); !c.done(); c.next()) {
-        c->zone()->scheduledForDestruction = false;
+        c->scheduledForDestruction = false;
 
         GlobalObject *global = c->maybeGlobal();
         if (global) {
@@ -3740,8 +3755,9 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName,
             return false;
         }
         for (size_t i = 0; i < keys.length(); i++) {
-            MutableHandleValue valp = values.handleAt(i);
-            if (!JSObject::getGeneric(cx, bindingsobj, bindingsobj, keys.handleAt(i), valp) ||
+            HandleId keyp = HandleId::fromMarkedLocation(&keys[i]);
+            MutableHandleValue valp = MutableHandleValue::fromMarkedLocation(&values[i]);
+            if (!JSObject::getGeneric(cx, bindingsobj, bindingsobj, keyp, valp) ||
                 !dbg->unwrapDebuggeeValue(cx, valp))
             {
                 return false;
@@ -3779,7 +3795,7 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName,
         RootedId id(cx);
         for (size_t i = 0; i < keys.length(); i++) {
             id = keys[i];
-            MutableHandleValue val = values.handleAt(i);
+            MutableHandleValue val = MutableHandleValue::fromMarkedLocation(&values[i]);
             if (!cx->compartment->wrap(cx, val.address()) ||
                 !DefineNativeProperty(cx, env, id, val, NULL, NULL, 0, 0, 0))
             {
@@ -4297,7 +4313,7 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
         ErrorCopier ec(ac, dbg->toJSObject());
         for (size_t i = 0; i < n; i++) {
             bool dummy;
-            if (!DefineProperty(cx, obj, rewrappedIds.handleAt(i),
+            if (!DefineProperty(cx, obj, Handle<jsid>::fromMarkedLocation(&rewrappedIds[i]),
                                 rewrappedDescs[i], true, &dummy))
             {
                 return false;
