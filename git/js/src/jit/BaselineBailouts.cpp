@@ -475,7 +475,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     if (excInfo)
         exprStackSlots = excInfo->numExprSlots;
     else
-        exprStackSlots = iter.allocations() - (script->nfixed() + CountArgSlots(script, fun));
+        exprStackSlots = iter.slots() - (script->nfixed() + CountArgSlots(script, fun));
 
     builder.resetFramePushed();
 
@@ -623,9 +623,9 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
         size_t thisvOffset = builder.framePushed() + IonJSFrameLayout::offsetOfThis();
         *builder.valuePointerAtStackOffset(thisvOffset) = thisv;
 
-        JS_ASSERT(iter.allocations() >= CountArgSlots(script, fun));
+        JS_ASSERT(iter.slots() >= CountArgSlots(script, fun));
         IonSpew(IonSpew_BaselineBailouts, "      frame slots %u, nargs %u, nfixed %u",
-                iter.allocations(), fun->nargs(), script->nfixed());
+                iter.slots(), fun->nargs(), script->nfixed());
 
         if (!callerPC) {
             // This is the first frame. Store the formals in a Vector until we

@@ -1991,7 +1991,7 @@ gcli.addCommand({
     name: 'paintflashing toggle',
     hidden: true,
     buttonId: "command-button-paintflashing",
-    buttonClass: "command-button command-button-invertable",
+    buttonClass: "command-button",
     state: {
       isChecked: function(aTarget) {
         if (aTarget.isLocalTab) {
@@ -2284,7 +2284,7 @@ gcli.addCommand({
     name: 'splitconsole',
     hidden: true,
     buttonId: "command-button-splitconsole",
-    buttonClass: "command-button command-button-invertable",
+    buttonClass: "command-button",
     tooltipText: gcli.lookup("splitconsoleTooltip"),
     state: {
       isChecked: function(aTarget) {

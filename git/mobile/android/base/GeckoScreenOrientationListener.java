@@ -1,5 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -26,7 +25,7 @@ public class GeckoScreenOrientationListener {
 
         @Override
         public void onOrientationChanged(int aOrientation) {
-            GeckoScreenOrientationListener.getInstance().updateScreenOrientation(aOrientation);
+            GeckoScreenOrientationListener.getInstance().updateScreenOrientation();
         }
     }
 
@@ -150,27 +149,23 @@ public class GeckoScreenOrientationListener {
     }
 
     private void updateScreenOrientation() {
-        Context context = GeckoAppShell.getContext();
-        int rotation = mDefaultOrientation;
-        if (context instanceof Activity) {
-            rotation = ((Activity)context).getWindowManager().getDefaultDisplay().getRotation();
-        }
-        updateScreenOrientation(rotation * 90);
-    }
-
-    private void updateScreenOrientation(int aOrientation) {
+      Context context = GeckoAppShell.getContext();
+      int rotation = mDefaultOrientation;
+      if (context instanceof Activity) {
+        rotation = ((Activity)context).getWindowManager().getDefaultDisplay().getRotation();
+      }
         short previousOrientation = mOrientation;
 
-        if (aOrientation >= 315  || aOrientation < 45) {
+        if (rotation == Surface.ROTATION_0) {
             mOrientation = eScreenOrientation_PortraitPrimary;
-        } else if (aOrientation >= 45 && aOrientation < 135) {
-            mOrientation = eScreenOrientation_LandscapePrimary;
-        } else if (aOrientation >= 135 && aOrientation < 225) {
+        } else if (rotation == Surface.ROTATION_180) {
             mOrientation = eScreenOrientation_PortraitSecondary;
-        } else if (aOrientation >= 225 && aOrientation < 315) {
+        } else if (rotation == Surface.ROTATION_270) {
             mOrientation = eScreenOrientation_LandscapeSecondary;
+        } else if (rotation == Surface.ROTATION_90) {
+            mOrientation = eScreenOrientation_LandscapePrimary;
         } else {
-            Log.e(LOGTAG, "Unexpected value received! (" + aOrientation + ")");
+            Log.e(LOGTAG, "Unexpected value received! (" + rotation + ")");
             return;
         }
 
@@ -212,18 +207,18 @@ public class GeckoScreenOrientationListener {
             Log.e(LOGTAG, "Unexpected value received! (" + aOrientation + ")");
             return;
         }
-        if (GeckoAppShell.getContext() instanceof Activity)
-            ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(orientation);
+	if (GeckoAppShell.getContext() instanceof Activity)
+	  ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(orientation);
         updateScreenOrientation();
     }
 
     public void unlockScreenOrientation() {
-        if (!(GeckoAppShell.getContext() instanceof Activity))
-            return;
-        if (((Activity)GeckoAppShell.getContext()).getRequestedOrientation() == mDefaultOrientation)
-            return;
+      if (!(GeckoAppShell.getContext() instanceof Activity))
+	return;
+      if (((Activity)GeckoAppShell.getContext()).getRequestedOrientation() == mDefaultOrientation)
+	return;
 
-        ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(mDefaultOrientation);
+      ((Activity)GeckoAppShell.getContext()).setRequestedOrientation(mDefaultOrientation);
         updateScreenOrientation();
     }
 }
