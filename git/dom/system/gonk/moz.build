@@ -18,6 +18,7 @@ XPIDL_SOURCES += [
     'nsIAudioManager.idl',
     'nsINetworkInterfaceListService.idl',
     'nsINetworkManager.idl',
+    'nsINetworkService.idl',
     'nsISystemWorkerManager.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
@@ -62,9 +63,11 @@ EXTRA_COMPONENTS += [
     'NetworkInterfaceListService.js',
     'NetworkInterfaceListService.manifest',
     'NetworkManager.manifest',
+    'NetworkService.manifest',
 ]
 EXTRA_PP_COMPONENTS += [
     'NetworkManager.js',
+    'NetworkService.js',
 ]
 EXTRA_JS_MODULES += [
     'net_worker.js',
@@ -85,6 +88,20 @@ if CONFIG['MOZ_B2G_RIL']:
         'ril_worker.js',
     ]
 
+if CONFIG['MOZ_NFC']:
+    XPIDL_SOURCES += [
+        'nsINfcContentHelper.idl',
+    ]
+    EXTRA_COMPONENTS += [
+        'Nfc.js',
+        'Nfc.manifest',
+        'NfcContentHelper.js',
+    ]
+    EXTRA_JS_MODULES += [
+    'nfc_consts.js',
+    'nfc_worker.js',
+    ]
+
 FAIL_ON_WARNINGS = True
 
 LIBXUL_LIBRARY = True
@@ -97,6 +114,7 @@ LOCAL_INCLUDES += [
     '/content/events/src',
     '/dom/base',
     '/dom/bluetooth',
+    '/dom/nfc',
     '/dom/src/geolocation',
     '/dom/wifi',
 ]

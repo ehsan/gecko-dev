@@ -13,6 +13,7 @@
 #include "mozilla/Monitor.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/Atomics.h"
 #include "InputData.h"
 #include "Axis.h"
 #include "TaskThrottler.h"
@@ -642,13 +643,17 @@ public:
     return !mParent || (mParent->mLayersId != mLayersId);
   }
 
+  bool IsRootForLayersId(const uint64_t& aLayersId) const {
+    return (mLayersId == aLayersId) && IsRootForLayersId();
+  }
+
 private:
   // This is a raw pointer to avoid introducing a reference cycle between
   // AsyncPanZoomController and APZCTreeManager. Since these objects don't
   // live on the main thread, we can't use the cycle collector with them.
   // The APZCTreeManager owns the lifetime of the APZCs, so nulling this
   // pointer out in Destroy() will prevent accessing deleted memory.
-  APZCTreeManager* mTreeManager;
+  Atomic<APZCTreeManager*> mTreeManager;
 
   nsRefPtr<AsyncPanZoomController> mLastChild;
   nsRefPtr<AsyncPanZoomController> mPrevSibling;
