@@ -45,7 +45,6 @@ const PREF_XPINSTALL_ENABLED                    = "xpinstall.enabled";
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 var gUpdateWizard = {
   // When synchronizing app compatibility info this contains all installed
@@ -167,17 +166,9 @@ var gVersionInfoPage = {
 
       gVersionInfoPage._totalCount = gUpdateWizard.addons.length;
 
-      // Ensure compatibility overrides are up to date before checking for
-      // individual addon updates.
-      let ids = [addon.id for each (addon in gUpdateWizard.addons)];
-      AddonRepository.repopulateCache(ids, function() {
-        AddonManagerPrivate.updateAddonRepositoryData(function() {
-
-          gUpdateWizard.addons.forEach(function(aAddon) {
-            aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
-          }, this);
-        });
-      });
+      gUpdateWizard.addons.forEach(function(aAddon) {
+        aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+      }, this);
     });
   },
 
