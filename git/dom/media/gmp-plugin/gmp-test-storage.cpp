@@ -12,24 +12,17 @@
 class WriteRecordClient : public GMPRecordClient {
 public:
   GMPErr Init(GMPRecord* aRecord,
-              GMPTask* aOnSuccess,
-              GMPTask* aOnFailure,
+              GMPTask* aContinuation,
               const uint8_t* aData,
               uint32_t aDataSize) {
     mRecord = aRecord;
-    mOnSuccess = aOnSuccess;
-    mOnFailure = aOnFailure;
+    mContinuation = aContinuation;
     mData.insert(mData.end(), aData, aData + aDataSize);
     return mRecord->Open();
   }
 
   virtual void OpenComplete(GMPErr aStatus) MOZ_OVERRIDE {
-    if (GMP_SUCCEEDED(aStatus)) {
-      mRecord->Write(&mData.front(), mData.size());
-    } else {
-      GMPRunOnMainThread(mOnFailure);
-      mOnSuccess->Destroy();
-    }
+    mRecord->Write(&mData.front(), mData.size());
   }
 
   virtual void ReadComplete(GMPErr aStatus,
@@ -43,20 +36,15 @@ public:
     // just after the Open() call succeeds, immediately closing the
     // record we just opened.
     mRecord->Close();
-    if (GMP_SUCCEEDED(aStatus)) {
-      GMPRunOnMainThread(mOnSuccess);
-      mOnFailure->Destroy();
-    } else {
-      GMPRunOnMainThread(mOnFailure);
-      mOnSuccess->Destroy();
+    if (mContinuation) {
+      GMPRunOnMainThread(mContinuation);
     }
     delete this;
   }
 
 private:
   GMPRecord* mRecord;
-  GMPTask* mOnSuccess;
-  GMPTask* mOnFailure;
+  GMPTask* mContinuation;
   std::vector<uint8_t> mData;
 };
 
@@ -64,8 +52,7 @@ GMPErr
 WriteRecord(const std::string& aRecordName,
             const uint8_t* aData,
             uint32_t aNumBytes,
-            GMPTask* aOnSuccess,
-            GMPTask* aOnFailure)
+            GMPTask* aContinuation)
 {
   GMPRecord* record;
   WriteRecordClient* client = new WriteRecordClient();
@@ -74,24 +61,20 @@ WriteRecord(const std::string& aRecordName,
                            &record,
                            client);
   if (GMP_FAILED(err)) {
-    GMPRunOnMainThread(aOnFailure);
-    aOnSuccess->Destroy();
     return err;
   }
-  return client->Init(record, aOnSuccess, aOnFailure, aData, aNumBytes);
+  return client->Init(record, aContinuation, aData, aNumBytes);
 }
 
 GMPErr
 WriteRecord(const std::string& aRecordName,
             const std::string& aData,
-            GMPTask* aOnSuccess,
-            GMPTask* aOnFailure)
+            GMPTask* aContinuation)
 {
   return WriteRecord(aRecordName,
                      (const uint8_t*)aData.c_str(),
                      aData.size(),
-                     aOnSuccess,
-                     aOnFailure);
+                     aContinuation);
 }
 
 class ReadRecordClient : public GMPRecordClient {

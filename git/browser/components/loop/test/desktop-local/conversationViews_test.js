@@ -8,7 +8,6 @@ describe("loop.conversationViews", function () {
 
   var sharedUtils = loop.shared.utils;
   var sandbox, oldTitle, view, dispatcher, contact, fakeAudioXHR;
-  var fakeMozLoop;
 
   var CALL_STATES = loop.store.CALL_STATES;
 
@@ -44,7 +43,7 @@ describe("loop.conversationViews", function () {
       onload: null
     };
 
-    fakeMozLoop = navigator.mozLoop = {
+    navigator.mozLoop = {
       getLoopPref: sinon.stub().returns("http://fakeurl"),
       composeEmail: sinon.spy(),
       get appVersionInfo() {
@@ -243,9 +242,9 @@ describe("loop.conversationViews", function () {
     }
 
     beforeEach(function() {
-      store = new loop.store.ConversationStore(dispatcher, {
+      store = new loop.store.ConversationStore({}, {
+        dispatcher: dispatcher,
         client: {},
-        mozLoop: navigator.mozLoop,
         sdkDriver: {}
       });
       fakeAudio = {
@@ -307,7 +306,7 @@ describe("loop.conversationViews", function () {
     it("should compose an email once the email link is received", function() {
       var composeCallUrlEmail = sandbox.stub(sharedUtils, "composeCallUrlEmail");
       view = mountTestComponent();
-      store.setStoreState({emailLink: "http://fake.invalid/"});
+      store.set("emailLink", "http://fake.invalid/");
 
       sinon.assert.calledOnce(composeCallUrlEmail);
       sinon.assert.calledWithExactly(composeCallUrlEmail,
@@ -319,7 +318,7 @@ describe("loop.conversationViews", function () {
         sandbox.stub(window, "close");
         view = mountTestComponent();
 
-        store.setStoreState({emailLink: "http://fake.invalid/"});
+        store.set("emailLink", "http://fake.invalid/");
 
         sinon.assert.calledOnce(window.close);
       });
@@ -458,9 +457,9 @@ describe("loop.conversationViews", function () {
     }
 
     beforeEach(function() {
-      store = new loop.store.ConversationStore(dispatcher, {
+      store = new loop.store.ConversationStore({}, {
+        dispatcher: dispatcher,
         client: {},
-        mozLoop: fakeMozLoop,
         sdkDriver: {}
       });
       feedbackStore = new loop.store.FeedbackStore(dispatcher, {
@@ -470,7 +469,7 @@ describe("loop.conversationViews", function () {
 
     it("should render the CallFailedView when the call state is 'terminated'",
       function() {
-        store.setStoreState({callState: CALL_STATES.TERMINATED});
+        store.set({callState: CALL_STATES.TERMINATED});
 
         view = mountTestComponent();
 
@@ -480,7 +479,7 @@ describe("loop.conversationViews", function () {
 
     it("should render the PendingConversationView when the call state is 'gather'",
       function() {
-        store.setStoreState({
+        store.set({
           callState: CALL_STATES.GATHER,
           contact: contact
         });
@@ -493,7 +492,7 @@ describe("loop.conversationViews", function () {
 
     it("should render the OngoingConversationView when the call state is 'ongoing'",
       function() {
-        store.setStoreState({callState: CALL_STATES.ONGOING});
+        store.set({callState: CALL_STATES.ONGOING});
 
         view = mountTestComponent();
 
@@ -503,7 +502,7 @@ describe("loop.conversationViews", function () {
 
     it("should render the FeedbackView when the call state is 'finished'",
       function() {
-        store.setStoreState({callState: CALL_STATES.FINISHED});
+        store.set({callState: CALL_STATES.FINISHED});
 
         view = mountTestComponent();
 
@@ -520,7 +519,7 @@ describe("loop.conversationViews", function () {
         };
         sandbox.stub(window, "Audio").returns(fakeAudio);
 
-        store.setStoreState({callState: CALL_STATES.FINISHED});
+        store.set({callState: CALL_STATES.FINISHED});
 
         view = mountTestComponent();
 
@@ -529,7 +528,7 @@ describe("loop.conversationViews", function () {
 
     it("should update the rendered views when the state is changed.",
       function() {
-        store.setStoreState({
+        store.set({
           callState: CALL_STATES.GATHER,
           contact: contact
         });
@@ -539,7 +538,7 @@ describe("loop.conversationViews", function () {
         TestUtils.findRenderedComponentWithType(view,
           loop.conversationViews.PendingConversationView);
 
-        store.setStoreState({callState: CALL_STATES.TERMINATED});
+        store.set({callState: CALL_STATES.TERMINATED});
 
         TestUtils.findRenderedComponentWithType(view,
           loop.conversationViews.CallFailedView);
