@@ -188,7 +188,7 @@ function promiseOAuthGetRegistration(baseURL) {
 }
 
 function getLoopString(stringID) {
-  return MozLoopServiceInternal.localizedStrings.get(stringID);
+  return MozLoopServiceInternal.localizedStrings[stringID].textContent;
 }
 
 /**

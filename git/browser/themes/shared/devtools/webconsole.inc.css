@@ -160,8 +160,12 @@ a {
   display: none;
 }
 
-#output-container.hideTimestamps > .message > .indent {
-  background-color: var(--theme-body-background);
+.theme-dark #output-container.hideTimestamps > .message > .indent {
+  background-color: #14171a; /* .theme-body */
+}
+
+.theme-light #output-container.hideTimestamps > .message > .indent {
+  background-color: #fcfcfc; /* .theme-body */
 }
 
 .filtered-by-type,
@@ -215,8 +219,12 @@ a {
   background-color: rgba(235, 83, 104, 0.17);
 }
 
-.console-string {
-  color: var(--theme-highlight-lightorange);
+.theme-dark .console-string {
+  color: #d99b28;
+}
+
+.theme-light .console-string {
+  color: hsl(24,85%,39%);
 }
 
 .theme-selected .console-string,
@@ -491,21 +499,22 @@ a {
   background-position: -16px 0;
 }
 
-.jsterm-input-container {
-  background-color: var(--theme-tab-toolbar-background);
-  border-color: var(--theme-body-background);
+/* Replace these values with CSS variables as available */
+.theme-dark .jsterm-input-container {
+  background-color: #252c33; /* tabToolbarBackgroundColor */
+  border-color: #14171a; /* mainBackgroundColor */
 }
 
-.jsterm-input-node {
-  color: var(--theme-content-color1);
+.theme-dark .jsterm-input-node {
+  color: #a9bacb; /* textColor */
 }
 
-.jsterm-complete-node {
-  color: var(--theme-comment);
+.theme-dark .jsterm-complete-node {
+  color: #5c6773; /* commentColor */
 }
 
-.navigation-marker .url {
-  background: var(--theme-body-background);
+.theme-dark .navigation-marker .url {
+  background: #14171a; /* mainBackgroundColor */
 }
 
 .theme-dark .inlined-variables-view iframe {
@@ -517,13 +526,20 @@ a {
 }
 
 .theme-light .jsterm-input-container {
-  /* For light theme use a white background for the input - it looks better
-     than off-white */
-  background-color: #fff;
+  background-color: #fff; /* mainBackgroundColor */
   border-color: ThreeDShadow;
 }
+
+.theme-light .jsterm-input-node {
+  color: black; /* textColor */
+}
+
+.theme-light .jsterm-complete-node {
+  color: hsl(90,2%,46%); /* commentColor */
+}
+
 .theme-light .navigation-marker .url {
-  background: #fff;
+  background: #fff; /* mainBackgroundColor */
 }
 
 .theme-light .inlined-variables-view iframe {

@@ -293,7 +293,13 @@ OptionsPanel.prototype = {
     let checkbox = this.panelDoc.getElementById("devtools-browser-theme");
 
     checkbox.addEventListener("command", function() {
-      setPrefAndEmit(DEVEDITION_THEME_PREF, this.checked);
+      let data = {
+        pref: DEVEDITION_THEME_PREF,
+        newValue: this.checked
+      };
+      data.oldValue = GetPref(data.pref);
+      SetPref(data.pref, data.newValue);
+      gDevTools.emit("pref-changed", data);
     }.bind(checkbox));
 
     this.updateBrowserThemeButton();
@@ -336,7 +342,13 @@ OptionsPanel.prototype = {
     for (let checkbox of prefCheckboxes) {
       checkbox.checked = GetPref(checkbox.getAttribute("data-pref"));
       checkbox.addEventListener("command", function() {
-        setPrefAndEmit(this.getAttribute("data-pref"), this.checked);
+        let data = {
+          pref: this.getAttribute("data-pref"),
+          newValue: this.checked
+        };
+        data.oldValue = GetPref(data.pref);
+        SetPref(data.pref, data.newValue);
+        gDevTools.emit("pref-changed", data);
       }.bind(checkbox));
     }
     let prefRadiogroups = this.panelDoc.querySelectorAll("radiogroup[data-pref]");
@@ -350,7 +362,17 @@ OptionsPanel.prototype = {
         }
       }
       radiogroup.addEventListener("select", function() {
-        setPrefAndEmit(this.getAttribute("data-pref"), this.selectedItem.getAttribute("value"));
+        let data = {
+          pref: this.getAttribute("data-pref"),
+          newValue: this.selectedItem.getAttribute("value")
+        };
+
+        data.oldValue = GetPref(data.pref);
+        SetPref(data.pref, data.newValue);
+
+        if (data.newValue != data.oldValue) {
+          gDevTools.emit("pref-changed", data);
+        }
       }.bind(radiogroup));
     }
     let prefMenulists = this.panelDoc.querySelectorAll("menulist[data-pref]");
@@ -365,7 +387,13 @@ OptionsPanel.prototype = {
         }
       }
       menulist.addEventListener("command", function() {
-        setPrefAndEmit(this.getAttribute("data-pref"), this.value);
+        let data = {
+          pref: this.getAttribute("data-pref"),
+          newValue: this.value
+        };
+        data.oldValue = GetPref(data.pref);
+        SetPref(data.pref, data.newValue);
+        gDevTools.emit("pref-changed", data);
       }.bind(menulist));
     }
 
@@ -470,17 +498,3 @@ OptionsPanel.prototype = {
     return deferred.promise;
   }
 };
-
-/* Set a pref and emit the pref-changed event if needed. */
-function setPrefAndEmit(prefName, newValue) {
-  let data = {
-    pref: prefName,
-    newValue: newValue
-  };
-  data.oldValue = GetPref(data.pref);
-  SetPref(data.pref, data.newValue);
-
-  if (data.newValue != data.oldValue) {
-    gDevTools.emit("pref-changed", data);
-  }
-}
