@@ -62,7 +62,6 @@ import android.telephony.*;
 import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
-import android.provider.Settings;
 
 import android.util.*;
 import android.net.Uri;
@@ -557,9 +556,6 @@ public class GeckoAppShell
                 Context.INPUT_METHOD_SERVICE);
         if (imm == null)
             return;
-
-        // Log.d("GeckoAppJava", String.format("IME: notifyIMEChange: t=%s s=%d ne=%d oe=%d",
-        //                                      text, start, newEnd, end));
 
         if (newEnd < 0)
             GeckoApp.surfaceView.inputConnection.notifySelectionChange(
@@ -1369,17 +1365,5 @@ public class GeckoAppShell
         ActivityInfo activityInfo = resolveInfo.activityInfo;
 
         return activityInfo.loadIcon(pm);
-    }
-
-    public static boolean getShowPasswordSetting() {
-        try {
-            int showPassword =
-                Settings.System.getInt(GeckoApp.mAppContext.getContentResolver(),
-                                       Settings.System.TEXT_SHOW_PASSWORD);
-            return (showPassword > 0);
-        }
-        catch (Exception e) {
-            return false;
-        }
     }
 }

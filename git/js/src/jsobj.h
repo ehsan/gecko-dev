@@ -1083,9 +1083,9 @@ struct JSObject : js::gc::Cell {
     inline jsval getNamespaceDeclared() const;
     inline void setNamespaceDeclared(jsval decl);
 
-    inline JSAtom *getQNameLocalName() const;
+    inline JSLinearString *getQNameLocalName() const;
     inline jsval getQNameLocalNameVal() const;
-    inline void setQNameLocalName(JSAtom *name);
+    inline void setQNameLocalName(JSLinearString *name);
 
     /*
      * Proxy-specific getters and setters.

@@ -287,8 +287,7 @@ nsGenericDOMDataNode::ReplaceData(PRUint32 aOffset, PRUint32 aCount,
 nsresult
 nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                                       const PRUnichar* aBuffer,
-                                      PRUint32 aLength, PRBool aNotify,
-                                      CharacterDataChangeInfo::Details* aDetails)
+                                      PRUint32 aLength, PRBool aNotify)
 {
   NS_PRECONDITION(aBuffer || !aLength,
                   "Null buffer passed to SetTextInternal!");
@@ -331,8 +330,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataWillChange(this, &info);
   }
@@ -378,8 +376,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataChanged(this, &info);
 
@@ -747,23 +744,25 @@ nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
     return rv;
   }
 
-  // Use Clone for creating the new node so that the new node is of same class
-  // as this node!
-  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
-  if (!newContent) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  newContent->SetText(cutText, PR_TRUE); // XXX should be PR_FALSE?
-
-  CharacterDataChangeInfo::Details details = {
-    CharacterDataChangeInfo::Details::eSplit, newContent
-  };
-  rv = SetTextInternal(cutStartOffset, cutLength, nsnull, 0, PR_TRUE, &details);
+  rv = DeleteData(cutStartOffset, cutLength);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
+  /*
+   * Use Clone for creating the new node so that the new node is of same class
+   * as this node!
+   */
+
+  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
+  if (!newContent) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  newContent->SetText(cutText, PR_TRUE);
+
   nsCOMPtr<nsINode> parent = GetNodeParent();
+
   if (parent) {
     PRInt32 insertionIndex = parent->IndexOf(this);
     if (aCloneAfterOriginal) {

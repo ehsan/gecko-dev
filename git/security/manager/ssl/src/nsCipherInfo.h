@@ -1,5 +1,3 @@
-/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,15 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Web Workers.
+ * The Original Code is Mozilla Communicator.
  *
  * The Initial Developer of the Original Code is
- *   The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   William Chen <wchen@mozilla.com> (Original Author)
+ *   Kai Engert <kaie@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,37 +35,30 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_workers_file_h__
-#define mozilla_dom_workers_file_h__
+#include "nsICipherInfo.h"
+#include "nsString.h"
+#include "sslt.h"
 
-#include "Workers.h"
+class nsCipherInfoService : public nsICipherInfoService
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICIPHERINFOSERVICE
 
-#include "jspubtd.h"
+  nsCipherInfoService();
+  virtual ~nsCipherInfoService();
+};
 
-class nsIDOMFile;
-class nsIDOMBlob;
+class nsCipherInfo : public nsICipherInfo
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICIPHERINFO
 
-BEGIN_WORKERS_NAMESPACE
+  nsCipherInfo(PRUint16 aCipherId);
+  virtual ~nsCipherInfo();
 
-namespace file {
-
-bool
-InitClasses(JSContext* aCx, JSObject* aGlobal);
-
-JSObject*
-CreateBlob(JSContext* aCx, nsIDOMBlob* aBlob);
-
-nsIDOMBlob*
-GetDOMBlobFromJSObject(JSContext* aCx, JSObject* aObj);
-
-JSObject*
-CreateFile(JSContext* aCx, nsIDOMFile* aFile);
-
-nsIDOMFile*
-GetDOMFileFromJSObject(JSContext* aCx, JSObject* aObj);
-
-} // namespace file
-
-END_WORKERS_NAMESPACE
-
-#endif /* mozilla_dom_workers_file_h__ */
+private:
+  PRBool mHaveInfo;
+  SSLCipherSuiteInfo mInfo;
+};

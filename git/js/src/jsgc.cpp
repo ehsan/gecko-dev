@@ -1918,6 +1918,7 @@ void
 MaybeGC(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
+    JS_ASSERT(rt->onOwnerThread());
 
     if (rt->gcZeal()) {
         GCREASON(MAYBEGC);
@@ -2201,6 +2202,7 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
             (compartment->arenaListsAreEmpty() || gckind == GC_LAST_CONTEXT))
         {
             compartment->freeLists.checkEmpty();
+            Probes::GCEndSweepPhase(compartment);
             if (callback)
                 JS_ALWAYS_TRUE(callback(cx, compartment, JSCOMPARTMENT_DESTROY));
             if (compartment->principals)
@@ -2336,7 +2338,6 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
      * unreachable compartments.
      */
     if (comp) {
-        Probes::GCStartSweepPhase(comp);
         comp->sweep(cx, 0);
         comp->finalizeObjectArenaLists(cx);
         GCTIMESTAMP(sweepObjectEnd);
@@ -2344,7 +2345,6 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
         GCTIMESTAMP(sweepStringEnd);
         comp->finalizeShapeArenaLists(cx);
         GCTIMESTAMP(sweepShapeEnd);
-        Probes::GCEndSweepPhase(comp);
     } else {
         /*
          * Some sweeping is not compartment-specific. Start a NULL-compartment
@@ -2682,6 +2682,7 @@ void
 js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
 {
     JSRuntime *rt = cx->runtime;
+    JS_AbortIfWrongThread(rt);
 
     /*
      * Don't collect garbage if the runtime isn't up, and cx is not the last
@@ -2868,6 +2869,8 @@ JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
+    JS_AbortIfWrongThread(rt);
+
     JSCompartment *compartment = cx->new_<JSCompartment>(rt);
     if (compartment && compartment->init()) {
         // Any compartment with the trusted principals -- and there can be

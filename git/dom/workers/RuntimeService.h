@@ -1,5 +1,4 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -100,9 +99,6 @@ class RuntimeService : public nsIObserver
   // Only used on the main thread.
   nsCOMPtr<nsITimer> mIdleThreadTimer;
 
-  nsCString mDetectorName;
-  nsCString mSystemCharset;
-
   static PRUint32 sDefaultJSContextOptions;
   static PRInt32 sCloseHandlerTimeoutSeconds;
 
@@ -151,18 +147,6 @@ public:
 
   void
   ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
-
-  const nsACString&
-  GetDetectorName() const
-  {
-    return mDetectorName;
-  }
-
-  const nsACString&
-  GetSystemCharset() const
-  {
-    return mSystemCharset;
-  }
 
   const NavigatorStrings&
   GetNavigatorStrings() const

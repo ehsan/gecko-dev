@@ -347,6 +347,7 @@ nsSeamonkeyProfileMigrator::PrefTransform gTransforms[] = {
   MAKESAMETYPEPREFTRANSFORM("network.cookie.lifetime.behavior",         Int),
   MAKESAMETYPEPREFTRANSFORM("dom.disable_open_during_load",             Bool),
   MAKESAMETYPEPREFTRANSFORM("signon.rememberSignons",                   Bool),
+  MAKESAMETYPEPREFTRANSFORM("security.enable_ssl2",                     Bool),
   MAKESAMETYPEPREFTRANSFORM("security.enable_ssl3",                     Bool),
   MAKESAMETYPEPREFTRANSFORM("security.enable_tls",                      Bool),
   MAKESAMETYPEPREFTRANSFORM("security.warn_entering_secure",            Bool),

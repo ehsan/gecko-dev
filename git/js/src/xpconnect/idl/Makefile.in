@@ -62,6 +62,7 @@ XPIDLSRCS	= \
 		nsIXPCScriptable.idl \
 		nsIScriptError.idl \
 		nsIXPCScriptNotify.idl \
+		nsIScriptableInterfaces.idl \
 		xpcIJSWeakReference.idl \
 		xpcIJSGetFactory.idl \
 		nsIJSEngineTelemetryStats.idl \
