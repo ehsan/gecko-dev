@@ -2043,8 +2043,15 @@ TypeCompartment::newAllocationSiteTypeObject(JSContext *cx, const AllocationSite
 static inline jsid
 GetAtomId(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset)
 {
-    JSAtom *atom = script->getAtom(GET_UINT32_INDEX(pc + offset));
-    return MakeTypeId(cx, ATOM_TO_JSID(atom));
+    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
+    return MakeTypeId(cx, ATOM_TO_JSID(script->getAtom(index)));
+}
+
+static inline const Value &
+GetScriptConst(JSContext *cx, JSScript *script, const jsbytecode *pc)
+{
+    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, 0);
+    return script->getConst(index);
 }
 
 bool
@@ -3436,6 +3443,12 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_STARTXML:
       case JSOP_STARTXMLEXPR:
       case JSOP_DEFXMLNS:
+      case JSOP_INDEXBASE:
+      case JSOP_INDEXBASE1:
+      case JSOP_INDEXBASE2:
+      case JSOP_INDEXBASE3:
+      case JSOP_RESETBASE:
+      case JSOP_RESETBASE0:
       case JSOP_POPV:
       case JSOP_DEBUGGER:
       case JSOP_SETCALL:
@@ -4578,7 +4591,8 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
              * integer properties and bail out. We can't mark the aggregate
              * JSID_VOID type property as being in a definite slot.
              */
-            jsid id = ATOM_TO_JSID(script->getAtom(GET_UINT32_INDEX(pc)));
+            unsigned index = js_GetIndexFromBytecode(script, pc, 0);
+            jsid id = ATOM_TO_JSID(script->getAtom(index));
             if (MakeTypeId(cx, id) != id)
                 return false;
             if (id == id_prototype(cx) || id == id___proto__(cx) || id == id_constructor(cx))

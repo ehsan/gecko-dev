@@ -39,7 +39,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#if defined(XP_WIN) && !defined(UPDATER_NO_STRING_GLUE_STL)
+#ifdef XP_WIN
 #include <wchar.h>
 #include "nsStringGlue.h"
 #endif

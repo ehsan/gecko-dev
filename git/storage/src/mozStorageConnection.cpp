@@ -45,6 +45,7 @@
 
 #include "nsError.h"
 #include "nsIMutableArray.h"
+#include "nsHashSets.h"
 #include "nsAutoPtr.h"
 #include "nsIMemoryReporter.h"
 #include "nsThreadUtils.h"

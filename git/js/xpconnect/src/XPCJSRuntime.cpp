@@ -1220,11 +1220,10 @@ GetCompartmentNameHelper(JSContext *cx, JSCompartment *c, bool getAddress)
         if (principals->codebase) {
             name->Assign(principals->codebase);
 
-            // For system compartments we append the location, if there is one.
-            // And we append the address if |getAddress| is true, so that
-            // multiple system compartments (and there can be many) can be
-            // distinguished.
-            if (js::IsSystemCompartment(c)) {
+            // If it's the system compartment and |getAddress| is true, append
+            // the address.  This means that multiple system compartments (and
+            // there can be many) can be distinguished.
+            if (getAddress && js::IsSystemCompartment(c)) {
                 xpc::CompartmentPrivate *compartmentPrivate =
                     static_cast<xpc::CompartmentPrivate*>(JS_GetCompartmentPrivate(cx, c));
                 if (compartmentPrivate &&
@@ -1233,12 +1232,10 @@ GetCompartmentNameHelper(JSContext *cx, JSCompartment *c, bool getAddress)
                     name->Append(compartmentPrivate->location);
                 }
 
-                if (getAddress) {
-                    // ample; 64-bit address max is 18 chars
-                    static const int maxLength = 31;
-                    nsPrintfCString address(maxLength, ", 0x%llx", PRUint64(c));
-                    name->Append(address);
-                }
+                // ample; 64-bit address max is 18 chars
+                static const int maxLength = 31;
+                nsPrintfCString address(maxLength, ", 0x%llx", PRUint64(c));
+                name->Append(address);
             }
 
             // A hack: replace forward slashes with '\\' so they aren't

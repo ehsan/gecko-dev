@@ -923,7 +923,7 @@ nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
   if (mPreloadedURLs.Contains(spec)) {
     return nsnull;
   }
-  mPreloadedURLs.PutEntry(spec);
+  mPreloadedURLs.Put(spec);
   return uri.forget();
 }
 

@@ -960,6 +960,9 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
     case eAfterEnd:
       destination->InsertBefore(fragment, GetNextSibling(), &rv);
       break;
+    default:
+      NS_NOTREACHED("Bad position.");
+      break;
   }
   return rv;
 }

@@ -54,6 +54,7 @@ CPPSRCS		= \
 		nsAtomTable.cpp \
 		nsAtomService.cpp \
 		nsByteBuffer.cpp \
+		nsCheapSets.cpp \
 		nsCRT.cpp \
 		nsFixedSizeAllocator.cpp \
 		nsHashPropertyBag.cpp \

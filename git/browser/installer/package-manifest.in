@@ -97,7 +97,6 @@
 @BINPATH@/@MOZ_APP_NAME@
 #endif
 @BINPATH@/application.ini
-@BINPATH@/update-settings.ini
 @BINPATH@/platform.ini
 #ifndef XP_OS2
 @BINPATH@/@DLL_PREFIX@mozsqlite3@DLL_SUFFIX@

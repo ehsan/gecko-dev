@@ -45,7 +45,6 @@
 #include "nsDebug.h"
 #include "mozilla/gfx/BaseMargin.h"
 #include "mozilla/gfx/BaseRect.h"
-#include "mozilla/Assertions.h"
 #include "nsRect.h"
 
 struct gfxMargin : public mozilla::gfx::BaseMargin<gfxFloat, gfxMargin> {
@@ -127,8 +126,11 @@ struct THEBES_API gfxRect :
             case NS_SIDE_RIGHT: return TopRight();
             case NS_SIDE_BOTTOM: return BottomRight();
             case NS_SIDE_LEFT: return BottomLeft();
+            default:
+                NS_ERROR("Invalid side!");
+                break;
         }
-        MOZ_NOT_REACHED("Incomplet switch");
+        return gfxPoint(0.0, 0.0);
     }
 
     gfxPoint CWCorner(mozilla::css::Side side) const {
@@ -137,8 +139,11 @@ struct THEBES_API gfxRect :
             case NS_SIDE_RIGHT: return BottomRight();
             case NS_SIDE_BOTTOM: return BottomLeft();
             case NS_SIDE_LEFT: return TopLeft();
+            default:
+                NS_ERROR("Invalid side!");
+                break;
         }
-        MOZ_NOT_REACHED("Incomplet switch");
+        return gfxPoint(0.0, 0.0);
     }
 
     /* Conditions this border to Cairo's max coordinate space.

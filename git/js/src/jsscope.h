@@ -461,10 +461,9 @@ struct Shape : public js::gc::Cell
 {
     friend struct ::JSObject;
     friend struct ::JSFunction;
-    friend class js::Bindings;
-    friend class js::ObjectImpl;
-    friend class js::PropertyTree;
     friend class js::StaticBlockObject;
+    friend class js::PropertyTree;
+    friend class js::Bindings;
     friend struct js::StackShape;
     friend struct js::StackBaseShape;
 
@@ -1113,6 +1112,30 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
 #pragma warning(pop)
 #pragma warning(pop)
 #endif
+
+inline js::Class *
+JSObject::getClass() const
+{
+    return lastProperty()->getObjectClass();
+}
+
+inline JSClass *
+JSObject::getJSClass() const
+{
+    return Jsvalify(getClass());
+}
+
+inline bool
+JSObject::hasClass(const js::Class *c) const
+{
+    return getClass() == c;
+}
+
+inline const js::ObjectOps *
+JSObject::getOps() const
+{
+    return &getClass()->ops;
+}
 
 namespace JS {
     template<> class AnchorPermitted<js::Shape *> { };

@@ -43,8 +43,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
+#include "nsHashSets.h"
 #include <stdio.h>
 
 namespace mozilla {
@@ -194,7 +193,7 @@ private:
 
   bool mSearchedForLibxul;
   nsCString mLibxulDir;
-  nsTHashtable<nsCStringHashKey> mMozillaLibraries;
+  nsCStringHashSet mMozillaLibraries;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
@@ -207,7 +206,7 @@ MapsReporter::MapsReporter()
   for (PRUint32 i = 0; i < len; i++) {
     nsCAutoString str;
     str.Assign(mozillaLibraries[i]);
-    mMozillaLibraries.PutEntry(str);
+    mMozillaLibraries.Put(str);
   }
 }
 

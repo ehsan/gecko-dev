@@ -146,7 +146,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on enabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -166,7 +165,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on newly disabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -186,7 +184,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on newly enabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -204,7 +201,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -218,14 +214,13 @@ add_test(function() {
     gContextMenu.addEventListener("popupshown", function() {
       gContextMenu.removeEventListener("popupshown", arguments.callee, false);
 
-      check_contextmenu(true, true, false, false, false);
+    check_contextmenu(true, true, false, false, false);
 
       gContextMenu.hidePopup();
       run_next_test();
     }, false);
 
     info("Opening context menu on enabled theme item");
-    el.parentNode.ensureElementIsVisible(el);
     EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
     EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
   });
@@ -245,7 +240,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -266,7 +260,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on enabled LW theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -287,7 +280,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled LW theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -475,7 +467,6 @@ add_test(function() {
       }, false);
 
       info("Opening context menu on remote extension item");
-      el.parentNode.ensureElementIsVisible(el);
       EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
       EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 

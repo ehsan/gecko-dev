@@ -55,8 +55,7 @@ var Utilities = {
 
   get livemarks() {
     let livemarks = Cc["@mozilla.org/browser/livemark-service;2"].
-                    getService[Ci.mozIAsyncLivemarks].
-                    QueryInterface(Ci.nsILivemarkService);
+                    getService(Ci.nsILivemarkService);
     this.__defineGetter__("livemarks", function() livemarks);
     return this.livemarks;
   },

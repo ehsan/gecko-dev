@@ -356,8 +356,7 @@ add_test(function test_mismatched_types() {
     let oldID = store.idForGUID(oldR.id);
     _("Old ID: " + oldID);
     do_check_eq(bms.getItemType(oldID), bms.TYPE_FOLDER);
-    do_check_false(PlacesUtils.annotations
-                              .itemHasAnnotation(oldID, PlacesUtils.LMANNO_FEEDURI));
+    do_check_false(PlacesUtils.livemarks.isLivemark(oldID));
 
     store.applyIncoming(newR);
     let newID = store.idForGUID(newR.id);
@@ -365,8 +364,7 @@ add_test(function test_mismatched_types() {
 
     _("Applied new. It's a livemark.");
     do_check_eq(bms.getItemType(newID), bms.TYPE_FOLDER);
-    do_check_true(PlacesUtils.annotations
-                             .itemHasAnnotation(newID, PlacesUtils.LMANNO_FEEDURI));
+    do_check_true(PlacesUtils.livemarks.isLivemark(newID));
 
   } finally {
     store.wipe();

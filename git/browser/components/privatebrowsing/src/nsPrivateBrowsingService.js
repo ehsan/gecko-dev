@@ -189,6 +189,18 @@ PrivateBrowsingService.prototype = {
         }
         win.close();
       }
+        
+      var windowsEnum = Services.wm.getEnumerator("navigator:browser");
+      while (windowsEnum.hasMoreElements()) {
+        var window = windowsEnum.getNext();
+        window.getInterface(Ci.nsIWebNavigation)
+              .QueryInterface(Ci.nsIDocShellTreeItem)
+              .treeOwner
+              .QueryInterface(Ci.nsIInterfaceRequestor)
+              .getInterface(Ci.nsIXULWindow)
+              .docShell.QueryInterface(Ci.nsILoadContext)
+              .usePrivateBrowsing = this._inPrivateBrowsing;
+      }
 
       if (!this._quitting && this._saveSession) {
         let browserWindow = this._getBrowserWindow();
@@ -216,18 +228,6 @@ PrivateBrowsingService.prototype = {
                        .QueryInterface(Ci.nsIInterfaceRequestor)
                        .getInterface(Ci.nsIXULWindow)
                        .docShell.contentViewer.resetCloseWindow();
-        }
-
-        var windowsEnum = Services.wm.getEnumerator("navigator:browser");
-        while (windowsEnum.hasMoreElements()) {
-          var window = windowsEnum.getNext();
-          window.getInterface(Ci.nsIWebNavigation)
-                .QueryInterface(Ci.nsIDocShellTreeItem)
-                .treeOwner
-                .QueryInterface(Ci.nsIInterfaceRequestor)
-                .getInterface(Ci.nsIXULWindow)
-                .docShell.QueryInterface(Ci.nsILoadContext)
-                .usePrivateBrowsing = this._inPrivateBrowsing;
         }
       }
     }

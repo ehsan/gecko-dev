@@ -34,7 +34,7 @@ function setupHTMLPanel()
 {
   Services.obs.removeObserver(setupHTMLPanel, InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
   Services.obs.addObserver(runEditorTests, InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
-  InspectorUI.toggleHTMLPanel();
+  InspectorUI.toolShow(InspectorUI.treePanel.registrationObject);
 }
 
 function runEditorTests()

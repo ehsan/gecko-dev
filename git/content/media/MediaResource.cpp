@@ -287,7 +287,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
   if (mSuspendCount > 0) {
     // Re-suspend the channel if it needs to be suspended
     // No need to call PossiblySuspend here since the channel is
-    // definitely in the right state for us in OnStartRequest.
+    // definitely in the right state for us in OneStartRequest.
     mChannel->Suspend();
     mIgnoreResume = false;
   }
@@ -336,12 +336,15 @@ ChannelMediaResource::OnStopRequest(nsIRequest* aRequest, nsresult aStatus)
     // Move this request back into the foreground.  This is necessary for
     // requests owned by video documents to ensure the load group fires
     // OnStopRequest when restoring from session history.
-    nsLoadFlags loadFlags;
-    DebugOnly<nsresult> rv = mChannel->GetLoadFlags(&loadFlags);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
+    if (mLoadInBackground) {
+      mLoadInBackground = false;
 
-    if (loadFlags & nsIRequest::LOAD_BACKGROUND) {
-      ModifyLoadFlags(loadFlags & ~nsIRequest::LOAD_BACKGROUND);
+      nsLoadFlags loadFlags;
+      DebugOnly<nsresult> rv = mChannel->GetLoadFlags(&loadFlags);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
+
+      loadFlags &= ~nsIRequest::LOAD_BACKGROUND;
+      ModifyLoadFlags(loadFlags);
     }
   }
 

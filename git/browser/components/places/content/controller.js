@@ -44,6 +44,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
+const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
 
 // No change to the view, preserve current selection
 const RELOAD_ACTION_NOTHING = 0;
@@ -207,11 +208,15 @@ PlacesController.prototype = {
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
       var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.getConcreteItemId(selectedNode) != -1
+      if (selectedNode &&
+          PlacesUtils.getConcreteItemId(selectedNode) != -1  &&
+          !PlacesUtils.nodeIsLivemarkItem(selectedNode))
+        return true;
+      return false;
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
-      return selectedNode && !!selectedNode._feedURI;
+      return selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode);
     case "placesCmd_sortBy:name":
       var selectedNode = this._view.selectedNode;
       return selectedNode &&
@@ -504,7 +509,7 @@ PlacesController.prototype = {
             if (parentNode) {
               if (PlacesUtils.nodeIsTagQuery(parentNode))
                 nodeData["tagChild"] = true;
-              else if (parentNode._feedURI)
+              else if (PlacesUtils.nodeIsLivemarkContainer(parentNode))
                 nodeData["livemarkChild"] = true;
             }
           }
@@ -729,17 +734,8 @@ PlacesController.prototype = {
    */
   reloadSelectedLivemark: function PC_reloadSelectedLivemark() {
     var selectedNode = this._view.selectedNode;
-    if (selectedNode) {
-      let itemId = selectedNode.itemId;
-      PlacesUtils.livemarks.getLivemark(
-        { id: itemId },
-        (function(aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            aLivemark.reload(true);
-          }
-        }).bind(this)
-      );
-    }
+    if (selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode))
+      PlacesUtils.livemarks.reloadLivemarkFolder(selectedNode.itemId);
   },
 
   /**
@@ -1069,12 +1065,10 @@ PlacesController.prototype = {
         addData(PlacesUtils.TYPE_X_MOZ_PLACE, i);
 
         // Drop the feed uri for livemark containers
-        if (node._feedURI) {
-          addURIData(i, node._feedURI.spec);
-        }
-        else if (node.uri) {
+        if (PlacesUtils.nodeIsLivemarkContainer(node))
+          addURIData(i, PlacesUtils.livemarks.getFeedURI(node.itemId).spec);
+        else if (node.uri)
           addURIData(i);
-        }
       }
     }
     finally {
@@ -1144,7 +1138,8 @@ PlacesController.prototype = {
       if (PlacesUtils.nodeIsFolder(node))
         copiedFolders.push(node);
 
-      let overrideURI = node._feedURI ? node._feedURI.spec : null;
+      let overrideURI = PlacesUtils.nodeIsLivemarkContainer(node) ?
+        PlacesUtils.livemarks.getFeedURI(node.itemId).spec : null;
       let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
 
       contents.forEach(function (content) {

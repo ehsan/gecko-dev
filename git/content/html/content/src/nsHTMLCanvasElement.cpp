@@ -709,8 +709,6 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
       // then make it a nsRect
       invalRect = nsRect(realRect.X(), realRect.Y(),
                          realRect.Width(), realRect.Height());
-
-      invalRect = invalRect.Intersect(nsRect(nsPoint(0,0), contentArea.Size()));
     }
   } else {
     invalRect = nsRect(nsPoint(0, 0), contentArea.Size());
