@@ -769,12 +769,14 @@ private:
       NS_WARNING("Failed to dispatch, going to leak!");
     }
 
+    mFinishedWorker->Finish(aCx);
+
     RuntimeService* runtime = RuntimeService::GetService();
     NS_ASSERTION(runtime, "This should never be null!");
 
     runtime->UnregisterWorker(aCx, mFinishedWorker);
 
-    mFinishedWorker->ClearSelfRef();
+    mFinishedWorker->Release();
     return true;
   }
 };
@@ -798,11 +800,13 @@ private:
   {
     AssertIsOnMainThread();
 
-    RuntimeService* runtime = RuntimeService::GetService();
-    MOZ_ASSERT(runtime);
-
     AutoSafeJSContext cx;
     JSAutoRequest ar(cx);
+
+    mFinishedWorker->Finish(cx);
+
+    RuntimeService* runtime = RuntimeService::GetService();
+    NS_ASSERTION(runtime, "This should never be null!");
 
     runtime->UnregisterWorker(cx, mFinishedWorker);
 
@@ -818,7 +822,8 @@ private:
       NS_WARNING("Failed to dispatch, going to leak!");
     }
 
-    mFinishedWorker->ClearSelfRef();
+    mFinishedWorker->Release();
+
     return NS_OK;
   }
 };
@@ -2104,7 +2109,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
   mMemoryReportCondVar(mMutex, "WorkerPrivateParent Memory Report CondVar"),
   mParent(aParent), mScriptURL(aScriptURL),
   mSharedWorkerName(aSharedWorkerName), mBusyCount(0), mMessagePortSerial(0),
-  mParentStatus(Pending), mParentSuspended(false),
+  mParentStatus(Pending), mRooted(false), mParentSuspended(false),
   mIsChromeWorker(aIsChromeWorker), mMainThreadObjectsForgotten(false),
   mWorkerType(aWorkerType)
 {
@@ -2138,6 +2143,8 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
 template <class Derived>
 WorkerPrivateParent<Derived>::~WorkerPrivateParent()
 {
+  MOZ_ASSERT(!mRooted);
+
   DropJSObjects(this);
 }
 
@@ -2151,7 +2158,13 @@ WorkerPrivateParent<Derived>::WrapObject(JSContext* aCx,
 
   AssertIsOnParentThread();
 
-  return WorkerBinding::Wrap(aCx, aScope, ParentAsWorkerPrivate());
+  JS::Rooted<JSObject*> obj(aCx, WorkerBinding::Wrap(aCx, aScope, ParentAsWorkerPrivate()));
+
+  if (mRooted) {
+    PreserveWrapper(this);
+  }
+
+  return obj;
 }
 
 template <class Derived>
@@ -2594,6 +2607,25 @@ WorkerPrivateParent<Derived>::SynchronizeAndResume(
 }
 
 template <class Derived>
+void
+WorkerPrivateParent<Derived>::_finalize(JSFreeOp* aFop)
+{
+  AssertIsOnParentThread();
+
+  MOZ_ASSERT(!mRooted);
+
+  ClearWrapper();
+
+  // Ensure that we're held alive across the TerminatePrivate call, and then
+  // release the reference our wrapper held to us.
+  nsRefPtr<WorkerPrivateParent<Derived> > kungFuDeathGrip = dont_AddRef(this);
+
+  if (!TerminatePrivate(nullptr)) {
+    NS_WARNING("Failed to terminate!");
+  }
+}
+
+template <class Derived>
 bool
 WorkerPrivateParent<Derived>::Close(JSContext* aCx)
 {
@@ -2619,11 +2651,14 @@ WorkerPrivateParent<Derived>::ModifyBusyCount(JSContext* aCx, bool aIncrease)
   NS_ASSERTION(aIncrease || mBusyCount, "Mismatched busy count mods!");
 
   if (aIncrease) {
-    mBusyCount++;
+    if (mBusyCount++ == 0) {
+      Root(true);
+    }
     return true;
   }
 
   if (--mBusyCount == 0) {
+    Root(false);
 
     bool shouldCancel;
     {
@@ -2637,6 +2672,32 @@ WorkerPrivateParent<Derived>::ModifyBusyCount(JSContext* aCx, bool aIncrease)
   }
 
   return true;
+}
+
+template <class Derived>
+void
+WorkerPrivateParent<Derived>::Root(bool aRoot)
+{
+  AssertIsOnParentThread();
+
+  if (aRoot == mRooted) {
+    return;
+  }
+
+  if (aRoot) {
+    NS_ADDREF_THIS();
+    if (GetWrapperPreserveColor()) {
+      PreserveWrapper(this);
+    }
+  }
+  else {
+    if (GetWrapperPreserveColor()) {
+      ReleaseWrapper(this);
+    }
+    NS_RELEASE_THIS();
+  }
+
+  mRooted = aRoot;
 }
 
 template <class Derived>
@@ -3451,28 +3512,16 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 template <class Derived>
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WorkerPrivateParent<Derived>,
                                                   nsDOMEventTargetHelper)
-  tmp->AssertIsOnParentThread();
-
-  // The WorkerPrivate::mSelfRef has a reference to itself, which is really
-  // held by the worker thread.  We traverse this reference if and only if our
-  // busy count is zero and we have not released the main thread reference.
-  // We do not unlink it.  This allows the CC to break cycles involving the
-  // WorkerPrivate and begin shutting it down (which does happen in unlink) but
-  // ensures that the WorkerPrivate won't be deleted before we're done shutting
-  // down the thread.
-
-  if (!tmp->mBusyCount && !tmp->mMainThreadObjectsForgotten) {
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelfRef)
-  }
-
+  // Nothing else to traverse
   // The various strong references in LoadInfo are managed manually and cannot
   // be cycle collected.
+  tmp->AssertIsOnParentThread();
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 template <class Derived>
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WorkerPrivateParent<Derived>,
                                                 nsDOMEventTargetHelper)
-  tmp->Terminate(nullptr);
+  tmp->AssertIsOnParentThread();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 template <class Derived>
@@ -3672,7 +3721,10 @@ WorkerPrivate::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  worker->mSelfRef = worker;
+  // The worker will be owned by its JSObject (via the reference we return from
+  // this function), but it also needs to be owned by its thread, so AddRef it
+  // again.
+  NS_ADDREF(worker.get());
 
   return worker.forget();
 }

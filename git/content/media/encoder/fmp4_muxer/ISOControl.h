@@ -72,14 +72,6 @@ public:
 
   uint32_t GetType() { return mTrackType; }
 
-  void SetLastFragmentLastFrameTime(uint32_t aTime) {
-    mLastFrameTimeOfLastFragment = aTime;
-  }
-
-  uint32_t GetLastFragmentLastFrameTime() {
-    return mLastFrameTimeOfLastFragment;
-  }
-
 private:
   uint32_t mTrackType;
 
@@ -99,12 +91,6 @@ private:
   //   It only means the fragment number of current accumulated frames, not
   //   the current 'creating' fragment mFragNum in ISOControl.
   uint32_t mFragmentNumber;
-
-  // The last frame time stamp of last fragment. It is for calculating the
-  // play duration of first frame in current fragment. The frame duration is
-  // defined as "current frame timestamp - last frame timestamp" here. So it
-  // needs to keep the last timestamp of last fragment.
-  uint32_t mLastFrameTimeOfLastFragment;
 
   // Array of fragments, each element has enough samples to form a
   // complete fragment.
