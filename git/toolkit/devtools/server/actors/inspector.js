@@ -65,7 +65,7 @@ const {PageStyleActor, getFontPreviewData} = require("devtools/server/actors/sty
 const {
   HighlighterActor,
   CustomHighlighterActor,
-  isTypeRegistered,
+  HIGHLIGHTER_CLASSES
 } = require("devtools/server/actors/highlighter");
 const {getLayoutChangesObserver, releaseLayoutChangesObserver} =
   require("devtools/server/actors/layout");
@@ -3186,7 +3186,7 @@ var InspectorActor = exports.InspectorActor = protocol.ActorClass({
    * typeName passed doesn't match any available highlighter
    */
   getHighlighterByType: method(function (typeName) {
-    if (isTypeRegistered(typeName)) {
+    if (HIGHLIGHTER_CLASSES[typeName]) {
       return CustomHighlighterActor(this, typeName);
     } else {
       return null;

@@ -8,9 +8,6 @@
  * controlled by DetailsView.
  */
 let JsFlameGraphView = Heritage.extend(DetailsSubview, {
-
-  rerenderPrefs: ["flatten-tree-recursion", "show-platform-data", "show-idle-blocks"],
-
   /**
    * Sets up the view with event binding.
    */
@@ -48,9 +45,9 @@ let JsFlameGraphView = Heritage.extend(DetailsSubview, {
     let samples = profile.threads[0].samples;
 
     let data = FlameGraphUtils.createFlameGraphDataFromSamples(samples, {
-      flattenRecursion: PerformanceController.getPref("flatten-tree-recursion"),
-      filterFrames: !PerformanceController.getPref("show-platform-data") && FrameNode.isContent,
-      showIdleBlocks: PerformanceController.getPref("show-idle-blocks") && L10N.getStr("table.idle")
+      flattenRecursion: Prefs.flattenTreeRecursion,
+      filterFrames: !Prefs.showPlatformData && FrameNode.isContent,
+      showIdleBlocks: Prefs.showIdleBlocks && L10N.getStr("table.idle")
     });
 
     this.graph.setData({ data,
