@@ -40,12 +40,6 @@
 
 #include "nsQueryFrame.h"
 
-enum nsMenuListType {
-  eNotMenuList,
-  eReadonlyMenuList,
-  eEditableMenuList
-};
-
 // this interface exists solely because native themes need to call into it.
 // Only menu frames should implement it
 
@@ -58,7 +52,6 @@ public:
   virtual PRBool IsMenu() = 0;
   virtual PRBool IsOnMenuBar() = 0;
   virtual PRBool IsOnActiveMenuBar() = 0;
-  virtual nsMenuListType GetParentMenuListType() = 0;
 };
 
 #endif

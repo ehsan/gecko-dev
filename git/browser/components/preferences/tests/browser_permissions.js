@@ -1,6 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
@@ -23,11 +24,6 @@ const TEST_PERMS = {
   "indexedDB": PERM_UNKNOWN,
   "popup": PERM_DENY
 };
-
-const NO_GLOBAL_ALLOW = [
-  "geo",
-  "indexedDB"
-];
 
 // number of managed permissions in the interface
 const TEST_PERMS_COUNT = 5;
@@ -147,12 +143,6 @@ var tests = [
     ok(gBrowser.contentDocument.getElementById("cookies-count").hidden,
        "cookies count is hidden");
 
-    // Test to make sure "Allow" items hidden for certain permission types
-    NO_GLOBAL_ALLOW.forEach(function(aType) {
-      let menuitem = gBrowser.contentDocument.getElementById(aType + "-" + PERM_ALLOW);
-      ok(menuitem.hidden, aType + " allow menuitem hidden for all sites");
-    });
-
     runNextTest();
   },
 
@@ -204,12 +194,6 @@ var tests = [
        "passwords count is not hidden");
     ok(!gBrowser.contentDocument.getElementById("cookies-count").hidden,
        "cookies count is not hidden");
-
-    // Test to make sure "Allow" items are *not* hidden for certain permission types
-    NO_GLOBAL_ALLOW.forEach(function(aType) {
-      let menuitem = gBrowser.contentDocument.getElementById(aType + "-" + PERM_ALLOW);
-      ok(!menuitem.hidden, aType  + " allow menuitem not hidden for single site");
-    });
 
     runNextTest();
   },

@@ -1,7 +1,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource:///modules/tabview/AllTabs.jsm");
 Cu.import("resource:///modules/tabview/utils.jsm");
@@ -51,6 +50,5 @@ var gTabViewFrame = gWindow.document.getElementById("tab-view");
 #include tabitems.js
 #include drag.js
 #include trench.js
-#include thumbnailStorage.js
 #include ui.js
 #include search.js

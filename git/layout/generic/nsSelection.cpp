@@ -87,7 +87,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Preferences.h"
 
 //included for desired x position;
 #include "nsPresContext.h"
@@ -113,8 +112,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #endif // IBMBIDI
 
 #include "nsDOMError.h"
-
-using namespace mozilla;
 
 //#define DEBUG_TABLE 1
 
@@ -509,6 +506,8 @@ NS_IMPL_ISUPPORTS1(nsAutoScrollTimer, nsITimerCallback)
 nsresult NS_NewDomSelection(nsISelection **aDomSelection)
 {
   nsTypedSelection *rlist = new nsTypedSelection;
+  if (!rlist)
+    return NS_ERROR_OUT_OF_MEMORY;
   *aDomSelection = (nsISelection *)rlist;
   NS_ADDREF(rlist);
   return NS_OK;
@@ -709,6 +708,8 @@ nsFrameSelection::nsFrameSelection()
   PRInt32 i;
   for (i = 0;i<nsISelectionController::NUM_SELECTIONTYPES;i++){
     mDomSelections[i] = new nsTypedSelection(this);
+    if (!mDomSelections[i])
+      break;
     mDomSelections[i]->SetType(GetSelectionTypeFromIndex(i));
   }
   mBatching = 0;
@@ -729,7 +730,7 @@ nsFrameSelection::nsFrameSelection()
 
   // Check to see if the autocopy pref is enabled
   //   and add the autocopy listener if it is
-  if (Preferences::GetBool("clipboard.autocopy")) {
+  if (nsContentUtils::GetBoolPref("clipboard.autocopy")) {
     nsAutoCopyListener *autoCopy = nsAutoCopyListener::GetInstance();
 
     if (autoCopy) {
@@ -1080,8 +1081,7 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
   mMouseDownState = PR_FALSE;
   mDesiredXSet = PR_FALSE;
   mLimiter = aLimiter;
-  mCaretMovementStyle =
-    Preferences::GetInt("bidi.edit.caret_movement_style", 2);
+  mCaretMovementStyle = nsContentUtils::GetIntPref("bidi.edit.caret_movement_style", 2);
 }
 
 nsresult
@@ -1140,8 +1140,7 @@ nsFrameSelection::MoveCaret(PRUint32          aKeycode,
     SetDesiredX(desiredX);
   }
 
-  PRInt32 caretStyle =
-    Preferences::GetInt("layout.selection.caret_style", 0);
+  PRInt32 caretStyle = nsContentUtils::GetIntPref("layout.selection.caret_style", 0);
 #ifdef XP_MACOSX
   if (caretStyle == 0) {
     caretStyle = 2; // put caret at the selection edge in the |aKeycode| direction
@@ -1825,6 +1824,9 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
       mDomSelections[index]->RemoveCollapsedRanges();
 
       nsCOMPtr<nsIRange> newRange = new nsRange();
+      if (!newRange) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
 
       newRange->SetStart(aNewFocus, aContentOffset);
       newRange->SetEnd(aNewFocus, aContentOffset);
@@ -3255,6 +3257,7 @@ nsFrameSelection::CreateAndAddRange(nsINode *aParentNode, PRInt32 aOffset)
   if (!aParentNode) return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIRange> range = new nsRange();
+  if (!range) return NS_ERROR_OUT_OF_MEMORY;
 
   // Set range around child at given offset
   nsresult result = range->SetStart(aParentNode, aOffset);
@@ -3686,7 +3689,9 @@ nsTypedSelection::SubtractRange(RangeData* aRange, nsIRange* aSubtract,
     // We need to add a new RangeData to the output, running from
     // the end of aSubtract to the end of range
     nsIRange* postOverlap = new nsRange();
-
+    if (!postOverlap)
+      return NS_ERROR_OUT_OF_MEMORY;
+    
     rv =
       postOverlap->SetStart(aSubtract->GetEndParent(), aSubtract->EndOffset());
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3704,6 +3709,8 @@ nsTypedSelection::SubtractRange(RangeData* aRange, nsIRange* aSubtract,
     // We need to add a new RangeData to the output, running from
     // the start of the range to the start of aSubtract
     nsIRange* preOverlap = new nsRange();
+    if (!preOverlap)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     nsresult rv =
      preOverlap->SetStart(range->GetStartParent(), range->StartOffset());
@@ -4509,6 +4516,8 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
       continue; // the ranges do not overlap the input range
 
     SelectionDetails* details = new SelectionDetails;
+    if (!details)
+      return NS_ERROR_OUT_OF_MEMORY;
 
     details->mNext = *aReturnDetails;
     details->mStart = start;
@@ -4661,6 +4670,9 @@ nsTypedSelection::StartAutoScrollTimer(nsIFrame *aFrame,
   {
     mAutoScrollTimer = new nsAutoScrollTimer();
 
+    if (!mAutoScrollTimer)
+      return NS_ERROR_OUT_OF_MEMORY;
+
     result = mAutoScrollTimer->Init(mFrameSelection, this);
 
     if (NS_FAILED(result))
@@ -4725,8 +4737,11 @@ nsTypedSelection::DoAutoScroll(nsIFrame *aFrame, nsPoint& aPoint)
 NS_IMETHODIMP
 nsTypedSelection::GetEnumerator(nsIEnumerator **aIterator)
 {
-  NS_ADDREF(*aIterator = new nsSelectionIterator(this));
-  return NS_OK;
+  nsresult status = NS_ERROR_OUT_OF_MEMORY;
+  nsSelectionIterator *iterator =  new nsSelectionIterator(this);
+  if (iterator && NS_FAILED(status = CallQueryInterface(iterator, aIterator)) )
+    delete iterator;
+  return status;
 }
 
 
@@ -4924,6 +4939,10 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
   mFrameSelection->ClearTableCellSelection();
 
   nsCOMPtr<nsIRange> range = new nsRange();
+  if (!range) {
+    NS_ASSERTION(PR_FALSE,"Couldn't make a range - nsFrameSelection::Collapse");
+    return NS_ERROR_UNEXPECTED;
+  }
   result = range->SetEnd(aParentNode, aOffset);
   if (NS_FAILED(result))
     return result;

@@ -195,6 +195,14 @@ OS_CXXFLAGS += -FR
 endif
 else # ! MOZ_DEBUG
 
+# We don't build a static CRT when building a custom CRT,
+# it appears to be broken. So don't link to jemalloc if
+# the Makefile wants static CRT linking.
+ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_)
+# Disable default CRT libs and add the right lib path for the linker
+OS_LDFLAGS += $(MOZ_MEMORY_LDFLAGS)
+endif
+
 # MOZ_DEBUG_SYMBOLS generates debug symbols in separate PDB files.
 # Used for generating an optimized build with debugging symbols.
 # Used in the Windows nightlies to generate symbols for crash reporting.
@@ -233,15 +241,6 @@ endif
 endif # NS_TRACE_MALLOC
 
 endif # MOZ_DEBUG
-
-# We don't build a static CRT when building a custom CRT,
-# it appears to be broken. So don't link to jemalloc if
-# the Makefile wants static CRT linking.
-ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_)
-# Disable default CRT libs and add the right lib path for the linker
-OS_LDFLAGS += $(MOZ_MEMORY_LDFLAGS)
-endif
-
 endif # WINNT && !GNU_CC
 
 #
@@ -563,6 +562,10 @@ else
 ELF_DYNSTR_GC	= :
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+OS_LIBS += $(MOZ_QT_LIBS)
+endif
+
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 ifdef MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS
@@ -592,6 +595,13 @@ ifeq (2,$(MOZ_OPTIMIZE))
 PBBUILD_SETTINGS += GCC_MODEL_TUNING= OPTIMIZATION_CFLAGS="$(MOZ_OPTIMIZE_FLAGS)"
 endif # MOZ_OPTIMIZE=2
 endif # MOZ_OPTIMIZE
+ifeq (1,$(HAS_XCODE_2_1))
+# Xcode 2.1 puts its build products in a directory corresponding to the
+# selected build style/configuration.
+XCODE_PRODUCT_DIR = build/$(BUILDSTYLE)
+else
+XCODE_PRODUCT_DIR = build
+endif # HAS_XCODE_2_1=1
 endif # OS_ARCH=Darwin
 
 

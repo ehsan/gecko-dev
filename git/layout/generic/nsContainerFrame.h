@@ -404,8 +404,8 @@ protected:
   /**
    * Set the overflow list.  aOverflowFrames must not be an empty list.
    */
-  void SetOverflowFrames(nsPresContext*  aPresContext,
-                         const nsFrameList& aOverflowFrames);
+  nsresult SetOverflowFrames(nsPresContext*  aPresContext,
+                             const nsFrameList& aOverflowFrames);
 
   /**
    * Destroy the overflow list and any frames that are on it.

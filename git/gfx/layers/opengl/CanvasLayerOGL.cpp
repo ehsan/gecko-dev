@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
-
 #include "gfxSharedImageSurface.h"
 
 #include "CanvasLayerOGL.h"
@@ -290,7 +287,6 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerOGL(aManager)
-  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerOGL*>(this);
 }
@@ -305,7 +301,7 @@ ShadowCanvasLayerOGL::Initialize(const Data& aData)
 }
 
 void
-ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip)
+ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize)
 {
   mDeadweight = aNewFront;
   nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mDeadweight);
@@ -313,7 +309,6 @@ ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& 
   mTexImage = gl()->CreateTextureImage(nsIntSize(aSize.width, aSize.height),
                                        surf->GetContentType(),
                                        LOCAL_GL_CLAMP_TO_EDGE);
-  mNeedsYFlip = needYFlip;
 }
 
 void
@@ -380,5 +375,5 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 
-  mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
+  mOGLManager->BindAndDrawQuad(program);
 }

@@ -56,6 +56,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowWatcher.h"
@@ -743,7 +744,7 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
   nsCOMPtr<nsIXULWindow> kungFuDeathGrip(this);
 
   nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mDocShell));
-  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(window);
+  nsCOMPtr<nsPIDOMEventTarget> eventTarget = do_QueryInterface(window);
 
   if (eventTarget) {
     nsCOMPtr<nsIContentViewer> contentViewer;
@@ -786,7 +787,7 @@ void nsWebShellWindow::ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY)
                              getter_AddRefs(screen));
     if (screen) {
       screen->GetAvailRect(&left, &top, &width, &height);
-      if (*aX < left || *aX > left + width) {
+      if (*aX < left || *aY > left + width) {
         *aX = left;
       }
       if (*aY < top || *aY > top + height) {

@@ -41,13 +41,12 @@
 #
 # ***** END LICENSE BLOCK *****
 
-Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const DEBUG = false; /* set to false to suppress debug messages */
 
-const SIDEBAR_CONTRACTID        = "@mozilla.org/sidebar;1";
 const SIDEBAR_CID               = Components.ID("{22117140-9c6e-11d3-aaf1-00805f8a4905}");
+const nsISupports               = Components.interfaces.nsISupports;
 const nsISidebar                = Components.interfaces.nsISidebar;
 const nsISidebarExternal        = Components.interfaces.nsISidebarExternal;
 const nsIClassInfo              = Components.interfaces.nsIClassInfo;
@@ -57,6 +56,15 @@ const SHERLOCK_FILE_EXT_REGEXP = /\.src$/i;
 
 function nsSidebar()
 {
+    const PROMPTSERVICE_CONTRACTID = "@mozilla.org/embedcomp/prompt-service;1";
+    const nsIPromptService = Components.interfaces.nsIPromptService;
+    this.promptService =
+        Components.classes[PROMPTSERVICE_CONTRACTID].getService(nsIPromptService);
+
+    const SEARCHSERVICE_CONTRACTID = "@mozilla.org/browser/search-service;1";
+    const nsIBrowserSearchService = Components.interfaces.nsIBrowserSearchService;
+    this.searchService =
+      Components.classes[SEARCHSERVICE_CONTRACTID].getService(nsIBrowserSearchService);
 }
 
 nsSidebar.prototype.classID = SIDEBAR_CID;
@@ -94,15 +102,20 @@ function(aTitle, aContentURL, aCustomizeURL)
 nsSidebar.prototype.addPanelInternal =
 function (aTitle, aContentURL, aCustomizeURL, aPersist)
 {
+    var WINMEDSVC = Components.classes['@mozilla.org/appshell/window-mediator;1']
+                              .getService(Components.interfaces.nsIWindowMediator);
+
     // XXX Bug 620418: We shouldn't do this anymore. Instead, we should find the
     // global object for our caller and use it.
-    var win = Services.wm.getMostRecentWindow("navigator:browser");
+    var win = WINMEDSVC.getMostRecentWindow( "navigator:browser" );
     if (!sidebarURLSecurityCheck(aContentURL))
       return;
 
     var uri = null;
+    var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Components.interfaces.nsIIOService);
     try {
-      uri = Services.io.newURI(aContentURL, null, null);
+      uri = ioService.newURI(aContentURL, null, null);
     }
     catch(ex) { return; }
 
@@ -128,7 +141,7 @@ function (engineURL, iconURL)
 
     if (!isWeb.test(engineURL))
       throw "Unsupported search engine URL";
-
+  
     if (iconURL && !isWeb.test(iconURL))
       throw "Unsupported search icon URL.";
   }
@@ -136,17 +149,19 @@ function (engineURL, iconURL)
   {
     debug(ex);
     Components.utils.reportError("Invalid argument passed to window.sidebar.addSearchEngine: " + ex);
-
-    var searchBundle = Services.strings.createBundle("chrome://global/locale/search/search.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    
+    var searchBundle = srGetStrBundle("chrome://global/locale/search/search.properties");
+    var brandBundle = srGetStrBundle("chrome://branding/locale/brand.properties");
     var brandName = brandBundle.GetStringFromName("brandShortName");
     var title = searchBundle.GetStringFromName("error_invalid_engine_title");
     var msg = searchBundle.formatStringFromName("error_invalid_engine_msg",
                                                 [brandName], 1);
-    Services.ww.getNewPrompter(null).alert(title, msg);
+    var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Components.interfaces.nsIWindowWatcher);
+    ww.getNewPrompter(null).alert(title, msg);
     return false;
   }
-
+  
   return true;
 }
 
@@ -170,7 +185,7 @@ function (engineURL, iconURL, suggestedTitle, suggestedCategory)
   else
     dataType = Components.interfaces.nsISearchEngine.DATA_XML;
 
-  Services.search.addEngine(engineURL, dataType, iconURL, true);
+  this.searchService.addEngine(engineURL, dataType, iconURL, true);
 }
 
 // This function exists largely to implement window.external.AddSearchProvider(),
@@ -183,21 +198,23 @@ function (aDescriptionURL)
   // page since we don't have easy access to the active document.  Most search
   // engines will override this with an icon specified in the OpenSearch
   // description anyway.
-  var win = Services.wm.getMostRecentWindow("navigator:browser");
-  var browser = win.gBrowser;
+  var WINMEDSVC = Components.classes['@mozilla.org/appshell/window-mediator;1']
+                            .getService(Components.interfaces.nsIWindowMediator);
+  var win = WINMEDSVC.getMostRecentWindow("navigator:browser");
+  var browser = win.document.getElementById("content");
   var iconURL = "";
   // Use documentURIObject in the check for shouldLoadFavIcon so that we
   // do the right thing with about:-style error pages.  Bug 453442
   if (browser.shouldLoadFavIcon(browser.selectedBrowser
                                        .contentDocument
                                        .documentURIObject))
-    iconURL = browser.getIcon();
-
+    iconURL = win.gBrowser.getIcon();
+  
   if (!this.validateSearchEngine(aDescriptionURL, iconURL))
     return;
 
   const typeXML = Components.interfaces.nsISearchEngine.DATA_XML;
-  Services.search.addEngine(aDescriptionURL, typeXML, iconURL, true);
+  this.searchService.addEngine(aDescriptionURL, typeXML, iconURL, true);
 }
 
 // This function exists to implement window.external.IsSearchProviderInstalled(),
@@ -214,13 +231,32 @@ function (aSearchURL)
   return 0;
 }
 
-nsSidebar.prototype.classInfo = XPCOMUtils.generateCI({classID: SIDEBAR_CID,
-                                                       contractID: SIDEBAR_CONTRACTID,
-                                                       classDescription: "Sidebar",
-                                                       interfaces: [nsISidebar, nsISidebarExternal],
-                                                       flags: nsIClassInfo.DOM_OBJECT});
+// property of nsIClassInfo
+nsSidebar.prototype.flags = nsIClassInfo.DOM_OBJECT;
 
-nsSidebar.prototype.QueryInterface = XPCOMUtils.generateQI([nsISidebar, nsISidebarExternal]);
+// property of nsIClassInfo
+nsSidebar.prototype.classDescription = "Sidebar";
+
+// method of nsIClassInfo
+nsSidebar.prototype.getInterfaces = function(count) {
+    var interfaceList = [nsISidebar, nsISidebarExternal, nsIClassInfo];
+    count.value = interfaceList.length;
+    return interfaceList;
+}
+
+// method of nsIClassInfo
+nsSidebar.prototype.getHelperForLanguage = function(count) {return null;}
+
+nsSidebar.prototype.QueryInterface =
+function (iid) {
+    if (iid.equals(nsISidebar) ||
+        iid.equals(nsISidebarExternal) ||
+        iid.equals(nsIClassInfo) ||
+        iid.equals(nsISupports))
+        return this;
+
+    throw Components.results.NS_ERROR_NO_INTERFACE;
+};
 
 var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsSidebar]);
 
@@ -229,3 +265,16 @@ if (DEBUG)
     debug = function (s) { dump("-*- sidebar component: " + s + "\n"); }
 else
     debug = function (s) {}
+
+// String bundle service
+var gStrBundleService = null;
+
+function srGetStrBundle(path)
+{
+  if (!gStrBundleService)
+    gStrBundleService =
+      Components.classes["@mozilla.org/intl/stringbundle;1"]
+                .getService(Components.interfaces.nsIStringBundleService);
+
+  return gStrBundleService.createBundle(path);
+}

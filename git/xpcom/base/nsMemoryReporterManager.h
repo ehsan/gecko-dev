@@ -11,22 +11,19 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMEMORYREPORTER
 
-  nsMemoryReporter(nsCString& process,
+  nsMemoryReporter(nsCString& prefix,
                    nsCString& path, 
                    PRInt32 kind,
-                   PRInt32 units,
-                   PRInt64 amount,
-                   nsCString& desc);
+                   nsCString& desc,
+                   PRInt64 memoryUsed);
 
   ~nsMemoryReporter();
 
 protected:
-  nsCString mProcess;
   nsCString mPath;
   PRInt32   mKind;
-  PRInt32   mUnits;
-  PRInt64   mAmount;
   nsCString mDesc;
+  PRInt64   mMemoryUsed;
 };
 
 
@@ -40,9 +37,8 @@ public:
     virtual ~nsMemoryReporterManager();
 
 private:
-    nsCOMArray<nsIMemoryReporter>      mReporters;
-    nsCOMArray<nsIMemoryMultiReporter> mMultiReporters;
-    Mutex                              mMutex;
+    nsCOMArray<nsIMemoryReporter> mReporters;
+    Mutex                         mMutex;
 };
 
 #define NS_MEMORY_REPORTER_MANAGER_CID \

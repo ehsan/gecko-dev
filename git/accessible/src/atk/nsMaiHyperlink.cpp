@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim:expandtab:shiftwidth=2:tabstop=2: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -135,16 +135,16 @@ MaiHyperlink::~MaiHyperlink()
     }
 }
 
-AtkHyperlink*
+AtkHyperlink *
 MaiHyperlink::GetAtkHyperlink(void)
 {
-  NS_ENSURE_TRUE(mHyperlink, nsnull);
+    NS_ENSURE_TRUE(mHyperlink, nsnull);
 
-  if (mMaiAtkHyperlink)
-    return mMaiAtkHyperlink;
+    if (mMaiAtkHyperlink)
+        return mMaiAtkHyperlink;
 
-  if (!mHyperlink->IsLink())
-    return nsnull;
+    if (!mHyperlink->IsHyperLink())
+        return nsnull;
 
     mMaiAtkHyperlink =
         reinterpret_cast<AtkHyperlink *>
@@ -215,7 +215,9 @@ getUriCB(AtkHyperlink *aLink, gint aLinkIndex)
     nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, nsnull);
 
-    nsCOMPtr<nsIURI> uri = hyperlink->AnchorURIAt(aLinkIndex);
+    MaiAtkHyperlink *maiAtkHyperlink = MAI_ATK_HYPERLINK(aLink);
+
+    nsCOMPtr<nsIURI> uri = hyperlink->GetAnchorURI(aLinkIndex);
     if (!uri)
         return nsnull;
 
@@ -232,7 +234,7 @@ getObjectCB(AtkHyperlink *aLink, gint aLinkIndex)
     nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, nsnull);
 
-    nsAccessible* anchor = hyperlink->AnchorAt(aLinkIndex);
+    nsAccessible* anchor = hyperlink->GetAnchor(aLinkIndex);
     NS_ENSURE_TRUE(anchor, nsnull);
 
     AtkObject *atkObj = nsAccessibleWrap::GetAtkObject(anchor);
@@ -264,7 +266,7 @@ isValidCB(AtkHyperlink *aLink)
     nsAccessible* hyperlink = get_accessible_hyperlink(aLink);
     NS_ENSURE_TRUE(hyperlink, FALSE);
 
-    return static_cast<gboolean>(hyperlink->IsLinkValid());
+    return static_cast<gboolean>(hyperlink->IsValid());
 }
 
 gint

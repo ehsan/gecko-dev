@@ -121,7 +121,7 @@ struct cdir_end {
 
 static size_t zip_size;
 static int zip_fd;
-static struct mapping_info * lib_mapping = NULL;
+static struct mapping_info * lib_mapping;
 
 NS_EXPORT const struct mapping_info *
 getLibraryMapping()
@@ -239,7 +239,6 @@ SHELL_WRAPPER0(onLowMemory)
 SHELL_WRAPPER3(callObserver, jstring, jstring, jstring)
 SHELL_WRAPPER1(removeObserver, jstring)
 SHELL_WRAPPER1(onChangeNetworkLinkStatus, jstring)
-SHELL_WRAPPER1(reportJavaCrash, jstring)
 
 static void * xul_handle = NULL;
 static time_t apk_mtime = 0;
@@ -647,8 +646,8 @@ loadLibs(const char *apkName)
 
   struct cdir_entry *cdir_start = (struct cdir_entry *)(zip + cdir_offset);
 
-  lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
 #ifdef MOZ_CRASHREPORTER
+  lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
   file_ids = (char *)extractBuf("lib.id", zip, cdir_start, cdir_entries);
 #endif
 
@@ -689,15 +688,12 @@ loadLibs(const char *apkName)
   GETFUNC(callObserver);
   GETFUNC(removeObserver);
   GETFUNC(onChangeNetworkLinkStatus);
-  GETFUNC(reportJavaCrash);
 #undef GETFUNC
   gettimeofday(&t1, 0);
   struct rusage usage2;
   getrusage(RUSAGE_SELF, &usage2);
-  __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loaded libs in %dms total, %dms user, %dms system, %d faults",
+  __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loaded libs in %dms total, %d faults",
                       (t1.tv_sec - t0.tv_sec)*1000 + (t1.tv_usec - t0.tv_usec)/1000, 
-                      (usage2.ru_utime.tv_sec - usage1.ru_utime.tv_sec)*1000 + (usage2.ru_utime.tv_usec - usage1.ru_utime.tv_usec)/1000,
-                      (usage2.ru_stime.tv_sec - usage1.ru_stime.tv_sec)*1000 + (usage2.ru_stime.tv_usec - usage1.ru_stime.tv_usec)/1000,
                       usage2.ru_majflt-usage1.ru_majflt);
 }
 

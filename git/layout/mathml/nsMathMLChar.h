@@ -71,18 +71,16 @@ enum {
 // (depending on the type of nsGlyphTable where this comes from). The 'font' is a
 // numeric identifier given to the font to which the glyph belongs.
 struct nsGlyphCode {
-  PRUnichar code[2]; 
+  PRUnichar code; 
   PRInt32   font;
 
-  PRInt32 Length() { return (code[1] == PRUnichar('\0') ? 1 : 2); }
   PRBool Exists() const
   {
-    return (code[0] != 0);
+    return (code != 0);
   }
   PRBool operator==(const nsGlyphCode& other) const
   {
-    return (other.code[0] == code[0] && other.code[1] == code[1] && 
-            other.font == font);
+    return other.code == code && other.font == font;
   }
   PRBool operator!=(const nsGlyphCode& other) const
   {

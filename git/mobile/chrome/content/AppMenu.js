@@ -11,8 +11,7 @@ var AppMenu = {
   overflowMenu : [],
 
   show: function show() {
-    let modals = document.getElementsByClassName("modal-block").length;
-    if (BrowserUI.activePanel || BrowserUI.isPanelVisible() || modals > 0 || BrowserUI.activeDialog)
+    if (BrowserUI.activePanel || BrowserUI.isPanelVisible())
       return;
 
     let shown = 0;

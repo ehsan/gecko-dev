@@ -44,7 +44,6 @@ function openWinWithCb(cb, argURIs, expectedURIs) {
                        "chrome,all,dialog=no", argURIs.join("|"));
 
   win.addEventListener("load", function () {
-    win.removeEventListener("load", arguments.callee, false);
     info("the window loaded");
 
     var expectedLoads = expectedURIs.length;

@@ -59,8 +59,8 @@ public:
 
     virtual bool filter(QOrientationReading* reading);
 
-    static int GetWindowRotationAngle();
-    static QTransform& GetRotationTransform();
+    static int GetWindowRotationAngle() { return mWindowRotationAngle; }
+    static QTransform& GetRotationTransform() { return mWindowRotationTransform; }
 
 signals:
     void orientationChanged();

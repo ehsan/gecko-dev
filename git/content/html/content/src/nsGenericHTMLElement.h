@@ -116,8 +116,8 @@ public:
   nsresult SetTitle(const nsAString& aTitle);
   nsresult GetLang(nsAString& aLang);
   nsresult SetLang(const nsAString& aLang);
-  NS_IMETHOD GetDir(nsAString& aDir);
-  NS_IMETHOD SetDir(const nsAString& aDir);
+  nsresult GetDir(nsAString& aDir);
+  nsresult SetDir(const nsAString& aDir);
   nsresult GetClassName(nsAString& aClassName);
   nsresult SetClassName(const nsAString& aClassName);
 
@@ -199,13 +199,7 @@ public:
   // HTML element methods
   void Compact() { mAttrsAndChildren.Compact(); }
 
-  virtual void UpdateEditableState(PRBool aNotify);
-
-  // Helper for setting our editable flag and notifying
-  void DoSetEditableFlag(PRBool aEditable, bool aNotify) {
-    SetEditableFlag(aEditable);
-    UpdateState(aNotify);
-  }
+  virtual void UpdateEditableState();
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -580,7 +574,7 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   virtual nsresult
-    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+    GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                    nsISupports** aTarget,
                                    PRBool* aDefer);
 
@@ -876,18 +870,22 @@ public:
   }
 
   /**
-   * This callback is called by a fieldest on all its elements whenever its
-   * disabled attribute is changed so the element knows its disabled state
+   * This callback is called by a fieldest on all it's elements whenever it's
+   * disabled attribute is changed so the element knows it's disabled state
    * might have changed.
    *
-   * @note Classes redefining this method should not do any content
-   * state updates themselves but should just make sure to call into
-   * nsGenericHTMLFormElement::FieldSetDisabledChanged.
+   * @param aStates States for which a change should be notified.
+   * @note Classes redefining this method should not call ContentStatesChanged
+   * but they should pass aStates instead.
    */
-  virtual void FieldSetDisabledChanged(PRBool aNotify);
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
 
   void FieldSetFirstLegendChanged(PRBool aNotify) {
-    UpdateFieldSet(aNotify);
+    UpdateFieldSet();
+
+    // The disabled state may have change because the element might not be in
+    // the first legend anymore.
+    FieldSetDisabledChanged(nsEventStates(), aNotify);
   }
 
   /**
@@ -918,7 +916,7 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
 
-  void UpdateEditableFormControlState(PRBool aNotify);
+  void UpdateEditableFormControlState();
 
   /**
    * This method will update the form owner, using @form or looking to a parent.
@@ -936,7 +934,7 @@ protected:
   /**
    * This method will update mFieldset and set it to the first fieldset parent.
    */
-  void UpdateFieldSet(PRBool aNotify);
+  void UpdateFieldSet();
 
   /**
    * Add a form id observer which will observe when the element with the id in

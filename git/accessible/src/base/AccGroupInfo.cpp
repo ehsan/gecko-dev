@@ -47,7 +47,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
   if (!parent)
     return;
 
-  PRInt32 indexInParent = aItem->IndexInParent();
+  PRInt32 indexInParent = aItem->GetIndexInParent();
   PRInt32 level = nsAccUtils::GetARIAOrDefaultLevel(aItem);
 
   // Compute position in set.
@@ -152,7 +152,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
     return;
   }
 
-  nsAccessible* parentPrevSibling = parent->PrevSibling();
+  nsAccessible* parentPrevSibling = parent->GetSiblingAtOffset(-1);
   if (!parentPrevSibling)
     return;
 
@@ -162,7 +162,7 @@ AccGroupInfo::AccGroupInfo(nsAccessible* aItem, PRUint32 aRole) :
     // although the text does not appear to be rendered, GetRenderedText()
     // says that it is so we need to skip past it to find the true
     // previous sibling.
-    parentPrevSibling = parentPrevSibling->PrevSibling();
+    parentPrevSibling = parentPrevSibling->GetSiblingAtOffset(-1);
     if (parentPrevSibling)
       parentPrevSiblingRole = parentPrevSibling->Role();
   }

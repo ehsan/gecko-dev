@@ -48,8 +48,6 @@
 
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
-#include "nsBoxLayout.h"
-
 class nsBoxLayoutState;
 
 // flags from box
@@ -91,9 +89,8 @@ public:
   // call this method to get the rect so you don't draw on the debug border or outer border.
 
   // ------ nsIBox -------------
-  virtual void SetLayoutManager(nsIBoxLayout* aLayout) { mLayoutManager = aLayout; }
-  virtual nsIBoxLayout* GetLayoutManager() { return mLayoutManager; }
-
+  NS_IMETHOD SetLayoutManager(nsIBoxLayout* aLayout);
+  NS_IMETHOD GetLayoutManager(nsIBoxLayout** aLayout);
   NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild);
 
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);

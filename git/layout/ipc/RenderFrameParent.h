@@ -143,8 +143,7 @@ public:
 
   NS_OVERRIDE
   virtual already_AddRefed<Layer>
-  BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
-             const ContainerParameters& aContainerParameters);
+  BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager);
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 

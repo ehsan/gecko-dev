@@ -90,8 +90,6 @@ function test() {
   gCurrentTab = Browser.addTab(testURL, true);
   ok(gCurrentTab, "Tab Opened");
 
-  SelectionHelper.enabled = false;
-
   window.addEventListener("TapSingle", dumpEvents, true);
   window.addEventListener("TapDouble", dumpEvents, true);
   window.addEventListener("TapLong", dumpEvents, true);
@@ -127,7 +125,6 @@ function runNextTest() {
     window.removeEventListener("TapDouble", dumpEvents, true);
     window.removeEventListener("TapLong", dumpEvents, true);
 
-    SelectionHelper.enabled = true;
     Browser.closeTab(gCurrentTab);
 
     finish();
@@ -170,12 +167,7 @@ gTests.push({
     EventUtils.synthesizeMouse(document.documentElement, width / 2, height / 2, {});
 
     setTimeout(function() {
-      let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-      if (sysInfo.get("device"))
-        todo(checkEvents(["TapDouble"]), "Fired a good double tap");
-      else
-        ok(checkEvents(["TapDouble"]), "Fired a good double tap");
-
+      ok(checkEvents(["TapDouble"]), "Fired a good double tap");
       clearEvents();
 
       gCurrentTest.doubleTapFailTest();
@@ -280,7 +272,7 @@ gTests.push({
 
   contextPlainImageTest: function() {
     waitForContextMenu(function() {
-      ok(checkContextTypes(["image","image-shareable","image-loaded", "content-text"]), "Plain image context types");
+      ok(checkContextTypes(["image","image-shareable","image-loaded"]), "Plain image context types");
     }, gCurrentTest.contextNestedImageTest);
 
     let browser = gCurrentTab.browser;

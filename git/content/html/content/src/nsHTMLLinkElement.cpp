@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMLinkStyle.h"
+#include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
 #include "nsGkAtoms.h"
@@ -111,7 +112,6 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
-  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -132,8 +132,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
 
 
 nsHTMLLinkElement::nsHTMLLinkElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    Link(this)
+  : nsGenericHTMLElement(aNodeInfo)
 {
 }
 
@@ -379,12 +378,6 @@ nsHTMLLinkElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
-void
-nsHTMLLinkElement::RequestLinkStateUpdate()
-{
-  UpdateLinkState(Link::LinkState());
-}
-
 already_AddRefed<nsIURI>
 nsHTMLLinkElement::GetHrefURI() const
 {
@@ -397,6 +390,7 @@ nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
   *aIsInline = PR_FALSE;
   nsAutoString href;
   GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
+  href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
   if (href.IsEmpty()) {
     return nsnull;
   }

@@ -114,6 +114,7 @@ CPPSRCS		= \
 		nsHTMLContentSerializer.cpp \
 		nsImageLoadingContent.cpp \
 		nsLineBreaker.cpp \
+		nsLoadListenerProxy.cpp \
 		nsMappedAttributeElement.cpp \
 		nsMappedAttributes.cpp \
 		nsNameSpaceManager.cpp \
@@ -129,6 +130,7 @@ CPPSRCS		= \
 		nsRange.cpp \
 		nsReferencedElement.cpp \
 		nsScriptElement.cpp \
+		nsScriptEventManager.cpp \
 		nsScriptLoader.cpp \
 		nsStubDocumentObserver.cpp \
 		nsStubImageDecoderObserver.cpp \
@@ -209,7 +211,6 @@ INCLUDES	+= \
 		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		-I$(topsrcdir)/netwerk/base/src \
-		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

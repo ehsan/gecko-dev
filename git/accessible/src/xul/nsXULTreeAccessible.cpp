@@ -156,8 +156,8 @@ nsXULTreeAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeAccessible::IsDefunct() const
+PRBool
+nsXULTreeAccessible::IsDefunct()
 {
   return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView;
 }
@@ -228,8 +228,8 @@ nsXULTreeAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
 // nsXULTreeAccessible: nsAccessible implementation (DON'T put methods here)
 
 nsAccessible*
-nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                  EWhichChildAtPoint aWhichChild)
+nsXULTreeAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                     EWhichChildAtPoint aWhichChild)
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
@@ -255,7 +255,7 @@ nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   // If we failed to find tree cell for the given point then it might be
   // tree columns.
   if (row == -1 || !column)
-    return nsAccessibleWrap::ChildAtPoint(aX, aY, aWhichChild);
+    return nsAccessibleWrap::GetChildAtPoint(aX, aY, aWhichChild);
 
   nsAccessible *child = GetTreeItemAccessible(row);
   if (aWhichChild == eDeepestChild && child) {
@@ -637,26 +637,9 @@ nsXULTreeItemAccessibleBase::
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsISupports implementation
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeItemAccessibleBase)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeItemAccessibleBase,
-                                                  nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTree)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTreeView)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeItemAccessibleBase,
-                                                nsAccessible)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTree)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTreeView)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULTreeItemAccessibleBase)
-  NS_INTERFACE_TABLE_INHERITED1(nsXULTreeItemAccessibleBase,
-                                nsXULTreeItemAccessibleBase)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsAccessible)
-NS_IMPL_ADDREF_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULTreeItemAccessibleBase,
+                             nsAccessible,
+                             nsXULTreeItemAccessibleBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsIAccessible implementation
@@ -851,8 +834,8 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessibleBase::IsDefunct() const
+PRBool
+nsXULTreeItemAccessibleBase::IsDefunct()
 {
   if (nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0)
     return PR_TRUE;
@@ -986,9 +969,9 @@ nsXULTreeItemAccessibleBase::NativeState()
 }
 
 PRInt32
-nsXULTreeItemAccessibleBase::IndexInParent() const
+nsXULTreeItemAccessibleBase::GetIndexInParent() const
 {
-  return mParent ? mParent->ContentChildCount() + mRow : -1;
+  return mParent ? mParent->GetCachedChildCount() + mRow : -1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1025,12 +1008,19 @@ nsXULTreeItemAccessibleBase::DispatchClickEvent(nsIContent *aContent,
 
 nsAccessible*
 nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
-                                                nsresult* aError) const
+                                                nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 
-  return mParent->GetChildAt(IndexInParent() + aOffset);
+  return mParent->GetChildAt(GetIndexInParent() + aOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1060,22 +1050,6 @@ nsXULTreeItemAccessibleBase::IsExpandable()
   return PR_FALSE;
 }
 
-void
-nsXULTreeItemAccessibleBase::GetCellName(nsITreeColumn* aColumn,
-                                         nsAString& aName)
-{
-  mTreeView->GetCellText(mRow, aColumn, aName);
-
-  // If there is still no name try the cell value:
-  // This is for graphical cells. We need tree/table view implementors to
-  // implement FooView::GetCellValue to return a meaningful string for cases
-  // where there is something shown in the cell (non-text) such as a star icon;
-  // in which case GetCellValue for that cell would return "starred" or
-  // "flagged" for example.
-  if (aName.IsEmpty())
-    mTreeView->GetCellValue(mRow, aColumn, aName);
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible
@@ -1091,26 +1065,6 @@ nsXULTreeItemAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULTreeItemAccessible: nsISupports implementation
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeItemAccessible)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeItemAccessible,
-                                                  nsXULTreeItemAccessibleBase)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mColumn)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeItemAccessible,
-                                                nsXULTreeItemAccessibleBase)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mColumn)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXULTreeItemAccessible)
-NS_INTERFACE_MAP_END_INHERITING(nsXULTreeItemAccessibleBase)
-NS_IMPL_ADDREF_INHERITED(nsXULTreeItemAccessible, nsXULTreeItemAccessibleBase)
-NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessible, nsXULTreeItemAccessibleBase)
-
-////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsIAccessible implementation
 
 NS_IMETHODIMP
@@ -1121,15 +1075,24 @@ nsXULTreeItemAccessible::GetName(nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  GetCellName(mColumn, aName);
+  mTreeView->GetCellText(mRow, mColumn, aName);
+
+  // If there is still no name try the cell value:
+  // This is for graphical cells. We need tree/table view implementors to implement
+  // FooView::GetCellValue to return a meaningful string for cases where there is
+  // something shown in the cell (non-text) such as a star icon; in which case
+  // GetCellValue for that cell would return "starred" or "flagged" for example.
+  if (aName.IsEmpty())
+    mTreeView->GetCellValue(mRow, mColumn, aName);
+
   return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessible::IsDefunct() const
+PRBool
+nsXULTreeItemAccessible::IsDefunct()
 {
   return nsXULTreeItemAccessibleBase::IsDefunct() || !mColumn;
 }
@@ -1209,13 +1172,20 @@ nsXULTreeColumnsAccessible::
 
 nsAccessible*
 nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                               nsresult* aError) const
+                                               nsresult* aError)
 {
   if (aOffset < 0)
     return nsXULColumnsAccessible::GetSiblingAtOffset(aOffset, aError);
 
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
-    *aError =  NS_OK; // fail peacefully
+    *aError = NS_OK; // fail peacefully
 
   nsCOMPtr<nsITreeBoxObject> tree = nsCoreUtils::GetTreeBoxObject(mContent);
   if (tree) {
@@ -1225,7 +1195,7 @@ nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
       PRInt32 rowCount = 0;
       treeView->GetRowCount(&rowCount);
       if (rowCount > 0 && aOffset <= rowCount) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(GetParent());
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
 
         if (treeAcc)
           return treeAcc->GetTreeItemAccessible(aOffset - 1);

@@ -96,10 +96,25 @@ function test() {
                .removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
   });
 
-  openLibrary(function (library) {
-    gLibrary = library;
-    executeSoon(nextTest);
+  Services.ww.registerNotification(function (aSubject, aTopic, aData)
+  {
+    if (aTopic != "domwindowopened")
+      return;
+
+    Services.ww.unregisterNotification(arguments.callee);
+
+    gLibrary = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    gLibrary.addEventListener("load", function (event) {
+      gLibrary.removeEventListener("load", arguments.callee, false);
+      executeSoon(nextTest);
+    }, false);
   });
+
+  Services.ww.openWindow(null,
+                         "chrome://browser/content/places/places.xul",
+                          "",
+                          "chrome,toolbar=yes,dialog=no,resizable",
+                          null);
 }
 
 function nextTest() {

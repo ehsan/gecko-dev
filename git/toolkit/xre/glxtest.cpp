@@ -221,31 +221,27 @@ static void glxtest()
   dlclose(libgl);
 }
 
-/** \returns true in the child glxtest process, false in the parent process */
-bool fire_glxtest_process()
+void fire_glxtest_process()
 {
   int pfd[2];
   if (pipe(pfd) == -1) {
       perror("pipe");
-      return false;
+      exit(EXIT_FAILURE);
   }
   pid_t pid = fork();
   if (pid < 0) {
       perror("fork");
-      close(pfd[0]);
-      close(pfd[1]);
-      return false;
+      exit(EXIT_FAILURE);
   }
   if (pid == 0) {
       close(pfd[0]);
       write_end_of_the_pipe = pfd[1];
       glxtest();
       close(pfd[1]);
-      return true;
+      exit(EXIT_SUCCESS);
   }
 
   close(pfd[1]);
   mozilla::widget::glxtest_pipe = pfd[0];
   mozilla::widget::glxtest_pid = pid;
-  return false;
 }

@@ -446,8 +446,11 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           }
 #endif
           if (result) {
-            if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
-                IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32))
+            if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
+                       IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL))
+            {
+            } else if (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH24) ||
+                       IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32)) 
             {
               gfxIntSize surfaceSize = targetSurfaceImage->GetSize();
 

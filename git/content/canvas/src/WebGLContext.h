@@ -342,9 +342,6 @@ public:
                               const PRUnichar* aEncoderOptions,
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
-    mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot()
-        { return nsnull; }
-
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
     NS_IMETHOD SetContextOptions(nsIPropertyBag *aOptions);
 
@@ -451,6 +448,7 @@ protected:
         return mEnabledExtensions[ext] != nsnull;
     }
 
+    PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
     PRBool InitAndValidateGL();
     PRBool ValidateBuffers(PRInt32* maxAllowedCount, const char *info);
     PRBool ValidateCapabilityEnum(WebGLenum cap, const char *info);
@@ -953,7 +951,7 @@ protected:
     FakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
-        mMaxLevelWithCustomImages = NS_MAX(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
+        mMaxLevelWithCustomImages = PR_MAX(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
         mImageInfos.EnsureLengthAtLeast((mMaxLevelWithCustomImages + 1) * mFacesCount);
     }
 
@@ -983,8 +981,8 @@ protected:
             const ImageInfo& actual = ImageInfoAt(level, face);
             if (actual != expected)
                 return PR_FALSE;
-            expected.mWidth = NS_MAX(1, expected.mWidth >> 1);
-            expected.mHeight = NS_MAX(1, expected.mHeight >> 1);
+            expected.mWidth = PR_MAX(1, expected.mWidth >> 1);
+            expected.mHeight = PR_MAX(1, expected.mHeight >> 1);
 
             // if the current level has size 1x1, we can stop here: the spec doesn't seem to forbid the existence
             // of extra useless levels.
@@ -1095,7 +1093,7 @@ public:
             ImageInfo imageInfo = ImageInfoAt(0, 0);
             NS_ASSERTION(imageInfo.IsPowerOfTwo(), "this texture is NPOT, so how could GenerateMipmap() ever accept it?");
 
-            WebGLsizei size = NS_MAX(imageInfo.mWidth, imageInfo.mHeight);
+            WebGLsizei size = PR_MAX(imageInfo.mWidth, imageInfo.mHeight);
 
             // so, the size is a power of two, let's find its log in base 2.
             size_t maxLevel = 0;

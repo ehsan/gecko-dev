@@ -190,6 +190,9 @@ Probes::startExecution(JSContext *cx, JSScript *script)
         JAVASCRIPT_EXECUTE_START((script->filename ? (char *)script->filename : nullName),
                                  script->lineno);
 #endif
+#ifdef MOZ_TRACE_JSCALLS
+    cx->doFunctionCallback(NULL, script, 1);
+#endif
 }
 
 inline void
@@ -199,6 +202,9 @@ Probes::stopExecution(JSContext *cx, JSScript *script)
     if (JAVASCRIPT_EXECUTE_DONE_ENABLED())
         JAVASCRIPT_EXECUTE_DONE((script->filename ? (char *)script->filename : nullName),
                                 script->lineno);
+#endif
+#ifdef MOZ_TRACE_JSCALLS
+    cx->doFunctionCallback(NULL, script, 0);
 #endif
 }
 

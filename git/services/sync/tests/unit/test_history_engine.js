@@ -7,7 +7,7 @@ Cu.import("resource://services-sync/util.js");
 
 var syncTesting = new SyncTestingInfrastructure();
 
-add_test(function test_processIncoming_mobile_history_batched() {
+function test_processIncoming_mobile_history_batched() {
   _("SyncEngine._processIncoming works on history engine.");
 
   let FAKE_DOWNLOAD_LIMIT = 100;
@@ -49,6 +49,7 @@ add_test(function test_processIncoming_mobile_history_batched() {
   let server = sync_httpd_setup({
       "/1.1/foo/storage/history": collection.handler()
   });
+  do_test_pending();
 
   let engine = new HistoryEngine("history");
   let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
@@ -128,10 +129,10 @@ add_test(function test_processIncoming_mobile_history_batched() {
     Svc.Prefs.resetBranch("");
     Records.clearCache();
   }
-});
+}
 
 function run_test() {
   generateNewKeys();
 
-  run_next_test();
+  test_processIncoming_mobile_history_batched();
 }

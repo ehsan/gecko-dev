@@ -48,22 +48,22 @@ namespace ipc {
 
 static PRInt64 gShmemAllocated;
 static PRInt64 gShmemMapped;
-static PRInt64 GetShmemAllocated() { return gShmemAllocated; }
-static PRInt64 GetShmemMapped() { return gShmemMapped; }
+static PRInt64 GetShmemAllocated(void*) { return gShmemAllocated; }
+static PRInt64 GetShmemMapped(void*) { return gShmemMapped; }
 
 NS_MEMORY_REPORTER_IMPLEMENT(ShmemAllocated,
     "shmem-allocated",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetShmemAllocated,
+    MR_OTHER,
     "Memory shared with other processes that is accessible (but not "
-    "necessarily mapped).")
+    "necessarily mapped).",
+    GetShmemAllocated,
+    nsnull)
 NS_MEMORY_REPORTER_IMPLEMENT(ShmemMapped,
     "shmem-mapped",
-    KIND_OTHER,
-    UNITS_BYTES,
+    MR_OTHER,
+    "Memory shared with other processes that is mapped into the address space.",
     GetShmemMapped,
-    "Memory shared with other processes that is mapped into the address space.")
+    nsnull)
 
 SharedMemory::SharedMemory()
   : mAllocSize(0)

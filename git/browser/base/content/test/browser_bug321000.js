@@ -38,6 +38,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+
 const kTestString = "  hello hello  \n  world\nworld  ";
 
 var gTests = [
@@ -84,7 +87,8 @@ function test_paste(aCurrentTest) {
   var inputListener = {
     test: aCurrentTest,
     handleEvent: function(event) {
-      element.removeEventListener(event.type, this, false);
+      var element = event.target;
+      element.removeEventListener("input", this, false);
 
       is(element.value, this.test.expected, this.test.desc);
 

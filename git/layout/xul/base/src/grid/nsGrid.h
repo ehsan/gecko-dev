@@ -106,7 +106,6 @@ public:
 
   static nsIBox* GetScrolledBox(nsIBox* aChild);
   static nsIBox* GetScrollBox(nsIBox* aChild);
-  static nsIGridPart* GetPartFromBox(nsIBox* aBox);
   void GetFirstAndLastRow(nsBoxLayoutState& aState, 
                           PRInt32& aFirstIndex, 
                           PRInt32& aLastIndex, 
@@ -115,7 +114,7 @@ public:
                           PRBool aIsHorizontal);
 
 private:
-
+  void GetPartFromBox(nsIBox* aBox, nsIGridPart** aPart);
   nsMargin GetBoxTotalMargin(nsIBox* aBox, PRBool aIsHorizontal = PR_TRUE);
 
   void FreeMap();

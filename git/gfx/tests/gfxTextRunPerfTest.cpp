@@ -42,6 +42,10 @@
 
 #include "prinrval.h"
 
+#include "nsServiceManagerUtils.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+
 #include "gfxContext.h"
 #include "gfxFont.h"
 #include "gfxPlatform.h"

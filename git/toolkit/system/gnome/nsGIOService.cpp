@@ -299,6 +299,13 @@ nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
   return NS_OK;
 }
 
+nsresult
+nsGIOService::Init()
+{
+  // do nothing, gvfs/gio does not init.
+  return NS_OK;
+}
+
 NS_IMPL_ISUPPORTS1(nsGIOService, nsIGIOService)
 
 NS_IMETHODIMP

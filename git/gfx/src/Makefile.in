@@ -58,7 +58,16 @@ XPIDLSRCS = \
 	gfxIFormats.idl \
 	gfxidltypes.idl \
 	$(NULL)
-        
+
+EXPORTS_NAMESPACES = mozilla
+
+EXPORTS_mozilla = \
+	BaseMargin.h \
+	BasePoint.h \
+	BaseRect.h \
+	BaseSize.h \
+	$(NULL)
+
 EXPORTS	= \
 	gfxCore.h \
 	gfxCrashReporterUtils.h \
@@ -84,8 +93,6 @@ EXPORTS	= \
 	$(NULL)
 
 ifdef MOZ_X11
-EXPORTS_NAMESPACES = mozilla
-
 EXPORTS_mozilla	+= X11Util.h
 endif
 
@@ -131,6 +138,7 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsSystemFontsWin.cpp
+OS_LIBS += $(call EXPAND_LIBNAME,usp10)
 endif
 
 include $(topsrcdir)/config/rules.mk

@@ -44,7 +44,7 @@
 #ifndef mozilla_dom_Link_h__
 #define mozilla_dom_Link_h__
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "mozilla/IHistory.h"
 
 namespace mozilla {
@@ -60,11 +60,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOM_LINK_IMPLEMENTATION_IID)
 
   static const nsLinkState defaultState = eLinkState_Unknown;
-
-  /**
-   * aElement is the element pointer corresponding to this link.
-   */
-  Link(Element* aElement);
+  Link();
   nsLinkState GetLinkState() const;
   virtual void SetLinkState(nsLinkState aState);
 
@@ -131,7 +127,12 @@ private:
 
   bool mRegistered;
 
-  Element * const mElement;
+  /**
+   * Obtains a pointer to the nsIContent interface that classes inheriting from
+   * this should also inherit from.
+   */
+  nsIContent *Content();
+  nsIContent *mContent;
 
   // Strong reference to History.  The link has to unregister before History
   // can disappear.

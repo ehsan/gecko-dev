@@ -70,9 +70,7 @@ public:
   virtual nsGridRowGroupLayout* CastToRowGroupLayout() { return nsnull; }
   virtual nsGridLayout2* CastToGridLayout() { return this; }
   virtual nsGrid* GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor=nsnull);
-  virtual nsIGridPart* GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox) {
-    NS_NOTREACHED("Should not be called"); return nsnull;
-  }
+  virtual void GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox, nsIGridPart** aParentGridPart) { NS_NOTREACHED("Should not be called"); }
   virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
@@ -90,8 +88,6 @@ public:
                              nsIBox* aChildList);
   virtual void ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState,
                          nsIBox* aChildList);
-
-  virtual nsIGridPart* AsGridPart() { return this; }
 
   static void AddOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsSize& aSize);
 

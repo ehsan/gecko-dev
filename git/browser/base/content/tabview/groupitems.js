@@ -64,7 +64,6 @@
 //   bounds - a <Rect>; otherwise based on the locations of the provided elements
 //   container - a DOM element to use as the container for this groupItem; otherwise will create
 //   title - the title for the groupItem; otherwise blank
-//   focusTitle - focus the title's input field after creation
 //   dontPush - true if this groupItem shouldn't push away or snap on creation; default is false
 //   immediately - true if we want all placement immediately, not with animation
 function GroupItem(listOfEls, options) {
@@ -86,6 +85,10 @@ function GroupItem(listOfEls, options) {
   this.keepProportional = false;
   this._frozenItemSizeData = {};
 
+  // Double click tracker
+  this._lastClick = 0;
+  this._lastClickPositions = null;
+
   // Variable: _activeTab
   // The <TabItem> for the groupItem's active tab.
   this._activeTab = null;
@@ -103,7 +106,7 @@ function GroupItem(listOfEls, options) {
 
   if (!rectToBe) {
     rectToBe = GroupItems.getBoundingBox(listOfEls);
-    rectToBe.inset(-42, -42);
+    rectToBe.inset(-30, -30);
   }
 
   var $container = options.container;
@@ -215,12 +218,11 @@ function GroupItem(listOfEls, options) {
       if (!same)
         return;
 
-      if (!self.isDragging)
-        self.focusTitle();
+      if (!self.isDragging) {
+        self.$titleShield.hide();
+        (self.$title)[0].focus();
+      }
     });
-
-  if (options.focusTitle)
-    this.focusTitle();
 
   // ___ Stack Expander
   this.$expander = iQ("<div/>")
@@ -249,11 +251,7 @@ function GroupItem(listOfEls, options) {
   this._init($container[0]);
 
   // ___ Children
-  // We explicitly set dontArrange=true to prevent the groupItem from
-  // re-arranging its children after a tabItem has been added. This saves us a
-  // group.arrange() call per child and therefore some tab.setBounds() calls.
-  options.dontArrange = true;
-  listOfEls.forEach(function (el) {
+  Array.prototype.forEach.call(listOfEls, function(el) {
     self.add(el, options);
   });
 
@@ -274,9 +272,6 @@ function GroupItem(listOfEls, options) {
     this.snap(immediately);
   if ($container)
     this.setBounds(rectToBe, immediately);
-
-  if (!options.immediately && listOfEls.length > 0)
-    $container.hide().fadeIn();
 
   this._inited = true;
   this.save();
@@ -307,9 +302,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         "tab must be null (if no children) or a TabItem");
 
     this._activeTab = tab;
-
-    if (this.isStacked())
-      this.arrange({immediately: true});
+    this.arrange({immediately: true});
   },
 
   // -----------
@@ -409,14 +402,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var css = {width: w};
     this.$title.css(css);
     this.$titleShield.css(css);
-  },
-
-  // ----------
-  // Function: focusTitle
-  // Hide the title's shield and focus the underlying input field.
-  focusTitle: function GroupItem_focusTitle() {
-    this.$titleShield.hide();
-    this.$title[0].focus();
   },
 
   // ----------
@@ -723,18 +708,18 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let closeCenter = this.getBounds().center();
     // Find closest tab to make active
     let closestTabItem = UI.getClosestTab(closeCenter);
-    if (closestTabItem)
-      UI.setActive(closestTabItem);
+    UI.setActive(closestTabItem);
   },
 
   // ----------
   // Function: closeIfEmpty
-  // Closes the group if it's empty, is closable, and autoclose is enabled
-  // (see pauseAutoclose()). Returns true if the close occurred and false
-  // otherwise.
-  closeIfEmpty: function GroupItem_closeIfEmpty() {
-    if (this.isEmpty() && !UI._closedLastVisibleTab &&
-        !GroupItems.getUnclosableGroupItemId() && !GroupItems._autoclosePaused) {
+  // Closes the group if it's empty, has no title, is closable, and
+  // autoclose is enabled (see pauseAutoclose()). Returns true if the close
+  // occurred and false otherwise.
+  closeIfEmpty: function() {
+    if (!this._children.length && !this.getTitle() &&
+        !GroupItems.getUnclosableGroupItemId() &&
+        !GroupItems._autoclosePaused) {
       this.close();
       return true;
     }
@@ -780,17 +765,18 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     this._cancelFadeAwayUndoButtonTimer();
 
-    // When the last non-empty groupItem is closed and there are no
+    // When the last non-empty groupItem is closed and there are no orphan or
     // pinned tabs then create a new group with a blank tab.
     let remainingGroups = GroupItems.groupItems.filter(function (groupItem) {
       return (groupItem != self && groupItem.getChildren().length);
     });
-    if (!gBrowser._numPinnedTabs && !remainingGroups.length) {
+    if (!gBrowser._numPinnedTabs && !GroupItems.getOrphanedTabs().length &&
+        !remainingGroups.length) {
       let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
         return (groupItem != self && !groupItem.getChildren().length);
       });
       let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-      group.newTab(null, { closedLastTab: true });
+      group.newTab();
     }
 
     this.destroy();
@@ -850,17 +836,16 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let self = this;
 
     if (this.$undoContainer) {
-      // if there is more than one group and other groups are not empty,
-      // fade away the undo button.
-      let shouldFadeAway = false;
-
-      if (GroupItems.groupItems.length > 1) {
+      // if there is one or more orphan tabs or there is more than one group 
+      // and other groupS are not empty, fade away the undo button.
+      let shouldFadeAway = GroupItems.getOrphanedTabs().length > 0;
+      
+      if (!shouldFadeAway && GroupItems.groupItems.length > 1) {
         shouldFadeAway = 
           GroupItems.groupItems.some(function(groupItem) {
             return (groupItem != self && groupItem.getChildren().length > 0);
           });
       }
-
       if (shouldFadeAway) {
         self.$undoContainer.animate({
           color: "transparent",
@@ -1005,6 +990,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       this._children.splice(index, 0, item);
 
       item.setZ(this.getZ() + 1);
+      $el.addClass("tabInGroupItem");
 
       if (!wasAlreadyInThisGroupItem) {
         item.droppable(false);
@@ -1028,7 +1014,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (typeof item.setResizable == 'function')
           item.setResizable(false, options.immediately);
 
-        if (item == UI.getActiveTab() || !this._activeTab)
+        // if it is visually active, set it as the active tab.
+        if (iQ(item.container).hasClass("focus"))
           this.setActiveTab(item);
 
         // if it matches the selected tab or no active tab and the browser
@@ -1091,6 +1078,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       }
 
       item.setParent(null);
+      item.removeClass("tabInGroupItem");
       item.removeClass("stacked");
       item.isStacked = false;
       item.setHidden(false);
@@ -1111,7 +1099,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       // if a blank tab is selected while restoring a tab the blank tab gets
       // removed. we need to keep the group alive for the restored tab.
-      if (item.isRemovedAfterRestore)
+      if (item.tab._tabViewTabIsRemovedAfterRestore)
         options.dontClose = true;
 
       let closed = options.dontClose ? false : this.closeIfEmpty();
@@ -1208,7 +1196,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       let targetIndex = xulTab._tPos;
 
-      $icon.remove({ preserveEventHandlers: true });
+      $icon.remove();
       if (targetIndex < (length - 1))
         self.$appTabTray[0].insertBefore(
           icon,
@@ -1281,15 +1269,16 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
       // we don't need to observe mouse movement when expanded because the
       // tray is closed when we leave it and collapse causes unfreezing
-      if (!self.expanded) {
-        // unfreeze item size when cursor is moved out of group bounds
-        data.onMouseMove = function (e) {
-          let cursor = new Point(e.pageX, e.pageY);
-          if (!self.bounds.contains(cursor))
-            self._unfreezeItemSize();
-        }
-        iQ(window).mousemove(data.onMouseMove);
+      if (self.expanded)
+        return;
+
+      // unfreeze item size when cursor is moved out of group bounds
+      data.onMouseMove = function (e) {
+        let cursor = new Point(e.pageX, e.pageY);
+        if (!self.bounds.contains(cursor))
+          self._unfreezeItemSize();
       }
+      iQ(window).mousemove(data.onMouseMove);
     }
 
     this.arrange({animate: true, count: data.lastItemCount});
@@ -1653,6 +1642,28 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   _addHandlers: function GroupItem__addHandlers(container) {
     let self = this;
 
+    // Create new tab and zoom in on it after a double click
+    container.mousedown(function(e) {
+      if (!Utils.isLeftClick(e) || self.$titlebar[0] == e.target || 
+          self.$titlebar.contains(e.target)) {
+        self._lastClick = 0;
+        self._lastClickPositions = null;
+        return;
+      }
+      if (Date.now() - self._lastClick <= UI.DBLCLICK_INTERVAL &&
+          (self._lastClickPositions.x - UI.DBLCLICK_OFFSET) <= e.clientX &&
+          (self._lastClickPositions.x + UI.DBLCLICK_OFFSET) >= e.clientX &&
+          (self._lastClickPositions.y - UI.DBLCLICK_OFFSET) <= e.clientY &&
+          (self._lastClickPositions.y + UI.DBLCLICK_OFFSET) >= e.clientY) {
+        self.newTab();
+        self._lastClick = 0;
+        self._lastClickPositions = null;
+      } else {
+        self._lastClick = Date.now();
+        self._lastClickPositions = new Point(e.clientX, e.clientY);
+      }
+    });
+
     var dropIndex = false;
     var dropSpaceTimer = null;
 
@@ -1771,16 +1782,14 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: newTab
   // Creates a new tab within this groupItem.
-  // Parameters:
-  //  url - the new tab should open this url as well
-  //  options - the options object
-  //    closedLastTab - boolean indicates the last tab has just been closed
-  newTab: function GroupItem_newTab(url, options) {
-    if (options && options.closedLastTab)
-      UI.closedLastTabInTabView = true;
-
+  newTab: function GroupItem_newTab(url) {
     UI.setActive(this, { dontSetActiveTabInGroup: true });
-    gBrowser.loadOneTab(url || "about:blank", { inBackground: false });
+    let newTab = gBrowser.loadOneTab(url || "about:blank", {inBackground: true});
+
+    // TabItems will have handled the new tab and added the tabItem property.
+    // We don't have to check if it's an app tab (and therefore wouldn't have a
+    // TabItem), since we've just created it.
+    newTab._tabViewTabItem.zoomIn(!url);
   },
 
   // ----------
@@ -1860,6 +1869,7 @@ let GroupItems = {
   nextID: 1,
   _inited: false,
   _activeGroupItem: null,
+  _activeOrphanTab: null,
   _cleanupFunctions: [],
   _arrangePaused: false,
   _arrangesPending: [],
@@ -2022,7 +2032,7 @@ let GroupItems = {
     if (UI.shouldLoadFavIcon(xulTab.linkedBrowser))
       iconUrl = UI.getFavIconUrlForTab(xulTab);
     else
-      iconUrl = gFavIconService.defaultFavicon.spec;
+      iconUrl = Utils.defaultFaviconURL;
 
     return iconUrl;
   },
@@ -2097,9 +2107,7 @@ let GroupItems = {
 
     let activeGroupId = this._activeGroupItem ? this._activeGroupItem.id : null;
     Storage.saveGroupItemsData(
-      gWindow,
-      { nextID: this.nextID, activeGroupId: activeGroupId,
-        totalNumber: this.groupItems.length });
+      gWindow, { nextID: this.nextID, activeGroupId: activeGroupId });
   },
 
   // ----------
@@ -2268,56 +2276,84 @@ let GroupItems = {
     let activeGroupItem = this.getActiveGroupItem();
 
     // 1. Active group
-    // 2. First visible non-app tab (that's not the tab in question)
-    // 3. First group
-    // 4. At this point there should be no groups or tabs (except for app tabs and the
+    // 2. Active orphan
+    // 3. First visible non-app tab (that's not the tab in question), whether it's an
+    // orphan or not (make a new group if it's an orphan, add it to the group if it's
+    // not)
+    // 4. First group
+    // 5. First orphan that's not the tab in question
+    // 6. At this point there should be no groups or tabs (except for app tabs and the
     // tab in question): make a new group
 
-    if (activeGroupItem && !activeGroupItem.hidden) {
+    if (activeGroupItem) {
       activeGroupItem.add(tabItem, options);
       return;
     }
 
-    let targetGroupItem;
-    // find first visible non-app tab in the tabbar.
-    gBrowser.visibleTabs.some(function(tab) {
-      if (!tab.pinned && tab != tabItem.tab) {
-        if (tab._tabViewTabItem) {
-          if (!tab._tabViewTabItem.parent && !tab._tabViewTabItem.parent.hidden) {
-            // the first visible tab belongs to a group, add the new tabItem to 
-            // that group
-            targetGroupItem = tab._tabViewTabItem.parent;
+    let orphanTabItem = UI.getActiveOrphanTab();
+    if (!orphanTabItem) {
+      let targetGroupItem;
+      // find first visible non-app tab in the tabbar.
+      gBrowser.visibleTabs.some(function(tab) {
+        if (!tab.pinned && tab != tabItem.tab) {
+          if (tab._tabViewTabItem) {
+            if (!tab._tabViewTabItem.parent) {
+              // the first visible tab is an orphan tab, set the orphan tab, and 
+              // create a new group for orphan tab and new tabItem
+              orphanTabItem = tab._tabViewTabItem;
+            } else if (!tab._tabViewTabItem.parent.hidden) {
+              // the first visible tab belongs to a group, add the new tabItem to 
+              // that group
+              targetGroupItem = tab._tabViewTabItem.parent;
+            }
+          }
+          return true;
+        }
+        return false;
+      });
+
+      let visibleGroupItems;
+      if (!orphanTabItem) {
+        if (targetGroupItem) {
+          // add the new tabItem to the first group item
+          targetGroupItem.add(tabItem);
+          UI.setActive(targetGroupItem);
+          return;
+        } else {
+          // find the first visible group item
+          visibleGroupItems = this.groupItems.filter(function(groupItem) {
+            return (!groupItem.hidden);
+          });
+          if (visibleGroupItems.length > 0) {
+            visibleGroupItems[0].add(tabItem);
+            UI.setActive(visibleGroupItems[0]);
+            return;
           }
         }
-        return true;
-      }
-      return false;
-    });
-
-    let visibleGroupItems;
-    if (targetGroupItem) {
-      // add the new tabItem to the first group item
-      targetGroupItem.add(tabItem);
-      UI.setActive(targetGroupItem);
-      return;
-    } else {
-      // find the first visible group item
-      visibleGroupItems = this.groupItems.filter(function(groupItem) {
-        return (!groupItem.hidden);
-      });
-      if (visibleGroupItems.length > 0) {
-        visibleGroupItems[0].add(tabItem);
-        UI.setActive(visibleGroupItems[0]);
-        return;
+        let orphanedTabs = this.getOrphanedTabs();
+        // set the orphan tab, and create a new group for orphan tab and 
+        // new tabItem
+        if (orphanedTabs.length > 0)
+          orphanTabItem = orphanedTabs[0];
       }
     }
 
-    // create new group for the new tabItem
-    tabItem.setPosition(60, 60, true);
-    let newGroupItemBounds = tabItem.getBounds();
+    // create new group for orphan tab and new tabItem
+    let tabItems;
+    let newGroupItemBounds;
+    // the orphan tab would be the same as tabItem when all tabs are app tabs
+    // and a new tab is created.
+    if (orphanTabItem && orphanTabItem.tab != tabItem.tab) {
+      newGroupItemBounds = orphanTabItem.getBounds();
+      tabItems = [orphanTabItem, tabItem];
+    } else {
+      tabItem.setPosition(60, 60, true);
+      newGroupItemBounds = tabItem.getBounds();
+      tabItems = [tabItem];
+    }
 
     newGroupItemBounds.inset(-40,-40);
-    let newGroupItem = new GroupItem([tabItem], { bounds: newGroupItemBounds });
+    let newGroupItem = new GroupItem(tabItems, { bounds: newGroupItemBounds });
     newGroupItem.snap();
     UI.setActive(newGroupItem);
   },
@@ -2336,14 +2372,16 @@ let GroupItems = {
   // setting the groupItem which will receive new tabs.
   //
   // Paramaters:
-  //  groupItem - the active <GroupItem>
+  //  groupItem - the active <GroupItem> or <null> if no groupItem is active
+  //          (which means we have an orphaned tab selected)
   setActiveGroupItem: function GroupItems_setActiveGroupItem(groupItem) {
-    Utils.assert(groupItem, "groupItem must be given");
-
     if (this._activeGroupItem)
       iQ(this._activeGroupItem.container).removeClass('activeGroupItem');
 
-    iQ(groupItem.container).addClass('activeGroupItem');
+    if (groupItem !== null) {
+      if (groupItem)
+        iQ(groupItem.container).addClass('activeGroupItem');
+    }
 
     this._activeGroupItem = groupItem;
     this._save();
@@ -2351,14 +2389,23 @@ let GroupItems = {
 
   // ----------
   // Function: _updateTabBar
-  // Hides and shows tabs in the tab bar based on the active groupItem
+  // Hides and shows tabs in the tab bar based on the active groupItem or
+  // currently active orphan tabItem
   _updateTabBar: function GroupItems__updateTabBar() {
     if (!window.UI)
       return; // called too soon
 
-    Utils.assert(this._activeGroupItem, "There must be something to show in the tab bar!");
+    let activeOrphanTab;
+    if (!this._activeGroupItem) {
+      activeOrphanTab = UI.getActiveOrphanTab();
+      if (!activeOrphanTab) {
+        Utils.assert(false, "There must be something to show in the tab bar!");
+        return;
+      }
+    }
 
-    let tabItems = this._activeGroupItem._children;
+    let tabItems = this._activeGroupItem == null ?
+      [activeOrphanTab] : this._activeGroupItem._children;
     gBrowser.showOnlyTheseTabs(tabItems.map(function(item) item.tab));
   },
 
@@ -2373,6 +2420,17 @@ let GroupItems = {
   },
 
   // ----------
+  // Function: getOrphanedTabs
+  // Returns an array of all tabs that aren't in a groupItem.
+  getOrphanedTabs: function GroupItems_getOrphanedTabs() {
+    var tabs = TabItems.getItems();
+    tabs = tabs.filter(function(tab) {
+      return tab.parent == null;
+    });
+    return tabs;
+  },
+
+  // ----------
   // Function: getNextGroupItemTab
   // Paramaters:
   //  reverse - the boolean indicates the direction to look for the next groupItem.
@@ -2380,6 +2438,7 @@ let GroupItems = {
   getNextGroupItemTab: function GroupItems_getNextGroupItemTab(reverse) {
     var groupItems = Utils.copy(GroupItems.groupItems);
     var activeGroupItem = GroupItems.getActiveGroupItem();
+    var activeOrphanTab = UI.getActiveOrphanTab();
     var tabItem = null;
 
     if (reverse)
@@ -2432,6 +2491,11 @@ let GroupItems = {
         }
         return false;
       });
+      if (!tabItem) {
+        var orphanedTabs = GroupItems.getOrphanedTabs();
+        if (orphanedTabs.length > 0)
+          tabItem = orphanedTabs[0];
+      }
       if (!tabItem) {
         var secondGroupItems = groupItems.slice(0, currentIndex);
         secondGroupItems.some(function(groupItem) {
@@ -2506,7 +2570,7 @@ let GroupItems = {
       box.width = 250;
       box.height = 200;
 
-      new GroupItem([ tab._tabViewTabItem ], { bounds: box, immediately: true });
+      new GroupItem([ tab._tabViewTabItem ], { bounds: box });
     }
 
     if (shouldUpdateTabBar)

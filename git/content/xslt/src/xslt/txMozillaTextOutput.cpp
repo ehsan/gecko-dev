@@ -47,6 +47,7 @@
 #include "nsIDOMText.h"
 #include "nsIDocumentTransformer.h"
 #include "nsNetUtil.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIParser.h"
 #include "nsICharsetAlias.h"
 #include "nsIPrincipal.h"
@@ -285,8 +286,7 @@ txMozillaTextOutput::createXHTMLElement(nsIAtom* aName,
 
     nsCOMPtr<nsINodeInfo> ni;
     ni = mDocument->NodeInfoManager()->
-        GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML,
-                    nsIDOMNode::ELEMENT_NODE);
+        GetNodeInfo(aName, nsnull, kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_NewHTMLElement(aResult, ni.forget(), NOT_FROM_PARSER);

@@ -140,7 +140,7 @@ enum TokenKind {
                                            not a block */
     TOK_FORHEAD = 83,                   /* head of for(;;)-style loop */
     TOK_ARGSBODY = 84,                  /* formal args in list + body at end */
-    TOK_UPVARS = 85,                    /* lexical dependencies as JSAtomDefnMap
+    TOK_UPVARS = 85,                    /* lexical dependencies as JSAtomList
                                            of definitions paired with a parse
                                            tree full of uses of those names */
     TOK_RESERVED,                       /* reserved keywords */
@@ -345,6 +345,7 @@ class TokenStream
     /* Note that the version and hasXML can get out of sync via setXML. */
     JSVersion versionNumber() const { return VersionNumber(version); }
     JSVersion versionWithFlags() const { return version; }
+    bool hasAnonFunFix() const { return VersionHasAnonFunFix(version); }
     bool hasXML() const { return xml || VersionShouldParseXML(versionNumber()); }
     void setXML(bool enabled) { xml = enabled; }
 
@@ -432,19 +433,15 @@ class TokenStream
         cursor = (cursor - 1) & ntokensMask;
     }
 
-    TokenKind peekToken() {
+    TokenKind peekToken(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (lookahead != 0) {
             JS_ASSERT(lookahead == 1);
             return tokens[(cursor + lookahead) & ntokensMask].type;
         }
-        TokenKind tt = getTokenInternal();
+        TokenKind tt = getToken();
         ungetToken();
         return tt;
-    }
-
-    TokenKind peekToken(uintN withFlags) {
-        Flagger flagger(this, withFlags);
-        return peekToken();
     }
 
     TokenKind peekTokenSameLine(uintN withFlags = 0) {
@@ -473,18 +470,13 @@ class TokenStream
     /*
      * Get the next token from the stream if its kind is |tt|.
      */
-    bool matchToken(TokenKind tt) {
+    bool matchToken(TokenKind tt, uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (getToken() == tt)
             return true;
         ungetToken();
         return false;
     }
-
-    bool matchToken(TokenKind tt, uintN withFlags) {
-        Flagger flagger(this, withFlags);
-        return matchToken(tt);
-    }
-
 
   private:
     /*
@@ -511,15 +503,15 @@ class TokenStream
             return ptr == base;
         }
 
-        jschar getRawChar() {
+        int32 getRawChar() {
             return *ptr++;      /* this will NULL-crash if poisoned */
         }
 
-        jschar peekRawChar() const {
+        int32 peekRawChar() const {
             return *ptr;        /* this will NULL-crash if poisoned */
         }
 
-        bool matchRawChar(jschar c) {
+        bool matchRawChar(int32 c) {
             if (*ptr == c) {    /* this will NULL-crash if poisoned */
                 ptr++;
                 return true;
@@ -527,7 +519,7 @@ class TokenStream
             return false;
         }
 
-        bool matchRawCharBackwards(jschar c) {
+        bool matchRawCharBackwards(int32 c) {
             JS_ASSERT(ptr);     /* make sure haven't been poisoned */
             if (*(ptr - 1) == c) {
                 ptr--;
@@ -613,9 +605,6 @@ class TokenStream
             getChar();
     }
 
-    void updateLineInfoForEOL();
-    void updateFlagsForEOL();
-
     JSContext           * const cx;
     Token               tokens[ntokens];/* circular token buffer */
     uintN               cursor;         /* index of last parsed token */
@@ -626,6 +615,8 @@ class TokenStream
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
     TokenBuf            userbuf;        /* user input buffer */
     const char          *filename;      /* input filename or null */
+    JSSourceHandler     listener;       /* callback for source; eg debugger */
+    void                *listenerData;  /* listener 'this' data */
     void                *listenerTSData;/* listener data for this TokenStream */
     CharBuffer          tokenbuf;       /* current token string buffer */
     int8                oneCharTokens[128];  /* table of one-char tokens */

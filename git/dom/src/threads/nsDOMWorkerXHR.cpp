@@ -274,11 +274,20 @@ nsDOMWorkerXHRUpload::nsDOMWorkerXHRUpload(nsDOMWorkerXHR* aWorkerXHR)
 NS_IMPL_ISUPPORTS_INHERITED1(nsDOMWorkerXHRUpload, nsDOMWorkerXHREventTarget,
                                                    nsIXMLHttpRequestUpload)
 
-NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorkerXHRUpload, nsIDOMEventTarget,
+NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerXHRUpload, nsIDOMNSEventTarget,
+                                                   nsIDOMEventTarget,
                                                    nsIXMLHttpRequestEventTarget,
                                                    nsIXMLHttpRequestUpload)
 
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerXHRUpload)
+
+NS_IMETHODIMP
+nsDOMWorkerXHRUpload::AddEventListener(const nsAString& aType,
+                                       nsIDOMEventListener* aListener,
+                                       PRBool aUseCapture)
+{
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+}
 
 NS_IMETHODIMP
 nsDOMWorkerXHRUpload::RemoveEventListener(const nsAString& aType,
@@ -396,7 +405,8 @@ NS_IMPL_QUERY_INTERFACE_INHERITED2(nsDOMWorkerXHR, nsDOMWorkerXHREventTarget,
                                                    nsIXMLHttpRequest,
                                                    nsIXPCScriptable)
 
-NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorkerXHR, nsIDOMEventTarget,
+NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerXHR, nsIDOMNSEventTarget,
+                                             nsIDOMEventTarget,
                                              nsIXMLHttpRequestEventTarget,
                                              nsIXMLHttpRequest)
 
@@ -420,6 +430,8 @@ nsDOMWorkerXHR::Trace(nsIXPConnectWrappedNative* /* aWrapper */,
                       JSTracer* aTracer,
                       JSObject* /*aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
   if (!mCanceled) {
     nsDOMWorkerMessageHandler::Trace(aTracer);
     if (mUpload) {

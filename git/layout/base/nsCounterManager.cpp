@@ -244,6 +244,8 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, PRInt32 aIndex,
 {
     nsCounterChangeNode *node =
         new nsCounterChangeNode(aFrame, aType, aCounterData->mValue, aIndex);
+    if (!node)
+        return PR_FALSE;
 
     nsCounterList *counterList = CounterListFor(aCounterData->mCounter);
     if (!counterList) {
@@ -275,6 +277,8 @@ nsCounterManager::CounterListFor(const nsSubstring& aCounterName)
     nsCounterList *counterList;
     if (!mNames.Get(aCounterName, &counterList)) {
         counterList = new nsCounterList();
+        if (!counterList)
+            return nsnull;
         if (!mNames.Put(aCounterName, counterList)) {
             delete counterList;
             return nsnull;

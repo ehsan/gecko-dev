@@ -43,7 +43,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/log4moz.js");
@@ -55,7 +54,7 @@ function FormRec(collection, id) {
 }
 FormRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Form",
+  _logName: "Record.Form",
   ttl: FORMS_TTL
 };
 
@@ -63,7 +62,7 @@ Utils.deferGetSet(FormRec, "cleartext", ["name", "value"]);
 
 
 let FormWrapper = {
-  _log: Log4Moz.repository.getLogger("Sync.Engine.Forms"),
+  _log: Log4Moz.repository.getLogger('Engine.Forms'),
     
   getAllEntries: function getAllEntries() {
     // Sort by (lastUsed - minLast) / (maxLast - minLast) * timesUsed / maxTimes
@@ -73,14 +72,14 @@ let FormWrapper = {
         "((SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed DESC LIMIT 1) - (SELECT lastUsed FROM moz_formhistory ORDER BY lastUsed ASC LIMIT 1)) * " +
         "timesUsed / (SELECT timesUsed FROM moz_formhistory ORDER BY timesUsed DESC LIMIT 1) DESC " +
       "LIMIT 500");
-    return Async.querySpinningly(query, ["name", "value"]);
+    return Utils.queryAsync(query, ["name", "value"]);
   },
 
   getEntry: function getEntry(guid) {
     let query = Svc.Form.DBConnection.createAsyncStatement(
       "SELECT fieldname name, value FROM moz_formhistory WHERE guid = :guid");
     query.params.guid = guid;
-    return Async.querySpinningly(query, ["name", "value"])[0];
+    return Utils.queryAsync(query, ["name", "value"])[0];
   },
 
   getGUID: function getGUID(name, value) {
@@ -92,7 +91,7 @@ let FormWrapper = {
     getQuery.params.value = value;
 
     // Give the guid if we found one
-    let item = Async.querySpinningly(getQuery, ["guid"])[0];
+    let item = Utils.queryAsync(getQuery, ["guid"])[0];
     
     if (!item) {
       // Shouldn't happen, but Bug 597400...
@@ -114,7 +113,7 @@ let FormWrapper = {
     setQuery.params.guid = guid;
     setQuery.params.name = name;
     setQuery.params.value = value;
-    Async.querySpinningly(setQuery);
+    Utils.queryAsync(setQuery);
 
     return guid;
   },
@@ -123,7 +122,7 @@ let FormWrapper = {
     let query = Svc.Form.DBConnection.createAsyncStatement(
       "SELECT guid FROM moz_formhistory WHERE guid = :guid LIMIT 1");
     query.params.guid = guid;
-    return Async.querySpinningly(query, ["guid"]).length == 1;
+    return Utils.queryAsync(query, ["guid"]).length == 1;
   },
 
   replaceGUID: function replaceGUID(oldGUID, newGUID) {
@@ -131,7 +130,7 @@ let FormWrapper = {
       "UPDATE moz_formhistory SET guid = :newGUID WHERE guid = :oldGUID");
     query.params.oldGUID = oldGUID;
     query.params.newGUID = newGUID;
-    Async.querySpinningly(query);
+    Utils.queryAsync(query);
   }
 
 };
@@ -238,7 +237,7 @@ FormTracker.prototype = {
 
   trackEntry: function trackEntry(name, value) {
     this.addChangedID(FormWrapper.getGUID(name, value));
-    this.score += SCORE_INCREMENT_MEDIUM;
+    this.score += 10;
   },
 
   _enabled: false,
@@ -343,10 +342,10 @@ FormTracker.prototype = {
       }
 
       // Get the GUID on a delay so that it can be added to the DB first...
-      Utils.nextTick(function() {
+      Utils.delay(function() {
         this._log.trace("Logging form element: " + [name, el.value]);
         this.trackEntry(name, el.value);
-      }, this);
+      }, 0, this);
     }
   }
 };

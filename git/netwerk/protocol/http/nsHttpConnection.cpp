@@ -81,7 +81,6 @@ nsHttpConnection::nsHttpConnection()
     , mIsReused(PR_FALSE)
     , mCompletedProxyConnect(PR_FALSE)
     , mLastTransactionExpectedNoContent(PR_FALSE)
-    , mIdleMonitoring(PR_FALSE)
 {
     LOG(("Creating nsHttpConnection @%x\n", this));
 
@@ -169,10 +168,6 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, PRUint8 caps)
     // take ownership of the transaction
     mTransaction = trans;
 
-    NS_ABORT_IF_FALSE(!mIdleMonitoring,
-                      "Activating a connection with an Idle Monitor");
-    mIdleMonitoring = PR_FALSE;
-
     // set mKeepAlive according to what will be requested
     mKeepAliveMask = mKeepAlive = (caps & NS_HTTP_ALLOW_KEEPALIVE);
 
@@ -206,9 +201,6 @@ nsHttpConnection::Close(nsresult reason)
     NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     if (NS_FAILED(reason)) {
-        if (mIdleMonitoring)
-            EndIdleMonitoring();
-
         if (mSocketTransport) {
             mSocketTransport->SetSecurityCallbacks(nsnull);
             mSocketTransport->SetEventSink(nsnull, nsnull);
@@ -579,34 +571,6 @@ nsHttpConnection::ResumeRecv()
     return NS_ERROR_UNEXPECTED;
 }
 
-void
-nsHttpConnection::BeginIdleMonitoring()
-{
-    LOG(("nsHttpConnection::BeginIdleMonitoring [this=%p]\n", this));
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-    NS_ABORT_IF_FALSE(!mTransaction, "BeginIdleMonitoring() while active");
-    
-    LOG(("Entering Idle Monitoring Mode [this=%p]", this));
-    mIdleMonitoring = PR_TRUE;
-    if (mSocketIn)
-        mSocketIn->AsyncWait(this, 0, 0, nsnull);
-}
-
-void
-nsHttpConnection::EndIdleMonitoring()
-{
-    LOG(("nsHttpConnection::EndIdleMonitoring [this=%p]\n", this));
-    NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-    NS_ABORT_IF_FALSE(!mTransaction, "EndIdleMonitoring() while active");
-
-    if (mIdleMonitoring) {
-        LOG(("Leaving Idle Monitoring Mode [this=%p]", this));
-        mIdleMonitoring = PR_FALSE;
-        if (mSocketIn)
-            mSocketIn->AsyncWait(nsnull, 0, 0, nsnull);
-    }
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpConnection <private>
 //-----------------------------------------------------------------------------
@@ -629,12 +593,6 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
 
     mTransaction->Close(reason);
     mTransaction = nsnull;
-
-    if (mCallbacks) {
-        nsIInterfaceRequestor *cbs = nsnull;
-        mCallbacks.swap(cbs);
-        NS_ProxyRelease(mCallbackTarget, cbs);
-    }
 
     if (NS_FAILED(reason))
         Close(reason);
@@ -888,25 +846,6 @@ nsHttpConnection::OnInputStreamReady(nsIAsyncInputStream *in)
 {
     NS_ASSERTION(in == mSocketIn, "unexpected stream");
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-
-    if (mIdleMonitoring) {
-        NS_ABORT_IF_FALSE(!mTransaction, "Idle Input Event While Active");
-
-        // The only read event that is protocol compliant for an idle connection
-        // is an EOF, which we check for with CanReuse(). If the data is
-        // something else then just ignore it and suspend checking for EOF -
-        // our normal timers or protocol stack are the place to deal with
-        // any exception logic.
-
-        if (!CanReuse()) {
-            LOG(("Server initiated close of idle conn %p\n", this));
-            gHttpHandler->ConnMgr()->CloseIdleConnection(this);
-            return NS_OK;
-        }
-
-        LOG(("Input data on idle conn %p, but not closing yet\n", this));
-        return NS_OK;
-    }
 
     // if the transaction was dropped...
     if (!mTransaction) {

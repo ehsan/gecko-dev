@@ -2,9 +2,8 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function test() {
-  let url = "http://www.example.com/";
+  let url = "http://non.existant/url";
   let cw;
-  let tab = gBrowser.tabs[0];
 
   let finishTest = function () {
     is(1, gBrowser.tabs.length, "there is one tab, only");
@@ -15,7 +14,7 @@ function test() {
   waitForExplicitFinish();
 
   let testErroneousLoading = function () {
-    cw.ThumbnailStorage.loadThumbnail(tab, url, function (status, data) {
+    cw.Storage.loadThumbnail(url, function (status, data) {
       ok(!status, "thumbnail entry failed to load");
       is(null, data, "no thumbnail data received");
       next();
@@ -26,11 +25,11 @@ function test() {
     let saved = false;
     let data = "thumbnail-data-asynchronous";
 
-    cw.ThumbnailStorage.saveThumbnail(tab, data, function (status) {
+    cw.Storage.saveThumbnail(url, data, function (status) {
       ok(status, "thumbnail entry was saved");
       ok(saved, "thumbnail was saved asynchronously");
 
-      cw.ThumbnailStorage.loadThumbnail(tab, url, function (status, imageData) {
+      cw.Storage.loadThumbnail(url, function (status, imageData) {
         ok(status, "thumbnail entry was loaded");
         is(imageData, data, "valid thumbnail data received");
         next();
@@ -47,11 +46,11 @@ function test() {
     cw.UI.isDOMWindowClosing = true;
     registerCleanupFunction(function () cw.UI.isDOMWindowClosing = false);
 
-    cw.ThumbnailStorage.saveThumbnail(tab, data, function (status) {
+    cw.Storage.saveThumbnail(url, data, function (status) {
       ok(status, "thumbnail entry was saved");
       ok(!saved, "thumbnail was saved synchronously");
 
-      cw.ThumbnailStorage.loadThumbnail(tab, url, function (status, imageData) {
+      cw.Storage.loadThumbnail(url, function (status, imageData) {
         ok(status, "thumbnail entry was loaded");
         is(imageData, data, "valid thumbnail data received");
 
@@ -73,13 +72,10 @@ function test() {
       hideTabView(finishTest);
   }
 
-  tab.linkedBrowser.loadURI(url);
-  afterAllTabsLoaded(function() {
-    showTabView(function () {
-      registerCleanupFunction(function () TabView.hide());
-      cw = TabView.getContentWindow();
+  showTabView(function () {
+    registerCleanupFunction(function () TabView.hide());
+    cw = TabView.getContentWindow();
 
-      next();
-    });
+    next();
   });
 }

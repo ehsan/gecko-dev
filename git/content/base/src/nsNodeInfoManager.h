@@ -85,14 +85,11 @@ public:
    * Methods for creating nodeinfo's from atoms and/or strings.
    */
   already_AddRefed<nsINodeInfo> GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                                            PRInt32 aNamespaceID,
-                                            PRUint16 aNodeType,
-                                            nsIAtom* aExtraName = nsnull);
+                                            PRInt32 aNamespaceID);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                       PRInt32 aNamespaceID, PRUint16 aNodeType,
-                       nsINodeInfo** aNodeInfo);
+                       PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                       const nsAString& aNamespaceURI, PRUint16 aNodeType,
+                       const nsAString& aNamespaceURI,
                        nsINodeInfo** aNodeInfo);
 
   /**
@@ -153,8 +150,6 @@ protected:
 private:
   static PRIntn NodeInfoInnerKeyCompare(const void *key1, const void *key2);
   static PLHashNumber GetNodeInfoInnerHashValue(const void *key);
-  static PRIntn DropNodeInfoDocument(PLHashEntry *he, PRIntn hashIndex,
-                                     void *arg);
 
   PLHashTable *mNodeInfoHash;
   nsIDocument *mDocument; // WEAK

@@ -71,9 +71,9 @@ function do_test() {
 
   try {
     utils.getContentState(docElement);
-    ok(true, "Should not throw"); 
+    ok(false, "expected an exception"); 
   }
-  catch(e) { ok(false, "Got an exception: " + e); }
+  catch(e) { is(e.result, ERROR_FAILURE, "got the expected exception"); }
 
   try {
     utils.setContentState(docElement, false);

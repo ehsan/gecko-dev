@@ -54,7 +54,6 @@
 #include "nsEscape.h"
 #include "nsNetError.h"
 #include "nsIProgrammingLanguage.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 static NS_DEFINE_CID(kThisSimpleURIImplementationCID,
                      NS_THIS_SIMPLEURI_IMPLEMENTATION_CID);
@@ -227,7 +226,7 @@ nsSimpleURI::SetSpec(const nsACString &aSpec)
         return NS_ERROR_MALFORMED_URI;
 
     mScheme.Truncate();
-    mozilla::DebugOnly<PRInt32> n = spec.Left(mScheme, colonPos);
+    PRInt32 n = spec.Left(mScheme, colonPos);
     NS_ASSERTION(n == colonPos, "Left failed");
     ToLowerCase(mScheme);
 
@@ -450,22 +449,15 @@ nsSimpleURI::EqualsInternal(nsIURI* other,
         return NS_OK;
     }
 
-    *result = EqualsInternal(otherUri, refHandlingMode);
-    return NS_OK;
-}
+    *result = (mScheme == otherUri->mScheme &&
+               mPath   == otherUri->mPath);
 
-bool
-nsSimpleURI::EqualsInternal(nsSimpleURI* otherUri, RefHandlingEnum refHandlingMode)
-{
-    bool result = (mScheme == otherUri->mScheme &&
-                   mPath   == otherUri->mPath);
-
-    if (result && refHandlingMode == eHonorRef) {
-        result = (mIsRefValid == otherUri->mIsRefValid &&
-                  (!mIsRefValid || mRef == otherUri->mRef));
+    if (*result && refHandlingMode == eHonorRef) {
+        *result = (mIsRefValid == otherUri->mIsRefValid &&
+                   (!mIsRefValid || mRef == otherUri->mRef));
     }
 
-    return result;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

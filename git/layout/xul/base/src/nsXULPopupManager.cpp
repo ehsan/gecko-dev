@@ -70,8 +70,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
 #include "nsFrameManager.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 const nsNavigationDirection DirectionFromKeyCodeTable[2][6] = {
   {
@@ -132,10 +130,10 @@ void nsMenuChainItem::Detach(nsMenuChainItem** aRoot)
 }
 
 NS_IMPL_ISUPPORTS4(nsXULPopupManager,
+                   nsIDOMKeyListener,
                    nsIDOMEventListener,
                    nsIMenuRollup,
-                   nsITimerCallback,
-                   nsIObserver)
+                   nsITimerCallback)
 
 nsXULPopupManager::nsXULPopupManager() :
   mRangeOffset(0),
@@ -145,10 +143,6 @@ nsXULPopupManager::nsXULPopupManager() :
   mNoHidePanels(nsnull),
   mTimerMenu(nsnull)
 {
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs) {
-    obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
-  }
 }
 
 nsXULPopupManager::~nsXULPopupManager() 
@@ -169,29 +163,6 @@ void
 nsXULPopupManager::Shutdown()
 {
   NS_IF_RELEASE(sInstance);
-}
-
-NS_IMETHODIMP
-nsXULPopupManager::Observe(nsISupports *aSubject,
-                           const char *aTopic,
-                           const PRUnichar *aData)
-{
-  if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
-    if (mKeyListener) {
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keypress"), this, PR_TRUE);
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keydown"), this, PR_TRUE);
-      mKeyListener->RemoveEventListener(NS_LITERAL_STRING("keyup"), this, PR_TRUE);
-      mKeyListener = nsnull;
-    }
-    mRangeParent = nsnull;
-    // mOpeningPopup is cleared explicitly soon after using it.
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-      obs->RemoveObserver(this, "xpcom-shutdown");
-    }
-  }
-
-  return NS_OK;
 }
 
 nsXULPopupManager*
@@ -2072,30 +2043,7 @@ nsXULPopupManager::IsValidMenuItem(nsPresContext* aPresContext,
 }
 
 nsresult
-nsXULPopupManager::HandleEvent(nsIDOMEvent* aEvent)
-{
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_UNEXPECTED);
-
-  nsAutoString eventType;
-  keyEvent->GetType(eventType);
-  if (eventType.EqualsLiteral("keyup")) {
-    return KeyUp(keyEvent);
-  }
-  if (eventType.EqualsLiteral("keydown")) {
-    return KeyDown(keyEvent);
-  }
-  if (eventType.EqualsLiteral("keypress")) {
-    return KeyPress(keyEvent);
-  }
-
-  NS_ABORT();
-
-  return NS_OK;
-}
-
-nsresult
-nsXULPopupManager::KeyUp(nsIDOMKeyEvent* aKeyEvent)
+nsXULPopupManager::KeyUp(nsIDOMEvent* aKeyEvent)
 {
   // don't do anything if a menu isn't open or a menubar isn't active
   if (!mActiveMenuBar) {
@@ -2111,7 +2059,7 @@ nsXULPopupManager::KeyUp(nsIDOMKeyEvent* aKeyEvent)
 }
 
 nsresult
-nsXULPopupManager::KeyDown(nsIDOMKeyEvent* aKeyEvent)
+nsXULPopupManager::KeyDown(nsIDOMEvent* aKeyEvent)
 {
   nsMenuChainItem* item = GetTopVisibleMenu();
   if (item && item->Frame()->IsMenuLocked())
@@ -2129,21 +2077,22 @@ nsXULPopupManager::KeyDown(nsIDOMKeyEvent* aKeyEvent)
   nsMenuBarListener::GetMenuAccessKey(&menuAccessKey);
   if (menuAccessKey) {
     PRUint32 theChar;
-    aKeyEvent->GetKeyCode(&theChar);
+    nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
+    keyEvent->GetKeyCode(&theChar);
 
     if (theChar == (PRUint32)menuAccessKey) {
       PRBool ctrl = PR_FALSE;
       if (menuAccessKey != nsIDOMKeyEvent::DOM_VK_CONTROL)
-        aKeyEvent->GetCtrlKey(&ctrl);
+        keyEvent->GetCtrlKey(&ctrl);
       PRBool alt=PR_FALSE;
       if (menuAccessKey != nsIDOMKeyEvent::DOM_VK_ALT)
-        aKeyEvent->GetAltKey(&alt);
+        keyEvent->GetAltKey(&alt);
       PRBool shift=PR_FALSE;
       if (menuAccessKey != nsIDOMKeyEvent::DOM_VK_SHIFT)
-        aKeyEvent->GetShiftKey(&shift);
+        keyEvent->GetShiftKey(&shift);
       PRBool meta=PR_FALSE;
       if (menuAccessKey != nsIDOMKeyEvent::DOM_VK_META)
-        aKeyEvent->GetMetaKey(&meta);
+        keyEvent->GetMetaKey(&meta);
       if (!(ctrl || alt || shift || meta)) {
         // The access key just went down and no other
         // modifiers are already down.
@@ -2163,7 +2112,7 @@ nsXULPopupManager::KeyDown(nsIDOMKeyEvent* aKeyEvent)
 }
 
 nsresult
-nsXULPopupManager::KeyPress(nsIDOMKeyEvent* aKeyEvent)
+nsXULPopupManager::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   // Don't check prevent default flag -- menus always get first shot at key events.
   // When a menu is open, the prevent default flag on a keypress is always set, so
@@ -2185,7 +2134,6 @@ nsXULPopupManager::KeyPress(nsIDOMKeyEvent* aKeyEvent)
     return NS_OK;
 
   nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_UNEXPECTED);
   PRUint32 theChar;
   keyEvent->GetKeyCode(&theChar);
 

@@ -539,12 +539,8 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
     NS_ASSERTION(*countWritten > 0, "bad writer");
     trans->mReceivedData = PR_TRUE;
 
-    // Let the transaction "play" with the buffer.  It is free to modify
+    // now let the transaction "play" with the buffer.  it is free to modify
     // the contents of the buffer and/or modify countWritten.
-    // - Bytes in HTTP headers don't count towards countWritten, so the input
-    // side of pipe (aka nsHttpChannel's mTransactionPump) won't hit
-    // OnInputStreamReady until all headers have been parsed.
-    //    
     rv = trans->ProcessData(buf, *countWritten, countWritten);
     if (NS_FAILED(rv))
         trans->Close(rv);
@@ -738,7 +734,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
     // mLineBuf can contain partial match from previous search
     if (!mLineBuf.IsEmpty()) {
         NS_ASSERTION(mLineBuf.Length() < HTTPHeaderLen, "ouch");
-        PRInt32 checkChars = NS_MIN(len, HTTPHeaderLen - mLineBuf.Length());
+        PRInt32 checkChars = PR_MIN(len, HTTPHeaderLen - mLineBuf.Length());
         if (PL_strncasecmp(buf, HTTPHeader + mLineBuf.Length(),
                            checkChars) == 0) {
             mLineBuf.Append(buf, checkChars);
@@ -757,7 +753,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
 
     PRBool firstByte = PR_TRUE;
     while (len > 0) {
-        if (PL_strncasecmp(buf, HTTPHeader, NS_MIN<PRUint32>(len, HTTPHeaderLen)) == 0) {
+        if (PL_strncasecmp(buf, HTTPHeader, PR_MIN(len, HTTPHeaderLen)) == 0) {
             if (len < HTTPHeaderLen) {
                 // partial HTTPHeader sequence found
                 // save partial match to mLineBuf
@@ -788,12 +784,12 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
     return 0;
 }
 
-nsresult
+
+void
 nsHttpTransaction::ParseLine(char *line)
 {
     LOG(("nsHttpTransaction::ParseLine [%s]\n", line));
-    nsresult rv = NS_OK;
-    
+
     if (!mHaveStatusLine) {
         mResponseHead->ParseStatusLine(line);
         mHaveStatusLine = PR_TRUE;
@@ -801,10 +797,8 @@ nsHttpTransaction::ParseLine(char *line)
         if (mResponseHead->Version() == NS_HTTP_VERSION_0_9)
             mHaveAllHeaders = PR_TRUE;
     }
-    else {
-        rv = mResponseHead->ParseHeaderLine(line);
-    }
-    return rv;
+    else
+        mResponseHead->ParseHeaderLine(line);
 }
 
 nsresult
@@ -819,11 +813,8 @@ nsHttpTransaction::ParseLineSegment(char *segment, PRUint32 len)
         // of mLineBuf.
         mLineBuf.Truncate(mLineBuf.Length() - 1);
         if (!mHaveStatusLine || (*segment != ' ' && *segment != '\t')) {
-            nsresult rv = ParseLine(mLineBuf.BeginWriting());
+            ParseLine(mLineBuf.BeginWriting());
             mLineBuf.Truncate();
-            if (NS_FAILED(rv)) {
-                return rv;
-            }
         }
     }
 
@@ -891,7 +882,7 @@ nsHttpTransaction::ParseHead(char *buf,
         if (!mConnection || !mConnection->LastTransactionExpectedNoContent()) {
             // tolerate only minor junk before the status line
             mHttpResponseMatched = PR_TRUE;
-            char *p = LocateHttpStart(buf, NS_MIN<PRUint32>(count, 11), PR_TRUE);
+            char *p = LocateHttpStart(buf, PR_MIN(count, 11), PR_TRUE);
             if (!p) {
                 // Treat any 0.9 style response of a put as a failure.
                 if (mRequestHead->Method() == nsHttp::Put)
@@ -1090,7 +1081,8 @@ nsHttpTransaction::HandleContent(char *buf,
         // NOT persistent, we simply accept everything in |buf|.
         if (mConnection->IsPersistent() || mPreserveStream) {
             PRInt64 remaining = mContentLength - mContentRead;
-            *contentRead = PRUint32(NS_MIN<PRInt64>(count, remaining));
+            PRInt64 count64 = count;
+            *contentRead = PR_MIN(count64, remaining);
             *contentRemaining = count - *contentRead;
         }
         else {
@@ -1112,9 +1104,9 @@ nsHttpTransaction::HandleContent(char *buf,
     if (*contentRead) {
         // update count of content bytes read and report progress...
         mContentRead += *contentRead;
-        /* when uncommenting, take care of 64-bit integers w/ NS_MAX...
+        /* when uncommenting, take care of 64-bit integers w/ PR_MAX...
         if (mProgressSink)
-            mProgressSink->OnProgress(nsnull, nsnull, mContentRead, NS_MAX(0, mContentLength));
+            mProgressSink->OnProgress(nsnull, nsnull, mContentRead, PR_MAX(0, mContentLength));
         */
     }
 
@@ -1242,10 +1234,9 @@ nsHttpTransaction::DeleteSelfOnConsumerThread()
     LOG(("nsHttpTransaction::DeleteSelfOnConsumerThread [this=%x]\n", this));
     
     PRBool val;
-    if (!mConsumerTarget ||
-        (NS_SUCCEEDED(mConsumerTarget->IsOnCurrentThread(&val)) && val)) {
+    if (NS_SUCCEEDED(mConsumerTarget->IsOnCurrentThread(&val)) && val)
         delete this;
-    } else {
+    else {
         LOG(("proxying delete to consumer thread...\n"));
         nsCOMPtr<nsIRunnable> event = new nsDeleteHttpTransaction(this);
         if (NS_FAILED(mConsumerTarget->Dispatch(event, NS_DISPATCH_NORMAL)))

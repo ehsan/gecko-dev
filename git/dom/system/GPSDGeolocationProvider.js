@@ -68,12 +68,21 @@ function GeoPositionCoordsObject(latitude, longitude, altitude, accuracy, altitu
 
 GeoPositionCoordsObject.prototype = {
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionCoords]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionCoords, Ci.nsIClassInfo]),
   
   // Class Info is required to be able to pass objects back into the DOM.
-  classInfo: XPCOMUtils.generateCI({interfaces: [Ci.nsIDOMGeoPositionCoords],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                    classDescription: "Geoposition Coordinate Object"}),
+  getInterfaces: function(countRef) {
+    var interfaces = [Ci.nsIDOMGeoPositionCoords, Ci.nsIClassInfo, Ci.nsISupports];
+    countRef.value = interfaces.length;
+    return interfaces;
+  },
+  
+  getHelperForLanguage: function(language) null,
+  contractID: null,
+  classDescription: "Geoposition Coordinate Object",
+  classID: null,
+  implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+  flags: Ci.nsIClassInfo.DOM_OBJECT,
 
   latitude: null,
   longitude: null,
@@ -92,12 +101,21 @@ function GeoPositionObject(latitude, longitude, altitude, accuracy, altitudeAccu
 
 GeoPositionObject.prototype = {
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGeoPosition]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGeoPosition, Ci.nsIClassInfo]),
 
   // Class Info is required to be able to pass objects back into the DOM.
-  classInfo: XPCOMUtils.generateCI({interfaces: [Ci.nsIDOMGeoPosition],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                    classDescription: "Geoposition Object"}),
+  getInterfaces: function(countRef) {
+    var interfaces = [Ci.nsIDOMGeoPosition, Ci.nsIClassInfo, Ci.nsISupports];
+    countRef.value = interfaces.length;
+    return interfaces;
+  },
+
+  getHelperForLanguage: function(language) null,
+  contractID: null,
+  classDescription: "Geoposition Object",
+  classID: null,
+  implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
+  flags: Ci.nsIClassInfo.DOM_OBJECT,
 
   coords: null,
   timestamp: null,

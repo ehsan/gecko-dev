@@ -92,7 +92,7 @@ bmsvc.addObserver(observer, false);
 
 // start updating livemarks
 firstLoadTime = Date.now();
-lmsvc.reloadAllLivemarks();
+lmsvc.start();
 
 // First
 function runTest1( folderId ) {

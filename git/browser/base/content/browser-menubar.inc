@@ -108,6 +108,13 @@
                           key="printKb"
                           command="cmd_print"/>
                 <menuseparator/>
+                <menuitem id="menu_import"
+                          label="&import.label;"
+                          accesskey="&import.accesskey;"
+                          oncommand="BrowserImport();"/>
+#ifndef XP_MACOSX
+                <menuseparator/>
+#endif
                 <menuitem id="goOfflineMenuitem"
                           label="&goOfflineCmd.label;"
                           accesskey="&goOfflineCmd.accesskey;"
@@ -379,7 +386,6 @@
                 <menuseparator id="showAllHistorySeparator"/>
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
-                          class="syncTabsMenuItem"
                           label="&syncTabsMenu.label;"
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>

@@ -1552,9 +1552,10 @@ public:
 
   /*
    * For replaced elements only. Gets the intrinsic dimensions of this element.
-   * The dimensions may only be one of the following two types:
+   * The dimensions may only be one of the following three types:
    *
    *   eStyleUnit_Coord   - a length in app units
+   *   eStyleUnit_Percent - a percentage of the available space
    *   eStyleUnit_None    - the element has no intrinsic size in this dimension
    */
   struct IntrinsicSize {
@@ -1991,25 +1992,14 @@ public:
    * after a short period. This call does no immediate invalidation,
    * but when the mark times out, we'll invalidate the frame's overflow
    * area.
-   * @param aChangeHint nsChangeHint_UpdateTransformLayer or
-   * nsChangeHint_UpdateOpacityLayer or 0, depending on whether the change
-   * triggering the activity is a changing transform, changing opacity, or
-   * something else.
    */
-  void MarkLayersActive(nsChangeHint aHint);
+  void MarkLayersActive();
+
   /**
    * Return true if this frame is marked as needing active layers.
    */
   PRBool AreLayersMarkedActive();
-  /**
-   * Return true if this frame is marked as needing active layers.
-   * @param aChangeHint nsChangeHint_UpdateTransformLayer or
-   * nsChangeHint_UpdateOpacityLayer. We return true only if
-   * a change in the transform or opacity has been recorded while layers have
-   * been marked active for this frame.
-   */
-  PRBool AreLayersMarkedActive(nsChangeHint aChangeHint);
-
+  
   /**
    * @param aFlags see InvalidateInternal below
    */
@@ -2594,8 +2584,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   NS_IMETHOD GetBorder(nsMargin& aBorder)=0;
   NS_IMETHOD GetPadding(nsMargin& aBorderAndPadding)=0;
   NS_IMETHOD GetMargin(nsMargin& aMargin)=0;
-  virtual void SetLayoutManager(nsIBoxLayout* aLayout) { }
-  virtual nsIBoxLayout* GetLayoutManager() { return nsnull; }
+  NS_IMETHOD SetLayoutManager(nsIBoxLayout* aLayout)=0;
+  NS_IMETHOD GetLayoutManager(nsIBoxLayout** aLayout)=0;
   NS_HIDDEN_(nsresult) GetClientRect(nsRect& aContentRect);
 
   // For nsSprocketLayout

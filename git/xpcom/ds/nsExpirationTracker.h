@@ -203,7 +203,7 @@ template <class T, PRUint32 K> class nsExpirationTracker {
       for (;;) {
         // Objects could have been removed so index could be outside
         // the array
-        index = NS_MIN(index, generation.Length());
+        index = PR_MIN(index, generation.Length());
         if (index == 0)
           break;
         --index;

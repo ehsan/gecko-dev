@@ -142,17 +142,13 @@ function run_next_test() {
       onVisit: function() {},
       onTitleChanged: function() {},
       onBeforeDeleteURI: function() {},
-      onDeleteURI: function(aURI, aGUID, aReason) {
+      onDeleteURI: function(aURI) {
         // Check this uri was not bookmarked.
         do_check_eq(gCurrentTest.bookmarks.indexOf(aURI.spec), -1);
-        do_check_valid_places_guid(aGUID);
-        do_check_eq(aReason, Ci.nsINavHistoryObserver.REASON_EXPIRED);
       },
       onPageChanged: function() {},
-      onDeleteVisits: function(aURI, aTime, aGUID, aReason) {
+      onDeleteVisits: function(aURI, aTime) {
         gCurrentTest.receivedNotifications++;
-        do_check_guid_for_uri(aURI, aGUID);
-        do_check_eq(aReason, Ci.nsINavHistoryObserver.REASON_EXPIRED);
       },
     };
     hs.addObserver(historyObserver, false);

@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jslong.h"
 #include "prmjtime.h"
 #include "jsapi.h"
 #include "jsatom.h"

@@ -148,8 +148,8 @@ XPCJSStackFrame::CreateStack(JSContext* cx, JSStackFrame* fp,
             jsbytecode* pc = JS_GetFramePC(cx, fp);
             if(script && pc)
             {
-                JS::AutoEnterFrameCompartment ac;
-                if(ac.enter(cx, fp))
+                JS::AutoEnterScriptCompartment ac;
+                if(ac.enter(cx, script))
                 {
                     const char* filename = JS_GetScriptFilename(cx, script);
                     if(filename)

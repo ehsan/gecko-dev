@@ -95,7 +95,6 @@
 #include "RestyleTracker.h"
 
 #include "nsFrameManager.h"
-#include "nsRuleProcessorData.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -379,12 +378,14 @@ nsFrameManager::SetUndisplayedContent(nsIContent* aContent,
   if (! mUndisplayedMap) {
     mUndisplayedMap = new UndisplayedMap;
   }
-  nsIContent* parent = aContent->GetParent();
-  NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
-               mPresShell->GetDocument()->GetRootElement() == aContent),
-               "undisplayed content must have a parent, unless it's the root "
-               "element");
-  mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
+  if (mUndisplayedMap) {
+    nsIContent* parent = aContent->GetParent();
+    NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
+                 mPresShell->GetDocument()->GetRootElement() == aContent),
+                 "undisplayed content must have a parent, unless it's the root "
+                 "element");
+    mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
+  }
 }
 
 void
@@ -1007,8 +1008,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsRestyleHint      aRestyleHint,
                                       RestyleTracker&    aRestyleTracker,
                                       DesiredA11yNotifications aDesiredA11yNotifications,
-                                      nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement,
-                                      TreeMatchContext &aTreeMatchContext)
+                                      nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement)
 {
   if (!NS_IsHintSubset(nsChangeHint_NeedDirtyReflow, aMinChange)) {
     // If aMinChange doesn't include nsChangeHint_NeedDirtyReflow, clear out
@@ -1116,8 +1116,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                                    aMinChange, aRestyleHint,
                                                    aRestyleTracker,
                                                    aDesiredA11yNotifications,
-                                                   aVisibleKidsOfHiddenElement,
-                                                   aTreeMatchContext);
+                                                   aVisibleKidsOfHiddenElement);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1192,8 +1191,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           // XXX what other pseudos do we need to treat like this?
           newContext = styleSet->ProbePseudoElementStyle(element,
                                                          pseudoType,
-                                                         parentContext,
-                                                         aTreeMatchContext);
+                                                         parentContext);
           if (!newContext) {
             // This pseudo should no longer exist; gotta reframe
             NS_UpdateHint(aMinChange, nsChangeHint_ReconstructFrame);
@@ -1216,8 +1214,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       else {
         NS_ASSERTION(localContent,
                      "non pseudo-element frame without content node");
-        newContext = styleSet->ResolveStyleFor(element, parentContext,
-                                               aTreeMatchContext);
+        newContext = styleSet->ResolveStyleFor(element, parentContext);
       }
     }
 
@@ -1340,8 +1337,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         if (thisChildHint) {
           undisplayedContext =
             styleSet->ResolveStyleFor(undisplayed->mContent->AsElement(),
-                                      newContext,
-                                      aTreeMatchContext);
+                                      newContext);
         } else {
           undisplayedContext =
             styleSet->ReparentStyleContext(undisplayed->mStyle, newContext,
@@ -1504,8 +1500,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       childRestyleHint,
                                       aRestyleTracker,
                                       kidsDesiredA11yNotification,
-                                      aVisibleKidsOfHiddenElement,
-                                      aTreeMatchContext);
+                                      aVisibleKidsOfHiddenElement);
               } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
 
               // reresolve placeholder's context under the same parent
@@ -1515,8 +1510,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                     childRestyleHint,
                                     aRestyleTracker,
                                     kidsDesiredA11yNotification,
-                                    aVisibleKidsOfHiddenElement,
-                                    aTreeMatchContext);
+                                    aVisibleKidsOfHiddenElement);
             }
             else {  // regular child frame
               if (child != resolvedChild) {
@@ -1525,8 +1519,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       childRestyleHint,
                                       aRestyleTracker,
                                       kidsDesiredA11yNotification,
-                                      aVisibleKidsOfHiddenElement,
-                                      aTreeMatchContext);
+                                      aVisibleKidsOfHiddenElement);
               } else {
                 NOISY_TRACE_FRAME("child frame already resolved as descendant, skipping",aFrame);
               }
@@ -1599,9 +1592,6 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
 
   FramePropertyTable *propTable = GetPresContext()->PropertyTable();
 
-  TreeMatchContext treeMatchContext(PR_TRUE,
-                                    nsRuleWalker::eRelevantLinkUnvisited,
-                                    mPresShell->GetDocument());
   nsTArray<nsIContent*> visibleKidsOfHiddenElement;
   do {
     // Outer loop over special siblings
@@ -1614,8 +1604,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                                 eRestyle_Subtree : eRestyle_Self,
                               aRestyleTracker,
                               eSendAllNotifications,
-                              visibleKidsOfHiddenElement,
-                              treeMatchContext);
+                              visibleKidsOfHiddenElement);
       NS_UpdateHint(topLevelChange, frameChange);
 
       if (topLevelChange & nsChangeHint_ReconstructFrame) {
@@ -1870,6 +1859,9 @@ nsFrameManagerBase::UndisplayedMap::AddNodeFor(nsIContent* aParentContent,
                                                nsStyleContext* aStyle)
 {
   UndisplayedNode*  node = new UndisplayedNode(aChild, aStyle);
+  if (! node) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   AppendNodeFor(node, aParentContent);
   return NS_OK;

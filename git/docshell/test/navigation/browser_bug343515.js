@@ -2,6 +2,8 @@
 
 // Globals
 var testPath = "http://mochi.test:8888/browser/docshell/test/navigation/";
+var Ci = Components.interfaces;
+var Cc = Components.classes;
 var ctx = {};
 
 // Helper function to check if a window is active
@@ -12,14 +14,22 @@ function isActive(aWindow) {
   return docshell.isActive;
 }
 
-function oneShotListener(aElem, aType, aCallback) {
-  aElem.addEventListener(aType, function () {
-    aElem.removeEventListener(aType, arguments.callee, true);
+// Returns a closure that will remove itself as a listener from
+// aElem and then call aCallback. aCallback is executed asynchronously,
+// which is handy because load events fire before mIsDocumentLoaded is actually
+// set to true. :(
+function autoRemovedListener(aElem, aType, aCallback) {
 
-    // aCallback is executed asynchronously, which is handy because load
-    // events fire before mIsDocumentLoaded is actually set to true. :(
-    executeSoon(aCallback);
-  }, true);
+  var elem = aElem;
+  var type = aType;
+  var callback = aCallback;
+
+  function remover() {
+    elem.removeEventListener(type, remover, true);
+    executeSoon(callback);
+  }
+
+  return remover;
 }
 
 // Returns a closure that iteratively (BFS) waits for all
@@ -48,7 +58,7 @@ function frameLoadWaiter(aInitialWindow, aFinalCallback) {
       if (curr.document.readyState == "complete")
         frameLoadCallback();
       else
-        oneShotListener(curr, "load", frameLoadCallback);
+        curr.addEventListener("load", autoRemovedListener(curr, "load", frameLoadCallback), true);
       return;
     }
 
@@ -83,7 +93,9 @@ function step1() {
   ctx.tab1 = gBrowser.addTab(testPath + "bug343515_pg1.html");
   ctx.tab1Browser = gBrowser.getBrowserForTab(ctx.tab1);
   ctx.tab1Window = ctx.tab1Browser.contentWindow;
-  oneShotListener(ctx.tab1Browser, "load", step2);
+  ctx.tab1Browser.addEventListener("load",
+                                   autoRemovedListener(ctx.tab1Browser, "load", step2),
+                                   true);
 }
 
 function step2() {
@@ -103,7 +115,10 @@ function step2() {
   ctx.tab2 = gBrowser.addTab(testPath + "bug343515_pg2.html");
   ctx.tab2Browser = gBrowser.getBrowserForTab(ctx.tab2);
   ctx.tab2Window = ctx.tab2Browser.contentWindow;
-  oneShotListener(ctx.tab2Browser, "load", frameLoadWaiter(ctx.tab2Window, step3));
+  ctx.tab2Browser.addEventListener("load",
+                                   autoRemovedListener(ctx.tab2Browser, "load",
+                                                       frameLoadWaiter(ctx.tab2Window, step3)),
+                                   true);
 }
 
 function step3() {
@@ -120,7 +135,10 @@ function step3() {
 
   // Navigate tab 2 to a different page
   ctx.tab2Window.location = testPath + "bug343515_pg3.html";
-  oneShotListener(ctx.tab2Browser, "load", frameLoadWaiter(ctx.tab2Window, step4));
+  ctx.tab2Browser.addEventListener("load",
+                                  autoRemovedListener(ctx.tab2Browser, "load",
+                                                      frameLoadWaiter(ctx.tab2Window, step4)),
+                                  true);
 }
 
 function step4() {
@@ -149,7 +167,10 @@ function step4() {
   ok(isActive(ctx.tab2Window.frames[1]), "Tab2 iframe 1 should be active");
 
   // Go back
-  oneShotListener(ctx.tab2Browser, "pageshow", frameLoadWaiter(ctx.tab2Window, step5));
+  ctx.tab2Browser.addEventListener("pageshow",
+                                   autoRemovedListener(ctx.tab2Browser, "pageshow",
+                                                       frameLoadWaiter(ctx.tab2Window, step5)),
+                                   true);
   ctx.tab2Browser.goBack();
 
 }
@@ -168,7 +189,10 @@ function step5() {
 
   // Navigate to page 3
   ctx.tab1Window.location = testPath + "bug343515_pg3.html";
-  oneShotListener(ctx.tab1Browser, "load", frameLoadWaiter(ctx.tab1Window, step6));
+  ctx.tab1Browser.addEventListener("load",
+                                   autoRemovedListener(ctx.tab1Browser, "load",
+                                                       frameLoadWaiter(ctx.tab1Window, step6)),
+                                   true);
 }
 
 function step6() {
@@ -184,7 +208,10 @@ function step6() {
   ok(!isActive(ctx.tab2Window.frames[1]), "Tab2 iframe 1 should be inactive");
 
   // Go forward on tab 2
-  oneShotListener(ctx.tab2Browser, "pageshow", frameLoadWaiter(ctx.tab2Window, step7));
+  ctx.tab2Browser.addEventListener("pageshow",
+                                   autoRemovedListener(ctx.tab2Browser, "pageshow",
+                                                       frameLoadWaiter(ctx.tab2Window, step7)),
+                                   true);
   var tab2docshell = ctx.tab2Window.QueryInterface(Ci.nsIInterfaceRequestor)
                                    .getInterface(Ci.nsIWebNavigation);
   tab2docshell.goForward();
@@ -212,8 +239,9 @@ function step7() {
 function allDone() {
 
   // Close the tabs we made
-  gBrowser.removeTab(ctx.tab1);
-  gBrowser.removeTab(ctx.tab2);
+  gBrowser.removeCurrentTab();
+  gBrowser.tabContainer.advanceSelectedTab(1, true);
+  gBrowser.removeCurrentTab();
 
   // Tell the framework we're done
   finish();

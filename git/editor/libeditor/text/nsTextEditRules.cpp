@@ -58,6 +58,8 @@
 #include "nsEditorUtils.h"
 #include "EditTxn.h"
 #include "nsEditProperty.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
@@ -67,10 +69,6 @@
 
 // for IBMBIDI
 #include "nsFrameSelection.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
@@ -159,8 +157,13 @@ nsTextEditRules::Init(nsPlaintextEditor *aEditor)
     NS_ENSURE_SUCCESS(res, res);
   }
 
-  mDeleteBidiImmediately =
-    Preferences::GetBool("bidi.edit.delete_immediately", PR_FALSE);
+  PRBool deleteBidiImmediately = PR_FALSE;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
+  if (NS_SUCCEEDED(res))
+    prefBranch->GetBoolPref("bidi.edit.delete_immediately",
+                            &deleteBidiImmediately);
+  mDeleteBidiImmediately = deleteBidiImmediately;
 
   return res;
 }
@@ -231,6 +234,22 @@ nsTextEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 
     // collapse the selection to the trailing BR if it's at the end of our text node
     CollapseSelectionToTrailingBRIfNeeded(selection);
+    
+    /* After inserting text the cursor Bidi level must be set to the level of the inserted text.
+     * This is difficult, because we cannot know what the level is until after the Bidi algorithm
+     * is applied to the whole paragraph.
+     *
+     * So we set the cursor Bidi level to UNDEFINED here, and the caret code will set it correctly later
+     */
+    if (action == nsEditor::kOpInsertText
+        || action == nsEditor::kOpInsertIMEText) {
+      nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(selection));
+      nsRefPtr<nsFrameSelection> frameSelection;
+      privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));      
+      if (frameSelection) {
+        frameSelection->UndefineCaretBidiLevel();
+      }
+    }
   }
   return res;
 }

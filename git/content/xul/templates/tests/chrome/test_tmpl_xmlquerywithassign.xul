@@ -30,19 +30,19 @@ var notWorkingYet = false;
 var notWorkingYetDynamic = false;
 var expectedOutput =
 <output>
-  <hbox id="chrome://mochitests/content/chrome/content/xul/templates/tests/chrome/animals.xml#Chamaeleo-chamaelon">
+  <hbox anyid="true">
     <button label="Chameleon"/>
     <label value="9"/>
   </hbox>
-  <hbox id="chrome://mochitests/content/chrome/content/xul/templates/tests/chrome/animals.xml#Dromaius-novaehollandiae">
+  <hbox anyid="true">
     <button label="Emu"/>
     <label value="3"/>
   </hbox>
-  <hbox id="chrome://mochitests/content/chrome/content/xul/templates/tests/chrome/animals.xml#Tyto-alba">
+  <hbox anyid="true">
     <button label="Barn Owl"/>
     <label value="8"/>
   </hbox>
-  <hbox id="chrome://mochitests/content/chrome/content/xul/templates/tests/chrome/animals.xml#Corvus-corax">
+  <hbox anyid="true">
     <button label="Raven"/>
     <label value="5"/>
   </hbox>

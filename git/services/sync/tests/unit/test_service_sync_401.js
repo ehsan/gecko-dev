@@ -1,5 +1,4 @@
 Cu.import("resource://services-sync/main.js");
-Cu.import("resource://services-sync/policies.js");
 
 function login_handling(handler) {
   return function (request, response) {
@@ -37,7 +36,7 @@ function run_test() {
     Weave.Service.username = "johndoe";
     Weave.Service.password = "ilovejane";
     Weave.Service.passphrase = "foo";
-    SyncScheduler.globalScore = GLOBAL_SCORE;
+    Weave.Service.globalScore = GLOBAL_SCORE;
     // Avoid daily ping
     Weave.Svc.Prefs.set("lastPing", Math.floor(Date.now() / 1000));
 
@@ -66,8 +65,8 @@ function run_test() {
     _("Sync status.");
     do_check_eq(Weave.Status.login, Weave.LOGIN_FAILED_LOGIN_REJECTED);
 
-    _("globalScore is reset upon starting a sync.");
-    do_check_eq(SyncScheduler.globalScore, 0);
+    _("globalScore is unchanged.");
+    do_check_eq(Weave.Service.globalScore, GLOBAL_SCORE);
 
   } finally {
     Weave.Svc.Prefs.resetBranch("");

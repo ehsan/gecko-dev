@@ -341,10 +341,7 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
       file: file
     };
 
-    // Find a URI to use for determining last-downloaded-to directory
-    let relatedURI = aReferrer || sourceURI;
-
-    if (!getTargetFile(fpParams, aSkipPrompt, relatedURI))
+    if (!getTargetFile(fpParams, aSkipPrompt))
       // If the method returned false this is because the user cancelled from
       // the save file picker dialog.
       return;
@@ -554,14 +551,10 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
  *        If false, don't save the file automatically to the user's
  *        default download directory, even if the associated preference
  *        is set, but ask for the target explicitly.
- * @param aRelatedURI
- *        An nsIURI associated with the download. The last used
- *        directory of the picker is retrieved from/stored in the 
- *        Content Pref Service using this URI.
  * @return true if the user confirmed a filename in the picker or the picker
  *         was not displayed; false if they dismissed the picker.
  */
-function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelatedURI)
+function getTargetFile(aFpP, /* optional */ aSkipPrompt)
 {
   if (typeof gDownloadLastDir != "object")
     Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
@@ -594,7 +587,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
     // file picker if it is still valid. Otherwise, keep the default of the
     // user's default downloads directory. If it doesn't exist, it will be
     // changed to the user's desktop later.
-    var lastDir = gDownloadLastDir.getFile(aRelatedURI);
+    var lastDir = gDownloadLastDir.file;
     if (lastDir.exists()) {
       dir = lastDir;
       dirExists = true;
@@ -638,7 +631,7 @@ function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelated
 
   // Do not store the last save directory as a pref inside the private browsing mode
   var directory = fp.file.parent.QueryInterface(nsILocalFile);
-  gDownloadLastDir.setFile(aRelatedURI, directory);
+  gDownloadLastDir.file = directory;
 
   fp.file.leafName = validateFileName(fp.file.leafName);
   

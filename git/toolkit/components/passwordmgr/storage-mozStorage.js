@@ -349,9 +349,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("_addLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not added.";
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         // Send a notification that a login was added.
@@ -380,9 +378,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("_removeLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not removed.";
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this._sendNotification("removeLogin", storedLogin);
@@ -521,9 +517,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("modifyLogin failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database, login not modified.";
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this._sendNotification("modifyLogin", [oldStoredLogin, newLogin]);
@@ -671,9 +665,7 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_searchLogins failed: " + e.name + " : " + e.message);
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this.log("_searchLogins: returning " + logins.length + " logins");
@@ -701,9 +693,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("_removeAllLogins failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database";
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this._sendNotification("removeAllLogins", null);
@@ -760,9 +750,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("setLoginSavingEnabled failed: " + e.name + " : " + e.message);
             throw "Couldn't write to database"
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this._sendNotification(enabled ? "hostSavingEnabled" : "hostSavingDisabled", hostname);
@@ -817,9 +805,7 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_countLogins failed: " + e.name + " : " + e.message);
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         this.log("_countLogins: counted logins: " + numLogins);
@@ -919,9 +905,7 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_queryDisabledHosts failed: " + e.name + " : " + e.message);
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         return disabledHosts;
@@ -1044,9 +1028,7 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_isGuidUnique failed: " + e.name + " : " + e.message);
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         return (numLogins == 0);
@@ -1231,9 +1213,7 @@ LoginManagerStorage_mozStorage.prototype = {
                     // Ignore singular errors, continue trying to update others.
                     this.log("_reencryptBase64Logins caught error: " + e);
                 } finally {
-                    if (stmt) {
-                        stmt.reset();
-                    }
+                    stmt.reset();
                 }
             }
         } catch (e) {
@@ -1406,9 +1386,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("Failed getting IDs: " + e);
             throw e;
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         // Generate a GUID for each login and update the DB.
@@ -1426,9 +1404,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting GUID: " + e);
                 throw e;
             } finally {
-                if (stmt) {
-                    stmt.reset();
-                }
+                stmt.reset();
             }
         }
     },
@@ -1471,9 +1447,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("Failed getting logins: " + e);
             throw e;
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         // Determine encryption type for each login and update the DB.
@@ -1486,9 +1460,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting encType: " + e);
                 throw e;
             } finally {
-                if (stmt) {
-                    stmt.reset();
-                }
+                stmt.reset();
             }
         }
     },
@@ -1523,9 +1495,7 @@ LoginManagerStorage_mozStorage.prototype = {
             this.log("Failed getting IDs: " + e);
             throw e;
         } finally {
-            if (stmt) {
-                stmt.reset();
-            }
+            stmt.reset();
         }
 
         // Initialize logins with current time.
@@ -1544,9 +1514,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 this.log("Failed setting timestamps: " + e);
                 throw e;
             } finally {
-                if (stmt) {
-                    stmt.reset();
-                }
+                stmt.reset();
             }
         }
     },

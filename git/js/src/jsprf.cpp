@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include "jsprf.h"
 #include "jsstdint.h"
+#include "jslong.h"
 #include "jsutil.h"
 #include "jspubtd.h"
 #include "jsstr.h"
@@ -293,8 +294,13 @@ static int cvt_l(SprintfState *ss, long num, int width, int prec, int radix,
 static int cvt_ll(SprintfState *ss, JSInt64 num, int width, int prec, int radix,
                   int type, int flags, const char *hexp)
 {
+    char cvtbuf[100];
+    char *cvt;
+    int digits;
+    JSInt64 rad;
+
     /* according to the man page this needs to happen */
-    if (prec == 0 && num == 0) {
+    if ((prec == 0) && (JSLL_IS_ZERO(num))) {
         return 0;
     }
 
@@ -303,14 +309,14 @@ static int cvt_ll(SprintfState *ss, JSInt64 num, int width, int prec, int radix,
     ** need to stop when we hit 10 digits. In the signed case, we can
     ** stop when the number is zero.
     */
-    JSInt64 rad = JSInt64(radix);
-    char cvtbuf[100];
-    char *cvt = cvtbuf + sizeof(cvtbuf);
-    int digits = 0;
-    while (num != 0) {
-        JSInt64 quot = JSUint64(num) / rad;
-        JSInt64 rem = JSUint64(num) % rad;
-        JSInt32 digit = JSInt32(rem);
+    JSLL_I2L(rad, radix);
+    cvt = cvtbuf + sizeof(cvtbuf);
+    digits = 0;
+    while (!JSLL_IS_ZERO(num)) {
+        JSInt32 digit;
+        JSInt64 quot, rem;
+        JSLL_UDIVMOD(&quot, &rem, num, rad);
+        JSLL_L2I(digit, rem);
         *--cvt = hexp[digit & 0xf];
         digits++;
         num = quot;
@@ -404,7 +410,7 @@ static int cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec,
      */
     if (ws) {
         int slen = js_strlen(ws);
-        char *s = DeflateString(NULL, ws, slen);
+        char *s = js_DeflateString(NULL, ws, slen);
         if (!s)
             return -1; /* JSStuffFunc error indicator. */
         result = cvt_s(ss, s, width, prec, flags);
@@ -893,8 +899,8 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 
               case TYPE_INT64:
                 u.ll = va_arg(ap, JSInt64);
-                if (u.ll < 0) {
-                    u.ll = -u.ll;
+                if (!JSLL_GE_ZERO(u.ll)) {
+                    JSLL_NEG(u.ll, u.ll);
                     flags |= FLAG_NEG;
                 }
                 goto do_longlong;

@@ -67,8 +67,6 @@ protected:
   virtual bool DeallocPWyciwygChannel(PWyciwygChannelChild*);
   virtual PFTPChannelChild* AllocPFTPChannel();
   virtual bool DeallocPFTPChannel(PFTPChannelChild*);
-  virtual PWebSocketChild* AllocPWebSocket(PBrowserChild*);
-  virtual bool DeallocPWebSocket(PWebSocketChild*);
 };
 
 /**

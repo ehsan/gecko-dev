@@ -138,6 +138,7 @@ public:
     eDOMEvents_paste,
     eDOMEvents_open,
     eDOMEvents_message,
+#ifdef MOZ_SVG
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,
@@ -145,6 +146,7 @@ public:
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
     eDOMEvents_beginEvent,
     eDOMEvents_endEvent,
@@ -190,11 +192,14 @@ public:
     eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
     eDOMEvents_transitionend,
-    eDOMEvents_animationstart,
-    eDOMEvents_animationend,
-    eDOMEvents_animationiteration,
     eDOMEvents_devicemotion,
     eDOMEvents_deviceorientation
+#ifdef MOZ_CSS_ANIMATIONS
+    ,
+    eDOMEvents_animationstart,
+    eDOMEvents_animationend,
+    eDOMEvents_animationiteration
+#endif
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);

@@ -52,7 +52,9 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "prprf.h"
+#ifdef MOZ_SVG
 #include "nsISVGValue.h"
+#endif
 
 namespace css = mozilla::css;
 
@@ -84,11 +86,13 @@ nsAttrValue::nsAttrValue(css::StyleRule* aValue, const nsAString* aSerialized)
   SetTo(aValue, aSerialized);
 }
 
+#ifdef MOZ_SVG
 nsAttrValue::nsAttrValue(nsISVGValue* aValue)
     : mBits(0)
 {
   SetTo(aValue);
 }
+#endif
 
 nsAttrValue::nsAttrValue(const nsIntMargin& aValue)
     : mBits(0)
@@ -251,11 +255,13 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       }
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       NS_ADDREF(cont->mSVGValue = otherCont->mSVGValue);
       break;
     }
+#endif
     case eDoubleValue:
     {
       cont->mDoubleValue = otherCont->mDoubleValue;
@@ -317,6 +323,7 @@ nsAttrValue::SetTo(css::StyleRule* aValue, const nsAString* aSerialized)
   }
 }
 
+#ifdef MOZ_SVG
 void
 nsAttrValue::SetTo(nsISVGValue* aValue)
 {
@@ -326,6 +333,7 @@ nsAttrValue::SetTo(nsISVGValue* aValue)
     cont->mType = eSVGValue;
   }
 }
+#endif
 
 void
 nsAttrValue::SetTo(const nsIntMargin& aValue)
@@ -428,11 +436,13 @@ nsAttrValue::ToString(nsAString& aResult) const
 
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       GetMiscContainer()->mSVGValue->GetValueString(aResult);
       break;
     }
+#endif
     case eDoubleValue:
     {
       aResult.Truncate();
@@ -591,10 +601,12 @@ nsAttrValue::HashValue() const
       }
       return retval;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       return NS_PTR_TO_INT32(cont->mSVGValue);
     }
+#endif
     case eDoubleValue:
     {
       // XXX this is crappy, but oh well
@@ -688,10 +700,12 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
       needsStringComparison = PR_TRUE;
       break;
     }
+#ifdef MOZ_SVG
     case eSVGValue:
     {
       return thisCont->mSVGValue == otherCont->mSVGValue;
     }
+#endif
     case eDoubleValue:
     {
       return thisCont->mDoubleValue == otherCont->mDoubleValue;
@@ -1295,11 +1309,13 @@ nsAttrValue::EnsureEmptyMiscContainer()
         delete cont->mAtomArray;
         break;
       }
+#ifdef MOZ_SVG
       case eSVGValue:
       {
         NS_RELEASE(cont->mSVGValue);
         break;
       }
+#endif
       case eIntMarginValue:
       {
         delete cont->mIntMargin;
