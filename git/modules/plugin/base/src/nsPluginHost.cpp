@@ -1754,10 +1754,9 @@ nsPluginHost::~nsPluginHost()
   sInst = nsnull;
 }
 
-NS_IMPL_ISUPPORTS4(nsPluginHost,
+NS_IMPL_ISUPPORTS3(nsPluginHost,
                    nsIPluginHost,
                    nsIObserver,
-                   nsITimerCallback,
                    nsISupportsWeakReference)
 
 nsPluginHost*

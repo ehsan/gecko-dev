@@ -3091,10 +3091,10 @@ const BrowserSearch = {
       return;
     }
 #endif
-    var searchBar = this.searchBar;
-    if (searchBar && window.fullScreen)
+    if (window.fullScreen)
       FullScreen.mouseoverToggle(true);
 
+    var searchBar = this.searchBar;
     if (isElementVisible(searchBar)) {
       searchBar.select();
       searchBar.focus();
