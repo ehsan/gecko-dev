@@ -299,11 +299,13 @@ static PRBool CheckUpdateFile()
         return PR_FALSE;
     }
 
-    PRInt64 compregModTime;
-    rv = compregFile->GetLastModifiedTime(&compregModTime);
-    if (NS_FAILED(rv))
+    PRBool exists;
+    if (NS_FAILED(compregFile->Exists(&exists)) || !exists)
         return PR_TRUE;
-    
+
+    PRInt64 compregModTime;
+    compregFile->GetLastModifiedTime(&compregModTime);
+
     nsCOMPtr<nsIFile> file;
     rv = nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                            NS_GET_IID(nsIFile), 
@@ -315,21 +317,16 @@ static PRBool CheckUpdateFile()
     }
 
     file->AppendNative(nsDependentCString(".autoreg"));
-
-    // superfluous cast
-    PRInt64 nowTime = PR_Now() / PR_USEC_PER_MSEC;
-    PRInt64 autoregModTime;
-    rv = file->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
+    
+    file->Exists(&exists);
+    if (!exists)
         goto next;
 
-    if (autoregModTime > compregModTime) {
-        if (autoregModTime < nowTime) {
-            return PR_TRUE;
-        } else {
-            NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        }
-    }
+    PRInt64 autoregModTime;
+    file->GetLastModifiedTime(&autoregModTime);
+
+    if (LL_CMP(autoregModTime, >, compregModTime))
+        return PR_TRUE;
 
 next:
     nsCOMPtr<nsIFile> greFile;
@@ -349,15 +346,13 @@ next:
     if (NS_SUCCEEDED(rv) && equals)
         return PR_FALSE;
 
-    rv = greFile->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
+    greFile->Exists(&exists);
+    if (!exists)
         return PR_FALSE;
 
-    if (autoregModTime > nowTime) {
-        NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        return PR_FALSE;
-    }
-    return autoregModTime > compregModTime; 
+    greFile->GetLastModifiedTime(&autoregModTime);
+
+    return LL_CMP(autoregModTime, >, compregModTime);
 }
 
 
