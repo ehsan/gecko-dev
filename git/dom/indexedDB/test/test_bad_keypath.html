@@ -24,12 +24,12 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "keyPath");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      let objectStore = db.createObjectStore("foo", "keyPath");
+      let objectStore = event.result;
 
       request = objectStore.add({keyPath:"foo"});
       request.onerror = errorHandler;

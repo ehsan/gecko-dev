@@ -47,8 +47,8 @@
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE },
-  { &nsGkAtoms::target, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink },
+  { &nsGkAtoms::target, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(A)
@@ -276,7 +276,7 @@ nsSVGAElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
-nsEventStates
+PRInt32
 nsSVGAElement::IntrinsicState() const
 {
   return Link::LinkState() | nsSVGAElementBase::IntrinsicState();

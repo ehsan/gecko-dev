@@ -116,7 +116,7 @@ public:
   virtual already_AddRefed<gfxASurface> GetAsSurface();
 
   nsAutoArrayPtr<PRUint8> mBuffer;
-  nsRefPtr<ID3D10Device1> mDevice;
+  LayerManagerD3D10 *mManager;
   Data mData;
   gfxIntSize mSize;
   nsRefPtr<ID3D10Texture2D> mYTexture;

@@ -109,7 +109,7 @@
 
 #include "nsIServiceManager.h"
 #include "nsIDOMEventListener.h"
-#include "nsEventStateManager.h"
+
 #include "nsIWebNavigation.h"
 #include "nsIBaseWindow.h"
 
@@ -771,7 +771,7 @@ nsINode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
 
 //----------------------------------------------------------------------
 
-nsEventStates
+PRInt32
 nsIContent::IntrinsicState() const
 {
   return IsEditable() ? NS_EVENT_STATE_MOZ_READWRITE :
@@ -3051,7 +3051,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 already_AddRefed<nsINodeList>
-nsGenericElement::GetChildren(PRUint32 aFilter)
+nsGenericElement::GetChildren(PRInt32 aChildType)
 {
   nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
@@ -3076,7 +3076,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
 
   nsIDocument* document = GetOwnerDoc();
   if (document) {
-    if (!(aFilter & eAllButXBL)) {
+    if (aChildType != eAllButXBL) {
       childList = document->BindingManager()->GetXBLChildNodesFor(this);
       if (!childList) {
         childList = GetChildNodesList();
@@ -3102,7 +3102,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
     // Append native anonymous content to the end.
     nsIAnonymousContentCreator* creator = do_QueryFrame(frame);
     if (creator) {
-      creator->AppendAnonymousContentTo(*list, aFilter);
+      creator->AppendAnonymousContentTo(*list);
     }
 
     // Append :after generated content.
@@ -4675,9 +4675,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
 
   // When notifying, make sure to keep track of states whose value
   // depends solely on the value of an attribute.
-  nsEventStates stateMask;
+  PRUint32 stateMask;
   if (aNotify) {
-    stateMask = IntrinsicState();
+    stateMask = PRUint32(IntrinsicState());
   }
 
   nsMutationGuard::DidMutate();
@@ -4712,8 +4712,8 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   }
 
   if (aNotify) {
-    stateMask ^= IntrinsicState();
-    if (document && !stateMask.IsEmpty()) {
+    stateMask = stateMask ^ PRUint32(IntrinsicState());
+    if (stateMask && document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
@@ -4914,10 +4914,10 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   // When notifying, make sure to keep track of states whose value
   // depends solely on the value of an attribute.
-  nsEventStates stateMask;
+  PRUint32 stateMask;
   if (aNotify) {
-    stateMask = IntrinsicState();
-  }
+    stateMask = PRUint32(IntrinsicState());
+  }    
 
   PRBool hasMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
@@ -4959,8 +4959,8 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   }
 
   if (aNotify) {
-    stateMask ^= IntrinsicState();
-    if (document && !stateMask.IsEmpty()) {
+    stateMask = stateMask ^ PRUint32(IntrinsicState());
+    if (stateMask && document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
       document->ContentStatesChanged(this, nsnull, stateMask);
     }
@@ -5276,13 +5276,12 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
   // We do the status bar updates in PreHandleEvent so that the status bar gets
   // updated even if the event is consumed before we have a chance to set it.
   switch (aVisitor.mEvent->message) {
-  // Set the status bar similarly for mouseover and focus
+  // Set the status bar the same for focus and mouseover
   case NS_MOUSE_ENTER_SYNTH:
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     // FALL THROUGH
   case NS_FOCUS_CONTENT:
-    if (aVisitor.mEvent->eventStructType != NS_FOCUS_EVENT ||
-        !static_cast<nsFocusEvent*>(aVisitor.mEvent)->isRefocus) {
+    {
       nsAutoString target;
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
@@ -5346,10 +5345,8 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
                                nsIFocusManager::FLAG_NOSCROLL);
           }
 
-          nsIEventStateManager* esm =
-            aVisitor.mPresContext->EventStateManager();
-          nsEventStateManager::SetGlobalActiveContent(
-            static_cast<nsEventStateManager*>(esm), this);
+          aVisitor.mPresContext->EventStateManager()->
+            SetContentState(this, NS_EVENT_STATE_ACTIVE);
         }
       }
     }

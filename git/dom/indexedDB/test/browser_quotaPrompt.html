@@ -35,12 +35,9 @@
       function onDone() {
         window.removeEventListener("indexedDB-addMore", onAddMore, true);
         window.removeEventListener("indexedDB-done", onDone, true);
-
-        let request = db.setVersion("2");
+        let request = db.removeObjectStore("foo");
         request.onerror = errorHandler;
         request.onsuccess = function(event) {
-          db.removeObjectStore("foo");
-
           testResult = "finished";
           testException = undefined;
           finishTest();
@@ -62,12 +59,10 @@
 
         db = event.result;
 
-        request = db.setVersion("1");
+        request = db.createObjectStore("foo", "", true);
         request.onerror = errorHandler;
         request.onsuccess = grabEventAndContinueHandler;
         event = yield;
-
-        db.createObjectStore("foo", "", true);
 
         setTimeout(testFinishedCallback, 0, "ready");
         yield;

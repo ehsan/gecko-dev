@@ -48,7 +48,6 @@
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class AsyncConnectionHelper;
 class IDBObjectStore;
 struct IndexInfo;
 
@@ -69,31 +68,6 @@ public:
   IDBObjectStore* ObjectStore()
   {
     return mObjectStore;
-  }
-
-  const PRInt64 Id() const
-  {
-    return mId;
-  }
-
-  const nsString& Name() const
-  {
-    return mName;
-  }
-
-  bool IsUnique() const
-  {
-    return mUnique;
-  }
-
-  bool IsAutoIncrement() const
-  {
-    return mAutoIncrement;
-  }
-
-  const nsString& KeyPath() const
-  {
-    return mName;
   }
 
 private:

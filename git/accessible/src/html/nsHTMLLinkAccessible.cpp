@@ -41,7 +41,7 @@
 
 #include "nsCoreUtils.h"
 
-#include "nsIEventStateManager.h"
+#include "nsILink.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLinkAccessible
@@ -82,22 +82,20 @@ nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     *aState |= nsIAccessibleStates::STATE_SELECTABLE;
   }
 
-  nsEventStates state = mContent->IntrinsicState();
-  if (state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
-                                  NS_EVENT_STATE_UNVISITED)) {
-    *aState |= nsIAccessibleStates::STATE_LINKED;
-
-    if (state.HasState(NS_EVENT_STATE_VISITED))
-      *aState |= nsIAccessibleStates::STATE_TRAVERSED;
-
-    return NS_OK;
+  nsLinkState linkState = mContent->GetLinkState();
+  if (linkState == eLinkState_NotLink || linkState == eLinkState_Unknown) {
+    // This is a either named anchor (a link with also a name attribute) or
+    // it doesn't have any attributes. Check if 'click' event handler is
+    // registered, otherwise bail out.
+    PRBool isOnclick = nsCoreUtils::HasClickListener(mContent);
+    if (!isOnclick)
+      return NS_OK;
   }
 
-  // This is a either named anchor (a link with also a name attribute) or
-  // it doesn't have any attributes. Check if 'click' event handler is
-  // registered, otherwise bail out.
-  if (nsCoreUtils::HasClickListener(mContent))
-    *aState |= nsIAccessibleStates::STATE_LINKED;
+  *aState |= nsIAccessibleStates::STATE_LINKED;
+
+  if (linkState == eLinkState_Visited)
+    *aState |= nsIAccessibleStates::STATE_TRAVERSED;
 
   return NS_OK;
 }
@@ -188,7 +186,6 @@ nsHTMLLinkAccessible::IsLinked()
   if (IsDefunct())
     return PR_FALSE;
 
-  nsEventStates state = mContent->IntrinsicState();
-  return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
-                                     NS_EVENT_STATE_UNVISITED);
+  nsLinkState linkState = mContent->GetLinkState();
+  return linkState != eLinkState_NotLink && linkState != eLinkState_Unknown;
 }

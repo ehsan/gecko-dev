@@ -21,7 +21,6 @@
 
 namespace gl
 {
-    class Texture;
 
 // A class derived from RenderbufferStorage is created whenever glRenderbufferStorage
 // is called. The specific concrete type depends on whether the internal format is
@@ -42,10 +41,7 @@ class RenderbufferStorage
 
     virtual int getWidth() const;
     virtual int getHeight() const;
-    virtual GLenum getFormat() const;
-    virtual bool isFloatingPoint() const;
-    D3DFORMAT getD3DFormat() const;
-    GLsizei getSamples() const;
+    GLenum getFormat() const;
     unsigned int getSerial() const;
 
     static unsigned int issueSerial();
@@ -53,8 +49,6 @@ class RenderbufferStorage
   protected:
     void setSize(int width, int height);
     GLenum mFormat;
-    D3DFORMAT mD3DFormat;
-    GLsizei mSamples;
     unsigned int mSerial;
 
   private:
@@ -86,7 +80,6 @@ class Renderbuffer : public RefCountObject
     int getWidth() const;
     int getHeight() const;
     GLenum getFormat() const;
-    D3DFORMAT getD3DFormat() const;
     unsigned int getSerial() const;
 
     void setStorage(RenderbufferStorage *newStorage);
@@ -102,8 +95,7 @@ class Colorbuffer : public RenderbufferStorage
 {
   public:
     explicit Colorbuffer(IDirect3DSurface9 *renderTarget);
-    explicit Colorbuffer(const Texture* texture);
-    Colorbuffer(int width, int height, GLenum format, GLsizei samples);
+    Colorbuffer(int width, int height, GLenum format);
 
     ~Colorbuffer();
 
@@ -127,7 +119,7 @@ class DepthStencilbuffer : public RenderbufferStorage
 {
   public:
     explicit DepthStencilbuffer(IDirect3DSurface9 *depthStencil);
-    DepthStencilbuffer(int width, int height, GLsizei samples);
+    DepthStencilbuffer(int width, int height);
 
     ~DepthStencilbuffer();
 
@@ -148,7 +140,7 @@ class Depthbuffer : public DepthStencilbuffer
 {
   public:
     explicit Depthbuffer(IDirect3DSurface9 *depthStencil);
-    Depthbuffer(int width, int height, GLsizei samples);
+    Depthbuffer(int width, int height);
 
     ~Depthbuffer();
 
@@ -163,7 +155,7 @@ class Stencilbuffer : public DepthStencilbuffer
 {
   public:
     explicit Stencilbuffer(IDirect3DSurface9 *depthStencil);
-    Stencilbuffer(int width, int height, GLsizei samples);
+    Stencilbuffer(int width, int height);
 
     ~Stencilbuffer();
 

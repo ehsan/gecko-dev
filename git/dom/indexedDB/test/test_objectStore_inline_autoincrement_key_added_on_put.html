@@ -33,14 +33,13 @@ function testSteps()
     keyName: "id",
   };
 
-  let request = db.setVersion("1");
+  let request = db.createObjectStore(test.name, test.keyName,
+                                     test.autoIncrement);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
 
-  let objectStore = db.createObjectStore(test.name, test.keyName,
-                                         test.autoIncrement);
-
+  let objectStore = event.transaction.objectStore(test.name);
   request = objectStore.add(test.storedObject);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
