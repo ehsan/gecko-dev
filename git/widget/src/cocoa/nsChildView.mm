@@ -47,6 +47,7 @@
 #include "prlog.h"
 
 #include <unistd.h>
+#include <math.h>
  
 #include "nsChildView.h"
 #include "nsCocoaWindow.h"
@@ -55,15 +56,12 @@
 #include "nsCOMPtr.h"
 #include "nsToolkit.h"
 #include "nsCRT.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 
 #include "nsFontMetrics.h"
 #include "nsIRegion.h"
 #include "nsIRollupListener.h"
 #include "nsIViewManager.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIServiceManager.h"
 #include "nsILocalFile.h"
 #include "nsILocalFileMac.h"
 #include "nsGfxCIID.h"
@@ -90,6 +88,8 @@
 #include "LayerManagerOGL.h"
 #include "GLContext.h"
 
+#include "mozilla/Preferences.h"
+
 #include <dlfcn.h>
 
 #include <ApplicationServices/ApplicationServices.h>
@@ -97,6 +97,7 @@
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 using namespace mozilla::widget;
+using namespace mozilla;
 
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
@@ -1229,44 +1230,54 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   // visible region to be the entire port every time. It is necessary to set up our
   // window's port even for CoreGraphics plugins, because they may still use Carbon
   // internally (see bug #420527 for details).
-  CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
-  if (isQDPlugin) {
-    port = mPluginQDPort.port;
-  }
-
-  RgnHandle pluginRegion = ::NewRgn();
-  if (pluginRegion) {
-    PRBool portChanged = (port != CGrafPtr(GetQDGlobalsThePort()));
-    CGrafPtr oldPort;
-    GDHandle oldDevice;
-
-    if (portChanged) {
-      ::GetGWorld(&oldPort, &oldDevice);
-      ::SetGWorld(port, ::IsPortOffscreen(port) ? nsnull : ::GetMainDevice());
+  //
+  // Don't use this code if any of the QuickDraw APIs it currently requires are
+  // missing (as they probably will be on OS X 10.8 and up).
+  if (::NewRgn && ::GetQDGlobalsThePort && ::GetGWorld && ::SetGWorld &&
+      ::IsPortOffscreen && ::GetMainDevice && ::SetOrigin && ::RectRgn &&
+      ::SetPortVisibleRegion && ::SetPortClipRegion && ::DisposeRgn) {
+    CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
+    if (isQDPlugin) {
+      port = mPluginQDPort.port;
     }
 
-    ::SetOrigin(0, 0);
-    
-    nsIntRect clipRect; // this is in native window coordinates
-    nsIntPoint origin;
-    PRBool visible;
-    GetPluginClipRect(clipRect, origin, visible);
-    
-    // XXX if we're not visible, set an empty clip region?
-    Rect pluginRect;
-    ConvertGeckoRectToMacRect(clipRect, pluginRect);
-    
-    ::RectRgn(pluginRegion, &pluginRect);
-    ::SetPortVisibleRegion(port, pluginRegion);
-    ::SetPortClipRegion(port, pluginRegion);
-    
-    // now set up the origin for the plugin
-    ::SetOrigin(origin.x, origin.y);
-    
-    ::DisposeRgn(pluginRegion);
+    RgnHandle pluginRegion = ::NewRgn();
+    if (pluginRegion) {
+      PRBool portChanged = (port != CGrafPtr(::GetQDGlobalsThePort()));
+      CGrafPtr oldPort;
+      GDHandle oldDevice;
 
-    if (portChanged)
-      ::SetGWorld(oldPort, oldDevice);
+      if (portChanged) {
+        ::GetGWorld(&oldPort, &oldDevice);
+        ::SetGWorld(port, ::IsPortOffscreen(port) ? nsnull : ::GetMainDevice());
+      }
+
+      ::SetOrigin(0, 0);
+
+      nsIntRect clipRect; // this is in native window coordinates
+      nsIntPoint origin;
+      PRBool visible;
+      GetPluginClipRect(clipRect, origin, visible);
+
+      // XXX if we're not visible, set an empty clip region?
+      Rect pluginRect;
+      ConvertGeckoRectToMacRect(clipRect, pluginRect);
+
+      ::RectRgn(pluginRegion, &pluginRect);
+      ::SetPortVisibleRegion(port, pluginRegion);
+      ::SetPortClipRegion(port, pluginRegion);
+
+      // now set up the origin for the plugin
+      ::SetOrigin(origin.x, origin.y);
+
+      ::DisposeRgn(pluginRegion);
+
+      if (portChanged) {
+        ::SetGWorld(oldPort, oldDevice);
+      }
+    }
+  } else {
+    NS_WARNING("Cannot set plugin's visible region -- required QuickDraw APIs are missing!");
   }
 #endif
 
@@ -2238,6 +2249,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mDidForceRefreshOpenGL = NO;
 
     [self setFocusRingType:NSFocusRingTypeNone];
+
+#ifdef __LP64__
+    mSwipeAnimationCancelled = nil;
+#endif
   }
   
   // register for things we'll take from other applications
@@ -2332,7 +2347,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #ifndef NP_NO_QUICKDRAW
   // This sets the current port to _savePort.
   // todo: Only do if a Quickdraw plugin is present in the hierarchy!
-  ::SetPort(NULL);
+  // Check if ::SetPort() is available -- it probably won't be on
+  // OS X 10.8 and up.
+  if (::SetPort) {
+    ::SetPort(NULL);
+  }
 #endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -2642,7 +2661,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // Set the current GrafPort to a "safe" port before calling [NSQuickDrawView lockFocus],
   // so that the NSQuickDrawView stashes a pointer to this known-good port internally.
   // It will set the port back to this port on destruction.
-  ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
+  // Check if ::SetPort() is available -- it probably won't be on OS X 10.8 and up.
+  if (::SetPort) {
+    ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
+  }
 #endif
 
   [super lockFocus];
@@ -2938,13 +2960,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!gRollupWidget)
     return;
 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (prefs) {
-    PRBool useNativeContextMenus;
-    nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativeContextMenus);
-    if (NS_SUCCEEDED(rv) && useNativeContextMenus)
-      return;
-  }
+#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
+  return;
+#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
 
   NSWindow *popupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
@@ -3220,6 +3238,126 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
+// Support fluid swipe tracking on OS X 10.7 and higher.  We must be careful
+// to only invoke this support on a horizontal two-finger gesture that really
+// is a swipe (and not a scroll) -- in other words, the app is responsible
+// for deciding which is which.  But once the decision is made, the OS tracks
+// the swipe until it has finished, and decides whether or not it succeeded.
+// A swipe has the same functionality as the Back and Forward buttons.  For
+// now swipe animation is unsupported (e.g. no bounces).  This method is
+// partly based on Apple sample code available at
+// http://developer.apple.com/library/mac/#releasenotes/Cocoa/AppKit.html
+// (under Fluid Swipe Tracking API).
+#ifdef __LP64__
+- (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
+                      scrollOverflow:(PRInt32)overflow
+{
+  if (!nsToolkit::OnLionOrLater()) {
+    return;
+  }
+  // This method checks whether the AppleEnableSwipeNavigateWithScrolls global
+  // preference is set.  If it isn't, fluid swipe tracking is disabled, and a
+  // horizontal two-finger gesture is always a scroll (even in Safari).  This
+  // preference can't (currently) be set from the Preferences UI -- only using
+  // 'defaults write'.
+  if (![NSEvent isSwipeTrackingFromScrollEventsEnabled]) {
+    return;
+  }
+  if ([anEvent type] != NSScrollWheel) {
+    return;
+  }
+
+  // If a swipe is currently being tracked kill it -- it's been interrupted by
+  // another gesture or legacy scroll wheel event.
+  if (mSwipeAnimationCancelled && (*mSwipeAnimationCancelled == NO)) {
+    *mSwipeAnimationCancelled = YES;
+    mSwipeAnimationCancelled = nil;
+  }
+
+  // Only initiate tracking if the user has tried to scroll past the edge of
+  // the current page (as indicated by 'overflow' being non-zero).  Gecko only
+  // sets nsMouseScrollEvent.scrollOverflow when it's processing
+  // NS_MOUSE_PIXEL_SCROLL events (not NS_MOUSE_SCROLL events).
+  // nsMouseScrollEvent.scrollOverflow only indicates left or right overflow
+  // for horizontal NS_MOUSE_PIXEL_SCROLL events.
+  if (!overflow) {
+    return;
+  }
+  // Only initiate tracking for gestures that have just begun -- otherwise a
+  // scroll to one side of the page can have a swipe tacked on to it.
+  if ([anEvent phase] != NSEventPhaseBegan) {
+    return;
+  }
+  CGFloat deltaX, deltaY;
+  if ([anEvent hasPreciseScrollingDeltas]) {
+    deltaX = [anEvent scrollingDeltaX];
+    deltaY = [anEvent scrollingDeltaY];
+  } else {
+    deltaX = [anEvent deltaX];
+    deltaY = [anEvent deltaY];
+  }
+  // Only initiate tracking for events whose horizontal element is at least
+  // eight times larger than its vertical element.  This minimizes performance
+  // problems with vertical scrolls (by minimizing the possibility that they'll
+  // be misinterpreted as horizontal swipes), while still tolerating a small
+  // vertical element to a true horizontal swipe.  The number '8' was arrived
+  // at by trial and error.
+  if ((deltaX == 0) || (fabs(deltaX) <= fabs(deltaY) * 8)) {
+    return;
+  }
+
+  // geckoEvent must be initialized now (while anEvent is still available),
+  // but we also need to access it (and modify it) in the following "block"
+  // (the trackingHandler passed to [NSEvent trackSwipeEventWithOptions:...]).
+  // Normally we'd give it the '__block' keyword, but this makes the compiler
+  // crash :-(  Without the '__block' keyword, it becomes immutable from
+  // trackingHandler.  So trackingHandler must make a copy of it and modify
+  // that.
+  nsSimpleGestureEvent geckoEvent(PR_TRUE, NS_SIMPLE_GESTURE_SWIPE, mGeckoChild, 0, 0.0);
+  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+
+  __block BOOL animationCancelled = NO;
+  // At this point, anEvent is the first scroll wheel event in a two-finger
+  // horizontal gesture that we've decided to treat as a swipe.  When we call
+  // [NSEvent trackSwipeEventWithOptions:...], the OS interprets all
+  // subsequent scroll wheel events that are part of this gesture as a swipe,
+  // and stops sending them to us.  The OS calls the trackingHandler "block"
+  // multiple times, asynchronously (sometimes after [NSEvent
+  // maybeTrackScrollEventAsSwipe:...] has returned).  The OS determines when
+  // the gesture has finished, and whether or not it was "successful" -- this
+  // information is passed to trackingHandler.  We must be careful to only
+  // call [NSEvent maybeTrackScrollEventAsSwipe:...] on a "real" swipe --
+  // otherwise two-finger scrolling performance will suffer significantly.
+  [anEvent trackSwipeEventWithOptions:0
+             dampenAmountThresholdMin:-1
+                                  max:1
+                         usingHandler:^(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
+      if (animationCancelled) {
+        *stop = YES;
+        return;
+      }
+      if (isComplete) {
+        if (gestureAmount) {
+          nsSimpleGestureEvent geckoEventCopy(geckoEvent);
+          if (gestureAmount > 0) {
+            geckoEventCopy.direction |= nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
+          } else {
+            geckoEventCopy.direction |= nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
+          }
+          mGeckoChild->DispatchWindowEvent(geckoEventCopy);
+        }
+        mSwipeAnimationCancelled = nil;
+      }
+    }];
+
+  // We keep a pointer to the __block variable (animationCanceled) so we
+  // can cancel our block handler at any time.  Note: We must assign
+  // &animationCanceled after our block creation and copy -- its address
+  // isn't resolved until then!
+  mSwipeAnimationCancelled = &animationCancelled;
+}
+#endif // #ifdef __LP64__
 
 // Returning NO from this method only disallows ordering on mousedown - in order
 // to prevent it for mouseup too, we need to call [NSApp preventWindowOrdering]
@@ -3632,12 +3770,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
     geckoEvent.pluginEvent = &cocoaEvent;
   }
 
-  PRBool handled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+  mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
     return;
 
-  if (!handled)
-    [super rightMouseDown:theEvent]; // let the superview do context menu stuff
+  // Let the superclass do the context menu stuff.
+  [super rightMouseDown:theEvent];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3766,11 +3904,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   float scrollDelta = 0;
   float scrollDeltaPixels = 0;
-  PRBool checkPixels = PR_TRUE;
-
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (prefs)
-    prefs->GetBoolPref("mousewheel.enable_pixel_scrolling", &checkPixels);
+  PRBool checkPixels =
+    Preferences::GetBool("mousewheel.enable_pixel_scrolling", PR_TRUE);
 
   // Calling deviceDeltaX or deviceDeltaY on theEvent will trigger a Cocoa
   // assertion and an Objective-C NSInternalInconsistencyException if the
@@ -3912,6 +4047,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
     geckoEvent.delta = NSToIntRound(scrollDeltaPixels);
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
     mGeckoChild->DispatchWindowEvent(geckoEvent);
+#ifdef __LP64__
+    // scrollOverflow tells us when the user has tried to scroll past the edge
+    // of a page (in those cases it's non-zero).  Gecko only sets it when
+    // processing NS_MOUSE_PIXEL_SCROLL events (not MS_MOUSE_SCROLL events).
+    // It only means left/right overflow when Gecko is processing a horizontal
+    // event.
+    if (inAxis & nsMouseScrollEvent::kIsHorizontal) {
+      [self maybeTrackScrollEventAsSwipe:theEvent
+                          scrollOverflow:geckoEvent.scrollOverflow];
+    }
+#endif // #ifdef __LP64__
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;

@@ -66,6 +66,52 @@
 #import <Cocoa/Cocoa.h>
 #import <AppKit/NSOpenGL.h>
 
+// The header files QuickdrawAPI.h and QDOffscreen.h are missing on OS X 10.7
+// and up (though the QuickDraw APIs defined in them are still present) -- so
+// we need to supply the relevant parts of their contents here.  It's likely
+// that Apple will eventually remove the APIs themselves (probably in OS X
+// 10.8), so we need to make them weak imports, and test for their presence
+// before using them.
+#ifdef __cplusplus
+extern "C" {
+#endif
+  #if !defined(__QUICKDRAWAPI__)
+
+  extern void SetPort(GrafPtr port)
+    __attribute__((weak_import));
+  extern void SetOrigin(short h, short v)
+    __attribute__((weak_import));
+  extern RgnHandle NewRgn(void)
+    __attribute__((weak_import));
+  extern void DisposeRgn(RgnHandle rgn)
+    __attribute__((weak_import));
+  extern void RectRgn(RgnHandle rgn, const Rect * r)
+    __attribute__((weak_import));
+  extern GDHandle GetMainDevice(void)
+    __attribute__((weak_import));
+  extern Boolean IsPortOffscreen(CGrafPtr port)
+    __attribute__((weak_import));
+  extern void SetPortVisibleRegion(CGrafPtr port, RgnHandle visRgn)
+    __attribute__((weak_import));
+  extern void SetPortClipRegion(CGrafPtr port, RgnHandle clipRgn)
+    __attribute__((weak_import));
+  extern CGrafPtr GetQDGlobalsThePort(void)
+    __attribute__((weak_import));
+
+  #endif /* __QUICKDRAWAPI__ */
+
+  #if !defined(__QDOFFSCREEN__)
+
+  extern void GetGWorld(CGrafPtr *  port, GDHandle *  gdh)
+    __attribute__((weak_import));
+  extern void SetGWorld(CGrafPtr port, GDHandle gdh)
+    __attribute__((weak_import));
+
+  #endif /* __QDOFFSCREEN__ */
+#ifdef __cplusplus
+}
+#endif
+
 class gfxASurface;
 class nsChildView;
 class nsCocoaWindow;
@@ -121,6 +167,59 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 @interface NSEvent (ScrollPhase)
 - (long long)_scrollPhase;
 @end
+
+// The following section, required to support fluid swipe tracking on OS X 10.7
+// and up, contains defines/declarations that are only available on 10.7 and up.
+// [NSEvent trackSwipeEventWithOptions:...] also requires that the compiler
+// support "blocks"
+// (http://developer.apple.com/library/mac/#documentation/Cocoa/Conceptual/Blocks/Articles/00_Introduction.html)
+// -- which it does on 10.6 and up (using the 10.6 SDK or higher).
+//
+// MAC_OS_X_VERSION_MAX_ALLOWED "controls which OS functionality, if used,
+// will result in a compiler error because that functionality is not
+// available" (quoting from AvailabilityMacros.h).  The compiler initializes
+// it to the version of the SDK being used.  Its value does *not* prevent the
+// binary from running on higher OS versions.  MAC_OS_X_VERSION_10_7 and
+// friends are defined (in AvailabilityMacros.h) as decimal numbers (not
+// hexadecimal numbers).
+#if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
+#ifdef __LP64__
+enum {
+  NSEventPhaseNone        = 0,
+  NSEventPhaseBegan       = 0x1 << 0,
+  NSEventPhaseStationary  = 0x1 << 1,
+  NSEventPhaseChanged     = 0x1 << 2,
+  NSEventPhaseEnded       = 0x1 << 3,
+  NSEventPhaseCancelled   = 0x1 << 4,
+};
+typedef NSUInteger NSEventPhase;
+
+enum {
+  NSEventSwipeTrackingLockDirection = 0x1 << 0,
+  NSEventSwipeTrackingClampGestureAmount = 0x1 << 1
+};
+typedef NSUInteger NSEventSwipeTrackingOptions;
+
+enum {
+  NSEventGestureAxisNone = 0,
+  NSEventGestureAxisHorizontal,
+  NSEventGestureAxisVertical
+};
+typedef NSInteger NSEventGestureAxis;
+
+@interface NSEvent (FluidSwipeTracking)
++ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
+- (BOOL)hasPreciseScrollingDeltas;
+- (CGFloat)scrollingDeltaX;
+- (CGFloat)scrollingDeltaY;
+- (NSEventPhase)phase;
+- (void)trackSwipeEventWithOptions:(NSEventSwipeTrackingOptions)options
+          dampenAmountThresholdMin:(CGFloat)minDampenThreshold
+                               max:(CGFloat)maxDampenThreshold
+                      usingHandler:(void (^)(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop))trackingHandler;
+@end
+#endif // #ifdef __LP64__
+#endif // #if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
 
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
@@ -219,6 +318,11 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   float mCumulativeRotation;
 
   BOOL mDidForceRefreshOpenGL;
+
+  // Support for fluid swipe tracking.
+#ifdef __LP64__
+  BOOL *mSwipeAnimationCancelled;
+#endif
 }
 
 // class initialization
@@ -271,6 +375,12 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (void)magnifyWithEvent:(NSEvent *)anEvent;
 - (void)rotateWithEvent:(NSEvent *)anEvent;
 - (void)endGestureWithEvent:(NSEvent *)anEvent;
+
+// Support for fluid swipe tracking.
+#ifdef __LP64__
+- (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
+                      scrollOverflow:(PRInt32)overflow;
+#endif
 @end
 
 class ChildViewMouseTracker {
