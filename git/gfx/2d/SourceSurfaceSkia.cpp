@@ -10,7 +10,6 @@
 #include "skia/SkDevice.h"
 #include "HelpersSkia.h"
 #include "DrawTargetSkia.h"
-#include "DataSurfaceHelpers.h"
 
 namespace mozilla {
 namespace gfx {

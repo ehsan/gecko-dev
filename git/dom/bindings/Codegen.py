@@ -466,25 +466,21 @@ class CGWrapper(CGThing):
             return ''
         decl = self.child.declare()
         if self.reindent:
-            decl = self.reindentString(decl, self.declarePre)
+            # We don't use lineStartDetector because we don't want to
+            # insert whitespace at the beginning of our _first_ line.
+            decl = stripTrailingWhitespace(
+                decl.replace("\n", "\n" + (" " * len(self.declarePre))))
         return self.declarePre + decl + self.declarePost
     def define(self):
         if self.declareOnly:
             return ''
         defn = self.child.define()
         if self.reindent:
-            defn = self.reindentString(defn, self.definePre)
+            # We don't use lineStartDetector because we don't want to
+            # insert whitespace at the beginning of our _first_ line.
+            defn = stripTrailingWhitespace(
+                defn.replace("\n", "\n" + (" " * len(self.definePre))))
         return self.definePre + defn + self.definePost
-
-    @staticmethod
-    def reindentString(stringToIndent, widthString):
-        # We don't use lineStartDetector because we don't want to
-        # insert whitespace at the beginning of our _first_ line.
-        # Use the length of the last line of width string, in case
-        # it is a multiline string.
-        lastLineWidth = len(widthString.splitlines()[-1])
-        return stripTrailingWhitespace(
-            stringToIndent.replace("\n", "\n" + (" " * lastLineWidth)))
 
     def deps(self):
         return self.child.deps()
