@@ -876,17 +876,16 @@ static GtkSelectionData* CopyRetrievedData(GtkSelectionData *aData)
         gtk_selection_data_copy(aData) : nullptr;
 }
 
-class RetrievalContext {
+class RetrievalContext : public RefCounted<RetrievalContext> {
+public:
+    MOZ_DECLARE_REFCOUNTED_TYPENAME(RetrievalContext)
+    enum State { INITIAL, COMPLETED, TIMED_OUT };
+
+    RetrievalContext() : mState(INITIAL), mData(nullptr) {}
     ~RetrievalContext()
     {
         MOZ_ASSERT(!mData, "Wait() wasn't called");
     }
-
-public:
-    NS_INLINE_DECL_REFCOUNTING(RetrievalContext)
-    enum State { INITIAL, COMPLETED, TIMED_OUT };
-
-    RetrievalContext() : mState(INITIAL), mData(nullptr) {}
 
     /**
      * Call this when data has been retrieved.

@@ -39,10 +39,11 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
-                                  "resource://gre/modules/PluralForm.jsm");
+this.__defineGetter__("PluralForm", function() {
+  delete this.PluralForm;
+  Cu.import("resource://gre/modules/PluralForm.jsm");
+  return PluralForm;
+});
 
 this.__defineGetter__("gDecimalSymbol", function() {
   delete this.gDecimalSymbol;

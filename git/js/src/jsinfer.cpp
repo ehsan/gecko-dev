@@ -311,45 +311,15 @@ TemporaryTypeSet::TemporaryTypeSet(Type type)
 }
 
 bool
-TypeSet::mightBeMIRType(jit::MIRType type)
+TypeSet::mightBeType(JSValueType type)
 {
     if (unknown())
         return true;
 
-    if (type == jit::MIRType_Object)
+    if (type == JSVAL_TYPE_OBJECT)
         return unknownObject() || baseObjectCount() != 0;
 
-    switch (type) {
-      case jit::MIRType_Undefined:
-        return baseFlags() & TYPE_FLAG_UNDEFINED;
-      case jit::MIRType_Null:
-        return baseFlags() & TYPE_FLAG_NULL;
-      case jit::MIRType_Boolean:
-        return baseFlags() & TYPE_FLAG_BOOLEAN;
-      case jit::MIRType_Int32:
-        return baseFlags() & TYPE_FLAG_INT32;
-      case jit::MIRType_Float32: // Fall through, there's no JSVAL for Float32.
-      case jit::MIRType_Double:
-        return baseFlags() & TYPE_FLAG_DOUBLE;
-      case jit::MIRType_String:
-        return baseFlags() & TYPE_FLAG_STRING;
-      case jit::MIRType_MagicOptimizedArguments:
-        return baseFlags() & TYPE_FLAG_LAZYARGS;
-      case jit::MIRType_MagicHole:
-      case jit::MIRType_MagicIsConstructing:
-        // These magic constants do not escape to script and are not observed
-        // in the type sets.
-        //
-        // The reason we can return false here is subtle: if Ion is asking the
-        // type set if it has seen such a magic constant, then the MIR in
-        // question is the most generic type, MIRType_Value. A magic constant
-        // could only be emitted by a MIR of MIRType_Value if that MIR is a
-        // phi, and we check that different magic constants do not flow to the
-        // same join point in GuessPhiType.
-        return false;
-      default:
-        MOZ_ASSUME_UNREACHABLE("Bad MIR type");
-    }
+    return baseFlags() & PrimitiveTypeFlag(type);
 }
 
 bool
@@ -1172,41 +1142,41 @@ HeapTypeSetKey::freeze(CompilerConstraintList *constraints)
     constraints->add(alloc->new_<T>(alloc, *this, ConstraintDataFreeze()));
 }
 
-static inline jit::MIRType
-GetMIRTypeFromTypeFlags(TypeFlags flags)
+static inline JSValueType
+GetValueTypeFromTypeFlags(TypeFlags flags)
 {
     switch (flags) {
       case TYPE_FLAG_UNDEFINED:
-        return jit::MIRType_Undefined;
+        return JSVAL_TYPE_UNDEFINED;
       case TYPE_FLAG_NULL:
-        return jit::MIRType_Null;
+        return JSVAL_TYPE_NULL;
       case TYPE_FLAG_BOOLEAN:
-        return jit::MIRType_Boolean;
+        return JSVAL_TYPE_BOOLEAN;
       case TYPE_FLAG_INT32:
-        return jit::MIRType_Int32;
+        return JSVAL_TYPE_INT32;
       case (TYPE_FLAG_INT32 | TYPE_FLAG_DOUBLE):
-        return jit::MIRType_Double;
+        return JSVAL_TYPE_DOUBLE;
       case TYPE_FLAG_STRING:
-        return jit::MIRType_String;
+        return JSVAL_TYPE_STRING;
       case TYPE_FLAG_LAZYARGS:
-        return jit::MIRType_MagicOptimizedArguments;
+        return JSVAL_TYPE_MAGIC;
       case TYPE_FLAG_ANYOBJECT:
-        return jit::MIRType_Object;
+        return JSVAL_TYPE_OBJECT;
       default:
-        return jit::MIRType_Value;
+        return JSVAL_TYPE_UNKNOWN;
     }
 }
 
-jit::MIRType
-TemporaryTypeSet::getKnownMIRType()
+JSValueType
+TemporaryTypeSet::getKnownTypeTag()
 {
     TypeFlags flags = baseFlags();
-    jit::MIRType type;
+    JSValueType type;
 
     if (baseObjectCount())
-        type = flags ? jit::MIRType_Value : jit::MIRType_Object;
+        type = flags ? JSVAL_TYPE_UNKNOWN : JSVAL_TYPE_OBJECT;
     else
-        type = GetMIRTypeFromTypeFlags(flags);
+        type = GetValueTypeFromTypeFlags(flags);
 
     /*
      * If the type set is totally empty then it will be treated as unknown,
@@ -1216,28 +1186,28 @@ TemporaryTypeSet::getKnownMIRType()
      * added to the set.
      */
     DebugOnly<bool> empty = flags == 0 && baseObjectCount() == 0;
-    JS_ASSERT_IF(empty, type == jit::MIRType_Value);
+    JS_ASSERT_IF(empty, type == JSVAL_TYPE_UNKNOWN);
 
     return type;
 }
 
-jit::MIRType
-HeapTypeSetKey::knownMIRType(CompilerConstraintList *constraints)
+JSValueType
+HeapTypeSetKey::knownTypeTag(CompilerConstraintList *constraints)
 {
     TypeSet *types = maybeTypes();
 
     if (!types || types->unknown())
-        return jit::MIRType_Value;
+        return JSVAL_TYPE_UNKNOWN;
 
     TypeFlags flags = types->baseFlags() & ~TYPE_FLAG_ANYOBJECT;
-    jit::MIRType type;
+    JSValueType type;
 
     if (types->unknownObject() || types->getObjectCount())
-        type = flags ? jit::MIRType_Value : jit::MIRType_Object;
+        type = flags ? JSVAL_TYPE_UNKNOWN : JSVAL_TYPE_OBJECT;
     else
-        type = GetMIRTypeFromTypeFlags(flags);
+        type = GetValueTypeFromTypeFlags(flags);
 
-    if (type != jit::MIRType_Value)
+    if (type != JSVAL_TYPE_UNKNOWN)
         freeze(constraints);
 
     /*
@@ -1247,7 +1217,7 @@ HeapTypeSetKey::knownMIRType(CompilerConstraintList *constraints)
      * that the exact tag is unknown, as it will stay unknown as more types are
      * added to the set.
      */
-    JS_ASSERT_IF(types->empty(), type == jit::MIRType_Value);
+    JS_ASSERT_IF(types->empty(), type == JSVAL_TYPE_UNKNOWN);
 
     return type;
 }
@@ -1701,7 +1671,7 @@ TemporaryTypeSet::convertDoubleElements(CompilerConstraintList *constraints)
         // Only bother with converting known packed arrays whose possible
         // element types are int or double. Other arrays require type tests
         // when elements are accessed regardless of the conversion.
-        if (property.knownMIRType(constraints) == jit::MIRType_Double &&
+        if (property.knownTypeTag(constraints) == JSVAL_TYPE_DOUBLE &&
             !type->hasFlags(constraints, OBJECT_FLAG_NON_PACKED))
         {
             maybeConvert = true;
