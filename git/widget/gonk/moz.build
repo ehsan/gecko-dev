@@ -15,7 +15,6 @@
 # limitations under the License.
 
 EXPORTS += [
-    'GeckoTouchDispatcher.h',
     'GonkPermission.h',
     'OrientationObserver.h',
 ]

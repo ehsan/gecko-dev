@@ -6,6 +6,7 @@ const Cu = Components.utils;
 Cu.import('resource:///modules/devtools/gDevTools.jsm');
 const {require} = Cu.import('resource://gre/modules/devtools/Loader.jsm', {}).devtools;
 const {Services} = Cu.import('resource://gre/modules/Services.jsm');
+const {Devices} = Cu.import("resource://gre/modules/devtools/Devices.jsm");
 const {AppManager} = require('devtools/webide/app-manager');
 const {AppActorFront} = require('devtools/app-actor-front');
 const {Connection} = require('devtools/client/connection-manager');
@@ -226,7 +227,8 @@ let Monitor = {
    */
   pollB2GInfo: function() {
     if (AppManager.selectedRuntime) {
-      let device = AppManager.selectedRuntime.device;
+      let id = AppManager.selectedRuntime.id;
+      let device = Devices.getByName(id);
       if (device && device.shell) {
         device.shell('b2g-info').then(s => {
           let lines = s.split('\n');

@@ -1661,7 +1661,6 @@ class JSScript : public js::gc::TenuredCell
 #endif
 
     void finalize(js::FreeOp *fop);
-    void fixupAfterMovingGC() {}
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 
@@ -1985,7 +1984,6 @@ class LazyScript : public gc::TenuredCell
 
     void markChildren(JSTracer *trc);
     void finalize(js::FreeOp *fop);
-    void fixupAfterMovingGC() {}
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_LAZY_SCRIPT; }
 

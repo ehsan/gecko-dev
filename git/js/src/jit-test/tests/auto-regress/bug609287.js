@@ -9,7 +9,7 @@ f = eval("\
     Proxy.createFunction((\
     function() {\
       return {\
-        has: new ArrayBuffer,\
+        has: ArrayBuffer,\
       }\
     })\
     (\"\"), \

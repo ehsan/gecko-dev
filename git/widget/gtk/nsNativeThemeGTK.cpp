@@ -783,10 +783,6 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
                                        const nsRect& aRect,
                                        const nsRect& aDirtyRect)
 {
-#if (MOZ_WIDGET_GTK != 2)
-  DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
-#endif
-
   GtkWidgetState state;
   GtkThemeWidgetType gtkWidgetType;
   GtkTextDirection direction = GetTextDirection(aFrame);
@@ -880,10 +876,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
 
   renderer.Draw(ctx, drawingRect.Size(), rendererFlags, colormap);
 #else 
-  cairo_t *ctx =
-    (cairo_t*)aDrawTarget->GetNativeSurface(NativeSurfaceType::CAIRO_CONTEXT); 
-  MOZ_ASSERT(ctx);
-  moz_gtk_widget_paint(gtkWidgetType, ctx, &gdk_rect, 
+  moz_gtk_widget_paint(gtkWidgetType, ctx->GetCairo(), &gdk_rect, 
                        &state, flags, direction);
 #endif
 

@@ -50,6 +50,7 @@
 #include "nsAttrAndChildArray.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIContentViewer.h"
+#include "nsIDOMXPathNSResolver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILoadContext.h"
 #include "nsIProgressEventSink.h"

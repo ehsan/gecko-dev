@@ -22,7 +22,6 @@ const {GetAvailableAddons} = require("devtools/webide/addons");
 const {GetTemplatesJSON, GetAddonsJSON} = require("devtools/webide/remote-resources");
 const utils = require("devtools/webide/utils");
 const Telemetry = require("devtools/shared/telemetry");
-const {RuntimeScanners, WiFiScanner} = require("devtools/webide/runtimes");
 
 const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
 
@@ -149,10 +148,7 @@ let UI = {
       case "list-tabs-response":
         this.updateCommands();
         break;
-      case "runtime-details":
-        this.updateRuntimeButton();
-        break;
-      case "runtime-changed":
+      case "runtime":
         this.updateRuntimeButton();
         this.saveLastConnectedRuntime();
         break;
@@ -309,17 +305,17 @@ let UI = {
   /********** RUNTIME **********/
 
   updateRuntimeList: function() {
-    let wifiHeaderNode = document.querySelector("#runtime-header-wifi");
-    if (WiFiScanner.allowed) {
+    let wifiHeaderNode = document.querySelector("#runtime-header-wifi-devices");
+    if (AppManager.isWiFiScanningEnabled) {
       wifiHeaderNode.removeAttribute("hidden");
     } else {
       wifiHeaderNode.setAttribute("hidden", "true");
     }
 
-    let usbListNode = document.querySelector("#runtime-panel-usb");
-    let wifiListNode = document.querySelector("#runtime-panel-wifi");
-    let simulatorListNode = document.querySelector("#runtime-panel-simulator");
-    let otherListNode = document.querySelector("#runtime-panel-other");
+    let USBListNode = document.querySelector("#runtime-panel-usbruntime");
+    let WiFiListNode = document.querySelector("#runtime-panel-wifi-devices");
+    let simulatorListNode = document.querySelector("#runtime-panel-simulators");
+    let customListNode = document.querySelector("#runtime-panel-custom");
 
     let noHelperNode = document.querySelector("#runtime-panel-noadbhelper");
     let noUSBNode = document.querySelector("#runtime-panel-nousbdevice");
@@ -330,27 +326,25 @@ let UI = {
       noHelperNode.removeAttribute("hidden");
     }
 
-    let runtimeList = AppManager.runtimeList;
-
-    if (runtimeList.usb.length === 0 && Devices.helperAddonInstalled) {
+    if (AppManager.runtimeList.usb.length == 0 && Devices.helperAddonInstalled) {
       noUSBNode.removeAttribute("hidden");
     } else {
       noUSBNode.setAttribute("hidden", "true");
     }
 
     for (let [type, parent] of [
-      ["usb", usbListNode],
-      ["wifi", wifiListNode],
+      ["usb", USBListNode],
+      ["wifi", WiFiListNode],
       ["simulator", simulatorListNode],
-      ["other", otherListNode],
+      ["custom", customListNode],
     ]) {
       while (parent.hasChildNodes()) {
         parent.firstChild.remove();
       }
-      for (let runtime of runtimeList[type]) {
+      for (let runtime of AppManager.runtimeList[type]) {
         let panelItemNode = document.createElement("toolbarbutton");
         panelItemNode.className = "panel-item runtime-panel-item-" + type;
-        panelItemNode.setAttribute("label", runtime.name);
+        panelItemNode.setAttribute("label", runtime.getName());
         parent.appendChild(panelItemNode);
         let r = runtime;
         panelItemNode.addEventListener("click", () => {
@@ -372,18 +366,18 @@ let UI = {
 
     type = type.toLowerCase();
 
-    // Local connection is mapped to AppManager.runtimeList.other array
+    // Local connection is mapped to AppManager.runtimeList.custom array
     if (type == "local") {
-      type = "other";
+      type = "custom";
     }
 
     // We support most runtimes except simulator, that needs to be manually
     // launched
-    if (type == "usb" || type == "wifi" || type == "other") {
+    if (type == "usb" || type == "wifi" || type == "custom") {
       for (let runtime of AppManager.runtimeList[type]) {
-        // Some runtimes do not expose an id and don't support autoconnect (like
-        // remote connection)
-        if (runtime.id == id) {
+        // Some runtimes do not expose getID function and don't support
+        // autoconnect (like remote connection)
+        if (typeof(runtime.getID) == "function" && runtime.getID() == id) {
           this.connectToRuntime(runtime);
         }
       }
@@ -391,10 +385,10 @@ let UI = {
   },
 
   connectToRuntime: function(runtime) {
-    let name = runtime.name;
+    let name = runtime.getName();
     let promise = AppManager.connectToRuntime(runtime);
     promise.then(() => this.initConnectionTelemetry());
-    return this.busyUntil(promise, "connecting to runtime " + name);
+    return this.busyUntil(promise, "connecting to runtime");
   },
 
   updateRuntimeButton: function() {
@@ -402,16 +396,15 @@ let UI = {
     if (!AppManager.selectedRuntime) {
       labelNode.setAttribute("value", Strings.GetStringFromName("runtimeButton_label"));
     } else {
-      let name = AppManager.selectedRuntime.name;
+      let name = AppManager.selectedRuntime.getName();
       labelNode.setAttribute("value", name);
     }
   },
 
   saveLastConnectedRuntime: function () {
     if (AppManager.selectedRuntime &&
-        AppManager.selectedRuntime.id !== undefined) {
-      this.lastConnectedRuntime = AppManager.selectedRuntime.type + ":" +
-                                  AppManager.selectedRuntime.id;
+        typeof(AppManager.selectedRuntime.getID) === "function") {
+      this.lastConnectedRuntime = AppManager.selectedRuntime.type + ":" + AppManager.selectedRuntime.getID();
     } else {
       this.lastConnectedRuntime = "";
     }
@@ -1132,7 +1125,7 @@ let Cmds = {
   },
 
   showRuntimePanel: function() {
-    RuntimeScanners.scan();
+    AppManager.scanForWiFiRuntimes();
 
     let panel = document.querySelector("#runtime-panel");
     let anchor = document.querySelector("#runtime-panel-button > .panel-button-anchor");

@@ -1592,6 +1592,7 @@ const KTableValue nsCSSProps::kResizeKTable[] = {
 
 const KTableValue nsCSSProps::kScrollBehaviorKTable[] = {
   eCSSKeyword_auto,       NS_STYLE_SCROLL_BEHAVIOR_AUTO,
+  eCSSKeyword_instant,    NS_STYLE_SCROLL_BEHAVIOR_INSTANT,
   eCSSKeyword_smooth,     NS_STYLE_SCROLL_BEHAVIOR_SMOOTH,
   eCSSKeyword_UNKNOWN,-1
 };
