@@ -267,10 +267,11 @@ XULTreeGridRowAccessible::
   XULTreeGridRowAccessible(nsIContent* aContent, DocAccessible* aDoc,
                            Accessible* aTreeAcc, nsITreeBoxObject* aTree,
                            nsITreeView* aTreeView, int32_t aRow) :
-  XULTreeItemAccessibleBase(aContent, aDoc, aTreeAcc, aTree, aTreeView, aRow),
-  mAccessibleCache(kDefaultTreeCacheSize)
+  XULTreeItemAccessibleBase(aContent, aDoc, aTreeAcc, aTree, aTreeView, aRow)
 {
   mGenericTypes |= eTableRow;
+
+  mAccessibleCache.Init(kDefaultTreeCacheSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

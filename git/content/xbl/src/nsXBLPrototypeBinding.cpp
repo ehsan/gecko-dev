@@ -104,6 +104,7 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
   mBaseNameSpaceID(kNameSpaceID_None)
 {
   MOZ_COUNT_CTOR(nsXBLPrototypeBinding);
+  mInterfaceTable.Init();
 }
 
 nsresult

@@ -135,6 +135,7 @@ void HunspellReportMemoryDeallocation(void* ptr) {
 nsresult
 mozHunspell::Init()
 {
+  mDictionaries.Init();
   LoadDictionaryList();
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();

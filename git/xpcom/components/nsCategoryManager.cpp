@@ -210,6 +210,7 @@ CategoryNode::Create(PLArenaPool* aArena)
   if (!node)
     return nullptr;
 
+  node->mTable.Init();
   return node;
 }
 
@@ -461,6 +462,8 @@ nsCategoryManager::nsCategoryManager()
 {
   PL_INIT_ARENA_POOL(&mArena, "CategoryManagerArena",
                      NS_CATEGORYMANAGER_ARENA_SIZE);
+
+  mTable.Init();
 }
 
 void

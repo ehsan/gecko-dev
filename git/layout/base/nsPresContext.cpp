@@ -2677,6 +2677,7 @@ nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
   : nsPresContext(aDocument, aType),
     mDOMGeneration(0)
 {
+  mRegisteredPlugins.Init();
 }
 
 nsRootPresContext::~nsRootPresContext()

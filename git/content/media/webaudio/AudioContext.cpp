@@ -62,6 +62,11 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
   nsDOMEventTargetHelper::BindToOwner(aWindow);
   SetIsDOMBinding();
+
+  mPannerNodes.Init();
+  mAudioBufferSourceNodes.Init();
+  mOscillatorNodes.Init();
+  mScriptProcessorNodes.Init();
 }
 
 AudioContext::~AudioContext()

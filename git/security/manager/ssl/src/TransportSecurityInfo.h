@@ -134,6 +134,9 @@ public:
   static nsresult Init()
   {
     sInstance = new RememberCertErrorsTable();
+    if (!sInstance->mErrorHosts.IsInitialized())
+      return NS_ERROR_OUT_OF_MEMORY;
+
     return NS_OK;
   }
 

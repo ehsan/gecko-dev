@@ -179,9 +179,7 @@ class txKeyHash
 {
 public:
     txKeyHash(const txOwningExpandedNameMap<txXSLKey>& aKeys)
-        : mKeyValues(8)
-        , mIndexedKeys(1)
-        , mKeys(aKeys)
+        : mKeys(aKeys)
     {
     }
     

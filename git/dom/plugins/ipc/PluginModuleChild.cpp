@@ -150,6 +150,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     NS_ASSERTION(aChannel, "need a channel");
 
+    mObjectMap.Init();
+    mStringIdentifiers.Init();
+    mIntIdentifiers.Init();
+
     if (!InitGraphics())
         return false;
 
@@ -722,6 +726,7 @@ PluginModuleChild::RegisterActorForNPObject(NPObject* aObject,
                                             PluginScriptableObjectChild* aActor)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject && aActor, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);
@@ -738,6 +743,7 @@ void
 PluginModuleChild::UnregisterActorForNPObject(NPObject* aObject)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);
@@ -751,6 +757,7 @@ PluginScriptableObjectChild*
 PluginModuleChild::GetActorForNPObject(NPObject* aObject)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);

@@ -9,6 +9,7 @@
 
 #include "mozilla/LinkedList.h"
 
+#include "jsapi.h"
 #include "jsclist.h"
 #include "jscntxt.h"
 #include "jscompartment.h"

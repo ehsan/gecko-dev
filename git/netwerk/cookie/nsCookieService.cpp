@@ -2061,6 +2061,7 @@ nsCookieService::Read()
   // Init our readSet hash and execute the statements. Note that, after this
   // point, we cannot fail without altering the cleanup code in InitDBStates()
   // to handle closing of the now-asynchronous connection.
+  mDefaultDBState->readSet.Init();
   mDefaultDBState->hostArray.SetCapacity(kMaxNumberOfCookies);
 
   mDefaultDBState->readListener = new ReadCookieDBListener(mDefaultDBState);

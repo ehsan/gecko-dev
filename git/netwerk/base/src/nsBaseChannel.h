@@ -57,7 +57,7 @@ public:
 
   // This method must be called to initialize the basechannel instance.
   nsresult Init() {
-    return NS_OK;
+    return nsHashPropertyBag::Init();
   }
 
 protected:

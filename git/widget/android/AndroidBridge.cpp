@@ -709,7 +709,7 @@ AndroidBridge::ShowAlertNotification(const nsAString& aImageUrl,
 
     if (nsAppShell::gAppShell && aAlertListener) {
         // This will remove any observers already registered for this id
-        nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeAddObserver(aAlertName, aAlertListener));
+        nsAppShell::gAppShell->AddObserver(aAlertName, aAlertListener);
     }
 
     jvalue args[5];

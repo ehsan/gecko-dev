@@ -25,8 +25,6 @@
 #include "js/Value.h"
 #include "Layers.h"
 #include "MediaDecoder.h"
-// nsNPAPIPluginInstance must be included before nsIDocument.h, which is included in mozAutoDocUpdate.h.
-#include "nsNPAPIPluginInstance.h"
 #include "mozAutoDocUpdate.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/AutoRestore.h"
@@ -576,11 +574,11 @@ nsContentUtils::InitializeEventTable() {
     { nullptr }
   };
 
-  sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>(
-      int(ArrayLength(eventArray) / 0.75) + 1);
-  sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>(
-      int(ArrayLength(eventArray) / 0.75) + 1);
+  sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
+  sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>;
   sUserDefinedEvents = new nsCOMArray<nsIAtom>(64);
+  sAtomEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
+  sStringEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
 
   // Subtract one from the length because of the trailing null
   for (uint32_t i = 0; i < ArrayLength(eventArray) - 1; ++i) {

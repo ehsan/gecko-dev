@@ -107,6 +107,7 @@ class BorderGradientCache MOZ_FINAL : public nsExpirationTracker<BorderGradientC
     BorderGradientCache()
       : nsExpirationTracker<BorderGradientCacheData, 4>(GENERATION_MS)
     {
+      mHashEntries.Init();
       mTimerPeriod = GENERATION_MS;
     }
 

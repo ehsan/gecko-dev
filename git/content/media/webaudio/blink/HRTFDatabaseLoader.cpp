@@ -45,6 +45,7 @@ TemporaryRef<HRTFDatabaseLoader> HRTFDatabaseLoader::createAndLoadAsynchronously
     
     if (!s_loaderMap) {
         s_loaderMap = new nsTHashtable<LoaderByRateEntry>();
+        s_loaderMap->Init();
     }
 
     LoaderByRateEntry* entry = s_loaderMap->PutEntry(sampleRate);

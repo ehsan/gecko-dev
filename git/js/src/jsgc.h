@@ -12,6 +12,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 
+#include "jsapi.h"
 #include "jslock.h"
 #include "jsobj.h"
 

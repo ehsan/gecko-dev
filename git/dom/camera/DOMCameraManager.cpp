@@ -49,7 +49,8 @@ GetCameraLog()
  * GonkCameraManager.cpp and FallbackCameraManager.cpp.
  */
 
-WindowTable* nsDOMCameraManager::sActiveWindows = nullptr;
+WindowTable nsDOMCameraManager::sActiveWindows;
+bool nsDOMCameraManager::sActiveWindowsInitialized = false;
 
 nsDOMCameraManager::nsDOMCameraManager(nsPIDOMWindow* aWindow)
   : mWindowId(aWindow->WindowID())
@@ -90,8 +91,9 @@ already_AddRefed<nsDOMCameraManager>
 nsDOMCameraManager::CreateInstance(nsPIDOMWindow* aWindow)
 {
   // Initialize the shared active window tracker
-  if (!sActiveWindows) {
-    sActiveWindows = new WindowTable();
+  if (!sActiveWindowsInitialized) {
+    sActiveWindows.Init();
+    sActiveWindowsInitialized = true;
   }
 
   nsRefPtr<nsDOMCameraManager> cameraManager =
@@ -139,10 +141,10 @@ nsDOMCameraManager::Register(nsDOMCameraControl* aDOMCameraControl)
   MOZ_ASSERT(NS_IsMainThread());
 
   // Put the camera control into the hash table
-  CameraControls* controls = sActiveWindows->Get(mWindowId);
+  CameraControls* controls = sActiveWindows.Get(mWindowId);
   if (!controls) {
     controls = new CameraControls;
-    sActiveWindows->Put(mWindowId, controls);
+    sActiveWindows.Put(mWindowId, controls);
   }
   controls->AppendElement(aDOMCameraControl);
 }
@@ -153,7 +155,7 @@ nsDOMCameraManager::Shutdown(uint64_t aWindowId)
   DOM_CAMERA_LOGI(">>> Shutdown( aWindowId = 0x%llx )\n", aWindowId);
   MOZ_ASSERT(NS_IsMainThread());
 
-  CameraControls* controls = sActiveWindows->Get(aWindowId);
+  CameraControls* controls = sActiveWindows.Get(aWindowId);
   if (!controls) {
     return;
   }
@@ -165,7 +167,7 @@ nsDOMCameraManager::Shutdown(uint64_t aWindowId)
   }
   controls->Clear();
 
-  sActiveWindows->Remove(aWindowId);
+  sActiveWindows.Remove(aWindowId);
 }
 
 void
@@ -177,8 +179,7 @@ nsDOMCameraManager::XpComShutdown()
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   obs->RemoveObserver(this, "xpcom-shutdown");
 
-  delete sActiveWindows;
-  sActiveWindows = nullptr;
+  sActiveWindows.Clear();
 }
 
 nsresult
@@ -202,11 +203,11 @@ nsDOMCameraManager::IsWindowStillActive(uint64_t aWindowId)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!sActiveWindows) {
+  if (!sActiveWindowsInitialized) {
     return false;
   }
 
-  return !!sActiveWindows->Get(aWindowId);
+  return !!sActiveWindows.Get(aWindowId);
 }
 
 JSObject*

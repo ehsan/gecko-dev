@@ -137,6 +137,8 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
 
+    mIdentifiers.Init();
+
     Preferences::RegisterCallback(TimeoutChanged, kChildTimeoutPref, this);
     Preferences::RegisterCallback(TimeoutChanged, kParentTimeoutPref, this);
 #ifdef XP_WIN
@@ -648,7 +650,8 @@ PluginModuleParent::ProcessFirstMinidump()
     if (!crashReporter)
         return;
 
-    AnnotationTable notes(4);
+    AnnotationTable notes;
+    notes.Init(4);
     WriteExtraDataForMinidump(notes);
 
     if (!mPluginDumpID.IsEmpty()) {

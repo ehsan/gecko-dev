@@ -208,6 +208,7 @@ NS_IMPL_ISUPPORTS2(nsObserverService, nsIObserverService, nsObserverService)
 nsObserverService::nsObserverService() :
     mShuttingDown(false), mReporter(nullptr)
 {
+    mObserverTopicTable.Init();
 }
 
 nsObserverService::~nsObserverService(void)
@@ -231,7 +232,8 @@ nsObserverService::Shutdown()
 
     mShuttingDown = true;
 
-    mObserverTopicTable.Clear();
+    if (mObserverTopicTable.IsInitialized())
+        mObserverTopicTable.Clear();
 }
 
 nsresult
@@ -241,7 +243,7 @@ nsObserverService::Create(nsISupports* outer, const nsIID& aIID, void* *aInstanc
 
     nsRefPtr<nsObserverService> os = new nsObserverService();
 
-    if (!os)
+    if (!os || !os->mObserverTopicTable.IsInitialized())
         return NS_ERROR_OUT_OF_MEMORY;
 
     // The memory reporter can not be immediately registered here because

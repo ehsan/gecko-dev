@@ -13,6 +13,7 @@ namespace mozilla {
 MaskLayerImageCache::MaskLayerImageCache()
 {
   MOZ_COUNT_CTOR(MaskLayerImageCache);
+  mMaskImageContainers.Init();
 }
 MaskLayerImageCache::~MaskLayerImageCache()
 {

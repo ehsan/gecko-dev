@@ -103,6 +103,8 @@ nsCertOverrideService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
+  mSettingsTable.Init();
+
   mOidTagForStoringNewHashes = SEC_OID_SHA256;
 
   SECOidData *od = SECOID_FindOIDByTag(mOidTagForStoringNewHashes);

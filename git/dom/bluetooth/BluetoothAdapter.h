@@ -115,14 +115,12 @@ public:
                      ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
-    Connect(BluetoothDevice& aDevice,
-            const Optional<short unsigned int>& aServiceUuid, ErrorResult& aRv);
+    Connect(const nsAString& aDeviceAddress, uint16_t aProfile,
+            ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    Disconnect(BluetoothDevice& aDevice,
-               const Optional<short unsigned int>& aServiceUuid,
-               ErrorResult& aRv);
+    Disconnect(uint16_t aProfile, ErrorResult& aRv);
   already_AddRefed<DOMRequest>
-    GetConnectedDevices(uint16_t aServiceUuid, ErrorResult& aRv);
+    GetConnectedDevices(uint16_t aProfile, ErrorResult& aRv);
 
   already_AddRefed<DOMRequest>
     SendFile(const nsAString& aDeviceAddress, nsIDOMBlob* aBlob,

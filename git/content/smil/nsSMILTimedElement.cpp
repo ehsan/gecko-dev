@@ -232,6 +232,7 @@ nsSMILTimedElement::nsSMILTimedElement()
   mSimpleDur.SetIndefinite();
   mMin.SetMillis(0L);
   mMax.SetIndefinite();
+  mTimeDependents.Init();
 }
 
 nsSMILTimedElement::~nsSMILTimedElement()

@@ -2314,6 +2314,7 @@ protected:
         mNeedsTextureSizeChecks(false),
         mWorkAroundDriverBugs(true)
     {
+        mUserData.Init();
         mOwningThread = NS_GetCurrentThread();
 
         mTexBlit_UseDrawNotCopy = Preferences::GetBool("gl.blit-draw-not-copy", false);

@@ -841,7 +841,6 @@ protected:
 #endif
     bool                       mAffectPrivateSessionLifetime;
     uint64_t                   mHistoryID;
-    uint32_t                   mDefaultLoadFlags;
 
     static nsIURIFixup *sURIFixup;
 

@@ -38,6 +38,7 @@ public:
   StatementCache(nsCOMPtr<mozIStorageConnection>& aConnection)
   : mConnection(aConnection)
   {
+    mCachedStatements.Init();
   }
 
   /**

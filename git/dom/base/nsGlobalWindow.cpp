@@ -1033,6 +1033,10 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 {
   nsLayoutStatics::AddRef();
 
+#ifdef MOZ_GAMEPAD
+  mGamepads.Init();
+#endif
+
   // Initialize the PRCList (this).
   PR_INIT_CLIST(this);
 
@@ -1120,6 +1124,8 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   if (sWindowsById) {
     sWindowsById->Put(mWindowID, this);
   }
+
+  mEventTargetObjects.Init();
 }
 
 /* static */
@@ -1136,6 +1142,7 @@ nsGlobalWindow::Init()
 #endif
 
   sWindowsById = new WindowByIdTable();
+  sWindowsById->Init();
 }
 
 static PLDHashOperator
@@ -1276,9 +1283,9 @@ nsGlobalWindow::ShutDown()
 void
 nsGlobalWindow::CleanupCachedXBLHandlers(nsGlobalWindow* aWindow)
 {
-  if (aWindow->mCachedXBLPrototypeHandlers &&
-      aWindow->mCachedXBLPrototypeHandlers->Count() > 0) {
-    aWindow->mCachedXBLPrototypeHandlers->Clear();
+  if (aWindow->mCachedXBLPrototypeHandlers.IsInitialized() &&
+      aWindow->mCachedXBLPrototypeHandlers.Count() > 0) {
+    aWindow->mCachedXBLPrototypeHandlers.Clear();
     mozilla::DropJSObjects(aWindow);
   }
 }
@@ -1565,8 +1572,8 @@ MarkXBLHandlers(nsXBLPrototypeHandler* aKey, JS::Heap<JSObject*>& aData, void* a
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGlobalWindow)
   if (tmp->IsBlackForCC()) {
-    if (tmp->mCachedXBLPrototypeHandlers) {
-      tmp->mCachedXBLPrototypeHandlers->Enumerate(MarkXBLHandlers, nullptr);
+    if (tmp->mCachedXBLPrototypeHandlers.IsInitialized()) {
+      tmp->mCachedXBLPrototypeHandlers.Enumerate(MarkXBLHandlers, nullptr);
     }
     nsEventListenerManager* elm = tmp->GetListenerManager(false);
     if (elm) {
@@ -1732,9 +1739,9 @@ TraceXBLHandlers(nsXBLPrototypeHandler* aKey, JS::Heap<JSObject*>& aData, void* 
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGlobalWindow)
-  if (tmp->mCachedXBLPrototypeHandlers) {
+  if (tmp->mCachedXBLPrototypeHandlers.IsInitialized()) {
     TraceData data = { aCallbacks, aClosure };
-    tmp->mCachedXBLPrototypeHandlers->Enumerate(TraceXBLHandlers, &data);
+    tmp->mCachedXBLPrototypeHandlers.Enumerate(TraceXBLHandlers, &data);
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -7604,8 +7611,8 @@ nsGlobalWindow::GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey)
 {
   AutoSafeJSContext cx;
   JS::Rooted<JSObject*> handler(cx);
-  if (mCachedXBLPrototypeHandlers) {
-    mCachedXBLPrototypeHandlers->Get(aKey, handler.address());
+  if (mCachedXBLPrototypeHandlers.IsInitialized()) {
+    mCachedXBLPrototypeHandlers.Get(aKey, handler.address());
   }
   return handler;
 }
@@ -7614,15 +7621,15 @@ void
 nsGlobalWindow::CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                                          JS::Handle<JSObject*> aHandler)
 {
-  if (!mCachedXBLPrototypeHandlers) {
-    mCachedXBLPrototypeHandlers = new nsJSThingHashtable<nsPtrHashKey<nsXBLPrototypeHandler>, JSObject*>();
+  if (!mCachedXBLPrototypeHandlers.IsInitialized()) {
+    mCachedXBLPrototypeHandlers.Init();
   }
 
-  if (!mCachedXBLPrototypeHandlers->Count()) {
+  if (!mCachedXBLPrototypeHandlers.Count()) {
     mozilla::HoldJSObjects(this);
   }
 
-  mCachedXBLPrototypeHandlers->Put(aKey, aHandler);
+  mCachedXBLPrototypeHandlers.Put(aKey, aHandler);
 }
 
 /**

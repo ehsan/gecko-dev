@@ -360,8 +360,9 @@ BuildKeyNameFromFontName(nsAString &aName)
 gfxWindowsPlatform::gfxWindowsPlatform()
   : mD3D9DeviceInitialized(false)
   , mD3D11DeviceInitialized(false)
-  , mPrefFonts(50)
 {
+    mPrefFonts.Init(50);
+
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 

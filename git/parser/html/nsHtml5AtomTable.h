@@ -77,6 +77,13 @@ class nsHtml5AtomTable
     ~nsHtml5AtomTable();
     
     /**
+     * Must be called after the constructor before use.
+     */
+    inline void Init() {
+      mTable.Init();
+    }
+    
+    /**
      * Obtains the atom for the given string in the scope of this atom table.
      */
     nsIAtom* GetAtom(const nsAString& aKey);

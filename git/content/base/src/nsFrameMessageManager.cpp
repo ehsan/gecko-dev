@@ -988,6 +988,7 @@ nsFrameScriptExecutor::DidCreateGlobal()
   if (!sCachedScripts) {
     sCachedScripts =
       new nsDataHashtable<nsStringHashKey, nsFrameJSScriptExecutorHolder*>;
+    sCachedScripts->Init();
 
     nsRefPtr<nsScriptCacheCleaner> scriptCacheCleaner =
       new nsScriptCacheCleaner();

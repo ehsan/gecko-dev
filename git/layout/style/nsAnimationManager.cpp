@@ -697,7 +697,9 @@ struct KeyframeDataComparator {
 
 class ResolvedStyleCache {
 public:
-  ResolvedStyleCache() : mCache(16) {}
+  ResolvedStyleCache() {
+    mCache.Init(16); // FIXME: make infallible!
+  }
   nsStyleContext* Get(nsPresContext *aPresContext,
                       nsStyleContext *aParentStyleContext,
                       nsCSSKeyframeRule *aKeyframe);

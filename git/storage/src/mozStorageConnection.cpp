@@ -476,6 +476,7 @@ Connection::Connection(Service *aService,
 , mStorageService(aService)
 , mAsyncOnly(aAsyncOnly)
 {
+  mFunctions.Init();
   mStorageService->registerConnection(this);
 }
 

@@ -9,8 +9,6 @@
 
 #include "NamespaceImports.h"
 
-#include "js/Id.h"
-
 namespace js {
 
 struct IdValuePair

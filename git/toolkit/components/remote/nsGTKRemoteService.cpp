@@ -43,6 +43,9 @@ nsGTKRemoteService::Startup(const char* aAppName, const char* aProfileName)
   gtk_widget_realize(mServerWindow);
   HandleCommandsFor(mServerWindow, nullptr);
 
+  if (!mWindows.IsInitialized())
+    mWindows.Init();
+
   mWindows.EnumerateRead(StartupHandler, this);
 
   return NS_OK;
@@ -87,6 +90,9 @@ nsGTKRemoteService::RegisterWindow(nsIDOMWindow* aWindow)
 
   nsCOMPtr<nsIWeakReference> weak = do_GetWeakReference(aWindow);
   NS_ENSURE_TRUE(weak, NS_ERROR_FAILURE);
+
+  if (!mWindows.IsInitialized())
+    mWindows.Init();
 
   mWindows.Put(widget, weak);
 

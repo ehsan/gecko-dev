@@ -1179,6 +1179,8 @@ nsUrlClassifierDBService::Init()
   // Proxy for calling the worker on the background thread
   mWorkerProxy = new UrlClassifierDBServiceWorkerProxy(mWorker);
 
+  mCompleters.Init();
+
   // Add an observer for shutdown
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();

@@ -50,6 +50,7 @@ HTMLPropertiesCollection::HTMLPropertiesCollection(nsGenericHTMLElement* aRoot)
   if (mDoc) {
     mDoc->AddMutationObserver(this);
   }
+  mNamedItemEntries.Init();
 }
 
 HTMLPropertiesCollection::~HTMLPropertiesCollection()

@@ -9,6 +9,7 @@
 
 #include "vm/Interpreter.h"
 
+#include "jsapi.h"
 #include "jscompartment.h"
 #include "jsinfer.h"
 #include "jsnum.h"

@@ -234,6 +234,7 @@ private:
   struct ImageStartData {
     ImageStartData()
     {
+      mEntries.Init();
     }
 
     mozilla::Maybe<mozilla::TimeStamp> mStartTime;

@@ -401,6 +401,8 @@ nsProtocolProxyService::~nsProtocolProxyService()
 nsresult
 nsProtocolProxyService::Init()
 {
+    mFailedProxies.Init();
+
     // failure to access prefs is non-fatal
     nsCOMPtr<nsIPrefBranch> prefBranch =
             do_GetService(NS_PREFSERVICE_CONTRACTID);

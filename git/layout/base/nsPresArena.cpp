@@ -29,6 +29,7 @@ static const size_t ARENA_PAGE_SIZE = 8192;
 
 nsPresArena::nsPresArena()
 {
+  mFreeLists.Init();
   PL_INIT_ARENA_POOL(&mPool, "PresArena", ARENA_PAGE_SIZE);
 }
 

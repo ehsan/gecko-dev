@@ -2431,6 +2431,7 @@ class OrphanReporter : public JS::ObjectPrivateVisitor
     OrphanReporter(GetISupportsFun aGetISupports)
       : JS::ObjectPrivateVisitor(aGetISupports)
     {
+        mAlreadyMeasuredOrphanTrees.Init();
     }
 
     virtual size_t sizeOfIncludingThis(nsISupports *aSupports) {

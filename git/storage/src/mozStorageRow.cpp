@@ -20,6 +20,9 @@ namespace storage {
 nsresult
 Row::initialize(sqlite3_stmt *aStatement)
 {
+  // Initialize the hash table
+  mNameHashtable.Init();
+
   // Get the number of results
   mNumCols = ::sqlite3_column_count(aStatement);
 

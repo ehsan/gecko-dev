@@ -534,9 +534,9 @@ Loader::Loader(nsIDocument* aDocument)
 
 Loader::~Loader()
 {
-  NS_ASSERTION(!mSheets || mSheets->mLoadingDatas.Count() == 0,
+  NS_ASSERTION((!mLoadingDatas.IsInitialized()) || mLoadingDatas.Count() == 0,
                "How did we get destroyed when there are loading data?");
-  NS_ASSERTION(!mSheets || mSheets->mPendingDatas.Count() == 0,
+  NS_ASSERTION((!mPendingDatas.IsInitialized()) || mPendingDatas.Count() == 0,
                "How did we get destroyed when there are pending data?");
   // Note: no real need to revoke our stylesheet loaded events -- they
   // hold strong references to us, so if we're going away that means
@@ -550,7 +550,7 @@ Loader::DropDocumentReference(void)
   // Flush out pending datas just so we don't leak by accident.  These
   // loads should short-circuit through the mDocument check in
   // LoadSheet and just end up in SheetComplete immediately
-  if (mSheets) {
+  if (mPendingDatas.IsInitialized()) {
     StartAlternateLoads();
   }
 }
@@ -592,9 +592,9 @@ Loader::SetPreferredSheet(const nsAString& aTitle)
   mPreferredSheet = aTitle;
 
   // start any pending alternates that aren't alternates anymore
-  if (mSheets) {
-    LoadDataArray arr(mSheets->mPendingDatas.Count());
-    mSheets->mPendingDatas.Enumerate(CollectNonAlternates, &arr);
+  if (mPendingDatas.IsInitialized()) {
+    LoadDataArray arr(mPendingDatas.Count());
+    mPendingDatas.Enumerate(CollectNonAlternates, &arr);
 
     mDatasToNotifyOn += arr.Length();
     for (uint32_t i = 0; i < arr.Length(); ++i) {
@@ -992,13 +992,13 @@ Loader::RemoveEntriesWithURI(URIPrincipalAndCORSModeHashKey* aKey,
 nsresult
 Loader::ObsoleteSheet(nsIURI* aURI)
 {
-  if (!mSheets) {
+  if (!mCompleteSheets.IsInitialized()) {
     return NS_OK;
   }
   if (!aURI) {
     return NS_ERROR_INVALID_ARG;
   }
-  mSheets->mCompleteSheets.Enumerate(RemoveEntriesWithURI, aURI);
+  mCompleteSheets.Enumerate(RemoveEntriesWithURI, aURI);
   return NS_OK;
 }
 
@@ -1079,8 +1079,14 @@ Loader::CreateSheet(nsIURI* aURI,
   LOG(("css::Loader::CreateSheet"));
   NS_PRECONDITION(aSheet, "Null out param!");
 
-  if (!mSheets) {
-    mSheets = new Sheets();
+  if (!mCompleteSheets.IsInitialized()) {
+    mCompleteSheets.Init();
+  }
+  if (!mLoadingDatas.IsInitialized()) {
+    mLoadingDatas.Init();
+  }
+  if (!mPendingDatas.IsInitialized()) {
+    mPendingDatas.Init();
   }
 
   *aSheet = nullptr;
@@ -1112,7 +1118,7 @@ Loader::CreateSheet(nsIURI* aURI,
       // Then our per-document complete sheets.
       URIPrincipalAndCORSModeHashKey key(aURI, aLoaderPrincipal, aCORSMode);
 
-      mSheets->mCompleteSheets.Get(&key, getter_AddRefs(sheet));
+      mCompleteSheets.Get(&key, getter_AddRefs(sheet));
       LOG(("  From completed: %p", sheet.get()));
 
       fromCompleteSheets = !!sheet;
@@ -1138,7 +1144,7 @@ Loader::CreateSheet(nsIURI* aURI,
       aSheetState = eSheetLoading;
       SheetLoadData* loadData = nullptr;
       URIPrincipalAndCORSModeHashKey key(aURI, aLoaderPrincipal, aCORSMode);
-      mSheets->mLoadingDatas.Get(&key, &loadData);
+      mLoadingDatas.Get(&key, &loadData);
       if (loadData) {
         sheet = loadData->mSheet;
         LOG(("  From loading: %p", sheet.get()));
@@ -1158,7 +1164,7 @@ Loader::CreateSheet(nsIURI* aURI,
       if (!sheet) {
         aSheetState = eSheetPending;
         loadData = nullptr;
-        mSheets->mPendingDatas.Get(&key, &loadData);
+        mPendingDatas.Get(&key, &loadData);
         if (loadData) {
           sheet = loadData->mSheet;
           LOG(("  From pending: %p", sheet.get()));
@@ -1193,7 +1199,7 @@ Loader::CreateSheet(nsIURI* aURI,
         URIPrincipalAndCORSModeHashKey key(aURI, aLoaderPrincipal, aCORSMode);
         NS_ASSERTION((*aSheet)->IsComplete(),
                      "Should only be caching complete sheets");
-        mSheets->mCompleteSheets.Put(&key, *aSheet);
+        mCompleteSheets.Put(&key, *aSheet);
       }
     }
   }
@@ -1403,7 +1409,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
   NS_PRECONDITION(aSheetState != eSheetComplete, "Why bother?");
   NS_PRECONDITION(!aLoadData->mUseSystemPrincipal || aLoadData->mSyncLoad,
                   "Shouldn't use system principal for async loads");
-  NS_ASSERTION(mSheets, "mLoadingDatas should be initialized by now.");
+  NS_ASSERTION(mLoadingDatas.IsInitialized(), "mLoadingDatas should be initialized by now.");
 
   LOG_URI("  Load from: '%s'", aLoadData->mURI);
 
@@ -1467,11 +1473,11 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
                                      aLoadData->mLoaderPrincipal,
                                      aLoadData->mSheet->GetCORSMode());
   if (aSheetState == eSheetLoading) {
-    mSheets->mLoadingDatas.Get(&key, &existingData);
+    mLoadingDatas.Get(&key, &existingData);
     NS_ASSERTION(existingData, "CreateSheet lied about the state");
   }
   else if (aSheetState == eSheetPending){
-    mSheets->mPendingDatas.Get(&key, &existingData);
+    mPendingDatas.Get(&key, &existingData);
     NS_ASSERTION(existingData, "CreateSheet lied about the state");
   }
 
@@ -1487,12 +1493,12 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 
 #ifdef DEBUG
       SheetLoadData* removedData;
-      NS_ASSERTION(mSheets->mPendingDatas.Get(&key, &removedData) &&
+      NS_ASSERTION(mPendingDatas.Get(&key, &removedData) &&
                    removedData == existingData,
                    "Bad pending table.");
 #endif
 
-      mSheets->mPendingDatas.Remove(&key);
+      mPendingDatas.Remove(&key);
 
       LOG(("  Forcing load of pending data"));
       return LoadSheet(existingData, eSheetNeedsParser);
@@ -1618,7 +1624,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     return rv;
   }
 
-  mSheets->mLoadingDatas.Put(&key, aLoadData);
+  mLoadingDatas.Put(&key, aLoadData);
   aLoadData->mIsLoading = true;
 
   return NS_OK;
@@ -1717,7 +1723,7 @@ Loader::SheetComplete(SheetLoadData* aLoadData, nsresult aStatus)
     }
   }
 
-  if (mSheets->mLoadingDatas.Count() == 0 && mSheets->mPendingDatas.Count() > 0) {
+  if (mLoadingDatas.Count() == 0 && mPendingDatas.Count() > 0) {
     LOG(("  No more loading sheets; starting alternates"));
     StartAlternateLoads();
   }
@@ -1730,7 +1736,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
   LOG(("css::Loader::DoSheetComplete"));
   NS_PRECONDITION(aLoadData, "Must have a load data!");
   NS_PRECONDITION(aLoadData->mSheet, "Must have a sheet");
-  NS_ASSERTION(mSheets, "mLoadingDatas should be initialized by now.");
+  NS_ASSERTION(mLoadingDatas.IsInitialized(),"mLoadingDatas should be initialized by now.");
 
   LOG(("Load completed, status: 0x%x", aStatus));
 
@@ -1744,12 +1750,12 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                                          aLoadData->mSheet->GetCORSMode());
 #ifdef DEBUG
       SheetLoadData *loadingData;
-      NS_ASSERTION(mSheets->mLoadingDatas.Get(&key, &loadingData) &&
+      NS_ASSERTION(mLoadingDatas.Get(&key, &loadingData) &&
                    loadingData == aLoadData,
                    "Bad loading table");
 #endif
 
-      mSheets->mLoadingDatas.Remove(&key);
+      mLoadingDatas.Remove(&key);
       aLoadData->mIsLoading = false;
     }
   }
@@ -1830,7 +1836,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                                          aLoadData->mSheet->GetCORSMode());
       NS_ASSERTION(sheet->IsComplete(),
                    "Should only be caching complete sheets");
-      mSheets->mCompleteSheets.Put(&key, sheet);
+      mCompleteSheets.Put(&key, sheet);
 #ifdef MOZ_XUL
     }
 #endif
@@ -1979,12 +1985,12 @@ Loader::LoadStyleLink(nsIContent* aElement,
   NS_ADDREF(data);
 
   // If we have to parse and it's an alternate non-inline, defer it
-  if (aURL && state == eSheetNeedsParser && mSheets->mLoadingDatas.Count() != 0 &&
+  if (aURL && state == eSheetNeedsParser && mLoadingDatas.Count() != 0 &&
       *aIsAlternate) {
     LOG(("  Deferring alternate sheet load"));
     URIPrincipalAndCORSModeHashKey key(data->mURI, data->mLoaderPrincipal,
                                        data->mSheet->GetCORSMode());
-    mSheets->mPendingDatas.Put(&key, data);
+    mPendingDatas.Put(&key, data);
 
     data->mMustNotify = true;
     return NS_OK;
@@ -2349,16 +2355,16 @@ nsresult
 Loader::Stop()
 {
   uint32_t pendingCount =
-    mSheets ? mSheets->mPendingDatas.Count() : 0;
+    mPendingDatas.IsInitialized() ?  mPendingDatas.Count() : 0;
   uint32_t loadingCount =
-    mSheets ? mSheets->mLoadingDatas.Count() : 0;
+    mLoadingDatas.IsInitialized() ? mLoadingDatas.Count() : 0;
   LoadDataArray arr(pendingCount + loadingCount + mPostedEvents.Length());
 
   if (pendingCount) {
-    mSheets->mPendingDatas.Enumerate(StopLoadingSheetCallback, &arr);
+    mPendingDatas.Enumerate(StopLoadingSheetCallback, &arr);
   }
   if (loadingCount) {
-    mSheets->mLoadingDatas.Enumerate(StopLoadingSheetCallback, &arr);
+    mLoadingDatas.Enumerate(StopLoadingSheetCallback, &arr);
   }
 
   uint32_t i;
@@ -2390,8 +2396,8 @@ bool
 Loader::HasPendingLoads()
 {
   return
-    (mSheets && mSheets->mLoadingDatas.Count() != 0) ||
-    (mSheets && mSheets->mPendingDatas.Count() != 0) ||
+    (mLoadingDatas.IsInitialized() && mLoadingDatas.Count() != 0) ||
+    (mPendingDatas.IsInitialized() && mPendingDatas.Count() != 0) ||
     mPostedEvents.Length() != 0 ||
     mDatasToNotifyOn != 0;
 }
@@ -2425,9 +2431,9 @@ CollectLoadDatas(URIPrincipalAndCORSModeHashKey *aKey,
 void
 Loader::StartAlternateLoads()
 {
-  NS_PRECONDITION(mSheets, "Don't call me!");
-  LoadDataArray arr(mSheets->mPendingDatas.Count());
-  mSheets->mPendingDatas.Enumerate(CollectLoadDatas, &arr);
+  NS_PRECONDITION(mPendingDatas.IsInitialized(), "Don't call me!");
+  LoadDataArray arr(mPendingDatas.Count());
+  mPendingDatas.Enumerate(CollectLoadDatas, &arr);
 
   mDatasToNotifyOn += arr.Length();
   for (uint32_t i = 0; i < arr.Length(); ++i) {
@@ -2451,16 +2457,16 @@ TraverseSheet(URIPrincipalAndCORSModeHashKey*,
 void
 Loader::TraverseCachedSheets(nsCycleCollectionTraversalCallback& cb)
 {
-  if (mSheets) {
-    mSheets->mCompleteSheets.EnumerateRead(TraverseSheet, &cb);
+  if (mCompleteSheets.IsInitialized()) {
+    mCompleteSheets.EnumerateRead(TraverseSheet, &cb);
   }
 }
 
 void
 Loader::UnlinkCachedSheets()
 {
-  if (mSheets) {
-    mSheets->mCompleteSheets.Clear();
+  if (mCompleteSheets.IsInitialized()) {
+    mCompleteSheets.Clear();
   }
 }
 
@@ -2490,9 +2496,8 @@ Loader::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 {
   size_t s = aMallocSizeOf(this);
 
-  if (mSheets) {
-    s += mSheets->mCompleteSheets.SizeOfExcludingThis(CountSheetMemory, aMallocSizeOf);
-  }
+  s += mCompleteSheets.SizeOfExcludingThis(CountSheetMemory, aMallocSizeOf);
+
   s += mObservers.SizeOfExcludingThis(aMallocSizeOf);
 
   // Measurement of the following members may be added later if DMD finds it is

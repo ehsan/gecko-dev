@@ -279,6 +279,7 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
 
   // For catching duplicates
   nsClassHashtable<nsStringHashKey, nsCString> dictionaries;
+  dictionaries.Init();
 
   nsCOMArray<mozISpellCheckingEngine> spellCheckingEngines;
   rv = GetEngineList(&spellCheckingEngines);
