@@ -78,7 +78,7 @@ public:
    * returned cover rule as the most specific rule.
    */
   already_AddRefed<nsIStyleRule>
-    StyleContextChanged(mozilla::dom::Element *aElement,
+    StyleContextChanged(nsIContent *aElement,
                         nsStyleContext *aOldStyleContext,
                         nsStyleContext *aNewStyleContext);
 
@@ -107,13 +107,13 @@ private:
 
   void ConsiderStartingTransition(nsCSSProperty aProperty,
                                   const nsTransition& aTransition,
-                                  mozilla::dom::Element *aElement,
+                                  nsIContent *aElement,
                                   ElementTransitions *&aElementTransitions,
                                   nsStyleContext *aOldStyleContext,
                                   nsStyleContext *aNewStyleContext,
                                   PRBool *aStartedAny,
                                   nsCSSPropertySet *aWhichStarted);
-  ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
+  ElementTransitions* GetElementTransitions(nsIContent *aElement,
                                             nsCSSPseudoElements::Type aPseudoType,
                                             PRBool aCreateIfNeeded);
   void AddElementTransitions(ElementTransitions* aElementTransitions);

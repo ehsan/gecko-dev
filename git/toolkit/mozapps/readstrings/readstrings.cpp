@@ -149,14 +149,9 @@ find_key(const char *keyList, char* key)
  * @param keyList    List of zero-delimited keys ending with two zero characters
  * @param numStrings Number of strings to read into results buffer - must be equal to the number of keys
  * @param results    Two-dimensional array of strings to be filled in the same order as the keys provided
- * @param section    Optional name of the section to read; defaults to "Strings"
  */
 int
-ReadStrings(const NS_tchar *path,
-            const char *keyList,
-            int numStrings,
-            char results[][MAX_TEXT_LEN],
-            const char *section)
+ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char results[][MAX_TEXT_LEN])
 {
   AutoFILE fp = NS_tfopen(path, OPEN_MODE);
 
@@ -188,7 +183,7 @@ ReadStrings(const NS_tchar *path,
   char *buffer = fileContents;
   PRBool inStringsSection = PR_FALSE;
 
-  int read = 0;
+  unsigned read = 0;
 
   while (char *token = NS_strtok(kNL, &buffer)) {
     if (token[0] == '#' || token[0] == ';') // it's a comment
@@ -210,12 +205,8 @@ ReadStrings(const NS_tchar *path,
         // a well-formed [section] to continue working with
         inStringsSection = PR_FALSE;
       }
-      else {
-        if (section)
-          inStringsSection = strcmp(currSection, section) == 0;
-        else
-          inStringsSection = strcmp(currSection, "Strings") == 0;
-      }
+      else
+        inStringsSection = strcmp(currSection, "Strings") == 0;
 
       continue;
     }

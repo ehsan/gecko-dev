@@ -1789,7 +1789,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 /* Bookmarks toolbar */
-#PlacesToolbarDropIndicator {
+.toolbar-drop-indicator {
   list-style-image: url(chrome://browser/skin/places/toolbarDropMarker.png);
 }
 
@@ -2044,4 +2044,3 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 .allTabs-preview:focus > * > .allTabs-preview-inner {
   -moz-box-shadow: @focusRingShadow@;
 }
-

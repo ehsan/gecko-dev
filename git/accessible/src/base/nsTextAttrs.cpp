@@ -214,8 +214,11 @@ nsTextAttrsMgr::GetRange(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
         if (!textAttr->Equal(currElm)) {
 
           PRInt32 startHTOffset = 0;
-          nsAccessible *startAcc = mHyperTextAcc->
-            DOMPointToHypertextOffset(tmpNode, -1, &startHTOffset);
+          nsCOMPtr<nsIAccessible> startAcc;
+          nsresult rv = mHyperTextAcc->
+            DOMPointToHypertextOffset(tmpNode, -1, &startHTOffset,
+                                      getter_AddRefs(startAcc));
+          NS_ENSURE_SUCCESS(rv, rv);
 
           if (!startAcc)
             startHTOffset = 0;
@@ -259,7 +262,9 @@ nsTextAttrsMgr::GetRange(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
       if (!textAttr->Equal(currElm)) {
 
         PRInt32 endHTOffset = 0;
-        mHyperTextAcc->DOMPointToHypertextOffset(currNode, -1, &endHTOffset);
+        nsresult rv = mHyperTextAcc->
+          DOMPointToHypertextOffset(currNode, -1, &endHTOffset);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         if (endHTOffset < *aEndHTOffset)
           *aEndHTOffset = endHTOffset;
@@ -312,7 +317,10 @@ nsTextAttrsMgr::FindEndOffsetInSubtree(const nsTPtrArray<nsITextAttr>& aTextAttr
     nsITextAttr *textAttr = aTextAttrArray[idx];
     if (!textAttr->Equal(currElm)) {
       PRInt32 endHTOffset = 0;
-      mHyperTextAcc->DOMPointToHypertextOffset(aCurrNode, -1, &endHTOffset);
+      nsresult rv = mHyperTextAcc->
+        DOMPointToHypertextOffset(aCurrNode, -1, &endHTOffset);
+      NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
       if (endHTOffset < *aHTOffset)
         *aHTOffset = endHTOffset;
 
@@ -367,8 +375,11 @@ nsTextAttrsMgr::FindStartOffsetInSubtree(const nsTPtrArray<nsITextAttr>& aTextAt
     if (!textAttr->Equal(currElm)) {
 
       PRInt32 startHTOffset = 0;
-      nsAccessible *startAcc = mHyperTextAcc->
-        DOMPointToHypertextOffset(aPrevNode, -1, &startHTOffset);
+      nsCOMPtr<nsIAccessible> startAcc;
+      nsresult rv = mHyperTextAcc->
+        DOMPointToHypertextOffset(aPrevNode, -1, &startHTOffset,
+                                  getter_AddRefs(startAcc));
+      NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
       if (!startAcc)
         startHTOffset = 0;

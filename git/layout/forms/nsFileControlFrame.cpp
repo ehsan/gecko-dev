@@ -372,18 +372,8 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   if (NS_FAILED(result))
     return result;
 
-  // We want to get the file filter from the accept attribute and we add the
-  // |filterAll| filter to be sure the user has a valid fallback.
-  PRUint32 filter = mFrame->GetFileFilterFromAccept();
-  filePicker->AppendFilters(filter | nsIFilePicker::filterAll);
-
-  // If the accept attribute asks for a filter, it has to be the default one.
-  if (filter) {
-    // We have two filters: |filterAll| and another one. |filterAll| is
-    // always the first one (index=0) so we can assume the one we want to be
-    // the default is at index 1.
-    filePicker->SetFilterIndex(1);
-  }
+  // Set filter "All Files"
+  filePicker->AppendFilters(nsIFilePicker::filterAll);
 
   // Set default directry and filename
   nsAutoString defaultName;
@@ -861,18 +851,6 @@ NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
 }
 #endif
 
-PRInt32
-nsFileControlFrame::GetFileFilterFromAccept() const
-{
-  nsAutoString accept;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
-
-  if (accept.EqualsLiteral("image/*")) {
-    return nsIFilePicker::filterImages;
-  }
-
-  return 0;
-}
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 

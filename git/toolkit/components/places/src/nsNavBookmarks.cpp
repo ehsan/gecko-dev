@@ -59,8 +59,6 @@
 #include "nsPlacesMacros.h"
 #include "Helpers.h"
 
-#include "mozilla/FunctionTimer.h"
-
 const PRInt32 nsNavBookmarks::kFindBookmarksIndex_ID = 0;
 const PRInt32 nsNavBookmarks::kFindBookmarksIndex_Type = 1;
 const PRInt32 nsNavBookmarks::kFindBookmarksIndex_PlaceID = 2;
@@ -129,8 +127,6 @@ NS_IMPL_ISUPPORTS3(nsNavBookmarks,
 nsresult
 nsNavBookmarks::Init()
 {
-  NS_TIME_FUNCTION;
-
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   mDBConn = history->GetStorageConnection();

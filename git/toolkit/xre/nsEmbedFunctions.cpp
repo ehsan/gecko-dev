@@ -83,37 +83,34 @@
 #include "chrome/common/child_process.h"
 #include "chrome/common/notification_service.h"
 
-#include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
-#include "mozilla/ipc/IOThreadChild.h"
-#include "mozilla/ipc/ProcessChild.h"
+#include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "ScopedXREEmbed.h"
 
-#include "mozilla/plugins/PluginProcessChild.h"
+#include "mozilla/plugins/PluginThreadChild.h"
+
+#include "mozilla/Monitor.h"
 
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
-#include "mozilla/_ipdltest/IPDLUnitTestProcessChild.h"
+#include "mozilla/_ipdltest/IPDLUnitTestThreadChild.h"
 
-using mozilla::_ipdltest::IPDLUnitTestProcessChild;
+using mozilla::_ipdltest::IPDLUnitTestThreadChild;
 #endif  // ifdef MOZ_IPDL_TESTS
 
-using mozilla::ipc::BrowserProcessSubThread;
 using mozilla::ipc::GeckoChildProcessHost;
-using mozilla::ipc::IOThreadChild;
-using mozilla::ipc::ProcessChild;
+using mozilla::ipc::BrowserProcessSubThread;
 using mozilla::ipc::ScopedXREEmbed;
 
-using mozilla::plugins::PluginProcessChild;
+using mozilla::plugins::PluginThreadChild;
+
+using mozilla::Monitor;
+using mozilla::MonitorAutoEnter;
 
 using mozilla::startup::sChildProcessType;
 #endif
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
-
-#ifdef XP_WIN
-static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
-#endif
 
 void
 XRE_GetStaticComponents(nsStaticModuleInfo const **aStaticComponents,
@@ -253,6 +250,8 @@ GeckoProcessType sChildProcessType = GeckoProcessType_Default;
 }
 }
 
+static MessageLoop* sIOMessageLoop;
+
 #if defined(MOZ_CRASHREPORTER)
 // FIXME/bug 539522: this out-of-place function is stuck here because
 // IPDL wants access to this crashreporter interface, and
@@ -277,33 +276,6 @@ XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 }
 #endif // !XP_MACOSX
 #endif // if defined(MOZ_CRASHREPORTER)
-
-#if defined(XP_WIN)
-void
-SetTaskbarGroupId(const nsString& aId)
-{
-    typedef HRESULT (WINAPI * SetCurrentProcessExplicitAppUserModelIDPtr)(PCWSTR AppID);
-
-    SetCurrentProcessExplicitAppUserModelIDPtr funcAppUserModelID = nsnull;
-
-    HMODULE hDLL = ::LoadLibraryW(kShellLibraryName);
-
-    funcAppUserModelID = (SetCurrentProcessExplicitAppUserModelIDPtr)
-                          GetProcAddress(hDLL, "SetCurrentProcessExplicitAppUserModelID");
-
-    if (!funcAppUserModelID) {
-        ::FreeLibrary(hDLL);
-        return;
-    }
-
-    if (FAILED(funcAppUserModelID(aId.get()))) {
-        NS_WARNING("SetCurrentProcessExplicitAppUserModelID failed for child process.");
-    }
-
-    if (hDLL)
-        ::FreeLibrary(hDLL);
-}
-#endif
 
 nsresult
 XRE_InitChildProcess(int aArgc,
@@ -349,25 +321,6 @@ XRE_InitChildProcess(int aArgc,
   bool ok = base::OpenProcessHandle(parentPID, &parentHandle);
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
-#if defined(XP_WIN)
-  // On Win7+, register the application user model id passed in by
-  // parent. This insures windows created by the container properly
-  // group with the parent app on the Win7 taskbar.
-  const char* const appModelUserId = aArgv[aArgc-1];
-  --aArgc;
-  if (appModelUserId) {
-    // '-' implies no support
-    if (*appModelUserId != '-') {
-      nsString appId;
-      appId.AssignWithConversion(nsDependentCString(appModelUserId));
-      // The version string is encased in quotes
-      appId.Trim(NS_LITERAL_CSTRING("\"").get());
-      // Set the id
-      SetTaskbarGroupId(appId);
-    }
-  }
-#endif
-
   base::AtExitManager exitManager;
   NotificationService notificationService;
 
@@ -379,10 +332,10 @@ XRE_InitChildProcess(int aArgc,
     return NS_ERROR_FAILURE;
   }
 
-  // Associate this thread with a UI MessageLoop
-  MessageLoopForUI uiMessageLoop;
+  MessageLoopForIO mainMessageLoop;
+
   {
-    nsAutoPtr<ProcessChild> process;
+    ChildThread* mainThread;
 
     switch (aProcess) {
     case GeckoProcessType_Default:
@@ -390,13 +343,13 @@ XRE_InitChildProcess(int aArgc,
       break;
 
     case GeckoProcessType_Plugin:
-      process = new PluginProcessChild(parentHandle);
+      mainThread = new PluginThreadChild(parentHandle);
       break;
 
     case GeckoProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
-      process = new IPDLUnitTestProcessChild(parentHandle);
-#else 
+      mainThread = new IPDLUnitTestThreadChild(parentHandle);
+#else
       NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
 #endif
       break;
@@ -405,17 +358,14 @@ XRE_InitChildProcess(int aArgc,
       NS_RUNTIMEABORT("Unknown main thread class");
     }
 
-    if (!process->Init()) {
-      NS_LogTerm();
-      return NS_ERROR_FAILURE;
-    }
+    ChildProcess process(mainThread);
 
-    // Run the UI event loop on the main thread.
-    uiMessageLoop.MessageLoop::Run();
+    // Do IPC event loop
+    sIOMessageLoop = MessageLoop::current();
 
-    // Allow ProcessChild to clean up after itself before going out of
-    // scope and being deleted
-    process->CleanUp();
+    sIOMessageLoop->Run();
+
+    sIOMessageLoop = nsnull;
   }
 
   NS_LogTerm();
@@ -426,9 +376,10 @@ MessageLoop*
 XRE_GetIOMessageLoop()
 {
   if (sChildProcessType == GeckoProcessType_Default) {
+    NS_ASSERTION(!sIOMessageLoop, "Shouldn't be set on parent process!");
     return BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   }
-  return IOThreadChild::message_loop();
+  return sIOMessageLoop;
 }
 
 namespace {
@@ -541,13 +492,7 @@ XRE_ShutdownChildProcess()
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
 
-  // Quit() sets off the following chain of events
-  //  (1) UI loop starts quitting
-  //  (2) UI loop returns from Run() in XRE_InitChildProcess()
-  //  (3) ProcessChild goes out of scope and terminates the IO thread
-  //  (4) ProcessChild joins the IO thread
-  //  (5) exit()
-  MessageLoop::current()->Quit(); 
+  ioLoop->PostTask(FROM_HERE, new MessageLoop::QuitTask());
 }
 
 #ifdef MOZ_X11

@@ -357,7 +357,7 @@ public:
   static void CARefresh(nsITimer *aTimer, void *aClosure);
   static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
   static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
-  void SetupCARefresh();
+  void SetupCARenderer(int aWidth, int aHeight);
   void* FixUpPluginWindow(PRInt32 inPaintState);
   // Set a flag that (if true) indicates the plugin port info has changed and
   // SetWindow() needs to be called.
@@ -447,7 +447,6 @@ private:
   NP_CGContext                              mCGPluginPortCopy;
   NP_Port                                   mQDPluginPortCopy;
   PRInt32                                   mInCGPaintLevel;
-  nsIOSurface                              *mIOSurface;
   nsCARenderer                              mCARenderer;
   static nsCOMPtr<nsITimer>                *sCATimer;
   static nsTArray<nsPluginInstanceOwner*>  *sCARefreshListeners;
@@ -782,7 +781,7 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
       NPWindow* window;
       mInstanceOwner->GetWindow(window);
 
-      mInstanceOwner->SetupCARefresh();
+      mInstanceOwner->SetupCARenderer(window->width, window->height);
     }
 #endif
   }
@@ -1464,6 +1463,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
   npprint.print.embedPrint.window = window;
   nsresult rv = pi->Print(&npprint);
 
+  ::CGContextSaveGState(cgContext);
   ::CGContextTranslateCTM(cgContext, 0.0f, float(window.height));
   ::CGContextScaleCTM(cgContext, 1.0f, -1.0f);
   CGImageRef image = ::CGBitmapContextCreateImage(cgBuffer);
@@ -1478,6 +1478,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
                        ::CGRectMake(0, 0, window.width, window.height),
                        image);
   ::CGImageRelease(image);
+  ::CGContextRestoreGState(cgContext);
   ::CGContextRelease(cgBuffer);
 
   ::DisposeGWorld(gWorld);
@@ -2155,6 +2156,7 @@ private:
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
 
+#ifdef XP_WIN
 static const char*
 GetMIMEType(nsIPluginInstance *aPluginInstance)
 {
@@ -2165,6 +2167,7 @@ GetMIMEType(nsIPluginInstance *aPluginInstance)
   }
   return "";
 }
+#endif
 
 static PRBool
 DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
@@ -2474,7 +2477,6 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   memset(&mQDPluginPortCopy, 0, sizeof(NP_Port));
   mInCGPaintLevel = 0;
   mSentInitialTopLevelWindowEvent = PR_FALSE;
-  mIOSurface = nsnull;
 #endif
   mContentFocused = PR_FALSE;
   mWidgetVisible = PR_TRUE;
@@ -3068,7 +3070,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
 
     nsIDocument* doc = mContent->GetOwnerDoc();
     NS_ASSERTION(doc, "Must have an owner doc");
-    rv = doc->GetDocBaseURI()->GetSpec(mDocumentBase);
+    rv = doc->GetBaseURI()->GetSpec(mDocumentBase);
   }
   if (NS_SUCCEEDED(rv))
     *result = ToNewCString(mDocumentBase);
@@ -3582,9 +3584,7 @@ void nsPluginInstanceOwner::RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPlu
   if (!sCARefreshListeners || sCARefreshListeners->Contains(aPluginInstance) == false) {
     return;
   }
-
   sCARefreshListeners->RemoveElement(aPluginInstance);
-
   if (sCARefreshListeners->Length() == 0) {
     if (sCATimer) {
       (*sCATimer)->Cancel();
@@ -3596,73 +3596,30 @@ void nsPluginInstanceOwner::RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPlu
   }
 }
 
-void nsPluginInstanceOwner::SetupCARefresh()
+void nsPluginInstanceOwner::SetupCARenderer(int aWidth, int aHeight)
 {
-  const char* pluginType = GetMIMEType(mInstance);
-  if (strcmp(pluginType, "application/x-shockwave-flash") != 0) {
-    // We don't need a timer since Flash is invoking InvalidateRect for us.
-    AddToCARefreshTimer(this);
+  void *caLayer = NULL;
+  mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
+  if (!caLayer) {
+    return;
   }
+  nsresult rt = mCARenderer.SetupRenderer(caLayer, aWidth, aHeight);
+  if (rt != NS_OK)
+    return;
+  AddToCARefreshTimer(this);
 }
 
-void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext, 
-                                                int aWidth, int aHeight)
+void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext, int aWidth, int aHeight)
 {
-  if (aWidth == 0 || aHeight == 0)
-    return;
-
-  if (!mIOSurface || 
-     (mIOSurface->GetWidth() != aWidth || 
-      mIOSurface->GetHeight() != aHeight)) {
-    if (mIOSurface) {
-      delete mIOSurface;
-    }
-
-    // If the renderer is backed by an IOSurface, resize it as required.
-    mIOSurface = nsIOSurface::CreateIOSurface(aWidth, aHeight);
-    if (mIOSurface) {
-      nsIOSurface *attachSurface = nsIOSurface::LookupSurface(
-                                      mIOSurface->GetIOSurfaceID());
-      if (attachSurface) {
-        mCARenderer.AttachIOSurface(attachSurface);
-      } else {
-        NS_ERROR("IOSurface attachment failed");
-        delete attachSurface;
-        delete mIOSurface;
-        mIOSurface = NULL;
-      }
-    }
-  }
-
-  if (mCARenderer.isInit() == false) {
-    void *caLayer = NULL;
-    mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
-    if (!caLayer) {
-      return;
-    }
-
-    mCARenderer.SetupRenderer(caLayer, aWidth, aHeight);
-
-    // Setting up the CALayer requires resetting the painting otherwise we
-    // get garbage for the first few frames.
-    FixUpPluginWindow(ePluginPaintDisable);
-    FixUpPluginWindow(ePluginPaintEnable);
-  }
-
   CGImageRef caImage = NULL;
   nsresult rt = mCARenderer.Render(aWidth, aHeight, &caImage);
-  if (rt == NS_OK && mIOSurface) {
-    nsCARenderer::DrawSurfaceToCGContext(aCGContext, mIOSurface, CreateSystemColorSpace(),
-                                         0, 0, aWidth, aHeight); 
-  } else if (rt == NS_OK && caImage != NULL) {
+  if (rt == NS_OK && caImage != NULL) {
     // Significant speed up by resetting the scaling
     ::CGContextSetInterpolationQuality(aCGContext, kCGInterpolationNone );
     ::CGContextTranslateCTM(aCGContext, 0, aHeight);
     ::CGContextScaleCTM(aCGContext, 1.0, -1.0);
 
     ::CGContextDrawImage(aCGContext, CGRectMake(0,0,aWidth,aHeight), caImage);
-  } else {
-    NS_NOTREACHED("nsCARenderer::Render failure");
   }
 }
 
@@ -4457,12 +4414,15 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       }
 #endif
       if (!event) {
+
 #ifndef NP_NO_CARBON
         if (eventModel == NPEventModelCarbon) {
+          event = &synthCarbonEvent;
           InitializeEventRecord(&synthCarbonEvent, &carbonPt);
         } else
 #endif
         {
+          event = &synthCocoaEvent;
           InitializeNPCocoaEvent(&synthCocoaEvent);
         }
 
@@ -4473,7 +4433,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = (anEvent.message == NS_FOCUS_CONTENT) ?
             NPEventType_GetFocusEvent : NPEventType_LoseFocusEvent;
-            event = &synthCarbonEvent;
           }
 #endif
           break;
@@ -4482,35 +4441,33 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
             // Ignore mouse-moved events that happen as part of a dragging
             // operation that started over another frame.  See bug 525078.
             nsCOMPtr<nsFrameSelection> frameselection = mObjectFrame->GetFrameSelection();
-            if (!frameselection->GetMouseDownState() ||
-                (nsIPresShell::GetCapturingContent() == mObjectFrame->GetContent())) {
-#ifndef NP_NO_CARBON
-              if (eventModel == NPEventModelCarbon) {
-                synthCarbonEvent.what = osEvt;
-                event = &synthCarbonEvent;
-              } else
-#endif
-              {
-                synthCocoaEvent.type = NPCocoaEventMouseMoved;
-                synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
-                synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-                event = &synthCocoaEvent;
-              }
+            if (frameselection->GetMouseDownState() &&
+                (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
+              pluginWidget->EndDrawPlugin();
+              return nsEventStatus_eIgnore;
             }
+          }
+#ifndef NP_NO_CARBON
+          if (eventModel == NPEventModelCarbon) {
+            synthCarbonEvent.what = osEvt;
+          } else
+#endif
+          {
+            synthCocoaEvent.type = NPCocoaEventMouseMoved;
+            synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
+            synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         case NS_MOUSE_BUTTON_DOWN:
 #ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = mouseDown;
-            event = &synthCarbonEvent;
           } else
 #endif
           {
             synthCocoaEvent.type = NPCocoaEventMouseDown;
             synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
             synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-            event = &synthCocoaEvent;
           }
           break;
         case NS_MOUSE_BUTTON_UP:
@@ -4520,33 +4477,31 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           // See bug 525078.
           if ((static_cast<const nsMouseEvent&>(anEvent).button == nsMouseEvent::eLeftButton) &&
               (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
-            if (eventModel == NPEventModelCocoa) {
+#ifndef NP_NO_CARBON
+            if (eventModel == NPEventModelCarbon) {
+              pluginWidget->EndDrawPlugin();
+              return nsEventStatus_eIgnore;
+            } else
+#endif
+            {
               synthCocoaEvent.type = NPCocoaEventMouseEntered;
               synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
               synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-              event = &synthCocoaEvent;
             }
           } else {
 #ifndef NP_NO_CARBON
             if (eventModel == NPEventModelCarbon) {
               synthCarbonEvent.what = mouseUp;
-              event = &synthCarbonEvent;
             } else
 #endif
             {
               synthCocoaEvent.type = NPCocoaEventMouseUp;
               synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
               synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-              event = &synthCocoaEvent;
             }
           }
           break;
         default:
-          break;
-        }
-        
-        // If we still don't have an event, bail.
-        if (!event) {
           pluginWidget->EndDrawPlugin();
           return nsEventStatus_eIgnore;
         }
@@ -4895,8 +4850,6 @@ nsPluginInstanceOwner::Destroy()
 #endif
 #ifdef XP_MACOSX
   RemoveFromCARefreshTimer(this);
-  if (mIOSurface)
-    delete mIOSurface;
 #endif
 
   // unregister context menu listener

@@ -43,7 +43,6 @@
 
 #include "mozilla/TimeStamp.h"
 #include "nscore.h"
-#include "nsAutoPtr.h"
 
 #if defined(NS_FORCE_FUNCTION_TIMER) && !defined(NS_FUNCTION_TIMER)
 #define NS_FUNCTION_TIMER
@@ -55,20 +54,11 @@
 
 #ifdef NS_FUNCTION_TIMER
 
-#ifdef __GNUC__
-#define MOZ_FUNCTION_NAME __PRETTY_FUNCTION__
-#elif defined(_MSC_VER)
-#define MOZ_FUNCTION_NAME __FUNCTION__
-#else
-#warning "Define a suitable MOZ_FUNCTION_NAME for this platform"
-#define MOZ_FUNCTION_NAME ""
-#endif
-
 // Add a timer for this function, from this declaration until the
 // function returns.  The function name will be used as the
 // log string, and both function entry and exit will be printed.
 #define NS_TIME_FUNCTION                                                \
-    mozilla::FunctionTimer ft__autogen("%s (line %d)", MOZ_FUNCTION_NAME, __LINE__)
+    mozilla::FunctionTimer ft__autogen("%s (line %d)", __FUNCTION__, __LINE__)
 
 // Add a timer for this block, but print only a) if the exit time is
 // greater than the given number of milliseconds; or b) if the
@@ -76,12 +66,12 @@
 // No function entry will be printed.  If the value given is negative,
 // no function entry or exit will ever be printed, but all marks will.
 #define NS_TIME_FUNCTION_MIN(_ms)                                       \
-    mozilla::FunctionTimer ft__autogen((_ms), "%s (line %d)", MOZ_FUNCTION_NAME, __LINE__)
+    mozilla::FunctionTimer ft__autogen((_ms), "%s (line %d)", __FUNCTION__, __LINE__)
 
 // Add a timer for this block, but print only marks, not function
 // entry and exit.  The same as calling the above macro with a negative value.
 #define NS_TIME_FUNCTION_MARK_ONLY                                    \
-    mozilla::FunctionTimer ft__autogen((-1), "%s (line %d)", MOZ_FUNCTION_NAME, __LINE__)
+    mozilla::FunctionTimer ft__autogen((-1), "%s (line %d)", __FUNCTION__, __LINE__)
 
 // Add a timer for this block, using the printf-style format.
 // Both function entry and exit will be printed.
@@ -141,13 +131,12 @@ private:
 
 class NS_COM FunctionTimer
 {
-    static nsAutoPtr<FunctionTimerLog> sLog;
+    static FunctionTimerLog* sLog;
     static char *sBuf1;
     static char *sBuf2;
     static int sBufSize;
-    static unsigned sDepth;
 
-    enum { BUF_LOG_LENGTH = 1024 };
+    enum { BUF_LOG_LENGTH = 256 };
 
 public:
     static int InitTimers();
@@ -167,58 +156,55 @@ public:
         va_end(ap);
     }
 
-private:
-    void Init(const char *s, va_list ap) {
-        if (mEnabled) {
-            TimeInit();
-
-            ft_vsnprintf(mString, BUF_LOG_LENGTH, s, ap);
-
-            ft_snprintf(sBuf1, sBufSize, "> (% 3d)%*s|%s%s", mDepth, mDepth, " ", mHasMinMs ? "?MINMS " : "", mString);
-            sLog->LogString(sBuf1);
-        }
-    }
-
 public:
     inline void TimeInit() {
-        if (mEnabled) {
+        if (sLog) {
             mStart = TimeStamp::Now();
             mLastMark = mStart;
         }
     }
 
     inline double Elapsed() {
-        if (mEnabled)
+        if (sLog)
             return (TimeStamp::Now() - mStart).ToSeconds() * 1000.0;
         return 0.0;
     }
 
     inline double ElapsedSinceMark() {
-        if (mEnabled)
+        if (sLog)
             return (TimeStamp::Now() - mLastMark).ToSeconds() * 1000.0;
         return 0.0;
     }
 
     FunctionTimer(double minms, const char *s, ...)
-        : mMinMs(minms), mHasMinMs(PR_TRUE),
-          mEnabled(sLog && s && *s), mDepth(++sDepth)
+        : mMinMs(minms)
     {
         va_list ap;
         va_start(ap, s);
 
-        Init(s, ap);
+        if (sLog) {
+            TimeInit();
+
+            ft_vsnprintf(mString, BUF_LOG_LENGTH, s, ap);
+        }
 
         va_end(ap);
     }
 
     FunctionTimer(const char *s, ...)
-        : mMinMs(0.0), mHasMinMs(PR_FALSE),
-          mEnabled(sLog && s && *s), mDepth(++sDepth)
+        : mMinMs(0.0)
     {
         va_list ap;
         va_start(ap, s);
 
-        Init(s, ap);
+        if (sLog) {
+            TimeInit();
+
+            ft_vsnprintf(mString, BUF_LOG_LENGTH, s, ap);
+
+            ft_snprintf(sBuf1, sBufSize, "> %s", mString);
+            sLog->LogString(sBuf1);
+        }
 
         va_end(ap);
     }
@@ -228,7 +214,7 @@ public:
         va_list ap;
         va_start(ap, s);
 
-        if (mEnabled) {
+        if (sLog) {
             ft_vsnprintf(sBuf1, sBufSize, s, ap);
 
             TimeStamp now(TimeStamp::Now());
@@ -236,34 +222,31 @@ public:
             double msl = (now - mLastMark).ToSeconds() * 1000.0;
             mLastMark = now;
 
-            ft_snprintf(sBuf2, sBufSize, "* (% 3d)%*s|%s%9.2f ms (%9.2f ms total) - %s [%s]", mDepth, mDepth, " ",
-                (!mHasMinMs || mMinMs < 0.0 || msl > mMinMs) ? "<MINMS " : "", msl, ms, mString, sBuf1);
-            sLog->LogString(sBuf2);
+            if (msl > mMinMs) {
+                ft_snprintf(sBuf2, sBufSize, "%s- %9.2f ms (%9.2f ms total) - %s [%s]", mMinMs < 0.0 ? "" : "*", msl, ms, mString, sBuf1);
+                sLog->LogString(sBuf2);
+            }
         }
 
         va_end(ap);
     }
 
     ~FunctionTimer() {
-        if (mEnabled) {
+        if (sLog) {
             TimeStamp now(TimeStamp::Now());
             double ms = (now - mStart).ToSeconds() * 1000.0;
             double msl = (now - mLastMark).ToSeconds() * 1000.0;
 
-            ft_snprintf(sBuf1, sBufSize, "< (% 3d)%*s|%s%9.2f ms (%9.2f ms total) - %s", mDepth, mDepth, " ",
-                (!mHasMinMs || (mMinMs >= 0.0 && msl > mMinMs)) ? "" : "<MINMS ", msl, ms, mString);
-            sLog->LogString(sBuf1);
+            if (mMinMs < 0.0 || (mMinMs >= 0.0 && msl > mMinMs)) {
+                ft_snprintf(sBuf1, sBufSize, "%s %9.2f ms (%9.2f ms total) - %s", mMinMs < 0.0 ? "<" : "*", msl, ms, mString);
+                sLog->LogString(sBuf1);
+            }
         }
-
-        --sDepth;
     }
 
     TimeStamp mStart, mLastMark;
-    const double mMinMs;
     char mString[BUF_LOG_LENGTH+1];
-    const PRBool mHasMinMs;
-    const PRBool mEnabled;
-    const unsigned mDepth;
+    double mMinMs;
 };
 
 } // namespace mozilla

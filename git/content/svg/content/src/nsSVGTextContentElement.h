@@ -41,30 +41,14 @@
 
 #include "nsIDOMSVGTextContentElement.h"
 #include "nsSVGTextContainerFrame.h"
-#include "nsSVGStylableElement.h"
 
-typedef nsSVGStylableElement nsSVGTextContentElementBase;
-
-/**
- * Note that nsSVGTextElement does not inherit nsSVGTextPositioningElement, or
- * this class - it reimplements us instead (see its documenting comment). The
- * upshot is that any changes to this class also need to be made in
- * nsSVGTextElement.
- */
-class nsSVGTextContentElement : public nsSVGTextContentElementBase
+class nsSVGTextContentElement
 {
 public:
   NS_DECL_NSIDOMSVGTEXTCONTENTELEMENT
 
 protected:
-
-  nsSVGTextContentElement(nsINodeInfo *aNodeInfo)
-    : nsSVGTextContentElementBase(aNodeInfo)
-  {}
-
-  nsSVGTextContainerFrame* GetTextContainerFrame() {
-    return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
-  }
+  virtual nsSVGTextContainerFrame* GetTextContainerFrame()=0;
 };
 
 #endif

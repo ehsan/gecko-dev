@@ -236,37 +236,25 @@ SimpleTest.waitForFocus_loaded = false;
 SimpleTest.waitForFocus_focused = false;
 
 /**
- * If the page is not yet loaded, waits for the load event. In addition, if
- * the page is not yet focused, focuses and waits for the window to be
- * focused. Calls the callback when completed. If the current page is
- * 'about:blank', then the page is assumed to not yet be loaded. Pass true for
- * expectBlankPage to not make this assumption if you expect a blank page to
- * be present.
+ * If the page is not yet loaded, waits for the load event. If the page is
+ * not yet focused, focuses and waits for the window to be focused. Calls
+ * the callback when completed.
  *
- * targetWindow should be specified if it is different than 'window'. The actual
- * focused window may be a descendant of targetWindow.
- *
- * @param callback
- *        function called when load and focus are complete
- * @param targetWindow
- *        optional window to be loaded and focused, defaults to 'window'
- * @param expectBlankPage
- *        true if targetWindow.location is 'about:blank'. Defaults to false
+ * targetWindow should be specified if it is different than 'window'.
  */
-SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
+SimpleTest.waitForFocus = function (callback, targetWindow) {
     if (!targetWindow)
       targetWindow = window;
 
     SimpleTest.waitForFocus_started = false;
-    expectBlankPage = !!expectBlankPage;
 
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var fm = Components.classes["@mozilla.org/focus-manager;1"].
                         getService(Components.interfaces.nsIFocusManager);
 
-    var childTargetWindow = { };
-    fm.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
-    childTargetWindow = childTargetWindow.value;
+    var usedTargetWindow = {};
+    fm.getFocusedElementForWindow(targetWindow, true, usedTargetWindow);
+    targetWindow = usedTargetWindow.value;
 
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
@@ -280,7 +268,6 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
            " focused window: " +
                (fm.focusedWindow ? "(" + fm.focusedWindow + ") " + fm.focusedWindow.location : "<no window focused>") +
            " desired window: (" + targetWindow + ") " + targetWindow.location +
-           " child window: (" + childTargetWindow + ") " + childTargetWindow.location +
            " docshell visible: " + baseWindow.visibility);
     }
 
@@ -298,56 +285,39 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     }
 
     function waitForEvent(event) {
-        try {
-            debugFocusLog("waitForEvent called <type:" + event.type + ", target" + event.target + ">");
-
-            // Check to make sure that this isn't a load event for a blank or
-            // non-blank page that wasn't desired.
-            if (event.type == "load" && (expectBlankPage != (event.target.location == "about:blank")))
-                return;
-
-            SimpleTest["waitForFocus_" + event.type + "ed"] = true;
-            var win = (event.type == "load") ? targetWindow : childTargetWindow;
-            win.removeEventListener(event.type, waitForEvent, true);
-            maybeRunTests();
-        } catch (e) {
-            SimpleTest.ok(false, "Exception caught in waitForEvent: " + e.message +
-                ", at: " + e.fileName + " (" + e.lineNumber + ")");
-        }
+        SimpleTest["waitForFocus_" + event.type + "ed"] = true;
+        targetWindow.removeEventListener(event.type, waitForEvent, false);
+        if (event.type == "MozAfterPaint")
+          SimpleTest.ok(true, "MozAfterPaint event received");
+        maybeRunTests();
     }
 
-    // If the current document is about:blank and we are not expecting a blank
-    // page (or vice versa), and the document has not yet loaded, wait for the
-    // page to load. A common situation is to wait for a newly opened window
-    // to load its content, and we want to skip over any intermediate blank
-    // pages that load. This issue is described in bug 554873.
-    SimpleTest.waitForFocus_loaded =
-        (expectBlankPage == (targetWindow.location == "about:blank")) &&
-        targetWindow.document.readyState == "complete";
+    // wait for the page to load if it hasn't already
+    SimpleTest.waitForFocus_loaded = (targetWindow.document.readyState == "complete");
     if (!SimpleTest.waitForFocus_loaded) {
         SimpleTest.ok(true, "must wait for load");
-        targetWindow.addEventListener("load", waitForEvent, true);
+        targetWindow.addEventListener("load", waitForEvent, false);
     }
 
-    // Check if the desired window is already focused.
-    var focusedChildWindow = { };
-    if (fm.activeWindow) {
-        fm.getFocusedElementForWindow(fm.activeWindow, true, focusedChildWindow);
-        focusedChildWindow = focusedChildWindow.value;
-    }
+    // check if the window is focused, and focus it if it is not
+    var focusedWindow = { };
+    if (fm.activeWindow)
+      fm.getFocusedElementForWindow(fm.activeWindow, true, focusedWindow);
 
-    // If this is a child frame, ensure that the frame is focused.
-    SimpleTest.waitForFocus_focused = (focusedChildWindow == childTargetWindow);
+    // if this is a child frame, ensure that the frame is focused
+    SimpleTest.waitForFocus_focused = (focusedWindow.value == targetWindow);
     if (SimpleTest.waitForFocus_focused) {
         SimpleTest.ok(true, "already focused");
-        // If the frame is already focused and loaded, call the callback directly.
+        // if the frame is already focused and loaded, call the callback directly
         maybeRunTests();
     }
     else {
         SimpleTest.ok(true, "must wait for focus");
-        childTargetWindow.addEventListener("focus", waitForEvent, true);
-        childTargetWindow.focus();
+        targetWindow.addEventListener("focus", waitForEvent, false);
+        targetWindow.focus();
     }
+
+    targetWindow.addEventListener("MozAfterPaint", waitForEvent, false);
 };
 
 /**

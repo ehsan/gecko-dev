@@ -2,7 +2,6 @@
 uniform mat4 uLayerQuadTransform; \
 uniform mat4 uLayerTransform; \
 uniform vec4 uRenderTargetOffset; \
-uniform vec4 uRenderColor; \
 uniform float uLayerOpacity; \
 \
 uniform sampler2D uLayerTexture; \
@@ -26,11 +25,6 @@ void main() \
 static const GLchar *sRGBLayerPS = SHADER_GLOBAL_VARS "void main() \
 { \
 gl_FragColor = texture2D(uLayerTexture, vTextureCoordinate) * uLayerOpacity; \
-}";
-
-static const GLchar *sColorLayerPS = SHADER_GLOBAL_VARS "void main() \
-{ \
-gl_FragColor = uRenderColor; \
 }";
 
 static const GLchar *sYUVLayerPS = SHADER_GLOBAL_VARS "void main() \

@@ -141,7 +141,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   gInitiatorAcc = aInitiatorAcc;
 
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(aContent));
-  nsIPresShell *shell = nsCoreUtils::GetPresShellFor(DOMNode);
+  nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(DOMNode);
   if (!shell) {
     NS_ASSERTION(PR_TRUE, "There is no presshell!");
     gInitiatorAcc = nsnull;
@@ -158,8 +158,9 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   PRBool goThroughDOMSubtree = PR_TRUE;
 
   if (isVisible) {
-    nsAccessible *accessible =
-      GetAccService()->GetAccessibleInShell(DOMNode, shell);
+    nsCOMPtr<nsIAccessible> accessible;
+    GetAccService()->GetAccessibleInShell(DOMNode, shell,
+                                               getter_AddRefs(accessible));
     if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = PR_FALSE;
@@ -236,14 +237,16 @@ nsresult
 nsTextEquivUtils::AppendFromAccessibleChildren(nsIAccessible *aAccessible,
                                                nsAString *aString)
 {
-  nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
+  nsCOMPtr<nsIAccessible> accChild, accNextChild;
+  aAccessible->GetFirstChild(getter_AddRefs(accChild));
 
-  nsRefPtr<nsAccessible> accessible(do_QueryObject(aAccessible));
-  PRInt32 childCount = accessible->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = accessible->GetChildAt(childIdx);
-    rv = AppendFromAccessible(child, aString);
+  nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
+  while (accChild) {
+    rv = AppendFromAccessible(accChild, aString);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    accChild->GetNextSibling(getter_AddRefs(accNextChild));
+    accChild.swap(accNextChild);
   }
 
   return rv;

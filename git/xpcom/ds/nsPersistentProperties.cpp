@@ -128,15 +128,14 @@ public:
 
     // This is really ugly hack but it should be fast
     PRUnichar backup_char;
-    PRUint32 minLength = mMinLength;
-    if (minLength)
+    if (mMinLength)
     {
-      backup_char = mValue[minLength-1];
-      mValue.SetCharAt('x', minLength-1);
+      backup_char = mValue[mMinLength-1];
+      mValue.SetCharAt('x', mMinLength-1);
     }
     mValue.Trim(trimThese, PR_FALSE, PR_TRUE);
-    if (minLength)
-      mValue.SetCharAt(backup_char, minLength-1);
+    if (mMinLength)
+      mValue.SetCharAt(backup_char, mMinLength-1);
 
     mProps->SetStringProperty(NS_ConvertUTF16toUTF8(mKey), mValue, aOldValue);
     mSpecialState = eParserSpecial_None;

@@ -5307,11 +5307,8 @@ CheckGlobalObjectShape(JSContext* cx, TraceMonitor* tm, JSObject* globalObj,
      * that it isn't the global at run time.
      */
     if (!globalObj->scope()->hasOwnShape()) {
-        JS_LOCK_OBJ(cx, globalObj);
         JSScope *scope = js_GetMutableScope(cx, globalObj);
-        bool ok = scope && scope->globalObjectOwnShapeChange(cx);
-        JS_UNLOCK_OBJ(cx, globalObj);
-        if (!ok) {
+        if (!scope || !scope->globalObjectOwnShapeChange(cx)) {
             debug_only_print0(LC_TMTracer,
                               "Can't record: failed to give globalObj a unique shape.\n");
             return false;
@@ -12986,7 +12983,7 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32 *slotp, LIns** v_insp, 
     PCVal pcval;
     CHECK_STATUS_A(test_property_cache(obj, obj_ins, obj2, pcval));
 
-    /* Check for nonexistent property reference, which results in undefined. */
+    /* Check for non-existent property reference, which results in undefined. */
     if (pcval.isNull()) {
         if (slotp)
             RETURN_STOP_A("property not found");

@@ -45,9 +45,6 @@
 #include "nsNetCID.h"
 #include "nsObserverService.h"
 #include "nsXPCOMPrivate.h"
-#include "nsIStringBundle.h"
-#include "nsIToolkitChromeRegistry.h"
-#include "nsIXULOverlayProvider.h"
 
 using namespace mozilla::services;
 

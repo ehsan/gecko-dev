@@ -89,10 +89,20 @@ Tester.prototype = {
     }
 
     // Make sure the window is raised before each test.
-    let self = this;
-    this.SimpleTest.waitForFocus(function() {
-      aCallback.apply(self);
-    });
+    if (this._fm.activeWindow != window) {
+      this.dumper.dump("TEST-INFO | (browser-test.js) | Waiting for window activation...\n");
+      let self = this;
+      window.addEventListener("activate", function () {
+        window.removeEventListener("activate", arguments.callee, false);
+        setTimeout(function () {
+          aCallback.apply(self);
+        }, 0);
+      }, false);
+      window.focus();
+      return;
+    }
+
+    aCallback.apply(this);
   },
 
   finish: function Tester_finish(aSkipSummary) {
@@ -302,8 +312,8 @@ function testScope(aTester, aTest) {
     self.__done = false;
   };
 
-  this.waitForFocus = function test_waitForFocus(callback, targetWindow, expectBlankPage) {
-    self.SimpleTest.waitForFocus(callback, targetWindow, expectBlankPage);
+  this.waitForFocus = function test_waitForFocus(callback, targetWindow) {
+    self.SimpleTest.waitForFocus(callback, targetWindow);
   };
 
   this.registerCleanupFunction = function test_registerCleanupFunction(aFunction) {

@@ -384,8 +384,6 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
     case MsgPayloadError:
         errorMsg = "Payload error: message could not be deserialized";
         break;
-    case MsgProcessingError:
-        errorMsg = "Processing error: message was deserialized, but the handler returned false (indicating failure)";
     case MsgRouteError:
         errorMsg = "Route error: message sent to unknown actor ID";
         break;
@@ -415,14 +413,12 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
         break;
     case ChannelTimeout:
         errorMsg = "Channel timeout: cannot send/recv";
-    case ChannelClosing:
-        errorMsg = "Channel closing: too late to send/recv, messages will be lost";
     case ChannelError:
         errorMsg = "Channel error: cannot send/recv";
         break;
 
     default:
-        NS_RUNTIMEABORT("unreached");
+        NOTREACHED();
     }
 
     PrintErrorMessage(channelName, errorMsg);

@@ -66,8 +66,6 @@
 #include "plstr.h"
 #include "nsURLHelper.h"
 
-#include "mozilla/FunctionTimer.h"
-
 //----------------------------------------------------------------------------
 
 // Use a persistent thread pool in order to avoid spinning up new threads all the time.
@@ -363,8 +361,6 @@ nsHostResolver::~nsHostResolver()
 nsresult
 nsHostResolver::Init()
 {
-    NS_TIME_FUNCTION;
-
     mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;

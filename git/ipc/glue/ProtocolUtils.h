@@ -93,9 +93,7 @@ public:
 
     virtual Shmem::SharedMemory* CreateSharedMemory(
         size_t, SharedMemory::SharedMemoryType, int32*) = 0;
-    virtual bool AdoptSharedMemory(Shmem::SharedMemory*, int32*) = 0;
     virtual Shmem::SharedMemory* LookupSharedMemory(int32) = 0;
-    virtual bool IsTrackingSharedMemory(Shmem::SharedMemory*) = 0;
     virtual bool DestroySharedMemory(Shmem&) = 0;
 
     // XXX odd duck, acknowledged

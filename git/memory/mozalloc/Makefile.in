@@ -80,7 +80,7 @@ CPPSRCS 		=			\
 	$(NULL)
 
 ifdef WRAP_STL_INCLUDES #{
-ifdef GNU_CXX #{
+ifdef GCC_VERSION #{
 EXPORTS_mozilla	+= throw_gcc.h
 else
 ifdef _MSC_VER #{

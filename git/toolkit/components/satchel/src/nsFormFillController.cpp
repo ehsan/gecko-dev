@@ -58,7 +58,6 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLInputElement.h"
-#include "nsIFormControl.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
@@ -605,6 +604,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(target);
   if (!input)
     return NS_OK;
+    
+    nsAutoString type;
+    input->GetType(type);
 
     PRBool isReadOnly = PR_FALSE;
     input->GetReadOnly(&isReadOnly);
@@ -617,10 +619,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
     if (mPwmgrInputs.Get(input, &dummy))
         isPwmgrInput = PR_TRUE;
 
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
-    if (formControl && formControl->IsSingleLineTextControl(PR_TRUE) &&
-        !isReadOnly &&
+    if (type.LowerCaseEqualsLiteral("text") && !isReadOnly &&
         (!autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)) {
+
       nsCOMPtr<nsIDOMHTMLFormElement> form;
       input->GetForm(getter_AddRefs(form));
       if (form)

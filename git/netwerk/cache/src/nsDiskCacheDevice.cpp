@@ -80,8 +80,6 @@
 #include "nsCOMArray.h"
 #include "nsISimpleEnumerator.h"
 
-#include "mozilla/FunctionTimer.h"
-
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
 
 
@@ -361,8 +359,6 @@ nsDiskCacheDevice::~nsDiskCacheDevice()
 nsresult
 nsDiskCacheDevice::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     NS_ENSURE_TRUE(!Initialized(), NS_ERROR_FAILURE);

@@ -68,7 +68,6 @@
 #include "nsReadableUtils.h"
 #include "nsIPrefBranch2.h"
 #include "mozilla/AutoRestore.h"
-#include "nsINode.h"
 
 #include "jsapi.h"
 
@@ -76,6 +75,7 @@ struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will f
 
 class nsIDOMScriptObjectFactory;
 class nsIXPConnect;
+class nsINode;
 class nsIContent;
 class nsIDOMNode;
 class nsIDOMKeyEvent;
@@ -138,14 +138,9 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 namespace mozilla {
   class IHistory;
 
-namespace layers {
-  class LayerManager;
-} // namespace layers
-
 namespace dom {
 class Element;
 } // namespace dom
-
 } // namespace mozilla
 
 extern const char kLoadAsData[];
@@ -177,8 +172,6 @@ struct nsShortcutCandidate {
 
 class nsContentUtils
 {
-  typedef mozilla::dom::Element Element;
-
 public:
   static nsresult Init();
 
@@ -230,8 +223,8 @@ public:
    *         aPossibleAncestor (or is aPossibleAncestor).  PR_FALSE
    *         otherwise.
    */
-  static PRBool ContentIsDescendantOf(const nsINode* aPossibleDescendant,
-                                      const nsINode* aPossibleAncestor);
+  static PRBool ContentIsDescendantOf(nsINode* aPossibleDescendant,
+                                      nsINode* aPossibleAncestor);
 
   /**
    * Similar to ContentIsDescendantOf except it crosses document boundaries.
@@ -277,13 +270,30 @@ public:
                                     nsINode* aNode2);
 
   /**
+   * Compares the document position of nodes.
+   *
+   * @param aNode1 The node whose position is being compared to the reference
+   *               node
+   * @param aNode2 The reference node
+   *
+   * @return  The document position flags of the nodes. aNode1 is compared to
+   *          aNode2, i.e. if aNode1 is before aNode2 then
+   *          DOCUMENT_POSITION_PRECEDING will be set.
+   *
+   * @see nsIDOMNode
+   * @see nsIDOM3Node
+   */
+  static PRUint16 ComparePosition(nsINode* aNode1,
+                                  nsINode* aNode2);
+
+  /**
    * Returns true if aNode1 is before aNode2 in the same connected
    * tree.
    */
   static PRBool PositionIsBefore(nsINode* aNode1,
                                  nsINode* aNode2)
   {
-    return (aNode2->CompareDocumentPosition(aNode1) &
+    return (ComparePosition(aNode1, aNode2) &
       (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
        nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED)) ==
       nsIDOM3Node::DOCUMENT_POSITION_PRECEDING;
@@ -321,12 +331,14 @@ public:
    * an element with the given id.  aId must be nonempty, otherwise
    * this method may return nodes even if they have no id!
    */
-  static Element* MatchElementId(nsIContent *aContent, const nsAString& aId);
+  static nsIContent* MatchElementId(nsIContent *aContent,
+                                    const nsAString& aId);
 
   /**
    * Similar to above, but to be used if one already has an atom for the ID
    */
-  static Element* MatchElementId(nsIContent *aContent, nsIAtom* aId);
+  static nsIContent* MatchElementId(nsIContent *aContent,
+                                    nsIAtom* aId);
 
   /**
    * Given a URI containing an element reference (#whatever),
@@ -1354,7 +1366,7 @@ public:
    * If aContent is an HTML element with a DOM level 0 'name', then
    * return the name. Otherwise return null.
    */
-  static nsIAtom* IsNamedItem(Element* aElement);
+  static nsIAtom* IsNamedItem(mozilla::dom::Element* aElement);
 
   /**
    * Get the application manifest URI for this document.  The manifest URI
@@ -1599,28 +1611,6 @@ public:
   {
     sIsHandlingKeyBoardEvent = aHandling;
   }
-
-  /**
-   * Utility method for getElementsByClassName.  aRootNode is the node (either
-   * document or element), which getElementsByClassName was called on.
-   */
-  static nsresult GetElementsByClassName(nsINode* aRootNode,
-                                         const nsAString& aClasses,
-                                         nsIDOMNodeList** aReturn);
-
-  /**
-   * Returns a layer manager to use for the given document. Basically we
-   * look up the document hierarchy for the first document which has
-   * a presentation with an associated widget, and use that widget's
-   * layer manager.
-   *
-   * If one can't be found, a BasicLayerManager is created and returned.
-   *
-   * @param aDoc the document for which to return a layer manager.
-   */
-  static already_AddRefed<mozilla::layers::LayerManager>
-  LayerManagerForDocument(nsIDocument *aDoc);
-
 private:
 
   static PRBool InitializeEventTable();
@@ -1721,7 +1711,7 @@ public:
   PRBool RePush(nsPIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
-  PRBool Push(JSContext *cx, PRBool aRequiresScriptContext = PR_TRUE);
+  PRBool Push(JSContext *cx);
   // Explicitly push a null JSContext on the the stack
   PRBool PushNull();
 

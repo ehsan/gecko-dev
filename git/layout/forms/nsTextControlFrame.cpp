@@ -59,7 +59,6 @@
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 #include "nsIEditorObserver.h"
-#include "nsEditProperty.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
@@ -120,8 +119,6 @@
 #include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
-
-#include "mozilla/FunctionTimer.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 
@@ -1075,7 +1072,6 @@ nsTextControlFrame::PreDestroy()
 
   mUseEditor = PR_FALSE;
   mEditor = nsnull;
-  mScrollEvent.Revoke();
   if (mSelCon) {
     mSelCon->SetScrollableFrame(nsnull);
     mSelCon = nsnull;
@@ -1138,7 +1134,8 @@ PRBool nsTextControlFrame::IsSingleLineTextControl() const
 {
   nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(mContent);
   if (formControl) {
-    return formControl->IsSingleLineTextControl(PR_FALSE);
+    PRInt32 type = formControl->GetType();
+    return (type == NS_FORM_INPUT_TEXT) || (type == NS_FORM_INPUT_PASSWORD);
   }
   return PR_FALSE;
 }
@@ -1374,8 +1371,6 @@ nsTextControlFrame::EnsureEditorInitializedInternal()
   // If so, just return early.
   if (mUseEditor)
     return NS_OK;
-
-  NS_TIME_FUNCTION;
 
   nsIDocument* doc = mContent->GetCurrentDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
@@ -1891,24 +1886,9 @@ nsTextControlFrame::IsLeaf() const
   return PR_TRUE;
 }
 
-NS_IMETHODIMP
-nsTextControlFrame::ScrollOnFocusEvent::Run()
-{
-  if (mFrame && mFrame->mSelCon) {
-    mFrame->mScrollEvent.Forget();
-    mFrame->mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-                                             nsISelectionController::SELECTION_FOCUS_REGION,
-                                             PR_TRUE);
-  }
-  return NS_OK;
-}
-
 //IMPLEMENTING NS_IFORMCONTROLFRAME
 void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
-  // Revoke the previous scroll event if one exists
-  mScrollEvent.Revoke();
-
   if (!aOn) {
     nsWeakFrame weakFrame(this);
 
@@ -1941,6 +1921,13 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   if (NS_SUCCEEDED(InitFocusedValue()))
     MaybeBeginSecureKeyboardInput();
 
+  // Scroll the current selection into view
+  mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
+                                   nsISelectionController::SELECTION_FOCUS_REGION,
+                                   PR_FALSE);
+
+  // tell the caret to use our selection
+
   nsCOMPtr<nsISelection> ourSel;
   mSelCon->GetSelection(nsISelectionController::SELECTION_NORMAL, 
     getter_AddRefs(ourSel));
@@ -1949,19 +1936,6 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   nsIPresShell* presShell = PresContext()->GetPresShell();
   nsRefPtr<nsCaret> caret = presShell->GetCaret();
   if (!caret) return;
-
-  // Scroll the current selection into view
-  nsISelection *caretSelection = caret->GetCaretDOMSelection();
-  const PRBool isFocusedRightNow = ourSel == caretSelection;
-  if (!isFocusedRightNow) {
-    nsRefPtr<ScrollOnFocusEvent> event = new ScrollOnFocusEvent(this);
-    nsresult rv = NS_DispatchToCurrentThread(event);
-    if (NS_SUCCEEDED(rv)) {
-      mScrollEvent = event;
-    }
-  }
-
-  // tell the caret to use our selection
   caret->SetCaretDOMSelection(ourSel);
 
   // mutual-exclusion: the selection is either controlled by the
@@ -2847,7 +2821,6 @@ nsTextControlFrame::SetValue(const nsAString& aValue)
         } else {
           plaintextEditor->InsertText(insertValue);
         }
-        NS_ENSURE_STATE(weakFrame.IsAlive());
 
         if (!IsSingleLineTextControl()) {
           mCachedValue = newValue;
@@ -2859,7 +2832,6 @@ nsTextControlFrame::SetValue(const nsAString& aValue)
           selPriv->EndBatchChanges();
       }
 
-      // This second check _shouldn't_ be necessary, but let's be safe.
       NS_ENSURE_STATE(weakFrame.IsAlive());
       if (outerTransaction)
         mNotifyOnInput = PR_TRUE;
@@ -3003,7 +2975,11 @@ nsTextControlFrame::UpdateValueDisplay(PRBool aNotify,
   if (!aBeforeEditorInit)
   {
     nsWeakFrame weakFrame(this);
-    SetPlaceholderClass(value.IsEmpty(), aNotify);
+    if (value.IsEmpty()) {
+      ShowPlaceholder();
+    } else {
+      HidePlaceholder();
+    }
     NS_ENSURE_STATE(weakFrame.IsAlive());
   }
 
@@ -3122,8 +3098,7 @@ nsAnonDivObserver::CharacterDataChanged(nsIDocument*             aDocument,
 void
 nsAnonDivObserver::ContentAppended(nsIDocument* aDocument,
                                    nsIContent*  aContainer,
-                                   nsIContent*  aFirstNewContent,
-                                   PRInt32      /* unused */)
+                                   PRInt32      aNewIndexInContainer)
 {
   mTextControl->ClearValueCache();
 }
@@ -3132,7 +3107,7 @@ void
 nsAnonDivObserver::ContentInserted(nsIDocument* aDocument,
                                    nsIContent*  aContainer,
                                    nsIContent*  aChild,
-                                   PRInt32      /* unused */)
+                                   PRInt32      aIndexInContainer)
 {
   mTextControl->ClearValueCache();
 }

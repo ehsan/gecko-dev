@@ -966,12 +966,13 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
 void
 nsTreeContentView::ContentAppended(nsIDocument *aDocument,
                                    nsIContent* aContainer,
-                                   nsIContent* aFirstNewContent,
-                                   PRInt32     /* unused */)
+                                   PRInt32     aNewIndexInContainer)
 {
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-    // Our contentinserted doesn't use the index
-    ContentInserted(aDocument, aContainer, cur, 0);
+  PRUint32 childCount = aContainer->GetChildCount();
+  while ((PRUint32)aNewIndexInContainer < childCount) {
+    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
+    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
+    aNewIndexInContainer++;
   }
 }
 
@@ -979,7 +980,7 @@ void
 nsTreeContentView::ContentInserted(nsIDocument *aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 /* unused */)
+                                   PRInt32 aIndexInContainer)
 {
   NS_ASSERTION(aChild, "null ptr");
 

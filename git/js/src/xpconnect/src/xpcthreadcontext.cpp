@@ -45,7 +45,6 @@
 #include "XPCWrapper.h"
 #include "nsDOMJSUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsNullPrincipal.h"
 
 /***************************************************************************/
 
@@ -123,10 +122,11 @@ XPCJSContextStack::Pop(JSContext * *_retval)
 static nsIPrincipal*
 GetPrincipalFromCx(JSContext *cx)
 {
-    nsIScriptContextPrincipal* scp = GetScriptContextPrincipalFromJSContext(cx);
-    if(scp)
+    nsIScriptContext* scriptContext = GetScriptContextFromJSContext(cx);
+    if(scriptContext)
     {
-        nsIScriptObjectPrincipal* globalData = scp->GetObjectPrincipal();
+        nsCOMPtr<nsIScriptObjectPrincipal> globalData =
+            do_QueryInterface(scriptContext->GetGlobalObject());
         if(globalData)
             return globalData->GetPrincipal();
     }
@@ -226,13 +226,12 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 #ifndef XPCONNECT_STANDALONE
         // Start by getting the principal holder and principal for this
         // context.  If we can't manage that, don't bother with the rest.
-        nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
+        nsCOMPtr<nsIPrincipal> principal =
+            do_CreateInstance("@mozilla.org/nullprincipal;1");
         nsCOMPtr<nsIScriptObjectPrincipal> sop;
         if(principal)
         {
-            nsresult rv = principal->Init();
-            if(NS_SUCCEEDED(rv))
-              sop = new PrincipalHolder(principal);
+            sop = new PrincipalHolder(principal);
         }
         if(!sop)
         {
@@ -283,7 +282,7 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
                 }
 
             }
-            if(mSafeJSContext && !glob)
+            if(!glob && mSafeJSContext)
             {
                 // Destroy the context outside the scope of JSAutoRequest that
                 // uses the context in its destructor.

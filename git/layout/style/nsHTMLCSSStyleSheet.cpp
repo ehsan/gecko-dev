@@ -55,13 +55,20 @@
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
-  : mDocument(nsnull)
+  : mRefCnt(0),
+    mURL(nsnull),
+    mDocument(nsnull)
 {
+}
+
+nsHTMLCSSStyleSheet::~nsHTMLCSSStyleSheet()
+{
+  NS_RELEASE(mURL);
 }
 
 NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
@@ -133,32 +140,27 @@ nsHTMLCSSStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
 
   mDocument = aDocument; // not refcounted!
   mURL = aURL;
+  NS_ADDREF(mURL);
   return NS_OK;
 }
 
 // Test if style is dependent on content state
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
+PRBool
 nsHTMLCSSStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
   return PR_FALSE;
 }
 
 // Test if style is dependent on attribute
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
-  // Perhaps should check that it's XUL, SVG, (or HTML) namespace, but
-  // it doesn't really matter.
-  if (aData->mAttrHasChanged && aData->mAttribute == nsGkAtoms::style) {
-    return eRestyle_Self;
-  }
-
   return nsRestyleHint(0);
 }
 
@@ -171,87 +173,104 @@ nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
 }
 
 
-void
+nsresult
 nsHTMLCSSStyleSheet::Reset(nsIURI* aURL)
 {
+  NS_IF_RELEASE(mURL);
   mURL = aURL;
+  NS_ADDREF(mURL);
+
+  return NS_OK;
 }
 
-/* virtual */ nsIURI*
-nsHTMLCSSStyleSheet::GetSheetURI() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetSheetURI(nsIURI** aSheetURL) const
 {
-  return mURL;
+  NS_IF_ADDREF(mURL);
+  *aSheetURL = mURL;
+  return NS_OK;
 }
 
-/* virtual */ nsIURI*
-nsHTMLCSSStyleSheet::GetBaseURI() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetBaseURI(nsIURI** aBaseURL) const
 {
-  return mURL;
+  NS_IF_ADDREF(mURL);
+  *aBaseURL = mURL;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle.AssignLiteral("Internal HTML/CSS Style Sheet");
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
+  return NS_OK;
 }
 
-/* virtual */ PRBool
+NS_IMETHODIMP_(PRBool)
 nsHTMLCSSStyleSheet::HasRules() const
 {
   // Say we always have rules, since we don't know.
   return PR_TRUE;
 }
 
-/* virtual */ PRBool
-nsHTMLCSSStyleSheet::IsApplicable() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetApplicable(PRBool& aApplicable) const
 {
-  return PR_TRUE;
+  aApplicable = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::SetEnabled(PRBool aEnabled)
 { // these can't be disabled
+  return NS_OK;
 }
 
-/* virtual */ PRBool
-nsHTMLCSSStyleSheet::IsComplete() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetComplete(PRBool& aComplete) const
 {
-  return PR_TRUE;
+  aComplete = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::SetComplete()
 {
+  return NS_OK;
 }
 
 // style sheet owner info
-/* virtual */ nsIStyleSheet*
-nsHTMLCSSStyleSheet::GetParentSheet() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetParentSheet(nsIStyleSheet*& aParent) const
 {
-  return nsnull;
+  aParent = nsnull;
+  return NS_OK;
 }
 
-/* virtual */ nsIDocument*
-nsHTMLCSSStyleSheet::GetOwningDocument() const
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::GetOwningDocument(nsIDocument*& aDocument) const
 {
-  return mDocument;
+  NS_IF_ADDREF(mDocument);
+  aDocument = mDocument;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 {
   mDocument = aDocument;
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
-nsHTMLCSSStyleSheet::List(FILE* out, PRInt32 aIndent) const
+void nsHTMLCSSStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
   for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);

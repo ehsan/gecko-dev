@@ -63,6 +63,7 @@
 #include "nsUrlClassifierStreamUpdater.h"
 #include "nsUrlClassifierUtils.h"
 #include "nsUrlClassifierHashCompleter.h"
+#include "nsDocShellCID.h"
 #endif
 
 #ifdef MOZ_FEEDS

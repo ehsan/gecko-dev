@@ -280,7 +280,6 @@
 #include "nsIDOMHTMLIsIndexElement.h"
 #include "nsIDOMHTMLLIElement.h"
 #include "nsIDOMHTMLLabelElement.h"
-#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMHTMLMapElement.h"
@@ -470,8 +469,7 @@
 #include "nsIDOMNSMouseEvent.h"
 
 #include "nsIEventListenerService.h"
-#include "nsIFrameMessageManager.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -552,7 +550,6 @@ static const char kDOMStringBundleURL[] =
 DOMCI_DATA(Crypto, void)
 DOMCI_DATA(CRMFObject, void)
 DOMCI_DATA(SmartCardEvent, void)
-DOMCI_DATA(ContentFrameMessageManager, void)
 
 DOMCI_DATA(DOMPrototype, void)
 DOMCI_DATA(DOMConstructor, void)
@@ -1386,8 +1383,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1450,6 +1445,7 @@ jsval nsDOMClassInfo::sLocationbar_id     = JSVAL_VOID;
 jsval nsDOMClassInfo::sPersonalbar_id     = JSVAL_VOID;
 jsval nsDOMClassInfo::sStatusbar_id       = JSVAL_VOID;
 jsval nsDOMClassInfo::sDialogArguments_id = JSVAL_VOID;
+jsval nsDOMClassInfo::sDirectories_id     = JSVAL_VOID;
 jsval nsDOMClassInfo::sControllers_id     = JSVAL_VOID;
 jsval nsDOMClassInfo::sLength_id          = JSVAL_VOID;
 jsval nsDOMClassInfo::sInnerHeight_id     = JSVAL_VOID;
@@ -1545,8 +1541,8 @@ FindObjectClass(JSObject* aGlobalObject)
 static void
 PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
 {
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
+  nsCOMPtr<nsIStringBundleService>
+    stringService(do_GetService(NS_STRINGBUNDLE_CONTRACTID));
   if (!stringService) {
     return;
   }
@@ -1651,6 +1647,7 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSVAL_TO_STRING(sPersonalbar_id,     cx, "personalbar");
   SET_JSVAL_TO_STRING(sStatusbar_id,       cx, "statusbar");
   SET_JSVAL_TO_STRING(sDialogArguments_id, cx, "dialogArguments");
+  SET_JSVAL_TO_STRING(sDirectories_id,     cx, "directories");
   SET_JSVAL_TO_STRING(sControllers_id,     cx, "controllers");
   SET_JSVAL_TO_STRING(sLength_id,          cx, "length");
   SET_JSVAL_TO_STRING(sInnerHeight_id,     cx, "innerHeight");
@@ -1773,7 +1770,7 @@ nsDOMClassInfo::ThrowJSException(JSContext *cx, nsresult aResult)
   // XXX This probably wants to be localized, but that can fail in ways that
   // are hard to report correctly.
   JSString *str =
-    JS_NewStringCopyZ(cx, "An error occurred throwing an exception");
+    JS_NewStringCopyZ(cx, "An error occured throwing an exception");
   if (!str) {
     // JS_NewStringCopyZ reported the error for us.
     return NS_OK; 
@@ -2478,7 +2475,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLLabelElement, nsIDOMHTMLLabelElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLLabelElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLLabelElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3838,13 +3834,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ContentFrameMessageManager, nsIContentFrameMessageManager)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIFrameMessageManager)
-    DOM_CLASSINFO_MAP_ENTRY(nsIContentFrameMessageManager)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(FormData, nsIDOMFormData)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFormData)
   DOM_CLASSINFO_MAP_END
@@ -4546,6 +4535,7 @@ nsDOMClassInfo::ShutDown()
   sPersonalbar_id     = JSVAL_VOID;
   sStatusbar_id       = JSVAL_VOID;
   sDialogArguments_id = JSVAL_VOID;
+  sDirectories_id     = JSVAL_VOID;
   sControllers_id     = JSVAL_VOID;
   sLength_id          = JSVAL_VOID;
   sInnerHeight_id     = JSVAL_VOID;
@@ -6366,7 +6356,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         // child frame. Define a property for this index.
 
         *_retval = ::JS_DefineElement(cx, obj, JSVAL_TO_INT(id), JSVAL_VOID,
-                                      nsnull, nsnull, JSPROP_SHARED);
+                                      nsnull, nsnull, 0);
 
         if (*_retval) {
           *objp = obj;

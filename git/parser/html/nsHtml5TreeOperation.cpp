@@ -212,7 +212,7 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
 
   PRUint32 childCount = aParent->GetChildCount();
   rv = aParent->AppendChildTo(aNode, PR_FALSE);
-  nsNodeUtils::ContentAppended(aParent, aNode, childCount);
+  nsNodeUtils::ContentAppended(aParent, childCount);
 
   parentDoc->EndUpdate(UPDATE_CONTENT_MODEL);
   return rv;
@@ -276,8 +276,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         didAppend = PR_TRUE;
       }
       if (didAppend) {
-        nsNodeUtils::ContentAppended(parent, parent->GetChildAt(childCount),
-                                     childCount);
+        nsNodeUtils::ContentAppended(parent, childCount);
       }
       return rv;
     }

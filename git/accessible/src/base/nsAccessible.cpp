@@ -41,7 +41,6 @@
 
 #include "nsIXBLAccessible.h"
 
-#include "nsAccIterator.h"
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
 #include "nsDocAccessible.h"
@@ -176,10 +175,10 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
-    // Every embedded accessible within hypertext accessible implements
-    // hyperlink interface.
-    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent = do_QueryObject(GetParent());
-    if (hyperTextParent && nsAccUtils::IsEmbeddedObject(this)) {
+    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent =
+      nsAccUtils::QueryObject<nsIAccessibleHyperText>(GetParent());
+
+    if (hyperTextParent) {
       *aInstancePtr = static_cast<nsIAccessibleHyperLink*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
@@ -2467,6 +2466,39 @@ nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
   nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, aContent);
 }
 
+already_AddRefed<nsIAccessible>
+nsAccessible::GetNextWithState(nsIAccessible *aStart, PRUint32 matchState)
+{
+  // Return the next descendant that matches one of the states in matchState
+  // Uses depth first search
+  NS_ASSERTION(matchState, "GetNextWithState() not called with a state to match");
+  NS_ASSERTION(aStart, "GetNextWithState() not called with an accessible to start with");
+  nsCOMPtr<nsIAccessible> look, current = aStart;
+  PRUint32 state = 0;
+  while (0 == (state & matchState)) {
+    current->GetFirstChild(getter_AddRefs(look));
+    while (!look) {
+      if (current == this) {
+        return nsnull; // At top of subtree
+      }
+      current->GetNextSibling(getter_AddRefs(look));
+      if (!look) {
+        current->GetParent(getter_AddRefs(look));
+        current = look;
+        look = nsnull;
+        continue;
+      }
+    }
+    current.swap(look);
+    state = nsAccUtils::State(current);
+  }
+
+  nsIAccessible *returnAccessible = nsnull;
+  current.swap(returnAccessible);
+
+  return returnAccessible;
+}
+
 // nsIAccessibleSelectable
 NS_IMETHODIMP nsAccessible::GetSelectedChildren(nsIArray **aSelectedAccessibles)
 {
@@ -2476,10 +2508,10 @@ NS_IMETHODIMP nsAccessible::GetSelectedChildren(nsIArray **aSelectedAccessibles)
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_STATE(selectedAccessibles);
 
-  nsAccIterator iter(this, nsAccIterator::GetSelected, nsAccIterator::eTreeNav);
-  nsIAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
+  nsCOMPtr<nsIAccessible> selected = this;
+  while ((selected = GetNextWithState(selected, nsIAccessibleStates::STATE_SELECTED)) != nsnull) {
     selectedAccessibles->AppendElement(selected, PR_FALSE);
+  }
 
   PRUint32 length = 0;
   selectedAccessibles->GetLength(&length); 
@@ -2494,22 +2526,16 @@ NS_IMETHODIMP nsAccessible::GetSelectedChildren(nsIArray **aSelectedAccessibles)
 // return the nth selected descendant nsIAccessible object
 NS_IMETHODIMP nsAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aSelected)
 {
-  NS_ENSURE_ARG_POINTER(aSelected);
   *aSelected = nsnull;
-
   if (aIndex < 0) {
-    return NS_ERROR_INVALID_ARG;
+    return NS_ERROR_FAILURE;
   }
-
-  nsAccIterator iter(this, nsAccIterator::GetSelected, nsAccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-
+  nsCOMPtr<nsIAccessible> selected = this;
   PRInt32 count = 0;
   while (count ++ <= aIndex) {
-    selected = iter.GetNext();
+    selected = GetNextWithState(selected, nsIAccessibleStates::STATE_SELECTED);
     if (!selected) {
-      // The index is out of range.
-      return NS_ERROR_INVALID_ARG;
+      return NS_ERROR_FAILURE; // aIndex out of range
     }
   }
   NS_IF_ADDREF(*aSelected = selected);
@@ -2518,13 +2544,11 @@ NS_IMETHODIMP nsAccessible::RefSelection(PRInt32 aIndex, nsIAccessible **aSelect
 
 NS_IMETHODIMP nsAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
 {
-  NS_ENSURE_ARG_POINTER(aSelectionCount);
   *aSelectionCount = 0;
-
-  nsAccIterator iter(this, nsAccIterator::GetSelected, nsAccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
-    ++(*aSelectionCount);
+  nsCOMPtr<nsIAccessible> selected = this;
+  while ((selected = GetNextWithState(selected, nsIAccessibleStates::STATE_SELECTED)) != nsnull) {
+    ++ *aSelectionCount;
+  }
 
   return NS_OK;
 }
@@ -2580,24 +2604,21 @@ NS_IMETHODIMP nsAccessible::IsChildSelected(PRInt32 aIndex, PRBool *aIsSelected)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAccessible::ClearSelection()
+NS_IMETHODIMP nsAccessible::ClearSelection()
 {
-  nsAccIterator iter(this, nsAccIterator::GetSelected, nsAccIterator::eTreeNav);
-  nsAccessible *selected = nsnull;
-  while ((selected = iter.GetNext()))
+  nsCOMPtr<nsIAccessible> selected = this;
+  while ((selected = GetNextWithState(selected, nsIAccessibleStates::STATE_SELECTED)) != nsnull) {
     selected->SetSelected(PR_FALSE);
-
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP nsAccessible::SelectAllSelection(PRBool *_retval)
 {
-  nsAccIterator iter(this, nsAccIterator::GetSelectable, nsAccIterator::eTreeNav);
-  nsAccessible *selectable = nsnull;
-  while((selectable = iter.GetNext()))
+  nsCOMPtr<nsIAccessible> selectable = this;
+  while ((selectable = GetNextWithState(selectable, nsIAccessibleStates::STATE_SELECTED)) != nsnull) {
     selectable->SetSelected(PR_TRUE);
-
+  }
   return NS_OK;
 }
 
@@ -2621,10 +2642,6 @@ nsAccessible::GetStartIndex(PRInt32 *aStartIndex)
 {
   NS_ENSURE_ARG_POINTER(aStartIndex);
   *aStartIndex = 0;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   PRInt32 endIndex;
   return GetLinkOffset(aStartIndex, &endIndex);
 }
@@ -2635,10 +2652,6 @@ nsAccessible::GetEndIndex(PRInt32 *aEndIndex)
 {
   NS_ENSURE_ARG_POINTER(aEndIndex);
   *aEndIndex = 0;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   PRInt32 startIndex;
   return GetLinkOffset(&startIndex, aEndIndex);
 }
@@ -2707,28 +2720,32 @@ nsAccessible::GetSelected(PRBool *aSelected)
   return NS_OK;
 }
 
-nsresult
-nsAccessible::GetLinkOffset(PRInt32 *aStartOffset, PRInt32 *aEndOffset)
+nsresult nsAccessible::GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset)
 {
-  nsAccessible *parent = GetParent();
-  NS_ENSURE_STATE(parent);
+  *aStartOffset = *aEndOffset = 0;
+  nsAccessible* parent = GetParent();
+  if (!parent) {
+    return NS_ERROR_FAILURE;
+  }
 
+  nsCOMPtr<nsIAccessible> accessible, nextSibling;
   PRInt32 characterCount = 0;
+  parent->GetFirstChild(getter_AddRefs(accessible));
 
-  PRInt32 childCount = parent->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *sibling = parent->GetChildAt(childIdx);
+  while (accessible) {
+    if (nsAccUtils::IsText(accessible))
+      characterCount += nsAccUtils::TextLength(accessible);
 
-    if (sibling == this) {
+    else if (accessible == this) {
       *aStartOffset = characterCount;
       *aEndOffset = characterCount + 1;
       return NS_OK;
     }
-
-    if (nsAccUtils::IsText(sibling))
-      characterCount += nsAccUtils::TextLength(sibling);
-    else
+    else {
       ++ characterCount;
+    }
+    accessible->GetNextSibling(getter_AddRefs(nextSibling));
+    accessible.swap(nextSibling);
   }
 
   return NS_ERROR_FAILURE;

@@ -189,12 +189,8 @@ public:
   int GetSysVID() const;
 
   // These shouldn't be used directly, use the IPDL interface instead.
-  id_t Id(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) const {
+  id_t Id(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) {
     return mId;
-  }
-
-  SharedMemory* Segment(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) const {
-    return mSegment;
   }
 
 #ifndef DEBUG

@@ -123,7 +123,7 @@ nsAccUtils::GetDefaultLevel(nsAccessible *aAcc)
 PRInt32
 nsAccUtils::GetARIAOrDefaultLevel(nsIAccessible *aAcc)
 {
-  nsRefPtr<nsAccessible> acc = do_QueryObject(aAcc);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryObject<nsAccessible>(aAcc);
   NS_ENSURE_TRUE(acc, 0);
 
   nsCOMPtr<nsIDOMNode> node;
@@ -352,7 +352,7 @@ nsAccUtils::HasAccessibleChildren(nsIDOMNode *aNode)
   if (!content)
     return PR_FALSE;
 
-  nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
+  nsCOMPtr<nsIPresShell> presShell = nsCoreUtils::GetPresShellFor(aNode);
   if (!presShell)
     return PR_FALSE;
 
@@ -789,29 +789,31 @@ nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 #ifdef DEBUG_A11Y
 
 PRBool
-nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible *aAccessible)
+nsAccUtils::IsTextInterfaceSupportCorrect(nsIAccessible *aAccessible)
 {
   PRBool foundText = PR_FALSE;
   
-  nsCOMPtr<nsIAccessibleDocument> accDoc = do_QueryObject(aAccessible);
+  nsCOMPtr<nsIAccessibleDocument> accDoc = do_QueryInterface(aAccessible);
   if (accDoc) {
     // Don't test for accessible docs, it makes us create accessibles too
     // early and fire mutation events before we need to
     return PR_TRUE;
   }
 
-  PRInt32 childCount = aAccessible->GetChildCount();
-  for (PRint32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = GetChildAt(childIdx);
+  nsCOMPtr<nsIAccessible> child, nextSibling;
+  aAccessible->GetFirstChild(getter_AddRefs(child));
+  while (child) {
     if (IsText(child)) {
       foundText = PR_TRUE;
       break;
     }
+    child->GetNextSibling(getter_AddRefs(nextSibling));
+    child.swap(nextSibling);
   }
 
   if (foundText) {
     // found text child node
-    nsCOMPtr<nsIAccessibleText> text = do_QueryObject(aAccessible);
+    nsCOMPtr<nsIAccessibleText> text = do_QueryInterface(aAccessible);
     if (!text)
       return PR_FALSE;
   }

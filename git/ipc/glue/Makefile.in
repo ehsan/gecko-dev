@@ -57,8 +57,7 @@ EXPORTS_mozilla/ipc = \
   AsyncChannel.h \
   BrowserProcessSubThread.h \
   GeckoChildProcessHost.h \
-  IOThreadChild.h \
-  ProcessChild.h \
+  MozillaChildThread.h \
   ProtocolUtils.h \
   RPCChannel.h \
   SharedMemory.h \
@@ -75,8 +74,8 @@ CPPSRCS += \
   AsyncChannel.cpp \
   BrowserProcessSubThread.cpp \
   GeckoChildProcessHost.cpp \
+  MozillaChildThread.cpp \
   MessagePump.cpp \
-  ProcessChild.cpp \
   RPCChannel.cpp \
   ScopedXREEmbed.cpp \
   Shmem.cpp \

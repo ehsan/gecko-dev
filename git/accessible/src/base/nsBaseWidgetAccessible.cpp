@@ -212,7 +212,8 @@ nsLinkableAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
   if (mIsLink) {
     nsRefPtr<nsAccessible> actionAcc = GetActionAccessible();
     if (actionAcc) {
-      nsCOMPtr<nsIAccessibleHyperLink> hyperLinkAcc = do_QueryObject(actionAcc);
+      nsCOMPtr<nsIAccessibleHyperLink> hyperLinkAcc =
+        nsAccUtils::QueryObject<nsIAccessibleHyperLink>(actionAcc);
       NS_ASSERTION(hyperLinkAcc,
                    "nsIAccessibleHyperLink isn't implemented.");
 

@@ -31,8 +31,9 @@
       setOverLink: function (link, b) {
       }
     };
-
-    gFindBarInitialized = false;
+    var gFindBar = {
+      hidden: true
+    };
 
     ////////////////////////////////////////////////////////////////////////////
     // Invoker implementation.

@@ -190,7 +190,7 @@ public:
   // Number of frames per second.
   float mFrameRate;
 
-  float mPixelAspectRatio;
+  float mAspectRatio;
 };
 
 class nsSkeletonState : public nsOggCodecState {

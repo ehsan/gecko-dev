@@ -205,7 +205,7 @@ function run_test() {
               "'field3', " +
               "'old but not senior', " +
               "100, " +
-              (agedDate + 60 * 1000 * 1000) + ", " +
+              (agedDate + 1000000) + ", " +
               now +
           ");");
         fh.DBConnection.executeSimpleSQL(
@@ -215,7 +215,7 @@ function run_test() {
               "'field3', " +
               "'senior citizen', " +
               "100, " +
-              (agedDate - 60 * 1000 * 1000) + ", " +
+              agedDate + ", " +
               now +
           ");");
 

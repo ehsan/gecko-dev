@@ -83,7 +83,7 @@ nsIMEStateManager::OnDestroyPresContext(nsPresContext* aPresContext)
   nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
   if (widget) {
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, widget);
+    SetIMEState(sPresContext, newState, widget);
   }
   sContent = nsnull;
   sPresContext = nsnull;
@@ -108,7 +108,7 @@ nsIMEStateManager::OnRemoveContent(nsPresContext* aPresContext,
     if (NS_FAILED(rv))
       widget->ResetInputState();
     PRUint32 newState = GetNewIMEState(sPresContext, nsnull);
-    SetIMEState(newState, widget);
+    SetIMEState(sPresContext, newState, widget);
   }
 
   sContent = nsnull;
@@ -162,7 +162,7 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
 
   if (newState != nsIContent::IME_STATUS_NONE) {
     // Update IME state for new focus widget
-    SetIMEState(newState, widget);
+    SetIMEState(aPresContext, newState, widget);
   }
 
   sPresContext = aPresContext;
@@ -176,26 +176,6 @@ nsIMEStateManager::OnInstalledMenuKeyboardListener(PRBool aInstalling)
 {
   sInstalledMenuKeyboardListener = aInstalling;
   OnChangeFocus(sPresContext, sContent);
-}
-
-void
-nsIMEStateManager::ChangeIMEStateTo(PRUint32 aNewIMEState)
-{
-  if (!sPresContext) {
-    NS_WARNING("ISM doesn't know which editor has focus");
-    return;
-  }
-  NS_PRECONDITION(aNewIMEState != 0, "aNewIMEState doesn't specify new state.");
-  nsCOMPtr<nsIWidget> widget = GetWidget(sPresContext);
-  if (!widget) {
-    NS_WARNING("focused widget is not found");
-    return;
-  }
-
-  // commit current composition
-  widget->ResetInputState();
-
-  SetIMEState(aNewIMEState, widget);
 }
 
 PRUint32
@@ -224,17 +204,18 @@ nsIMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
 }
 
 void
-nsIMEStateManager::SetIMEState(PRUint32 aState,
-                               nsIWidget* aWidget)
+nsIMEStateManager::SetIMEState(nsPresContext*     aPresContext,
+                               PRUint32           aState,
+                               nsIWidget*         aKB)
 {
   if (aState & nsIContent::IME_STATUS_MASK_ENABLED) {
     PRUint32 state =
       nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
-    aWidget->SetIMEEnabled(state);
+    aKB->SetIMEEnabled(state);
   }
   if (aState & nsIContent::IME_STATUS_MASK_OPENED) {
     PRBool open = !!(aState & nsIContent::IME_STATUS_OPEN);
-    aWidget->SetIMEOpenState(open);
+    aKB->SetIMEOpenState(open);
   }
 }
 
@@ -427,7 +408,6 @@ nsTextStateManager::NotifyContentAdded(nsINode* aContainer,
 void
 nsTextStateManager::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   NotifyContentAdded(aContainer, aNewIndexInContainer,

@@ -63,7 +63,7 @@
 #include "nsInt64.h"
 #include "nsNodeUtils.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #include "nsGenericHTMLElement.h"
 
@@ -1764,7 +1764,7 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
   }
 
   if (!mCurrentContext) {
-    NS_ERROR("Nonexistent context");
+    NS_ERROR("Non-existing context");
 
     return NS_ERROR_FAILURE;
   }
@@ -1804,7 +1804,7 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
 NS_IMETHODIMP
 HTMLContentSink::EndContext(PRInt32 aPosition)
 {
-  NS_PRECONDITION(mCurrentContext && aPosition > -1, "nonexistent context");
+  NS_PRECONDITION(mCurrentContext && aPosition > -1, "non-existing context");
 
   PRUint32 n = mContextStack.Length() - 1;
   SinkContext* sc = mContextStack.ElementAt(n);

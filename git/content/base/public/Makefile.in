@@ -78,11 +78,6 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
-$(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
 Element.h \
 $(NULL)
 
@@ -122,7 +117,6 @@ XPIDLSRCS	= \
 		nsIFrameLoader.idl \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
-		nsIFrameMessageManager.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

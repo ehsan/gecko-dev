@@ -94,8 +94,6 @@
 #include <os2.h>
 #endif
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef DEBUG
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
@@ -213,8 +211,6 @@ nsHttpHandler::~nsHttpHandler()
 nsresult
 nsHttpHandler::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     LOG(("nsHttpHandler::Init\n"));
@@ -311,8 +307,6 @@ nsHttpHandler::Init()
 nsresult
 nsHttpHandler::InitConnectionMgr()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     if (!mConnMgr) {
@@ -666,21 +660,14 @@ nsHttpHandler::BuildUserAgent()
         mUserAgent += mExtraUA;
 }
 
-#ifdef XP_WIN
-typedef BOOL (WINAPI *IsWow64ProcessP) (HANDLE, PBOOL);
-
-#define WNT_BASE "Windows NT %ld.%ld"
-#define W64_PREFIX "; Win64"
-#endif
-
 void
 nsHttpHandler::InitUserAgentComponents()
 {
 
       // Gather platform.
     mPlatform.AssignLiteral(
-#if defined(ANDROID)
-    "Android"
+#if defined(MOZ_WIDGET_PHOTON)
+    "Photon"
 #elif defined(XP_OS2)
     "OS/2"
 #elif defined(XP_WIN)
@@ -713,26 +700,12 @@ nsHttpHandler::InitUserAgentComponents()
 #elif defined(WINCE) || defined(XP_WIN)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
     if (GetVersionEx(&info)) {
-        const char *format;
-#ifdef WINCE
-        format = "WindowsCE %ld.%ld";
-#elif defined _M_IA64
-        format = WNT_BASE W64_PREFIX "; IA64";
-#elif defined _M_X64 || defined _M_AMD64
-        format = WNT_BASE W64_PREFIX "; x64";
+        char *buf = PR_smprintf(
+#if defined(WINCE)
+                                "WindowsCE %ld.%ld",
 #else
-        BOOL isWow64 = FALSE;
-        IsWow64ProcessP fnIsWow64Process = (IsWow64ProcessP)
-          GetProcAddress(GetModuleHandleW(L"kernel32"), "IsWow64Process");
-        if (fnIsWow64Process &&
-            !fnIsWow64Process(GetCurrentProcess(), &isWow64)) {
-            isWow64 = FALSE;
-        }
-        format = isWow64
-          ? WNT_BASE "; WOW64"
-          : WNT_BASE;
+                                "Windows NT %ld.%ld",
 #endif
-        char *buf = PR_smprintf(format,
                                 info.dwMajorVersion,
                                 info.dwMinorVersion);
         if (buf) {

@@ -66,7 +66,6 @@ class imgCacheValidator;
 
 class imgRequestProxy;
 class imgCacheEntry;
-class imgMemoryReporter;
 
 enum {
   stateRequestStarted    = PR_BIT(0),
@@ -196,8 +195,6 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
 
 private:
-  friend class imgMemoryReporter;
-
   nsCOMPtr<nsIRequest> mRequest;
   // The original URI we were loaded with.
   nsCOMPtr<nsIURI> mURI;

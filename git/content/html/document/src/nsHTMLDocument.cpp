@@ -96,7 +96,6 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLBodyElement.h"
-#include "nsIDOMHTMLHeadElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsGenericHTMLElement.h"
 #include "nsCSSLoader.h"
@@ -144,7 +143,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsHtml5Module.h"
 #include "prprf.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -1204,18 +1203,17 @@ nsHTMLDocument::GetImageMap(const nsAString& aMapName)
     PRBool match;
     nsresult rv;
 
-    rv = map->GetId(name);
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    if (!IsHTML()) {
+      rv = map->GetId(name);
 
-    match = name.Equals(aMapName);
-    if (!match) {
+      match = name.Equals(aMapName);
+    } else {
       rv = map->GetName(name);
-      NS_ENSURE_SUCCESS(rv, nsnull);
 
       match = name.Equals(aMapName, nsCaseInsensitiveStringComparator());
     }
 
-    if (match) {
+    if (match && NS_SUCCEEDED(rv)) {
       // Quirk: if the first matching map is empty, remember it, but keep
       // searching for a non-empty one, only use it if none was found (bug 264624).
       if (mCompatMode == eCompatibility_NavQuirks) {
@@ -1390,7 +1388,31 @@ NS_IMETHODIMP
 nsHTMLDocument::GetElementsByTagName(const nsAString& aTagname,
                                      nsIDOMNodeList** aReturn)
 {
-  return nsDocument::GetElementsByTagName(aTagname, aReturn);
+  nsAutoString tmp(aTagname);
+  if (IsHTML()) {
+    ToLowerCase(tmp); // HTML elements are lower case internally.
+  }
+  return nsDocument::GetElementsByTagName(tmp, aReturn);
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::GetBaseURI(nsAString &aURI)
+{
+  aURI.Truncate();
+  nsIURI *uri = mDocumentBaseURI; // WEAK
+
+  if (!uri) {
+    uri = mDocumentURI;
+  }
+
+  if (uri) {
+    nsCAutoString spec;
+    uri->GetSpec(spec);
+
+    CopyUTF8toUTF16(spec, aURI);
+  }
+
+  return NS_OK;
 }
 
 // nsIDOM3Document interface implementation
@@ -1578,48 +1600,37 @@ nsHTMLDocument::GetURL(nsAString& aURL)
   return NS_OK;
 }
 
-nsIContent*
-nsHTMLDocument::GetBody(nsresult *aResult)
-{
-  Element* body = GetBodyElement();
-
-  *aResult = NS_OK;
-
-  if (body) {
-    // There is a body element, return that as the body.
-    return body;
-  }
-
-  // The document is most likely a frameset document so look for the
-  // outer most frameset element
-  nsRefPtr<nsContentList> nodeList;
-
-  if (IsHTML()) {
-    nodeList = nsDocument::GetElementsByTagName(NS_LITERAL_STRING("frameset"));
-  } else {
-    nodeList =
-      nsDocument::GetElementsByTagNameNS(NS_LITERAL_STRING("http://www.w3.org/1999/xhtml"),
-                             NS_LITERAL_STRING("frameset"));
-  }
-
-  if (!nodeList) {
-    *aResult = NS_ERROR_OUT_OF_MEMORY;
-
-    return nsnull;
-  }
-
-  return nodeList->GetNodeAt(0);
-}
-
 NS_IMETHODIMP
 nsHTMLDocument::GetBody(nsIDOMHTMLElement** aBody)
 {
   *aBody = nsnull;
 
-  nsresult rv;
-  nsIContent *body = GetBody(&rv);
+  Element* body = GetBodyElement();
 
-  return body ? CallQueryInterface(body, aBody) : rv;
+  if (body) {
+    // There is a body element, return that as the body.
+    return CallQueryInterface(body, aBody);
+  }
+
+  // The document is most likely a frameset document so look for the
+  // outer most frameset element
+  nsCOMPtr<nsIDOMNodeList> nodeList;
+
+  nsresult rv;
+  if (IsHTML()) {
+    rv = GetElementsByTagName(NS_LITERAL_STRING("frameset"),
+                              getter_AddRefs(nodeList));
+  } else {
+    rv = GetElementsByTagNameNS(NS_LITERAL_STRING("http://www.w3.org/1999/xhtml"),
+                                NS_LITERAL_STRING("frameset"),
+                                getter_AddRefs(nodeList));
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMNode> node;
+  nodeList->Item(0, getter_AddRefs(node));
+
+  return node ? CallQueryInterface(node, aBody) : NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1648,16 +1659,6 @@ nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
   }
 
   return rootElem->AppendChild(aBody, getter_AddRefs(tmp));
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::GetHead(nsIDOMHTMLHeadElement** aHead)
-{
-  *aHead = nsnull;
-
-  Element* head = GetHeadElement();
-
-  return head ? CallQueryInterface(head, aHead) : NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2154,7 +2155,7 @@ nsHTMLDocument::Close()
     // document.open() and document.close() have completed, then this
     // method should cause the firing of an onload event.
     NS_ASSERTION(mWyciwygChannel, "nsHTMLDocument::Close(): Trying to remove "
-                 "nonexistent wyciwyg channel!");
+                 "non-existent wyciwyg channel!");
     RemoveWyciwygChannel();
     NS_ASSERTION(!mWyciwygChannel, "nsHTMLDocument::Close(): "
                  "nsIWyciwygChannel could not be removed!");
@@ -2295,11 +2296,18 @@ NS_IMETHODIMP
 nsHTMLDocument::GetElementsByName(const nsAString& aElementName,
                                   nsIDOMNodeList** aReturn)
 {
-  nsRefPtr<nsContentList> list = GetElementsByName(aElementName);
-  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
+  nsString* elementNameData = new nsString(aElementName);
+  NS_ENSURE_TRUE(elementNameData, NS_ERROR_OUT_OF_MEMORY);
+  nsContentList* elements =
+    NS_GetFuncStringContentList(this,
+                                MatchNameAttribute,
+                                nsContentUtils::DestroyMatchString,
+                                elementNameData,
+                                *elementNameData).get();
+  NS_ENSURE_TRUE(elements, NS_ERROR_OUT_OF_MEMORY);
 
   // Transfer ownership
-  list.forget(aReturn);
+  *aReturn = elements;
 
   return NS_OK;
 }
@@ -3022,45 +3030,15 @@ nsHTMLDocument::ChangeContentEditableCount(nsIContent *aElement,
 
   mContentEditableCount += aChange;
 
-  class DeferredContentEditableCountChangeEvent : public nsRunnable
-  {
-  public:
-    DeferredContentEditableCountChangeEvent(nsHTMLDocument *aDoc, nsIContent *aElement)
-      : mDoc(aDoc)
-      , mElement(aElement)
-    {
-    }
-
-    NS_IMETHOD Run() {
-      if (mElement->GetOwnerDoc() == mDoc) {
-        mDoc->DeferredContentEditableCountChange(mElement);
-      }
-      return NS_OK;
-    }
-
-  private:
-    nsRefPtr<nsHTMLDocument> mDoc;
-    nsCOMPtr<nsIContent> mElement;
-  };
-
-  nsContentUtils::AddScriptRunner(
-    new DeferredContentEditableCountChangeEvent(this, aElement));
-
-  return NS_OK;
-}
-
-void
-nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
-{
   if (mParser ||
       (mUpdateNestLevel > 0 && (mContentEditableCount > 0) != IsEditingOn())) {
-    return;
+    return NS_OK;
   }
 
   EditingState oldState = mEditingState;
 
   nsresult rv = EditingStateChanged();
-  NS_ENSURE_SUCCESS(rv, );
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (oldState == mEditingState && mEditingState == eContentEditable) {
     // We just changed the contentEditable state of a node, we need to reset
@@ -3069,37 +3047,40 @@ nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
     if (node) {
       nsPIDOMWindow *window = GetWindow();
       if (!window)
-        return;
+        return NS_ERROR_FAILURE;
 
       nsIDocShell *docshell = window->GetDocShell();
       if (!docshell)
-        return;
+        return NS_ERROR_FAILURE;
 
       nsCOMPtr<nsIEditorDocShell> editorDocShell =
         do_QueryInterface(docshell, &rv);
-      NS_ENSURE_SUCCESS(rv, );
+      NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIEditor> editor;
       editorDocShell->GetEditor(getter_AddRefs(editor));
       if (editor) {
         nsCOMPtr<nsIDOMRange> range;
         rv = NS_NewRange(getter_AddRefs(range));
-        NS_ENSURE_SUCCESS(rv, );
+        NS_ENSURE_SUCCESS(rv, rv);
 
         rv = range->SelectNode(node);
-        NS_ENSURE_SUCCESS(rv, );
+        NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIInlineSpellChecker> spellChecker;
         rv = editor->GetInlineSpellChecker(PR_FALSE,
                                            getter_AddRefs(spellChecker));
-        NS_ENSURE_SUCCESS(rv, );
+        NS_ENSURE_SUCCESS(rv, rv);
 
         if (spellChecker) {
           rv = spellChecker->SpellCheckRange(range);
+          NS_ENSURE_SUCCESS(rv, rv);
         }
       }
     }
   }
+
+  return NS_OK;
 }
 
 static PRBool

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <matpal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -51,6 +50,7 @@
 #include "nsIServiceManager.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
+#include "nsISelection.h"
 #include "nsCOMPtr.h"
 #include "nsIContentSerializer.h"
 #include "nsIUnicodeEncoder.h"
@@ -69,13 +69,11 @@
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsIEnumerator.h"
+#include "nsISelectionPrivate.h"
 #include "nsIParserService.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsISelection.h"
-#include "nsISelectionPrivate.h"
-#include "nsITransferable.h" // for kUnicodeMime
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
@@ -120,29 +118,6 @@ protected:
                                     nsAString& aString);
 
   nsresult FlushText(nsAString& aString, PRBool aForce);
-
-  PRBool IsVisibleNode(nsINode* aNode)
-  {
-    NS_PRECONDITION(aNode, "");
-
-    if (mFlags & SkipInvisibleContent) {
-      nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-      if (content) {
-        nsIFrame* frame = content->GetPrimaryFrame();
-        if (!frame) {
-          if (aNode->IsNodeOfType(nsINode::eTEXT)) {
-            // We have already checked that our parent is visible.
-            return PR_TRUE;
-          }
-          return PR_FALSE;
-        }
-        PRBool isVisible = frame->GetStyleVisibility()->IsVisible();
-        if (!isVisible && aNode->IsNodeOfType(nsINode::eTEXT))
-          return PR_FALSE;
-      }
-    }
-    return PR_TRUE;
-  }
 
   static PRBool IsTag(nsIContent* aContent, nsIAtom* aAtom);
   
@@ -294,9 +269,8 @@ nsDocumentEncoder::SerializeNodeStart(nsINode* aNode,
                                       nsAString& aStr,
                                       nsINode* aOriginalNode)
 {
-  if (!IsVisibleNode(aNode))
-    return NS_OK;
-  
+  PRUint16 type;
+
   nsINode* node = nsnull;
   nsCOMPtr<nsINode> fixedNodeKungfuDeathGrip;
 
@@ -318,45 +292,45 @@ nsDocumentEncoder::SerializeNodeStart(nsINode* aNode,
   if (!node)
     node = aNode;
 
-  PRUint16 type;
+  //XXX Remove QIing to nsIDOM* when fixing bug 562321.
   node->GetNodeType(&type);
   switch (type) {
     case nsIDOMNode::ELEMENT_NODE:
     {
-      nsIContent* originalElement =
-        aOriginalNode && aOriginalNode->IsElement() ?
-          static_cast<nsIContent*>(aOriginalNode) : nsnull;
-      mSerializer->AppendElementStart(static_cast<nsIContent*>(node),
-                                      originalElement, aStr);
+      nsCOMPtr<nsIDOMElement> element = do_QueryInterface(node);
+      nsCOMPtr<nsIDOMElement> originalElement = do_QueryInterface(aOriginalNode);
+      mSerializer->AppendElementStart(element, originalElement, aStr);
       break;
     }
     case nsIDOMNode::TEXT_NODE:
     {
-      mSerializer->AppendText(static_cast<nsIContent*>(node),
-                              aStartOffset, aEndOffset, aStr);
+      nsCOMPtr<nsIDOMText> text = do_QueryInterface(node);
+      mSerializer->AppendText(text, aStartOffset, aEndOffset, aStr);
       break;
     }
     case nsIDOMNode::CDATA_SECTION_NODE:
     {
-      mSerializer->AppendCDATASection(static_cast<nsIContent*>(node),
-                                      aStartOffset, aEndOffset, aStr);
+      nsCOMPtr<nsIDOMCDATASection> cdata = do_QueryInterface(node);
+      mSerializer->AppendCDATASection(cdata, aStartOffset, aEndOffset, aStr);
       break;
     }
     case nsIDOMNode::PROCESSING_INSTRUCTION_NODE:
     {
-      mSerializer->AppendProcessingInstruction(static_cast<nsIContent*>(node),
-                                               aStartOffset, aEndOffset, aStr);
+      nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(node);
+      mSerializer->AppendProcessingInstruction(pi, aStartOffset, aEndOffset,
+                                               aStr);
       break;
     }
     case nsIDOMNode::COMMENT_NODE:
     {
-      mSerializer->AppendComment(static_cast<nsIContent*>(node),
-                                 aStartOffset, aEndOffset, aStr);
+      nsCOMPtr<nsIDOMComment> comment = do_QueryInterface(node);
+      mSerializer->AppendComment(comment, aStartOffset, aEndOffset, aStr);
       break;
     }
     case nsIDOMNode::DOCUMENT_TYPE_NODE:
     {
-      mSerializer->AppendDoctype(static_cast<nsIContent*>(node), aStr);
+      nsCOMPtr<nsIDOMDocumentType> doctype = do_QueryInterface(node);
+      mSerializer->AppendDoctype(doctype, aStr);
       break;
     }
   }
@@ -368,11 +342,10 @@ nsresult
 nsDocumentEncoder::SerializeNodeEnd(nsINode* aNode,
                                     nsAString& aStr)
 {
-  if (!IsVisibleNode(aNode))
-    return NS_OK;
-
+  //XXX Remove QIing to nsIDOM* when fixing bug 562321.
   if (aNode->IsElement()) {
-    mSerializer->AppendElementEnd(static_cast<nsIContent*>(aNode), aStr);
+    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode);
+    mSerializer->AppendElementEnd(element, aStr);
   }
   return NS_OK;
 }
@@ -382,9 +355,6 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
                                               nsAString& aStr,
                                               PRBool aDontSerializeRoot)
 {
-  if (!IsVisibleNode(aNode))
-    return NS_OK;
-
   nsresult rv = NS_OK;
   PRBool serializeClonedChildren = PR_FALSE;
   nsINode* maybeFixedNode = nsnull;
@@ -402,7 +372,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
 
-  if (mFlags & SkipInvisibleContent) {
+  if (mIsCopying) {
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
       nsIFrame* frame = static_cast<nsIContent*>(aNode)->GetPrimaryFrame();
       if (frame) {
@@ -689,24 +659,19 @@ nsDocumentEncoder::SerializeRangeNodes(nsIRange* aRange,
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
-  if (!IsVisibleNode(aNode))
-    return NS_OK;
-
-  nsresult rv = NS_OK;
-
+  nsresult rv=NS_OK;
+  
   // get start and end nodes for this recursion level
   nsCOMPtr<nsIContent> startNode, endNode;
-  {
-    PRInt32 start = mStartRootIndex - aDepth;
-    if (start >= 0 && (PRUint32)start <= mStartNodes.Length())
-      startNode = mStartNodes[start];
+  PRInt32 start = mStartRootIndex - aDepth;
+  if (start >= 0 && (PRUint32)start <= mStartNodes.Length())
+    startNode = mStartNodes[start];
 
-    PRInt32 end = mEndRootIndex - aDepth;
-    if (end >= 0 && (PRUint32)end <= mEndNodes.Length())
-      endNode = mEndNodes[end];
-  }
+  PRInt32 end = mEndRootIndex - aDepth;
+  if (end >= 0 && (PRUint32)end <= mEndNodes.Length())
+    endNode = mEndNodes[end];
 
-  if (startNode != content && endNode != content)
+  if ((startNode != content) && (endNode != content))
   {
     // node is completely contained in range.  Serialize the whole subtree
     // rooted by this node.
@@ -896,16 +861,6 @@ nsDocumentEncoder::SerializeRangeToString(nsIRange *aRange,
 
   if ((startParent == endParent) && IsTextNode(startParent))
   {
-    if (mFlags & SkipInvisibleContent) {
-      // Check that the parent is visible if we don't a frame.
-      // IsVisibleNode() will do it when there's a frame.
-      nsCOMPtr<nsIContent> content = do_QueryInterface(startParent);
-      if (content && !content->GetPrimaryFrame()) {
-        nsIContent* parent = content->GetParent();
-        if (!parent || !IsVisibleNode(parent))
-          return NS_OK;
-      }
-    }
     rv = SerializeNodeStart(startParent, startOffset, endOffset, aOutputString);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -998,7 +953,8 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
     rv = SerializeToStringRecursive(mNode, aOutputString, mNodeIsContainer);
     mNode = nsnull;
   } else {
-    rv = mSerializer->AppendDocumentStart(mDocument, aOutputString);
+    nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(mDocument));
+    rv = mSerializer->AppendDocumentStart(domdoc, aOutputString);
 
     if (NS_SUCCEEDED(rv)) {
       rv = SerializeToStringRecursive(mDocument, aOutputString, PR_FALSE);
@@ -1128,7 +1084,7 @@ nsHTMLCopyEncoder::~nsHTMLCopyEncoder()
 
 NS_IMETHODIMP
 nsHTMLCopyEncoder::Init(nsIDOMDocument* aDocument,
-                        const nsAString& aMimeType,
+                        const nsAString& aMimetype,
                         PRUint32 aFlags)
 {
   if (!aDocument)
@@ -1142,7 +1098,7 @@ nsHTMLCopyEncoder::Init(nsIDOMDocument* aDocument,
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
 
   mMimeType.AssignLiteral("text/html");
-
+  
   // Make all links absolute when copying
   // (see related bugs #57296, #41924, #58646, #32768)
   mFlags = aFlags | OutputAbsoluteLinks;

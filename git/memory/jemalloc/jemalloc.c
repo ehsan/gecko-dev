@@ -5829,19 +5829,6 @@ memalign(size_t alignment, size_t size)
 		goto RETURN;
 	}
 
-	if (size == 0) {
-#ifdef MALLOC_SYSV
-		if (opt_sysv == false)
-#endif
-			size = 1;
-#ifdef MALLOC_SYSV
-		else {
-			ret = NULL;
-			goto RETURN;
-		}
-#endif
-	}
-
 	alignment = alignment < sizeof(void*) ? sizeof(void*) : alignment;
 	ret = ipalloc(alignment, size);
 
@@ -5875,8 +5862,6 @@ posix_memalign(void **memptr, size_t alignment, size_t size)
 #endif
 		return (EINVAL);
 	}
-
-	/* The 0-->1 size promotion is done in the memalign() call below */
 
 #ifdef MOZ_MEMORY_DARWIN
 	result = moz_memalign(alignment, size);

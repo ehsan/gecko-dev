@@ -84,8 +84,6 @@
 #include "nsITransferable.h"
 #include "nsCopySupport.h"
 
-#include "mozilla/FunctionTimer.h"
-
 // prototype for rules creation shortcut
 nsresult NS_NewTextEditRules(nsIEditRules** aInstancePtrResult);
 
@@ -145,8 +143,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsEditor)
 NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc, 
                                  nsIPresShell   *aPresShell, nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags)
 {
-  NS_TIME_FUNCTION;
-
   NS_PRECONDITION(aDoc && aPresShell, "bad arg");
   if (!aDoc || !aPresShell)
     return NS_ERROR_NULL_POINTER;

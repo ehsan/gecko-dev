@@ -89,6 +89,9 @@ public:
     PRBool ParseCoordinatePair(const nsAString& aStr,
                                float& aXVal, float& aYVal);
 
+    PRBool AppendCommand(const nsACString& aCommandStr,
+                         const nsAString&  aCoordPairStr);
+
     // Member data
     nsSVGElement* mSVGElement; // context for converting out of relative units
     gfxContext    mGfxContext;

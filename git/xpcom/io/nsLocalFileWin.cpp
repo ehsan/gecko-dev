@@ -1470,23 +1470,10 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
         copyOK = ::CopyFileW(filePath.get(), destPath.get(), PR_TRUE);
     else {
 #ifndef WINCE
-        DWORD status;
-        if (FileEncryptionStatusW(filePath.get(), &status)
-            && status == FILE_IS_ENCRYPTED)
-        {
-            copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL,
-                                 COPY_FILE_ALLOW_DECRYPTED_DESTINATION);
-
-            if (copyOK)
-                DeleteFileW(filePath.get());
-        }
-        else
-        {
-            copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
-                                   MOVEFILE_REPLACE_EXISTING |
-                                   MOVEFILE_COPY_ALLOWED |
-                                   MOVEFILE_WRITE_THROUGH);
-        }
+        copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
+                               MOVEFILE_REPLACE_EXISTING |
+                               MOVEFILE_COPY_ALLOWED |
+                               MOVEFILE_WRITE_THROUGH);
 #else
         DeleteFile(destPath.get());
         copyOK = :: MoveFileW(filePath.get(), destPath.get());
@@ -3067,7 +3054,7 @@ nsLocalFile::EnsureShortPath()
     WCHAR thisshort[MAX_PATH];
     DWORD thisr = ::GetShortPathNameW(mWorkingPath.get(), thisshort,
                                       sizeof(thisshort));
-    // If an error occurred (thisr == 0) thisshort is uninitialized memory!
+    // If an error occured (thisr == 0) thisshort is uninitialized memory!
     if (thisr != 0 && thisr < sizeof(thisshort))
         mShortWorkingPath.Assign(thisshort);
     else

@@ -59,34 +59,17 @@
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
+#include "mozilla/plugins/PluginThreadChild.h"
 #include "PluginIdentifierChild.h"
 
 #include "nsNPAPIPlugin.h"
 
-#ifdef XP_WIN
-#include "COMMessageFilter.h"
-#endif
-
 using namespace mozilla::plugins;
-
-#if defined(XP_WIN)
-const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
-#endif
 
 namespace {
 PluginModuleChild* gInstance = nsnull;
 }
 
-#ifdef MOZ_WIDGET_QT
-typedef void (*_gtk_init_fn)(int argc, char **argv);
-static _gtk_init_fn s_gtk_init = nsnull;
-static PRLibrary *sGtkLib = nsnull;
-#endif
-
-#ifdef XP_WIN
-// Used with fix for flash fullscreen window loosing focus.
-static bool gDelayFlashFocusReplyUntilEval = false;
-#endif
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
@@ -99,7 +82,6 @@ PluginModuleChild::PluginModuleChild() :
 #endif
 #ifdef OS_WIN
   , mNestedEventHook(NULL)
-  , mGlobalCallWndProcHook(NULL)
 #endif
 {
     NS_ASSERTION(!gInstance, "Something terribly wrong here!");
@@ -116,11 +98,6 @@ PluginModuleChild::~PluginModuleChild()
     }
 #ifdef MOZ_WIDGET_QT
     nsQAppInstance::Release();
-    if (sGtkLib) {
-        PR_UnloadLibrary(sGtkLib);
-        sGtkLib = nsnull;
-        s_gtk_init = nsnull;
-    }
 #endif
     gInstance = nsnull;
 }
@@ -140,10 +117,6 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
                         IPC::Channel* aChannel)
 {
     PLUGIN_LOG_DEBUG_METHOD;
-
-#ifdef XP_WIN
-    COMMessageFilter::Initialize(this);
-#endif
 
     NS_ASSERTION(aChannel, "need a channel");
 
@@ -490,20 +463,6 @@ PluginModuleChild::InitGraphics()
 
 #elif defined(MOZ_WIDGET_QT)
     nsQAppInstance::AddRef();
-    // Work around plugins that don't interact well without gtk initialized
-    // see bug 566845
-#if defined(MOZ_X11)
-    if (!sGtkLib)
-         sGtkLib = PR_LoadLibrary("libgtk-x11-2.0.so.0");
-#elif defined(MOZ_DFB)
-    if (!sGtkLib)
-         sGtkLib = PR_LoadLibrary("libgtk-directfb-2.0.so.0");
-#endif
-    if (sGtkLib) {
-         s_gtk_init = (_gtk_init_fn)PR_FindFunctionSymbol(sGtkLib, "gtk_init");
-         if (s_gtk_init)
-             s_gtk_init(0, 0);
-    }
 #else
     // may not be necessary on all platforms
 #endif
@@ -529,7 +488,7 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
     memset(&mFunctions, 0, sizeof(mFunctions));
 
 #ifdef OS_WIN
-    ResetEventHooks();
+    ResetNestedInputEventHook();
 #endif
 
     return true;
@@ -890,7 +849,7 @@ _getvalue(NPP aNPP,
     switch (aVariable) {
         // Copied from nsNPAPIPlugin.cpp
         case NPNVToolkit:
-#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#ifdef MOZ_WIDGET_GTK2
             *static_cast<NPNToolkitType*>(aValue) = NPNVGtk2;
             return NPERR_NO_ERROR;
 #endif
@@ -1202,13 +1161,6 @@ _evaluate(NPP aNPP,
         return false;
     }
 
-#ifdef XP_WIN
-    if (gDelayFlashFocusReplyUntilEval) {
-        ReplyMessage(0);
-        gDelayFlashFocusReplyUntilEval = false;
-    }
-#endif
-
     return actor->Evaluate(aScript, aResult);
 }
 
@@ -1513,8 +1465,8 @@ _convertpoint(NPP instance,
     double rDestY = 0;
     bool ignoreDestY = !destY;
     bool result = false;
-    InstCast(instance)->CallNPN_ConvertPoint(sourceX, ignoreDestX, sourceY, ignoreDestY, sourceSpace, destSpace,
-                                             &rDestX,  &rDestY, &result);
+    InstCast(instance)->CallNPN_ConvertPoint(sourceX, sourceY, sourceSpace, destSpace,
+                                             &rDestX, &ignoreDestX, &rDestY, &ignoreDestY, &result);
     if (result) {
         if (destX)
             *destX = rDestX;
@@ -1544,7 +1496,7 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 #endif
 
 #ifdef OS_WIN
-    SetEventHooks();
+    SetNestedInputEventHook();
 #endif
 
 #if defined(OS_LINUX)
@@ -1898,7 +1850,7 @@ PluginModuleChild::NPN_IntFromIdentifier(NPIdentifier aIdentifier)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    if (!static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
+    if (static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildInt*>(aIdentifier)->ToInt();
     }
     return PR_INT32_MIN;
@@ -1924,33 +1876,6 @@ PluginModuleChild::ExitedCall()
 }
 
 LRESULT CALLBACK
-PluginModuleChild::CallWindowProcHook(int nCode, WPARAM wParam, LPARAM lParam)
-{
-    gDelayFlashFocusReplyUntilEval = false;
-
-    // Trap and reply to anything we recognize as the source of a
-    // potential send message deadlock.
-    if (nCode >= 0 &&
-        (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-        CWPSTRUCT* pCwp = reinterpret_cast<CWPSTRUCT*>(lParam);
-        if (pCwp->message == WM_KILLFOCUS) {
-            // Fix for flash fullscreen window loosing focus. On single
-            // core systems, sync killfocus events need to be handled
-            // after the flash fullscreen window procedure processes this
-            // message, otherwise fullscreen focus will not work correctly.
-            PRUnichar szClass[26];
-            if (GetClassNameW(pCwp->hwnd, szClass,
-                              sizeof(szClass)/sizeof(PRUnichar)) &&
-                !wcscmp(szClass, kFlashFullscreenClass)) {
-                gDelayFlashFocusReplyUntilEval = true;
-            }
-        }
-    }
-
-    return CallNextHookEx(NULL, nCode, wParam, lParam);
-}
-
-LRESULT CALLBACK
 PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
     PluginModuleChild* self = current();
@@ -1968,38 +1893,29 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 }
 
 void
-PluginModuleChild::SetEventHooks()
+PluginModuleChild::SetNestedInputEventHook()
 {
     NS_ASSERTION(!mNestedEventHook,
         "mNestedEventHook already setup in call to SetNestedInputEventHook?");
-    NS_ASSERTION(!mGlobalCallWndProcHook,
-        "mGlobalCallWndProcHook already setup in call to CallWindowProcHook?");
 
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
-    // WH_MSGFILTER event hook for detecting modal loops in the child.
+    // WH_GETMESSAGE hooks are triggered by peek message calls in parent due to
+    // attached message queues, resulting in stomped in-process ipc calls.  So
+    // we use a filter hook specific to dialogs, menus, and scroll bars to kick
+    // things off.
     mNestedEventHook = SetWindowsHookEx(WH_MSGFILTER,
                                         NestedInputEventHook,
                                         NULL,
                                         GetCurrentThreadId());
-
-    // WH_CALLWNDPROC event hook for trapping sync messages sent from
-    // parent that can cause deadlocks.
-    mGlobalCallWndProcHook = SetWindowsHookEx(WH_CALLWNDPROC,
-                                              CallWindowProcHook,
-                                              NULL,
-                                              GetCurrentThreadId());
 }
 
 void
-PluginModuleChild::ResetEventHooks()
+PluginModuleChild::ResetNestedInputEventHook()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
     if (mNestedEventHook)
         UnhookWindowsHookEx(mNestedEventHook);
     mNestedEventHook = NULL;
-    if (mGlobalCallWndProcHook)
-        UnhookWindowsHookEx(mGlobalCallWndProcHook);
-    mGlobalCallWndProcHook = NULL;
 }
 #endif

@@ -66,7 +66,7 @@ namespace gl {
 class LibrarySymbolLoader
 {
 public:
-    PRBool OpenLibrary(const char *library);
+    bool OpenLibrary(const char *library);
 
     typedef PRFuncPtr (GLAPIENTRY * PlatformLookupFunction) (const char *);
 
@@ -80,20 +80,9 @@ public:
         const char *symNames[MAX_SYMBOL_NAMES];
     } SymLoadStruct;
 
-    PRBool LoadSymbols(SymLoadStruct *firstStruct,
-		       PRBool tryplatform = PR_FALSE,
-		       const char *prefix = nsnull);
+    PRFuncPtr LookupSymbol(const char *symname, bool tryplatform = false);
+    PRBool LoadSymbols(SymLoadStruct *firstStruct, bool tryplatform = false, const char *prefix = NULL);
 
-    /*
-     * Static version of the functions in this class
-     */
-    static PRFuncPtr LookupSymbol(PRLibrary *lib,
-				  const char *symname,
-				  PlatformLookupFunction lookupFunction = nsnull);
-    static PRBool LoadSymbols(PRLibrary *lib,
-			      SymLoadStruct *firstStruct,
-			      PlatformLookupFunction lookupFunction = nsnull,
-			      const char *prefix = nsnull);
 protected:
     LibrarySymbolLoader() {
         mLibrary = nsnull;
@@ -110,22 +99,14 @@ class GLContext
 {
     THEBES_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
 public:
-    GLContext() : mInitialized(PR_FALSE) { }
+    GLContext() : mInitialized(false) { }
 
     virtual ~GLContext() { }
 
     virtual PRBool MakeCurrent() = 0;
     virtual PRBool SetupLookupFunction() = 0;
 
-    enum NativeDataType {
-      NativeGLContext,
-      NativeCGLContext,
-      NativePBuffer,
-      NativeImageSurface,
-      NativeDataTypeMax
-    };
-
-    virtual void *GetNativeData(NativeDataType aType) { return NULL; }
+    virtual void *GetNativeContext() { return NULL; }
 protected:
 
     PRBool mInitialized;

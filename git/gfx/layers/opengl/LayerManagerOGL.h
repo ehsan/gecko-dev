@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -90,7 +90,6 @@ public:
 
   void SetMatrixUniform(GLint aLocation, const GLfloat *aValue);
   void SetInt(GLint aLocation, GLint aValue);
-  void SetColor(GLint aLocation, const gfxRGBA& aColor);
 
   void SetMatrixProj(GLfloat *aValue)
   {
@@ -138,20 +137,6 @@ public:
   }
 protected:
   GLint mLayerTextureLocation;
-};
-
-class ColorLayerProgram : public LayerProgram
-{
-public:
-  void UpdateLocations();
-
-  void SetLayerColor(const gfxRGBA& aColor)
-  {
-    SetColor(mRenderColorLocation, aColor);
-  }
-
-protected:
-  GLint mRenderColorLocation;
 };
 
 class YCbCrLayerProgram : public LayerProgram
@@ -216,8 +201,7 @@ public:
 
   void EndConstruction();
 
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData);
+  void EndTransaction();
 
   void SetRoot(Layer* aLayer);
   
@@ -226,10 +210,6 @@ public:
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
 
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
-
-  virtual already_AddRefed<ColorLayer> CreateColorLayer();
-
-  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
 
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
@@ -243,7 +223,6 @@ public:
   void MakeCurrent();
 
   RGBLayerProgram *GetRGBLayerProgram() { return mRGBLayerProgram; }
-  ColorLayerProgram *GetColorLayerProgram() { return mColorLayerProgram; }
   YCbCrLayerProgram *GetYCbCrLayerProgram() { return mYCbCrLayerProgram; }
 
   typedef mozilla::gl::GLContext GLContext;
@@ -268,24 +247,18 @@ private:
   GLuint mFrameBuffer;
   /** RGB Layer Program */
   RGBLayerProgram *mRGBLayerProgram;
-  /** Color Layer Program */
-  ColorLayerProgram *mColorLayerProgram;
   /** YUV Layer Program */
   YCbCrLayerProgram *mYCbCrLayerProgram;
   /** Vertex Shader */
   GLuint mVertexShader;
   /** RGB fragment shader */
   GLuint mRGBShader;
-  /** Solid color shader */
-  GLuint mColorShader;
   /** YUV fragment shader */
   GLuint mYUVShader;
   /** Current root layer. */
   LayerOGL *mRootLayer;
   /** Vertex buffer */
   GLuint mVBO;
-  /** Texture target to use for FBOs */
-  GLenum mFBOTextureTarget;
 
   /**
    * Region we're clipping our current drawing to.
@@ -294,8 +267,7 @@ private:
   /**
    * Render the current layer tree to the active target.
    */
-  void Render(DrawThebesLayerCallback aCallback,
-              void* aCallbackData);
+  void Render();
   /**
    * Setup the pipeline.
    */
@@ -318,17 +290,9 @@ private:
 class LayerOGL
 {
 public:
-  typedef LayerManager::DrawThebesLayerCallback DrawThebesLayerCallback;
-
   LayerOGL(LayerManagerOGL *aManager);
 
-  enum LayerType {
-    TYPE_THEBES,
-    TYPE_CONTAINER,
-    TYPE_IMAGE,
-    TYPE_COLOR,
-    TYPE_CANVAS
-  };
+  enum LayerType { TYPE_THEBES, TYPE_CONTAINER, TYPE_IMAGE };
   
   virtual LayerType GetType() = 0;
 
@@ -340,8 +304,7 @@ public:
 
   virtual Layer* GetLayer() = 0;
 
-  virtual void RenderLayer(int aPreviousFrameBuffer, DrawThebesLayerCallback aCallback,
-                           void* aCallbackData) = 0;
+  virtual void RenderLayer(int aPreviousFrameBuffer) = 0;
 
   typedef mozilla::gl::GLContext GLContext;
 

@@ -138,6 +138,9 @@ public:
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
+  // nsIDOM3Node interface
+  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
+
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);
   NS_IMETHOD SetTitle(const nsAString & aTitle);
@@ -160,17 +163,6 @@ public:
                                nsIDOMNodeList **_retval);
   virtual nsresult GetDocumentAllResult(const nsAString& aID,
                                         nsISupports** aResult);
-  nsIContent *GetBody(nsresult *aResult);
-  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
-  {
-    nsString* elementNameData = new nsString(aName);
-
-    return NS_GetFuncStringContentList(this,
-                                       MatchNameAttribute,
-                                       nsContentUtils::DestroyMatchString,
-                                       elementNameData,
-                                       *elementNameData);
-  }
 
   // nsIDOMNSHTMLDocument interface
   NS_DECL_NSIDOMNSHTMLDOCUMENT
@@ -193,7 +185,6 @@ public:
   }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
-  void DeferredContentEditableCountChange(nsIContent *aElement);
 
   virtual EditingState GetEditingState()
   {
@@ -206,7 +197,7 @@ public:
   }
 
   virtual nsIContent* GetBodyContentExternal();
-
+  
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -239,12 +230,6 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual NS_HIDDEN_(void) RemovedFromDocShell();
-
-  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId,
-                                                nsresult *aResult)
-  {
-    return nsDocument::GetElementById(aElementId, aResult);
-  }
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,

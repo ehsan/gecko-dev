@@ -49,7 +49,7 @@ GLContextProvider sGLContextProvider;
 class CGLLibrary
 {
 public:
-    CGLLibrary() : mInitialized(PR_FALSE), mOGLLibrary(nsnull) {}
+    CGLLibrary() : mInitialized(PR_FALSE) {}
 
     PRBool EnsureInitialized()
     {
@@ -79,23 +79,11 @@ class GLContextCGL : public GLContext
 {
 public:
     GLContextCGL(NSOpenGLContext *aContext)
-        : mContext(aContext), mCGLContext(nsnull), mPBuffer(nsnull)
-    { }
-
-    GLContextCGL(CGLContextObj aContext, CGLPBufferObj aPBuffer)
-        : mContext(nsnull), mCGLContext(aContext), mPBuffer(aPBuffer)
-    { }
+        : mContext(aContext) {}
 
     ~GLContextCGL()
     {
-        if (mContext)
-            [mContext release];
-
-        if (mCGLContext)
-            CGLDestroyContext(mCGLContext);
-
-        if (mPBuffer)
-            CGLDestroyPBuffer(mPBuffer);
+        [mContext release];
     }
 
     PRBool Init()
@@ -104,30 +92,14 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    void *GetNativeData(NativeDataType aType)
+    void *GetNativeContext() 
     { 
-        switch (aType) {
-        case NativeGLContext:
-            return mContext;
-
-        case NativeCGLContext:
-            return mCGLContext ? mCGLContext : [mContext CGLContextObj];
-
-        case NativePBuffer:
-            return mPBuffer;
-
-        default:
-            return nsnull;
-        }
+        return mContext; 
     }
 
     PRBool MakeCurrent()
     {
-        if (mContext) {
-            [mContext makeCurrentContext];
-        } else if (mCGLContext) {
-            CGLSetCurrentContext(mCGLContext);
-        }
+        [mContext makeCurrentContext];
         return PR_TRUE;
     }
 
@@ -138,8 +110,6 @@ public:
 
 private:
     NSOpenGLContext *mContext;
-    CGLContextObj mCGLContext;
-    CGLPBufferObj mPBuffer;
 };
 
 already_AddRefed<GLContext>
@@ -178,76 +148,9 @@ GLContextProvider::CreateForWindow(nsIWidget *aWidget)
 }
 
 already_AddRefed<GLContext>
-GLContextProvider::CreatePBuffer(const gfxIntSize &aSize,
-                                 const ContextFormat &aFormat)
+GLContextProvider::CreatePbuffer(const gfxSize &)
 {
-    if (!sCGLLibrary.EnsureInitialized()) {
-        return nsnull;
-    }
-
-    nsTArray<CGLPixelFormatAttribute> attribs;
-
-#define A1_(_x) do {                                                    \
-        attribs.AppendElement((CGLPixelFormatAttribute) _x);            \
-    } while(0)
-#define A2_(_x,_y) do {                                                 \
-        attribs.AppendElement((CGLPixelFormatAttribute) _x);            \
-        attribs.AppendElement((CGLPixelFormatAttribute) _y);            \
-    } while(0)
-
-    A1_(kCGLPFAAccelerated);
-    A1_(kCGLPFAMinimumPolicy);
-    A1_(kCGLPFAPBuffer);
-
-    A2_(kCGLPFAColorSize, aFormat.colorBits());
-    A2_(kCGLPFAAlphaSize, aFormat.alpha);
-    A2_(kCGLPFADepthSize, aFormat.depth);
-
-    A1_(0);
-
-    CGLError err;
-
-    GLint nFormats;
-    CGLPixelFormatObj pixelFormat;
-    CGLContextObj context;
-    CGLPBufferObj pbuffer;
-    GLint screen;
-
-    err = CGLChoosePixelFormat(attribs.Elements(), &pixelFormat, &nFormats);
-    if (err) {
-        return nsnull;
-    }
-
-    err = CGLCreateContext(pixelFormat, NULL, &context);
-    if (err) {
-        return nsnull;
-    }
-
-    err = CGLCreatePBuffer(aSize.width, aSize.height, LOCAL_GL_TEXTURE_2D,
-                           LOCAL_GL_RGBA,
-                           0, &pbuffer);
-    if (err) {
-        return nsnull;
-    }
-
-    err = CGLGetVirtualScreen(context, &screen);
-    if (err) {
-        return nsnull;
-    }
-
-    err = CGLSetPBuffer(context, pbuffer, 0, 0, screen);
-    if (err) {
-        return nsnull;
-    }
-
-    CGLDestroyPixelFormat(pixelFormat);
-
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(context, pbuffer);
-    if (!glContext->Init()) {
-        return nsnull;
-    }
-
-    return glContext.forget().get();
+    return nsnull;
 }
 
 } /* namespace gl */

@@ -57,12 +57,6 @@ class nsIContent;
 class nsIAtom;
 class nsAttrValue;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 enum nsSMILTargetAttrType {
   eSMILTargetAttrType_auto,
   eSMILTargetAttrType_CSS,
@@ -116,7 +110,7 @@ public:
   /*
    * Returns the target (animated) element.
    */
-  virtual mozilla::dom::Element* GetTargetElementContent() = 0;
+  virtual nsIContent* GetTargetElementContent() = 0;
 
   /*
    * Returns the name of the target (animated) attribute or property.

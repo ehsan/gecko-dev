@@ -35,11 +35,9 @@ EXPORTS		= 	gfx3DMatrix.h \
 			GLContextProvider.h \
 			$(NULL)
 
-ifdef MOZ_IPC
 EXPORTS		+= \
 			gfxSharedImageSurface.h \
 			$(NULL)
-endif
 
 EXPORTS += gfxFontTest.h
 
@@ -47,7 +45,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 EXPORTS	+=	gfxWindowsPlatform.h \
 		gfxWindowsSurface.h \
 		gfxWindowsNativeDrawing.h \
-		WGLLibrary.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
@@ -61,14 +58,6 @@ EXPORTS +=  gfxDWriteFonts.h
 EXPORTS +=  gfxD2DSurface.h
 endif
 
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS += \
-	gfxAndroidPlatform.h \
-	gfxFT2Fonts.h \
-	gfxFT2FontBase.h \
-	$(NULL)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)

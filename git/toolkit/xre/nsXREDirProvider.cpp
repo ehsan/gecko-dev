@@ -65,7 +65,6 @@
 #include "nsEnumeratorUtils.h"
 #include "nsReadableUtils.h"
 #include "mozilla/Services.h"
-#include "mozilla/Omnijar.h"
 
 #include <stdlib.h>
 
@@ -704,16 +703,10 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
   else if (!strcmp(aProperty, NS_CHROME_MANIFESTS_FILE_LIST)) {
     nsCOMArray<nsIFile> manifests;
 
-#ifdef MOZ_OMNIJAR
-    if (!mozilla::OmnijarPath()) {
-#endif
-        nsCOMPtr<nsIFile> manifest;
-        mGREDir->Clone(getter_AddRefs(manifest));
-        manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
-        manifests.AppendObject(manifest);
-#ifdef MOZ_OMNIJAR
-    }
-#endif
+    nsCOMPtr<nsIFile> manifest;
+    mGREDir->Clone(getter_AddRefs(manifest));
+    manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
+    manifests.AppendObject(manifest);
 
     PRBool eq;
     if (NS_SUCCEEDED(mXULAppDir->Equals(mGREDir, &eq)) && !eq) {

@@ -62,10 +62,8 @@ _SERV_FILES = 	\
 		runtests.py \
 		automation.py \
 		runtestsremote.py \
-		runtestsvmware.py \
 		$(topsrcdir)/build/mobile/devicemanager.py \
 		$(topsrcdir)/build/automationutils.py \
-		$(topsrcdir)/build/poster.zip \
 		gen_template.pl \
 		server.js \
 		harness-a11y.xul \

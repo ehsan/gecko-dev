@@ -62,6 +62,7 @@
 #include "nsIViewManager.h"
 
 #include "nsIDOMHTMLCanvasElement.h"
+#include "nsICanvasElement.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "nsLayoutUtils.h"
@@ -96,7 +97,6 @@ NS_IMPL_RELEASE(nsDOMWindowUtils)
 nsDOMWindowUtils::nsDOMWindowUtils(nsGlobalWindow *aWindow)
   : mWindow(aWindow)
 {
-  NS_ASSERTION(mWindow->IsOuterWindow(), "How did that happen?");
 }
 
 nsDOMWindowUtils::~nsDOMWindowUtils()
@@ -1328,22 +1328,3 @@ nsDOMWindowUtils::GetParent()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMWindowUtils::GetOuterWindowID(PRUint64 *aWindowID)
-{
-  NS_ASSERTION(mWindow->IsOuterWindow(), "How did that happen?");
-  *aWindowID = mWindow->mWindowID;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetCurrentInnerWindowID(PRUint64 *aWindowID)
-{
-  NS_ASSERTION(mWindow->IsOuterWindow(), "How did that happen?");
-  nsGlobalWindow* inner = mWindow->GetCurrentInnerWindowInternal();
-  if (!inner) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-  *aWindowID = inner->mWindowID;
-  return NS_OK;
-}

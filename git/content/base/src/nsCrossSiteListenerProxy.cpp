@@ -52,7 +52,7 @@
 #include "nsGkAtoms.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "nsCommaSeparatedTokenizer.h"
 #include "nsXMLHttpRequest.h"
 
 static PRBool gDisableCORS = PR_FALSE;
@@ -291,7 +291,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
                             headerVal);
     PRBool foundMethod = mPreflightMethod.EqualsLiteral("GET") ||
       mPreflightMethod.EqualsLiteral("POST");
-    nsCCharSeparatedTokenizer methodTokens(headerVal, ',');
+    nsCCommaSeparatedTokenizer methodTokens(headerVal);
     while(methodTokens.hasMoreTokens()) {
       const nsDependentCSubstring& method = methodTokens.nextToken();
       if (method.IsEmpty()) {
@@ -310,7 +310,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                             headerVal);
     nsTArray<nsCString> headers;
-    nsCCharSeparatedTokenizer headerTokens(headerVal, ',');
+    nsCCommaSeparatedTokenizer headerTokens(headerVal);
     while(headerTokens.hasMoreTokens()) {
       const nsDependentCSubstring& header = headerTokens.nextToken();
       if (header.IsEmpty()) {

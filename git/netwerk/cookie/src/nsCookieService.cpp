@@ -72,7 +72,6 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
-#include "mozilla/FunctionTimer.h"
 
 /******************************************************************************
  * nsCookieService impl:
@@ -519,8 +518,6 @@ nsCookieService::nsCookieService()
 nsresult
 nsCookieService::Init()
 {
-  NS_TIME_FUNCTION;
-
   if (!mDBState->hostTable.Init()) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

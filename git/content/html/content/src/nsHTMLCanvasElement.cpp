@@ -35,8 +35,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLCanvasElement.h"
-
+#include "nsIDOMHTMLCanvasElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsGkAtoms.h"
+#include "nsSize.h"
+#include "nsIFrame.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
+#include "nsDOMError.h"
+#include "nsNodeInfoManager.h"
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
@@ -45,15 +52,87 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
-#include "nsFrameManager.h"
-#include "ImageLayers.h"
-#include "BasicLayers.h"
+#include "nsICanvasElement.h"
+#include "nsIRenderingContext.h"
+
+#include "nsICanvasRenderingContextInternal.h"
+#include "nsIDOMCanvasRenderingContext2D.h"
+#include "nsLayoutUtils.h"
 
 #define DEFAULT_CANVAS_WIDTH 300
 #define DEFAULT_CANVAS_HEIGHT 150
 
-using namespace mozilla;
-using namespace mozilla::layers;
+class nsHTMLCanvasElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLCanvasElement,
+                            public nsICanvasElement
+{
+public:
+  nsHTMLCanvasElement(nsINodeInfo *aNodeInfo);
+  virtual ~nsHTMLCanvasElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLCanvasElement
+  NS_DECL_NSIDOMHTMLCANVASELEMENT
+
+  // nsICanvasElement
+  NS_IMETHOD GetPrimaryCanvasFrame(nsIFrame **aFrame);
+  NS_IMETHOD GetSize(PRUint32 *width, PRUint32 *height);
+  NS_IMETHOD RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
+  virtual PRBool IsWriteOnly();
+  virtual void SetWriteOnly();
+  NS_IMETHOD InvalidateFrame ();
+  NS_IMETHOD InvalidateFrameSubrect (const gfxRect& damageRect);
+  virtual PRInt32 CountContexts();
+  virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
+  virtual PRBool GetIsOpaque();
+
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
+  nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, PRInt32 aModType) const;
+
+  // SetAttr override.  C++ is stupid, so have to override both
+  // overloaded methods.
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                   const nsAString& aValue, PRBool aNotify)
+  {
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
+  }
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                           nsIAtom* aPrefix, const nsAString& aValue,
+                           PRBool aNotify);
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+protected:
+  nsIntSize GetWidthHeight();
+
+  nsresult UpdateContext();
+  nsresult ToDataURLImpl(const nsAString& aMimeType,
+                         const nsAString& aEncoderOptions,
+                         nsAString& aDataURL);
+
+  nsString mCurrentContextId;
+  nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;
+  
+public:
+  // Record whether this canvas should be write-only or not.
+  // We set this when script paints an image from a different origin.
+  // We also transitively set it when script paints a canvas which
+  // is itself write-only.
+  PRPackedBool             mWriteOnly;
+};
 
 nsGenericHTMLElement*
 NS_NewHTMLCanvasElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
@@ -83,7 +162,7 @@ DOMCI_DATA(HTMLCanvasElement, nsHTMLCanvasElement)
 NS_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
                                    nsIDOMHTMLCanvasElement,
-                                   nsICanvasElementExternal)
+                                   nsICanvasElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLCanvasElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLCanvasElement)
@@ -358,16 +437,30 @@ nsHTMLCanvasElement::UpdateContext()
   return rv;
 }
 
-nsIFrame *
-nsHTMLCanvasElement::GetPrimaryCanvasFrame()
+NS_IMETHODIMP
+nsHTMLCanvasElement::GetPrimaryCanvasFrame(nsIFrame **aFrame)
 {
-  return GetPrimaryFrame(Flush_Frames);
+  *aFrame = GetPrimaryFrame(Flush_Frames);
+  return NS_OK;
 }
 
-nsIntSize
-nsHTMLCanvasElement::GetSize()
+NS_IMETHODIMP
+nsHTMLCanvasElement::GetSize(PRUint32 *width, PRUint32 *height)
 {
-  return GetWidthHeight();
+  nsIntSize sz = GetWidthHeight();
+  *width = sz.width;
+  *height = sz.height;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
+{
+  if (!mCurrentContext)
+    return NS_OK;
+
+  return mCurrentContext->Render(ctx, aFilter);
 }
 
 PRBool
@@ -382,23 +475,35 @@ nsHTMLCanvasElement::SetWriteOnly()
   mWriteOnly = PR_TRUE;
 }
 
-void
-nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
+NS_IMETHODIMP
+nsHTMLCanvasElement::InvalidateFrame()
 {
   // We don't need to flush anything here; if there's no frame or if
   // we plan to reframe we don't need to invalidate it anyway.
   nsIFrame *frame = GetPrimaryFrame();
-  if (!frame)
-    return;
+  if (frame) {
+    nsRect r = frame->GetRect();
+    r.x = r.y = 0;
+    frame->Invalidate(r);
+  }
 
-  if (damageRect) {
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
+{
+  // We don't need to flush anything here; if there's no frame or if
+  // we plan to reframe we don't need to invalidate it anyway.
+  nsIFrame *frame = GetPrimaryFrame();
+  if (frame) {
     nsRect contentArea(frame->GetContentRect());
     nsIntSize size = GetWidthHeight();
 
     // damageRect and size are in CSS pixels; contentArea is in appunits
     // We want a rect in appunits; so avoid doing pixels-to-appunits and
     // vice versa conversion here.
-    gfxRect realRect(*damageRect);
+    gfxRect realRect(damageRect);
     realRect.Scale(contentArea.width / gfxFloat(size.width),
                    contentArea.height / gfxFloat(size.height));
     realRect.RoundOut();
@@ -411,10 +516,9 @@ nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
     invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
 
     frame->Invalidate(invalRect);
-  } else {
-    nsRect r(frame->GetContentRect() - frame->GetPosition());
-    frame->Invalidate(r);
   }
+
+  return NS_OK;
 }
 
 PRInt32
@@ -439,37 +543,4 @@ PRBool
 nsHTMLCanvasElement::GetIsOpaque()
 {
   return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
-}
-
-already_AddRefed<CanvasLayer>
-nsHTMLCanvasElement::GetCanvasLayer(LayerManager *aManager)
-{
-  if (!mCurrentContext)
-    return nsnull;
-
-  return mCurrentContext->GetCanvasLayer(aManager);
-}
-
-void
-nsHTMLCanvasElement::MarkContextClean()
-{
-  if (!mCurrentContext)
-    return;
-
-  mCurrentContext->MarkContextClean();
-}
-
-NS_IMETHODIMP_(nsIntSize)
-nsHTMLCanvasElement::GetSizeExternal()
-{
-  return GetWidthHeight();
-}
-
-NS_IMETHODIMP
-nsHTMLCanvasElement::RenderContextsExternal(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter)
-{
-  if (!mCurrentContext)
-    return NS_OK;
-
-  return mCurrentContext->Render(aContext, aFilter);
 }

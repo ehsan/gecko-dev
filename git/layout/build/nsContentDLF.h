@@ -42,6 +42,7 @@
 #include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 
+class nsICSSStyleSheet;
 class nsIChannel;
 class nsIComponentManager;
 class nsIContentViewer;

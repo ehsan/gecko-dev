@@ -103,7 +103,7 @@ moz_test_binary()
 ##########################################################################
 moz_get_debugger()
 {
-	debuggers="ddd gdb dbx bdb native-gdb"
+	debuggers="ddd gdb dbx bdb"
 	debugger="notfound"
 	done="no"
 	for d in $debuggers
@@ -169,10 +169,6 @@ moz_debug_program()
 # If you are not using ddd, gdb and know of a way to convey the arguments 
 # over to the prog then add that here- Gagan Saksena 03/15/00
         case `basename $debugger` in
-            native-gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
-                exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
-                exitcode=$?
-                ;;
             gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
                 exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
 		exitcode=$?

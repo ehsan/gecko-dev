@@ -56,7 +56,6 @@
 #include "nsReadableUtils.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMNode.h"
-#include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLCollection.h"
@@ -531,9 +530,10 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
     elts->Item(i, getter_AddRefs(node));
     nsCOMPtr<nsIDOMHTMLInputElement> inputElt = do_QueryInterface(node);
     if (inputElt) {
-      // Check if input is a type supported by Form Manager.
-      nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(inputElt);
-      if (!formControl || !formControl->IsSingleLineTextControl(PR_TRUE))
+      // Filter only inputs that are of type "text" without autocomplete="off"
+      nsAutoString type;
+      inputElt->GetType(type);
+      if (!type.LowerCaseEqualsLiteral("text"))
         continue;
 
       // TODO: If Login Manager marked this input, don't save it. The login

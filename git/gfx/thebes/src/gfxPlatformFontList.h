@@ -46,8 +46,6 @@
 #include "gfxFont.h"
 #include "gfxPlatform.h"
 
-#include "mozilla/FunctionTimer.h"
-
 // gfxPlatformFontList is an abstract class for the global font list on the system;
 // concrete subclasses for each platform implement the actual interface to the system fonts.
 // This class exists because we cannot rely on the platform font-finding APIs to behave
@@ -64,8 +62,6 @@ public:
     }
 
     static nsresult Init() {
-        NS_TIME_FUNCTION;
-
         NS_ASSERTION(!sPlatformFontList, "What's this doing here?");
         sPlatformFontList = gfxPlatform::GetPlatform()->CreatePlatformFontList();
         if (!sPlatformFontList) return NS_ERROR_OUT_OF_MEMORY;

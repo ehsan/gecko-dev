@@ -358,7 +358,8 @@ nsXULTreeGridAccessible::GetCellAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
   if (!column)
     return NS_ERROR_INVALID_ARG;
 
-  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(rowAccessible);
+  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc =
+    nsAccUtils::QueryObject<nsXULTreeItemAccessibleBase>(rowAccessible);
 
   NS_IF_ADDREF(*aCell = rowAcc->GetCellAccessible(column));
   return NS_OK;
@@ -704,7 +705,8 @@ nsXULTreeGridRowAccessible::GetIndexOf(nsIAccessible *aChild)
   if (IsDefunct())
     return -1;
 
-  nsRefPtr<nsXULTreeGridCellAccessible> cell = do_QueryObject(aChild);
+  nsRefPtr<nsXULTreeGridCellAccessible> cell =
+    nsAccUtils::QueryObject<nsXULTreeGridCellAccessible>(aChild);
 
   return cell ? cell->GetColumnIndex() : -1;
 }
@@ -755,7 +757,8 @@ nsXULTreeGridRowAccessible::RowInvalidated(PRInt32 aStartColIdx,
     if (column && !nsCoreUtils::IsColumnHidden(column)) {
       nsAccessible *cellAccessible = GetCellAccessible(column);
       if (cellAccessible) {
-        nsRefPtr<nsXULTreeGridCellAccessible> cellAcc = do_QueryObject(cellAccessible);
+        nsRefPtr<nsXULTreeGridCellAccessible> cellAcc =
+          nsAccUtils::QueryObject<nsXULTreeGridCellAccessible>(cellAccessible);
 
         cellAcc->CellInvalidated();
       }
@@ -1284,7 +1287,8 @@ nsXULTreeGridCellAccessible::GetSiblingAtOffset(PRInt32 aOffset,
   if (!columnAtOffset)
     return nsnull;
 
-  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(mParent);
+  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc =
+    nsAccUtils::QueryObject<nsXULTreeItemAccessibleBase>(mParent);
 
   return rowAcc->GetCellAccessible(columnAtOffset);
 }

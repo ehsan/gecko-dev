@@ -47,7 +47,7 @@ GLContextProvider::CreateForWindow(nsIWidget*)
 }
 
 already_AddRefed<GLContext>
-GLContextProvider::CreatePBuffer(const gfxIntSize &, const ContextFormat &)
+GLContextProvider::CreatePbuffer(const gfxSize &)
 {
     return nsnull;
 }

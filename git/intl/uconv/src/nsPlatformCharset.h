@@ -56,6 +56,7 @@ private:
   nsCString mCharset;
   nsString mLocale; // remember the locale & charset
 
+  nsresult InitInfo();
   nsresult MapToCharset(short script, short region, nsACString& outCharset); 
   nsresult MapToCharset(nsAString& inANSICodePage, nsACString& outCharset);
   nsresult InitGetCharset(nsACString& oString);

@@ -126,9 +126,8 @@
 #define PROGRESS_FINISH_SIZE   5.0f
 
 #if defined(XP_MACOSX)
-// These functions are defined in launchchild_osx.mm
+// This function is defined in launchchild_osx.mm
 void LaunchChild(int argc, char **argv);
-void LaunchMacPostProcess(const char* aAppExe);
 #endif
 
 #ifndef _O_BINARY
@@ -345,9 +344,9 @@ private:
 
 static NS_tchar* gSourcePath;
 static ArchiveReader gArchiveReader;
-static bool gSucceeded = false;
 
 #ifdef XP_WIN
+static bool gSucceeded = FALSE;
 WIN32_FIND_DATAW gFFData;
 #ifdef WINCE
 // Since WinCE doesn't have a current working directory store the current
@@ -400,8 +399,8 @@ static void LogPrintf(const char *fmt, ... )
 
 //-----------------------------------------------------------------------------
 
-static inline size_t
-mmin(size_t a, size_t b)
+static inline PRUint32
+mmin(PRUint32 a, PRUint32 b)
 {
   return (a > b) ? b : a;
 }
@@ -1650,11 +1649,6 @@ int NS_main(int argc, NS_tchar **argv)
     }
     EXIT_WHEN_ELEVATED(elevatedLockFilePath, updateLockFileHandle, 0);
 #endif
-#ifdef XP_MACOSX
-    if (gSucceeded) {
-      LaunchMacPostProcess(argv[argOffset]);
-    }
-#endif /* XP_MACOSX */
     LaunchCallbackApp(argv[3], argc - argOffset, argv + argOffset);
   }
 
@@ -1774,7 +1768,7 @@ ActionList::Finish(int status)
 
 #ifdef XP_WIN
   if (status == OK)
-    gSucceeded = true;
+    gSucceeded = TRUE;
 #endif
 }
 

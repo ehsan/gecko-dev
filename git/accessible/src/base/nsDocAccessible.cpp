@@ -549,7 +549,8 @@ nsDocAccessible::GetCachedAccessNode(void *aUniqueID)
   // It will assert if not all the children were created
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
-  nsRefPtr<nsAccessible> acc = do_QueryObject(accessNode);
+  nsRefPtr<nsAccessible> acc =
+    nsAccUtils::QueryObject<nsAccessible>(accessNode);
 
   if (acc) {
     nsAccessible* parent(acc->GetCachedParent());
@@ -1308,8 +1309,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
 
 void nsDocAccessible::ContentAppended(nsIDocument *aDocument,
                                       nsIContent* aContainer,
-                                      nsIContent* aFirstNewContent,
-                                      PRInt32 /* unused */)
+                                      PRInt32 aNewIndexInContainer)
 {
   if ((!mIsContentLoaded || !mDocument) && mAccessNodeCache.Count() <= 1) {
     // See comments in nsDocAccessible::InvalidateCacheSubtree
@@ -1317,13 +1317,14 @@ void nsDocAccessible::ContentAppended(nsIDocument *aDocument,
     return;
   }
 
-  // Does this need to be a strong ref?  If so, why?
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
+  PRUint32 childCount = aContainer->GetChildCount();
+  for (PRUint32 index = aNewIndexInContainer; index < childCount; index ++) {
+    nsCOMPtr<nsIContent> child(aContainer->GetChildAt(index));
     // InvalidateCacheSubtree will not fire the EVENT_SHOW for the new node
     // unless an accessible can be created for the passed in node, which it
     // can't do unless the node is visible. The right thing happens there so
     // no need for an extra visibility check here.
-    InvalidateCacheSubtree(cur, nsIAccessibilityService::NODE_APPEND);
+    InvalidateCacheSubtree(child, nsIAccessibilityService::NODE_APPEND);
   }
 }
 
@@ -1362,7 +1363,7 @@ void nsDocAccessible::CharacterDataChanged(nsIDocument *aDocument,
 
 void
 nsDocAccessible::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                                 nsIContent* aChild, PRInt32 /* unused */)
+                                 nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   // InvalidateCacheSubtree will not fire the EVENT_SHOW for the new node
   // unless an accessible can be created for the passed in node, which it
@@ -1373,7 +1374,7 @@ nsDocAccessible::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
 
 void
 nsDocAccessible::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
-                                nsIContent* aChild, PRInt32 /* unused */)
+                                nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   // It's no needed to invalidate the subtree of the removed element,
   // because we get notifications directly from content (see
@@ -1417,7 +1418,7 @@ nsDocAccessible::GetParent()
       // It should be changed to use GetAccessibleInWeakShell()
       nsCOMPtr<nsIAccessible> parent;
       accService->GetAccessibleFor(ownerNode, getter_AddRefs(parent));
-      mParent = do_QueryObject(parent);
+      mParent = nsAccUtils::QueryObject<nsAccessible>(parent);
     }
   }
 
@@ -1460,14 +1461,18 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
   if (NS_FAILED(rv) || !accessible)
     return;
 
-  nsRefPtr<nsHyperTextAccessible> textAccessible(do_QueryObject(accessible));
-  if (!textAccessible)
+  nsRefPtr<nsHyperTextAccessible> textAccessible;
+  rv = accessible->QueryInterface(NS_GET_IID(nsHyperTextAccessible),
+                                  getter_AddRefs(textAccessible));
+  if (NS_FAILED(rv) || !textAccessible)
     return;
 
   PRInt32 start = aInfo->mChangeStart;
 
   PRInt32 offset = 0;
-  textAccessible->DOMPointToHypertextOffset(node, start, &offset);
+  rv = textAccessible->DOMPointToHypertextOffset(node, start, &offset);
+  if (NS_FAILED(rv))
+    return;
 
   PRInt32 length = aIsInserted ?
     aInfo->mReplaceLength: // text has been added
@@ -1507,16 +1512,19 @@ nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessibl
                                               PRBool aIsAsynch,
                                               EIsFromUserInput aIsFromUserInput)
 {
-  nsRefPtr<nsHyperTextAccessible> textAccessible =
-    do_QueryObject(aContainerAccessible);
+  nsRefPtr<nsHyperTextAccessible> textAccessible;
+  aContainerAccessible->QueryInterface(NS_GET_IID(nsHyperTextAccessible),
+                                       getter_AddRefs(textAccessible));
   if (!textAccessible) {
     return nsnull;
   }
 
   PRInt32 offset;
   PRInt32 length = 0;
-  nsAccessible *changeAcc =
-    textAccessible->DOMPointToHypertextOffset(aChangeNode, -1, &offset);
+  nsCOMPtr<nsIAccessible> changeAccessible;
+  nsresult rv = textAccessible->DOMPointToHypertextOffset(aChangeNode, -1, &offset,
+                                                          getter_AddRefs(changeAccessible));
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   if (!aAccessibleForChangeNode) {
     // A span-level object or something else without an accessible is being removed, where
@@ -1524,29 +1532,33 @@ nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessibl
     // into the parent hypertext.
     // In this case, accessibleToBeRemoved may just be the first
     // accessible that is removed, which affects the text in the hypertext container
-    if (!changeAcc)
+    if (!changeAccessible) {
       return nsnull; // No descendant content that represents any text in the hypertext parent
+    }
 
     nsCOMPtr<nsINode> changeNode(do_QueryInterface(aChangeNode));
+    nsCOMPtr<nsIAccessible> child = changeAccessible;
+    while (PR_TRUE) {
+      nsCOMPtr<nsIAccessNode> childAccessNode =
+        do_QueryInterface(changeAccessible);
 
-    nsAccessible *parent = changeAcc->GetParent();
-    PRInt32 childCount = parent->GetChildCount();
-    PRInt32 changeAccIdx = parent->GetIndexOf(changeAcc);
+      nsCOMPtr<nsIDOMNode> childDOMNode;
+      childAccessNode->GetDOMNode(getter_AddRefs(childDOMNode));
 
-    for (PRInt32 idx = changeAccIdx; idx < childCount; idx++) {
-      nsAccessible *child = parent->GetChildAt(idx);
-      nsCOMPtr<nsINode> childNode(do_QueryInterface(child->GetDOMNode()));
-
+      nsCOMPtr<nsINode> childNode(do_QueryInterface(childDOMNode));
       if (!nsCoreUtils::IsAncestorOf(changeNode, childNode)) {
-        // We only want accessibles with DOM nodes as children of this node
+        break;  // We only want accessibles with DOM nodes as children of this node
+      }
+      length += nsAccUtils::TextLength(child);
+      child->GetNextSibling(getter_AddRefs(changeAccessible));
+      if (!changeAccessible) {
         break;
       }
-
-      length += nsAccUtils::TextLength(child);
+      child.swap(changeAccessible);
     }
   }
   else {
-    NS_ASSERTION(!changeAcc || changeAcc == aAccessibleForChangeNode,
+    NS_ASSERTION(!changeAccessible || changeAccessible == aAccessibleForChangeNode,
                  "Hypertext is reporting a different accessible for this node");
 
     length = nsAccUtils::TextLength(aAccessibleForChangeNode);
@@ -1759,7 +1771,8 @@ nsDocAccessible::ProcessPendingEvent(nsAccEvent *aEvent)
 
 void nsDocAccessible::InvalidateChildrenInSubtree(nsIDOMNode *aStartNode)
 {
-  nsRefPtr<nsAccessible> acc = do_QueryObject(GetCachedAccessNode(aStartNode));
+  nsRefPtr<nsAccessible> acc =
+    nsAccUtils::QueryObject<nsAccessible>(GetCachedAccessNode(aStartNode));
   if (acc)
     acc->InvalidateChildren();
 
@@ -1783,7 +1796,8 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
 
   // Shut down accessible subtree, which may have been created for
   // anonymous content subtree
-  nsRefPtr<nsAccessible> accessible = do_QueryObject(accessNode);
+  nsRefPtr<nsAccessible> accessible =
+    nsAccUtils::QueryObject<nsAccessible>(accessNode);
   if (accessible) {
     // Fire menupopup end if a menu goes away
     PRUint32 role = nsAccUtils::Role(accessible);
@@ -1803,8 +1817,9 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
     // created.
     if (accessible->GetCachedFirstChild()) {
       nsCOMPtr<nsIArray> children;
-      // use GetChildren() to fetch all children at once, because after shutdown
-      // the child references are cleared.
+      // use GetChildren() to fetch children at one time, instead of using
+      // GetNextSibling(), because after we shutdown the first child,
+      // mNextSibling will be set null.
       accessible->GetChildren(getter_AddRefs(children));
       PRUint32 childCount =0;
       if (children)
@@ -2030,7 +2045,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
                                nsAccEvent::eCoalesceFromSameSubtree,
                                isAsynch);
 
-    // Check to see change occurred in an ARIA menu, and fire
+    // Check to see change occured in an ARIA menu, and fire
     // an EVENT_MENUPOPUP_START if it did.
     nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(childNode);
     if (roleMapEntry && roleMapEntry->role == nsIAccessibleRole::ROLE_MENUPOPUP) {
@@ -2039,7 +2054,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
                                  isAsynch);
     }
 
-    // Check to see if change occurred inside an alert, and fire an EVENT_ALERT if it did
+    // Check to see if change occured inside an alert, and fire an EVENT_ALERT if it did
     nsIContent *ancestor = aChild;
     while (PR_TRUE) {
       if (roleMapEntry && roleMapEntry->role == nsIAccessibleRole::ROLE_ALERT) {

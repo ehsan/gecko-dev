@@ -47,8 +47,6 @@
 #include "nsNetUtil.h"
 #include "prnetdb.h"
 
-#include "mozilla/FunctionTimer.h"
-
 NS_IMPL_ISUPPORTS1(nsEffectiveTLDService, nsIEffectiveTLDService)
 
 // ----------------------------------------------------------------------
@@ -62,8 +60,6 @@ static const ETLDEntry gEntries[] =
 nsresult
 nsEffectiveTLDService::Init()
 {
-  NS_TIME_FUNCTION;
-
   // We'll probably have to rehash at least once, since nsTHashtable doesn't
   // use a perfect hash, but at least we'll save a few rehashes along the way.
   // Next optimization here is to precompute the hash using something like

@@ -46,7 +46,6 @@
 #include "nsCompatibility.h"
 #include "nsDataHashtable.h"
 #include "nsInterfaceHashtable.h"
-#include "nsRefPtrHashtable.h"
 #include "nsTArray.h"
 #include "nsTObserverArray.h"
 #include "nsURIHashKey.h"
@@ -54,7 +53,7 @@
 class nsIAtom;
 class nsICSSImportRule;
 class nsICSSLoaderObserver;
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
 class nsIContent;
 class nsIDocument;
 class nsIUnicharInputStream;
@@ -229,7 +228,7 @@ public:
    * @param aRule the @import rule importing this child.  This is used to
    *              properly order the child sheet list of aParentSheet.
    */
-  nsresult LoadChildSheet(nsCSSStyleSheet* aParentSheet,
+  nsresult LoadChildSheet(nsICSSStyleSheet* aParentSheet,
                           nsIURI* aURL,
                           nsMediaList* aMedia,
                           nsICSSImportRule* aRule);
@@ -263,12 +262,12 @@ public:
    */
   nsresult LoadSheetSync(nsIURI* aURL, PRBool aEnableUnsafeRules,
                          PRBool aUseSystemPrincipal,
-                         nsCSSStyleSheet** aSheet);
+                         nsICSSStyleSheet** aSheet);
 
   /**
    * As above, but aUseSystemPrincipal and aEnableUnsafeRules are assumed false.
    */
-  nsresult LoadSheetSync(nsIURI* aURL, nsCSSStyleSheet** aSheet) {
+  nsresult LoadSheetSync(nsIURI* aURL, nsICSSStyleSheet** aSheet) {
     return LoadSheetSync(aURL, PR_FALSE, PR_FALSE, aSheet);
   }
 
@@ -296,7 +295,7 @@ public:
                      nsIPrincipal* aOriginPrincipal,
                      const nsCString& aCharset,
                      nsICSSLoaderObserver* aObserver,
-                     nsCSSStyleSheet** aSheet);
+                     nsICSSStyleSheet** aSheet);
 
   /**
    * Same as above, to be used when the caller doesn't care about the
@@ -384,25 +383,25 @@ private:
                        nsIPrincipal* aLoaderPrincipal,
                        PRBool aSyncLoad,
                        StyleSheetState& aSheetState,
-                       nsCSSStyleSheet** aSheet);
+                       nsICSSStyleSheet** aSheet);
 
   // Pass in either a media string or the nsMediaList from the
   // CSSParser.  Don't pass both.
   // If aIsAlternate is non-null, this method will set *aIsAlternate to
   // correspond to the sheet's enabled state (which it will set no matter what)
-  nsresult PrepareSheet(nsCSSStyleSheet* aSheet,
+  nsresult PrepareSheet(nsICSSStyleSheet* aSheet,
                         const nsAString& aTitle,
                         const nsAString& aMediaString,
                         nsMediaList* aMediaList,
                         PRBool aHasAlternateRel = PR_FALSE,
                         PRBool *aIsAlternate = nsnull);
 
-  nsresult InsertSheetInDoc(nsCSSStyleSheet* aSheet,
+  nsresult InsertSheetInDoc(nsICSSStyleSheet* aSheet,
                             nsIContent* aLinkingContent,
                             nsIDocument* aDocument);
 
-  nsresult InsertChildSheet(nsCSSStyleSheet* aSheet,
-                            nsCSSStyleSheet* aParentSheet,
+  nsresult InsertChildSheet(nsICSSStyleSheet* aSheet,
+                            nsICSSStyleSheet* aParentSheet,
                             nsICSSImportRule* aParentRule);
 
   nsresult InternalLoadNonDocumentSheet(nsIURI* aURL,
@@ -410,7 +409,7 @@ private:
                                         PRBool aUseSystemPrincipal,
                                         nsIPrincipal* aOriginPrincipal,
                                         const nsCString& aCharset,
-                                        nsCSSStyleSheet** aSheet,
+                                        nsICSSStyleSheet** aSheet,
                                         nsICSSLoaderObserver* aObserver);
 
   // Post a load event for aObserver to be notified about aSheet.  The
@@ -420,7 +419,7 @@ private:
   // initiated, not the state at some later time.  aURI should be the URI the
   // sheet was loaded from (may be null for inline sheets).
   nsresult PostLoadEvent(nsIURI* aURI,
-                         nsCSSStyleSheet* aSheet,
+                         nsICSSStyleSheet* aSheet,
                          nsICSSLoaderObserver* aObserver,
                          PRBool aWasAlternate);
 
@@ -452,7 +451,7 @@ private:
   void DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                        LoadDataArray& aDatasToNotify);
 
-  nsRefPtrHashtable<URIAndPrincipalHashKey, nsCSSStyleSheet>
+  nsInterfaceHashtable<URIAndPrincipalHashKey, nsICSSStyleSheet>
                     mCompleteSheets;
   nsDataHashtable<URIAndPrincipalHashKey, SheetLoadData*>
                     mLoadingDatas; // weak refs

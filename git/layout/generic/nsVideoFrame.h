@@ -74,6 +74,9 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  void PaintVideo(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the video's display */
   nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();

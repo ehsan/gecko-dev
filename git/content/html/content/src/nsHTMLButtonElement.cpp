@@ -106,11 +106,9 @@ public:
   NS_IMETHOD Focus();
   NS_IMETHOD Click();
   NS_IMETHOD SetType(const nsAString& aType);
-  NS_IMETHOD GetAutofocus(PRBool* aAutofocus);
-  NS_IMETHOD SetAutofocus(PRBool aAutofocus);
 
   // overriden nsIFormControl methods
-  NS_IMETHOD_(PRUint32) GetType() const { return mType; }
+  NS_IMETHOD_(PRInt32) GetType() const { return mType; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
@@ -141,12 +139,7 @@ public:
   virtual void DoneCreatingElement();
 
 protected:
-  virtual PRBool AcceptAutofocus() const
-  {
-    return PR_TRUE;
-  }
-
-  PRUint8 mType;
+  PRInt8 mType;
   PRPackedBool mHandlingClick;
   PRPackedBool mDisabledChanged;
   PRPackedBool mInInternalActivate;
@@ -209,7 +202,6 @@ nsHTMLButtonElement::GetForm(nsIDOMHTMLFormElement** aForm)
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, AccessKey, accesskey)
-NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Disabled, disabled)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)

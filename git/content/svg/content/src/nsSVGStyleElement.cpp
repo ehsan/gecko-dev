@@ -227,7 +227,6 @@ nsSVGStyleElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsSVGStyleElement::ContentAppended(nsIDocument* aDocument,
                                    nsIContent* aContainer,
-                                   nsIContent* aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);

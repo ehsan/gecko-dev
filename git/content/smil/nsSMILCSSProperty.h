@@ -48,12 +48,6 @@
 class nsIContent;
 class nsCSSDeclaration;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 /**
  * nsSMILCSSProperty: Implements the nsISMILAttr interface for SMIL animations
  * that target CSS properties.  Represents a particular animation-targeted CSS
@@ -67,7 +61,7 @@ public:
    * @param  aPropID   The CSS property we're interested in animating.
    * @param  aElement  The element whose CSS property is being animated.
    */
-  nsSMILCSSProperty(nsCSSProperty aPropID, mozilla::dom::Element* aElement);
+  nsSMILCSSProperty(nsCSSProperty aPropID, nsIContent* aElement);
 
   // nsISMILAttr methods
   virtual nsresult ValueFromString(const nsAString& aStr,
@@ -94,7 +88,7 @@ protected:
   // alive for my lifetime because a nsISMILAttr (like me) only lives as long
   // as the Compositing step, and DOM elements don't get a chance to die during
   // that time.
-  mozilla::dom::Element*   mElement;
+  nsIContent*   mElement;
 };
 
 #endif // NS_SMILCSSPROPERTY_H_

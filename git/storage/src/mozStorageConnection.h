@@ -121,11 +121,6 @@ public:
    */
   nsresult internalClose();
 
-  /**
-   * Obtains the filename of the connection.  Useful for logging.
-   */
-  nsCString getFilename();
-
 private:
   ~Connection();
 

@@ -83,7 +83,7 @@ public:
     ~FontEntry();
 
     const nsString& GetName() const {
-        return Name();
+        return mFaceName;
     }
 
     static FontEntry* 
@@ -101,6 +101,7 @@ public:
     FT_Face mFTFace;
     cairo_font_face_t *mFontFace;
 
+    nsString mFaceName;
     nsCString mFilename;
     PRUint8 mFTFontIndex;
 };

@@ -73,7 +73,6 @@
 #include <math.h>  // for log()
 #include "mozilla/Services.h"
 
-#include "mozilla/FunctionTimer.h"
 
 /******************************************************************************
  * nsCacheProfilePrefObserver
@@ -580,7 +579,7 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
         return capacity;
     }
 
-    static PRUint64 bytes = PR_GetPhysicalMemorySize();
+    PRUint64 bytes = PR_GetPhysicalMemorySize();
     CACHE_LOG_DEBUG(("Physical Memory size is %llu\n", bytes));
 
     // If getting the physical memory failed, arbitrarily assume
@@ -670,8 +669,6 @@ nsCacheService::~nsCacheService()
 nsresult
 nsCacheService::Init()
 {
-    NS_TIME_FUNCTION;
-
     NS_ASSERTION(!mInitialized, "nsCacheService already initialized.");
     if (mInitialized)
         return NS_ERROR_ALREADY_INITIALIZED;
@@ -814,19 +811,19 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     }
 
     nsCacheServiceAutoLock lock;
-    nsresult res = NS_OK;
+    nsresult rv = NS_OK;
 
 #ifdef NECKO_DISK_CACHE
     if (storagePolicy == nsICache::STORE_ANYWHERE ||
         storagePolicy == nsICache::STORE_ON_DISK) {
 
         if (mEnableDiskDevice) {
-            nsresult rv;
-            if (!mDiskDevice)
+            if (!mDiskDevice) {
                 rv = CreateDiskDevice();
-            if (mDiskDevice)
-                rv = mDiskDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+                if (NS_FAILED(rv)) return rv;
+            }
+            rv = mDiskDevice->EvictEntries(clientID);
+            if (NS_FAILED(rv)) return rv;
         }
     }
 #endif // ! NECKO_DISK_CACHE
@@ -835,12 +832,12 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     // Only clear the offline cache if it has been specifically asked for.
     if (storagePolicy == nsICache::STORE_OFFLINE) {
         if (mEnableOfflineDevice) {
-            nsresult rv;
-            if (!mOfflineDevice)
+            if (!mOfflineDevice) {
                 rv = CreateOfflineDevice();
-            if (mOfflineDevice)
-                rv = mOfflineDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+                if (NS_FAILED(rv)) return rv;
+            }
+            rv = mOfflineDevice->EvictEntries(clientID);
+            if (NS_FAILED(rv)) return rv;
         }
     }
 #endif // ! NECKO_OFFLINE_CACHE
@@ -850,13 +847,12 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
 
         // If there is no memory device, there is no need to evict it...
         if (mMemoryDevice) {
-            nsresult rv;
             rv = mMemoryDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv)) res = rv;
+            if (NS_FAILED(rv)) return rv;
         }
     }
 
-    return res;
+    return NS_OK;
 }
 
 
