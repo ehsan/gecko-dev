@@ -12,6 +12,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIXPConnect.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsIServiceManager.h"
 #include "nsIFile.h"
 #include "nsString.h"
