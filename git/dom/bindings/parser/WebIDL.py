@@ -1433,9 +1433,7 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
 
     def finish(self, parentScope):
         # Maybe the IDLObjectWithIdentifier for the typedef should be
-        # a separate thing from the type?  If that happens, we can
-        # remove some hackery around avoiding isInterface() in
-        # Configuration.py.
+        # a separate thing from the type?
         self.complete(parentScope)
 
     def validate(self):

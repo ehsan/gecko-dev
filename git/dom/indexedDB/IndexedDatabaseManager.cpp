@@ -1530,9 +1530,9 @@ inline void
 IncrementUsage(uint64_t* aUsage, uint64_t aDelta)
 {
   // Watch for overflow!
-  if ((INT64_MAX - *aUsage) <= aDelta) {
+  if ((LL_MAXINT - *aUsage) <= aDelta) {
     NS_WARNING("Database sizes exceed max we can report!");
-    *aUsage = INT64_MAX;
+    *aUsage = LL_MAXINT;
   }
   else {
     *aUsage += aDelta;

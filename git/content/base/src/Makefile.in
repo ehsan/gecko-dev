@@ -35,7 +35,6 @@ EXPORTS		= \
 		nsFrameMessageManager.h \
 		nsAttrAndChildArray.h \
 		nsAttrValue.h \
-		nsAttrValueInlines.h \
 		nsCrossSiteListenerProxy.h \
 		nsDOMAttributeMap.h \
 		nsGenericElement.h \

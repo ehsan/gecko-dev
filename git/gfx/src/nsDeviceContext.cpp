@@ -734,6 +734,4 @@ nsDeviceContext::UpdateScaledAppUnits()
 {
     mAppUnitsPerDevPixel =
         NS_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
-    // adjust mPixelScale to reflect appunit rounding
-    mPixelScale = float(mAppUnitsPerDevNotScaledPixel) / mAppUnitsPerDevPixel;
 }

@@ -262,7 +262,6 @@ public:
     : mStackPointer(0)
     , mMarkerPointer(0)
     , mQueueClearMarker(false)
-    , mRuntime(NULL)
     , mStartJSSampling(false)
   { }
 

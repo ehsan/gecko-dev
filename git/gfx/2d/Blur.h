@@ -11,10 +11,6 @@
 namespace mozilla {
 namespace gfx {
 
-#ifdef _MSC_VER
-#pragma warning( disable : 4251 )
-#endif
-
 /**
  * Implementation of a triple box blur approximation of a Gaussian blur.
  *

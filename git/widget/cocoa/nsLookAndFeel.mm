@@ -448,15 +448,14 @@ static void GetStringForNSString(const NSString *aSrc, nsAString& aDest)
 
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString &aFontName,
-                           gfxFontStyle &aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle &aFontStyle)
 {
     // hack for now
     if (aID == eFont_Window || aID == eFont_Document) {
         aFontStyle.style      = NS_FONT_STYLE_NORMAL;
         aFontStyle.weight     = NS_FONT_WEIGHT_NORMAL;
         aFontStyle.stretch    = NS_FONT_STRETCH_NORMAL;
-        aFontStyle.size       = 14 * aDevPixPerCSSPixel;
+        aFontStyle.size       = 14;
         aFontStyle.systemFont = true;
 
         aFontName.AssignLiteral("sans-serif");
@@ -553,8 +552,7 @@ nsLookAndFeel::GetFontImpl(FontID aID, nsString &aFontName,
         (traits & NSFontExpandedTrait) ?
             NS_FONT_STRETCH_EXPANDED : (traits & NSFontCondensedTrait) ?
                 NS_FONT_STRETCH_CONDENSED : NS_FONT_STRETCH_NORMAL;
-    // convert size from css pixels to device pixels
-    aFontStyle.size = [font pointSize] * aDevPixPerCSSPixel;
+    aFontStyle.size = [font pointSize];
     aFontStyle.systemFont = true;
 
     GetStringForNSString([font familyName], aFontName);

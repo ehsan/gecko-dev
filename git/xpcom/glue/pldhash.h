@@ -12,9 +12,7 @@
  */
 #include "nscore.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 #if defined(__GNUC__) && defined(__i386__) && (__GNUC__ >= 3) && !defined(XP_OS2)
 #define PL_DHASH_FASTCALL __attribute__ ((regparm (3),stdcall))
@@ -599,8 +597,6 @@ NS_COM_GLUE void
 PL_DHashTableDumpMeter(PLDHashTable *table, PLDHashEnumerator dump, FILE *fp);
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* pldhash_h___ */

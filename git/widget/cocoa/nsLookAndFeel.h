@@ -16,8 +16,7 @@ public:
   virtual nsresult GetIntImpl(IntID aID, int32_t &aResult);
   virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
   virtual bool GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle,
-                           float aDevPixPerCSSPixel);
+                           gfxFontStyle& aFontStyle);
   virtual PRUnichar GetPasswordCharacterImpl()
   {
     // unicode value for the bullet character, used for password textfields.

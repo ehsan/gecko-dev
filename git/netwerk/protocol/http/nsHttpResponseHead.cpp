@@ -463,7 +463,7 @@ nsHttpResponseHead::Reset()
 
     mVersion = NS_HTTP_VERSION_1_1;
     mStatus = 200;
-    mContentLength = UINT64_MAX;
+    mContentLength = LL_MAXUINT;
     mCacheControlNoStore = false;
     mCacheControlNoCache = false;
     mPragmaNoCache = false;
@@ -560,7 +560,7 @@ nsHttpResponseHead::TotalEntitySize() const
 
     int64_t size;
     if (!nsHttp::ParseInt64(slash, &size))
-        size = UINT64_MAX;
+        size = LL_MAXUINT;
     return size;
 }
 

@@ -125,22 +125,22 @@ MobileConnection::Observe(nsISupports* aSubject,
                           const PRUnichar* aData)
 {
   if (!strcmp(aTopic, kVoiceChangedTopic)) {
-    DispatchTrustedEvent(VOICECHANGE_EVENTNAME);
+    InternalDispatchEvent(VOICECHANGE_EVENTNAME);
     return NS_OK;
   }
 
   if (!strcmp(aTopic, kDataChangedTopic)) {
-    DispatchTrustedEvent(DATACHANGE_EVENTNAME);
+    InternalDispatchEvent(DATACHANGE_EVENTNAME);
     return NS_OK;
   }
 
   if (!strcmp(aTopic, kCardStateChangedTopic)) {
-    DispatchTrustedEvent(CARDSTATECHANGE_EVENTNAME);
+    InternalDispatchEvent(CARDSTATECHANGE_EVENTNAME);
     return NS_OK;
   }
 
   if (!strcmp(aTopic, kIccInfoChangedTopic)) {
-    DispatchTrustedEvent(ICCINFOCHANGE_EVENTNAME);
+    InternalDispatchEvent(ICCINFOCHANGE_EVENTNAME);
     return NS_OK;
   }
 
@@ -322,6 +322,23 @@ MobileConnection::CancelUSSD(nsIDOMDOMRequest** request)
   }
 
   return mProvider->CancelUSSD(GetOwner(), request);
+}
+
+nsresult
+MobileConnection::InternalDispatchEvent(const nsAString& aType)
+{
+  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+  nsresult rv = event->InitEvent(aType, false, false);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool dummy;
+  rv = DispatchEvent(event, &dummy);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
 } // namespace network

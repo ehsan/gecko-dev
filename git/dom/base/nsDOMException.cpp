@@ -39,7 +39,6 @@ enum DOM4ErrorTypeCodeMap {
   TimeoutError               = nsIDOMDOMException::TIMEOUT_ERR,
   InvalidNodeTypeError       = nsIDOMDOMException::INVALID_NODE_TYPE_ERR,
   DataCloneError             = nsIDOMDOMException::DATA_CLONE_ERR,
-  EncodingError              = 0,
 
   /* XXX Should be JavaScript native errors */
   TypeError                  = 0,

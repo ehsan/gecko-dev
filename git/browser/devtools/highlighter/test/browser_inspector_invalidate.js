@@ -7,7 +7,7 @@ let div;
 function createDocument()
 {
   div = doc.createElement("div");
-  div.setAttribute("style", "width: 100px; height: 100px; background:yellow;");
+  div.setAttribute("style", "width: 100px; height: 100px;");
   doc.body.appendChild(div);
 
   Services.obs.addObserver(runTest,
@@ -27,17 +27,12 @@ function runTest(subject)
     is(outline.style.width, "100px", "selection has the right width");
 
     div.style.width = "200px";
-    function pollTest() {
-      if (outline.style.width == "100px") {
-    	setTimeout(pollTest, 10);
-    	return;
-      }
+    setTimeout(function () {
       is(outline.style.width, "200px", "selection updated");
       InspectorUI.closeInspectorUI();
       gBrowser.removeCurrentTab();
       finish();
-    }
-    setTimeout(pollTest, 10);
+    }, 1000);
   });
 }
 

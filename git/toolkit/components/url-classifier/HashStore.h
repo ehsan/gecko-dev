@@ -111,15 +111,23 @@ public:
   // have a mess on your hands.
   nsresult WriteFile();
 
+  // Drop memory used during the update process.
+  nsresult FinishUpdate();
+
+  // Force the entire store in memory
+  nsresult ReadEntireStore();
+
 private:
+  void Clear();
   nsresult Reset();
 
   nsresult ReadHeader();
-  nsresult SanityCheck();
-  nsresult CalculateChecksum(nsAutoCString& aChecksum, int64_t aSize, bool aChecksumPresent);
+  nsresult SanityCheck(nsIFile* aStoreFile);
+  nsresult CalculateChecksum(nsAutoCString& aChecksum, bool aChecksumPresent);
   nsresult CheckChecksum(nsIFile* aStoreFile);
   void UpdateHeader();
 
+  nsresult EnsureChunkNumbers();
   nsresult ReadChunkNumbers();
   nsresult ReadHashes();
   nsresult ReadAddPrefixes();
@@ -150,6 +158,7 @@ private:
 
   nsCOMPtr<nsIInputStream> mInputStream;
 
+  bool haveChunks;
   ChunkSet mAddChunks;
   ChunkSet mSubChunks;
 

@@ -352,7 +352,7 @@ nsUrlClassifierPrefixSet::LoadFromFd(AutoFDClose& fileFd)
 
     if (indexSize == 0) {
       LOG(("stored PrefixSet is empty!"));
-      return NS_OK;
+      return NS_ERROR_FAILURE;
     }
 
     if (deltaSize > (indexSize * DELTAS_LIMIT)) {
@@ -377,7 +377,7 @@ nsUrlClassifierPrefixSet::LoadFromFd(AutoFDClose& fileFd)
     mHasPrefixes = true;
   } else {
     LOG(("Version magic mismatch, not loading"));
-    return NS_ERROR_FILE_CORRUPTED;
+    return NS_ERROR_FAILURE;
   }
 
   LOG(("Loading PrefixSet successful"));

@@ -254,7 +254,12 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
             return true;
     }
 
-    return IsWindow(name) && IsFrameId(cx, obj, id);
+    if (IsWindow(name) && IsFrameId(cx, obj, id))
+        return true;
+
+    return (act == Wrapper::SET)
+           ? nsContentUtils::IsCallerTrustedForWrite()
+           : nsContentUtils::IsCallerTrustedForRead();
 }
 
 bool

@@ -733,7 +733,7 @@ const gFormSubmitObserver = {
         offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
       }
 
-      offset = Math.round(offset * utils.fullZoom);
+      offset = Math.round(offset * utils.screenPixelsPerCSSPixel);
 
       position = "after_start";
     }
@@ -7551,9 +7551,9 @@ var MousePosTracker = {
   },
 
   handleEvent: function (event) {
-    var fullZoom = this._windowUtils.fullZoom;
-    this._x = event.screenX / fullZoom - window.mozInnerScreenX;
-    this._y = event.screenY / fullZoom - window.mozInnerScreenY;
+    var screenPixelsPerCSSPixel = this._windowUtils.screenPixelsPerCSSPixel;
+    this._x = event.screenX / screenPixelsPerCSSPixel - window.mozInnerScreenX;
+    this._y = event.screenY / screenPixelsPerCSSPixel - window.mozInnerScreenY;
 
     this._listeners.forEach(function (listener) {
       try {

@@ -20,8 +20,6 @@
 #include "libcameraservice/CameraHardwareInterface.h"
 #include "binder/IMemory.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "GonkCameraListener.h"
-#include <utils/threads.h>
 
 #include "GonkCameraControl.h"
 #include "CameraCommon.h"
@@ -48,7 +46,6 @@ protected:
 
   static void     DataCallback(int32_t aMsgType, const sp<IMemory> &aDataPtr, camera_frame_metadata_t* aMetadata, void* aUser);
   static void     NotifyCallback(int32_t aMsgType, int32_t ext1, int32_t ext2, void* aUser);
-  static void     DataCallbackTimestamp(nsecs_t aTimestamp, int32_t aMsgType, const sp<IMemory>& aDataPtr, void* aUser);
 
 public:
   virtual void    OnNewFrame() MOZ_OVERRIDE;
@@ -63,11 +60,6 @@ public:
   static void     StopPreview(uint32_t aHwHandle);
   static int      PushParameters(uint32_t aHwHandle, const CameraParameters& aParams);
   static void     PullParameters(uint32_t aHwHandle, CameraParameters& aParams);
-  static int      StartRecording(uint32_t aHwHandle);
-  static int      StopRecording(uint32_t aHwHandle);
-  static int      SetListener(uint32_t aHwHandle, const sp<GonkCameraListener>& aListener);
-  static void     ReleaseRecordingFrame(uint32_t aHwHandle, const sp<IMemory>& aFrame);
-  static int      StoreMetaDataInBuffers(uint32_t aHwHandle, bool aEnabled);
 
 protected:
   static GonkCameraHardware*    sHw;
@@ -101,7 +93,6 @@ protected:
   struct timespec               mStart;
   struct timespec               mAutoFocusStart;
 #endif
-  sp<GonkCameraListener>        mListener;
   bool                          mInitialized;
 
   bool IsInitialized()

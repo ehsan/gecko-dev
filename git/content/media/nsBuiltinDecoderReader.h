@@ -530,7 +530,7 @@ public:
   virtual void SetIndexByteRange(MediaByteRange &aByteRange) { }
 
   // Returns list of ranges for index frame start/end offsets. Used by DASH.
-  virtual nsresult GetIndexByteRanges(nsTArray<MediaByteRange>& aByteRanges) {
+  nsresult GetIndexByteRanges(nsTArray<MediaByteRange>& aByteRanges) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 

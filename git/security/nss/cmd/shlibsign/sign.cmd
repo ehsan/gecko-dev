@@ -1,7 +1,3 @@
-rem This Source Code Form is subject to the terms of the Mozilla Public
-rem License, v. 2.0. If a copy of the MPL was not distributed with this
-rem file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 /* Equivalent to sign.sh for OS/2 */
 PARSE ARG dist objdir os_target nspr_lib_dir therest
 dist=forwardtoback(dist);

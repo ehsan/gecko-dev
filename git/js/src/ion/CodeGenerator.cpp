@@ -22,11 +22,6 @@ using namespace js::ion;
 namespace js {
 namespace ion {
 
-StringObject *
-MNewStringObject::templateObj() const {
-    return &templateObj_->asString();
-}
-
 CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorSpecific(gen, graph)
 {

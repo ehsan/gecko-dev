@@ -1295,7 +1295,7 @@ _intfromidentifier(NPIdentifier id)
   }
 
   if (!NPIdentifierIsInt(id)) {
-    return INT32_MIN;
+    return PR_INT32_MIN;
   }
 
   return NPIdentifierToInt(id);

@@ -52,7 +52,6 @@ PARALLEL_DIRS += \
   contacts \
   alarm \
   devicestorage \
-  encoding \
   file \
   media \
   messages \

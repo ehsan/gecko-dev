@@ -779,24 +779,18 @@ AndroidBridge::AlertsProgressListener_OnCancel(const nsAString& aAlertName)
 int
 AndroidBridge::GetDPI()
 {
-    static int sDPI = 0;
-    if (sDPI)
-        return sDPI;
-
     ALOG_BRIDGE("AndroidBridge::GetDPI");
-    const int DEFAULT_DPI = 160;
+    const int DEFAULT_DPI = 72; // what is a better value?
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return DEFAULT_DPI;
     AutoLocalJNIFrame jniFrame(env);
 
-    sDPI = (int)env->CallStaticIntMethod(mGeckoAppShellClass, jGetDpi);
-    if (jniFrame.CheckForException()) {
-        sDPI = 0;
+    int dpi = (int)env->CallStaticIntMethod(mGeckoAppShellClass, jGetDpi);
+    if (jniFrame.CheckForException())
         return DEFAULT_DPI;
-    }
 
-    return sDPI;
+    return dpi;
 }
 
 void

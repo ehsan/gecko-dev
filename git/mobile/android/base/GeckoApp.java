@@ -124,13 +124,6 @@ abstract public class GeckoApp
         NEW_PROFILE
     }
 
-    private static enum StartupAction {
-        NORMAL,     /* normal application start */
-        URL,        /* launched with a passed URL */
-        PREFETCH,   /* launched with a passed URL that we prefetch */
-        REDIRECTOR  /* launched with a passed URL in our redirect list */
-    }
-
     public static final String ACTION_ALERT_CLICK   = "org.mozilla.gecko.ACTION_ALERT_CLICK";
     public static final String ACTION_ALERT_CLEAR   = "org.mozilla.gecko.ACTION_ALERT_CLEAR";
     public static final String ACTION_ALERT_CALLBACK = "org.mozilla.gecko.ACTION_ALERT_CALLBACK";
@@ -163,7 +156,6 @@ abstract public class GeckoApp
     public static int mOrientation;
     private boolean mIsRestoringActivity;
     private String mCurrentResponse = "";
-    public static boolean sIsUsingCustomProfile = false;
 
     private PromptService mPromptService;
     private Favicons mFavicons;
@@ -183,9 +175,6 @@ abstract public class GeckoApp
 
     protected int mRestoreMode = GeckoAppShell.RESTORE_NONE;
     protected boolean mInitialized = false;
-    protected Telemetry.Timer mAboutHomeStartupTimer;
-    private Telemetry.Timer mJavaUiStartupTimer;
-    private Telemetry.Timer mGeckoReadyStartupTimer;
 
     public enum LaunchState {Launching, WaitForDebugger,
                              Launched, GeckoRunning, GeckoExiting};
@@ -980,7 +969,6 @@ abstract public class GeckoApp
                 final int tabId = message.getInt("tabID");
                 handlePageShow(tabId);
             } else if (event.equals("Gecko:Ready")) {
-                mGeckoReadyStartupTimer.stop();
                 sIsGeckoReady = true;
                 setLaunchState(GeckoApp.LaunchState.GeckoRunning);
                 GeckoAppShell.sendPendingEventsToGecko();
@@ -1450,14 +1438,8 @@ abstract public class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
-        GeckoAppShell.registerGlobalExceptionHandler();
-
-        // The clock starts...now. Better hurry!
-        mJavaUiStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_JAVAUI");
-        mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
-        mGeckoReadyStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_GECKOREADY");
-
         ((GeckoApplication)getApplication()).initialize();
+        GeckoAppShell.registerGlobalExceptionHandler();
 
         mAppContext = this;
         Tabs.getInstance().attachToActivity(this);
@@ -1572,7 +1554,6 @@ abstract public class GeckoApp
                     if (profileName == null)
                         profileName = "default";
                 }
-                GeckoApp.sIsUsingCustomProfile = true;
             }
             if (profileName != null || profilePath != null) {
                 mProfile = GeckoProfile.get(this, profileName, profilePath);
@@ -1595,13 +1576,6 @@ abstract public class GeckoApp
         boolean isExternalURL = passedUri != null && !passedUri.equals("about:home");
         initializeChrome(uri, isExternalURL);
 
-        StartupAction startupAction;
-        if (isExternalURL) {
-            startupAction = StartupAction.URL;
-        } else {
-            startupAction = StartupAction.NORMAL;
-        }
-
         // Start migrating as early as possible, can do this in
         // parallel with Gecko load.
         checkMigrateProfile();
@@ -1611,7 +1585,6 @@ abstract public class GeckoApp
             Intent copy = new Intent(intent);
             copy.setAction(ACTION_LOAD);
             if (isHostOnRedirectWhitelist(data.getHost())) {
-                startupAction = StartupAction.REDIRECTOR;
                 GeckoAppShell.getHandler().post(new RedirectorRunnable(copy));
                 // We're going to handle this uri with the redirector, so setting
                 // the action to MAIN and clearing the uri data prevents us from
@@ -1620,12 +1593,9 @@ abstract public class GeckoApp
                 intent.setData(null);
                 passedUri = "about:empty";
             } else {
-                startupAction = StartupAction.PREFETCH;
                 GeckoAppShell.getHandler().post(new PrefetchRunnable(copy));
             }
         }
-
-        Telemetry.HistogramAdd("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
 
         if (!mIsRestoringActivity) {
             sGeckoThread = new GeckoThread(intent, passedUri, mRestoreMode);
@@ -1717,9 +1687,6 @@ abstract public class GeckoApp
         UpdateServiceHelper.registerForUpdates(this);
 
         final GeckoApp self = this;
-
-        // End of the startup of our Java App
-        mJavaUiStartupTimer.stop();
 
         GeckoAppShell.getHandler().postDelayed(new Runnable() {
             public void run() {
@@ -2285,8 +2252,7 @@ abstract public class GeckoApp
                     ProfileMigrator profileMigrator = new ProfileMigrator(app);
 
                     // Do a migration run on the first start after an upgrade.
-                    if (!GeckoApp.sIsUsingCustomProfile &&
-                        !profileMigrator.hasMigrationRun()) {
+                    if (!profileMigrator.hasMigrationRun()) {
                         // Show the "Setting up Fennec" screen if this takes
                         // a while.
                         final SetupScreen setupScreen = new SetupScreen(app);
@@ -2330,7 +2296,7 @@ abstract public class GeckoApp
 
     private void checkMigrateSync() {
         final File profileDir = getProfile().getDir();
-        if (!GeckoApp.sIsUsingCustomProfile && profileDir != null) {
+        if (profileDir != null) {
             final GeckoApp app = GeckoApp.mAppContext;
             ProfileMigrator profileMigrator = new ProfileMigrator(app);
             if (!profileMigrator.hasSyncMigrated()) {

@@ -83,7 +83,6 @@ TabParent::TabParent(mozIApplication* aApp, bool aIsBrowserElement)
   , mIMECompositionStart(0)
   , mIMESeqno(0)
   , mEventCaptureDepth(0)
-  , mDimensions(0, 0)
   , mDPI(0)
   , mIsBrowserElement(aIsBrowserElement)
   , mShown(false)
@@ -133,7 +132,6 @@ TabParent::ActorDestroy(ActorDestroyReason why)
   }
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader) {
-    ReceiveMessage(CHILD_PROCESS_SHUTDOWN_MESSAGE, false, nullptr, nullptr);
     frameLoader->DestroyChild();
 
     if (why == AbnormalShutdown) {
@@ -230,7 +228,6 @@ TabParent::Show(const nsIntSize& size)
 {
     // sigh
     mShown = true;
-    mDimensions = size;
     unused << SendShow(size);
 }
 
@@ -241,7 +238,6 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyDimensionsChanged(size.width, size.height);
   }
-  mDimensions = size;
 }
 
 void
@@ -1176,36 +1172,10 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 }
 
 bool
-TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
-                                       ScrollingBehavior* scrolling,
-                                       LayersBackend* backend,
-                                       int32_t* maxTextureSize,
-                                       uint64_t* layersId)
-{
-  RenderFrameParent* rfp = GetRenderFrame();
-  if (mDimensions != nsIntSize() && rfp) {
-    rfp->NotifyDimensionsChanged(mDimensions.width, mDimensions.height);
-  }
-
-  return true;
-}
-
-bool
 TabParent::RecvZoomToRect(const gfxRect& aRect)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->ZoomToRect(aRect);
-  }
-  return true;
-}
-
-bool
-TabParent::RecvUpdateZoomConstraints(const bool& aAllowZoom,
-                                     const float& aMinZoom,
-                                     const float& aMaxZoom)
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
   }
   return true;
 }

@@ -143,6 +143,9 @@ parent:
     sync GetLight(LightType light)
       returns (LightConfiguration aConfig, bool status);
 
+    Reboot();
+    PowerOff();
+
     ModifyWakeLock(nsString aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust);
     EnableWakeLockNotifications();
     DisableWakeLockNotifications();

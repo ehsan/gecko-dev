@@ -29,7 +29,7 @@ let SettingsChangeNotifier = {
   init: function() {
     debug("init");
     this.children = [];
-    this._messages = ["Settings:Changed", "Settings:RegisterForMessages", "child-process-shutdown"];
+    this._messages = ["Settings:Changed", "Settings:RegisterForMessages", "Settings:UnregisterForMessages"];
     this._messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }).bind(this));
@@ -68,15 +68,24 @@ let SettingsChangeNotifier = {
   },
 
   broadcastMessage: function broadcastMessage(aMsgName, aContent) {
-    debug("Broadast");
-    this.children.forEach(function(msgMgr) {
-      msgMgr.sendAsyncMessage(aMsgName, aContent);
-    });
+    let i;
+    for (i = this.children.length - 1; i >= 0; i -= 1) {
+      let msgMgr = this.children[i];
+      try {
+        msgMgr.sendAsyncMessage(aMsgName, aContent);
+      } catch (e) {
+        let index;
+        if ((index = this.children.indexOf(msgMgr)) != -1) {
+          this.children.splice(index, 1);
+          dump("Remove dead MessageManager!\n");
+        }
+      }
+    };
   },
 
   receiveMessage: function(aMessage) {
     debug("receiveMessage");
-    let msg = aMessage.data;
+    let msg = aMessage.json;
     let mm = aMessage.target;
     switch (aMessage.name) {
       case "Settings:Changed":
@@ -95,11 +104,10 @@ let SettingsChangeNotifier = {
           this.children.push(mm);
         }
         break;
-      case "child-process-shutdown":
+      case "Settings:UnregisterForMessages":
         debug("Unregister");
         let index;
         if ((index = this.children.indexOf(mm)) != -1) {
-          debug("Unregister index: " + index);
           this.children.splice(index, 1);
         }
         break;

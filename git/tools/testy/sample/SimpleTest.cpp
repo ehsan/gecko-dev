@@ -6,11 +6,11 @@
 #include "nspr.h"
 #include "TestySupport.h"
 
-extern "C" {
+PR_BEGIN_EXTERN_C
 PR_EXPORT(int) Testy_Init();
 PR_EXPORT(int) Testy_RunTest();
 PR_EXPORT(int) Testy_Shutdown();
-}
+PR_END_EXTERN_C
 
 
 int Testy_Init() 

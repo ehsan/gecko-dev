@@ -38,7 +38,7 @@
 #include "nsAlgorithm.h"
 #include "nsQuickSort.h"
 
-extern "C" {
+PR_BEGIN_EXTERN_C
 
 #if !defined(DEBUG) && (defined(__cplusplus) || defined(__gcc))
 # ifndef INLINE
@@ -180,4 +180,4 @@ loop:	SWAPINIT(a, es);
 /*		NS_QuickSort(pn - r, r / es, es, cmp, data);*/
 }
 
-}
+PR_END_EXTERN_C

@@ -96,12 +96,6 @@ class B2GOptions(MochitestOptions):
                     help = "name of the pidfile to generate")
         defaults["pidFile"] = ""
 
-        self.add_option("--gecko-path", action="store",
-                        type="string", dest="geckoPath",
-                        help="the path to a gecko distribution that should "
-                        "be installed on the emulator prior to test")
-        defaults["geckoPath"] = None
-
         defaults["remoteTestRoot"] = None
         defaults["logFile"] = "mochitest.log"
         defaults["autorun"] = True
@@ -122,10 +116,8 @@ class B2GOptions(MochitestOptions):
             if os.name != "nt":
                 options.remoteWebServer = automation.getLanIp()
             else:
-                self.error("You must specify a --remote-webserver=<ip address>")
-
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
+                print "ERROR: you must specify a --remote-webserver=<ip address>\n"
+                return None
 
         options.webServer = options.remoteWebServer
 
@@ -415,8 +407,6 @@ def main():
         auto.setEmulator(True)
         if options.noWindow:
             kwargs['noWindow'] = True
-        if options.geckoPath:
-            kwargs['gecko_path'] = options.geckoPath
     # needless to say sdcard is only valid if using an emulator
     if options.sdcard:
         kwargs['sdcard'] = options.sdcard

@@ -12,7 +12,6 @@
 #include "nsHTMLMediaElement.h"
 #include "nsTimeRanges.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsGkAtoms.h"
@@ -91,9 +90,6 @@
 #endif
 #ifdef MOZ_WIDGET_GONK
 #include "nsMediaOmxDecoder.h"
-#endif
-#ifdef MOZ_DASH
-#include "nsDASHDecoder.h"
 #endif
 
 #ifdef PR_LOGGING
@@ -2225,37 +2221,6 @@ nsHTMLMediaElement::IsMediaPluginsType(const nsACString& aType)
 }
 #endif
 
-#ifdef MOZ_DASH
-/* static */
-const char nsHTMLMediaElement::gDASHMPDTypes[1][21] = {
-  "application/dash+xml"
-};
-
-/* static */
-bool
-nsHTMLMediaElement::IsDASHEnabled()
-{
-  return Preferences::GetBool("media.dash.enabled");
-}
-
-/* static */
-bool
-nsHTMLMediaElement::IsDASHMPDType(const nsACString& aType)
-{
-  if (!IsDASHEnabled()) {
-    return false;
-  }
-
-  for (uint32_t i = 0; i < ArrayLength(gDASHMPDTypes); ++i) {
-    if (aType.EqualsASCII(gDASHMPDTypes[i])) {
-      return true;
-    }
-  }
-
-  return false;
-}
-#endif
-
 /* static */
 nsHTMLMediaElement::CanPlayStatus 
 nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
@@ -2281,13 +2246,6 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
 #endif
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType))) {
-    *aCodecList = gWebMCodecs;
-    return CANPLAY_YES;
-  }
-#endif
-#ifdef MOZ_DASH
-  if (IsDASHMPDType(nsDependentCString(aMIMEType))) {
-    // DASH manifest uses WebM codecs only.
     *aCodecList = gWebMCodecs;
     return CANPLAY_YES;
   }
@@ -2475,15 +2433,6 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #else
     nsRefPtr<nsWebMDecoder> decoder = new nsWebMDecoder();
 #endif
-    if (decoder->Init(this)) {
-      return decoder.forget();
-    }
-  }
-#endif
-
-#ifdef MOZ_DASH
-  if (IsDASHMPDType(aType)) {
-    nsRefPtr<nsDASHDecoder> decoder = new nsDASHDecoder();
     if (decoder->Init(this)) {
       return decoder.forget();
     }

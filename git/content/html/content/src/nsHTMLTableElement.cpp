@@ -13,7 +13,6 @@
 #include "nsError.h"
 #include "nsContentList.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -25,8 +24,9 @@
 #include "nsIDOMElement.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
-#include "mozilla/dom/HTMLCollectionBinding.h"
 #include "dombindings.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
 
@@ -61,15 +61,8 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    JSObject* obj = mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this,
-                                                              triedToWrap);
-    if (obj || *triedToWrap) {
-      return obj;
-    }
-
-    *triedToWrap = true;
-    return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope,
-                                                                  this);
+    return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope, this,
+                                                         triedToWrap);
   }
 
 protected:

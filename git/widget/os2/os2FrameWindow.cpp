@@ -597,7 +597,7 @@ MRESULT EXPENTRY fnwpFrame(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
         msg == WM_BUTTON3DOWN) {
       // Rollup if the event is outside the popup
       if (!nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
-        gRollupListener->Rollup(UINT32_MAX);
+        gRollupListener->Rollup(PR_UINT32_MAX);
       }
     }
   }

@@ -99,7 +99,6 @@
 #include "nsRuleProcessorData.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsTextNode.h"
-#include "mozilla/dom/NodeListBinding.h"
 #include "dombindings.h"
 
 #ifdef MOZ_XUL
@@ -390,13 +389,7 @@ JSObject*
 nsChildContentList::WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
 {
-  JSObject* obj = NodeListBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::NodeList::create(cx, scope, this);
+  return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this, triedToWrap);
 }
 
 NS_IMETHODIMP
@@ -603,30 +596,6 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
     mClassList->DropReference();
     mClassList = nullptr;
   }
-}
-
-size_t
-FragmentOrElement::nsDOMSlots::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-
-  if (mAttributeMap) {
-    n += mAttributeMap->SizeOfIncludingThis(aMallocSizeOf);
-  }
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - Superclass members (nsINode::nsSlots)
-  // - mStyle
-  // - mDataSet
-  // - mSMILOverrideStyle
-  // - mSMILOverrideStyleRule
-  // - mChildrenList
-  // - mClassList
-
-  // The following members are not measured:
-  // - mBindingParent / mControllers: because they're   non-owning
-  return n;
 }
 
 FragmentOrElement::FragmentOrElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -1969,14 +1938,6 @@ FragmentOrElement::FireNodeRemovedForChildren()
 size_t
 FragmentOrElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  size_t n = 0;
-  n += nsIContent::SizeOfExcludingThis(aMallocSizeOf);
-  n += mAttrsAndChildren.SizeOfExcludingThis(aMallocSizeOf);
-
-  nsDOMSlots* slots = GetExistingDOMSlots();
-  if (slots) {
-    n += slots->SizeOfIncludingThis(aMallocSizeOf);
-  }
-
-  return n;
+  return nsIContent::SizeOfExcludingThis(aMallocSizeOf) +
+         mAttrsAndChildren.SizeOfExcludingThis(aMallocSizeOf);
 }

@@ -135,7 +135,7 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
         return NS_ERROR_FAILURE;
     }
 
-    nsRefPtr<LogMessageRunnable> r;
+    nsRefPtr<LogMessageRunnable> r = new LogMessageRunnable(message, this);
     nsIConsoleMessage *retiredMessage;
 
     NS_ADDREF(message); // early, in case it's same as replaced below.
@@ -180,22 +180,14 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
 
         /*
          * Copy the listeners into the snapshot array - in case a listener
-         * is removed during an Observe(...) notification. If there are no
-         * listeners, don't bother to create the Runnable, since we don't
-         * need to run it and it will hold onto the memory for the message
-         * unnecessarily.
+         * is removed during an Observe(...) notification...
          */
-        if (mListeners.Count() > 0) {
-            r = new LogMessageRunnable(message, this);
-            mListeners.EnumerateRead(CollectCurrentListeners, r);
-        }
+        mListeners.EnumerateRead(CollectCurrentListeners, r);
     }
-
     if (retiredMessage != nullptr)
         NS_RELEASE(retiredMessage);
 
-    if (r)
-        NS_DispatchToMainThread(r);
+    NS_DispatchToMainThread(r);
 
     return NS_OK;
 }

@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
-#include "nsIFileStreams.h"
 #include "nsUrlClassifierPrefixSet.h"
 #include "prlog.h"
 
@@ -107,9 +106,6 @@ public:
 
   nsresult Init();
   nsresult Open();
-  // The directory handle where we operate will
-  // be moved away when a backup is made.
-  nsresult UpdateDirHandle(nsIFile* aStoreDirectory);
   // This will Clear() the passed arrays when done.
   nsresult Build(AddPrefixArray& aAddPrefixes,
                  AddCompleteArray& aAddCompletes);
@@ -127,12 +123,13 @@ public:
   bool IsPrimed();
 
 private:
+
   void Clear();
   nsresult Reset();
   void UpdateHeader();
-  nsresult ReadHeader(nsIInputStream* aInputStream);
-  nsresult ReadCompletions(nsIInputStream* aInputStream);
+  nsresult ReadHeader();
   nsresult EnsureSizeConsistent();
+  nsresult ReadCompletions();
   nsresult LoadPrefixSet();
   // Construct a Prefix Set with known prefixes.
   // This will Clear() aAddPrefixes when done.
@@ -149,6 +146,7 @@ private:
   bool mPerClientRandomize;
   nsCString mTableName;
   nsCOMPtr<nsIFile> mStoreDirectory;
+  nsCOMPtr<nsIInputStream> mInputStream;
   CompletionArray mCompletions;
   // Set of prefixes known to be in the database
   nsRefPtr<nsUrlClassifierPrefixSet> mPrefixSet;

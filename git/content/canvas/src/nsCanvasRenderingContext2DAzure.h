@@ -475,7 +475,7 @@ public:
   NS_IMETHOD GetThebesSurface(gfxASurface **surface);
 
   mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot()
-  { EnsureTarget(); return mTarget->Snapshot(); }
+  { return mTarget ? mTarget->Snapshot() : nullptr; }
 
   NS_IMETHOD SetIsOpaque(bool isOpaque);
   NS_IMETHOD Reset();

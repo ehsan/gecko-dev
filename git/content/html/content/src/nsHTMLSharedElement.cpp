@@ -12,7 +12,6 @@
 #include "nsIDOMHTMLHeadElement.h"
 #include "nsIDOMHTMLHtmlElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"

@@ -11,7 +11,6 @@
 #include "nsCOMPtr.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "SVGPathSegUtils.h"
-#include "mozilla/dom/SVGPathSegListBinding.h"
 #include "dombindings.h"
 #include "nsContentUtils.h"
 
@@ -84,15 +83,8 @@ DOMSVGPathSegList::~DOMSVGPathSegList()
 JSObject*
 DOMSVGPathSegList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  JSObject* obj = mozilla::dom::SVGPathSegListBinding::Wrap(cx, scope, this,
-                                                            triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return mozilla::dom::oldproxybindings::SVGPathSegList::create(cx, scope,
-                                                                this);
+  return mozilla::dom::oldproxybindings::SVGPathSegList::create(cx, scope, this,
+                                                       triedToWrap);
 }
 
 nsIDOMSVGPathSeg*

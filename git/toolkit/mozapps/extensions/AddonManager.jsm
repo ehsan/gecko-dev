@@ -1932,14 +1932,26 @@ var AddonManagerInternal = {
   },
 
   get addonTypes() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return this.typesProxy;
   },
 
   get autoUpdateDefault() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gAutoUpdateDefault;
   },
 
   set autoUpdateDefault(aValue) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     aValue = !!aValue;
     if (aValue != gAutoUpdateDefault)
       Services.prefs.setBoolPref(PREF_EM_AUTOUPDATE_DEFAULT, aValue);
@@ -1947,10 +1959,18 @@ var AddonManagerInternal = {
   },
 
   get checkCompatibility() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gCheckCompatibility;
   },
 
   set checkCompatibility(aValue) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     aValue = !!aValue;
     if (aValue != gCheckCompatibility) {
       if (!aValue)
@@ -1962,10 +1982,18 @@ var AddonManagerInternal = {
   },
 
   get strictCompatibility() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gStrictCompatibility;
   },
 
   set strictCompatibility(aValue) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     aValue = !!aValue;
     if (aValue != gStrictCompatibility)
       Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, aValue);
@@ -1973,14 +2001,26 @@ var AddonManagerInternal = {
   },
 
   get checkUpdateSecurityDefault() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gCheckUpdateSecurityDefault;
   },
 
   get checkUpdateSecurity() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gCheckUpdateSecurity;
   },
 
   set checkUpdateSecurity(aValue) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     aValue = !!aValue;
     if (aValue != gCheckUpdateSecurity) {
       if (aValue != gCheckUpdateSecurityDefault)
@@ -1992,10 +2032,18 @@ var AddonManagerInternal = {
   },
 
   get updateEnabled() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gUpdateEnabled;
   },
 
   set updateEnabled(aValue) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     aValue = !!aValue;
     if (aValue != gUpdateEnabled)
       Services.prefs.setBoolPref(PREF_EM_UPDATE_ENABLED, aValue);
@@ -2003,6 +2051,10 @@ var AddonManagerInternal = {
   },
 
   get hotfixID() {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     return gHotfixID;
   },
 };
@@ -2200,6 +2252,12 @@ var AddonManager = {
   // Options will be displayed in a new tab, if possible
   OPTIONS_TYPE_TAB: 3,
 
+  // Constants for displayed or hidden options notifications
+  // Options notification will be displayed
+  OPTIONS_NOTIFICATION_DISPLAYED: "addon-options-displayed",
+  // Options notification will be hidden
+  OPTIONS_NOTIFICATION_HIDDEN: "addon-options-hidden",
+
   // Constants for getStartupChanges, addStartupChange and removeStartupChange
   // Add-ons that were detected as installed during startup. Doesn't include
   // add-ons that were pending installation the last time the application ran.
@@ -2340,6 +2398,10 @@ var AddonManager = {
    * @return true if the addon should auto-update, false otherwise.
    */
   shouldAutoUpdate: function AM_shouldAutoUpdate(aAddon) {
+    if (!gStarted)
+      throw Components.Exception("AddonManager is not initialized",
+                                 Cr.NS_ERROR_NOT_INITIALIZED);
+
     if (!aAddon || typeof aAddon != "object")
       throw Components.Exception("aAddon must be specified",
                                  Cr.NS_ERROR_INVALID_ARG);

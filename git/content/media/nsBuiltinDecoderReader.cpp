@@ -22,7 +22,7 @@ using mozilla::layers::PlanarYCbCrImage;
 // can do less integer overflow checking.
 PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
 PR_STATIC_ASSERT(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION);
-PR_STATIC_ASSERT(PlanarYCbCrImage::MAX_DIMENSION < UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION);
+PR_STATIC_ASSERT(PlanarYCbCrImage::MAX_DIMENSION < PR_UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION);
 
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
@@ -375,6 +375,24 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(int64_t& aOutStartTime)
 
   return videoData;
 }
+
+/*template<class Data>
+Data* nsBuiltinDecoderReader::DecodeToFirstData(DecodeFn aDecodeFn,
+                                                MediaQueue<Data>& aQueue)
+{
+  bool eof = false;
+  while (!eof && aQueue.GetSize() == 0) {
+    {
+      ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+      if (mDecoder->GetDecodeState() == nsDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
+        return nullptr;
+      }
+    }
+    eof = !(this->*aDecodeFn)();
+  }
+  Data* d = nullptr;
+  return (d = aQueue.PeekFront()) ? d : nullptr;
+}*/
 
 nsresult nsBuiltinDecoderReader::DecodeToTarget(int64_t aTarget)
 {

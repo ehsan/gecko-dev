@@ -200,8 +200,21 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
 
     SetPropertyByValue(v);
     if (name.EqualsLiteral("Connected")) {
-      DispatchTrustedEvent(mConnected ? NS_LITERAL_STRING("connected")
-                           : NS_LITERAL_STRING("disconnected"));
+      nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
+      nsresult rv;
+      if (mConnected) {
+        rv = event->InitEvent(NS_LITERAL_STRING("connected"), false, false);
+      } else {
+        rv = event->InitEvent(NS_LITERAL_STRING("disconnected"), false, false);
+      }
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to init the connected/disconnected event!!!");
+        return;
+      }
+
+      event->SetTrusted(true);
+      bool dummy;
+      DispatchEvent(event, &dummy);
     } else {
       nsRefPtr<BluetoothPropertyEvent> e = BluetoothPropertyEvent::Create(name);
       e->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("propertychanged"));

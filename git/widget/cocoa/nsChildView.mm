@@ -196,7 +196,7 @@ ConvertGeckoRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
 // that is a "flipped" cocoa coordinate system (starts in the top-left).
 static inline void
 FlipCocoaScreenCoordinate(NSPoint &inPoint)
-{
+{  
   inPoint.y = nsCocoaUtils::FlippedScreenY(inPoint.y);
 }
 
@@ -215,7 +215,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mView(nullptr)
 , mParentView(nullptr)
 , mParentWidget(nullptr)
-, mBackingScaleFactor(0.0)
 , mVisible(false)
 , mDrawing(false)
 , mPluginDrawing(false)
@@ -320,12 +319,10 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   
   // create our parallel NSView and hook it up to our parent. Recall
   // that NS_NATIVE_WIDGET is the NSView.
-  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(mParentView);
-  NSRect r = nsCocoaUtils::DevPixelsToCocoaPoints(mBounds, scaleFactor);
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
   mView = [(NSView<mozView>*)CreateCocoaView(r) retain];
-  if (!mView) {
-    return NS_ERROR_FAILURE;
-  }
+  if (!mView) return NS_ERROR_FAILURE;
 
   [(ChildView*)mView setIsPluginView:(mWindowType == eWindowType_plugin)];
 
@@ -755,28 +752,10 @@ NS_IMETHODIMP nsChildView::GetBounds(nsIntRect &aRect)
   if (!mView) {
     aRect = mBounds;
   } else {
-    aRect = CocoaPointsToDevPixels([mView frame]);
+    NSRect frame = [mView frame];
+    NSRectToGeckoRect(frame, aRect);
   }
   return NS_OK;
-}
-
-double
-nsChildView::GetDefaultScale()
-{
-  return BackingScaleFactor();
-}
-
-CGFloat
-nsChildView::BackingScaleFactor()
-{
-  if (mBackingScaleFactor > 0.0) {
-    return mBackingScaleFactor;
-  }
-  if (!mView) {
-    return 1.0;
-  }
-  mBackingScaleFactor = nsCocoaUtils::GetBackingScaleFactor(mView);
-  return mBackingScaleFactor;
 }
 
 NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
@@ -796,7 +775,9 @@ NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
   mBounds.x = aX;
   mBounds.y = aY;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible)
     [mView setNeedsDisplay:YES];
@@ -819,7 +800,9 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint
   mBounds.width  = aWidth;
   mBounds.height = aHeight;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -850,7 +833,9 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_
     mBounds.height = aHeight;
   }
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -1302,13 +1287,16 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect)
   if (!mView || !mVisible)
     return NS_OK;
 
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(aRect, r);
+  
   if ([NSView focusView]) {
     // if a view is focussed (i.e. being drawn), then postpone the invalidate so that we
     // don't lose it.
-    [mView setNeedsPendingDisplayInRect:DevPixelsToCocoaPoints(aRect)];
+    [mView setNeedsPendingDisplayInRect:r];
   }
   else {
-    [mView setNeedsDisplayInRect:DevPixelsToCocoaPoints(aRect)];
+    [mView setNeedsDisplayInRect:r];
   }
 
   return NS_OK;
@@ -1461,26 +1449,27 @@ void nsChildView::ReportSizeEvent()
 #pragma mark -
 
 //    Return the offset between this child view and the screen.
-//    @return       -- widget origin in device-pixel coords
+//    @return       -- widget origin in screen coordinates
 nsIntPoint nsChildView::WidgetToScreenOffset()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  NSPoint origin = NSMakePoint(0, 0);
-
-  // 1. First translate view origin point into window coords.
-  // The returned point is in bottom-left coordinates.
-  origin = [mView convertPoint:origin toView:nil];
-
+  NSPoint temp;
+  temp.x = 0;
+  temp.y = 0;
+  
+  // 1. First translate this point into window coords. The returned point is always in
+  //    bottom-left coordinates.
+  temp = [mView convertPoint:temp toView:nil];  
+  
   // 2. We turn the window-coord rect's origin into screen (still bottom-left) coords.
-  origin = [[mView window] convertBaseToScreen:origin];
-
+  temp = [[mView window] convertBaseToScreen:temp];
+  
   // 3. Since we're dealing in bottom-left coords, we need to make it top-left coords
   //    before we pass it back to Gecko.
-  FlipCocoaScreenCoordinate(origin);
-
-  // convert to device pixels
-  return CocoaPointsToDevPixels(origin);
+  FlipCocoaScreenCoordinate(temp);
+  
+  return nsIntPoint(NSToIntRound(temp.x), NSToIntRound(temp.y));
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
@@ -1816,8 +1805,7 @@ nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometri
       unifiedToolbarHeight = g.mRect.YMost();
     }
   }
-  [(ToolbarWindow*)win
-    setUnifiedToolbarHeight:DevPixelsToCocoaPoints(unifiedToolbarHeight)];
+  [(ToolbarWindow*)win setUnifiedToolbarHeight:unifiedToolbarHeight];
 }
 
 NS_IMETHODIMP
@@ -2364,11 +2352,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
    [self update];
 }
 
-- (BOOL)wantsBestResolutionOpenGLSurface
-{
-  return nsCocoaUtils::HiDPIEnabled() ? YES : NO;
-}
-
 // The display system has told us that a portion of our view is dirty. Tell
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
@@ -2418,15 +2401,16 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif
   nsIntRegion region;
 
-  nsIntRect boundingRect = mGeckoChild->CocoaPointsToDevPixels(aRect);
+  nsIntRect boundingRect =
+    nsIntRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
   const NSRect *rects;
   NSInteger count, i;
   [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
   if (count < MAX_RECTS_IN_REGION) {
     for (i = 0; i < count; ++i) {
       // Add the rect to the region.
-      NSRect r = [self convertRect:rects[i] fromView:[NSView focusView]];
-      region.Or(region, mGeckoChild->CocoaPointsToDevPixels(r));
+      const NSRect& r = [self convertRect:rects[i] fromView:[NSView focusView]];
+      region.Or(region, nsIntRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
     }
     region.And(region, boundingRect);
   } else {
@@ -2468,14 +2452,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
 
-  // The CGContext that drawRect supplies us with comes with a transform that
-  // scales one user space unit to one Cocoa point, which can consist of
-  // multiple dev pixels. But Gecko expects its supplied context to be scaled
-  // to device pixels, so we need to reverse the scaling.
-  gfxContextMatrixAutoSaveRestore save(targetContext);
-  double scale = 1.0 / mGeckoChild->GetDefaultScale();
-  targetContext->Scale(scale, scale);
-
   // Set up the clip region.
   nsIntRegionRectIterator iter(region);
   targetContext->NewPath();
@@ -2509,7 +2485,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // Gecko refused to draw, but we've claimed to be opaque, so we have to
     // draw something--fill with white.
     CGContextSetRGBFillColor(aContext, 1, 1, 1, 1);
-    CGContextFillRect(aContext, NSRectToCGRect(aRect));
+    CGContextFillRect(aContext, CGRectMake(aRect.origin.x, aRect.origin.y,
+                                           aRect.size.width, aRect.size.height));
   }
 
   // note that the cairo surface *MUST* be destroyed at this point,
@@ -2525,10 +2502,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
                             ((((unsigned long)self) & 0xff00) >> 8) / 255.0,
                             ((((unsigned long)self) & 0xff0000) >> 16) / 255.0,
                             0.5);
-#endif
+#endif 
   CGContextSetRGBStrokeColor(aContext, 1, 0, 0, 0.8);
   CGContextSetLineWidth(aContext, 4.0);
-  CGContextStrokeRect(aContext, NSRectToCGRect(aRect));
+  CGContextStrokeRect(aContext,
+                      CGRectMake(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
 #endif
 }
 
@@ -2676,7 +2654,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // if we're dealing with menus, we probably have submenus and
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
-      uint32_t popupsToRollup = UINT32_MAX;
+      uint32_t popupsToRollup = PR_UINT32_MAX;
       if (gRollupListener) {
         nsAutoTArray<nsIWidget*, 5> widgetChain;
         uint32_t sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
@@ -3266,7 +3244,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   uint32_t msg = aEnter ? NS_MOUSE_ENTER : NS_MOUSE_EXIT;
   nsMouseEvent event(true, msg, mGeckoChild, nsMouseEvent::eReal);
-  event.refPoint = mGeckoChild->CocoaPointsToDevPixels(localEventLocation);
+  event.refPoint.x = nscoord((int32_t)localEventLocation.x);
+  event.refPoint.y = nscoord((int32_t)localEventLocation.y);
 
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
@@ -3627,13 +3606,12 @@ static int32_t RoundUp(double aDouble)
     // touchpad or a Mighty Mouse. On those devices, [theEvent deviceDeltaX/Y]
     // contains the amount of pixels to scroll. Since Lion this has changed 
     // to [theEvent scrollingDeltaX/Y].
-    double scale = mGeckoChild->BackingScaleFactor();
     if ([theEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-      wheelEvent.deltaX = -[theEvent scrollingDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent scrollingDeltaY] * scale;
+      wheelEvent.deltaX = -[theEvent scrollingDeltaX];
+      wheelEvent.deltaY = -[theEvent scrollingDeltaY];
     } else {
-      wheelEvent.deltaX = -[theEvent deviceDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent deviceDeltaY] * scale;
+      wheelEvent.deltaX = -[theEvent deviceDeltaX];
+      wheelEvent.deltaY = -[theEvent deviceDeltaY];
     }
   } else {
     wheelEvent.deltaX = -[theEvent deltaX];
@@ -3810,8 +3788,8 @@ static int32_t RoundUp(double aDouble)
   // convert point to view coordinate system
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, [self window]);
   NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
-
-  outGeckoEvent->refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
+  outGeckoEvent->refPoint.x = static_cast<nscoord>(localPoint.x);
+  outGeckoEvent->refPoint.y = static_cast<nscoord>(localPoint.y);
 
   nsMouseEvent_base* mouseEvent =
     static_cast<nsMouseEvent_base*>(outGeckoEvent);
@@ -4324,10 +4302,9 @@ static int32_t RoundUp(double aDouble)
 
   // Use our own coordinates in the gecko event.
   // Convert event from gecko global coords to gecko view coords.
-  NSPoint draggingLoc = [aSender draggingLocation];
-  NSPoint localPoint = [self convertPoint:draggingLoc fromView:nil];
-
-  geckoEvent.refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
+  NSPoint localPoint = [self convertPoint:[aSender draggingLocation] fromView:nil];
+  geckoEvent.refPoint.x = static_cast<nscoord>(localPoint.x);
+  geckoEvent.refPoint.y = static_cast<nscoord>(localPoint.y);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);

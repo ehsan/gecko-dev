@@ -218,13 +218,13 @@ DisableSystemTimeChangeNotifications()
 void
 Reboot()
 {
-  NS_RUNTIMEABORT("Reboot() can't be called from sandboxed contexts.");
+  Hal()->SendReboot();
 }
 
 void
 PowerOff()
 {
-  NS_RUNTIMEABORT("PowerOff() can't be called from sandboxed contexts.");
+  Hal()->SendPowerOff();
 }
 
 void
@@ -636,6 +636,26 @@ public:
   }
 
   virtual bool
+  RecvReboot() MOZ_OVERRIDE
+  {
+    if (!AssertAppProcessPermission(this, "power")) {
+      return false;
+    }
+    hal::Reboot();
+    return true;
+  }
+
+  virtual bool
+  RecvPowerOff() MOZ_OVERRIDE
+  {
+    if (!AssertAppProcessPermission(this, "power")) {
+      return false;
+    }
+    hal::PowerOff();
+    return true;
+  }
+
+  virtual bool
   RecvEnableSensorNotifications(const SensorType &aSensor) MOZ_OVERRIDE {
     // We currently allow any content to register device-sensor
     // listeners.
@@ -736,9 +756,6 @@ public:
   virtual bool
   RecvEnableFMRadio(const hal::FMRadioSettings& aSettings)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::EnableFMRadio(aSettings);
     return true;
   }
@@ -746,9 +763,6 @@ public:
   virtual bool
   RecvDisableFMRadio()
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::DisableFMRadio();
     return true;
   }
@@ -756,9 +770,6 @@ public:
   virtual bool
   RecvFMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::FMRadioSeek(aDirection);
     return true;
   }
@@ -766,9 +777,6 @@ public:
   virtual bool
   RecvGetFMRadioSettings(hal::FMRadioSettings* aSettings)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::GetFMRadioSettings(aSettings);
     return true;
   }
@@ -776,9 +784,6 @@ public:
   virtual bool
   RecvSetFMRadioFrequency(const uint32_t& aFrequency)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::SetFMRadioFrequency(aFrequency);
     return true;
   }
@@ -786,9 +791,6 @@ public:
   virtual bool
   RecvGetFMRadioFrequency(uint32_t* aFrequency)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     *aFrequency = hal::GetFMRadioFrequency();
     return true;
   }
@@ -801,9 +803,6 @@ public:
   virtual bool
   RecvIsFMRadioOn(bool* radioOn)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     *radioOn = hal::IsFMRadioOn();
     return true;
   }
@@ -811,9 +810,6 @@ public:
   virtual bool
   RecvGetFMRadioSignalStrength(uint32_t* strength)
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     *strength = hal::GetFMRadioSignalStrength();
     return true;
   }
@@ -821,9 +817,6 @@ public:
   virtual bool
   RecvCancelFMRadioSeek()
   {
-    if (!AssertAppProcessPermission(this, "fmradio")) {
-      return false;
-    }
     hal::CancelFMRadioSeek();
     return true;
   }

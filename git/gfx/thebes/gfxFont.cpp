@@ -18,6 +18,7 @@
 #include "gfxPlatform.h"
 #include "nsGkAtoms.h"
 
+#include "prtypes.h"
 #include "gfxTypes.h"
 #include "nsAlgorithm.h"
 #include "gfxContext.h"
@@ -5213,7 +5214,7 @@ gfxTextRun::BreakAndMeasureText(uint32_t aStart, uint32_t aMaxLength,
     }
     if (aLastBreak && charsFit == aMaxLength) {
         if (lastBreak < 0) {
-            *aLastBreak = UINT32_MAX;
+            *aLastBreak = PR_UINT32_MAX;
         } else {
             *aLastBreak = lastBreak - aStart;
         }

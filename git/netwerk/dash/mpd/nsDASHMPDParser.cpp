@@ -38,12 +38,9 @@
 #if defined(PR_LOGGING)
 static PRLogModuleInfo* gDASHMPDParserLog = nullptr;
 #define LOG(msg, ...) PR_LOG(gDASHMPDParserLog, PR_LOG_DEBUG, \
-                             ("%p [nsDASHMPDParser] " msg, this, __VA_ARGS__))
-#define LOG1(msg) PR_LOG(gDASHMPDParserLog, PR_LOG_DEBUG, \
-                         ("%p [nsDASHMPDParser] " msg, this))
+                             ("%p [nsDASHMPDParser] " msg, this, ##__VA_ARGS__))
 #else
 #define LOG(msg, ...)
-#define LOG1(msg)
 #endif
 
 namespace mozilla {
@@ -86,7 +83,7 @@ nsDASHMPDParser::Parse(IMPDManager**    aMPDManager,
     nsAutoCString spec;
     nsresult rv = mURI->GetSpec(spec);
     if (NS_FAILED(rv)) {
-      LOG1("Preparing to parse MPD: cannot get spec from URI");
+      LOG("Preparing to parse MPD: cannot get spec from URI");
     } else {
       LOG("Preparing to parse MPD: mURI:\"%s\"", spec.get());
     }
@@ -106,7 +103,7 @@ nsDASHMPDParser::Parse(IMPDManager**    aMPDManager,
                                   getter_AddRefs(doc));
   NS_ENSURE_SUCCESS(rv, rv);
   if(!doc) {
-    LOG1("ERROR! Document not parsed as XML!");
+    LOG("ERROR! Document not parsed as XML!");
     return NS_ERROR_NO_INTERFACE;
   }
   // Use root node to create MPD manager.

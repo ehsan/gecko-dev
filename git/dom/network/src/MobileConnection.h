@@ -50,6 +50,8 @@ private:
     return static_cast<nsDOMEventTargetHelper*>(
            const_cast<MobileConnection*>(this));
   }
+
+  nsresult InternalDispatchEvent(const nsAString& aType);
 };
 
 } // namespace network

@@ -4,12 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h" 
-
+#include "base/basictypes.h"
 #include "BluetoothHfpManager.h"
 
 #include "BluetoothReplyRunnable.h"
-#include "BluetoothScoManager.h"
 #include "BluetoothService.h"
 #include "BluetoothServiceUuid.h"
 
@@ -19,8 +17,6 @@
 #include "nsIObserverService.h"
 #include "nsIRadioInterfaceLayer.h"
 #include "nsISystemMessagesInternal.h"
-#include "BluetoothUtils.h"
-
 #include "nsVariant.h"
 
 #include <unistd.h> /* usleep() */
@@ -60,37 +56,6 @@ public:
     return NS_OK;
   }
 };
-
-void
-OpenScoSocket(const nsAString& aDevicePath)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  BluetoothScoManager* sco = BluetoothScoManager::Get();
-  if (!sco) {
-    NS_WARNING("BluetoothScoManager is not available!");
-    return;
-  }
-
-  if (!sco->Connect(aDevicePath)) {
-    NS_WARNING("Failed to create a sco socket!");
-  }
-}
-
-void
-CloseScoSocket()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  BluetoothScoManager* sco = BluetoothScoManager::Get();
-  if (!sco) {
-    NS_WARNING("BluetoothScoManager is not available!");
-    return;
-  }
-
-  if (sco->GetConnected())
-    sco->Disconnect();
-}
 
 BluetoothHfpManager::BluetoothHfpManager()
   : mCurrentVgs(-1)
@@ -146,9 +111,12 @@ BluetoothHfpManager::Get()
 }
 
 bool
-BluetoothHfpManager::BroadcastSystemMessage(const nsAString& aType,
-                                            const InfallibleTArray<BluetoothNamedValue>& aData)
+BluetoothHfpManager::BroadcastSystemMessage(const char* aCommand,
+                                            const int aCommandLength)
 {
+  nsString type;
+  type.AssignLiteral("bluetooth-dialer-command");
+
   JSContext* cx = nsContentUtils::GetSafeJSContext();
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
@@ -160,7 +128,14 @@ BluetoothHfpManager::BroadcastSystemMessage(const nsAString& aType,
     return false;
   }
 
-  if (!SetJsObject(cx, obj, aData)) {
+  JSString* JsData = JS_NewStringCopyN(cx, aCommand, aCommandLength);
+  if (!JsData) {
+    NS_WARNING("JS_NewStringCopyN is out of memory");
+    return false;
+  }
+
+  jsval v = STRING_TO_JSVAL(JsData);
+  if (!JS_SetProperty(cx, obj, "command", &v)) {
     NS_WARNING("Failed to set properties of system message!");
     return false;
   }
@@ -173,48 +148,9 @@ BluetoothHfpManager::BroadcastSystemMessage(const nsAString& aType,
     return false;
   }
 
-  systemMessenger->BroadcastMessage(aType, OBJECT_TO_JSVAL(obj));
+  systemMessenger->BroadcastMessage(type, OBJECT_TO_JSVAL(obj));
 
   return true;
-}
-
-void
-BluetoothHfpManager::NotifySettings(const bool aConnected)
-{
-  nsString type, name;
-  BluetoothValue v;
-  InfallibleTArray<BluetoothNamedValue> parameters;
-  type.AssignLiteral("bluetooth-hfp-status-changed");
-
-  name.AssignLiteral("connected");
-  v = aConnected;
-  parameters.AppendElement(BluetoothNamedValue(name, v));
-
-  name.AssignLiteral("address");
-  v = GetAddressFromObjectPath(mDevicePath);
-  parameters.AppendElement(BluetoothNamedValue(name, v));
-
-  if (!BroadcastSystemMessage(type, parameters)) {
-    NS_WARNING("Failed to broadcast system message to dialer");
-    return;
-  }
-}
-
-void
-BluetoothHfpManager::NotifyDialer(const nsAString& aCommand)
-{
-  nsString type, name, command;
-  command = aCommand;
-  InfallibleTArray<BluetoothNamedValue> parameters;
-  type.AssignLiteral("bluetooth-dialer-command");
-
-  BluetoothValue v(command);
-  parameters.AppendElement(BluetoothNamedValue(type, v));
-
-  if (!BroadcastSystemMessage(type, parameters)) {
-    NS_WARNING("Failed to broadcast system message to dialer");
-    return;
-  }
 }
 
 nsresult
@@ -346,8 +282,6 @@ BluetoothHfpManager::ReceiveSocketData(UnixSocketRawData* aMessage)
     SendLine("+CIND: 5,5,1,0,0,0,0");
     SendLine("OK");
   } else if (!strncmp(msg, "AT+CMER=", 8)) {
-    // SLC establishment
-    NotifySettings(true);
     SendLine("OK");
   } else if (!strncmp(msg, "AT+CHLD=?", 9)) {
     SendLine("+CHLD: (0,1,2,3)");
@@ -382,13 +316,22 @@ BluetoothHfpManager::ReceiveSocketData(UnixSocketRawData* aMessage)
 
     SendLine("OK");
   } else if (!strncmp(msg, "AT+BLDN", 7)) {
-    NotifyDialer(NS_LITERAL_STRING("BLDN"));
+    if (!BroadcastSystemMessage("BLDN", 4)) {
+      NS_WARNING("Failed to broadcast system message to dialer");
+      return;
+    }
     SendLine("OK");
   } else if (!strncmp(msg, "ATA", 3)) {
-    NotifyDialer(NS_LITERAL_STRING("ATA"));
+    if (!BroadcastSystemMessage("ATA", 3)) {
+      NS_WARNING("Failed to broadcast system message to dialer");
+      return;
+    }
     SendLine("OK");
   } else if (!strncmp(msg, "AT+CHUP", 7)) {
-    NotifyDialer(NS_LITERAL_STRING("CHUP"));
+    if (!BroadcastSystemMessage("CHUP", 4)) {
+      NS_WARNING("Failed to broadcast system message to dialer");
+      return;
+    }
     SendLine("OK");
   } else {
 #ifdef DEBUG
@@ -412,7 +355,6 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceObjectPath,
     NS_WARNING("BluetoothService not available!");
     return false;
   }
-  mDevicePath = aDeviceObjectPath;
 
   nsString serviceUuidStr =
     NS_ConvertUTF8toUTF16(mozilla::dom::bluetooth::BluetoothServiceUuidStr::Handsfree);
@@ -431,29 +373,9 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceObjectPath,
   return NS_FAILED(rv) ? false : true;
 }
 
-bool
-BluetoothHfpManager::Listen()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return false;
-  }
-
-  nsresult rv = bs->ListenSocketViaService(BluetoothReservedChannels::HANDSFREE_AG,
-                                           BluetoothSocketType::RFCOMM,
-                                           true,
-                                           false,
-                                           this);
-  return NS_FAILED(rv) ? false : true;
-}
-
 void
 BluetoothHfpManager::Disconnect()
 {
-  NotifySettings(false);
   CloseSocket();
 }
 
@@ -525,7 +447,7 @@ BluetoothHfpManager::CallStateChanged(int aCallIndex, int aCallState,
 #endif
           break;
       }
-      OpenScoSocket(mDevicePath);
+
       break;
     case nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED:
       switch (mCurrentCallState) {
@@ -547,7 +469,6 @@ BluetoothHfpManager::CallStateChanged(int aCallIndex, int aCallState,
 #endif
           break;
       }
-      CloseScoSocket();
       break;
 
     default:

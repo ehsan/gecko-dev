@@ -747,31 +747,28 @@ function switchToFrame(msg) {
       }
     }
   }
-  let frames = curWindow.document.getElementsByTagName("iframe");
   switch(typeof(msg.json.value)) {
     case "string" :
       let foundById = null;
-      for (let i = 0; i < frames.length; i++) {
+      let numFrames = curWindow.frames.length;
+      for (let i = 0; i < numFrames; i++) {
         //give precedence to name
-        let frame = frames[i];
-        let name = utils.getElementAttribute(frame, 'name');
-        let id = utils.getElementAttribute(frame, 'id');
-        if (name == msg.json.value) {
+        let frame = curWindow.frames[i];
+        let frameElement = frame.frameElement;
+        if (frameElement.name == msg.json.value) {
           foundFrame = i;
           break;
-        } else if ((foundById == null) && (id == msg.json.value)) {
+        } else if ((foundById == null) && (frameElement.id == msg.json.value)) {
           foundById = i;
         }
       }
       if ((foundFrame == null) && (foundById != null)) {
         foundFrame = foundById;
-        curWindow = frames[foundFrame];
       }
       break;
     case "number":
-      if (frames[msg.json.value] != undefined) {
+      if (curWindow.frames[msg.json.value] != undefined) {
         foundFrame = msg.json.value;
-        curWindow = frames[foundFrame];
       }
       break;
   }
@@ -779,20 +776,11 @@ function switchToFrame(msg) {
     sendError("Unable to locate frame: " + msg.json.value, 8, null);
     return;
   }
+  curWindow = curWindow.frames[foundFrame];
+  curWindow.focus();
+  sendOk();
 
   sandbox = null;
-
-  if (curWindow.contentWindow == null) {
-    // The frame we want to switch to is a remote frame; notify our parent to handle
-    // the switch.
-    curWindow = content;
-    sendToServer('Marionette:switchToFrame', {win: winUtil.outerWindowID, frame: foundFrame});
-  }
-  else {
-    curWindow = curWindow.contentWindow;
-    curWindow.focus();
-    sendOk();
-  }
 }
 
 // emulator callbacks

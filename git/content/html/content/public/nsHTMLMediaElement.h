@@ -33,9 +33,6 @@ typedef uint16_t nsMediaReadyState;
 namespace mozilla {
 class MediaResource;
 }
-#ifdef MOZ_DASH
-class nsDASHDecoder;
-#endif
 
 class nsHTMLMediaElement : public nsGenericHTMLElement,
                            public nsIObserver
@@ -48,10 +45,6 @@ public:
   typedef mozilla::MediaResource MediaResource;
 
   typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
-
-#ifdef MOZ_DASH
-  friend class nsDASHDecoder;
-#endif
 
   enum CanPlayStatus {
     CANPLAY_NO,
@@ -324,12 +317,6 @@ public:
 #ifdef MOZ_MEDIA_PLUGINS
   static bool IsMediaPluginsEnabled();
   static bool IsMediaPluginsType(const nsACString& aType);
-#endif
-
-#ifdef MOZ_DASH
-  static bool IsDASHEnabled();
-  static bool IsDASHMPDType(const nsACString& aType);
-  static const char gDASHMPDTypes[1][21];
 #endif
 
   /**

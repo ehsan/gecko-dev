@@ -1713,7 +1713,7 @@ nsCookieService::PrefChanged(nsIPrefBranch *aPrefBranch)
 
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookiePurgeAge, &val))) {
     mCookiePurgeAge =
-      int64_t(LIMIT(val, 0, INT32_MAX, INT32_MAX)) * PR_USEC_PER_SEC;
+      int64_t(LIMIT(val, 0, PR_INT32_MAX, PR_INT32_MAX)) * PR_USEC_PER_SEC;
   }
 
   bool boolval;
@@ -2660,7 +2660,7 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
   nsCookieAttributes cookieAttributes;
 
   // init expiryTime such that session cookies won't prematurely expire
-  cookieAttributes.expiryTime = INT64_MAX;
+  cookieAttributes.expiryTime = LL_MAXINT;
 
   // aCookieHeader is an in/out param to point to the next cookie, if
   // there is one. Save the present value for logging purposes
@@ -3437,7 +3437,7 @@ nsCookieService::RemoveAllFromMemory()
   // which releases all their respective children.
   mDBState->hostTable.Clear();
   mDBState->cookieCount = 0;
-  mDBState->cookieOldestTime = INT64_MAX;
+  mDBState->cookieOldestTime = LL_MAXINT;
 }
 
 // stores temporary data for enumerating over the hash entries,
@@ -3453,7 +3453,7 @@ struct nsPurgeData
               mozIStorageBindingParamsArray *aParamsArray)
    : currentTime(aCurrentTime)
    , purgeTime(aPurgeTime)
-   , oldestTime(INT64_MAX)
+   , oldestTime(LL_MAXINT)
    , purgeList(aPurgeList)
    , removedList(aRemovedList)
    , paramsArray(aParamsArray)
@@ -3816,7 +3816,9 @@ nsCookieService::GetCookiesForApp(uint32_t aAppId, bool aOnlyBrowserElement,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  NS_ENSURE_TRUE(aAppId != NECKO_NO_APP_ID && aAppId != NECKO_UNKNOWN_APP_ID,
+  // TODO: For the moment NECKO_UNKNOWN_APP_ID isn't working well with Necko.
+  // This should be uncommented with bug 794023.
+  NS_ENSURE_TRUE(aAppId != NECKO_NO_APP_ID /*&& aAppId != NECKO_UNKNOWN_APP_ID*/,
                  NS_ERROR_INVALID_ARG);
 
   GetCookiesForAppStruct data(aAppId, aOnlyBrowserElement);

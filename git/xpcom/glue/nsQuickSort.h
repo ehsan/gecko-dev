@@ -14,9 +14,7 @@
 #include "prtypes.h"
 #include "nscore.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /**
  * Parameters:
@@ -34,8 +32,6 @@ NS_COM_GLUE void NS_QuickSort(void *, unsigned int, unsigned int,
                               int (*)(const void *, const void *, void *), 
                               void *);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* nsQuickSort_h___ */

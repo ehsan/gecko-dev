@@ -32,26 +32,21 @@ def abstractmethod(method):
     def not_implemented(*args, **kwargs):
         raise NotImplementedError('Abstract method %s at File "%s", line %s '
                                    'should be implemented by a concrete class' %
-                                   (repr(method), filename, line))
+                                   (repr(method), filename,line))
     return not_implemented
 
 class DeviceManager:
 
     @abstractmethod
-    def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None, root=False):
+    def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None):
         """
-        Executes shell command on device.
+        executes shell command on device
 
-        cmd - Command string to execute
-        outputfile - File to store output
-        env - Environment to pass to exec command
-        cwd - Directory to execute command from
-        timeout - specified in seconds, defaults to 'default_timeout'
-        root - Specifies whether command requires root privileges
-
+        timeout is specified in seconds, and if no timeout is given, 
+        we will run until the script returns
         returns:
-          success: Return code from command
-          failure: None
+        success: Return code from command
+        failure: None
         """
 
     def shellCheckOutput(self, cmd, env=None, cwd=None, timeout=None, root=False):
@@ -78,31 +73,29 @@ class DeviceManager:
     @abstractmethod
     def pushFile(self, localname, destname):
         """
-        Copies localname from the host to destname on the device
-
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @abstractmethod
     def mkDir(self, name):
         """
-        Creates a single directory on the device file system
-
+        external function
         returns:
-          success: directory name
-          failure: None
+        success: directory name
+        failure: None
         """
 
     def mkDirs(self, filename):
         """
-        Make directory structure on the device
+        make directory structure on the device
         WARNING: does not create last part of the path
-
+        external function
         returns:
-          success: directory structure that we created
-          failure: None
+        success: directory structure that we created
+        failure: None
         """
         parts = filename.split('/')
         name = ""
@@ -120,82 +113,98 @@ class DeviceManager:
     @abstractmethod
     def pushDir(self, localDir, remoteDir):
         """
-        Push localDir from host to remoteDir on the device
-
+        push localDir from host to remoteDir on the device
+        external function
         returns:
-          success: remoteDir
-          failure: None
+        success: remoteDir
+        failure: None
         """
 
     @abstractmethod
     def dirExists(self, dirname):
         """
-        Checks if dirname exists and is a directory
-        on the device file system
-
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @abstractmethod
     def fileExists(self, filepath):
         """
-        Checks if filepath exists and is a file on
-        the device file system
-
+        Because we always have / style paths we make this a lot easier with some
+        assumptions
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @abstractmethod
     def listFiles(self, rootdir):
         """
-        Lists files on the device rootdir
-
+        list files on the device, requires cd to directory first
+        external function
         returns:
-          success: array of filenames, ['file1', 'file2', ...]
-          failure: None
+        success: array of filenames, ['file1', 'file2', ...]
+        failure: None
         """
 
     @abstractmethod
     def removeFile(self, filename):
         """
-        Removes filename from the device
-
+        external function
         returns:
-          success: output of telnet
-          failure: None
+        success: output of telnet, i.e. "removing file: /mnt/sdcard/tests/test.txt"
+        failure: None
         """
 
     @abstractmethod
     def removeDir(self, remoteDir):
         """
-        Does a recursive delete of directory on the device: rm -Rf remoteDir
-
+        does a recursive delete of directory on the device: rm -Rf remoteDir
+        external function
         returns:
-          success: output of telnet
-          failure: None
+        success: output of telnet, i.e. "removing file: /mnt/sdcard/tests/test.txt"
+        failure: None
         """
 
     @abstractmethod
     def getProcessList(self):
         """
-        Lists the running processes on the device
-
+        external function
         returns:
-          success: array of process tuples
-          failure: []
+        success: array of process tuples
+        failure: None
+        """
+
+    @abstractmethod
+    def fireProcess(self, appname, failIfRunning=False):
+        """
+        external function
+        DEPRECATED: Use shell() or launchApplication() for new code
+        returns:
+        success: pid
+        failure: None
+        """
+
+    @abstractmethod
+    def launchProcess(self, cmd, outputFile = "process.txt", cwd = '', env = '', failIfRunning=False):
+        """
+        external function
+        DEPRECATED: Use shell() or launchApplication() for new code
+        returns:
+        success: output filename
+        failure: None
         """
 
     def processExist(self, appname):
         """
-        Iterates process list and checks if pid exists
-
+        iterates process list and returns pid if exists, otherwise None
+        external function
         returns:
-          success: pid
-          failure: None
+        success: pid
+        failure: None
         """
 
         pid = None
@@ -229,92 +238,90 @@ class DeviceManager:
     @abstractmethod
     def killProcess(self, appname, forceKill=False):
         """
-        Kills the process named appname.
-        If forceKill is True, process is killed regardless of state
-
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @abstractmethod
     def catFile(self, remoteFile):
         """
-        Returns the contents of remoteFile
-
+        external function
         returns:
-          success: filecontents, string
-          failure: None
+        success: filecontents
+        failure: None
         """
 
     @abstractmethod
     def pullFile(self, remoteFile):
         """
-        Returns contents of remoteFile using the "pull" command.
-
+        external function
         returns:
-          success: output of pullfile, string
-          failure: None
+        success: output of pullfile, string
+        failure: None
         """
 
     @abstractmethod
     def getFile(self, remoteFile, localFile = ''):
         """
-        Copy file from device (remoteFile) to host (localFile)
-
+        copy file from device (remoteFile) to host (localFile)
+        external function
         returns:
-          success: contents of file, string
-          failure: None
+        success: output of pullfile, string
+        failure: None
         """
 
     @abstractmethod
     def getDirectory(self, remoteDir, localDir, checkDir=True):
         """
-        Copy directory structure from device (remoteDir) to host (localDir)
-
+        copy directory structure from device (remoteDir) to host (localDir)
+        external function
+        checkDir exists so that we don't create local directories if the
+        remote directory doesn't exist but also so that we don't call isDir
+        twice when recursing.
         returns:
-          success: list of files, string
-          failure: None
+        success: list of files, string
+        failure: None
         """
 
     @abstractmethod
     def isDir(self, remotePath):
         """
-        Checks if remotePath is a directory on the device
-
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
+        Throws a FileError exception when null (invalid dir/filename)
         """
 
     @abstractmethod
     def validateFile(self, remoteFile, localFile):
         """
-        Checks if the remoteFile has the same md5 hash as the localFile
-
+        true/false check if the two files have the same md5 sum
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @abstractmethod
-    def _getRemoteHash(self, filename):
+    def getRemoteHash(self, filename):
         """
-        Return the md5 sum of a file on the device
-
+        return the md5 sum of a remote file
+        internal function
         returns:
-          success: MD5 hash for given filename
-          failure: None
+        success: MD5 hash for given filename
+        failure: None
         """
 
-    @staticmethod
-    def _getLocalHash(filename):
+    def getLocalHash(self, filename):
         """
-        Return the MD5 sum of a file on the host
-
+        return the md5 sum of a file on the host
+        internal function
         returns:
-          success: MD5 hash for given filename
-          failure: None
+        success: MD5 hash for given filename
+        failure: None
         """
 
         f = open(filename, 'rb')
@@ -334,6 +341,8 @@ class DeviceManager:
 
         f.close()
         hexval = mdsum.hexdigest()
+        if (self.debug >= 3):
+            print "local hash returned: '" + hexval + "'"
         return hexval
 
     @abstractmethod
@@ -351,32 +360,32 @@ class DeviceManager:
             /xpcshell
             /reftest
             /mochitest
-
+        external
         returns:
-          success: path for device root
-          failure: None
+        success: path for device root
+        failure: None
         """
 
     @abstractmethod
-    def getAppRoot(self, packageName=None):
+    def getAppRoot(self):
         """
-        Returns the app root directory
-        E.g /tests/fennec or /tests/firefox
-
+        Either we will have /tests/fennec or /tests/firefox but we will never have
+        both.  Return the one that exists
+        TODO: ensure we can support org.mozilla.firefox
+        external function
         returns:
-          success: path for app root
-          failure: None
+        success: path for app root
+        failure: None
         """
-        # TODO Support org.mozilla.firefox and B2G
 
     def getTestRoot(self, harness):
         """
         Gets the directory location on the device for a specific test type
         Harness is one of: xpcshell|reftest|mochitest
-
+        external function
         returns:
-          success: path for test root
-          failure: None
+        success: path for test root
+        failure: None
         """
 
         devroot = self.getDeviceRoot()
@@ -391,23 +400,13 @@ class DeviceManager:
             self.testRoot = devroot + '/mochitest'
         return self.testRoot
 
-    @abstractmethod
-    def getTempDir(self):
-        """
-        Gets the temporary directory we are using on this device
-        base on our device root, ensuring also that it exists.
-
-        returns:
-          success: path for temporary directory
-          failure: None
-        """
-
     def signal(self, processID, signalType, signalAction):
         """
         Sends a specific process ID a signal code and action.
         For Example: SIGINT and SIGDFL to process x
         """
         #currently not implemented in device agent - todo
+
         pass
 
     def getReturnCode(self, processID):
@@ -416,43 +415,31 @@ class DeviceManager:
 
         return 0
 
-    def getIP(self, conn_type='eth0'):
-        """
-        Gets the IP of the device, or None if no connection exists.
-        """
-        match = re.match(r"%s: ip (\S+)" % conn_type, self.shellCheckOutput(['ifconfig', conn_type]))
-        if match:
-            return match.group(1)
-
     @abstractmethod
     def unpackFile(self, file_path, dest_dir=None):
         """
-        Unzips a remote bundle to a remote location
-        If dest_dir is not specified, the bundle is extracted
-        in the same directory
-
+        external function
         returns:
-          success: output of unzip command
-          failure: None
+        success: output of unzip command
+        failure: None
         """
 
     @abstractmethod
     def reboot(self, ipAddr=None, port=30000):
         """
-        Reboots the device
-
+        external function
         returns:
-          success: status from test agent
-          failure: None
+        success: status from test agent
+        failure: None
         """
 
     def validateDir(self, localDir, remoteDir):
         """
-        Validate localDir from host to remoteDir on the device
-
+        validate localDir from host to remoteDir on the device
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
         if (self.debug >= 2):
@@ -474,89 +461,66 @@ class DeviceManager:
         """
         Returns information about the device:
         Directive indicates the information you want to get, your choices are:
-          os - name of the os
-          id - unique id of the device
-          uptime - uptime of the device
-          uptimemillis - uptime of the device in milliseconds (NOT supported on all implementations)
-          systime - system time of the device
-          screen - screen resolution
-          memory - memory stats
-          process - list of running processes (same as ps)
-          disk - total, free, available bytes on disk
-          power - power status (charge, battery temp)
-          all - all of them - or call it with no parameters to get all the information
-
+        os - name of the os
+        id - unique id of the device
+        uptime - uptime of the device
+        uptimemillis - uptime of the device in milliseconds (NOT supported on all
+                                      implementations)
+        systime - system time of the device
+        screen - screen resolution
+        memory - memory stats
+        process - list of running processes (same as ps)
+        disk - total, free, available bytes on disk
+        power - power status (charge, battery temp)
+        all - all of them - or call it with no parameters to get all the information
         returns:
-          success: dict of info strings by directive name
-          failure: None
+        success: dict of info strings by directive name
+        failure: None
         """
 
     @abstractmethod
     def installApp(self, appBundlePath, destPath=None):
         """
-        Installs an application onto the device
-        appBundlePath - path to the application bundle on the device
-        destPath - destination directory of where application should be installed to (optional)
-
+        external function
         returns:
-          success: None
-          failure: error string
-        """
-
-    @abstractmethod
-    def uninstallApp(self, appName, installPath=None):
-        """
-        Uninstalls the named application from device and DOES NOT cause a reboot
-        appName - the name of the application (e.g org.mozilla.fennec)
-        installPath - the path to where the application was installed (optional)
-
-        returns:
-          success: None
-          failure: DMError exception thrown
+        success: output from agent for inst command
+        failure: None
         """
 
     @abstractmethod
     def uninstallAppAndReboot(self, appName, installPath=None):
         """
-        Uninstalls the named application from device and causes a reboot
-        appName - the name of the application (e.g org.mozilla.fennec)
-        installPath - the path to where the application was installed (optional)
-
+        external function
         returns:
-          success: None
-          failure: DMError exception thrown
+        success: True
+        failure: None
         """
 
     @abstractmethod
-    def updateApp(self, appBundlePath, processName=None, destPath=None, ipAddr=None, port=30000):
+    def updateApp(self, appBundlePath, processName=None,
+                                destPath=None, ipAddr=None, port=30000):
         """
-        Updates the application on the device.
-        appBundlePath - path to the application bundle on the device
-        processName - used to end the process if the applicaiton is currently running (optional)
-        destPath - Destination directory to where the application should be installed (optional)
-        ipAddr - IP address to await a callback ping to let us know that the device has updated
-                 properly - defaults to current IP.
-        port - port to await a callback ping to let us know that the device has updated properly
-               defaults to 30000, and counts up from there if it finds a conflict
-
+        external function
         returns:
-          success: text status from command or callback server
-          failure: None
+        success: text status from command or callback server
+        failure: None
         """
 
     @abstractmethod
     def getCurrentTime(self):
         """
-        Returns device time in milliseconds since the epoch
-
+        external function
         returns:
-          success: time in ms
-          failure: None
+        success: time in ms
+        failure: None
         """
 
     def recordLogcat(self):
         """
-        Clears the logcat file making it easier to view specific events
+        external function
+        returns:
+        success: file is created in <testroot>/logcat.log
+        failure:
         """
         #TODO: spawn this off in a separate thread/process so we can collect all the logcat information
 
@@ -566,11 +530,10 @@ class DeviceManager:
 
     def getLogcat(self):
         """
-        Returns the contents of the logcat file as a string
-
-        returns:
-          success: contents of logcat, string 
-          failure: None
+        external function
+        returns: data from the local file
+        success: file is in 'filename'
+        failure: None
         """
         buf = StringIO.StringIO()
         if self.shell(["/system/bin/logcat", "-d", "dalvikvm:S", "ConnectivityService:S", "WifiMonitor:S", "WifiStateTracker:S", "wpa_supplicant:S", "NetworkStateTracker:S"], buf, root=True) != 0:
@@ -579,13 +542,12 @@ class DeviceManager:
         return str(buf.getvalue()[0:-1]).rstrip().split('\r')
 
     @abstractmethod
-    def chmodDir(self, remoteDir, mask="777"):
+    def chmodDir(self, remoteDir):
         """
-        Recursively changes file permissions in a directory
-
+        external function
         returns:
-          success: True
-          failure: False
+        success: True
+        failure: False
         """
 
     @staticmethod
@@ -668,11 +630,11 @@ class NetworkTools:
         return seed
 
 def _pop_last_line(file_obj):
-    """
+    '''
     Utility function to get the last line from a file (shared between ADB and
     SUT device managers). Function also removes it from the file. Intended to
     strip off the return code from a shell command.
-    """
+    '''
     bytes_from_end = 1
     file_obj.seek(0, 2)
     length = file_obj.tell() + 1

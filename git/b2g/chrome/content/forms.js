@@ -220,8 +220,7 @@ function getJSON(element) {
 
   return {
     "type": type.toLowerCase(),
-    "choices": getListForElement(element),
-    "value": element.value
+    "choices": getListForElement(element)
   };
 }
 

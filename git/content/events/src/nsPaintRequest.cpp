@@ -9,8 +9,6 @@
 #include "nsClientRect.h"
 #include "nsIFrame.h"
 #include "nsContentUtils.h"
-#include "mozilla/dom/PaintRequestListBinding.h"
-#include "dombindings.h"
 
 DOMCI_DATA(PaintRequest, nsPaintRequest)
 
@@ -37,7 +35,17 @@ nsPaintRequest::GetClientRect(nsIDOMClientRect** aResult)
 NS_IMETHODIMP
 nsPaintRequest::GetReason(nsAString& aResult)
 {
-  aResult.AssignLiteral("repaint");
+  switch (mRequest.mFlags & nsIFrame::INVALIDATE_REASON_MASK) {
+  case nsIFrame::INVALIDATE_REASON_SCROLL_BLIT:
+    aResult.AssignLiteral("scroll copy");
+    break;
+  case nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT:
+    aResult.AssignLiteral("scroll repaint");
+    break;
+  default:
+    aResult.Truncate();
+    break;
+  }
   return NS_OK;
 }
 
@@ -54,21 +62,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPaintRequestList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequestList)
-
-JSObject*
-nsPaintRequestList::WrapObject(JSContext *cx, JSObject *scope,
-                               bool *triedToWrap)
-{
-  JSObject* obj = mozilla::dom::PaintRequestListBinding::Wrap(cx, scope, this,
-                                                              triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return mozilla::dom::oldproxybindings::PaintRequestList::create(cx, scope,
-                                                                  this);
-}
 
 NS_IMETHODIMP    
 nsPaintRequestList::GetLength(uint32_t* aLength)

@@ -28,10 +28,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=684115
         ok(!("expando" in nodeList), "shouldn't be able to see expandos on the NodeList");
         nodeList = firstWindow.wrappedJSObject.getNodeList();
         ok(("expando" in nodeList), "should be able to see expandos on the NodeList");
-        options = firstWindow.wrappedJSObject.getOptions();
-        is(options.selectedIndex, -1, "can access selectedIndex in chrome");
+        is(nodeList.selectedIndex, -1, "can access selectedIndex in chrome");
         secondWindow.wrappedJSObject.tryToUseNodeList(nodeList, ok);
-        nodeList = document.childNodes;
+        nodeList = document.createElementNS("http://www.w3.org/1999/xhtml", "select").options;
         secondWindow.wrappedJSObject.tryToUseNodeList(nodeList, ok);
         SimpleTest.finish();
       }

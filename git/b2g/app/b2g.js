@@ -27,7 +27,6 @@ pref("browser.cache.memory.capacity", 1024); // kilobytes
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
-pref("image.high_quality_downscaling.enabled", false);
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
@@ -264,10 +263,6 @@ pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
 
-// The default number of decoded video frames that are enqueued in
-// nsBuiltinDecoderReader's mVideoQueue.
-pref("media.video-queue.default-size", 3);
-
 //  0: don't show fullscreen keyboard
 //  1: always show fullscreen keyboard
 // -1: show fullscreen keyboard based on threshold pref
@@ -465,9 +460,7 @@ pref("app.update.staging.enabled", true);
 pref("app.update.service.enabled", true);
 
 // The URL hosting the update manifest.
-pref("app.update.url", "http://update.boot2gecko.org/%CHANNEL%/update.xml");
-pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
-
+pref("app.update.url", "http://update.boot2gecko.org/nightly/update.xml");
 // Interval at which update manifest is fetched.  In units of seconds.
 pref("app.update.interval", 86400); // 1 day
 // First interval to elapse before checking for update.  In units of
@@ -555,23 +548,8 @@ pref("dom.disable_window_open_dialog_feature", true);
 pref("accessibility.accessfu.activate", 2);
 
 // Enable hit-target fluffing
-pref("ui.touch.radius.enabled", false);
-pref("ui.touch.radius.leftmm", 3);
-pref("ui.touch.radius.topmm", 5);
-pref("ui.touch.radius.rightmm", 3);
-pref("ui.touch.radius.bottommm", 2);
-
-pref("ui.mouse.radius.enabled", false);
-pref("ui.mouse.radius.leftmm", 3);
-pref("ui.mouse.radius.topmm", 5);
-pref("ui.mouse.radius.rightmm", 3);
-pref("ui.mouse.radius.bottommm", 2);
+pref("ui.touch.radius.enabled", true);
+pref("ui.mouse.radius.enabled", true);
 
 // Disable native prompt
 pref("browser.prompt.allowNative", false);
-
-// Minimum delay in milliseconds between network activity notifications (0 means
-// no notifications). The delay is the same for both download and upload, though
-// they are handled separately. This pref is only read once at startup:
-// a restart is required to enable a new value.
-pref("network.activity.blipIntervalMilliseconds", 250);

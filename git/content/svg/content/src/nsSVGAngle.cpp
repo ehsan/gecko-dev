@@ -13,7 +13,6 @@
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
 #include "nsSMILValue.h"
 #include "SVGOrientSMILType.h"
-#include "nsAttrValueInlines.h"
 #include "mozilla/Attributes.h"
 
 using namespace mozilla;

@@ -187,12 +187,8 @@ var shell = {
     });
 
     this.contentBrowser.src = homeURL;
-    this.isHomeLoaded = false;
 
     ppmm.addMessageListener("content-handler", this);
-    ppmm.addMessageListener("dial-handler", this);
-    ppmm.addMessageListener("sms-handler", this);
-    ppmm.addMessageListener("mail-handler", this);
   },
 
   stop: function shell_stop() {
@@ -316,17 +312,6 @@ var shell = {
         DOMApplicationRegistry.allAppsLaunchable = true;
 
         this.sendEvent(window, 'ContentStart');
-
-        content.addEventListener('load', function shell_homeLoaded() {
-          content.removeEventListener('load', shell_homeLoaded);
-          shell.isHomeLoaded = true;
-
-          if ('pendingChromeEvents' in shell) {
-            shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
-          }
-          delete shell.pendingChromeEvents;
-        });
-
         break;
       case 'MozApplicationManifest':
         try {
@@ -372,15 +357,6 @@ var shell = {
   },
 
   sendChromeEvent: function shell_sendChromeEvent(details) {
-    if (!this.isHomeLoaded) {
-      if (!('pendingChromeEvents' in this)) {
-        this.pendingChromeEvents = [];
-      }
-
-      this.pendingChromeEvents.push(details);
-      return;
-    }
-
     this.sendEvent(getContentWindow(), "mozChromeEvent",
                    ObjectWrapper.wrap(details, getContentWindow()));
   },
@@ -397,18 +373,17 @@ var shell = {
   },
 
   receiveMessage: function shell_receiveMessage(message) {
-    var names = { 'content-handler': 'view',
-                  'dial-handler'   : 'dial',
-                  'mail-handler'   : 'new',
-                  'sms-handler'    : 'new' }
-
-    if (!(message.name in names))
+    if (message.name != 'content-handler') {
       return;
-
-    let data = message.data;
+    }
+    let handler = message.json;
     new MozActivity({
-      name: names[message.name],
-      data: data
+      name: 'view',
+      data: {
+        type: handler.type,
+        url: handler.url,
+        extras: handler.extras
+      }
     });
   }
 };

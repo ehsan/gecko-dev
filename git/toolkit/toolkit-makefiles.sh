@@ -892,6 +892,7 @@ if [ "$ENABLE_TESTS" ]; then
     services/crypto/component/tests/Makefile
     startupcache/test/Makefile
     storage/test/Makefile
+    testing/firebug/Makefile
     testing/mochitest/Makefile
     testing/mochitest/MochiKit/Makefile
     testing/mochitest/chrome/Makefile

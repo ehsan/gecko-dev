@@ -1452,7 +1452,7 @@ nsProtocolProxyService::NewProxyInfo_Internal(const char *aType,
     proxyInfo->mPort = aPort;
     proxyInfo->mFlags = aFlags;
     proxyInfo->mResolveFlags = aResolveFlags;
-    proxyInfo->mTimeout = aFailoverTimeout == UINT32_MAX
+    proxyInfo->mTimeout = aFailoverTimeout == PR_UINT32_MAX
         ? mFailedProxyTimeout : aFailoverTimeout;
     failover.swap(proxyInfo->mNext);
 
@@ -1608,7 +1608,7 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
 
     if (type) {
         rv = NewProxyInfo_Internal(type, *host, port, proxyFlags,
-                                   UINT32_MAX, nullptr, flags,
+                                   PR_UINT32_MAX, nullptr, flags,
                                    result);
         if (NS_FAILED(rv))
             return rv;

@@ -103,9 +103,9 @@ CanvasLayerD3D10::Initialize(const Data& aData)
 void
 CanvasLayerD3D10::UpdateSurface()
 {
-  if (!IsDirty())
+  if (!mDirty)
     return;
-  Painted();
+  mDirty = false;
 
   if (mDrawTarget) {
     mDrawTarget->Flush();

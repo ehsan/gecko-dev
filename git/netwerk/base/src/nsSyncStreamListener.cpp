@@ -12,7 +12,7 @@ nsSyncStreamListener::Init()
     return NS_NewPipe(getter_AddRefs(mPipeIn),
                       getter_AddRefs(mPipeOut),
                       nsIOService::gDefaultSegmentSize,
-                      UINT32_MAX, // no size limit
+                      PR_UINT32_MAX, // no size limit
                       false,
                       false);
 }

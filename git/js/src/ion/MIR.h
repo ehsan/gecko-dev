@@ -5311,9 +5311,9 @@ class MNewStringObject :
     MDefinition *input() const {
         return getOperand(0);
     }
-
-    StringObject *templateObj() const;
-
+    StringObject *templateObj() const {
+        return &templateObj_->asString();
+    }
     TypePolicy *typePolicy() {
         return this;
     }

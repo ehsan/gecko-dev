@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsHTMLCanvasElement.h"
-#include "nsAttrValueInlines.h"
 
 #include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
@@ -546,7 +545,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
   uint64_t count;
   rv = stream->Available(&count);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(count <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
+  NS_ENSURE_TRUE(count <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   return Base64EncodeInputStream(stream, aDataURL, (uint32_t)count, aDataURL.Length());
 }
@@ -586,7 +585,7 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   uint64_t imgSize;
   rv = stream->Available(&imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(imgSize <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
+  NS_ENSURE_TRUE(imgSize <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   void* imgData = nullptr;
   rv = NS_ReadInputStreamToBuffer(stream, &imgData, (uint32_t)imgSize);
@@ -837,23 +836,32 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
 
   frame->MarkLayersActive(nsChangeHint(0));
 
-  Layer* layer;
+  nsRect invalRect;
+  nsRect contentArea = frame->GetContentRect();
   if (damageRect) {
     nsIntSize size = GetWidthHeight();
     if (size.width != 0 && size.height != 0) {
 
+      // damageRect and size are in CSS pixels; contentArea is in appunits
+      // We want a rect in appunits; so avoid doing pixels-to-appunits and
+      // vice versa conversion here.
       gfxRect realRect(*damageRect);
+      realRect.Scale(contentArea.width / gfxFloat(size.width),
+                     contentArea.height / gfxFloat(size.height));
       realRect.RoundOut();
 
       // then make it a nsRect
-      nsIntRect invalRect(realRect.X(), realRect.Y(),
-                          realRect.Width(), realRect.Height());
+      invalRect = nsRect(realRect.X(), realRect.Y(),
+                         realRect.Width(), realRect.Height());
 
-      layer = frame->InvalidateLayer(nsDisplayItem::TYPE_CANVAS, &invalRect);
+      invalRect = invalRect.Intersect(nsRect(nsPoint(0,0), contentArea.Size()));
     }
   } else {
-    layer = frame->InvalidateLayer(nsDisplayItem::TYPE_CANVAS);
+    invalRect = nsRect(nsPoint(0, 0), contentArea.Size());
   }
+  invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
+
+  Layer* layer = frame->InvalidateLayer(invalRect, nsDisplayItem::TYPE_CANVAS);
   if (layer) {
     static_cast<CanvasLayer*>(layer)->Updated();
   }
@@ -881,7 +889,7 @@ nsHTMLCanvasElement::InvalidateCanvas()
   if (!frame)
     return;
 
-  frame->InvalidateFrame();
+  frame->Invalidate(frame->GetContentRect() - frame->GetPosition());
 }
 
 int32_t

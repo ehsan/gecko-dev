@@ -84,10 +84,6 @@ ifdef MOZ_GSTREAMER
 PARALLEL_DIRS += gstreamer
 endif
 
-ifdef MOZ_DASH
-PARALLEL_DIRS += dash
-endif
-
 ifdef MOZ_MEDIA_PLUGINS
 PARALLEL_DIRS += plugins
 endif

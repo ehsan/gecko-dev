@@ -30,23 +30,16 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
                       const gfxRect* aDirtyRect,
                       const gfxRect* aSkipRect)
 {
-    mozilla::gfx::Rect rect(Float(aRect.x), Float(aRect.y),
-                            Float(aRect.width), Float(aRect.height));
+    mozilla::gfx::Rect rect(aRect.x, aRect.y, aRect.width, aRect.height);
     IntSize spreadRadius(aSpreadRadius.width, aSpreadRadius.height);
     IntSize blurRadius(aBlurRadius.width, aBlurRadius.height);
     nsAutoPtr<mozilla::gfx::Rect> dirtyRect;
     if (aDirtyRect) {
-      dirtyRect = new mozilla::gfx::Rect(Float(aDirtyRect->x),
-                                         Float(aDirtyRect->y),
-                                         Float(aDirtyRect->width),
-                                         Float(aDirtyRect->height));
+      dirtyRect = new mozilla::gfx::Rect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height);
     }
     nsAutoPtr<mozilla::gfx::Rect> skipRect;
     if (aSkipRect) {
-      skipRect = new mozilla::gfx::Rect(Float(aSkipRect->x),
-                                        Float(aSkipRect->y),
-                                        Float(aSkipRect->width),
-                                        Float(aSkipRect->height));
+      skipRect = new mozilla::gfx::Rect(aSkipRect->x, aSkipRect->y, aSkipRect->width, aSkipRect->height);
     }
 
     mBlur = new AlphaBoxBlur(rect, spreadRadius, blurRadius, dirtyRect, skipRect);
@@ -106,7 +99,7 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
 
 gfxIntSize gfxAlphaBoxBlur::CalculateBlurRadius(const gfxPoint& aStd)
 {
-    mozilla::gfx::Point std(Float(aStd.x), Float(aStd.y));
+    mozilla::gfx::Point std(aStd.x, aStd.y);
     IntSize size = AlphaBoxBlur::CalculateBlurRadius(std);
     return gfxIntSize(size.width, size.height);
 }

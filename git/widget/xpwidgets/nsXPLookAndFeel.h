@@ -59,8 +59,7 @@ public:
   // This one is different: there are no override prefs (fixme?), so
   // there is no XP implementation, only per-system impls.
   virtual bool GetFontImpl(FontID aID, nsString& aName,
-                           gfxFontStyle& aStyle,
-                           float aDevPixPerCSSPixel) = 0;
+                           gfxFontStyle& aStyle) = 0;
 
   virtual void RefreshImpl();
 

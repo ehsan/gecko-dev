@@ -54,7 +54,7 @@ namespace {
 struct ObjectStoreInfoMap
 {
   ObjectStoreInfoMap()
-  : id(INT64_MIN), info(nullptr) { }
+  : id(LL_MININT), info(nullptr) { }
 
   int64_t id;
   ObjectStoreInfo* info;

@@ -8,7 +8,6 @@
 #define mozilla_dom_bluetooth_BluetoothUnixSocketConnector_h
 
 #include "BluetoothCommon.h"
-#include <sys/socket.h>
 #include <mozilla/ipc/UnixSocket.h>
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -21,11 +20,8 @@ public:
   virtual ~BluetoothUnixSocketConnector()
   {}
   virtual int Create() MOZ_OVERRIDE;
-  virtual void CreateAddr(bool aIsServer,
-                          socklen_t& aAddrSize,
-                          struct sockaddr* aAddr,
-                          const char* aAddress) MOZ_OVERRIDE;
-  virtual bool Setup(int aFd) MOZ_OVERRIDE;
+  virtual bool ConnectInternal(int aFd, const char* aAddress) MOZ_OVERRIDE;
+
 private:
   BluetoothSocketType mType;
   int mChannel;

@@ -19,8 +19,6 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Attributes.h"
 
-class nsDOMEvent;
-
 class nsDOMEventTargetHelper : public nsIDOMEventTarget,
                                public nsWrapperCache
 {
@@ -116,10 +114,6 @@ public:
   bool HasOrHasHadOwner() { return mHasOrHasHadOwner; }
 protected:
   nsRefPtr<nsEventListenerManager> mListenerManager;
-  // Dispatch a trusted, non-cancellable and non-bubbling event to |this|.
-  nsresult DispatchTrustedEvent(const nsAString& aEventName);
-  // Make |event| trusted and dispatch |aEvent| to |this|.
-  nsresult DispatchTrustedEvent(nsIDOMEvent* aEvent);
 private:
   // These may be null (native callers or xpcshell).
   nsPIDOMWindow*             mOwner; // Inner window.

@@ -277,15 +277,11 @@ void NotifySystemTimeChange(const hal::SystemTimeChange& aReason);
 
 /**
  * Reboot the device.
- * 
- * This API is currently only allowed to be used from the main process.
  */
 void Reboot();
 
 /**
  * Power off the device.
- * 
- * This API is currently only allowed to be used from the main process.
  */
 void PowerOff();
 

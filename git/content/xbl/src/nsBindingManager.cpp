@@ -43,7 +43,6 @@
 #include "nsBindingManager.h"
 
 #include "nsThreadUtils.h"
-#include "mozilla/dom/NodeListBinding.h"
 #include "dombindings.h"
 
 // ==================================================================
@@ -80,14 +79,8 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    JSObject* obj = mozilla::dom::NodeListBinding::Wrap(cx, scope, this,
-                                                        triedToWrap);
-    if (obj || *triedToWrap) {
-      return obj;
-    }
-
-    *triedToWrap = true;
-    return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this);
+    return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this,
+                                                   triedToWrap);
   }
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ANONYMOUS_CONTENT_LIST_IID)

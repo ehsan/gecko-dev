@@ -368,16 +368,16 @@ class GlobalObject : public JSObject
         return HasDataProperty(cx, holder, NameToId(name), &fun);
     }
 
-    bool getIntrinsicValue(JSContext *cx, PropertyName *name, MutableHandleValue value) {
+    bool getIntrinsicValue(JSContext *cx, PropertyName *name, Value *vp) {
         RootedObject holder(cx, &getSlotRef(INTRINSICS).toObject());
-        RootedId id(cx, NameToId(name));
-        if (HasDataProperty(cx, holder, id, value.address()))
+        jsid id = NameToId(name);
+        if (HasDataProperty(cx, holder, id, vp))
             return true;
-        bool ok = cx->runtime->cloneSelfHostedValueById(cx, id, holder, value);
+        bool ok = cx->runtime->cloneSelfHostedValueById(cx, id, holder, vp);
         if (!ok)
             return false;
 
-        ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+        ok = JS_DefinePropertyById(cx, holder, id, *vp, NULL, NULL, 0);
         JS_ASSERT(ok);
         return true;
     }

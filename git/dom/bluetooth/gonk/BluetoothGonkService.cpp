@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-#include "base/basictypes.h"
 #include "BluetoothGonkService.h"
 #include "BluetoothDBusService.h"
 

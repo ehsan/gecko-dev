@@ -454,8 +454,7 @@ GetSystemFontInfo(const char *aClassName, nsString *aFontName,
 
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle& aFontStyle)
 {
   const char *className = NULL;
   nsString *cachedFontName = NULL;

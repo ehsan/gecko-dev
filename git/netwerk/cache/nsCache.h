@@ -11,10 +11,6 @@
 #ifndef _nsCache_h_
 #define _nsCache_h_
 
-#if defined(MOZ_LOGGING)
-#define FORCE_PR_LOG
-#endif
-
 #include "nsISupports.h"
 #include "nsIFile.h"
 #include "nsAString.h"

@@ -1183,9 +1183,9 @@ nsImageLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
   pusher.PushNull();
 
   if (mCurrentRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    doc->RemoveImage(mCurrentRequest, nsIDocument::REQUEST_DISCARD);
+    doc->RemoveImage(mCurrentRequest);
   if (mPendingRequestFlags & REQUEST_SHOULD_BE_TRACKED)
-    doc->RemoveImage(mPendingRequest, nsIDocument::REQUEST_DISCARD);
+    doc->RemoveImage(mPendingRequest);
 }
 
 nsresult
@@ -1227,7 +1227,7 @@ nsImageLoadingContent::UntrackImage(imgIRequest* aImage)
   // all locked images on destruction.
   nsIDocument* doc = GetOurCurrentDoc();
   if (doc)
-    return doc->RemoveImage(aImage, nsIDocument::REQUEST_DISCARD);
+    return doc->RemoveImage(aImage);
   return NS_OK;
 }
 

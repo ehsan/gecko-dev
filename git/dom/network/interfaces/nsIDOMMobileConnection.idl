@@ -119,12 +119,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *   unlockCardLock({lockType: "pin",
    *                   pin: "..."});
    *
-   * (2) Network depersonalization. Unlocking the network control key (NCK).
-   *
-   *   unlockCardLock({lockType: "nck",
-   *                   pin: "..."});
-   *
-   * (3) Unlocking the PUK and supplying a new PIN:
+   * (2) Unlocking the PUK and supplying a new PIN:
    *
    *   unlockCardLock({lockType: "puk",
    *                   puk: "...",

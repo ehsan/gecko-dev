@@ -152,5 +152,14 @@ FileRequest::FireProgressEvent(uint64_t aLoaded, uint64_t aTotal)
     return;
   }
 
-  DispatchTrustedEvent(event);
+  rv = event->SetTrusted(true);
+  if (NS_FAILED(rv)) {
+    return;
+  }
+
+  bool dummy;
+  rv = DispatchEvent(event, &dummy);
+  if (NS_FAILED(rv)) {
+    return;
+  }
 }

@@ -218,7 +218,6 @@ CPPSRCS = \
 	SkGeometry.cpp \
 	SkGlyphCache.cpp \
 	SkGradientShader.cpp \
-	SkGradientTileProc.cpp \
 	SkGraphics.cpp \
 	SkGPipeRead.cpp \
 	SkGPipeWrite.cpp \

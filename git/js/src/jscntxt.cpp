@@ -307,15 +307,15 @@ JSRuntime::getSelfHostedFunction(JSContext *cx, const char *name)
     JSAtom *atom = Atomize(cx, name, strlen(name));
     if (!atom)
         return NULL;
-    RootedId id(cx, AtomToId(atom));
-    RootedValue funVal(cx, NullValue());
-    if (!cloneSelfHostedValueById(cx, id, holder, &funVal))
+    Value funVal = NullValue();
+    JSAutoByteString bytes;
+    if (!cloneSelfHostedValueById(cx, AtomToId(atom), holder, &funVal))
         return NULL;
     return funVal.toObject().toFunction();
 }
 
 bool
-JSRuntime::cloneSelfHostedValueById(JSContext *cx, HandleId id, HandleObject holder, MutableHandleValue vp)
+JSRuntime::cloneSelfHostedValueById(JSContext *cx, jsid id, HandleObject holder, Value *vp)
 {
     Value funVal;
     {
@@ -331,14 +331,14 @@ JSRuntime::cloneSelfHostedValueById(JSContext *cx, HandleId id, HandleObject hol
      * initializing the runtime (see JSRuntime::initSelfHosting).
      */
     if (cx->global() == selfHostedGlobal_) {
-        vp.set(ObjectValue(funVal.toObject()));
+        *vp = ObjectValue(funVal.toObject());
     } else {
-        RootedObject clone(cx, JS_CloneFunctionObject(cx,  &funVal.toObject(), cx->global()));
+        RootedObject clone(cx, JS_CloneFunctionObject(cx, &funVal.toObject(), cx->global()));
         if (!clone)
             return false;
-        vp.set(ObjectValue(*clone));
+        *vp = ObjectValue(*clone);
     }
-    DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, vp, NULL, NULL, 0);
+    DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, *vp, NULL, NULL, 0);
     JS_ASSERT(ok);
     return true;
 }
