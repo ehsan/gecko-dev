@@ -1434,6 +1434,18 @@ nsNSElementTearoff::GetClientWidth(PRInt32* aLength)
   return NS_OK;
 }
 
+static nsIFrame*
+GetContainingBlockForClientRect(nsIFrame* aFrame)
+{
+  // get the nearest enclosing SVG foreign object frame or the root frame
+  while (aFrame->GetParent() &&
+         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
+    aFrame = aFrame->GetParent();
+  }
+
+  return aFrame;
+}
+
 NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
@@ -1451,10 +1463,29 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
   }
 
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame));
+          GetContainingBlockForClientRect(frame));
   rect->SetLayoutRect(r);
   return NS_OK;
 }
+
+struct RectListBuilder : public nsLayoutUtils::RectCallback {
+  nsClientRectList* mRectList;
+  nsresult          mRV;
+
+  RectListBuilder(nsClientRectList* aList) 
+    : mRectList(aList), mRV(NS_OK) {}
+
+  virtual void AddRect(const nsRect& aRect) {
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
+    if (!rect) {
+      mRV = NS_ERROR_OUT_OF_MEMORY;
+      return;
+    }
+    
+    rect->SetLayoutRect(aRect);
+    mRectList->Append(rect);
+  }
+};
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
@@ -1472,9 +1503,9 @@ nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
     return NS_OK;
   }
 
-  nsLayoutUtils::RectListBuilder builder(rectList);
+  RectListBuilder builder(rectList);
   nsLayoutUtils::GetAllInFlowRects(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame), &builder);
+          GetContainingBlockForClientRect(frame), &builder);
   if (NS_FAILED(builder.mRV))
     return builder.mRV;
   *aResult = rectList.forget().get();
