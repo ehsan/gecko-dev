@@ -21,6 +21,7 @@ include protocol PFileDescriptorSet;
 include protocol PFMRadio;
 include protocol PFileSystemRequest;
 include protocol PHal;
+include protocol PProcessHangMonitor;
 include protocol PImageBridge;
 include protocol PMemoryReportRequest;
 include protocol PMobileConnection;
@@ -345,6 +346,7 @@ prio(normal upto urgent) intr protocol PContent
     parent spawns PPluginModule;
 
     parent opens PCompositor;
+    parent opens PProcessHangMonitor;
     parent opens PSharedBufferManager;
     parent opens PImageBridge;
     child opens PBackground;
@@ -591,6 +593,14 @@ parent:
      * allocation message is dispatched before LoadPlugin returns.
      */
     sync LoadPlugin(uint32_t pluginId);
+
+    /**
+     * This call is used by asynchronous plugin instantiation to notify the
+     * content parent that it is now safe to initiate the plugin bridge for
+     * the specified plugin id. When this call returns, the requested bridge
+     * connection has been made.
+     */
+    sync ConnectPluginBridge(uint32_t aPluginId);
 
     /**
      * This call returns the set of plugins loaded in the chrome

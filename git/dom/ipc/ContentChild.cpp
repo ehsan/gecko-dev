@@ -24,6 +24,7 @@
 #include "mozilla/a11y/DocAccessibleChild.h"
 #endif
 #include "mozilla/Preferences.h"
+#include "mozilla/ProcessHangMonitorIPC.h"
 #include "mozilla/docshell/OfflineCacheUpdateChild.h"
 #include "mozilla/dom/ContentBridgeChild.h"
 #include "mozilla/dom/ContentBridgeParent.h"
@@ -999,6 +1000,13 @@ ContentChild::AllocPBackgroundChild(Transport* aTransport,
     return BackgroundChild::Alloc(aTransport, aOtherProcess);
 }
 
+PProcessHangMonitorChild*
+ContentChild::AllocPProcessHangMonitorChild(Transport* aTransport,
+                                            ProcessId aOtherProcess)
+{
+    return CreateHangMonitorChild(aTransport, aOtherProcess);
+}
+
 #if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
 static void
 SetUpSandboxEnvironment()
@@ -1712,9 +1720,9 @@ ContentChild::DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor)
 }
 
 bool
-ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
-                                 const InfallibleTArray<ResourceMapping>& resources,
-                                 const InfallibleTArray<OverrideMapping>& overrides,
+ContentChild::RecvRegisterChrome(InfallibleTArray<ChromePackage>&& packages,
+                                 InfallibleTArray<ResourceMapping>&& resources,
+                                 InfallibleTArray<OverrideMapping>&& overrides,
                                  const nsCString& locale,
                                  const bool& reset)
 {
@@ -1897,7 +1905,7 @@ ContentChild::RecvNotifyVisited(const URIParams& aURI)
 bool
 ContentChild::RecvAsyncMessage(const nsString& aMsg,
                                const ClonedMessageData& aData,
-                               const InfallibleTArray<CpowEntry>& aCpows,
+                               InfallibleTArray<CpowEntry>&& aCpows,
                                const IPC::Principal& aPrincipal)
 {
     nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
@@ -1934,7 +1942,7 @@ ContentChild::RecvGeolocationError(const uint16_t& errorCode)
 }
 
 bool
-ContentChild::RecvUpdateDictionaryList(const InfallibleTArray<nsString>& aDictionaries)
+ContentChild::RecvUpdateDictionaryList(InfallibleTArray<nsString>&& aDictionaries)
 {
     mAvailableDictionaries = aDictionaries;
     mozInlineSpellChecker::UpdateCanEnableInlineSpellChecking();
@@ -2435,8 +2443,8 @@ ContentChild::RecvOnAppThemeChanged()
 bool
 ContentChild::RecvStartProfiler(const uint32_t& aEntries,
                                 const double& aInterval,
-                                const nsTArray<nsCString>& aFeatures,
-                                const nsTArray<nsCString>& aThreadNameFilters)
+                                nsTArray<nsCString>&& aFeatures,
+                                nsTArray<nsCString>&& aThreadNameFilters)
 {
     nsTArray<const char*> featureArray;
     for (size_t i = 0; i < aFeatures.Length(); ++i) {
@@ -2477,7 +2485,9 @@ ContentChild::RecvGetProfile(nsCString* aProfile)
 bool
 ContentChild::RecvLoadPluginResult(const uint32_t& aPluginId, const bool& aResult)
 {
-    plugins::PluginModuleContentParent::OnLoadPluginResult(aPluginId, aResult);
+    bool finalResult = aResult && SendConnectPluginBridge(aPluginId);
+    plugins::PluginModuleContentParent::OnLoadPluginResult(aPluginId,
+                                                           finalResult);
     return true;
 }
 

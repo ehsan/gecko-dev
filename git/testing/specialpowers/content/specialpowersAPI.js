@@ -577,7 +577,7 @@ SpecialPowersAPI.prototype = {
 
         if (aMessage.name == "SPChromeScriptMessage") {
           listeners.filter(o => (o.name == name))
-                   .forEach(o => o.listener(this.wrap(message)));
+                   .forEach(o => o.listener(message));
         } else if (aMessage.name == "SPChromeScriptAssert") {
           assert(aMessage.json);
         }
@@ -1104,6 +1104,14 @@ SpecialPowersAPI.prototype = {
   allowUnsignedAddons: function() {
     this._sendSyncMessage("SPWebAppService", {
       op: "allow-unsigned-addons"
+    });
+  },
+
+  // Turn on debug information from UserCustomizations.jsm
+  debugUserCustomizations: function(value) {
+    this._sendSyncMessage("SPWebAppService", {
+      op: "debug-customizations",
+      value: value
     });
   },
 

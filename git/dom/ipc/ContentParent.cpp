@@ -73,6 +73,8 @@
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/plugins/PluginBridge.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/ProcessHangMonitor.h"
+#include "mozilla/ProcessHangMonitorIPC.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Telemetry.h"
@@ -386,7 +388,8 @@ public:
 
     virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
-    virtual bool Recv__delete__(const uint32_t& aGeneration, const InfallibleTArray<MemoryReport>& aReport) MOZ_OVERRIDE;
+    virtual bool Recv__delete__(const uint32_t& aGeneration, InfallibleTArray<MemoryReport>&& aReport) MOZ_OVERRIDE;
+
 private:
     ContentParent* Owner()
     {
@@ -406,7 +409,8 @@ MemoryReportRequestParent::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 bool
-MemoryReportRequestParent::Recv__delete__(const uint32_t& generation, const InfallibleTArray<MemoryReport>& childReports)
+MemoryReportRequestParent::Recv__delete__(const uint32_t& generation,
+                                          nsTArray<MemoryReport>&& childReports)
 {
     nsRefPtr<nsMemoryReporterManager> mgr =
         nsMemoryReporterManager::GetOrCreate();
@@ -978,6 +982,12 @@ ContentParent::RecvLoadPlugin(const uint32_t& aPluginId)
 }
 
 bool
+ContentParent::RecvConnectPluginBridge(const uint32_t& aPluginId)
+{
+    return mozilla::plugins::SetupBridge(aPluginId, this, true);
+}
+
+bool
 ContentParent::RecvFindPlugins(const uint32_t& aPluginEpoch,
                                nsTArray<PluginTag>* aPlugins,
                                uint32_t* aNewPluginEpoch)
@@ -992,6 +1002,11 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
 {
     if (!sCanLaunchSubprocesses) {
         return nullptr;
+    }
+
+    if (TabParent* parent = TabParent::GetNextTabParent()) {
+        parent->SetOwnerElement(aFrameElement);
+        return parent;
     }
 
     ProcessPriority initialPriority = GetInitialProcessPriority(aFrameElement);
@@ -1789,6 +1804,11 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     // finish waiting in the xpcom-shutdown/profile-before-change observer.
     mIPCOpen = false;
 
+    if (mHangMonitorActor) {
+        ProcessHangMonitor::RemoveProcess(mHangMonitorActor);
+        mHangMonitorActor = nullptr;
+    }
+
     if (why == NormalShutdown && !mCalledClose) {
         // If we shut down normally but haven't called Close, assume somebody
         // else called Close on us. In that case, we still need to call
@@ -2021,6 +2041,7 @@ ContentParent::InitializeMembers()
     mCreatedPairedMinidumps = false;
     mShutdownPending = false;
     mIPCOpen = true;
+    mHangMonitorActor = nullptr;
 }
 
 ContentParent::ContentParent(mozIApplication* aApp,
@@ -2100,6 +2121,8 @@ ContentParent::ContentParent(mozIApplication* aApp,
 
     ContentProcessManager::GetSingleton()->AddContentProcess(this);
 
+    ProcessHangMonitor::AddProcess(this);
+
     // Set a reply timeout for CPOWs.
     SetReplyTimeoutMs(Preferences::GetInt("dom.ipc.cpow.timeout", 0));
 }
@@ -2125,7 +2148,7 @@ FindFdProtocolFdMapping(const nsTArray<ProtocolFdMapping>& aFds,
 ContentParent::ContentParent(ContentParent* aTemplate,
                              const nsAString& aAppManifestURL,
                              base::ProcessHandle aPid,
-                             const nsTArray<ProtocolFdMapping>& aFds)
+                             InfallibleTArray<ProtocolFdMapping>&& aFds)
     : mAppManifestURL(aAppManifestURL)
     , mIsForBrowser(false)
     , mIsNuwaProcess(false)
@@ -2699,7 +2722,7 @@ ContentParent::RecvNuwaWaitForFreeze()
 
 bool
 ContentParent::RecvAddNewProcess(const uint32_t& aPid,
-                                 const InfallibleTArray<ProtocolFdMapping>& aFds)
+                                 InfallibleTArray<ProtocolFdMapping>&& aFds)
 {
 #ifdef MOZ_NUWA_PROCESS
     if (!IsNuwaProcess()) {
@@ -2715,7 +2738,7 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
     content = new ContentParent(this,
                                 MAGIC_PREALLOCATED_APP_MANIFEST_URL,
                                 aPid,
-                                aFds);
+                                Move(aFds));
     content->Init();
 
     size_t numNuwaPrefUpdates = sNuwaPrefUpdates ?
@@ -3035,6 +3058,14 @@ ContentParent::AllocPBackgroundParent(Transport* aTransport,
                                       ProcessId aOtherProcess)
 {
     return BackgroundParent::Alloc(this, aTransport, aOtherProcess);
+}
+
+PProcessHangMonitorParent*
+ContentParent::AllocPProcessHangMonitorParent(Transport* aTransport,
+                                              ProcessId aOtherProcess)
+{
+    mHangMonitorActor = CreateHangMonitorParent(this, aTransport, aOtherProcess);
+    return mHangMonitorActor;
 }
 
 PSharedBufferManagerParent*
@@ -3879,32 +3910,33 @@ ContentParent::RecvCloseAlert(const nsString& aName,
 bool
 ContentParent::RecvSyncMessage(const nsString& aMsg,
                                const ClonedMessageData& aData,
-                               const InfallibleTArray<CpowEntry>& aCpows,
+                               InfallibleTArray<CpowEntry>&& aCpows,
                                const IPC::Principal& aPrincipal,
                                InfallibleTArray<nsString>* aRetvals)
 {
-    return nsIContentParent::RecvSyncMessage(aMsg, aData, aCpows, aPrincipal,
-                                             aRetvals);
+    return nsIContentParent::RecvSyncMessage(aMsg, aData, Move(aCpows),
+                                             aPrincipal, aRetvals);
 }
 
 bool
 ContentParent::RecvRpcMessage(const nsString& aMsg,
                               const ClonedMessageData& aData,
-                              const InfallibleTArray<CpowEntry>& aCpows,
+                              InfallibleTArray<CpowEntry>&& aCpows,
                               const IPC::Principal& aPrincipal,
                               InfallibleTArray<nsString>* aRetvals)
 {
-    return nsIContentParent::RecvRpcMessage(aMsg, aData, aCpows, aPrincipal,
+    return nsIContentParent::RecvRpcMessage(aMsg, aData, Move(aCpows), aPrincipal,
                                             aRetvals);
 }
 
 bool
 ContentParent::RecvAsyncMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
-                                const InfallibleTArray<CpowEntry>& aCpows,
+                                InfallibleTArray<CpowEntry>&& aCpows,
                                 const IPC::Principal& aPrincipal)
 {
-    return nsIContentParent::RecvAsyncMessage(aMsg, aData, aCpows, aPrincipal);
+    return nsIContentParent::RecvAsyncMessage(aMsg, aData, Move(aCpows),
+                                              aPrincipal);
 }
 
 bool
@@ -4285,7 +4317,8 @@ ContentParent::RecvNotifyKeywordSearchLoading(const nsString &aProvider,
 bool
 ContentParent::ShouldContinueFromReplyTimeout()
 {
-    return false;
+    nsRefPtr<ProcessHangMonitor> monitor = ProcessHangMonitor::Get();
+    return !monitor || !monitor->ShouldTimeOutCPOWs();
 }
 
 bool
