@@ -205,7 +205,7 @@ static const char* GetOmxLibraryName()
     return nullptr;
   }
 
-  // KitKat
+  // Ice Cream Sandwich and Jellybean
   return "libomxplugin.so";
 
 #elif defined(ANDROID) && defined(MOZ_WIDGET_GONK)
