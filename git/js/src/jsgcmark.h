@@ -43,10 +43,9 @@
 #include "jsgc.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
+
 #include "jslock.h"
-
-
-#include "js/TemplateLib.h"
+#include "jstl.h"
 
 namespace js {
 namespace gc {

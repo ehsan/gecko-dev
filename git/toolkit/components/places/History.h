@@ -111,12 +111,6 @@ public:
   bool FetchPageInfo(VisitData& _place);
 
   /**
-   * Get the number of bytes of memory this History object is using (not
-   * counting sizeof(*this)).
-   */
-  PRInt64 SizeOf();
-
-  /**
    * Obtains a pointer to this service.
    */
   static History* GetService();
@@ -189,11 +183,6 @@ private:
     }
     ObserverArray array;
   };
-
-  /**
-   * Helper function for nsTHashtable::EnumerateEntries call in SizeOf().
-   */
-  static PLDHashOperator SizeOfEnumerator(KeyClass* aEntry, void* aArg);
 
   nsTHashtable<KeyClass> mObservers;
 };

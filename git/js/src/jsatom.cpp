@@ -52,6 +52,7 @@
 #include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
+#include "jsbit.h"
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsgcmark.h"

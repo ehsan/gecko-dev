@@ -71,6 +71,7 @@
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
+#include "jsprobes.h"
 #include "jsscopeinlines.h"
 
 inline bool

@@ -1175,6 +1175,9 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                          &triedToWrap);
                 if(!flat && triedToWrap)
                     return JS_FALSE;
+                if (!flat) {
+                    flat = ConstructProxyObject(ccx, aHelper, xpcscope);
+                }
             }
 
             if(flat) {

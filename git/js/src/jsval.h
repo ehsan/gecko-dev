@@ -42,7 +42,7 @@
 /*
  * Implementation details for js::Value in jsapi.h.
  */
-#include "js/Utility.h"
+#include "jsutil.h"
 
 JS_BEGIN_EXTERN_C
 

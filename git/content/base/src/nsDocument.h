@@ -948,12 +948,6 @@ public:
   virtual void UpdateFullScreenStatus(bool aIsFullScreen);
   virtual bool IsFullScreenDoc();
 
-  // This method may fire a DOM event; if it does so it will happen
-  // synchronously.
-  void UpdateVisibilityState();
-  // Posts an event to call UpdateVisibilityState
-  virtual void PostVisibilityUpdateEvent();
-
 protected:
   friend class nsNodeUtils;
 
@@ -1156,14 +1150,6 @@ protected:
   nsRefPtr<nsDOMNavigationTiming> mTiming;
 private:
   friend class nsUnblockOnloadEvent;
-  // This needs to stay in sync with the list in GetMozVisibilityState.
-  enum VisibilityState {
-    eHidden = 0,
-    eVisible,
-    eVisibilityStateCount
-  };
-  // Recomputes the visibility state but doesn't set the new value.
-  VisibilityState GetVisibilityState() const;
 
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
@@ -1243,8 +1229,6 @@ private:
 
   // Tracking for images in the document.
   nsDataHashtable< nsPtrHashKey<imgIRequest>, PRUint32> mImageTracker;
-
-  VisibilityState mVisibilityState;
 
 #ifdef DEBUG
 protected:

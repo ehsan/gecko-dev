@@ -83,6 +83,7 @@
 #include "jstracer.h"
 #include "prmjtime.h"
 #include "jsstaticcheck.h"
+#include "jsvector.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
 #include "jstypedarray.h"
@@ -95,6 +96,7 @@
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
+#include "assembler/wtf/Platform.h"
 
 #include "vm/RegExpObject-inl.h"
 #include "vm/Stack-inl.h"
@@ -662,7 +664,6 @@ JSRuntime::JSRuntime()
     gcMode(JSGC_MODE_GLOBAL),
     gcIsNeeded(0),
     gcWeakMapList(NULL),
-    gcStats(thisFromCtor()),
     gcTriggerCompartment(NULL),
     gcCurrentCompartment(NULL),
     gcCheckCompartment(NULL),
@@ -695,7 +696,7 @@ JSRuntime::JSRuntime()
     requestDone(NULL),
     requestCount(0),
     gcThread(NULL),
-    gcHelperThread(thisFromCtor()),
+    gcHelperThread(this),
     rtLock(NULL),
 # ifdef DEBUG
     rtLockOwner(0),
@@ -705,7 +706,6 @@ JSRuntime::JSRuntime()
     debuggerMutations(0),
     securityCallbacks(NULL),
     structuredCloneCallbacks(NULL),
-    telemetryCallback(NULL),
     propertyRemovals(0),
     scriptFilenameTable(NULL),
 #ifdef JS_THREADSAFE
@@ -2706,12 +2706,14 @@ JS_CompartmentGC(JSContext *cx, JSCompartment *comp)
 
     LeaveTrace(cx);
 
-    js_GC(cx, comp, GC_NORMAL, gcstats::PUBLIC_API);
+    GCREASON(PUBLIC_API);
+    js_GC(cx, comp, GC_NORMAL);
 }
 
 JS_PUBLIC_API(void)
 JS_GC(JSContext *cx)
 {
+    GCREASON(PUBLIC_API);
     JS_CompartmentGC(cx, NULL);
 }
 
@@ -5944,7 +5946,7 @@ JS_SetRegExpInput(JSContext *cx, JSObject *obj, JSString *input, JSBool multilin
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, input);
 
-    obj->asGlobal()->getRegExpStatics()->reset(cx, input, !!multiline);
+    obj->asGlobal()->getRegExpStatics()->reset(input, !!multiline);
 }
 
 JS_PUBLIC_API(void)

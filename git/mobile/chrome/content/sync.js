@@ -53,7 +53,7 @@ let WeaveGlue = {
     this.setupData = { account: "", password: "" , synckey: "", serverURL: "" };
 
     // Generating keypairs is expensive on mobile, so disable it
-    if (Services.prefs.prefHasUserValue("services.sync.username")) {
+    if (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED) {
       // Put the settings UI into a state of "connecting..." if we are going to auto-connect
       this._elements.connect.firstChild.disabled = true;
       this._elements.connect.setAttribute("title", this._bundle.GetStringFromName("connecting.label"));
@@ -259,8 +259,14 @@ let WeaveGlue = {
 
   tryConnect: function login() {
     // If Sync is not configured, simply show the setup dialog
-    if (!Services.prefs.prefHasUserValue("services.sync.username")) {
+    if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
       this.open();
+      return;
+    }
+
+    // If user is already logged-in, try to connect straight away
+    if (Weave.Service.isLoggedIn) {
+      this.connect();
       return;
     }
 
@@ -397,12 +403,12 @@ let WeaveGlue = {
     let disconnect = this._elements.disconnect;
     let sync = this._elements.sync;
 
-    let isConfigured = Services.prefs.prefHasUserValue("services.sync.username");
+    let loggedIn = Weave.Service.isLoggedIn;
 
-    connect.collapsed = isConfigured;
-    connected.collapsed = !isConfigured;
+    connect.collapsed = loggedIn;
+    connected.collapsed = !loggedIn;
 
-    if (!isConfigured) {
+    if (!loggedIn) {
       connect.setAttribute("title", this._bundle.GetStringFromName("notconnected.label"));
       connect.firstChild.disabled = false;
       details.checked = false;
@@ -443,7 +449,7 @@ let WeaveGlue = {
 
     // Show what went wrong with login if necessary
     if (aTopic == "weave:service:login:error") {
-      if (Weave.Status.login == Weave.MASTER_PASSWORD_LOCKED)
+      if (Weave.Status.login == "service.master_password_locked")
         Weave.Service.logout();
       else
         connect.setAttribute("desc", Weave.Utils.getErrorString(Weave.Status.login));

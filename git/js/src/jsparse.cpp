@@ -80,6 +80,7 @@
 #include "jsstr.h"
 #include "jsstaticcheck.h"
 #include "jslibmath.h"
+#include "jsvector.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"

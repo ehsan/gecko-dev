@@ -2486,35 +2486,33 @@ nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetTextOverflow()
 {
   const nsStyleTextReset *style = GetStyleTextReset();
-  nsROCSSPrimitiveValue *first = GetROCSSPrimitiveValue();
-  const nsStyleTextOverflowSide *side = style->mTextOverflow.GetFirstValue();
-  if (side->mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
+  nsROCSSPrimitiveValue *left = GetROCSSPrimitiveValue();
+  if (style->mTextOverflow.mLeft.mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
     nsString str;
-    nsStyleUtil::AppendEscapedCSSString(side->mString, str);
-    first->SetString(str);
+    nsStyleUtil::AppendEscapedCSSString(style->mTextOverflow.mLeft.mString, str);
+    left->SetString(str);
   } else {
-    first->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(side->mType,
+    left->SetIdent(
+      nsCSSProps::ValueToKeywordEnum(style->mTextOverflow.mLeft.mType,
                                      nsCSSProps::kTextOverflowKTable));
   }
-  side = style->mTextOverflow.GetSecondValue();
-  if (!side) {
-    return first;
+  if (style->mTextOverflow.mLeft == style->mTextOverflow.mRight) {
+    return left;
   }
-  nsROCSSPrimitiveValue *second = GetROCSSPrimitiveValue();
-  if (side->mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
+  nsROCSSPrimitiveValue *right = GetROCSSPrimitiveValue();
+  if (style->mTextOverflow.mRight.mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
     nsString str;
-    nsStyleUtil::AppendEscapedCSSString(side->mString, str);
-    second->SetString(str);
+    nsStyleUtil::AppendEscapedCSSString(style->mTextOverflow.mRight.mString, str);
+    right->SetString(str);
   } else {
-    second->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(side->mType,
+    right->SetIdent(
+      nsCSSProps::ValueToKeywordEnum(style->mTextOverflow.mRight.mType,
                                      nsCSSProps::kTextOverflowKTable));
   }
 
   nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-  valueList->AppendCSSValue(first);
-  valueList->AppendCSSValue(second);
+  valueList->AppendCSSValue(left);
+  valueList->AppendCSSValue(right);
   return valueList;
 }
 

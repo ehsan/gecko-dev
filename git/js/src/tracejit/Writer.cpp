@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsprf.h"
+#include "jstl.h"
 
 #include "jscompartment.h"
 #include "jsiter.h"

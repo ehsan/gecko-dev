@@ -43,8 +43,7 @@
 
 #include <stddef.h>
 #include "jsobj.h"
-
-#include "js/TemplateLib.h"
+#include "jstl.h"
 
 #include "yarr/Yarr.h"
 #if ENABLE_YARR_JIT
@@ -283,9 +282,6 @@ class RegExpPrivate
 
     void incref(JSContext *cx);
     void decref(JSContext *cx);
-
-    /* For JIT access. */
-    size_t *addressOfRefCount() { return &refCount; }
 
     /* Accessors */
 

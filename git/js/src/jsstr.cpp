@@ -71,6 +71,8 @@
 #include "jsscope.h"
 #include "jsstaticcheck.h"
 #include "jsstr.h"
+#include "jsbit.h"
+#include "jsvector.h"
 #include "jsversion.h"
 
 #include "vm/GlobalObject.h"
@@ -1539,8 +1541,8 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     return res->createLastMatch(cx, &v) && arrayobj->defineElement(cx, count, v);
 }
 
-JSBool
-js::str_match(JSContext *cx, uintN argc, Value *vp)
+static JSBool
+str_match(JSContext *cx, uintN argc, Value *vp)
 {
     JSString *str = ThisToStringForStringProto(cx, vp);
     if (!str)
@@ -1572,8 +1574,8 @@ js::str_match(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
-JSBool
-js::str_search(JSContext *cx, uintN argc, Value *vp)
+static JSBool
+str_search(JSContext *cx, uintN argc, Value *vp)
 {
     JSString *str = ThisToStringForStringProto(cx, vp);
     if (!str)
@@ -2436,8 +2438,8 @@ class SplitStringMatcher {
 };
 
 /* ES5 15.5.4.14 */
-JSBool
-js::str_split(JSContext *cx, uintN argc, Value *vp)
+static JSBool
+str_split(JSContext *cx, uintN argc, Value *vp)
 {
     /* Steps 1-2. */
     JSString *str = ThisToStringForStringProto(cx, vp);

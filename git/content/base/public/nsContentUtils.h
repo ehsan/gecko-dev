@@ -1099,7 +1099,6 @@ public:
    * @param aPrincipal Prinicpal of the document. Must not be null.
    * @param aScriptObject The object from which the context for event handling
    *                      can be got.
-   * @param aSVGDocument Force SVG Document creation.
    * @param aResult [out] The document that was created.
    */
   static nsresult CreateDocument(const nsAString& aNamespaceURI, 
@@ -1109,7 +1108,6 @@ public:
                                  nsIURI* aBaseURI,
                                  nsIPrincipal* aPrincipal,
                                  nsIScriptGlobalObject* aScriptObject,
-                                 bool aSVGDocument,
                                  nsIDOMDocument** aResult);
 
   /**

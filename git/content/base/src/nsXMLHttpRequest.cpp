@@ -1880,7 +1880,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     const nsAString& emptyStr = EmptyString();
     nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(mOwner);
     rv = nsContentUtils::CreateDocument(emptyStr, emptyStr, nsnull, docURI,
-                                        baseURI, mPrincipal, global, false,
+                                        baseURI, mPrincipal, global,
                                         getter_AddRefs(mResponseXML));
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> responseDoc = do_QueryInterface(mResponseXML);

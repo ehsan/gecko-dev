@@ -46,9 +46,11 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsfun.h"
+#include "jshashtable.h"
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jsutil.h"
+#include "jsvector.h"
 
 using namespace js;
 

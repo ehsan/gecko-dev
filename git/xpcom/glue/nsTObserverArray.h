@@ -243,12 +243,6 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
       ClearIterators();
     }
 
-    // Returns the number of bytes on the heap taken up by this object, not
-    // including sizeof(*this).
-    PRUint64 SizeOf() {
-      return mArray.SizeOf();
-    }
-
     //
     // Iterators
     //

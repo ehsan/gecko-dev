@@ -43,8 +43,9 @@
 #ifndef jshashtable_h_
 #define jshashtable_h_
 
-#include "TemplateLib.h"
-#include "Utility.h"
+#include "jsalloc.h"
+#include "jstl.h"
+#include "jsutil.h"
 
 namespace js {
 

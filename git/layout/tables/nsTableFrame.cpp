@@ -1074,7 +1074,7 @@ nsTableFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 
 nsRect
 nsDisplayTableItem::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
+  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
 }
 
 bool

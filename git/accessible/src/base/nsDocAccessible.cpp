@@ -1730,26 +1730,33 @@ nsDocAccessible::FireDelayedAccessibleEvent(AccEvent* aEvent)
 void
 nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
 {
+  nsAccessible* accessible = aEvent->GetAccessible();
+  if (!accessible)
+    return;
+
   PRUint32 eventType = aEvent->GetEventType();
   if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED) {
-    nsHyperTextAccessible* hyperText = aEvent->GetAccessible()->AsHyperText();
+    nsCOMPtr<nsIAccessibleText> accessibleText = do_QueryObject(accessible);
     PRInt32 caretOffset;
-    if (hyperText &&
-        NS_SUCCEEDED(hyperText->GetCaretOffset(&caretOffset))) {
+    if (accessibleText &&
+        NS_SUCCEEDED(accessibleText->GetCaretOffset(&caretOffset))) {
 #ifdef DEBUG_A11Y
       PRUnichar chAtOffset;
-      hyperText->GetCharacterAtOffset(caretOffset, &chAtOffset);
+      accessibleText->GetCharacterAtOffset(caretOffset, &chAtOffset);
       printf("\nCaret moved to %d with char %c", caretOffset, chAtOffset);
 #endif
       nsRefPtr<AccEvent> caretMoveEvent =
-        new AccCaretMoveEvent(hyperText, caretOffset);
+          new AccCaretMoveEvent(accessible, caretOffset);
+      if (!caretMoveEvent)
+        return;
+
       nsEventShell::FireEvent(caretMoveEvent);
 
       PRInt32 selectionCount;
-      hyperText->GetSelectionCount(&selectionCount);
+      accessibleText->GetSelectionCount(&selectionCount);
       if (selectionCount) {  // There's a selection so fire selection change as well
         nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED,
-                                hyperText);
+                                accessible);
       }
     }
   }
@@ -1758,7 +1765,7 @@ nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
 
     // Post event processing
     if (eventType == nsIAccessibleEvent::EVENT_HIDE)
-      ShutdownChildrenInSubtree(aEvent->GetAccessible());
+      ShutdownChildrenInSubtree(accessible);
   }
 }
 

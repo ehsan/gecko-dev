@@ -41,6 +41,7 @@
 /* Private maps (hashtables). */
 
 #include "xpcprivate.h"
+#include "jsbit.h"
 
 /***************************************************************************/
 // static shared...

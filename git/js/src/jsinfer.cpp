@@ -39,6 +39,7 @@
 
 #include "jsapi.h"
 #include "jsautooplen.h"
+#include "jsbit.h"
 #include "jsbool.h"
 #include "jsdate.h"
 #include "jsexn.h"
@@ -54,6 +55,7 @@
 #include "jsscan.h"
 #include "jsscope.h"
 #include "jsstr.h"
+#include "jstl.h"
 #include "jsiter.h"
 
 #include "methodjit/MethodJIT.h"

@@ -1305,19 +1305,13 @@ XrayProxy
 XrayProxy::singleton(0);
 
 
-#define XRAY XrayWrapper<CrossCompartmentSecurityWrapper>
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
+#define XPCNW XrayWrapper<CrossCompartmentWrapper>
+#define SCNW XrayWrapper<Wrapper>
 
-#define XRAY XrayWrapper<SameCompartmentSecurityWrapper>
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
+template <> XPCNW XPCNW::singleton(0);
+template <> SCNW SCNW::singleton(0);
 
-#define XRAY XrayWrapper<CrossCompartmentWrapper>
-template <> XRAY XRAY::singleton(0);
-template class XRAY;
-#undef XRAY
+template class XPCNW;
+template class SCNW;
 
 }

@@ -1430,7 +1430,7 @@ stubs::DefLocalFun_FC(VMFrame &f, JSFunction *fun)
     return obj;
 }
 
-void JS_FASTCALL
+JSObject * JS_FASTCALL
 stubs::RegExp(VMFrame &f, JSObject *regex)
 {
     /*
@@ -1443,12 +1443,12 @@ stubs::RegExp(VMFrame &f, JSObject *regex)
      */
     JSObject *proto;
     if (!js_GetClassPrototype(f.cx, &f.fp()->scopeChain(), JSProto_RegExp, &proto))
-        THROW();
+        THROWV(NULL);
     JS_ASSERT(proto);
     JSObject *obj = js_CloneRegExpObject(f.cx, regex, proto);
     if (!obj)
-        THROW();
-    f.regs.sp[0].setObject(*obj);
+        THROWV(NULL);
+    return obj;
 }
 
 JSObject * JS_FASTCALL
