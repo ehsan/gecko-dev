@@ -172,8 +172,6 @@ public:
 
     void SetFullScreen(PRBool aFullScreen);
 
-    void ShowInputMethodPicker();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -240,7 +238,6 @@ protected:
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
     jmethodID jSetFullScreen;
-    jmethodID jShowInputMethodPicker;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
