@@ -187,8 +187,7 @@ class nsDocShell : public nsDocLoader,
                    public nsIWebPageDescriptor,
                    public nsIAuthPromptProvider,
                    public nsIObserver,
-                   public nsILoadContext,
-                   public nsIDocShell_MOZILLA_1_9_1
+                   public nsILoadContext
 {
 friend class nsDSURIContentListener;
 
@@ -218,7 +217,6 @@ public:
     NS_DECL_NSIAUTHPROMPTPROVIDER
     NS_DECL_NSIOBSERVER
     NS_DECL_NSILOADCONTEXT
-    NS_DECL_NSIDOCSHELL_MOZILLA_1_9_1
 
     NS_IMETHOD Stop() {
         // Need this here because otherwise nsIWebNavigation::Stop
@@ -551,9 +549,6 @@ protected:
     void ReattachEditorToWindow(nsISHEntry *aSHEntry);
     void DetachEditorFromWindow(nsISHEntry *aSHEntry);
 
-    nsresult GetSessionStorageForURI(nsIURI* aURI,
-                                     PRBool create,
-                                     nsIDOMStorage** aStorage);
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);

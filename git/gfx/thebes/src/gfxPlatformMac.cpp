@@ -140,23 +140,14 @@ gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 PRBool
 gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
-    // check for strange format flags
-    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-                 "strange font format hint set");
-
-    // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
-        return PR_TRUE;
-    }
-
-    // reject all other formats, known and unknown
-    if (aFormatFlags != 0) {
+    // reject based on format flags
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_EOT | gfxUserFontSet::FLAG_FORMAT_SVG)) {
         return PR_FALSE;
     }
 
-    // no format hint set, need to look at data
+    // reject based on filetype in URI
+
+    // otherwise, return true
     return PR_TRUE;
 }
 

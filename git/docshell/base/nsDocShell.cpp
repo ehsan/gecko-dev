@@ -437,7 +437,6 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIAuthPromptProvider)
     NS_INTERFACE_MAP_ENTRY(nsIObserver)
     NS_INTERFACE_MAP_ENTRY(nsILoadContext)
-    NS_INTERFACE_MAP_ENTRY(nsIDocShell_MOZILLA_1_9_1)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 ///*****************************************************************************
@@ -1686,66 +1685,12 @@ nsDocShell::HistoryPurged(PRInt32 aNumEntries)
 }
 
 NS_IMETHODIMP
-nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
-                                          PRBool aCreate,
-                                          nsIDOMStorage** aStorage)
-{
-    NS_ENSURE_ARG_POINTER(aStorage);
-    *aStorage = nsnull;
-
-    if (!aPrincipal)
-        return NS_OK;
-
-    nsCOMPtr<nsIURI> codebaseURI;
-    nsresult rv = aPrincipal->GetDomain(getter_AddRefs(codebaseURI));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!codebaseURI) {
-        rv = aPrincipal->GetURI(getter_AddRefs(codebaseURI));
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    if (!codebaseURI)
-        return NS_OK;
-
-    rv = GetSessionStorageForURI(codebaseURI, aCreate, aStorage);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
-    if (piStorage) {
-        PRBool canAccess = piStorage->CanAccess(aPrincipal);
-        NS_ASSERTION(canAccess,
-                     "GetSessionStorageForPrincipal got a storage "
-                     "that could not be accessed!");
-        if (!canAccess) {
-            NS_RELEASE(*aStorage);
-            return NS_ERROR_DOM_SECURITY_ERR;
-        }
-    }
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
                                     nsIDOMStorage** aStorage)
 {
-    return GetSessionStorageForURI(aURI, PR_TRUE, aStorage);
-}
-
-nsresult
-nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
-                                    PRBool aCreate,
-                                    nsIDOMStorage** aStorage)
-{
-    NS_ENSURE_ARG(aURI);
     NS_ENSURE_ARG_POINTER(aStorage);
 
     *aStorage = nsnull;
-
-    nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
-    NS_ASSERTION(innerURI, "Failed to get innermost URI");
-    if (!innerURI)
-        return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIDocShellTreeItem> topItem;
     nsresult rv = GetSameTypeRootTreeItem(getter_AddRefs(topItem));
@@ -1755,18 +1700,18 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
     if (!topItem)
         return NS_ERROR_FAILURE;
 
-    nsDocShell* topDocShell = static_cast<nsDocShell*>(topItem.get());
+    nsCOMPtr<nsIDocShell> topDocShell = do_QueryInterface(topItem);
     if (topDocShell != this)
-        return topDocShell->GetSessionStorageForURI(aURI, aCreate, aStorage);
+        return topDocShell->GetSessionStorageForURI(aURI, aStorage);
 
     nsCAutoString currentDomain;
-    rv = innerURI->GetAsciiHost(currentDomain);
+    rv = aURI->GetAsciiHost(currentDomain);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (currentDomain.IsEmpty())
         return NS_OK;
 
-    if (!mStorages.Get(currentDomain, aStorage) && aCreate) {
+    if (!mStorages.Get(currentDomain, aStorage)) {
         nsCOMPtr<nsIDOMStorage> newstorage =
             do_CreateInstance("@mozilla.org/dom/storage;1");
         if (!newstorage)
@@ -1775,12 +1720,13 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
         nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(newstorage);
         if (!pistorage)
             return NS_ERROR_FAILURE;
-        pistorage->Init(NS_ConvertUTF8toUTF16(currentDomain), PR_FALSE);
+        pistorage->Init(aURI, NS_ConvertUTF8toUTF16(currentDomain), PR_FALSE);
 
         if (!mStorages.Put(currentDomain, newstorage))
             return NS_ERROR_OUT_OF_MEMORY;
-
-        newstorage.swap(*aStorage);
+		
+        *aStorage = newstorage;
+        NS_ADDREF(*aStorage);
     }
 
     return NS_OK;
@@ -1803,10 +1749,6 @@ nsDocShell::AddSessionStorage(const nsACString& aDomain,
     if (topItem) {
         nsCOMPtr<nsIDocShell> topDocShell = do_QueryInterface(topItem);
         if (topDocShell == this) {
-            // Do not replace an existing session storage.
-            if (mStorages.GetWeak(aDomain))
-                return NS_ERROR_NOT_AVAILABLE;
-
             if (!mStorages.Put(aDomain, aStorage))
                 return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -6937,8 +6879,42 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(newWin);
             targetDocShell = do_QueryInterface(webNav);
-        }
 
+            nsCOMPtr<nsIScriptObjectPrincipal> sop =
+                do_QueryInterface(mScriptGlobal);
+            nsCOMPtr<nsIURI> currentCodebase;
+
+            if (sop) {
+                nsIPrincipal *principal = sop->GetPrincipal();
+
+                if (principal) {
+                    principal->GetURI(getter_AddRefs(currentCodebase));
+                }
+            }
+
+            // We opened a new window for the target, clone the
+            // session storage if the current URI's domain matches
+            // that of the loading URI.
+            if (targetDocShell && currentCodebase && aURI) {
+                nsCAutoString thisDomain, newDomain;
+                nsresult gethostrv = currentCodebase->GetAsciiHost(thisDomain);
+                gethostrv |= aURI->GetAsciiHost(newDomain);
+                if (NS_SUCCEEDED(gethostrv) && thisDomain.Equals(newDomain)) {
+                    nsCOMPtr<nsIDOMStorage> storage;
+                    GetSessionStorageForURI(currentCodebase,
+                                            getter_AddRefs(storage));
+                    nsCOMPtr<nsPIDOMStorage> piStorage =
+                        do_QueryInterface(storage);
+                    if (piStorage) {
+                        nsCOMPtr<nsIDOMStorage> newstorage =
+                            piStorage->Clone(currentCodebase);
+                        targetDocShell->AddSessionStorage(thisDomain,
+                                                          newstorage);
+                    }
+                }
+            }
+        }
+        
         //
         // Transfer the load to the target DocShell...  Pass nsnull as the
         // window target name from to prevent recursive retargeting!
