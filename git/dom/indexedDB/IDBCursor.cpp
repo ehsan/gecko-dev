@@ -546,18 +546,18 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(IDBCursor)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(IDBCursor)
 
 JSObject*
-IDBCursor::WrapObject(JSContext* aCx)
+IDBCursor::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   switch (mType) {
     case OBJECTSTORE:
     case INDEXOBJECT:
-      return IDBCursorWithValueBinding::Wrap(aCx, this);
+      return IDBCursorWithValueBinding::Wrap(aCx, aScope, this);
 
     case OBJECTSTOREKEY:
     case INDEXKEY:
-      return IDBCursorBinding::Wrap(aCx, this);
+      return IDBCursorBinding::Wrap(aCx, aScope, this);
 
     default:
       MOZ_ASSUME_UNREACHABLE("Bad type!");

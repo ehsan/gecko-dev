@@ -40,9 +40,9 @@ DOMQuad::~DOMQuad()
 }
 
 JSObject*
-DOMQuad::WrapObject(JSContext* aCx)
+DOMQuad::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return DOMQuadBinding::Wrap(aCx, this);
+  return DOMQuadBinding::Wrap(aCx, aScope, this);
 }
 
 already_AddRefed<DOMQuad>

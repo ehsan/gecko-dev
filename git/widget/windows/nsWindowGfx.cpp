@@ -266,7 +266,9 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
 #endif // WIDGET_DEBUG_OUTPUT
 
   HDC hDC = aDC ? aDC : (::BeginPaint(mWnd, &ps));
-  mPaintDC = hDC;
+  if (!IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
+    mPaintDC = hDC;
+  }
 
 #ifdef MOZ_XUL
   bool forceRepaint = aDC || (eTransparencyTransparent == mTransparencyMode);
@@ -382,10 +384,21 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
             thebesContext = new gfxContext(targetSurface);
           }
 
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
+            const nsIntRect* r;
+            for (nsIntRegionRectIterator iter(region);
+                 (r = iter.Next()) != nullptr;) {
+              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), true);
+            }
+            thebesContext->Clip();
+            thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+            thebesContext->Paint();
+            thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
+          }
+
           // don't need to double buffer with anything but GDI
           BufferMode doubleBuffering = mozilla::layers::BufferMode::BUFFER_NONE;
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-              IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
 #ifdef MOZ_XUL
             switch (mTransparencyMode) {
               case eTransparencyGlass:

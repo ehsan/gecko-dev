@@ -29,9 +29,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLScriptElement::WrapNode(JSContext *aCx)
+HTMLScriptElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return HTMLScriptElementBinding::Wrap(aCx, this);
+  return HTMLScriptElementBinding::Wrap(aCx, aScope, this);
 }
 
 HTMLScriptElement::HTMLScriptElement(already_AddRefed<nsINodeInfo>& aNodeInfo,

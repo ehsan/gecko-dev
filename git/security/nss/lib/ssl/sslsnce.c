@@ -522,6 +522,7 @@ ConvertFromSID(sidCacheEntry *to, sslSessionID *from)
 /*
 ** Convert shared memory cache-entry to local memory based one
 ** This is only called from ServerSessionIDLookup().
+** Caller must hold cache lock when calling this.
 */
 static sslSessionID *
 ConvertToSID(sidCacheEntry *    from,

@@ -1942,11 +1942,11 @@ nsGlobalWindow::TraceGlobalJSObject(JSTracer* aTrc)
 
 /* static */
 JSObject*
-nsGlobalWindow::OuterObject(JSContext* aCx, JS::Handle<JSObject*> aObj)
+nsGlobalWindow::OuterObject(JSContext* aCx, JS::HandleObject aObj)
 {
-  nsGlobalWindow* origWin;
+  nsGlobalWindow *origWin;
   UNWRAP_OBJECT(Window, aObj, origWin);
-  nsGlobalWindow* win = origWin->GetOuterWindowInternal();
+  nsGlobalWindow *win = origWin->GetOuterWindowInternal();
 
   if (!win) {
     // If we no longer have an outer window. No code should ever be
@@ -2476,6 +2476,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       NS_ENSURE_TRUE(outer, NS_ERROR_FAILURE);
 
       js::SetProxyExtra(outer, 0, js::PrivateValue(ToSupports(this)));
+      js::SetProxyExtra(outer, 1, JS::ObjectValue(*newInnerGlobal));
 
       // Inform the nsJSContext, which is the canonical holder of the outer.
       mContext->SetWindowProxy(outer);
@@ -7741,10 +7742,13 @@ PostMessageReadTransferStructuredClone(JSContext* aCx,
     port->BindToOwner(scInfo->window);
     scInfo->ports.Put(port, nullptr);
 
-    JS::Rooted<JSObject*> obj(aCx, port->WrapObject(aCx));
-    if (JS_WrapObject(aCx, &obj)) {
-      MOZ_ASSERT(port->GetOwner() == scInfo->window);
-      returnObject.set(obj);
+    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+    if (global) {
+      JS::Rooted<JSObject*> obj(aCx, port->WrapObject(aCx, global));
+      if (JS_WrapObject(aCx, &obj)) {
+        MOZ_ASSERT(port->GetOwner() == scInfo->window);
+        returnObject.set(obj);
+      }
     }
 
     return true;
@@ -13553,7 +13557,13 @@ nsGlobalWindow::GetConsole(JSContext* aCx,
     return rv.ErrorCode();
   }
 
-  if (!WrapNewBindingObject(aCx, console, aConsole)) {
+  JS::Rooted<JSObject*> thisObj(aCx, GetWrapper());
+  if (!thisObj) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  if (!JS_WrapObject(aCx, &thisObj) ||
+      !WrapNewBindingObject(aCx, thisObj, console, aConsole)) {
     return NS_ERROR_FAILURE;
   }
 

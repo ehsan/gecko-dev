@@ -533,7 +533,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       JS::Rooted<JSObject*> wrapper(cx);
       if ((wrapper = aNode->GetWrapper())) {
         if (IsDOMObject(wrapper)) {
-          JSAutoCompartment ac(cx, wrapper);
           rv = ReparentWrapper(cx, wrapper);
         } else {
           nsIXPConnect *xpc = nsContentUtils::XPConnect();

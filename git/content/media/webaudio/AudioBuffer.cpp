@@ -82,9 +82,9 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
 }
 
 JSObject*
-AudioBuffer::WrapObject(JSContext* aCx)
+AudioBuffer::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return AudioBufferBinding::Wrap(aCx, this);
+  return AudioBufferBinding::Wrap(aCx, aScope, this);
 }
 
 bool

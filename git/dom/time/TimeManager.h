@@ -43,7 +43,7 @@ public:
   {
     return mWindow;
   }
-  JSObject* WrapObject(JSContext* aCx);
+  JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope);
 
   void Set(Date& aDate);
   void Set(double aTime);

@@ -72,9 +72,9 @@ nsDOMStringMap::~nsDOMStringMap()
 
 /* virtual */
 JSObject*
-nsDOMStringMap::WrapObject(JSContext *cx)
+nsDOMStringMap::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
-  return DOMStringMapBinding::Wrap(cx, this);
+  return DOMStringMapBinding::Wrap(cx, scope, this);
 }
 
 void

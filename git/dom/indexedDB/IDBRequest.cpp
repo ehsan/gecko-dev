@@ -321,9 +321,9 @@ IDBRequest::ReadyState() const
 }
 
 JSObject*
-IDBRequest::WrapObject(JSContext* aCx)
+IDBRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return IDBRequestBinding::Wrap(aCx, this);
+  return IDBRequestBinding::Wrap(aCx, aScope, this);
 }
 
 JS::Value
@@ -463,7 +463,7 @@ IDBOpenDBRequest::PostHandleEvent(EventChainPostVisitor& aVisitor)
 }
 
 JSObject*
-IDBOpenDBRequest::WrapObject(JSContext* aCx)
+IDBOpenDBRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return IDBOpenDBRequestBinding::Wrap(aCx, this);
+  return IDBOpenDBRequestBinding::Wrap(aCx, aScope, this);
 }

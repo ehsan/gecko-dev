@@ -588,9 +588,9 @@ URL::~URL()
 }
 
 JSObject*
-URL::WrapObject(JSContext* aCx)
+URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return URLBinding_workers::Wrap(aCx, this);
+  return URLBinding_workers::Wrap(aCx, aScope, this);
 }
 
 void

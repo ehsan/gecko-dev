@@ -2157,7 +2157,7 @@ nss_ckcapi_CreatePrivateKey
     return (ckcapiInternalObject *)NULL;
   }
   containerName = ckcapi_getContainer(pError, &keyID);
-  if ((char *)NULL == containerName) {
+  if ((char *)NULL == providerName ) {
     goto loser;
   }
   rc = CryptAcquireContext(&hProv, containerName, providerName, 

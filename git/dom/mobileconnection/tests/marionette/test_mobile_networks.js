@@ -3,16 +3,26 @@
 
 // getNetworks() can take some time..
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = "head.js";
+ 
+SpecialPowers.addPermission("mobileconnection", true, document);
 
-function isHomeNetwork(network) {
+let connection = navigator.mozMobileConnections[0];
+ok(connection instanceof MozMobileConnection,
+   "connection is instanceof " + connection.constructor);
+
+is(connection.networkSelectionMode, "automatic");
+
+let androidNetwork = null;
+let telkilaNetwork = null;
+
+function isAndroidNetwork(network) {
   is(network.longName, "Android");
   is(network.shortName, "Android");
   is(network.mcc, "310");
   is(network.mnc, "260");
 }
 
-function isRoamingNetwork(network) {
+function isTelkilaNetwork(network) {
   is(network.longName, "TelKila");
   is(network.shortName, "TelKila");
   is(network.mcc, "310");
@@ -20,74 +30,100 @@ function isRoamingNetwork(network) {
 }
 
 function testConnectionInfo() {
-  log("Validate initial states");
-  let voice = mobileConnection.voice;
+  let voice = connection.voice;
   is(voice.connected, true);
   is(voice.state, "registered");
   is(voice.emergencyCallsOnly, false);
   is(voice.roaming, false);
-  isHomeNetwork(voice.network);
+  isAndroidNetwork(voice.network);
 
-  let data = mobileConnection.data;
+  let data = connection.data;
   // data.connected = true means there's an active data call which we
   // can't predict here.
   is(data.state, "registered");
   is(data.emergencyCallsOnly, false);
   is(data.roaming, false);
-  isHomeNetwork(data.network);
+  isAndroidNetwork(data.network);
+
+  testGetNetworks();
 }
 
 function testGetNetworks() {
-  log("Enumerating available networks");
-  return getNetworks()
-    .then(function resolve(aNetworks) {
-      // The emulator RIL server should always return 2 networks:
-      // {"longName":"Android","shortName":"Android","mcc":310,"mnc":260,"state":"available"}
-      // {"longName":"TelKila","shortName":"TelKila","mcc":310,"mnc":295,"state":"available"}
-      is(aNetworks.length, 2);
+  let request = connection.getNetworks();
+  ok(request instanceof DOMRequest,
+     "request is instanceof " + request.constructor);
 
-      let network1 = aNetworks[0];
-      isHomeNetwork(network1);
-      is(network1.state, "available");
+  request.onerror = function() {
+    ok(false, request.error);
+    setTimeout(testSelectNetwork, 0);
+  };
 
-      let network2 = aNetworks[1];
-      isRoamingNetwork(network2);
-      is(network2.state, "available");
+  request.onsuccess = function() {
+    ok('result' in request, "Request did not contain a result");
+    let networks = request.result;
 
-      return aNetworks;
-    });
+    // The emulator RIL server should always return 2 networks:
+    // {"longName":"Android","shortName":"Android","mcc":310,"mnc":260,"state":"available"}
+    // {"longName":"TelKila","shortName":"TelKila","mcc":310,"mnc":295,"state":"available"}
+    is(networks.length, 2);
+
+    let network1 = androidNetwork = networks[0];
+    isAndroidNetwork(network1);
+    is(network1.state, "available");
+
+    let network2 = telkilaNetwork = networks[1];
+    isTelkilaNetwork(network2);
+    is(network2.state, "available");
+
+    setTimeout(testSelectNetwork, 0);
+  };
 }
 
-function testSelectNetwork(aNetwork, aValidator) {
-  log("Selecting network '" + aNetwork.longName + "' manually");
-  isnot(aNetwork.longName, mobileConnection.voice.network.longName,
-        "aNetwork.longName");
+function testSelectNetwork() {
+  let request = connection.selectNetwork(telkilaNetwork);
+  ok(request instanceof DOMRequest,
+     "request instanceof " + request.constructor);
 
-  return selectNetworkAndWait(aNetwork)
-    .then(function() {
-      is(mobileConnection.networkSelectionMode, "manual",
-         "mobileConnection.networkSelectionMode");
-      is(mobileConnection.voice.network.longName, aNetwork.longName,
-         "mobileConnection.voice.network.longName");
+  connection.addEventListener("voicechange", function voiceChange() {
+    connection.removeEventListener("voicechange", voiceChange);
 
-      aValidator(mobileConnection.voice.network);
-    });
+    isTelkilaNetwork(connection.voice.network);
+    setTimeout(testSelectNetworkAutomatically, 0);
+  });
+
+  request.onsuccess = function() {
+    is(connection.networkSelectionMode, "manual",
+       "selectNetwork sets mode to: " + connection.networkSelectionMode);
+  };
+
+  request.onerror = function() {
+    ok(false, request.error);
+    setTimeout(testSelectNetworkAutomatically, 0);
+  };
 }
 
-function testSelectNetworkAutomatically(aHomeNetwork, aValidator) {
-  log("Selecting network '" + aHomeNetwork.longName + "' automatically");
-  isnot(aHomeNetwork.longName, mobileConnection.voice.network.longName,
-        "aHomeNetwork.longName");
+function testSelectNetworkAutomatically() {
+  let request = connection.selectNetworkAutomatically();
+  ok(request instanceof DOMRequest,
+     "request instanceof " + request.constructor);
 
-  return selectNetworkAutomaticallyAndWait()
-    .then(function() {
-      is(mobileConnection.networkSelectionMode, "automatic",
-         "mobileConnection.networkSelectionMode");
-      is(mobileConnection.voice.network.longName, aHomeNetwork.longName,
-         "mobileConnection.voice.network.longName");
+  connection.addEventListener("voicechange", function voiceChange() {
+    connection.removeEventListener("voicechange", voiceChange);
 
-      aValidator(mobileConnection.voice.network);
-    });
+    isAndroidNetwork(connection.voice.network);
+    setTimeout(testSelectNetworkErrors, 0);
+  });
+
+  request.onsuccess = function() {
+    is(connection.networkSelectionMode, "automatic",
+       "selectNetworkAutomatically sets mode to: " +
+       connection.networkSelectionMode);
+  };
+
+  request.onerror = function() {
+    ok(false, request.error);
+    setTimeout(testSelectNetworkErrors, 0);
+  };
 }
 
 function throwsException(fn) {
@@ -99,116 +135,104 @@ function throwsException(fn) {
   }
 }
 
-function testSelectNetworkErrors(aNetworkToSelect, aAnotherNetwork) {
-  throwsException(() => mobileConnection.selectNetwork(null));
-  throwsException(() => mobileConnection.selectNetwork({}));
+function testSelectNetworkErrors() {
+  throwsException(function() {
+    connection.selectNetwork(null);
+  });
 
-  isnot(aNetworkToSelect.longName, mobileConnection.voice.network.longName,
-        "aNetworkToSelect.longName");
-  let promise = selectNetworkAndWait(aNetworkToSelect);
+  throwsException(function() {
+    connection.selectNetwork({});
+  });
+
+  connection.addEventListener("voicechange", function voiceChange() {
+    connection.removeEventListener("voicechange", voiceChange);
+    setTimeout(testSelectExistingNetworkManual, 0);
+  });
+
+  let request1 = connection.selectNetwork(telkilaNetwork);
+  request1.onerror = function() {
+    ok(false, request.error);
+    setTimeout(testSelectExistingNetworkManual, 0);
+  };
 
   // attempt to selectNetwork while one request has already been sent
-  throwsException(() => mobileConnection.selectNetwork(aAnotherNetwork));
-
-  return promise;
+  throwsException(function() {
+    connection.selectNetwork(androidNetwork);
+  });
 }
 
-function testSelectExistingNetworkManual(aNetwork) {
+function testSelectExistingNetworkManual() {
   // When the current network is selected again, the DOMRequest's onsuccess
   // should be called, but the network shouldn't actually change
 
-  log("Selecting '" + aNetwork.longName + "' manually (should already be selected)");
-  is(aNetwork.longName, mobileConnection.voice.network.longName,
-     "aNetwork.longName");
+  // Telkila should be the currently selected network
+  log("Selecting TelKila (should already be selected");
+  let request = connection.selectNetwork(telkilaNetwork);
 
-  function voiceChange() {
-    let network = mobileConnection.voice.network;
-    if (network.longName !== aNetwork.longName) {
-      ok(false, "voicechange event emitted while selecting existing '" +
-                aNetwork.longName + "' manually");
-    }
+  let voiceChanged = false;
+  connection.addEventListener("voicechange", function voiceChange() {
+    connection.removeEventListener("voicechange", voiceChange);
+    voiceChanged = true;
+  });
+
+  function nextTest() {
+    // Switch back to automatic selection to setup the next test
+    let autoRequest = connection.selectNetworkAutomatically();
+    autoRequest.onsuccess = function() {
+      setTimeout(testSelectExistingNetworkAuto, 0);
+    };
+    autoRequest.onerror = function() {
+      ok(false, autoRequest.error);
+      cleanUp();
+    };
   }
 
-  mobileConnection.addEventListener("voicechange", voiceChange);
+  request.onsuccess = function() {
+    // Give the voicechange event another opportunity to fire
+    setTimeout(function() {
+      is(voiceChanged, false,
+         "voiceNetwork changed while manually selecting Telkila network? " +
+         voiceChanged);
+      nextTest();
+    }, 0);
+  };
 
-  return selectNetwork(aNetwork)
-    .then(function resolve() {
-      let deferred = Promise.defer();
-
-      // Give the voicechange event another opportunity to fire
-      setTimeout(function() {
-        mobileConnection.removeEventListener("voicechange", voiceChange);
-        deferred.resolve();
-      }, 3000);
-
-      return deferred.promise;
-    }, function reject() {
-      mobileConnection.removeEventListener("voicechange", voiceChange);
-      ok(false, "selectNetwork fails");
-    });
+  request.onerror = function() {
+    ok(false, request.error);
+    nextTest();
+  };
 }
 
-function testSelectExistingNetworkAuto(aHomeNetwork) {
+function testSelectExistingNetworkAuto() {
   // Now try the same thing but using automatic selection
-  log("Selecting '" + aHomeNetwork.longName + "' automatically (should already be selected)");
-  is(aHomeNetwork.longName, mobileConnection.voice.network.longName,
-     "aHomeNetwork.longName");
+  log("Selecting automatically (should already be auto)");
+  let request = connection.selectNetworkAutomatically();
 
-  function voiceChange() {
-    let network = mobileConnection.voice.network;
-    if (network.longName !== aHomeNetwork.longName) {
-      ok(false, "voicechange event emitted while selecting existing '" +
-                aHomeNetwork.longName + "' automatically");
-    }
-  }
+  let voiceChanged = false;
+  connection.addEventListener("voicechange", function voiceChange() {
+    connection.removeEventListener("voicechange", voiceChange);
+    voiceChanged = true;
+  });
 
-  mobileConnection.addEventListener("voicechange", voiceChange);
+  request.onsuccess = function() {
+    // Give the voicechange event another opportunity to fire
+    setTimeout(function() {
+      is(voiceChanged, false,
+         "voiceNetwork changed while automatically selecting network? " +
+         voiceChanged);
+      cleanUp();
+    }, 0);
+  };
 
-  return selectNetworkAutomatically()
-    .then(function resolve() {
-      let deferred = Promise.defer();
-
-      // Give the voicechange event another opportunity to fire
-      setTimeout(function() {
-        mobileConnection.removeEventListener("voicechange", voiceChange);
-        deferred.resolve();
-      }, 3000);
-
-      return deferred.promise;
-    }, function reject() {
-      mobileConnection.removeEventListener("voicechange", voiceChange);
-      ok(false, "selectNetwork fails");
-    });
+  request.onerror = function() {
+    ok(false, request.error);
+    cleanUp();
+  };
 }
 
-startTestCommon(function() {
-  let promise = Promise.resolve();
-  if (mobileConnection.networkSelectionMode != "automatic") {
-    promise = promise.then(selectNetworkAutomatically);
-  }
+function cleanUp() {
+  SpecialPowers.removePermission("mobileconnection", document);
+  finish();
+}
 
-  return promise
-    .then(() => testConnectionInfo())
-    .then(() => testGetNetworks())
-    .then(function(aNetworks) {
-      let homeNetwork = aNetworks[0],
-          roamingNetwork = aNetworks[1];
-
-      // We're initially connected to home network, so let's connect to roaming
-      // network first.
-      return testSelectNetwork(roamingNetwork, isRoamingNetwork)
-
-        // Then connect back to home network automatically.
-        .then(() => testSelectNetworkAutomatically(homeNetwork, isHomeNetwork))
-
-        // Then try connect to roaming network again.
-        .then(() => testSelectNetworkErrors(roamingNetwork, homeNetwork))
-
-        // Roaming network should has been selected, try select it again.
-        .then(() => testSelectExistingNetworkManual(roamingNetwork))
-
-        // Switch back to home network and try selecte it again.
-        .then(() => selectNetworkAutomaticallyAndWait())
-        .then(() => testSelectExistingNetworkAuto(homeNetwork));
-    });
-});
+testConnectionInfo();

@@ -507,7 +507,8 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
   HRESULT hr;
 
   const bool triedToInitDXVA = mUseHwAccel;
-  if (FAILED(CreateSourceReader())) {
+  hr = CreateSourceReader();
+  if (FAILED(hr)) {
     mSourceReader = nullptr;
     if (triedToInitDXVA && !mUseHwAccel) {
       // We tried to initialize DXVA and failed. Try again to create the
@@ -516,15 +517,13 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
       // (AMD Radeon 3000) we cannot successfully reconfigure an existing
       // reader to not use DXVA after we've failed to configure DXVA.
       // See bug 987127.
-      if (FAILED(CreateSourceReader())) {
+      hr = CreateSourceReader();
+      if (FAILED(hr)) {
+        NS_WARNING("Failed to create IMFSourceReader");
         mSourceReader = nullptr;
+        return NS_ERROR_FAILURE;
       }
     }
-  }
-
-  if (!mSourceReader) {
-    NS_WARNING("Failed to create IMFSourceReader");
-    return NS_ERROR_FAILURE;
   }
 
   if (mInfo.HasVideo()) {

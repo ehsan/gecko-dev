@@ -30,9 +30,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGPathElement::WrapNode(JSContext *aCx)
+SVGPathElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
-  return SVGPathElementBinding::Wrap(aCx, this);
+  return SVGPathElementBinding::Wrap(aCx, aScope, this);
 }
 
 nsSVGElement::NumberInfo SVGPathElement::sNumberInfo = 

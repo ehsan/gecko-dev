@@ -30,9 +30,10 @@ public:
   // Forward to base class
   NS_FORWARD_TO_MOUSEEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return SimpleGestureEventBinding::Wrap(aCx, this);
+    return SimpleGestureEventBinding::Wrap(aCx, aScope, this);
   }
 
   uint32_t AllowedDirections();

@@ -345,7 +345,8 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsWrapperCache
-  virtual JSObject *WrapObject(JSContext *cx) MOZ_OVERRIDE
+  virtual JSObject *WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
   {
     NS_ASSERTION(IsOuterWindow(),
                  "Inner window supports nsWrapperCache, fix WrapObject!");
@@ -371,7 +372,7 @@ public:
 
   virtual bool IsBlackForCC(bool aTracingNeeded = true);
 
-  static JSObject* OuterObject(JSContext* aCx, JS::Handle<JSObject*> aObj);
+  static JSObject* OuterObject(JSContext* aCx, JS::HandleObject aObj);
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();

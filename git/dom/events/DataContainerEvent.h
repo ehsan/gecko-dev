@@ -31,9 +31,9 @@ public:
   NS_DECL_NSIDOMDATACONTAINEREVENT
 
   virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return DataContainerEventBinding::Wrap(aCx, this);
+    return DataContainerEventBinding::Wrap(aCx, aScope, this);
   }
 
   already_AddRefed<nsIVariant> GetData(const nsAString& aKey)

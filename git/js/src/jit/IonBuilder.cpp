@@ -414,7 +414,7 @@ IonBuilder::popCfgStack()
     cfgStack_.popBack();
 }
 
-bool
+void
 IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecode *end)
 {
     // The phi inputs at the loop head only reflect types for variables that
@@ -443,14 +443,13 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
                  oldPhi++)
             {
                 MPhi *newPhi = entry->getSlot(oldPhi->slot())->toPhi();
-                if (!newPhi->addBackedgeType(oldPhi->type(), oldPhi->resultTypeSet()))
-                    return false;
+                newPhi->addBackedgeType(oldPhi->type(), oldPhi->resultTypeSet());
             }
             // Update the most recent header for this loop encountered, in case
             // new types flow to the phis and the loop is processed at least
             // three times.
             loopHeaders_[i].header = entry;
-            return true;
+            return;
         }
     }
     loopHeaders_.append(LoopHeader(start, entry));
@@ -478,8 +477,7 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
             types::TemporaryTypeSet *typeSet = bytecodeTypes(last);
             if (!typeSet->empty()) {
                 MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
-                if (!phi->addBackedgeType(type, typeSet))
-                    return false;
+                phi->addBackedgeType(type, typeSet);
             }
         } else if (*last == JSOP_GETLOCAL || *last == JSOP_GETARG) {
             uint32_t slot = (*last == JSOP_GETLOCAL)
@@ -487,10 +485,8 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
                             : info().argSlotUnchecked(GET_ARGNO(last));
             if (slot < info().firstStackSlot()) {
                 MPhi *otherPhi = entry->getSlot(slot)->toPhi();
-                if (otherPhi->hasBackedgeType()) {
-                    if (!phi->addBackedgeType(otherPhi->type(), otherPhi->resultTypeSet()))
-                        return false;
-                }
+                if (otherPhi->hasBackedgeType())
+                    phi->addBackedgeType(otherPhi->type(), otherPhi->resultTypeSet());
             }
         } else {
             MIRType type = MIRType_None;
@@ -551,13 +547,10 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
               default:
                 break;
             }
-            if (type != MIRType_None) {
-                if (!phi->addBackedgeType(type, nullptr))
-                    return false;
-            }
+            if (type != MIRType_None)
+                phi->addBackedgeType(type, nullptr);
         }
     }
-    return true;
 }
 
 bool
@@ -613,8 +606,7 @@ IonBuilder::build()
     if (!init())
         return false;
 
-    if (!setCurrentAndSpecializePhis(newBlock(pc)))
-        return false;
+    setCurrentAndSpecializePhis(newBlock(pc));
     if (!current)
         return false;
 
@@ -786,8 +778,7 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
         failedShapeGuard_ = true;
 
     // Generate single entrance block.
-    if (!setCurrentAndSpecializePhis(newBlock(pc)))
-        return false;
+    setCurrentAndSpecializePhis(newBlock(pc));
     if (!current)
         return false;
 
@@ -1871,8 +1862,7 @@ IonBuilder::processIfEnd(CFGState &state)
             return ControlStatus_Error;
     }
 
-    if (!setCurrentAndSpecializePhis(state.branch.ifFalse))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(state.branch.ifFalse);
     graph().moveBlockToEnd(current);
     pc = current->pc();
     return ControlStatus_Joined;
@@ -1887,8 +1877,7 @@ IonBuilder::processIfElseTrueEnd(CFGState &state)
     state.branch.ifTrue = current;
     state.stopAt = state.branch.falseEnd;
     pc = state.branch.ifFalse->pc();
-    if (!setCurrentAndSpecializePhis(state.branch.ifFalse))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(state.branch.ifFalse);
     graph().moveBlockToEnd(current);
 
     if (state.branch.test)
@@ -1928,8 +1917,7 @@ IonBuilder::processIfElseFalseEnd(CFGState &state)
     }
 
     // Ignore unreachable remainder of false block if existent.
-    if (!setCurrentAndSpecializePhis(join))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(join);
     pc = current->pc();
     return ControlStatus_Joined;
 }
@@ -1952,8 +1940,7 @@ IonBuilder::processBrokenLoop(CFGState &state)
     // If the loop started with a condition (while/for) then even if the
     // structure never actually loops, the condition itself can still fail and
     // thus we must resume at the successor, if one exists.
-    if (!setCurrentAndSpecializePhis(state.loop.successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(state.loop.successor);
     if (current) {
         JS_ASSERT(current->loopDepth() == loopDepth_);
         graph().moveBlockToEnd(current);
@@ -1971,8 +1958,7 @@ IonBuilder::processBrokenLoop(CFGState &state)
                 return ControlStatus_Error;
         }
 
-        if (!setCurrentAndSpecializePhis(block))
-            return ControlStatus_Error;
+        setCurrentAndSpecializePhis(block);
     }
 
     // If the loop is not gated on a condition, and has only returns, we'll
@@ -2038,8 +2024,7 @@ IonBuilder::finishLoop(CFGState &state, MBasicBlock *successor)
         successor = block;
     }
 
-    if (!setCurrentAndSpecializePhis(successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(successor);
 
     // An infinite loop (for (;;) { }) will not have a successor.
     if (!current)
@@ -2119,8 +2104,7 @@ IonBuilder::processDoWhileBodyEnd(CFGState &state)
     state.state = CFGState::DO_WHILE_LOOP_COND;
     state.stopAt = state.loop.updateEnd;
     pc = state.loop.updatepc;
-    if (!setCurrentAndSpecializePhis(header))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(header);
     return ControlStatus_Jumped;
 }
 
@@ -2181,8 +2165,7 @@ IonBuilder::processWhileCondEnd(CFGState &state)
     state.state = CFGState::WHILE_LOOP_BODY;
     state.stopAt = state.loop.bodyEnd;
     pc = state.loop.bodyStart;
-    if (!setCurrentAndSpecializePhis(body))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(body);
     return ControlStatus_Jumped;
 }
 
@@ -2219,8 +2202,7 @@ IonBuilder::processForCondEnd(CFGState &state)
     state.state = CFGState::FOR_LOOP_BODY;
     state.stopAt = state.loop.bodyEnd;
     pc = state.loop.bodyStart;
-    if (!setCurrentAndSpecializePhis(body))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(body);
     return ControlStatus_Jumped;
 }
 
@@ -2295,7 +2277,7 @@ IonBuilder::processDeferredContinues(CFGState &state)
         if (current) {
             current->end(MGoto::New(alloc(), update));
             if (!update->addPredecessor(alloc(), current))
-                return false;
+                return ControlStatus_Error;
         }
 
         // No need to use addPredecessor for first edge,
@@ -2307,13 +2289,12 @@ IonBuilder::processDeferredContinues(CFGState &state)
         while (edge) {
             edge->block->end(MGoto::New(alloc(), update));
             if (!update->addPredecessor(alloc(), edge->block))
-                return false;
+                return ControlStatus_Error;
             edge = edge->next;
         }
         state.loop.continues = nullptr;
 
-        if (!setCurrentAndSpecializePhis(update))
-            return ControlStatus_Error;
+        setCurrentAndSpecializePhis(update);
     }
 
     return true;
@@ -2364,8 +2345,7 @@ IonBuilder::processNextTableSwitchCase(CFGState &state)
     // So flow will continue in this block.
     if (current) {
         current->end(MGoto::New(alloc(), successor));
-        if (!successor->addPredecessor(alloc(), current))
-            return ControlStatus_Error;
+        successor->addPredecessor(alloc(), current);
     }
 
     // Insert successor after the current block, to maintain RPO.
@@ -2378,8 +2358,7 @@ IonBuilder::processNextTableSwitchCase(CFGState &state)
     else
         state.stopAt = state.tableswitch.exitpc;
 
-    if (!setCurrentAndSpecializePhis(successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(successor);
     pc = current->pc();
     return ControlStatus_Jumped;
 }
@@ -2394,8 +2373,7 @@ IonBuilder::processAndOrEnd(CFGState &state)
     if (!state.branch.ifFalse->addPredecessor(alloc(), current))
         return ControlStatus_Error;
 
-    if (!setCurrentAndSpecializePhis(state.branch.ifFalse))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(state.branch.ifFalse);
     graph().moveBlockToEnd(current);
     pc = current->pc();
     return ControlStatus_Joined;
@@ -2420,13 +2398,11 @@ IonBuilder::processLabelEnd(CFGState &state)
 
     if (current) {
         current->end(MGoto::New(alloc(), successor));
-        if (!successor->addPredecessor(alloc(), current))
-            return ControlStatus_Error;
+        successor->addPredecessor(alloc(), current);
     }
 
     pc = state.stopAt;
-    if (!setCurrentAndSpecializePhis(successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(successor);
     return ControlStatus_Joined;
 }
 
@@ -2448,8 +2424,7 @@ IonBuilder::processTryEnd(CFGState &state)
     }
 
     // Start parsing the code after this try-catch statement.
-    if (!setCurrentAndSpecializePhis(state.try_.successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(state.try_.successor);
     graph().moveBlockToEnd(current);
     pc = current->pc();
     return ControlStatus_Joined;
@@ -2597,15 +2572,12 @@ IonBuilder::processSwitchEnd(DeferredEdge *breaks, jsbytecode *exitpc)
     // So current is also a predecessor to this block
     if (current) {
         current->end(MGoto::New(alloc(), successor));
-        if (breaks) {
-            if (!successor->addPredecessor(alloc(), current))
-                return ControlStatus_Error;
-        }
+        if (breaks)
+            successor->addPredecessor(alloc(), current);
     }
 
     pc = exitpc;
-    if (!setCurrentAndSpecializePhis(successor))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(successor);
     return ControlStatus_Joined;
 }
 
@@ -2717,8 +2689,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
-        if (!setCurrentAndSpecializePhis(preheader))
-            return ControlStatus_Error;
+        setCurrentAndSpecializePhis(preheader);
     }
 
     unsigned stackPhiCount = 0;
@@ -2731,8 +2702,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
     jsbytecode *bodyStart = GetNextPc(loophead);
     jsbytecode *bodyEnd = conditionpc;
     jsbytecode *exitpc = GetNextPc(ifne);
-    if (!analyzeNewLoopTypes(header, bodyStart, exitpc))
-        return ControlStatus_Error;
+    analyzeNewLoopTypes(header, bodyStart, exitpc);
     if (!pushLoop(CFGState::DO_WHILE_LOOP_BODY, conditionpc, header, osr,
                   loopHead, bodyStart, bodyStart, bodyEnd, exitpc, conditionpc))
     {
@@ -2743,8 +2713,7 @@ IonBuilder::doWhileLoop(JSOp op, jssrcnote *sn)
     state.loop.updatepc = conditionpc;
     state.loop.updateEnd = ifne;
 
-    if (!setCurrentAndSpecializePhis(header))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(header);
     if (!jsop_loophead(loophead))
         return ControlStatus_Error;
 
@@ -2782,8 +2751,7 @@ IonBuilder::whileOrForInLoop(jssrcnote *sn)
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
-        if (!setCurrentAndSpecializePhis(preheader))
-            return ControlStatus_Error;
+        setCurrentAndSpecializePhis(preheader);
     }
 
     unsigned stackPhiCount;
@@ -2804,8 +2772,7 @@ IonBuilder::whileOrForInLoop(jssrcnote *sn)
     jsbytecode *bodyStart = GetNextPc(loopHead);
     jsbytecode *bodyEnd = pc + GetJumpOffset(pc);
     jsbytecode *exitpc = GetNextPc(ifne);
-    if (!analyzeNewLoopTypes(header, bodyStart, exitpc))
-        return ControlStatus_Error;
+    analyzeNewLoopTypes(header, bodyStart, exitpc);
     if (!pushLoop(CFGState::WHILE_LOOP_COND, ifne, header, osr,
                   loopHead, bodyEnd, bodyStart, bodyEnd, exitpc))
     {
@@ -2813,8 +2780,7 @@ IonBuilder::whileOrForInLoop(jssrcnote *sn)
     }
 
     // Parse the condition first.
-    if (!setCurrentAndSpecializePhis(header))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(header);
     if (!jsop_loophead(loopHead))
         return ControlStatus_Error;
 
@@ -2878,8 +2844,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
         if (!preheader)
             return ControlStatus_Error;
         current->end(MGoto::New(alloc(), preheader));
-        if (!setCurrentAndSpecializePhis(preheader))
-            return ControlStatus_Error;
+        setCurrentAndSpecializePhis(preheader);
     }
 
     unsigned stackPhiCount = 0;
@@ -2902,8 +2867,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
         initial = CFGState::FOR_LOOP_BODY;
     }
 
-    if (!analyzeNewLoopTypes(header, bodyStart, exitpc))
-        return ControlStatus_Error;
+    analyzeNewLoopTypes(header, bodyStart, exitpc);
     if (!pushLoop(initial, stopAt, header, osr,
                   loopHead, pc, bodyStart, bodyEnd, exitpc, updatepc))
     {
@@ -2916,8 +2880,7 @@ IonBuilder::forLoop(JSOp op, jssrcnote *sn)
     if (state.loop.updatepc)
         state.loop.updateEnd = condpc;
 
-    if (!setCurrentAndSpecializePhis(header))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(header);
     if (!jsop_loophead(loopHead))
         return ControlStatus_Error;
 
@@ -2996,8 +2959,7 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
         // In that case this block goes to the default case
         if (casepc == pc) {
             caseblock->end(MGoto::New(alloc(), defaultcase));
-            if (!defaultcase->addPredecessor(alloc(), caseblock))
-                return ControlStatus_Error;
+            defaultcase->addPredecessor(alloc(), caseblock);
         }
 
         tableswitch->addCase(tableswitch->addSuccessor(caseblock));
@@ -3035,8 +2997,7 @@ IonBuilder::tableSwitch(JSOp op, jssrcnote *sn)
     // Else it should stop at the start of the next successor
     if (tableswitch->numBlocks() > 1)
         state.stopAt = tableswitch->getBlock(1)->pc();
-    if (!setCurrentAndSpecializePhis(tableswitch->getBlock(0)))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(tableswitch->getBlock(0));
 
     if (!cfgStack_.append(state))
         return ControlStatus_Error;
@@ -3382,8 +3343,7 @@ IonBuilder::processCondSwitchCase(CFGState &state)
     }
 
     // Continue until the case condition.
-    if (!setCurrentAndSpecializePhis(caseBlock))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(caseBlock);
     pc = current->pc();
     state.stopAt = casePc;
     return ControlStatus_Jumped;
@@ -3413,13 +3373,11 @@ IonBuilder::processCondSwitchBody(CFGState &state)
     // The last body continue into the new one.
     if (current) {
         current->end(MGoto::New(alloc(), nextBody));
-        if (!nextBody->addPredecessor(alloc(), current))
-            return ControlStatus_Error;
+        nextBody->addPredecessor(alloc(), current);
     }
 
     // Continue in the next body.
-    if (!setCurrentAndSpecializePhis(nextBody))
-        return ControlStatus_Error;
+    setCurrentAndSpecializePhis(nextBody);
     pc = current->pc();
 
     if (currentIdx < bodies.length())
@@ -3455,7 +3413,8 @@ IonBuilder::jsop_andor(JSOp op)
     if (!cfgStack_.append(CFGState::AndOr(joinStart, join)))
         return false;
 
-    return setCurrentAndSpecializePhis(evalRhs);
+    setCurrentAndSpecializePhis(evalRhs);
+    return true;
 }
 
 bool
@@ -3553,8 +3512,7 @@ IonBuilder::jsop_ifeq(JSOp op)
 
     // Switch to parsing the true branch. Note that no PC update is needed,
     // it's the next instruction.
-    if (!setCurrentAndSpecializePhis(ifTrue))
-        return false;
+    setCurrentAndSpecializePhis(ifTrue);
 
     // Filter the types in the true branch.
     filterTypesAtTest(test);
@@ -3638,7 +3596,8 @@ IonBuilder::jsop_try()
     JS_ASSERT(info().osrPc() < endpc || info().osrPc() >= afterTry);
 
     // Start parsing the try block.
-    return setCurrentAndSpecializePhis(tryBlock);
+    setCurrentAndSpecializePhis(tryBlock);
+    return true;
 }
 
 IonBuilder::ControlStatus
@@ -4026,7 +3985,8 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     if (!returnBlock->initEntrySlots(alloc()))
         return false;
 
-    return setCurrentAndSpecializePhis(returnBlock);
+    setCurrentAndSpecializePhis(returnBlock);
+    return true;
 }
 
 MDefinition *
@@ -4340,8 +4300,7 @@ IonBuilder::inlineGenericFallback(JSFunction *target, CallInfo &callInfo, MBasic
     fallbackInfo.popFormals(fallbackBlock);
 
     // Generate an MCall, which uses stateful |current|.
-    if (!setCurrentAndSpecializePhis(fallbackBlock))
-        return false;
+    setCurrentAndSpecializePhis(fallbackBlock);
     if (!makeCall(target, fallbackInfo, clonedAtCallsite))
         return false;
 
@@ -4567,8 +4526,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
         }
 
         // Inline the call into the inlineBlock.
-        if (!setCurrentAndSpecializePhis(inlineBlock))
-            return false;
+        setCurrentAndSpecializePhis(inlineBlock);
         InliningStatus status = inlineSingleCall(inlineInfo, target);
         if (status == InliningStatus_Error)
             return false;
@@ -4668,7 +4626,8 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
     JS_ASSERT(returnBlock->stackDepth() == dispatchBlock->stackDepth() - callInfo.numFormals() + 1);
 
     graph().moveBlockToEnd(returnBlock);
-    return setCurrentAndSpecializePhis(returnBlock);
+    setCurrentAndSpecializePhis(returnBlock);
+    return true;
 }
 
 MInstruction *
@@ -5900,8 +5859,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 
     // Finish the osrBlock.
     osrBlock->end(MGoto::New(alloc(), preheader));
-    if (!preheader->addPredecessor(alloc(), osrBlock))
-        return nullptr;
+    preheader->addPredecessor(alloc(), osrBlock);
     graph().setOsrBlock(osrBlock);
 
     // Wrap |this| with a guaranteed use, to prevent instruction elimination.
@@ -5964,8 +5922,7 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
             if (!typeSet)
                 return nullptr;
             MIRType type = MIRTypeFromValueType(typeSet->getKnownTypeTag());
-            if (!phi->addBackedgeType(type, typeSet))
-                return nullptr;
+            phi->addBackedgeType(type, typeSet);
         }
     }
 

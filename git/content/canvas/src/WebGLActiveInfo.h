@@ -35,7 +35,7 @@ public:
         retval = mName;
     }
 
-    JSObject* WrapObject(JSContext *cx);
+    JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
 
    NS_INLINE_DECL_REFCOUNTING(WebGLActiveInfo)
 

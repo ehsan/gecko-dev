@@ -31,9 +31,10 @@ public:
   // Forward to base class
   NS_FORWARD_TO_EVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx,
+                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return TimeEventBinding::Wrap(aCx, this);
+    return TimeEventBinding::Wrap(aCx, aScope, this);
   }
 
   int32_t Detail() const

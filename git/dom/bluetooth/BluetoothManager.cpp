@@ -245,7 +245,7 @@ BluetoothManager::IsConnected(uint16_t aProfileId, ErrorResult& aRv)
 }
 
 JSObject*
-BluetoothManager::WrapObject(JSContext* aCx)
+BluetoothManager::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return BluetoothManagerBinding::Wrap(aCx, this);
+  return BluetoothManagerBinding::Wrap(aCx, aScope, this);
 }
