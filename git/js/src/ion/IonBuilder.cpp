@@ -14,6 +14,7 @@
 #include "Ion.h"
 #include "IonAnalysis.h"
 #include "IonSpewer.h"
+#include "builtin/Eval.h"
 #include "frontend/BytecodeEmitter.h"
 
 #include "jsscriptinlines.h"
@@ -773,6 +774,7 @@ IonBuilder::inspectOpcode(JSOp op)
         return true;
 
       case JSOP_NOP:
+      case JSOP_LINENO:
         return true;
 
       case JSOP_LABEL:
@@ -940,6 +942,9 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_CALL:
       case JSOP_NEW:
         return jsop_call(GET_ARGC(pc), (JSOp)*pc == JSOP_NEW);
+
+      case JSOP_EVAL:
+        return jsop_eval(GET_ARGC(pc));
 
       case JSOP_INT8:
         return pushConstant(Int32Value(GET_INT8(pc)));
@@ -4370,6 +4375,58 @@ IonBuilder::makeCall(HandleFunction target, CallInfo &callInfo,
 }
 
 bool
+IonBuilder::jsop_eval(uint32_t argc)
+{
+    types::StackTypeSet *calleeTypes = oracle->getCallTarget(script(), argc, pc);
+
+    // Emit a normal call if the eval has never executed. This keeps us from
+    // disabling compilation for the script when testing with --ion-eager.
+    if (calleeTypes && calleeTypes->empty())
+        return jsop_call(argc, /* constructing = */ false);
+
+    RootedFunction singleton(cx, getSingleCallTarget(calleeTypes));
+    if (!singleton)
+        return abort("No singleton callee for eval()");
+
+    if (IsBuiltinEvalForScope(&script()->global(), ObjectValue(*singleton))) {
+        if (argc != 1)
+            return abort("Direct eval with more than one argument");
+
+        if (!info().fun())
+            return abort("Direct eval in global code");
+
+        types::StackTypeSet *thisTypes = oracle->thisTypeSet(script());
+        if (!thisTypes) {
+            // The 'this' value for the outer and eval scripts must be the
+            // same. This is not guaranteed if a primitive string/number/etc.
+            // is passed through to the eval invoke as the primitive may be
+            // boxed into different objects if accessed via 'this'.
+            JSValueType type = thisTypes->getKnownTypeTag();
+            if (type != JSVAL_TYPE_OBJECT && type != JSVAL_TYPE_NULL && type != JSVAL_TYPE_UNDEFINED)
+                return abort("Direct eval from script with maybe-primitive 'this'");
+        }
+
+        CallInfo callInfo(cx, /* constructing = */ false);
+        if (!callInfo.init(current, argc))
+            return false;
+        callInfo.unwrapArgs();
+
+        MDefinition *scopeChain = current->scopeChain();
+        MDefinition *string = callInfo.getArg(0);
+
+        current->pushSlot(info().thisSlot());
+        MDefinition *thisValue = current->pop();
+
+        MInstruction *ins = MCallDirectEval::New(scopeChain, string, thisValue);
+        current->add(ins);
+        current->push(ins);
+        return resumeAfter(ins);
+    }
+
+    return jsop_call(argc, /* constructing = */ false);
+}
+
+bool
 IonBuilder::jsop_compare(JSOp op)
 {
     MDefinition *right = current->pop();
@@ -5376,6 +5433,27 @@ IonBuilder::jsop_bindname(PropertyName *name)
     return resumeAfter(ins);
 }
 
+static JSValueType
+GetElemKnownType(bool needsHoleCheck, types::StackTypeSet *types)
+{
+    JSValueType knownType = types->getKnownTypeTag();
+
+    // Null and undefined have no payload so they can't be specialized.
+    // Since folding null/undefined while building SSA is not safe (see the
+    // comment in IsPhiObservable), we just add an untyped load instruction
+    // and rely on pushTypeBarrier and DCE to replace it with a null/undefined
+    // constant.
+    if (knownType == JSVAL_TYPE_UNDEFINED || knownType == JSVAL_TYPE_NULL)
+        knownType = JSVAL_TYPE_UNKNOWN;
+
+    // Different architectures may want typed element reads which require
+    // hole checks to be done as either value or typed reads.
+    if (needsHoleCheck && !LIRGenerator::allowTypedElementHoleCheck())
+        knownType = JSVAL_TYPE_UNKNOWN;
+
+    return knownType;
+}
+
 bool
 IonBuilder::jsop_getelem()
 {
@@ -5408,8 +5486,9 @@ IonBuilder::jsop_getelem()
     // getprop stubs.
     bool mustMonitorResult = false;
     bool cacheable = false;
+    bool intIndex = false;
 
-    oracle->elementReadGeneric(script, pc, &cacheable, &mustMonitorResult);
+    oracle->elementReadGeneric(script, pc, &cacheable, &mustMonitorResult, &intIndex);
 
     if (cacheable)
         ins = MGetElementCache::New(lhs, rhs, mustMonitorResult);
@@ -5424,6 +5503,14 @@ IonBuilder::jsop_getelem()
 
     types::StackTypeSet *barrier = oracle->propertyReadBarrier(script, pc);
     types::StackTypeSet *types = oracle->propertyRead(script, pc);
+
+    if (cacheable && intIndex && !barrier && !mustMonitorResult) {
+        bool needHoleCheck = !oracle->elementReadIsPacked(script, pc);
+        JSValueType knownType = GetElemKnownType(needHoleCheck, types);
+
+        if (knownType != JSVAL_TYPE_UNKNOWN && knownType != JSVAL_TYPE_DOUBLE)
+            ins->setResultType(MIRTypeFromValueType(knownType));
+    }
 
     if (mustMonitorResult)
         monitorResult(ins, barrier, types);
@@ -5449,22 +5536,8 @@ IonBuilder::jsop_getelem_dense()
     MDefinition *obj = current->pop();
 
     JSValueType knownType = JSVAL_TYPE_UNKNOWN;
-    if (!barrier) {
-        knownType = types->getKnownTypeTag();
-
-        // Null and undefined have no payload so they can't be specialized.
-        // Since folding null/undefined while building SSA is not safe (see the
-        // comment in IsPhiObservable), we just add an untyped load instruction
-        // and rely on pushTypeBarrier and DCE to replace it with a null/undefined
-        // constant.
-        if (knownType == JSVAL_TYPE_UNDEFINED || knownType == JSVAL_TYPE_NULL)
-            knownType = JSVAL_TYPE_UNKNOWN;
-
-        // Different architectures may want typed element reads which require
-        // hole checks to be done as either value or typed reads.
-        if (needsHoleCheck && !LIRGenerator::allowTypedElementHoleCheck())
-            knownType = JSVAL_TYPE_UNKNOWN;
-    }
+    if (!barrier)
+        knownType = GetElemKnownType(needsHoleCheck, types);
 
     // Ensure id is an integer.
     MInstruction *idInt32 = MToInt32::New(id);

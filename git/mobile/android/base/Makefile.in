@@ -27,7 +27,7 @@ MOZGLUE_PP_JAVA_FILES := \
 UTIL_JAVA_FILES := \
   ActivityResultHandler.java \
   ActivityResultHandlerMap.java \
-  GeckoAsyncTask.java \
+  UiAsyncTask.java \
   GeckoBackgroundThread.java \
   GeckoEventListener.java \
   GeckoEventResponder.java \
@@ -252,6 +252,7 @@ FENNEC_PP_XML_FILES = \
   res/drawable/address_bar_bg.xml \
   res/drawable/address_bar_nav_button.xml \
   res/drawable/address_bar_url.xml \
+  res/drawable/menu_item_state.xml \
   res/drawable/menu_level.xml \
   res/layout/abouthome_content.xml \
   res/layout/awesomebar_search.xml \
@@ -510,6 +511,7 @@ RES_ANIM = \
   $(NULL)
 
 RES_DRAWABLE_MDPI = \
+  res/drawable-mdpi/blank.png \
   res/drawable-mdpi/favicon.png \
   res/drawable-mdpi/folder.png \
   res/drawable-mdpi/abouthome_icon.png \
@@ -537,6 +539,7 @@ RES_DRAWABLE_MDPI = \
   res/drawable-mdpi/ic_awesomebar_reader.png \
   res/drawable-mdpi/ic_awesomebar_search.png \
   res/drawable-mdpi/ic_awesomebar_star.png \
+  res/drawable-mdpi/ic_menu_addons_filler.png \
   res/drawable-mdpi/ic_menu_bookmark_add.png \
   res/drawable-mdpi/ic_menu_bookmark_remove.png \
   res/drawable-mdpi/ic_menu_close_all_tabs.png \
@@ -620,6 +623,7 @@ RES_DRAWABLE_LDPI = \
   $(NULL)
 
 RES_DRAWABLE_HDPI = \
+  res/drawable-hdpi/blank.png \
   res/drawable-hdpi/favicon.png \
   res/drawable-hdpi/folder.png \
   res/drawable-hdpi/home_bg.png \
@@ -647,6 +651,7 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_awesomebar_reader.png \
   res/drawable-hdpi/ic_awesomebar_search.png \
   res/drawable-hdpi/ic_awesomebar_star.png \
+  res/drawable-hdpi/ic_menu_addons_filler.png \
   res/drawable-hdpi/ic_menu_bookmark_add.png \
   res/drawable-hdpi/ic_menu_bookmark_remove.png \
   res/drawable-hdpi/ic_menu_close_all_tabs.png \
@@ -709,6 +714,7 @@ RES_DRAWABLE_HDPI = \
   $(NULL)
 
 RES_DRAWABLE_XHDPI = \
+  res/drawable-xhdpi/blank.png \
   res/drawable-xhdpi/favicon.png \
   res/drawable-xhdpi/folder.png \
   res/drawable-xhdpi/abouthome_icon.png \
@@ -738,6 +744,7 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/ic_awesomebar_reader.png \
   res/drawable-xhdpi/ic_awesomebar_search.png \
   res/drawable-xhdpi/ic_awesomebar_star.png \
+  res/drawable-xhdpi/ic_menu_addons_filler.png \
   res/drawable-xhdpi/ic_menu_bookmark_add.png \
   res/drawable-xhdpi/ic_menu_bookmark_remove.png \
   res/drawable-xhdpi/ic_menu_close_all_tabs.png \
@@ -976,7 +983,6 @@ MOZ_ANDROID_DRAWABLES += \
   mobile/android/base/resources/drawable/ic_menu_desktop_mode_on.xml            \
   mobile/android/base/resources/drawable/ic_menu_quit.xml                       \
   mobile/android/base/resources/drawable/menu_button.xml                        \
-  mobile/android/base/resources/drawable/menu_item_checkmark.xml                \
   mobile/android/base/resources/drawable/progress_spinner.xml                   \
   mobile/android/base/resources/drawable/remote_tabs_child_divider.xml          \
   mobile/android/base/resources/drawable/site_security_level.xml                \
