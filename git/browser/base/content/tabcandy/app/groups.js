@@ -986,14 +986,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       });
     }
     
-    $(container)
-      .mousedown(function(e){
-        self._mouseDownLocation = new Point(e.clientX, e.clientY);
-      })    
-      .mouseup(function(e){
-      var location = new Point(e.clientX, e.clientY);
-      
-      if( location.distance(self._mouseDownLocation) > 1.0 ) return;
+    $(container).click(function(){
       // Don't zoom in to the last tab for the new tab group.
       if( self.isNewTabsGroup() ) return;
       var activeTab = self.getActiveTab();
@@ -1513,7 +1506,7 @@ window.Groups = {
   // ----------
   getNewTabGroup: function() {
     var groupTitle = 'New Tabs';
-    var array = jQuery.grep(this.groups, function(group) {
+    var array = iQ.grep(this.groups, function(group) {
       return group.getTitle() == groupTitle;
     });
     

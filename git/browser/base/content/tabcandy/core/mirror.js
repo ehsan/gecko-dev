@@ -227,10 +227,6 @@ TabMirror.prototype = {
         var mirror = tab.mirror; 
         if(mirror) {
           var iconUrl = tab.raw.linkedBrowser.mIconURL;
-          if( iconUrl == null ){
-            iconUrl = "chrome://tabcandy/content/candies/revision-a/img/default.png";
-          }
-
           var label = tab.raw.label;
           $name = iQ(mirror.nameEl);
           $canvas = iQ(mirror.canvasEl);
