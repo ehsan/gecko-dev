@@ -757,11 +757,11 @@ BookmarksStore.prototype = {
   },
 
   // Create a record starting from the weave id (places guid)
-  createRecord: function createRecord(id, collection) {
-    let placeId = idForGUID(id);
+  createRecord: function createRecord(guid, uri) {
+    let placeId = idForGUID(guid);
     let record;
     if (placeId <= 0) { // deleted item
-      record = new PlacesItem(collection, id);
+      record = new PlacesItem(uri);
       record.deleted = true;
       return record;
     }
@@ -771,14 +771,14 @@ BookmarksStore.prototype = {
     case this._bms.TYPE_BOOKMARK:
       let bmkUri = this._bms.getBookmarkURI(placeId).spec;
       if (this._ms && this._ms.hasMicrosummary(placeId)) {
-        record = new BookmarkMicsum(collection, id);
+        record = new BookmarkMicsum(uri);
         let micsum = this._ms.getMicrosummary(placeId);
         record.generatorUri = micsum.generator.uri.spec; // breaks local generators
         record.staticTitle = this._getStaticTitle(placeId);
       }
       else {
         if (bmkUri.search(/^place:/) == 0) {
-          record = new BookmarkQuery(collection, id);
+          record = new BookmarkQuery(uri);
 
           // Get the actual tag name instead of the local itemId
           let folder = bmkUri.match(/[:&]folder=(\d+)/);
@@ -793,7 +793,7 @@ BookmarksStore.prototype = {
           catch(ex) {}
         }
         else
-          record = new Bookmark(collection, id);
+          record = new Bookmark(uri);
         record.title = this._bms.getItemTitle(placeId);
       }
 
@@ -807,7 +807,7 @@ BookmarksStore.prototype = {
 
     case this._bms.TYPE_FOLDER:
       if (this._ls.isLivemark(placeId)) {
-        record = new Livemark(collection, id);
+        record = new Livemark(uri);
 
         let siteURI = this._ls.getSiteURI(placeId);
         if (siteURI != null)
@@ -815,7 +815,7 @@ BookmarksStore.prototype = {
         record.feedUri = this._ls.getFeedURI(placeId).spec;
 
       } else {
-        record = new BookmarkFolder(collection, id);
+        record = new BookmarkFolder(uri);
       }
 
       record.parentName = Svc.Bookmark.getItemTitle(parent);
@@ -824,19 +824,19 @@ BookmarksStore.prototype = {
       break;
 
     case this._bms.TYPE_SEPARATOR:
-      record = new BookmarkSeparator(collection, id);
+      record = new BookmarkSeparator(uri);
       // Create a positioning identifier for the separator
       record.parentName = Svc.Bookmark.getItemTitle(parent);
       record.pos = Svc.Bookmark.getItemIndex(placeId);
       break;
 
     case this._bms.TYPE_DYNAMIC_CONTAINER:
-      record = new PlacesItem(collection, id);
+      record = new PlacesItem(uri);
       this._log.warn("Don't know how to serialize dynamic containers yet");
       break;
 
     default:
-      record = new PlacesItem(collection, id);
+      record = new PlacesItem(uri);
       this._log.warn("Unknown item type, cannot serialize: " +
                      this._bms.getItemType(placeId));
     }

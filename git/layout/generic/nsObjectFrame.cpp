@@ -1251,13 +1251,10 @@ nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder)
     ToReferenceFrame();
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   if (mozilla::LAYER_ACTIVE == f->GetLayerState(aBuilder, nsnull)) {
-    ImageContainer* c = f->GetImageContainer();
-    if (c) {
-      gfxIntSize size = c->GetCurrentSize();
-      PRInt32 appUnitsPerDevPixel = f->PresContext()->AppUnitsPerDevPixel();
-      r -= nsPoint((r.width - size.width * appUnitsPerDevPixel) / 2,
-                   (r.height - size.height * appUnitsPerDevPixel) / 2);
-    }
+    gfxIntSize size = f->GetImageContainer()->GetCurrentSize();
+    PRInt32 appUnitsPerDevPixel = f->PresContext()->AppUnitsPerDevPixel();
+    r -= nsPoint((r.width - size.width * appUnitsPerDevPixel) / 2,
+                 (r.height - size.height * appUnitsPerDevPixel) / 2);
   }
   return r;
 }
@@ -1686,15 +1683,13 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
 ImageContainer*
 nsObjectFrame::GetImageContainer()
 {
+  if (mImageContainer)
+    return mImageContainer;
+
   nsRefPtr<LayerManager> manager =
     nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc());
-  if (!manager) {
+  if (!manager)
     return nsnull;
-  }
-
-  if (mImageContainer && mImageContainer->Manager() == manager) {
-    return mImageContainer;
-  }
 
   mImageContainer = manager->CreateImageContainer();
   return mImageContainer;
@@ -5383,9 +5378,7 @@ nsPluginInstanceOwner::PrepareToStop(PRBool aDelayedStop)
   // Drop image reference because the child may destroy the surface after we return.
   if (mLayerSurface) {
      nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
-     if (container) {
-       container->SetCurrentImage(nsnull);
-     }
+     container->SetCurrentImage(nsnull);
      mLayerSurface = nsnull;
   }
 

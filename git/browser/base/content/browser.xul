@@ -169,7 +169,7 @@
     <panel type="autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
 
     <!-- for invalid form error message -->
-    <panel id="invalid-form-popup" type="arrow" orient="vertical" noautofocus="true" hidden="true" level="parent">
+    <panel id="invalid-form-popup" noautofocus="true" hidden="true" level="parent">
       <description/>
     </panel>
 
@@ -644,7 +644,7 @@
                       label="&viewBookmarksToolbar.label;"/>
             <menuseparator/>
             <menuitem id="BMB_bookmarksShowAll"
-                      label="&showAllBookmarks2.label;"
+                      label="&showAllBookmarks.label;"
                       command="Browser:ShowAllBookmarks"
                       key="manBookmarkKb"/>
             <menuseparator/>

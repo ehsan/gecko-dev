@@ -38,7 +38,6 @@
 
 - (NSTextInputContext*)inputContext;
 - (BOOL)interpretKeyEvent:(NSEvent*)event string:(NSString**)string;
-- (void)cancelComposition;
 
 @end
 
