@@ -40,8 +40,7 @@ public:
 
   TextTrack* IndexedGetter(uint32_t aIndex, bool& aFound);
 
-  already_AddRefed<TextTrack> AddTextTrack(HTMLMediaElement* aMediaElement,
-                                           TextTrackKind aKind,
+  already_AddRefed<TextTrack> AddTextTrack(TextTrackKind aKind,
                                            const nsAString& aLabel,
                                            const nsAString& aLanguage);
   TextTrack* GetTrackById(const nsAString& aId);
@@ -51,7 +50,6 @@ public:
   }
 
   void RemoveTextTrack(const TextTrack& aTrack);
-  void DidSeek();
 
   IMPL_EVENT_HANDLER(addtrack)
   IMPL_EVENT_HANDLER(removetrack)

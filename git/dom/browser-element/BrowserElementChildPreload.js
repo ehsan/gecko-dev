@@ -448,12 +448,8 @@ BrowserElementChild.prototype = {
 
   _iconChangedHandler: function(e) {
     debug('Got iconchanged: (' + e.target.href + ')');
-    let icon = { href: e.target.href };
-    if (e.target.getAttribute('sizes')) {
-      icon.sizes = e.target.getAttribute('sizes');
-    }
 
-    sendAsyncMsg('iconchange', icon);
+    sendAsyncMsg('iconchange', { _payload_: e.target.href });
   },
 
   _openSearchHandler: function(e) {

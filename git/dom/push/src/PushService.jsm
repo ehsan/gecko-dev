@@ -436,20 +436,6 @@ this.PushService = {
    */
   _willBeWokenUpByUDP: false,
 
-  /**
-   * Sends a message to the Push Server through an open websocket.
-   * typeof(msg) shall be an object
-   */
-  _wsSendMessage: function(msg) {
-    if (!this._ws) {
-      debug("No WebSocket initialized. Cannot send a message.");
-      return;
-    }
-    msg = JSON.stringify(msg);
-    debug("Sending message: " + msg);
-    this._ws.sendMsg(msg);
-  },
-
   init: function() {
     debug("init()");
     if (!prefs.get("enabled"))
@@ -467,6 +453,8 @@ this.PushService = {
     this._alarmID = null;
 
     this._requestTimeout = prefs.get("requestTimeout");
+
+    this._udpPort = prefs.get("udp.port");
 
     this._startListeningIfChannelsPresent();
 
@@ -742,7 +730,7 @@ this.PushService = {
       // handle the exception, as the lack of a pong will lead to the socket
       // being reset.
       try {
-        this._wsSendMessage({});
+        this._ws.sendMsg('{}');
       } catch (e) {
       }
 
@@ -961,7 +949,7 @@ this.PushService = {
       this._shutdownWS();
     }
 
-    this._wsSendMessage(data);
+    this._ws.sendMsg(JSON.stringify(data));
     // Process the next one as soon as possible.
     setTimeout(this._processNextRequestInQueue.bind(this), 0);
   },
@@ -1292,10 +1280,6 @@ this.PushService = {
     // Since we've had a successful connection reset the retry fail count.
     this._retryFailCount = 0;
 
-    // Openning an available UDP port.
-    // _listenForUDPWakeup will return the opened port number
-    this._udpPort = this._listenForUDPWakeup();
-
     let data = {
       messageType: "hello",
     }
@@ -1321,7 +1305,7 @@ this.PushService = {
       // On success, ids is an array, on error its not.
       data["channelIDs"] = ids.map ?
                            ids.map(function(el) { return el.channelID; }) : [];
-      this._wsSendMessage(data);
+      this._ws.sendMsg(JSON.stringify(data));
       this._currentState = STATE_WAITING_FOR_HELLO;
     }
 
@@ -1416,6 +1400,7 @@ this.PushService = {
       debug("Server closed with promise to wake up");
       this._willBeWokenUpByUDP = true;
       // TODO: there should be no pending requests
+      this._listenForUDPWakeup();
     }
   },
 
@@ -1439,11 +1424,9 @@ this.PushService = {
 
     this._udpServer = Cc["@mozilla.org/network/server-socket-udp;1"]
                         .createInstance(Ci.nsIUDPServerSocket);
-    this._udpServer.init(-1, false);
+    this._udpServer.init(this._udpPort, false);
     this._udpServer.asyncListen(this);
     debug("listenForUDPWakeup listening on " + this._udpPort);
-
-    return this._udpServer.port;
   },
 
   /**
@@ -1463,7 +1446,6 @@ this.PushService = {
    */
   onStopListening: function(aServ, aStatus) {
     debug("UDP Server socket was shutdown. Status: " + aStatus);
-    this._udpPort = undefined;
     this._beginWSSetup();
   },
 
