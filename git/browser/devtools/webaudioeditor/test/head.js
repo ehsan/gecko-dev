@@ -497,8 +497,5 @@ const NODE_DEFAULT_VALUES = {
     "type": "sine",
     "frequency": 440,
     "detune": 0
-  },
-  "StereoPannerNode": {
-    "pan": 0
   }
 };

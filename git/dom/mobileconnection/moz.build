@@ -7,6 +7,7 @@
 MOCHITEST_MANIFESTS += ['tests/mochitest/mochitest.ini']
 
 EXPORTS.mozilla.dom += [
+    'DOMMMIError.h',
     'MobileCellInfo.h',
     'MobileConnection.h',
     'MobileConnectionArray.h',
@@ -33,6 +34,7 @@ XPIDL_SOURCES += [
 
 UNIFIED_SOURCES += [
     'Assertions.cpp',
+    'DOMMMIError.cpp',
     'ipc/MobileConnectionChild.cpp',
     'ipc/MobileConnectionIPCService.cpp',
     'ipc/MobileConnectionParent.cpp',

@@ -3,12 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* jshint newcap:false */
-/* global React, WebrtcGlobalInformation, document */
-
 "use strict";
 
-var Tabs = React.createClass({displayName: "Tabs",
+var Tabs = React.createClass({displayName: 'Tabs',
   getDefaultProps: function() {
     return {selectedIndex: 0};
   },
@@ -29,18 +26,18 @@ var Tabs = React.createClass({displayName: "Tabs",
     // https://github.com/facebook/react/issues/1644#issuecomment-45138113
     return React.Children.map(this.props.children, function(tab, i) {
       return i === this.state.selectedIndex ? tab : null;
-    }.bind(this));
+    }.bind(this))
   },
 
   render: function() {
     var cx = React.addons.classSet;
     return (
-      React.createElement("div", {className: "tabs"}, 
-        React.createElement("ul", null, 
+      React.DOM.div({className: "tabs"}, 
+        React.DOM.ul(null, 
           React.Children.map(this.props.children, function(tab, i) {
             return (
-              React.createElement("li", {className: cx({active: i === this.state.selectedIndex})}, 
-                React.createElement("a", {href: "#", key: i, onClick: this.selectTab(i)}, 
+              React.DOM.li({className: cx({active: i === this.state.selectedIndex})}, 
+                React.DOM.a({href: "#", key: i, onClick: this.selectTab(i)}, 
                   tab.props.title
                 )
               )
@@ -53,13 +50,13 @@ var Tabs = React.createClass({displayName: "Tabs",
   }
 });
 
-var Tab = React.createClass({displayName: "Tab",
+var Tab = React.createClass({displayName: 'Tab',
   render: function() {
-    return React.createElement("section", null, this.props.children);
+    return React.DOM.section(null, this.props.children);
   }
 });
 
-var AboutWebRTC = React.createClass({displayName: "AboutWebRTC",
+var AboutWebRTC = React.createClass({displayName: 'AboutWebRTC',
   getInitialState: function() {
     return {logs: null, reports: this.props.reports};
   },
@@ -67,29 +64,29 @@ var AboutWebRTC = React.createClass({displayName: "AboutWebRTC",
   displayLogs: function() {
     WebrtcGlobalInformation.getLogging('', function(logs) {
       this.setState({logs: logs, reports: this.state.reports});
-    }.bind(this));
+    }.bind(this))
   },
 
   render: function() {
     return (
-      React.createElement("div", null, 
-        React.createElement("div", {id: "stats"}, 
-          React.createElement(PeerConnections, {reports: this.state.reports})
+      React.DOM.div(null, 
+        React.DOM.div({id: "stats"}, 
+          PeerConnections({reports: this.state.reports})
         ), 
-        React.createElement("div", {id: "buttons"}, 
-          React.createElement(LogsButton, {handler: this.displayLogs}), 
-          React.createElement(DebugButton, null), 
-          React.createElement(AECButton, null)
+        React.DOM.div({id: "buttons"}, 
+          LogsButton({handler: this.displayLogs}), 
+          DebugButton(null), 
+          AECButton(null)
         ), 
-        React.createElement("div", {id: "logs"}, 
-          this.state.logs ? React.createElement(Logs, {logs: this.state.logs}) : null
+        React.DOM.div({id: "logs"}, 
+          this.state.logs ? Logs({logs: this.state.logs}) : null
         )
       )
     );
   }
 });
 
-var PeerConnections = React.createClass({displayName: "PeerConnections",
+var PeerConnections = React.createClass({displayName: 'PeerConnections',
   getInitialState: function() {
     // Sort the reports to have the more recent at the top
     var reports = this.props.reports.slice().sort(function(r1, r2) {
@@ -101,10 +98,10 @@ var PeerConnections = React.createClass({displayName: "PeerConnections",
 
   render: function() {
     return (
-      React.createElement("div", {className: "peer-connections"}, 
+      React.DOM.div({className: "peer-connections"}, 
         
           this.state.reports.map(function(report, i) {
-            return React.createElement(PeerConnection, {key: i, report: report});
+            return PeerConnection({key: i, report: report});
           })
         
       )
@@ -112,13 +109,29 @@ var PeerConnections = React.createClass({displayName: "PeerConnections",
   }
 });
 
-var PeerConnection = React.createClass({displayName: "PeerConnection",
+var PeerConnection = React.createClass({displayName: 'PeerConnection',
   getPCInfo: function(report) {
+    // Extract id and url from pcid (varies as it is settable from chrome):
+    //   000 (id=00 url=http)
+    //   000 (session=000 call=000 id=00 url=http)
+    var idmatch = report.pcid.match(/id=(\S+)/);
+    var urlmatch = report.pcid.match(/url=([^)]+)/);
     return {
-      id: report.pcid.match(/id=(\S+)/)[1],
-      url: report.pcid.match(/url=([^)]+)/)[1],
+      id: (idmatch? idmatch[1] : report.pcid),
+      url: (urlmatch? urlmatch[1] : ""),
       closed: report.closed
     };
+  },
+  getPCId: function(report) {
+    // Erase extracted id and url from pcid to avoid showing duplicate info
+    // - 000 (session=000 call=000 id=00 url=http)
+    // + 000 (session=000 call=000)
+    // - 000 (id=00 url=http)
+    // + 000
+
+    // regexp's match those in getPCInfo above, plus tidying.
+    return report.pcid.replace(/id=\S+/, "").replace(/url=[^)]+/, "")
+        .replace(/\s+[)]/, ")").replace(" ()", "");
   },
 
   getIceCandidatePairs: function(report) {
@@ -147,7 +160,7 @@ var PeerConnection = React.createClass({displayName: "PeerConnection",
       paired.add(pair.localCandidate.id);
       paired.add(pair.remoteCandidate.id);
 
-      return paired;
+      return paired
     }, new Set());
 
     var unifiedPairs =
@@ -185,18 +198,18 @@ var PeerConnection = React.createClass({displayName: "PeerConnection",
 
   body: function(report, pairs) {
     return (
-      React.createElement("div", null, 
-        React.createElement("p", {className: "pcid"}, "PeerConnection ID: ", report.pcid), 
-        React.createElement(Tabs, null, 
-          React.createElement(Tab, {title: "Ice Stats"}, 
-            React.createElement(IceStats, {pairs: pairs})
+      React.DOM.div(null, 
+        React.DOM.p({className: "pcid"}, "PeerConnection ID: ", this.getPCId(report)),
+        Tabs(null, 
+          Tab({title: "Ice Stats"}, 
+            IceStats({pairs: pairs})
           ), 
-          React.createElement(Tab, {title: "SDP"}, 
-            React.createElement(SDP, {type: "local", sdp: report.localSdp}), 
-            React.createElement(SDP, {type: "remote", sdp: report.remoteSdp})
+          Tab({title: "SDP"}, 
+            SDP({type: "local", sdp: report.localSdp}), 
+            SDP({type: "remote", sdp: report.remoteSdp})
           ), 
-          React.createElement(Tab, {title: "RTP Stats"}, 
-            React.createElement(RTPStats, {report: report})
+          Tab({title: "RTP Stats"}, 
+            RTPStats({report: report})
           )
         )
       )
@@ -209,8 +222,8 @@ var PeerConnection = React.createClass({displayName: "PeerConnection",
     var pairs  = this.getIceCandidatePairs(report);
 
     return (
-      React.createElement("div", {className: "peer-connection"}, 
-        React.createElement("h3", {onClick: this.onFold}, 
+      React.DOM.div({className: "peer-connection"}, 
+        React.DOM.h3({onClick: this.onFold}, 
           "[", pcInfo.id, "] ", pcInfo.url, " ", pcInfo.closed ? "(closed)" : null, 
           new Date(report.timestamp).toTimeString()
         ), 
@@ -220,7 +233,7 @@ var PeerConnection = React.createClass({displayName: "PeerConnection",
   }
 });
 
-var IceStats = React.createClass({displayName: "IceStats",
+var IceStats = React.createClass({displayName: 'IceStats',
   sortHeadings: {
     "Local candidate":  "localCandidate",
     "Remote candidate": "remoteCandidate",
@@ -252,8 +265,8 @@ var IceStats = React.createClass({displayName: "IceStats",
     return Object.keys(this.sortHeadings).map(function(heading, i) {
       var sortKey = this.sortHeadings[heading];
       return (
-        React.createElement("th", null, 
-          React.createElement("a", {href: "#", onClick: this.sort.bind(this, sortKey)}, 
+        React.DOM.th(null, 
+          React.DOM.a({href: "#", onClick: this.sort.bind(this, sortKey)}, 
             heading
           )
         )
@@ -267,11 +280,11 @@ var IceStats = React.createClass({displayName: "IceStats",
 
   render: function() {
     return (
-      React.createElement("table", null, 
-        React.createElement("tbody", null, 
-          React.createElement("tr", null, this.generateSortHeadings()), 
+      React.DOM.table(null, 
+        React.DOM.tbody(null, 
+          React.DOM.tr(null, this.generateSortHeadings()), 
           this.state.pairs.map(function(pair, i) {
-            return React.createElement(IceCandidatePair, {key: i, pair: pair});
+            return IceCandidatePair({key: i, pair: pair});
           })
         )
       )
@@ -279,30 +292,30 @@ var IceStats = React.createClass({displayName: "IceStats",
   }
 });
 
-var IceCandidatePair = React.createClass({displayName: "IceCandidatePair",
+var IceCandidatePair = React.createClass({displayName: 'IceCandidatePair',
   render: function() {
     var pair = this.props.pair;
     return (
-      React.createElement("tr", null, 
-        React.createElement("td", null, pair.localCandidate), 
-        React.createElement("td", null, pair.remoteCandidate), 
-        React.createElement("td", null, pair.state), 
-        React.createElement("td", null, pair.priority), 
-        React.createElement("td", null, pair.nominated ? '✔' : null), 
-        React.createElement("td", null, pair.selected ? '✔' : null)
+      React.DOM.tr(null, 
+        React.DOM.td(null, pair.localCandidate), 
+        React.DOM.td(null, pair.remoteCandidate), 
+        React.DOM.td(null, pair.state), 
+        React.DOM.td(null, pair.priority), 
+        React.DOM.td(null, pair.nominated ? '✔' : null), 
+        React.DOM.td(null, pair.selected ? '✔' : null)
       )
     );
   }
 });
 
-var SDP = React.createClass({displayName: "SDP",
+var SDP = React.createClass({displayName: 'SDP',
   render: function() {
     var type = labelize(this.props.type);
 
     return (
-      React.createElement("div", null, 
-        React.createElement("h4", null, type, " SDP"), 
-        React.createElement("pre", null, 
+      React.DOM.div(null, 
+        React.DOM.h4(null, type, " SDP"), 
+        React.DOM.pre(null, 
           this.props.sdp
         )
       )
@@ -310,7 +323,7 @@ var SDP = React.createClass({displayName: "SDP",
   }
 });
 
-var RTPStats = React.createClass({displayName: "RTPStats",
+var RTPStats = React.createClass({displayName: 'RTPStats',
   getRtpStats: function(report) {
     var remoteRtpStats = {};
     var rtpStats = [];
@@ -342,7 +355,7 @@ var RTPStats = React.createClass({displayName: "RTPStats",
       statsString += `Jitter-buffer delay: ${stats.mozJitterBufferDelay} ms`;
     }
 
-    return React.createElement("div", null, statsString);
+    return React.DOM.div(null, statsString);
   },
 
   dumpCoderStats: function(stats) {
@@ -375,7 +388,7 @@ var RTPStats = React.createClass({displayName: "RTPStats",
       statsString = label + statsString;
     }
 
-    return React.createElement("div", null, statsString);
+    return React.DOM.div(null, statsString);
   },
 
   dumpRtpStats: function(stats, type) {
@@ -403,40 +416,40 @@ var RTPStats = React.createClass({displayName: "RTPStats",
       }
     }
 
-    return React.createElement("div", null, statsString);
+    return React.DOM.div(null, statsString);
   },
 
   render: function() {
     var rtpStats = this.getRtpStats(this.props.report);
 
     return (
-      React.createElement("div", null, 
+      React.DOM.div(null, 
         rtpStats.map(function(stats) {
           var isAvStats = (stats.mozAvSyncDelay || stats.mozJitterBufferDelay);
           var remoteRtpStats = stats.remoteId ? stats.remoteRtpStats : null;
 
           return [
-            React.createElement("h5", null, stats.id),
+            React.DOM.h5(null, stats.id),
             isAvStats ? this.dumpAvStats(stats) : null,
             this.dumpCoderStats(stats),
             this.dumpRtpStats(stats, "local"),
             remoteRtpStats ? this.dumpRtpStats(remoteRtpStats, "remote") : null
-          ];
+          ]
         }.bind(this))
       )
     );
   }
 });
 
-var LogsButton = React.createClass({displayName: "LogsButton",
+var LogsButton = React.createClass({displayName: 'LogsButton',
   render: function() {
     return (
-      React.createElement("button", {onClick: this.props.handler}, "Connection log")
+      React.DOM.button({onClick: this.props.handler}, "Connection log")
     );
   }
 });
 
-var DebugButton = React.createClass({displayName: "DebugButton",
+var DebugButton = React.createClass({displayName: 'DebugButton',
   getInitialState: function() {
     var on = (WebrtcGlobalInformation.debugLevel > 0);
     return {on: on};
@@ -453,14 +466,14 @@ var DebugButton = React.createClass({displayName: "DebugButton",
 
   render: function() {
     return (
-      React.createElement("button", {onClick: this.onClick}, 
+      React.DOM.button({onClick: this.onClick}, 
         this.state.on ? "Stop debug mode" : "Start debug mode"
       )
     );
   }
 });
 
-var AECButton = React.createClass({displayName: "AECButton",
+var AECButton = React.createClass({displayName: 'AECButton',
   getInitialState: function() {
     return {on: WebrtcGlobalInformation.aecDebug};
   },
@@ -472,21 +485,21 @@ var AECButton = React.createClass({displayName: "AECButton",
 
   render: function() {
     return (
-      React.createElement("button", {onClick: this.onClick}, 
+      React.DOM.button({onClick: this.onClick}, 
         this.state.on ? "Stop AEC logging" : "Start AEC logging"
       )
     );
   }
 });
 
-var Logs = React.createClass({displayName: "Logs",
+var Logs = React.createClass({displayName: 'Logs',
   render: function() {
     return (
-      React.createElement("div", null, 
-        React.createElement("h3", null, "Logging:"), 
-        React.createElement("div", null, 
+      React.DOM.div(null, 
+        React.DOM.h3(null, "Logging:"), 
+        React.DOM.div(null, 
           this.props.logs.map(function(line, i) {
-            return React.createElement("div", {key: i}, line);
+            return React.DOM.div({key: i}, line);
           })
         )
       )
@@ -520,13 +533,13 @@ function candidateToString(c) {
     type = `${c.candidateType}-${c.mozLocalTransport}`;
   }
 
-  return `${c.ipAddress}:${c.portNumber}/${c.transport}(${type})`;
+  return `${c.ipAddress}:${c.portNumber}/${c.transport}(${type})`
 }
 
 function onLoad() {
   WebrtcGlobalInformation.getAllStats(function(globalReport) {
     var reports = globalReport.reports;
-    React.render(React.createElement(AboutWebRTC, {reports: reports}),
-                 document.querySelector("#body"));
+    React.renderComponent(AboutWebRTC({reports: reports}),
+                          document.querySelector("#body"));
   });
 }
