@@ -3046,32 +3046,21 @@ class ICSetElem_TypedArray : public ICStub
   protected: // Protected to silence Clang warning.
     HeapPtrShape shape_;
 
-    ICSetElem_TypedArray(IonCode *stubCode, HandleShape shape, uint32_t type,
-                         bool expectOutOfBounds)
+    ICSetElem_TypedArray(IonCode *stubCode, HandleShape shape, uint32_t type)
       : ICStub(SetElem_TypedArray, stubCode),
         shape_(shape)
     {
-        extra_ = uint8_t(type);
+        extra_ = uint16_t(type);
         JS_ASSERT(extra_ == type);
-        extra_ |= (static_cast<uint16_t>(expectOutOfBounds) << 8);
     }
 
   public:
     static inline ICSetElem_TypedArray *New(ICStubSpace *space, IonCode *code,
-                                            HandleShape shape, uint32_t type,
-                                            bool expectOutOfBounds)
+                                            HandleShape shape, uint32_t type)
     {
         if (!code)
             return NULL;
-        return space->allocate<ICSetElem_TypedArray>(code, shape, type, expectOutOfBounds);
-    }
-
-    uint32_t type() const {
-        return extra_ & 0xff;
-    }
-
-    bool expectOutOfBounds() const {
-        return (extra_ >> 8) & 1;
+        return space->allocate<ICSetElem_TypedArray>(code, shape, type);
     }
 
     static size_t offsetOfShape() {
@@ -3085,27 +3074,23 @@ class ICSetElem_TypedArray : public ICStub
     class Compiler : public ICStubCompiler {
         RootedShape shape_;
         uint32_t type_;
-        bool expectOutOfBounds_;
 
       protected:
         bool generateStubCode(MacroAssembler &masm);
 
         virtual int32_t getKey() const {
-            return static_cast<int32_t>(kind) | (static_cast<int32_t>(type_) << 16) |
-                   (static_cast<int32_t>(expectOutOfBounds_) << 24);
+            return static_cast<int32_t>(kind) | (static_cast<int32_t>(type_) << 16);
         }
 
       public:
-        Compiler(JSContext *cx, UnrootedShape shape, uint32_t type, bool expectOutOfBounds)
+        Compiler(JSContext *cx, UnrootedShape shape, uint32_t type)
           : ICStubCompiler(cx, ICStub::SetElem_TypedArray),
             shape_(cx, shape),
-            type_(type),
-            expectOutOfBounds_(expectOutOfBounds)
+            type_(type)
         {}
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICSetElem_TypedArray::New(space, getStubCode(), shape_, type_,
-                                             expectOutOfBounds_);
+            return ICSetElem_TypedArray::New(space, getStubCode(), shape_, type_);
         }
     };
 };
