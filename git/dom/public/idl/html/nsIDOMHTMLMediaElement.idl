@@ -85,7 +85,7 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   // playback state
            attribute float currentTime;
   readonly attribute float duration;
-  readonly attribute boolean paused;
+  readonly attribute unsigned short paused;
            attribute float defaultPlaybackRate;
            attribute float playbackRate;
   readonly attribute nsIDOMHTMLTimeRanges played;

@@ -312,8 +312,8 @@ NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
   return NS_OK;
 }
 
-/* readonly attribute boolean paused; */
-NS_IMETHODIMP nsHTMLMediaElement::GetPaused(PRBool *aPaused)
+/* readonly attribute unsigned short paused; */
+NS_IMETHODIMP nsHTMLMediaElement::GetPaused(PRUint16 *aPaused)
 {
   *aPaused = mPaused;
 

@@ -39,7 +39,7 @@
 
 /* class to notify frames of background image loads */
 
-#include "nsImageLoader.h"
+#include "nsImageLoadNotifier.h"
 
 #include "imgILoader.h"
 
@@ -61,38 +61,53 @@
 // Paint forcing
 #include "prenv.h"
 
-NS_IMPL_ISUPPORTS2(nsImageLoader, imgIDecoderObserver, imgIContainerObserver)
+NS_IMPL_ISUPPORTS2(nsImageLoadNotifier, imgIDecoderObserver, imgIContainerObserver)
 
-nsImageLoader::nsImageLoader() :
-  mFrame(nsnull), mPresContext(nsnull)
+nsImageLoadNotifier::nsImageLoadNotifier(nsIFrame *aFrame,
+                                         PRBool aReflowOnLoad, 
+                                         nsImageLoadNotifier *aNextLoader)
+  : mFrame(aFrame),
+    mReflowOnLoad(aReflowOnLoad),
+    mNextLoader(aNextLoader)
 {
 }
 
-nsImageLoader::~nsImageLoader()
+nsImageLoadNotifier::~nsImageLoadNotifier()
 {
   mFrame = nsnull;
-  mPresContext = nsnull;
 
   if (mRequest) {
     mRequest->Cancel(NS_ERROR_FAILURE);
   }
 }
 
-
-void
-nsImageLoader::Init(nsIFrame *aFrame, nsPresContext *aPresContext,
-                    PRBool aReflowOnLoad)
+/* static */ already_AddRefed<nsImageLoadNotifier>
+nsImageLoadNotifier::Create(nsIFrame *aFrame, imgIRequest *aRequest, 
+                            PRBool aReflowOnLoad,
+                            nsImageLoadNotifier *aNextLoader)
 {
-  mFrame = aFrame;
-  mPresContext = aPresContext;
-  mReflowOnLoad = aReflowOnLoad;
+  nsRefPtr<nsImageLoadNotifier> loader =
+    new nsImageLoadNotifier(aFrame, aReflowOnLoad, aNextLoader);
+
+  loader->Load(aRequest);
+
+  return loader.forget();
 }
 
 void
-nsImageLoader::Destroy()
+nsImageLoadNotifier::Destroy()
 {
+  // Destroy the chain with only one level of recursion.
+  nsRefPtr<nsImageLoadNotifier> list = mNextLoader;
+  mNextLoader = nsnull;
+  while (list) {
+    nsRefPtr<nsImageLoadNotifier> todestroy = list;
+    list = todestroy->mNextLoader;
+    todestroy->mNextLoader = nsnull;
+    todestroy->Destroy();
+  }
+
   mFrame = nsnull;
-  mPresContext = nsnull;
 
   if (mRequest) {
     mRequest->Cancel(NS_ERROR_FAILURE);
@@ -102,29 +117,15 @@ nsImageLoader::Destroy()
 }
 
 nsresult
-nsImageLoader::Load(imgIRequest *aImage)
+nsImageLoadNotifier::Load(imgIRequest *aImage)
 {
+  NS_ASSERTION(!mRequest, "can't reuse image loaders");
+
   if (!mFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (!aImage)
     return NS_ERROR_FAILURE;
-
-  if (mRequest) {
-    nsCOMPtr<nsIURI> oldURI;
-    mRequest->GetURI(getter_AddRefs(oldURI));
-    nsCOMPtr<nsIURI> newURI;
-    aImage->GetURI(getter_AddRefs(newURI));
-    PRBool eq = PR_FALSE;
-    nsresult rv = newURI->Equals(oldURI, &eq);
-    if (NS_SUCCEEDED(rv) && eq) {
-      return NS_OK;
-    }
-
-    // Now cancel the old request so it won't hold a stale ref to us.
-    mRequest->Cancel(NS_ERROR_FAILURE);
-    mRequest = nsnull;
-  }
 
   // Make sure to clone into a temporary, then set mRequest, since
   // cloning may notify and we don't want to trigger paints from this
@@ -137,8 +138,8 @@ nsImageLoader::Load(imgIRequest *aImage)
 
                     
 
-NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
-                                              imgIContainer *aImage)
+NS_IMETHODIMP nsImageLoadNotifier::OnStartContainer(imgIRequest *aRequest,
+                                                    imgIContainer *aImage)
 {
   if (aImage)
   {
@@ -147,15 +148,15 @@ NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
      *   one frame = 1
      *   one loop = 2
      */
-    aImage->SetAnimationMode(mPresContext->ImageAnimationMode());
+    aImage->SetAnimationMode(mFrame->PresContext()->ImageAnimationMode());
     // Ensure the animation (if any) is started.
     aImage->StartAnimation();
   }
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageLoader::OnStopFrame(imgIRequest *aRequest,
-                                         gfxIImageFrame *aFrame)
+NS_IMETHODIMP nsImageLoadNotifier::OnStopFrame(imgIRequest *aRequest,
+                                               gfxIImageFrame *aFrame)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -182,9 +183,9 @@ NS_IMETHODIMP nsImageLoader::OnStopFrame(imgIRequest *aRequest,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
-                                          gfxIImageFrame *newframe,
-                                          nsRect * dirtyRect)
+NS_IMETHODIMP nsImageLoadNotifier::FrameChanged(imgIContainer *aContainer,
+                                                gfxIImageFrame *newframe,
+                                                nsRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -208,10 +209,10 @@ NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
 
 
 void
-nsImageLoader::RedrawDirtyFrame(const nsRect* aDamageRect)
+nsImageLoadNotifier::RedrawDirtyFrame(const nsRect* aDamageRect)
 {
   if (mReflowOnLoad) {
-    nsIPresShell *shell = mPresContext->GetPresShell();
+    nsIPresShell *shell = mFrame->PresContext()->GetPresShell();
 #ifdef DEBUG
     nsresult rv = 
 #endif
