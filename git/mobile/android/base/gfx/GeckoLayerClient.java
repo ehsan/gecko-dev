@@ -383,9 +383,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
                 break;
             }
 
-            // Update the Gecko-side viewport metrics. Make sure to do this
-            // before modifying the metrics below.
-            final ImmutableViewportMetrics geckoMetrics = newMetrics.clamp();
+            final ImmutableViewportMetrics geckoMetrics = newMetrics;
             post(new Runnable() {
                 @Override
                 public void run() {
@@ -593,6 +591,12 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         synchronized (this) {
             ImmutableViewportMetrics currentMetrics = getViewportMetrics();
 
+            // If we're meant to be scrolled to the top, take into account any
+            // margin set on the pan zoom controller.
+            if (FloatUtils.fuzzyEquals(offsetY, pageTop)) {
+                offsetY = -currentMetrics.fixedLayerMarginTop;
+            }
+
             final ImmutableViewportMetrics newMetrics = currentMetrics
                 .setViewportOrigin(offsetX, offsetY)
                 .setZoomFactor(zoom)
@@ -608,16 +612,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
                     mGeckoViewport = newMetrics;
                 }
             });
-
-            // If we're meant to be scrolled to the top, take into account any
-            // margin set on the pan zoom controller.
-            if (FloatUtils.fuzzyEquals(offsetY, pageTop)
-                  && newMetrics.fixedLayerMarginTop > 0) {
-                setViewportMetrics(newMetrics.setViewportOrigin(offsetX,
-                    -newMetrics.fixedLayerMarginTop));
-            } else {
-                setViewportMetrics(newMetrics);
-            }
+            setViewportMetrics(newMetrics);
 
             Tab tab = Tabs.getInstance().getSelectedTab();
             mView.setBackgroundColor(tab.getBackgroundColor());

@@ -5,7 +5,6 @@
 
 #include "nsScreenWin.h"
 #include "nsCoord.h"
-#include "gfxWindowsPlatform.h"
 
 
 nsScreenWin :: nsScreenWin ( HMONITOR inScreen )
@@ -98,7 +97,9 @@ nsScreenWin::GetRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  double scaleFactor = 1.0 / gfxWindowsPlatform::GetPlatform()->GetDPIScale(); 
+  HDC dc = ::GetDC(nullptr);
+  double scaleFactor = 96.0 / GetDeviceCaps(dc, LOGPIXELSY);
+  ::ReleaseDC(nullptr, dc);
   *outLeft = NSToIntRound(left * scaleFactor);
   *outTop = NSToIntRound(top * scaleFactor);
   *outWidth = NSToIntRound(width * scaleFactor);
@@ -115,7 +116,9 @@ nsScreenWin::GetAvailRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  double scaleFactor = 1.0 / gfxWindowsPlatform::GetPlatform()->GetDPIScale(); 
+  HDC dc = ::GetDC(nullptr);
+  double scaleFactor = 96.0 / GetDeviceCaps(dc, LOGPIXELSY);
+  ::ReleaseDC(nullptr, dc);
   *outLeft = NSToIntRound(left * scaleFactor);
   *outTop = NSToIntRound(top * scaleFactor);
   *outWidth = NSToIntRound(width * scaleFactor);
