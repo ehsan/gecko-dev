@@ -36,7 +36,8 @@ ion::ParNewGCThing(gc::AllocKind allocKind)
 {
     ForkJoinSlice *slice = ForkJoinSlice::Current();
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
-    return gc::NewGCThing<JSObject, NoGC>(slice, allocKind, thingSize, gc::DefaultHeap);
+    void *t = slice->allocator->parallelNewGCThing(allocKind, thingSize);
+    return static_cast<JSObject *>(t);
 }
 
 // Check that the object was created by the current thread
@@ -45,8 +46,8 @@ bool
 ion::ParWriteGuard(ForkJoinSlice *slice, JSObject *object)
 {
     JS_ASSERT(ForkJoinSlice::Current() == slice);
-    return !IsInsideNursery(slice->runtime(), object) &&
-           slice->allocator()->arenas.containsArena(slice->runtime(), object->arenaHeader());
+    return !IsInsideNursery(object->runtime(), object) &&
+           slice->allocator->arenas.containsArena(slice->runtime(), object->arenaHeader());
 }
 
 #ifdef DEBUG
@@ -178,7 +179,8 @@ ion::ParPush(ParPushArgs *args)
     // slow path anyhow as it reallocates the elements vector.
     ForkJoinSlice *slice = js::ForkJoinSlice::Current();
     JSObject::EnsureDenseResult res =
-        args->object->parExtendDenseElements(slice, &args->value, 1);
+        args->object->parExtendDenseElements(slice->allocator,
+                                             &args->value, 1);
     if (res != JSObject::ED_OK)
         return NULL;
     return args->object;
@@ -188,7 +190,7 @@ JSObject *
 ion::ParExtendArray(ForkJoinSlice *slice, JSObject *array, uint32_t length)
 {
     JSObject::EnsureDenseResult res =
-        array->parExtendDenseElements(slice, NULL, length);
+        array->parExtendDenseElements(slice->allocator, NULL, length);
     if (res != JSObject::ED_OK)
         return NULL;
     return array;
@@ -436,12 +438,12 @@ ion::ParCallToUncompiledScript(JSFunction *func)
         Spew(SpewBailouts, "Call to uncompiled lazy script");
     } else if (func->isBoundFunction()) {
         int depth = 0;
-        JSFunction *target = &func->getBoundFunctionTarget()->as<JSFunction>();
+        JSFunction *target = func->getBoundFunctionTarget()->toFunction();
         while (depth < max_bound_function_unrolling) {
             if (target->hasScript())
                 break;
             if (target->isBoundFunction())
-                target = &target->getBoundFunctionTarget()->as<JSFunction>();
+                target = target->getBoundFunctionTarget()->toFunction();
             depth--;
         }
         if (target->hasScript()) {
@@ -473,7 +475,8 @@ ion::InitRestParameter(ForkJoinSlice *slice, uint32_t length, Value *rest,
     JS_ASSERT(res->type()->unknownProperties());
 
     if (length) {
-        JSObject::EnsureDenseResult edr = res->parExtendDenseElements(slice, rest, length);
+        JSObject::EnsureDenseResult edr =
+            res->parExtendDenseElements(slice->allocator, rest, length);
         if (edr != JSObject::ED_OK)
             return TP_FATAL;
     }

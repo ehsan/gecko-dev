@@ -366,9 +366,10 @@ ValueNumberer::eliminateRedundancies()
         IonSpew(IonSpew_GVN, "Looking at block %d", block->id());
 
         // Add all immediate dominators to the front of the worklist.
-        if (!worklist.append(block->immediatelyDominatedBlocksBegin(),
-                             block->immediatelyDominatedBlocksEnd()))
-            return false;
+        for (size_t i = 0; i < block->numImmediatelyDominatedBlocks(); i++) {
+            if (!worklist.append(block->getImmediatelyDominatedBlock(i)))
+                return false;
+        }
 
         // For each instruction, attempt to look up a dominating definition.
         for (MDefinitionIterator iter(block); iter; ) {

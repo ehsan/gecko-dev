@@ -47,9 +47,6 @@ nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
 
 bool MediaOmxReader::IsWaitingMediaResources()
 {
-  if (!mOmxDecoder.get()) {
-    return false;
-  }
   return mOmxDecoder->IsWaitingMediaResources();
 }
 
@@ -64,9 +61,7 @@ bool MediaOmxReader::IsDormantNeeded()
 void MediaOmxReader::ReleaseMediaResources()
 {
   ResetDecode();
-  if (mOmxDecoder.get()) {
-    mOmxDecoder->ReleaseMediaResources();
-  }
+  mOmxDecoder->ReleaseMediaResources();
 }
 
 nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,

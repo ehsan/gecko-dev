@@ -126,7 +126,7 @@ JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, JS::RuntimeSizes 
 
     rtSizes->regexpData = bumpAlloc_ ? bumpAlloc_->sizeOfNonHeapData() : 0;
 
-    rtSizes->interpreterStack = interpreterStack_.sizeOfExcludingThis(mallocSizeOf);
+    rtSizes->stack = stackSpace.sizeOf();
 
     rtSizes->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
 
@@ -560,7 +560,7 @@ checkReportFlags(JSContext *cx, unsigned *flags)
          * otherwise.  We assume that if the top frame is a native, then it is
          * strict if the nearest scripted frame is strict, see bug 536306.
          */
-        JSScript *script = cx->currentScript();
+        JSScript *script = cx->stack.currentScript();
         if (script && script->strict)
             *flags &= ~JSREPORT_WARNING;
         else if (cx->hasExtraWarningsOption())
@@ -1035,7 +1035,7 @@ js_ReportMissingArg(JSContext *cx, HandleValue v, unsigned arg)
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
     if (IsFunctionObject(v)) {
-        atom = v.toObject().as<JSFunction>().atom();
+        atom = v.toObject().toFunction()->atom();
         bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
                                         v, atom);
         if (!bytes)
@@ -1134,40 +1134,8 @@ js_HandleExecutionInterrupt(JSContext *cx)
     return result;
 }
 
-js::ThreadSafeContext::ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
-  : ContextFriendFields(rt),
-    contextKind_(kind),
-    perThreadData(pt)
-{ }
-
-bool
-ThreadSafeContext::isJSContext() const
-{
-    return contextKind_ == Context_JS;
-}
-
-JSContext *
-ThreadSafeContext::asJSContext()
-{
-    JS_ASSERT(isJSContext());
-    return reinterpret_cast<JSContext *>(this);
-}
-
-bool
-ThreadSafeContext::isForkJoinSlice() const
-{
-    return contextKind_ == Context_ForkJoin;
-}
-
-ForkJoinSlice *
-ThreadSafeContext::asForkJoinSlice()
-{
-    JS_ASSERT(isForkJoinSlice());
-    return reinterpret_cast<ForkJoinSlice *>(this);
-}
-
 JSContext::JSContext(JSRuntime *rt)
-  : ThreadSafeContext(rt, &rt->mainThread, Context_JS),
+  : ContextFriendFields(rt),
     defaultVersion(JSVERSION_DEFAULT),
     hasVersionOverride(false),
     throwing(false),
@@ -1179,6 +1147,7 @@ JSContext::JSContext(JSRuntime *rt)
     enterCompartmentDepth_(0),
     savedFrameChains_(),
     defaultCompartmentObject_(NULL),
+    stack(thisDuringConstruction()),
     cycleDetectorSet(thisDuringConstruction()),
     errorReporter(NULL),
     operationCallback(NULL),
@@ -1301,8 +1270,13 @@ JSContext::runningWithTrustedPrincipals() const
 bool
 JSContext::saveFrameChain()
 {
-    if (!savedFrameChains_.append(SavedFrameChain(compartment(), enterCompartmentDepth_)))
+    if (!stack.saveFrameChain())
         return false;
+
+    if (!savedFrameChains_.append(SavedFrameChain(compartment(), enterCompartmentDepth_))) {
+        stack.restoreFrameChain();
+        return false;
+    }
 
     if (Activation *act = mainThread().activation())
         act->saveFrameChain();
@@ -1324,6 +1298,8 @@ JSContext::restoreFrameChain()
     SavedFrameChain sfc = savedFrameChains_.popCopy();
     setCompartment(sfc.compartment);
     enterCompartmentDepth_ = sfc.enterCompartmentCount;
+
+    stack.restoreFrameChain();
 
     if (Activation *act = mainThread().activation())
         act->restoreFrameChain();
@@ -1524,7 +1500,7 @@ JSContext::findVersion() const
     if (hasVersionOverride)
         return versionOverride;
 
-    if (JSScript *script = currentScript(NULL, ALLOW_CROSS_COMPARTMENT))
+    if (JSScript *script = stack.currentScript(NULL, js::ContextStack::ALLOW_CROSS_COMPARTMENT))
         return script->getVersion();
 
     return defaultVersion;

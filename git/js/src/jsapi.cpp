@@ -371,7 +371,7 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
             if (!obj)
                 return JS_FALSE;
             *sp = OBJECT_TO_JSVAL(obj);
-            *va_arg(ap, JSFunction **) = &obj->as<JSFunction>();
+            *va_arg(ap, JSFunction **) = obj->toFunction();
             break;
           case 'v':
             *va_arg(ap, jsval *) = *sp;
@@ -781,7 +781,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcLowFrequencyHeapGrowth(1.5),
     gcDynamicHeapGrowth(false),
     gcDynamicMarkSlice(false),
-    gcDecommitThreshold(32 * 1024 * 1024),
     gcShouldCleanUpEverything(false),
     gcGrayBitsValid(false),
     gcIsNeeded(0),
@@ -963,6 +962,9 @@ JSRuntime::init(uint32_t maxbytes)
 
     dateTimeInfo.updateTimeZoneAdjustment();
 
+    if (!stackSpace.init())
+        return false;
+
     if (!scriptDataTable.init())
         return false;
 
@@ -1139,6 +1141,8 @@ JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads)
 #include "js.msg"
 #undef MSG_DEF
 #endif /* DEBUG */
+
+        InitMemorySubsystem();
 
         if (!js::TlsPerThreadData.init())
             return NULL;
@@ -1801,7 +1805,7 @@ StdNameToPropertyName(JSContext *cx, const JSStdName *stdn)
  * If you add a "standard" class, remember to update this table.
  */
 static const JSStdName standard_class_atoms[] = {
-    {js_InitFunctionClass,              EAGER_CLASS_ATOM(Function), &JSFunction::class_},
+    {js_InitFunctionClass,              EAGER_ATOM_AND_CLASP(Function)},
     {js_InitObjectClass,                EAGER_ATOM_AND_CLASP(Object)},
     {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_OCLASP(Boolean)},
@@ -1997,7 +2001,7 @@ JS_ResolveStandardClass(JSContext *cx, HandleObject obj, HandleId id, JSBool *re
          * If this standard class is anonymous, then we don't want to resolve
          * by name.
          */
-        JS_ASSERT(obj->is<GlobalObject>());
+        JS_ASSERT(obj->isGlobal());
         if (stdnm->clasp->flags & JSCLASS_IS_ANONYMOUS)
             return true;
 
@@ -2114,7 +2118,7 @@ JS_GetGlobalForObject(JSContext *cx, JSObject *obj)
 extern JS_PUBLIC_API(JSBool)
 JS_IsGlobalObject(JSObject *obj)
 {
-    return obj->is<GlobalObject>();
+    return obj->isGlobal();
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2501,14 +2505,21 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
           case JSTRACE_OBJECT:
           {
             JSObject *obj = (JSObject *)thing;
-            if (obj->is<JSFunction>()) {
-                JSFunction *fun = &obj->as<JSFunction>();
-                if (fun->displayAtom()) {
-                    *buf++ = ' ';
-                    bufsize--;
-                    PutEscapedString(buf, bufsize, fun->displayAtom(), 0);
+            Class *clasp = obj->getClass();
+            if (clasp == &FunctionClass) {
+                JSFunction *fun = obj->toFunction();
+                if (!fun) {
+                    JS_snprintf(buf, bufsize, " <newborn>");
+                } else if (fun != obj) {
+                    JS_snprintf(buf, bufsize, " %p", fun);
+                } else {
+                    if (fun->displayAtom()) {
+                        *buf++ = ' ';
+                        bufsize--;
+                        PutEscapedString(buf, bufsize, fun->displayAtom(), 0);
+                    }
                 }
-            } else if (obj->getClass()->flags & JSCLASS_HAS_PRIVATE) {
+            } else if (clasp->flags & JSCLASS_HAS_PRIVATE) {
                 JS_snprintf(buf, bufsize, " %p", obj->getPrivate());
             } else {
                 JS_snprintf(buf, bufsize, " <no private>");
@@ -2880,9 +2891,6 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32_t value)
       case JSGC_ALLOCATION_THRESHOLD:
         rt->gcAllocationThreshold = value * 1024 * 1024;
         break;
-      case JSGC_DECOMMIT_THRESHOLD:
-        rt->gcDecommitThreshold = value * 1024 * 1024;
-        break;
       default:
         JS_ASSERT(key == JSGC_MODE);
         rt->gcMode = JSGCMode(value);
@@ -3073,38 +3081,38 @@ JS_DefaultValue(JSContext *cx, JSObject *objArg, JSType hint, jsval *vp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_PropertyStub(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+JS_PropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, MutableHandleValue vp)
 {
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_StrictPropertyStub(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
+JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, MutableHandleValue vp)
 {
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeletePropertyStub(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)
+JS_DeletePropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded)
 {
     *succeeded = true;
     return true;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_EnumerateStub(JSContext *cx, HandleObject obj)
+JS_EnumerateStub(JSContext *cx, JSHandleObject obj)
 {
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ResolveStub(JSContext *cx, HandleObject obj, HandleId id)
+JS_ResolveStub(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ConvertStub(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue vp)
+JS_ConvertStub(JSContext *cx, JSHandleObject obj, JSType type, MutableHandleValue vp)
 {
     JS_ASSERT(type != JSTYPE_OBJECT && type != JSTYPE_FUNCTION);
     JS_ASSERT(obj);
@@ -3343,7 +3351,7 @@ JS_NewObject(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, JSObject *pare
     if (!clasp)
         clasp = &ObjectClass;    /* default class is Object */
 
-    JS_ASSERT(clasp != &JSFunction::class_);
+    JS_ASSERT(clasp != &FunctionClass);
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     JSObject *obj = NewObjectWithClassProto(cx, clasp, proto, parent);
@@ -3373,7 +3381,7 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, 
     if (!clasp)
         clasp = &ObjectClass;    /* default class is Object */
 
-    JS_ASSERT(clasp != &JSFunction::class_);
+    JS_ASSERT(clasp != &FunctionClass);
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     JSObject *obj = NewObjectWithGivenProto(cx, clasp, proto, parent);
@@ -3796,7 +3804,7 @@ JS_DefineElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval valueArg
 }
 
 static JSBool
-DefineProperty(JSContext *cx, HandleObject obj, const char *name, const Value &value_,
+DefineProperty(JSContext *cx, JSHandleObject obj, const char *name, const Value &value_,
                const JSPropertyOpWrapper &getter, const JSStrictPropertyOpWrapper &setter,
                unsigned attrs, unsigned flags, int tinyid)
 {
@@ -3839,7 +3847,7 @@ JS_DefinePropertyWithTinyId(JSContext *cx, JSObject *objArg, const char *name, i
 }
 
 static JSBool
-DefineUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t namelen,
+DefineUCProperty(JSContext *cx, JSHandleObject obj, const jschar *name, size_t namelen,
                  const Value &value_, PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
                  unsigned flags, int tinyid)
 {
@@ -4416,7 +4424,7 @@ JS_ClearNonGlobalObject(JSContext *cx, JSObject *objArg)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
 
-    JS_ASSERT(!obj->is<GlobalObject>());
+    JS_ASSERT(!obj->isGlobal());
 
     if (!obj->isNative())
         return;
@@ -4786,7 +4794,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobjArg, JSObject *parentArg)
     if (!parent)
         parent = cx->global();
 
-    if (!funobj->is<JSFunction>()) {
+    if (!funobj->isFunction()) {
         AutoCompartment ac(cx, funobj);
         ReportIsNotFunction(cx, ObjectValue(*funobj));
         return NULL;
@@ -4796,14 +4804,14 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobjArg, JSObject *parentArg)
      * If a function was compiled to be lexically nested inside some other
      * script, we cannot clone it without breaking the compiler's assumptions.
      */
-    RootedFunction fun(cx, &funobj->as<JSFunction>());
+    RootedFunction fun(cx, funobj->toFunction());
     if (fun->isInterpretedLazy()) {
         AutoCompartment ac(cx, funobj);
         if (!fun->getOrCreateScript(cx))
             return NULL;
     }
     if (fun->isInterpreted() && (fun->nonLazyScript()->enclosingStaticScope() ||
-        (fun->nonLazyScript()->compileAndGo && !parent->is<GlobalObject>())))
+        (fun->nonLazyScript()->compileAndGo && !parent->isGlobal())))
     {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_CLONE_FUNOBJ_SCOPE);
         return NULL;
@@ -4849,7 +4857,7 @@ JS_GetFunctionArity(JSFunction *fun)
 JS_PUBLIC_API(JSBool)
 JS_ObjectIsFunction(JSContext *cx, JSObject *obj)
 {
-    return obj->is<JSFunction>();
+    return obj->isFunction();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4861,9 +4869,9 @@ JS_ObjectIsCallable(JSContext *cx, JSObject *obj)
 JS_PUBLIC_API(JSBool)
 JS_IsNativeFunction(JSObject *funobj, JSNative call)
 {
-    if (!funobj->is<JSFunction>())
+    if (!funobj->isFunction())
         return false;
-    JSFunction *fun = &funobj->as<JSFunction>();
+    JSFunction *fun = funobj->toFunction();
     return fun->isNative() && fun->native() == call;
 }
 
@@ -4887,7 +4895,7 @@ js_generic_native_method_dispatcher(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     const JSFunctionSpec *fs = (JSFunctionSpec *)
-        vp->toObject().as<JSFunction>().getExtendedSlot(0).toPrivate();
+        vp->toObject().toFunction()->getExtendedSlot(0).toPrivate();
     JS_ASSERT((fs->flags & JSFUN_GENERIC_NATIVE) != 0);
 
     if (argc < 1) {
@@ -5779,8 +5787,8 @@ JS_New(JSContext *cx, JSObject *ctorArg, unsigned argc, jsval *argv)
     // is not a simple variation of JSOP_CALL. We have to determine what class
     // of object to create, create it, and clamp the return value to an object,
     // among other details. InvokeConstructor does the hard work.
-    InvokeArgs args(cx);
-    if (!args.init(argc))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, argc, &args))
         return NULL;
 
     args.setCallee(ObjectValue(*ctor));
@@ -6655,7 +6663,7 @@ JS_NewRegExpObject(JSContext *cx, JSObject *objArg, char *bytes, size_t length, 
     if (!chars)
         return NULL;
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
+    RegExpStatics *res = obj->asGlobal().getRegExpStatics();
     RegExpObject *reobj = RegExpObject::create(cx, res, chars, length,
                                                RegExpFlag(flags), NULL);
     js_free(chars);
@@ -6668,7 +6676,7 @@ JS_NewUCRegExpObject(JSContext *cx, JSObject *objArg, jschar *chars, size_t leng
     RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
+    RegExpStatics *res = obj->asGlobal().getRegExpStatics();
     return RegExpObject::create(cx, res, chars, length,
                                 RegExpFlag(flags), NULL);
 }
@@ -6681,7 +6689,7 @@ JS_SetRegExpInput(JSContext *cx, JSObject *objArg, JSString *input, JSBool multi
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, input);
 
-    obj->as<GlobalObject>().getRegExpStatics()->reset(cx, input, !!multiline);
+    obj->asGlobal().getRegExpStatics()->reset(cx, input, !!multiline);
 }
 
 JS_PUBLIC_API(void)
@@ -6692,7 +6700,7 @@ JS_ClearRegExpStatics(JSContext *cx, JSObject *objArg)
     CHECK_REQUEST(cx);
     JS_ASSERT(obj);
 
-    obj->as<GlobalObject>().getRegExpStatics()->clear();
+    obj->asGlobal().getRegExpStatics()->clear();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -6704,7 +6712,7 @@ JS_ExecuteRegExp(JSContext *cx, JSObject *objArg, JSObject *reobjArg, jschar *ch
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    RegExpStatics *res = obj->as<GlobalObject>().getRegExpStatics();
+    RegExpStatics *res = obj->asGlobal().getRegExpStatics();
 
     RootedValue val(cx);
     if (!ExecuteRegExpLegacy(cx, res, reobj->as<RegExpObject>(), NullPtr(), chars, length, indexp,

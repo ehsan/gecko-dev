@@ -36,12 +36,6 @@ LIRGeneratorX64::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Regi
     return true;
 }
 
-LDefinition
-LIRGeneratorX64::tempToUnbox()
-{
-    return temp();
-}
-
 bool
 LIRGeneratorX64::visitBox(MBox *box)
 {

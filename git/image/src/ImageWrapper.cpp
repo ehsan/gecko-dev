@@ -231,12 +231,6 @@ ImageWrapper::StartDecoding()
   return mInnerImage->StartDecoding();
 }
 
-bool
-ImageWrapper::IsDecoded()
-{
-  return mInnerImage->IsDecoded();
-}
-
 NS_IMETHODIMP
 ImageWrapper::LockImage()
 {

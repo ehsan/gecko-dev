@@ -16,10 +16,9 @@
 #include "gc/Heap.h"
 #include "gc/Marking.h"
 #include "js/TemplateLib.h"
-#include "vm/Interpreter.h"
-#include "vm/ObjectImpl.h"
 
-#include "gc/Barrier-inl.h"
+#include "Interpreter.h"
+#include "ObjectImpl.h"
 
 namespace js {
 
@@ -356,8 +355,16 @@ js::ObjectImpl::tenuredSizeOfThis() const
 JS_ALWAYS_INLINE JS::Zone *
 js::ObjectImpl::zone() const
 {
-    JS_ASSERT(InSequentialOrExclusiveParallelSection());
     return shape_->zone();
+}
+
+JS_ALWAYS_INLINE JS::Zone *
+ZoneOfValue(const JS::Value &value)
+{
+    JS_ASSERT(value.isMarkable());
+    if (value.isObject())
+        return value.toObject().zone();
+    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
 }
 
 /* static */ inline void
@@ -366,7 +373,7 @@ js::ObjectImpl::readBarrier(ObjectImpl *obj)
 #ifdef JSGC_INCREMENTAL
     Zone *zone = obj->zone();
     if (zone->needsBarrier()) {
-        MOZ_ASSERT(!zone->rt->isHeapMajorCollecting());
+        MOZ_ASSERT(!zone->rt->isHeapBusy());
         JSObject *tmp = obj->asObjectPtr();
         MarkObjectUnbarriered(zone->barrierTracer(), &tmp, "read barrier");
         MOZ_ASSERT(tmp == obj->asObjectPtr());
@@ -407,7 +414,7 @@ js::ObjectImpl::writeBarrierPre(ObjectImpl *obj)
 
     Zone *zone = obj->zone();
     if (zone->needsBarrier()) {
-        MOZ_ASSERT(!zone->rt->isHeapMajorCollecting());
+        MOZ_ASSERT(!zone->rt->isHeapBusy());
         JSObject *tmp = obj->asObjectPtr();
         MarkObjectUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         MOZ_ASSERT(tmp == obj->asObjectPtr());

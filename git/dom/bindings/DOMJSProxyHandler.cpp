@@ -36,7 +36,7 @@ DefineStaticJSVals(JSContext* cx)
 int HandlerFamily;
 
 js::DOMProxyShadowsResult
-DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
+DOMProxyShadows(JSContext* cx, JSHandleObject proxy, JSHandleId id)
 {
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
   if (v.isObject()) {

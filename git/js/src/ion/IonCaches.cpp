@@ -450,8 +450,8 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
         // use objectReg in the rest of this function.
         masm.loadPtr(Address(objectReg, JSObject::offsetOfType()), scratchReg);
         Address proto(scratchReg, offsetof(types::TypeObject, proto));
-        masm.branchNurseryPtr(Assembler::NotEqual, proto,
-                              ImmMaybeNurseryPtr(obj->getProto()), failures);
+        masm.branchPtr(Assembler::NotEqual, proto,
+                       ImmMaybeNurseryPtr(ion->method(), obj->getProto()), failures);
     }
 
     JSObject *pobj = IsCacheableDOMProxy(obj)
@@ -462,7 +462,7 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
             JS_ASSERT(!pobj->hasSingletonType());
-            masm.moveNurseryPtr(ImmMaybeNurseryPtr(pobj), scratchReg);
+            masm.movePtr(ImmMaybeNurseryPtr(ion->method(), pobj), scratchReg);
             Address objType(scratchReg, JSObject::offsetOfType());
             masm.branchPtr(Assembler::NotEqual, objType, ImmGCPtr(pobj->type()), failures);
         }
@@ -594,8 +594,8 @@ IsCacheableGetPropCallNative(JSObject *obj, JSObject *holder, Shape *shape)
     if (!shape->hasGetterValue() || !shape->getterValue().isObject())
         return false;
 
-    return shape->getterValue().toObject().is<JSFunction>() &&
-           shape->getterValue().toObject().as<JSFunction>().isNative();
+    return shape->getterValue().toObject().isFunction() &&
+           shape->getterValue().toObject().toFunction()->isNative();
 }
 
 static bool
@@ -768,7 +768,7 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
         if (holder) {
             // Guard on the holder's shape.
             holderReg = scratchReg;
-            masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), holderReg);
+            masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), holderReg);
             masm.branchPtr(Assembler::NotEqual,
                            Address(holderReg, JSObject::offsetOfShape()),
                            ImmGCPtr(holder->lastProperty()),
@@ -852,7 +852,7 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
     // Guard on the holder's shape.
     Register holderReg = scratchReg;
-    masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), holderReg);
+    masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), holderReg);
     masm.branchPtr(Assembler::NotEqual,
                    Address(holderReg, JSObject::offsetOfShape()),
                    ImmGCPtr(holder->lastProperty()),
@@ -890,8 +890,8 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
     if (callNative) {
         JS_ASSERT(shape->hasGetterValue() && shape->getterValue().isObject() &&
-                  shape->getterValue().toObject().is<JSFunction>());
-        JSFunction *target = &shape->getterValue().toObject().as<JSFunction>();
+                  shape->getterValue().toObject().isFunction());
+        JSFunction *target = shape->getterValue().toObject().toFunction();
 
         JS_ASSERT(target);
         JS_ASSERT(target->isNative());
@@ -936,7 +936,7 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
         PropertyOp target = shape->getterOp();
         JS_ASSERT(target);
-        // JSPropertyOp: JSBool fn(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+        // JSPropertyOp: JSBool fn(JSContext *cx, JSHandleObject obj, JSHandleId id, MutableHandleValue vp)
 
         // Push args on stack first so we can take pointers to make handles.
         masm.Push(UndefinedValue());
@@ -1799,7 +1799,7 @@ SetPropertyIC::attachSetterCall(JSContext *cx, IonScript *ion,
         if (obj != holder)
             GeneratePrototypeGuards(cx, ion, masm, obj, holder, object(), scratchReg, &protoFailure);
 
-        masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), scratchReg);
+        masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), scratchReg);
         masm.branchPtr(Assembler::NotEqual,
                        Address(scratchReg, JSObject::offsetOfShape()),
                        ImmGCPtr(holder->lastProperty()),
@@ -1845,8 +1845,8 @@ SetPropertyIC::attachSetterCall(JSContext *cx, IonScript *ion,
 
     StrictPropertyOp target = shape->setterOp();
     JS_ASSERT(target);
-    // JSStrictPropertyOp: JSBool fn(JSContext *cx, HandleObject obj,
-    //                               HandleId id, JSBool strict, MutableHandleValue vp);
+    // JSStrictPropertyOp: JSBool fn(JSContext *cx, JSHandleObject obj,
+    //                               JSHandleId id, JSBool strict, MutableHandleValue vp);
 
     // Push args on stack first so we can take pointers to make handles.
     if (value().constant())
@@ -2715,7 +2715,7 @@ SetElementIC::reset()
 bool
 BindNameIC::attachGlobal(JSContext *cx, IonScript *ion, JSObject *scopeChain)
 {
-    JS_ASSERT(scopeChain->is<GlobalObject>());
+    JS_ASSERT(scopeChain->isGlobal());
 
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
@@ -2745,7 +2745,7 @@ GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
             if (!script->funHasExtensibleScope)
                 return;
         }
-    } else if (scopeObj->is<GlobalObject>()) {
+    } else if (scopeObj->isGlobal()) {
         // If this is the last object on the scope walk, and the property we've
         // found is not configurable, then we don't need a shape guard because
         // the shape cannot be removed.
@@ -2766,7 +2766,7 @@ GenerateScopeChainGuards(MacroAssembler &masm, JSObject *scopeChain, JSObject *h
     // Walk up the scope chain. Note that IsCacheableScopeChain guarantees the
     // |tobj == holder| condition terminates the loop.
     while (true) {
-        JS_ASSERT(IsCacheableNonGlobalScope(tobj) || tobj->is<GlobalObject>());
+        JS_ASSERT(IsCacheableNonGlobalScope(tobj) || tobj->isGlobal());
 
         GenerateScopeChainGuard(masm, tobj, outputReg, NULL, failures);
         if (tobj == holder)
@@ -2848,7 +2848,7 @@ BindNameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain)
     HandlePropertyName name = cache.name();
 
     RootedObject holder(cx);
-    if (scopeChain->is<GlobalObject>()) {
+    if (scopeChain->isGlobal()) {
         holder = scopeChain;
     } else {
         if (!LookupNameWithGlobalDefault(cx, name, scopeChain, &holder))
@@ -2858,7 +2858,7 @@ BindNameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain)
     // Stop generating new stubs once we hit the stub count limit, see
     // GetPropertyCache.
     if (cache.canAttachStub()) {
-        if (scopeChain->is<GlobalObject>()) {
+        if (scopeChain->isGlobal()) {
             if (!cache.attachGlobal(cx, ion, scopeChain))
                 return NULL;
         } else if (IsCacheableScopeChain(scopeChain, holder)) {
@@ -2918,7 +2918,7 @@ IsCacheableNameReadSlot(JSContext *cx, HandleObject scopeChain, HandleObject obj
     if (obj != holder)
         return false;
 
-    if (obj->is<GlobalObject>()) {
+    if (obj->isGlobal()) {
         // Support only simple property lookups.
         if (!IsCacheableGetPropReadSlot(obj, holder, shape) &&
             !IsCacheableNoProperty(obj, holder, shape, pc, output))
@@ -2933,11 +2933,11 @@ IsCacheableNameReadSlot(JSContext *cx, HandleObject scopeChain, HandleObject obj
 
     RootedObject obj2(cx, scopeChain);
     while (obj2) {
-        if (!IsCacheableNonGlobalScope(obj2) && !obj2->is<GlobalObject>())
+        if (!IsCacheableNonGlobalScope(obj2) && !obj2->isGlobal())
             return false;
 
         // Stop once we hit the global or target obj.
-        if (obj2->is<GlobalObject>() || obj2 == obj)
+        if (obj2->isGlobal() || obj2 == obj)
             break;
 
         obj2 = obj2->enclosingScope();
@@ -2973,7 +2973,7 @@ IsCacheableNameCallGetter(JSObject *scopeChain, JSObject *obj, JSObject *holder,
     if (obj != scopeChain)
         return false;
 
-    if (!obj->is<GlobalObject>())
+    if (!obj->isGlobal())
         return false;
 
     return IsCacheableGetPropCallNative(obj, holder, shape) ||
@@ -3053,7 +3053,7 @@ CallsiteCloneIC::update(JSContext *cx, size_t cacheIndex, HandleObject callee)
 
     // Act as the identity for functions that are not clone-at-callsite, as we
     // generate this cache as long as some callees are clone-at-callsite.
-    RootedFunction fun(cx, &callee->as<JSFunction>());
+    RootedFunction fun(cx, callee->toFunction());
     if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite)
         return fun;
 

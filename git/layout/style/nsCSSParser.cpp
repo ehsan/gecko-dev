@@ -5169,7 +5169,8 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
           aValue.SetInheritValue();
           return true;
         }
-        else if (eCSSKeyword_initial == keyword) { // anything that can inherit can also take an initial val.
+        else if (eCSSKeyword__moz_initial == keyword ||
+                 eCSSKeyword_initial == keyword) { // anything that can inherit can also take an initial val.
           aValue.SetInitialValue();
           return true;
         }
@@ -6955,6 +6956,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
       nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
       int32_t dummy;
       if (keyword == eCSSKeyword_inherit ||
+          keyword == eCSSKeyword__moz_initial ||
           keyword == eCSSKeyword_initial) {
         return false;
       } else if (keyword == eCSSKeyword_none) {
@@ -8351,6 +8353,7 @@ CSSParserImpl::ParseRect(nsCSSProperty aPropID)
         val.SetInheritValue();
         break;
       case eCSSKeyword_initial:
+      case eCSSKeyword__moz_initial:
         if (!ExpectEndProperty()) {
           return false;
         }
@@ -9061,7 +9064,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
     if (keyword == eCSSKeyword_default) {
       return false;
     }
-    if (keyword == eCSSKeyword_initial) {
+    if (keyword == eCSSKeyword__moz_initial || keyword == eCSSKeyword_initial) {
       aValue.SetInitialValue();
       return true;
     }
@@ -9090,6 +9093,7 @@ CSSParserImpl::ParseFamily(nsCSSValue& aValue)
         case eCSSKeyword_inherit:
         case eCSSKeyword_initial:
         case eCSSKeyword_default:
+        case eCSSKeyword__moz_initial:
         case eCSSKeyword__moz_use_system_font:
           return false;
         default:

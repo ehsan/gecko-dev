@@ -1009,17 +1009,17 @@ array_toString(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    InvokeArgs args2(cx);
-    if (!args2.init(0))
+    InvokeArgsGuard ag;
+    if (!cx->stack.pushInvokeArgs(cx, 0, &ag))
         return false;
 
-    args2.setCallee(join);
-    args2.setThis(ObjectValue(*obj));
+    ag.setCallee(join);
+    ag.setThis(ObjectValue(*obj));
 
     /* Do the call. */
-    if (!Invoke(cx, args2))
+    if (!Invoke(cx, ag))
         return false;
-    args.rval().set(args2.rval());
+    args.rval().set(ag.rval());
     return true;
 }
 
@@ -1421,20 +1421,20 @@ SortComparatorFunction::operator()(const Value &a, const Value &b, bool *lessOrE
     if (!JS_CHECK_OPERATION_LIMIT(cx))
         return false;
 
-    InvokeArgs &args = fig.args();
-    if (!args.init(2))
+    InvokeArgsGuard &ag = fig.args();
+    if (!ag.pushed() && !cx->stack.pushInvokeArgs(cx, 2, &ag))
         return false;
 
-    args.setCallee(fval);
-    args.setThis(UndefinedValue());
-    args[0] = a;
-    args[1] = b;
+    ag.setCallee(fval);
+    ag.setThis(UndefinedValue());
+    ag[0] = a;
+    ag[1] = b;
 
     if (!fig.invoke(cx))
         return false;
 
     double cmp;
-    if (!ToNumber(cx, args.rval(), &cmp))
+    if (!ToNumber(cx, ag.rval(), &cmp))
         return false;
 
     /*
@@ -1521,10 +1521,10 @@ MatchNumericComparator(JSContext *cx, const Value &v)
         return Match_None;
 
     JSObject &obj = v.toObject();
-    if (!obj.is<JSFunction>())
+    if (!obj.isFunction())
         return Match_None;
 
-    JSFunction *fun = &obj.as<JSFunction>();
+    JSFunction *fun = obj.toFunction();
     if (!fun->isInterpreted())
         return Match_None;
 
@@ -2637,7 +2637,7 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
     /* Step 9. */
     JS_ASSERT(!InParallelSection());
     FastInvokeGuard fig(cx, ObjectValue(*callable));
-    InvokeArgs &args2 = fig.args();
+    InvokeArgsGuard &ag = fig.args();
     RootedValue kValue(cx);
     while (k < len) {
         if (!JS_CHECK_OPERATION_LIMIT(cx))
@@ -2650,17 +2650,17 @@ array_filter(JSContext *cx, unsigned argc, Value *vp)
 
         /* Step c.ii-iii. */
         if (!kNotPresent) {
-            if (!args2.init(3))
+            if (!ag.pushed() && !cx->stack.pushInvokeArgs(cx, 3, &ag))
                 return false;
-            args2.setCallee(ObjectValue(*callable));
-            args2.setThis(thisv);
-            args2[0] = kValue;
-            args2[1] = NumberValue(k);
-            args2[2] = ObjectValue(*obj);
+            ag.setCallee(ObjectValue(*callable));
+            ag.setThis(thisv);
+            ag[0] = kValue;
+            ag[1] = NumberValue(k);
+            ag[2] = ObjectValue(*obj);
             if (!fig.invoke(cx))
                 return false;
 
-            if (ToBoolean(args2.rval())) {
+            if (ToBoolean(ag.rval())) {
                 if (!SetArrayElement(cx, arr, to, kValue))
                     return false;
                 to++;
@@ -2793,7 +2793,7 @@ js_InitArrayClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     RootedObject proto(cx, global->getOrCreateObjectPrototype(cx));
     if (!proto)

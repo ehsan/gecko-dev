@@ -120,7 +120,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   AssertIsRooted();
 
   JS::Rooted<JS::Value> value(cx);
-  rv = aHelper->GetSuccessResult(cx, &value);
+  rv = aHelper->GetSuccessResult(cx, value.address());
   if (NS_FAILED(rv)) {
     NS_WARNING("GetSuccessResult failed!");
   }

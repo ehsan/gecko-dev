@@ -59,7 +59,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
     bool enoughMemory_;
-    bool embedsNurseryPointers_;
 
   private:
     // This field is used to manage profiling instrumentation output. If
@@ -75,7 +74,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     // instrumentation from being emitted.
     MacroAssembler()
       : enoughMemory_(true),
-        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         JSContext *cx = GetIonContext()->cx;
@@ -97,7 +95,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
     MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
-        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         constructRoot(cx);
@@ -135,10 +132,6 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     bool oom() const {
         return !enoughMemory_ || MacroAssemblerSpecific::oom();
-    }
-
-    bool embedsNurseryPointers() const {
-        return embedsNurseryPointers_;
     }
 
     // Emits a test of a value against all types in a TypeSet. A scratch
@@ -509,10 +502,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         align(8);
         bind(&done);
     }
-
-    void branchNurseryPtr(Condition cond, const Address &ptr1, const ImmMaybeNurseryPtr &ptr2,
-                          Label *label);
-    void moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, const Register &reg);
 
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;

@@ -395,10 +395,11 @@ nsGeolocationRequest::Allow()
   GetWindow(getter_AddRefs(window));
   nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(window);
   nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(webNav);
+  bool isPrivate = loadContext && loadContext->UsePrivateBrowsing();
 
   // Kick off the geo device, if it isn't already running
   nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
-  nsresult rv = gs->StartDevice(GetPrincipal());
+  nsresult rv = gs->StartDevice(GetPrincipal(), isPrivate);
 
   if (NS_FAILED(rv)) {
     // Location provider error
@@ -796,7 +797,7 @@ nsGeolocationService::GetCachedPosition()
 }
 
 nsresult
-nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal)
+nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal, bool aRequestPrivate)
 {
   if (!sGeoEnabled || sGeoInitPending) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -827,7 +828,7 @@ nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal)
   nsresult rv;
 
   if (NS_FAILED(rv = mProvider->Startup()) ||
-      NS_FAILED(rv = mProvider->Watch(this))) {
+      NS_FAILED(rv = mProvider->Watch(this, aRequestPrivate))) {
 
     NotifyError(nsIDOMGeoPositionError::POSITION_UNAVAILABLE);
     return rv;

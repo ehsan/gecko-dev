@@ -598,7 +598,7 @@ JSStructuredCloneWriter::writeTypedArray(HandleObject arr)
 }
 
 bool
-JSStructuredCloneWriter::writeArrayBuffer(HandleObject obj)
+JSStructuredCloneWriter::writeArrayBuffer(JSHandleObject obj)
 {
     ArrayBufferObject &buffer = obj->as<ArrayBufferObject>();
     return out.writePair(SCTAG_ARRAY_BUFFER_OBJECT, buffer.byteLength()) &&
@@ -606,7 +606,7 @@ JSStructuredCloneWriter::writeArrayBuffer(HandleObject obj)
 }
 
 bool
-JSStructuredCloneWriter::startObject(HandleObject obj, bool *backref)
+JSStructuredCloneWriter::startObject(JSHandleObject obj, bool *backref)
 {
     /* Handle cycles in the object graph. */
     CloneMemory::AddPtr p = memory.lookupForAdd(obj);
@@ -625,7 +625,7 @@ JSStructuredCloneWriter::startObject(HandleObject obj, bool *backref)
 }
 
 bool
-JSStructuredCloneWriter::traverseObject(HandleObject obj)
+JSStructuredCloneWriter::traverseObject(JSHandleObject obj)
 {
     /*
      * Get enumerable property ids and put them in reverse order so that they

@@ -259,16 +259,12 @@ struct ResumeFromException
 {
     static const uint32_t RESUME_ENTRY_FRAME = 0;
     static const uint32_t RESUME_CATCH = 1;
-    static const uint32_t RESUME_FINALLY = 2;
-    static const uint32_t RESUME_FORCED_RETURN = 3;
+    static const uint32_t RESUME_FORCED_RETURN = 2;
 
     uint8_t *framePointer;
     uint8_t *stackPointer;
     uint8_t *target;
     uint32_t kind;
-
-    // Value to push when resuming into a |finally| block.
-    Value exception;
 };
 
 void HandleException(ResumeFromException *rfe);

@@ -429,17 +429,6 @@ HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromExceptio
             }
             break;
 
-          case JSTRY_FINALLY:
-            if (cx->isExceptionPending()) {
-                rfe->kind = ResumeFromException::RESUME_FINALLY;
-                jsbytecode *finallyPC = script->main() + tn->start + tn->length;
-                rfe->target = script->baselineScript()->nativeCodeForPC(script, finallyPC);
-                rfe->exception = cx->getPendingException();
-                cx->clearPendingException();
-                return;
-            }
-            break;
-
           case JSTRY_ITER: {
             Value iterValue(* (Value *) rfe->stackPointer);
             RootedObject iterObject(cx, &iterValue.toObject());
@@ -1286,12 +1275,12 @@ InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 
         si_.nextFrame();
 
-        callee_ = &funval.toObject().as<JSFunction>();
+        callee_ = funval.toObject().toFunction();
 
         // Inlined functions may be clones that still point to the lazy script
         // for the executed script, if they are clones. The actual script
         // exists though, just make sure the function points to it.
-        script_ = callee_->existingScript();
+        script_ = callee_->getExistingScript();
 
         pc_ = script_->code + si_.pcOffset();
     }

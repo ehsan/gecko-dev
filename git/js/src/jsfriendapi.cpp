@@ -86,8 +86,8 @@ JS_FindCompilationScope(JSContext *cx, JSObject *objArg)
 JS_FRIEND_API(JSFunction *)
 JS_GetObjectFunction(JSObject *obj)
 {
-    if (obj->is<JSFunction>())
-        return &obj->as<JSFunction>();
+    if (obj->isFunction())
+        return obj->toFunction();
     return NULL;
 }
 
@@ -309,7 +309,7 @@ AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSCompartment *newCo
     cx->setCompartment(newCompartment);
 }
 
-AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, HandleObject target
+AutoSwitchCompartment::AutoSwitchCompartment(JSContext *cx, JSHandleObject target
                                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
   : cx(cx), oldCompartment(cx->compartment())
 {
@@ -345,12 +345,6 @@ JS_FRIEND_API(bool)
 js::IsAtomsCompartment(JSCompartment *comp)
 {
     return comp == comp->rt->atomsCompartment;
-}
-
-JS_FRIEND_API(bool)
-js::IsFunctionObject(JSObject *obj)
-{
-    return obj->is<JSFunction>();
 }
 
 JS_FRIEND_API(bool)
@@ -497,15 +491,15 @@ js::InitClassWithReserved(JSContext *cx, JSObject *objArg, JSObject *parent_prot
 JS_FRIEND_API(const Value &)
 js::GetFunctionNativeReserved(JSObject *fun, size_t which)
 {
-    JS_ASSERT(fun->as<JSFunction>().isNative());
-    return fun->as<JSFunction>().getExtendedSlot(which);
+    JS_ASSERT(fun->toFunction()->isNative());
+    return fun->toFunction()->getExtendedSlot(which);
 }
 
 JS_FRIEND_API(void)
 js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
 {
-    JS_ASSERT(fun->as<JSFunction>().isNative());
-    fun->as<JSFunction>().setExtendedSlot(which, val);
+    JS_ASSERT(fun->toFunction()->isNative());
+    fun->toFunction()->setExtendedSlot(which, val);
 }
 
 JS_FRIEND_API(void)
@@ -800,7 +794,7 @@ js::SetActivityCallback(JSRuntime *rt, ActivityCallback cb, void *arg)
 JS_FRIEND_API(bool)
 js::IsContextRunningJS(JSContext *cx)
 {
-    return cx->currentlyRunning();
+    return !cx->stack.empty();
 }
 
 JS_FRIEND_API(JS::GCSliceCallback)
@@ -910,7 +904,7 @@ JS::IncrementalObjectBarrier(JSObject *obj)
     if (!obj)
         return;
 
-    JS_ASSERT(!obj->zone()->rt->isHeapMajorCollecting());
+    JS_ASSERT(!obj->zone()->rt->isHeapBusy());
 
     AutoMarkInDeadZone amn(obj->zone());
 
@@ -928,7 +922,7 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
                  ? static_cast<JSObject *>(cell)->zone()
                  : cell->tenuredZone();
 
-    JS_ASSERT(!zone->rt->isHeapMajorCollecting());
+    JS_ASSERT(!zone->rt->isHeapBusy());
 
     AutoMarkInDeadZone amn(zone);
 
@@ -1081,7 +1075,7 @@ js::SetObjectMetadataCallback(JSContext *cx, ObjectMetadataCallback callback)
 }
 
 JS_FRIEND_API(bool)
-js::SetObjectMetadata(JSContext *cx, HandleObject obj, HandleObject metadata)
+js::SetObjectMetadata(JSContext *cx, JSHandleObject obj, JSHandleObject metadata)
 {
     return JSObject::setMetadata(cx, obj, metadata);
 }

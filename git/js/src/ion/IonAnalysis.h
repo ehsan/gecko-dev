@@ -105,7 +105,8 @@ class LinearSum
     LinearSum(const LinearSum &other)
       : constant_(other.constant_)
     {
-        terms_.append(other.terms_);
+        for (size_t i = 0; i < other.terms_.length(); i++)
+            terms_.append(other.terms_[i]);
     }
 
     bool multiply(int32_t scale);

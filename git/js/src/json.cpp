@@ -228,8 +228,8 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
             if (!keyStr)
                 return false;
 
-            InvokeArgs args(cx);
-            if (!args.init(1))
+            InvokeArgsGuard args;
+            if (!cx->stack.pushInvokeArgs(cx, 1, &args))
                 return false;
 
             args.setCallee(toJSON);
@@ -250,8 +250,8 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
                 return false;
         }
 
-        InvokeArgs args(cx);
-        if (!args.init(2))
+        InvokeArgsGuard args;
+        if (!cx->stack.pushInvokeArgs(cx, 2, &args))
             return false;
 
         args.setCallee(ObjectValue(*scx->replacer));
@@ -771,8 +771,8 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
     if (!key)
         return false;
 
-    InvokeArgs args(cx);
-    if (!args.init(2))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, 2, &args))
         return false;
 
     args.setCallee(reviver);
@@ -890,7 +890,7 @@ static const JSFunctionSpec json_static_methods[] = {
 JSObject *
 js_InitJSONClass(JSContext *cx, HandleObject obj)
 {
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
     /*
      * JSON requires that Boolean.prototype.valueOf be created and stashed in a

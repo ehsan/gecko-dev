@@ -644,7 +644,7 @@ GetDocumentFromNPP(NPP npp)
 static JSContext *
 GetJSContextFromDoc(nsIDocument *doc)
 {
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(doc->GetWindow());
+  nsIScriptGlobalObject *sgo = doc->GetScriptGlobalObject();
   NS_ENSURE_TRUE(sgo, nullptr);
 
   nsIScriptContext *scx = sgo->GetContext();

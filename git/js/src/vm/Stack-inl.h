@@ -16,8 +16,6 @@
 #include "ion/BaselineFrame.h"
 #include "ion/BaselineFrame-inl.h"
 #include "ion/IonFrameIterator-inl.h"
-
-#include "jsfuninlines.h"
 #include "jsscriptinlines.h"
 
 #include "ArgumentsObject-inl.h"
@@ -73,21 +71,41 @@ StackFrame::compartment() const
 }
 
 inline void
-StackFrame::initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, Value *prevsp, JSFunction &callee,
-                          JSScript *script, Value *argv, uint32_t nactual, StackFrame::Flags flagsArg)
+StackFrame::initPrev(JSContext *cx)
+{
+    JS_ASSERT(flags_ & HAS_PREVPC);
+    if (FrameRegs *regs = cx->stack.maybeRegs()) {
+        prev_ = regs->fp();
+        prevpc_ = regs->pc;
+        JS_ASSERT(uint32_t(prevpc_ - prev_->script()->code) < prev_->script()->length);
+    } else {
+        prev_ = NULL;
+#ifdef DEBUG
+        prevpc_ = (jsbytecode *)0xbadc;
+#endif
+    }
+}
+
+inline void
+StackFrame::resetGeneratorPrev(JSContext *cx)
+{
+    flags_ |= HAS_PREVPC;
+    initPrev(cx);
+}
+
+inline void
+StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
+                          JSScript *script, uint32_t nactual, StackFrame::Flags flagsArg)
 {
     JS_ASSERT((flagsArg & ~CONSTRUCTING) == 0);
     JS_ASSERT(callee.nonLazyScript() == script);
 
     /* Initialize stack frame members. */
-    flags_ = FUNCTION | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
-    argv_ = argv;
+    flags_ = FUNCTION | HAS_PREVPC | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
     exec.fun = &callee;
     u.nactual = nactual;
     scopeChain_ = callee.environment();
-    prev_ = prev;
-    prevpc_ = prevpc;
-    prevsp_ = prevsp;
+    initPrev(cx);
     blockChain_= NULL;
     JS_ASSERT(!hasBlockChain());
     JS_ASSERT(!hasHookData());
@@ -203,13 +221,6 @@ StackFrame::popOffScopeChain()
     scopeChain_ = &scopeChain_->as<ScopeObject>().enclosingScope();
 }
 
-bool
-StackFrame::hasCallObj() const
-{
-    JS_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
-    return flags_ & HAS_CALL_OBJ;
-}
-
 inline CallObject &
 StackFrame::callObj() const
 {
@@ -223,100 +234,144 @@ StackFrame::callObj() const
 
 /*****************************************************************************/
 
-inline void
-InterpreterStack::purge(JSRuntime *rt)
+STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
+JS_ALWAYS_INLINE bool
+StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals) const
 {
-    rt->freeLifoAlloc.transferUnusedFrom(&allocator_);
+    assertInvariants();
+    JS_ASSERT(from >= firstUnused());
+#ifdef XP_WIN
+    JS_ASSERT(from <= commitEnd_);
+#endif
+    if (JS_UNLIKELY(conservativeEnd_ - from < nvals))
+        return ensureSpaceSlow(cx, report, from, nvals);
+    return true;
 }
 
-uint8_t *
-InterpreterStack::allocateFrame(JSContext *cx, size_t size)
-{
-    if (JS_UNLIKELY(frameCount_ >= MAX_FRAMES)) {
-        js_ReportOverRecursed(cx);
-        return NULL;
-    }
-
-    uint8_t *buffer = reinterpret_cast<uint8_t *>(allocator_.alloc(size));
-    if (!buffer)
-        return NULL;
-
-    frameCount_++;
-    return buffer;
-}
+/*****************************************************************************/
 
 JS_ALWAYS_INLINE StackFrame *
-InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript script,
-                               StackFrame::Flags *flags, Value **pargv)
+ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
+                           JSFunction *fun, HandleScript script, StackFrame::Flags *flags) const
 {
-    JSFunction *fun = &args.callee().as<JSFunction>();
-
     JS_ASSERT(fun->nonLazyScript() == script);
     unsigned nformal = fun->nargs;
-    unsigned nvals = script->nslots;
+
+    Value *firstUnused = args.end();
+    JS_ASSERT(firstUnused == space().firstUnused());
+
+    unsigned nvals = VALUES_PER_STACK_FRAME + script->nslots;
 
     if (args.length() >= nformal) {
-        *pargv = args.array();
-        uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
-        return reinterpret_cast<StackFrame *>(buffer);
+        if (!space().ensureSpace(cx, report, firstUnused, nvals))
+            return NULL;
+        return reinterpret_cast<StackFrame *>(firstUnused);
     }
 
-    // Pad any missing arguments with |undefined|.
+    /* Pad any missing arguments with |undefined|. */
     JS_ASSERT(args.length() < nformal);
-
-    nvals += nformal + 2; // Include callee, |this|.
-    uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
-    if (!buffer)
-        return NULL;
-
-    Value *argv = reinterpret_cast<Value *>(buffer);
     unsigned nmissing = nformal - args.length();
-
-    mozilla::PodCopy(argv, args.base(), 2 + args.length());
-    SetValueRangeToUndefined(argv + 2 + args.length(), nmissing);
-
-    *pargv = argv + 2;
-    return reinterpret_cast<StackFrame *>(argv + 2 + nformal);
+    if (!space().ensureSpace(cx, report, firstUnused, nmissing + nvals))
+        return NULL;
+    SetValueRangeToUndefined(firstUnused, nmissing);
+    return reinterpret_cast<StackFrame *>(firstUnused + nmissing);
 }
 
 JS_ALWAYS_INLINE bool
-InterpreterStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                                  HandleScript script, InitialFrameFlags initial)
+ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
+                              HandleFunction callee, HandleScript script,
+                              InitialFrameFlags initial, MaybeReportError report)
 {
-    JSFunction *callee = &args.callee().as<JSFunction>();
+    JS_ASSERT(onTop());
     JS_ASSERT(regs.sp == args.end());
+    /* Cannot assert callee == args.callee() since this is called from LeaveTree. */
     JS_ASSERT(callee->nonLazyScript() == script);
 
-    StackFrame *prev = regs.fp();
-    jsbytecode *prevpc = regs.pc;
-    Value *prevsp = regs.sp;
-    JS_ASSERT(prev);
-
-    LifoAlloc::Mark mark = allocator_.mark();
-
     StackFrame::Flags flags = ToFrameFlags(initial);
-    Value *argv;
-    StackFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
+    StackFrame *fp = getCallFrame(cx, report, args, callee, script, &flags);
     if (!fp)
         return false;
 
-    fp->mark_ = mark;
-
     /* Initialize frame, locals, regs. */
-    fp->initCallFrame(cx, prev, prevpc, prevsp, *callee, script, argv, args.length(), flags);
+    fp->initCallFrame(cx, *callee, script, args.length(), flags);
 
+    /*
+     * N.B. regs may differ from the active registers, if the parent is about
+     * to repoint the active registers to regs. See UncachedInlineCall.
+     */
     regs.prepareToRun(*fp, script);
     return true;
 }
 
-JS_ALWAYS_INLINE void
-InterpreterStack::popInlineFrame(FrameRegs &regs)
+JS_ALWAYS_INLINE bool
+ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
+                              HandleFunction callee, HandleScript script,
+                              InitialFrameFlags initial, Value **stackLimit)
 {
+    if (!pushInlineFrame(cx, regs, args, callee, script, initial))
+        return false;
+    *stackLimit = space().conservativeEnd_;
+    return true;
+}
+
+JS_ALWAYS_INLINE void
+ContextStack::popInlineFrame(FrameRegs &regs)
+{
+    JS_ASSERT(onTop());
+    JS_ASSERT(&regs == &seg_->regs());
+
     StackFrame *fp = regs.fp();
-    regs.popInlineFrame();
-    regs.sp[-1] = fp->returnValue();
-    releaseFrame(fp);
-    JS_ASSERT(regs.fp());
+    Value *newsp = fp->argv() - 1;
+    JS_ASSERT(newsp >= fp->prev()->base());
+
+    newsp[-1] = fp->returnValue();
+    regs.popFrame(newsp);
+}
+
+inline JSScript *
+ContextStack::currentScript(jsbytecode **ppc,
+                            MaybeAllowCrossCompartment allowCrossCompartment) const
+{
+    if (ppc)
+        *ppc = NULL;
+
+    Activation *act = cx_->mainThread().activation();
+    while (act && (act->cx() != cx_ || !act->isActive()))
+        act = act->prev();
+
+    if (!act)
+        return NULL;
+
+    JS_ASSERT(act->cx() == cx_);
+
+#ifdef JS_ION
+    if (act->isJit()) {
+        JSScript *script = NULL;
+        ion::GetPcScript(cx_, &script, ppc);
+        if (!allowCrossCompartment && script->compartment() != cx_->compartment())
+            return NULL;
+        return script;
+    }
+#endif
+
+    JS_ASSERT(act->isInterpreter());
+
+    StackFrame *fp = act->asInterpreter()->current();
+    JS_ASSERT(!fp->runningInJit());
+
+    JSScript *script = fp->script();
+    if (!allowCrossCompartment && script->compartment() != cx_->compartment())
+        return NULL;
+
+    if (ppc)
+        *ppc = fp->pcQuadratic(*this);
+    return script;
+}
+
+inline HandleObject
+ContextStack::currentScriptedScopeChain() const
+{
+    return fp()->scopeChain();
 }
 
 template <class Op>
@@ -837,7 +892,6 @@ Activation::~Activation()
 {
     JS_ASSERT(cx_->mainThread().activation_ == this);
     cx_->mainThread().activation_ = prev_;
-    cx_->maybeMigrateVersionOverride();
 }
 
 InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs)
@@ -845,43 +899,11 @@ InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, F
     entry_(entry),
     current_(entry),
     regs_(regs)
-#ifdef DEBUG
-  , oldFrameCount_(cx_->runtime()->interpreterStack().frameCount_)
-#endif
 {}
 
+// Define destructor explicitly to silence GCC used-but-never-defined warning.
 InterpreterActivation::~InterpreterActivation()
-{
-    // Pop all inline frames.
-    while (current_ != entry_)
-        popInlineFrame(current_);
-
-    JS_ASSERT(oldFrameCount_ == cx_->runtime()->interpreterStack().frameCount_);
-    JS_ASSERT_IF(oldFrameCount_ == 0, cx_->runtime()->interpreterStack().allocator_.used() == 0);
-}
-
-inline bool
-InterpreterActivation::pushInlineFrame(const CallArgs &args, HandleScript script,
-                                       InitialFrameFlags initial)
-{
-    if (!cx_->runtime()->interpreterStack().pushInlineFrame(cx_, regs_, args, script, initial))
-        return false;
-    JS_ASSERT(regs_.fp()->script()->compartment() == compartment_);
-    current_ = regs_.fp();
-    return true;
-}
-
-inline void
-InterpreterActivation::popInlineFrame(StackFrame *frame)
-{
-    JS_ASSERT(current_ == frame);
-    JS_ASSERT(current_ != entry_);
-
-    current_ = frame->prev();
-    JS_ASSERT(current_);
-
-    cx_->runtime()->interpreterStack().popInlineFrame(regs_);
-}
+{}
 
 } /* namespace js */
 

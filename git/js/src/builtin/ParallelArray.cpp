@@ -105,8 +105,8 @@ ParallelArrayObject::getConstructor(JSContext *cx, unsigned argc)
     RootedValue ctorValue(cx);
     if (!cx->global()->getIntrinsicValue(cx, ctorName, &ctorValue))
         return NULL;
-    JS_ASSERT(ctorValue.isObject() && ctorValue.toObject().is<JSFunction>());
-    return &ctorValue.toObject().as<JSFunction>();
+    JS_ASSERT(ctorValue.isObject() && ctorValue.toObject().isFunction());
+    return ctorValue.toObject().toFunction();
 }
 
 /*static*/ JSObject *
@@ -133,7 +133,7 @@ ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, 
 
     if (cx->typeInferenceEnabled()) {
         jsbytecode *pc;
-        RootedScript script(cx, cx->currentScript(&pc));
+        RootedScript script(cx, cx->stack.currentScript(&pc));
         if (script) {
             if (ctor->nonLazyScript()->shouldCloneAtCallsite) {
                 ctor.set(CloneFunctionAtCallsite(cx, ctor, script, pc));
@@ -163,8 +163,8 @@ ParallelArrayObject::constructHelper(JSContext *cx, MutableHandleFunction ctor, 
         }
     }
 
-    InvokeArgs args(cx);
-    if (!args.init(args0.length()))
+    InvokeArgsGuard args;
+    if (!cx->stack.pushInvokeArgs(cx, args0.length(), &args))
         return false;
 
     args.setCallee(ObjectValue(*ctor));
@@ -199,7 +199,7 @@ ParallelArrayObject::initClass(JSContext *cx, HandleObject obj)
         }
     }
 
-    Rooted<GlobalObject *> global(cx, &obj->as<GlobalObject>());
+    Rooted<GlobalObject *> global(cx, &obj->asGlobal());
 
     RootedObject proto(cx, global->createBlankPrototype(cx, &protoClass));
     if (!proto)

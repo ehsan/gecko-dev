@@ -44,11 +44,7 @@ var gIgnoreWindowSize = false;
 var gTotalChunks = 0;
 var gThisChunk = 0;
 var gContainingWindow = null;
-var gURLFilterRegex = null;
-const FOCUS_FILTER_ALL_TESTS = "all";
-const FOCUS_FILTER_NEEDS_FOCUS_TESTS = "needs-focus";
-const FOCUS_FILTER_NON_NEEDS_FOCUS_TESTS = "non-needs-focus";
-var gFocusFilterMode = FOCUS_FILTER_ALL_TESTS;
+var gFilter = null;
 
 // "<!--CLEAR-->"
 const BLANK_URL_FOR_CLEARING = "data:text/html;charset=UTF-8,%3C%21%2D%2DCLEAR%2D%2D%3E";
@@ -346,11 +342,7 @@ function InitAndStartRefTests()
     }
 
     try {
-        gURLFilterRegex = new RegExp(prefs.getCharPref("reftest.filter"));
-    } catch(e) {}
-
-    try {
-        gFocusFilterMode = prefs.getCharPref("reftest.focusFilterMode");
+        gFilter = new RegExp(prefs.getCharPref("reftest.filter"));
     } catch(e) {}
 
     gWindowUtils = gContainingWindow.QueryInterface(CI.nsIInterfaceRequestor).getInterface(CI.nsIDOMWindowUtils);
@@ -722,13 +714,7 @@ function ReadTopManifest(aFileURL)
 
 function AddTestItem(aTest)
 {
-    if (gURLFilterRegex && !gURLFilterRegex.test(aTest.url1.spec))
-        return;
-    if (gFocusFilterMode == FOCUS_FILTER_NEEDS_FOCUS_TESTS &&
-        !aTest.needsFocus)
-        return;
-    if (gFocusFilterMode == FOCUS_FILTER_NON_NEEDS_FOCUS_TESTS &&
-        aTest.needsFocus)
+    if (gFilter && !gFilter.test(aTest.url1.spec))
         return;
     gURLs.push(aTest);
 }

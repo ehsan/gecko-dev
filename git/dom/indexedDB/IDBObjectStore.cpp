@@ -171,7 +171,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
@@ -215,7 +215,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
@@ -252,7 +252,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual nsresult
   PackArgumentsForParentProcess(ObjectStoreRequestParams& aParams) MOZ_OVERRIDE;
@@ -309,7 +309,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
@@ -415,7 +415,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
@@ -454,7 +454,7 @@ public:
                                   MOZ_OVERRIDE;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
 
@@ -1219,7 +1219,7 @@ IDBObjectStore::ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer)
 bool
 IDBObjectStore::DeserializeValue(JSContext* aCx,
                                  StructuredCloneReadInfo& aCloneReadInfo,
-                                 JS::MutableHandle<JS::Value> aValue)
+                                 jsval* aValue)
 {
   NS_ASSERTION(NS_IsMainThread(),
                "Should only be deserializing on the main thread!");
@@ -1228,7 +1228,7 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
   JSAutoStructuredCloneBuffer& buffer = aCloneReadInfo.mCloneBuffer;
 
   if (!buffer.data()) {
-    aValue.setUndefined();
+    *aValue = JSVAL_VOID;
     return true;
   }
 
@@ -1240,7 +1240,7 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
     nullptr
   };
 
-  return buffer.read(aCx, aValue.address(), &callbacks, &aCloneReadInfo);
+  return buffer.read(aCx, aValue, &callbacks, &aCloneReadInfo);
 }
 
 // static
@@ -3128,13 +3128,18 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 AddHelper::GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal)
+                            jsval* aVal)
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
 
   mCloneWriteInfo.mCloneBuffer.clear();
 
-  return mKey.ToJSVal(aCx, aVal);
+  JS::Rooted<JS::Value> value(aCx);
+  nsresult rv = mKey.ToJSVal(aCx, &value);
+  if (NS_SUCCEEDED(rv)) {
+    *aVal = value;
+  }
+  return rv;
 }
 
 void
@@ -3291,7 +3296,7 @@ GetHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
 
 nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal)
+                            jsval* aVal)
 {
   bool result = IDBObjectStore::DeserializeValue(aCx, mCloneReadInfo, aVal);
 
@@ -3442,9 +3447,9 @@ DeleteHelper::DoDatabaseWork(mozIStorageConnection* /*aConnection */)
 
 nsresult
 DeleteHelper::GetSuccessResult(JSContext* aCx,
-                               JS::MutableHandle<JS::Value> aVal)
+                               jsval* aVal)
 {
-  aVal.setUndefined();
+  *aVal = JSVAL_VOID;
   return NS_OK;
 }
 
@@ -3732,7 +3737,7 @@ OpenCursorHelper::EnsureCursor()
 
 nsresult
 OpenCursorHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
+                                   jsval* aVal)
 {
   nsresult rv = EnsureCursor();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3742,7 +3747,7 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else {
-    aVal.setUndefined();
+    *aVal = JSVAL_VOID;
   }
 
   return NS_OK;
@@ -4203,7 +4208,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 GetAllHelper::GetSuccessResult(JSContext* aCx,
-                               JS::MutableHandle<JS::Value> aVal)
+                               jsval* aVal)
 {
   NS_ASSERTION(mCloneReadInfos.Length() <= mLimit, "Too many results!");
 
@@ -4426,9 +4431,9 @@ CountHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 CountHelper::GetSuccessResult(JSContext* aCx,
-                              JS::MutableHandle<JS::Value> aVal)
+                              jsval* aVal)
 {
-  aVal.setNumber(static_cast<double>(mCount));
+  *aVal = JS_NumberValue(static_cast<double>(mCount));
   return NS_OK;
 }
 

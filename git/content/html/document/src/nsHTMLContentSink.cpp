@@ -1321,8 +1321,7 @@ IsScriptEnabled(nsIDocument *aDoc, nsIDocShell *aContainer)
 {
   NS_ENSURE_TRUE(aDoc && aContainer, true);
 
-  nsCOMPtr<nsIScriptGlobalObject> globalObject =
-    do_QueryInterface(aDoc->GetWindow());
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = aDoc->GetScriptGlobalObject();
 
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet

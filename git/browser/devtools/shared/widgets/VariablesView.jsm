@@ -53,7 +53,7 @@ const STR = Services.strings.createBundle(DBG_STRINGS_URI);
  *        e.g. { lazyEmpty: true, searchEnabled: true ... }
  */
 this.VariablesView = function VariablesView(aParentNode, aFlags = {}) {
-  this._store = []; // Can't use a Map because Scope names needn't be unique.
+  this._store = [];
   this._itemsByElement = new WeakMap();
   this._prevHierarchy = new Map();
   this._currHierarchy = new Map();
@@ -84,13 +84,13 @@ VariablesView.prototype = {
   /**
    * Helper setter for populating this container with a raw object.
    *
-   * @param object aObject
+   * @param object aData
    *        The raw object to display. You can only provide this object
    *        if you want the variables view to work in sync mode.
    */
   set rawObject(aObject) {
     this.empty();
-    this.addScope().addItem().populate(aObject, { sorted: true });
+    this.addScope().addItem().populate(aObject);
   },
 
   /**
@@ -246,16 +246,6 @@ VariablesView.prototype = {
   preventDisableOnChage: false,
 
   /**
-   * Specifies if, whenever a variable or property descriptor is available,
-   * configurable, enumerable, writable, frozen, sealed and extensible
-   * attributes should not affect presentation.
-   *
-   * This flag is applied recursively onto each scope in this view and
-   * affects only the child nodes when they're created.
-   */
-  preventDescriptorModifiers: false,
-
-  /**
    * The tooltip text shown on a variable or property's value if an |eval|
    * function is provided, in order to change the variable or property's value.
    *
@@ -291,6 +281,15 @@ VariablesView.prototype = {
    * affects only the child nodes when they're created.
    */
   deleteButtonTooltip: STR.GetStringFromName("variablesCloseButtonTooltip"),
+
+  /**
+   * Specifies if the configurable, enumerable or writable tooltip should be
+   * shown whenever a variable or property descriptor is available.
+   *
+   * This flag is applied recursively onto each scope in this view and
+   * affects only the child nodes when they're created.
+   */
+  descriptorTooltip: true,
 
   /**
    * Specifies the context menu attribute set on variables and properties.
@@ -1087,6 +1086,7 @@ function Scope(aView, aName, aFlags = {}) {
   this._openEnum = this._openEnum.bind(this);
   this._openNonEnum = this._openNonEnum.bind(this);
   this._batchAppend = this._batchAppend.bind(this);
+  this._batchItems = [];
 
   // Inherit properties and flags from the parent view. You can override
   // each of these directly onto any scope, variable or property instance.
@@ -1097,18 +1097,13 @@ function Scope(aView, aName, aFlags = {}) {
   this.editableNameTooltip = aView.editableNameTooltip;
   this.editButtonTooltip = aView.editButtonTooltip;
   this.deleteButtonTooltip = aView.deleteButtonTooltip;
-  this.preventDescriptorModifiers = aView.preventDescriptorModifiers;
+  this.descriptorTooltip = aView.descriptorTooltip;
   this.contextMenuId = aView.contextMenuId;
   this.separatorStr = aView.separatorStr;
 
-  // Creating maps and arrays thousands of times for variables or properties
-  // with a large number of children fills up a lot of memory. Make sure
-  // these are instantiated only if needed.
-  XPCOMUtils.defineLazyGetter(this, "_store", () => new Map());
-  XPCOMUtils.defineLazyGetter(this, "_enumItems", () => []);
-  XPCOMUtils.defineLazyGetter(this, "_nonEnumItems", () => []);
-  XPCOMUtils.defineLazyGetter(this, "_batchItems", () => []);
-
+  this._store = new Map();
+  this._enumItems = [];
+  this._nonEnumItems = [];
   this._init(aName.trim(), aFlags);
 }
 
@@ -1996,7 +1991,7 @@ Scope.prototype = {
   editableNameTooltip: "",
   editButtonTooltip: "",
   deleteButtonTooltip: "",
-  preventDescriptorModifiers: false,
+  descriptorTooltip: true,
   contextMenuId: "",
   separatorStr: "",
 
@@ -2039,7 +2034,7 @@ Scope.prototype = {
  *        The variable's descriptor.
  */
 function Variable(aScope, aName, aDescriptor) {
-  this._setTooltips = this._setTooltips.bind(this);
+  this._displayTooltip = this._displayTooltip.bind(this);
   this._activateNameInput = this._activateNameInput.bind(this);
   this._activateValueInput = this._activateValueInput.bind(this);
 
@@ -2056,7 +2051,7 @@ function Variable(aScope, aName, aDescriptor) {
   this._absoluteName = aScope.name + "[\"" + aName + "\"]";
 }
 
-Variable.prototype = Heritage.extend(Scope.prototype, {
+ViewHelpers.create({ constructor: Variable, proto: Scope.prototype }, {
   /**
    * Whether this Scope should be prefetched when it is remoted.
    */
@@ -2270,7 +2265,7 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
     if (this._nameString) {
       this._displayVariable();
       this._customizeVariable();
-      this._prepareTooltips();
+      this._prepareTooltip();
       this._setAttributes();
       this._addEventListeners();
     }
@@ -2358,10 +2353,7 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    * Adds specific nodes for this variable based on custom flags.
    */
   _customizeVariable: function() {
-    let ownerView = this.ownerView;
-    let descriptor = this._initialDescriptor;
-
-    if (ownerView.eval) {
+    if (this.ownerView.eval) {
       if (!this._isUndefined && (this.getter || this.setter)) {
         let editNode = this._editNode = this.document.createElement("toolbarbutton");
         editNode.className = "plain variables-view-edit";
@@ -2369,95 +2361,61 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
         this._title.appendChild(editNode);
       }
     }
-    if (ownerView.delete) {
-      if (!this._isUndefined || !(ownerView.getter && ownerView.setter)) {
+    if (this.ownerView.delete) {
+      if (!this._isUndefined || !(this.ownerView.getter && this.ownerView.setter)) {
         let deleteNode = this._deleteNode = this.document.createElement("toolbarbutton");
         deleteNode.className = "plain variables-view-delete";
         deleteNode.addEventListener("click", this._onDelete.bind(this), false);
         this._title.appendChild(deleteNode);
       }
     }
-    if (ownerView.contextMenuId) {
-      this._title.setAttribute("context", ownerView.contextMenuId);
-    }
-
-    if (ownerView.preventDescriptorModifiers) {
-      return;
-    }
-
-    if (!descriptor.writable && !ownerView.getter && !ownerView.setter) {
-      let nonWritableIcon = this.document.createElement("hbox");
-      nonWritableIcon.className = "variable-or-property-non-writable-icon";
-      this._title.appendChild(nonWritableIcon);
-    }
-    if (descriptor.value && typeof descriptor.value == "object") {
-      if (descriptor.value.frozen) {
-        let frozenLabel = this.document.createElement("label");
-        frozenLabel.className = "plain variable-or-property-frozen-label";
-        frozenLabel.setAttribute("value", "F");
-        this._title.appendChild(frozenLabel);
-      }
-      if (descriptor.value.sealed) {
-        let sealedLabel = this.document.createElement("label");
-        sealedLabel.className = "plain variable-or-property-sealed-label";
-        sealedLabel.setAttribute("value", "S");
-        this._title.appendChild(sealedLabel);
-      }
-      if (!descriptor.value.extensible) {
-        let nonExtensibleLabel = this.document.createElement("label");
-        nonExtensibleLabel.className = "plain variable-or-property-non-extensible-label";
-        nonExtensibleLabel.setAttribute("value", "N");
-        this._title.appendChild(nonExtensibleLabel);
-      }
+    if (this.ownerView.contextMenuId) {
+      this._title.setAttribute("context", this.ownerView.contextMenuId);
     }
   },
 
   /**
-   * Prepares all tooltips for this variable.
+   * Prepares a tooltip for this variable.
    */
-  _prepareTooltips: function() {
-    this._target.addEventListener("mouseover", this._setTooltips, false);
+  _prepareTooltip: function() {
+    this._target.addEventListener("mouseover", this._displayTooltip, false);
   },
 
   /**
-   * Sets all tooltips for this variable.
+   * Creates a tooltip for this variable.
    */
-  _setTooltips: function() {
-    this._target.removeEventListener("mouseover", this._setTooltips, false);
+  _displayTooltip: function() {
+    this._target.removeEventListener("mouseover", this._displayTooltip, false);
 
-    let ownerView = this.ownerView;
-    if (ownerView.preventDescriptorModifiers) {
-      return;
+    if (this.ownerView.descriptorTooltip) {
+      let document = this.document;
+
+      let tooltip = document.createElement("tooltip");
+      tooltip.id = "tooltip-" + this._idString;
+      tooltip.setAttribute("orient", "horizontal");
+
+      let labels = ["configurable", "enumerable", "writable", "native-getter",
+                    "frozen", "sealed", "non-extensible"];
+      for (let label of labels) {
+        let labelElement = document.createElement("label");
+        labelElement.setAttribute("value", label);
+        tooltip.appendChild(labelElement);
+      }
+
+      this._target.appendChild(tooltip);
+      this._target.setAttribute("tooltip", tooltip.id);
     }
-
-    let tooltip = this.document.createElement("tooltip");
-    tooltip.id = "tooltip-" + this._idString;
-    tooltip.setAttribute("orient", "horizontal");
-
-    let labels = [
-      "configurable", "enumerable", "writable",
-      "frozen", "sealed", "extensible", "WebIDL"];
-
-    for (let label of labels) {
-      let labelElement = this.document.createElement("label");
-      labelElement.setAttribute("value", label);
-      tooltip.appendChild(labelElement);
+    if (this.ownerView.eval && !this._isUndefined && (this.getter || this.setter)) {
+      this._editNode.setAttribute("tooltiptext", this.ownerView.editButtonTooltip);
     }
-
-    this._target.appendChild(tooltip);
-    this._target.setAttribute("tooltip", tooltip.id);
-
-    if (this._editNode && ownerView.eval) {
-      this._editNode.setAttribute("tooltiptext", ownerView.editButtonTooltip);
+    if (this.ownerView.eval) {
+      this._valueLabel.setAttribute("tooltiptext", this.ownerView.editableValueTooltip);
     }
-    if (this._valueLabel && ownerView.eval) {
-      this._valueLabel.setAttribute("tooltiptext", ownerView.editableValueTooltip);
+    if (this.ownerView.switch) {
+      this._name.setAttribute("tooltiptext", this.ownerView.editableNameTooltip);
     }
-    if (this._name && ownerView.switch) {
-      this._name.setAttribute("tooltiptext", ownerView.editableNameTooltip);
-    }
-    if (this._deleteNode && ownerView.delete) {
-      this._deleteNode.setAttribute("tooltiptext", ownerView.deleteButtonTooltip);
+    if (this.ownerView.delete) {
+      this._deleteNode.setAttribute("tooltiptext", this.ownerView.deleteButtonTooltip);
     }
   },
 
@@ -2466,56 +2424,48 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    * and specifies if it's a 'this', '<exception>' or '__proto__' reference.
    */
   _setAttributes: function() {
-    let ownerView = this.ownerView;
-    if (ownerView.preventDescriptorModifiers) {
-      return;
-    }
-
     let descriptor = this._initialDescriptor;
-    let target = this._target;
     let name = this._nameString;
 
-    if (ownerView.eval) {
-      target.setAttribute("editable", "");
+    if (this.ownerView.eval) {
+      this._target.setAttribute("editable", "");
     }
-
-    if (!descriptor.configurable) {
-      target.setAttribute("non-configurable", "");
-    }
-    if (!descriptor.enumerable) {
-      target.setAttribute("non-enumerable", "");
-    }
-    if (!descriptor.writable && !ownerView.getter && !ownerView.setter) {
-      target.setAttribute("non-writable", "");
-    }
-
-    if (descriptor.value && typeof descriptor.value == "object") {
-      if (descriptor.value.frozen) {
-        target.setAttribute("frozen", "");
+    if (!descriptor.null) {
+      if (!descriptor.configurable) {
+        this._target.setAttribute("non-configurable", "");
       }
-      if (descriptor.value.sealed) {
-        target.setAttribute("sealed", "");
+      if (!descriptor.enumerable) {
+        this._target.setAttribute("non-enumerable", "");
       }
-      if (!descriptor.value.extensible) {
-        target.setAttribute("non-extensible", "");
+      if (!descriptor.writable && !this.ownerView.getter && !this.ownerView.setter) {
+        this._target.setAttribute("non-writable", "");
+      }
+      if (descriptor.value && typeof descriptor.value == "object") {
+        if (descriptor.value.frozen) {
+          this._target.setAttribute("frozen", "");
+        }
+        if (descriptor.value.sealed) {
+          this._target.setAttribute("sealed", "");
+        }
+        if (!descriptor.value.extensible) {
+          this._target.setAttribute("non-extensible", "");
+        }
       }
     }
-
     if (descriptor && "getterValue" in descriptor) {
-      target.setAttribute("safe-getter", "");
+      this._target.setAttribute("safe-getter", "");
     }
     if (name == "this") {
-      target.setAttribute("self", "");
+      this._target.setAttribute("self", "");
     }
-
     else if (name == "<exception>") {
-      target.setAttribute("exception", "");
+      this._target.setAttribute("exception", "");
     }
     else if (name == "<return>") {
-      target.setAttribute("return", "");
+      this._target.setAttribute("return", "");
     }
     else if (name == "__proto__") {
-      target.setAttribute("proto", "");
+      this._target.setAttribute("proto", "");
     }
   },
 
@@ -2826,7 +2776,7 @@ function Property(aVar, aName, aDescriptor) {
   this._absoluteName = aVar._absoluteName + "[\"" + aName + "\"]";
 }
 
-Property.prototype = Heritage.extend(Variable.prototype, {
+ViewHelpers.create({ constructor: Property, proto: Variable.prototype }, {
   /**
    * Initializes this property's id, view and binds event listeners.
    *
@@ -2843,7 +2793,7 @@ Property.prototype = Heritage.extend(Variable.prototype, {
     if (this._nameString) {
       this._displayVariable();
       this._customizeVariable();
-      this._prepareTooltips();
+      this._prepareTooltip();
       this._setAttributes();
       this._addEventListeners();
     }
@@ -2987,11 +2937,11 @@ VariablesView.isPrimitive = function(aDescriptor) {
   // As described in the remote debugger protocol, the value grip
   // must be contained in a 'value' property.
   let grip = aDescriptor.value;
-  if (typeof grip != "object") {
+  if (!grip || typeof grip != "object") {
     return true;
   }
 
-  // For convenience, undefined, null and long strings are considered types.
+  // For convenience, undefined, null and long strings are considered primitives.
   let type = grip.type;
   if (type == "undefined" || type == "null" || type == "longString") {
     return true;
@@ -3018,8 +2968,9 @@ VariablesView.isUndefined = function(aDescriptor) {
 
   // As described in the remote debugger protocol, the value grip
   // must be contained in a 'value' property.
+  // For convenience, undefined is considered a type.
   let grip = aDescriptor.value;
-  if (typeof grip == "object" && grip.type == "undefined") {
+  if (grip && grip.type == "undefined") {
     return true;
   }
 

@@ -1371,8 +1371,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! doc)
         return NS_ERROR_UNEXPECTED;
 
-    nsCOMPtr<nsIScriptGlobalObject> global =
-      do_QueryInterface(doc->GetWindow());
+    nsIScriptGlobalObject *global = doc->GetScriptGlobalObject();
     if (! global)
         return NS_ERROR_UNEXPECTED;
 

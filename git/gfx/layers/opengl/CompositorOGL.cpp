@@ -977,29 +977,6 @@ CompositorOGL::GetProgramTypeForEffect(Effect *aEffect) const
   }
 }
 
-struct MOZ_STACK_CLASS AutoBindTexture
-{
-  AutoBindTexture() : mTexture(nullptr) {}
-  AutoBindTexture(TextureSourceOGL* aTexture, GLenum aTextureUnit)
-   : mTexture(nullptr) { Bind(aTexture, aTextureUnit); }
-  ~AutoBindTexture()
-  {
-    if (mTexture) {
-      mTexture->ReleaseTexture();
-    }
-  }
-
-  void Bind(TextureSourceOGL* aTexture, GLenum aTextureUnit)
-  {
-    MOZ_ASSERT(!mTexture);
-    mTexture = aTexture;
-    mTexture->BindTexture(aTextureUnit);
-  }
-
-private:
-  TextureSourceOGL* mTexture;
-};
-
 void
 CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
                         const EffectChain &aEffectChain,
@@ -1079,9 +1056,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 
       program->SetRenderColor(color);
 
-      AutoBindTexture bindMask;
       if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE0);
+        sourceMask->BindTexture(LOCAL_GL_TEXTURE0);
         program->SetMaskTextureUnit(0);
         program->SetMaskLayerTransform(maskQuadTransform);
       }
@@ -1104,7 +1080,7 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
                                        LOCAL_GL_ONE, LOCAL_GL_ONE);
       }
 
-      AutoBindTexture bindSource(source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
+      source->AsSourceOGL()->BindTexture(LOCAL_GL_TEXTURE0);
       if (programType == gl::RGBALayerExternalProgramType) {
         program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
       }
@@ -1115,10 +1091,9 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       program->SetTextureUnit(0);
       program->SetLayerOpacity(aOpacity);
 
-      AutoBindTexture bindMask;
       if (maskType != MaskNone) {
         mGLContext->fActiveTexture(LOCAL_GL_TEXTURE1);
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE1);
+        sourceMask->BindTexture(LOCAL_GL_TEXTURE1);
         program->SetMaskTextureUnit(1);
         program->SetMaskLayerTransform(maskQuadTransform);
       }
@@ -1147,19 +1122,18 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 
       gfxPattern::GraphicsFilter filter = ThebesFilter(effectYCbCr->mFilter);
 
-      AutoBindTexture bindY(sourceY, LOCAL_GL_TEXTURE0);
+      sourceY->BindTexture(LOCAL_GL_TEXTURE0);
       mGLContext->ApplyFilterToBoundTexture(filter);
-      AutoBindTexture bindCb(sourceCb, LOCAL_GL_TEXTURE1);
+      sourceCb->BindTexture(LOCAL_GL_TEXTURE1);
       mGLContext->ApplyFilterToBoundTexture(filter);
-      AutoBindTexture bindCr(sourceCr, LOCAL_GL_TEXTURE2);
+      sourceCr->BindTexture(LOCAL_GL_TEXTURE2);
       mGLContext->ApplyFilterToBoundTexture(filter);
 
       program->SetYCbCrTextureUnits(Y, Cb, Cr);
       program->SetLayerOpacity(aOpacity);
 
-      AutoBindTexture bindMask;
       if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE3);
+        sourceMask->BindTexture(LOCAL_GL_TEXTURE3);
         program->SetMaskTextureUnit(3);
         program->SetMaskLayerTransform(maskQuadTransform);
       }
@@ -1180,9 +1154,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       program->SetTextureUnit(0);
       program->SetLayerOpacity(aOpacity);
 
-      AutoBindTexture bindMask;
       if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE1);
+        sourceMask->BindTexture(LOCAL_GL_TEXTURE1);
         program->SetMaskTextureUnit(1);
         program->SetMaskLayerTransform(maskQuadTransform);
       }
@@ -1222,8 +1195,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
                                    LOCAL_GL_ONE, LOCAL_GL_ONE);
         }
 
-        AutoBindTexture bindSourceOnBlack(sourceOnBlack, LOCAL_GL_TEXTURE0);
-        AutoBindTexture bindSourceOnWhite(sourceOnWhite, LOCAL_GL_TEXTURE1);
+        sourceOnBlack->BindTexture(LOCAL_GL_TEXTURE0);
+        sourceOnWhite->BindTexture(LOCAL_GL_TEXTURE1);
 
         program->Activate();
         program->SetBlackTextureUnit(0);
@@ -1232,9 +1205,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         program->SetLayerTransform(aTransform);
         program->SetRenderOffset(aOffset.x, aOffset.y);
         program->SetLayerQuadRect(aRect);
-        AutoBindTexture bindMask;
         if (maskType != MaskNone) {
-          bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE2);
+          sourceMask->BindTexture(LOCAL_GL_TEXTURE2);
           program->SetMaskTextureUnit(2);
           program->SetMaskLayerTransform(maskQuadTransform);
         }

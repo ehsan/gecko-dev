@@ -46,22 +46,8 @@ function test_pause_frame()
     do_check_eq(vars.c.value.class, "Object");
     do_check_true(!!vars.c.value.actor);
 
-    let objClient = gThreadClient.pauseGrip(vars.c.value);
-    objClient.getPrototypeAndProperties(function(aResponse) {
-      do_check_eq(aResponse.ownProperties.a.configurable, true);
-      do_check_eq(aResponse.ownProperties.a.enumerable, true);
-      do_check_eq(aResponse.ownProperties.a.writable, true);
-      do_check_eq(aResponse.ownProperties.a.value, "a");
-
-      do_check_eq(aResponse.ownProperties.b.configurable, true);
-      do_check_eq(aResponse.ownProperties.b.enumerable, true);
-      do_check_eq(aResponse.ownProperties.b.writable, true);
-      do_check_eq(aResponse.ownProperties.b.value.type, "undefined");
-      do_check_false("class" in aResponse.ownProperties.b.value);
-
-      gThreadClient.resume(function() {
-        finishClient(gClient);
-      });
+    gThreadClient.resume(function() {
+      finishClient(gClient);
     });
   });
 
@@ -69,7 +55,7 @@ function test_pause_frame()
     function stopMe(aNumber, aBool, aString, aNull, aUndefined, aObject) {
       var a = 1;
       var b = true;
-      var c = { a: "a", b: undefined };
+      var c = { a: "a" };
       debugger;
     };
     stopMe(42, true, "nasu", null, undefined, { foo: "bar" });

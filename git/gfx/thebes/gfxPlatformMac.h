@@ -89,8 +89,6 @@ public:
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
-    virtual bool SupportsOffMainThreadCompositing();
-
     // read in the pref value for the lower threshold on font anti-aliasing
     static uint32_t ReadAntiAliasingThreshold();
 

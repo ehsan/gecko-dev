@@ -1026,8 +1026,6 @@ public:
         OES_element_index_uint,
         OES_vertex_array_object,
         ARB_vertex_array_object,
-        ARB_draw_buffers,
-        EXT_draw_buffers,
         Extensions_Max
     };
 
@@ -1815,7 +1813,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fDrawBuffers(GLsizei n, const GLenum* bufs) {
+    void fDrawBuffers(GLsizei n, GLenum* bufs) {
         BEFORE_GL_CALL;
         mSymbols.fDrawBuffers(n, bufs);
         AFTER_GL_CALL;
