@@ -26,10 +26,9 @@ class nsSVGTextFrame : public nsSVGTextFrameBase
   friend nsIFrame*
   NS_NewSVGTextFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGTextFrame(nsStyleContext* aContext) : nsSVGTextFrameBase(aContext)
-  {
-    AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
-  }
+  nsSVGTextFrame(nsStyleContext* aContext)
+    : nsSVGTextFrameBase(aContext),
+      mPositioningDirty(true) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -102,6 +101,8 @@ private:
   void SetWhitespaceHandling(nsSVGGlyphFrame *aFrame);
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
+
+  bool mPositioningDirty;
 };
 
 #endif

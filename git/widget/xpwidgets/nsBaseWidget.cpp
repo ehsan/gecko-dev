@@ -7,7 +7,6 @@
 
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/ImageBridgeChild.h"
 #include "nsBaseWidget.h"
 #include "nsDeviceContext.h"
 #include "nsCOMPtr.h"
@@ -911,11 +910,15 @@ void nsBaseWidget::CreateCompositor()
 mozilla::layers::LayersBackend
 nsBaseWidget::GetPreferredCompositorBackend()
 {
-  if (mUseLayersAcceleration) {
-    return mozilla::layers::LAYERS_OPENGL;
+  // We need a separate preference here (instead of using mUseLayersAcceleration)
+  // because we force enable accelerated layers with e10s. Once the BasicCompositor
+  // is stable enough to be used for Ripc/Cipc, then we can remove that and this
+  // pref.
+  if (Preferences::GetBool("layers.offmainthreadcomposition.prefer-basic", false)) {
+    return mozilla::layers::LAYERS_BASIC;
   }
 
-  return mozilla::layers::LAYERS_BASIC;
+  return mozilla::layers::LAYERS_OPENGL;
 }
 
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
@@ -953,7 +956,6 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     }
     lf->SetShadowManager(shadowManager);
     lf->IdentifyTextureHost(textureFactoryIdentifier);
-    ImageBridgeChild::IdentifyCompositorTextureHost(textureFactoryIdentifier);
 
     mLayerManager = lm;
     return;

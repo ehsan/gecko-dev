@@ -100,8 +100,8 @@ NSPRInterposer::Enable(bool aEnable)
   mEnabled = aEnable ? 1 : 0;
 }
 
-int32_t PR_CALLBACK
-NSPRInterposer::Read(PRFileDesc* aFd, void* aBuf, int32_t aAmt)
+PRInt32 PR_CALLBACK
+NSPRInterposer::Read(PRFileDesc* aFd, void* aBuf, PRInt32 aAmt)
 {
   // If we don't have valid pointers, something is very wrong.
   NS_ASSERTION(sSingleton, "NSPRInterposer::sSingleton not available!");
@@ -113,8 +113,8 @@ NSPRInterposer::Read(PRFileDesc* aFd, void* aBuf, int32_t aAmt)
 }
 
 
-int32_t PR_CALLBACK
-NSPRInterposer::Write(PRFileDesc* aFd, const void* aBuf, int32_t aAmt)
+PRInt32 PR_CALLBACK
+NSPRInterposer::Write(PRFileDesc* aFd, const void* aBuf, PRInt32 aAmt)
 {
   // If we don't have valid pointers, something is very wrong.
   NS_ASSERTION(sSingleton, "NSPRInterposer::sSingleton not available!");

@@ -79,7 +79,7 @@ void
 IOInterposer::Enable(bool aEnable)
 {
   mozilla::MutexAutoLock lock(mMutex);
-  for (uint32_t i = 0; i < mModules.Length(); ++i ) {
+  for (PRUint32 i = 0; i < mModules.Length(); ++i ) {
     mModules[i]->Enable(aEnable);
   }
 }
@@ -128,21 +128,21 @@ IOInterposer::Observe(IOInterposeObserver::Operation aOp, double& aDuration,
   switch (aOp) {
     case IOInterposeObserver::OpRead:
       {
-        for (uint32_t i = 0; i < mReadObservers.Length(); ++i) {
+        for (PRUint32 i = 0; i < mReadObservers.Length(); ++i) {
           mReadObservers[i]->Observe(aOp, aDuration, aModuleInfo);
         }
       }
       break;
     case IOInterposeObserver::OpWrite:
       {
-        for (uint32_t i = 0; i < mWriteObservers.Length(); ++i) {
+        for (PRUint32 i = 0; i < mWriteObservers.Length(); ++i) {
           mWriteObservers[i]->Observe(aOp, aDuration, aModuleInfo);
         }
       }
       break;
     case IOInterposeObserver::OpFSync:
       {
-        for (uint32_t i = 0; i < mFSyncObservers.Length(); ++i) {
+        for (PRUint32 i = 0; i < mFSyncObservers.Length(); ++i) {
           mFSyncObservers[i]->Observe(aOp, aDuration, aModuleInfo);
         }
       }

@@ -37,10 +37,10 @@ function tabLoad() {
 function actualTest() {
   let doc = gTestBrowser.contentDocument;
   let plugin = doc.getElementById("test");
-  ok(!plugin.activated, "Plugin should not be activated");
-  ok(PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser).dismissed, "Doorhanger should not be open");
+  let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
+  ok(!objLoadingContent.activated, "Plugin should not be activated");
 
   EventUtils.synthesizeMouseAtCenter(plugin, {}, gTestBrowser.contentWindow);
-  let condition = function() !PopupNotifications.getNotification("click-to-play-plugins", gTestBrowser).dismissed;
-  waitForCondition(condition, finish, "Waited too long for plugin doorhanger to activate");
+  let condition = function() objLoadingContent.activated;
+  waitForCondition(condition, finish, "Waited too long for plugin to activate");
 }

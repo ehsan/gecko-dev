@@ -238,14 +238,14 @@ nsSVGTextFrame::ReflowSVG()
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
-    NS_ASSERTION(!(mState & NS_STATE_SVG_POSITIONING_DIRTY), "How did this happen?");
+    NS_ASSERTION(!mPositioningDirty, "How did this happen?");
     return;
   }
 
-  // UpdateGlyphPositioning may have been called under DOM calls and cleared
-  // NS_STATE_SVG_POSITIONING_DIRTY. We may now have better positioning, though, so
+  // UpdateGlyphPositioning may have been called under DOM calls and set
+  // mPositioningDirty to false. We may now have better positioning, though, so
   // set it to true so that UpdateGlyphPositioning will do its work.
-  AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = true;
 
   UpdateGlyphPositioning(false);
 
@@ -326,7 +326,7 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
   nsSVGEffects::InvalidateRenderingObservers(this);
   nsSVGUtils::ScheduleReflowSVG(this);
 
-  AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = true;
 }
 
 void
@@ -374,10 +374,10 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 void
 nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
 {
-  if (!(mState & NS_STATE_SVG_POSITIONING_DIRTY))
+  if (!mPositioningDirty)
     return;
 
-  RemoveStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = false;
 
   nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
   if (!node)
