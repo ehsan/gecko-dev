@@ -103,7 +103,7 @@ nsPNGDecoder::AnimFrameInfo::AnimFrameInfo(png_structp aPNG, png_infop aInfo)
 #endif
 
 // First 8 bytes of a PNG file
-const uint8_t
+const uint8_t 
 nsPNGDecoder::pngSignatureBytes[] = { 137, 80, 78, 71, 13, 10, 26, 10 };
 
 nsPNGDecoder::nsPNGDecoder(RasterImage &aImage)
@@ -111,9 +111,9 @@ nsPNGDecoder::nsPNGDecoder(RasterImage &aImage)
    mPNG(nullptr), mInfo(nullptr),
    mCMSLine(nullptr), interlacebuf(nullptr),
    mInProfile(nullptr), mTransform(nullptr),
-   mHeaderBytesRead(0), mCMSMode(0),
+   mHeaderBuf(nullptr), mHeaderBytesRead(0),
    mChannels(0), mFrameIsHidden(false),
-   mDisablePremultipliedAlpha(false),
+   mCMSMode(0), mDisablePremultipliedAlpha(false),
    mNumFrames(0)
 {
 }
@@ -133,6 +133,8 @@ nsPNGDecoder::~nsPNGDecoder()
     if (mTransform)
       qcms_transform_release(mTransform);
   }
+  if (mHeaderBuf)
+    nsMemory::Free(mHeaderBuf);
 }
 
 // CreateFrame() is used for both simple and animated images
@@ -191,11 +193,6 @@ void nsPNGDecoder::EndImageFrame()
 void
 nsPNGDecoder::InitInternal()
 {
-  // For size decodes, we don't need to initialize the png decoder
-  if (IsSizeDecode()) {
-    return;
-  }
-
   mCMSMode = gfxPlatform::GetCMSMode();
   if ((mDecodeFlags & DECODER_NO_COLORSPACE_CONVERSION) != 0)
     mCMSMode = eCMSMode_Off;
@@ -219,6 +216,12 @@ nsPNGDecoder::InitInternal()
         116,  73,  77,  69, '\0',   /* tIME */
         122,  84,  88, 116, '\0'};  /* zTXt */
 #endif
+
+  // For size decodes, we only need a small buffer
+  if (IsSizeDecode()) {
+    mHeaderBuf = (uint8_t *)moz_xmalloc(BYTES_NEEDED_FOR_DIMENSIONS);
+    return;
+  }
 
   /* For full decodes, do png init stuff */
 
@@ -246,7 +249,7 @@ nsPNGDecoder::InitInternal()
     png_set_keep_unknown_chunks(mPNG, 1, color_chunks, 2);
 
   png_set_keep_unknown_chunks(mPNG, 1, unused_chunks,
-                              (int)sizeof(unused_chunks)/5);
+                              (int)sizeof(unused_chunks)/5);   
 #endif
 
 #ifdef PNG_SET_CHUNK_MALLOC_LIMIT_SUPPORTED
@@ -286,34 +289,25 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     if (mHeaderBytesRead == BYTES_NEEDED_FOR_DIMENSIONS)
       return;
 
-    // Scan the header for the width and height bytes
-    uint32_t pos = 0;
-    const uint8_t *bptr = (uint8_t *)aBuffer;
-
-    while (pos < aCount && mHeaderBytesRead < BYTES_NEEDED_FOR_DIMENSIONS) {
-      // Verify the signature bytes
-      if (mHeaderBytesRead < sizeof(pngSignatureBytes)) {
-        if (bptr[pos] != nsPNGDecoder::pngSignatureBytes[mHeaderBytesRead]) {
-          PostDataError();
-          return;
-        }
-      }
-
-      // Get width and height bytes into the buffer
-      if ((mHeaderBytesRead >= WIDTH_OFFSET) &&
-          (mHeaderBytesRead < BYTES_NEEDED_FOR_DIMENSIONS)) {
-        mSizeBytes[mHeaderBytesRead - WIDTH_OFFSET] = bptr[pos];
-      }
-      pos ++;
-      mHeaderBytesRead ++;
-    }
+    // Read data into our header buffer
+    uint32_t bytesToRead = std::min(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
+                                  mHeaderBytesRead);
+    memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
+    mHeaderBytesRead += bytesToRead;
 
     // If we're done now, verify the data and set up the container
     if (mHeaderBytesRead == BYTES_NEEDED_FOR_DIMENSIONS) {
 
+      // Check that the signature bytes are right
+      if (memcmp(mHeaderBuf, nsPNGDecoder::pngSignatureBytes, 
+                 sizeof(pngSignatureBytes))) {
+        PostDataError();
+        return;
+      }
+
       // Grab the width and height, accounting for endianness (thanks libpng!)
-      uint32_t width = png_get_uint_32(mSizeBytes);
-      uint32_t height = png_get_uint_32(mSizeBytes + 4);
+      uint32_t width = png_get_uint_32(mHeaderBuf + WIDTH_OFFSET);
+      uint32_t height = png_get_uint_32(mHeaderBuf + HEIGHT_OFFSET);
 
       // Too big?
       if ((width > MOZ_PNG_MAX_DIMENSION) || (height > MOZ_PNG_MAX_DIMENSION)) {
@@ -650,6 +644,13 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
       longjmp(png_jmpbuf(decoder->mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
     }
   }
+
+  /* Reject any ancillary chunk after IDAT with a bad CRC (bug #397593).
+   * It would be better to show the default frame (if one has already been
+   * successfully decoded) before bailing, but it's simpler to just bail
+   * out with an error message.
+   */
+  png_set_crc_action(png_ptr, PNG_CRC_NO_CHANGE, PNG_CRC_ERROR_QUIT);
 
   if (!decoder->mFrameIsHidden) {
     /* We know that we need a new frame, so pause input so the decoder

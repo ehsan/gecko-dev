@@ -50,7 +50,7 @@ public:
     const RuntimeService::NavigatorStrings& strings =
       rts->GetNavigatorStrings();
 
-    JS::Rooted<JSString*> appName(aCx), version(aCx), platform(aCx), userAgent(aCx);
+    JSString* appName, *version, *platform, *userAgent;
 
 #define COPY_STRING(_jsstr, _str)                                              \
   if (strings. _str .IsEmpty()) {                                              \

@@ -20,7 +20,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=436801
 SimpleTest.waitForExplicitFinish();
 
 addLoadEvent(function () {
-  var doc = SpecialPowers.wrap($("testFrame")).contentDocument;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var doc = $("testFrame").contentDocument;
 
   checkNode(doc.getElementById("feedTitleText"), [
     "ELEMENT", "h1", { "xml:base": "http://www.example.com/foo/bar/" }, [

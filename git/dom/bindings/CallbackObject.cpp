@@ -35,7 +35,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(CallbackObject)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCallback)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-CallbackObject::CallSetup::CallSetup(JS::Handle<JSObject*> aCallback,
+CallbackObject::CallSetup::CallSetup(JSObject* const aCallback,
                                      ErrorResult& aRv,
                                      ExceptionHandling aExceptionHandling)
   : mCx(nullptr)
@@ -191,10 +191,9 @@ CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
     return nullptr;
   }
 
-  AutoSafeJSContext cx;
+  JSObject* callback = aCallback->Callback();
 
-  JS::Rooted<JSObject*> callback(cx, aCallback->Callback());
-
+  SafeAutoJSContext cx;
   JSAutoCompartment ac(cx, callback);
   XPCCallContext ccx(NATIVE_CALLER, cx);
   if (!ccx.IsValid()) {

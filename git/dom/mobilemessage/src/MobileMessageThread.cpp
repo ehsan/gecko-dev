@@ -51,7 +51,7 @@ MobileMessageThread::Create(const uint64_t aId,
       return NS_ERROR_INVALID_ARG;
     }
 
-    JS::Rooted<JSObject*> obj(aCx, &aParticipants.toObject());
+    JSObject* obj = &aParticipants.toObject();
     if (!JS_IsArrayObject(aCx, obj)) {
       return NS_ERROR_INVALID_ARG;
     }
@@ -61,9 +61,9 @@ MobileMessageThread::Create(const uint64_t aId,
     NS_ENSURE_TRUE(length, NS_ERROR_INVALID_ARG);
 
     for (uint32_t i = 0; i < length; ++i) {
-      JS::Rooted<JS::Value> val(aCx);
+      JS::Value val;
 
-      if (!JS_GetElement(aCx, obj, i, val.address()) || !val.isString()) {
+      if (!JS_GetElement(aCx, obj, i, &val) || !val.isString()) {
         return NS_ERROR_INVALID_ARG;
       }
 
@@ -75,11 +75,11 @@ MobileMessageThread::Create(const uint64_t aId,
 
   // We support both a Date object and a millisecond timestamp as a number.
   if (aTimestamp.isObject()) {
-    JS::Rooted<JSObject*> obj(aCx, &aTimestamp.toObject());
-    if (!JS_ObjectIsDate(aCx, obj)) {
+    JSObject& obj = aTimestamp.toObject();
+    if (!JS_ObjectIsDate(aCx, &obj)) {
       return NS_ERROR_INVALID_ARG;
     }
-    data.timestamp() = js_DateGetMsecSinceEpoch(obj);
+    data.timestamp() = js_DateGetMsecSinceEpoch(&obj);
   } else {
     if (!aTimestamp.isNumber()) {
       return NS_ERROR_INVALID_ARG;
@@ -137,9 +137,9 @@ NS_IMETHODIMP
 MobileMessageThread::GetParticipants(JSContext* aCx,
                                      JS::Value* aParticipants)
 {
-  JS::Rooted<JSObject*> obj(aCx);
+  JSObject* obj;
 
-  nsresult rv = nsTArrayToJSArray(aCx, mData.participants(), obj.address());
+  nsresult rv = nsTArrayToJSArray(aCx, mData.participants(), &obj);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aParticipants->setObject(*obj);

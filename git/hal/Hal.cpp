@@ -89,15 +89,17 @@ AssertMainProcess()
 }
 
 bool
-WindowIsActive(nsIDOMWindow* aWindow)
+WindowIsActive(nsIDOMWindow *window)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(window, false);
 
-  nsIDocument* document = window->GetDoc();
-  NS_ENSURE_TRUE(document, false);
+  nsCOMPtr<nsIDOMDocument> doc;
+  window->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_TRUE(doc, false);
 
-  return !document->Hidden();
+  bool hidden = true;
+  doc->GetHidden(&hidden);
+  return !hidden;
 }
 
 StaticAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;

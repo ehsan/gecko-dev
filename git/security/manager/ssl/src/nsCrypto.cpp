@@ -1856,7 +1856,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   nrv = ncc->GetJSContext(&cx);
   NS_ENSURE_SUCCESS(nrv, nrv);
 
-  JS::RootedObject script_obj(cx);
+  JSObject* script_obj = nullptr;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
 
   JSAutoRequest ar(cx);
@@ -1921,7 +1921,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
                         NS_GET_IID(nsIDOMCrypto), getter_AddRefs(holder));
   NS_ENSURE_SUCCESS(nrv, nrv);
 
-  nrv = holder->GetJSObject(script_obj.address());
+  nrv = holder->GetJSObject(&script_obj);
   NS_ENSURE_SUCCESS(nrv, nrv);
 
   //Put up some UI warning that someone is trying to 

@@ -18,7 +18,6 @@ CPPSRCS		= \
 		GStreamerReader.cpp \
 		GStreamerDecoder.cpp \
 		GStreamerFormatHelper.cpp \
-		GStreamerMozVideoBuffer.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

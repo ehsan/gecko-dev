@@ -169,9 +169,9 @@ private:
     }
 
     double start = 0, end = 0;
-    JS::Rooted<JSString*> jsContentType(aCx, JS_GetEmptyString(JS_GetRuntime(aCx)));
+    JSString* jsContentType = JS_GetEmptyString(JS_GetRuntime(aCx));
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "/IIS", &start,
-                             &end, jsContentType.address())) {
+                             &end, &jsContentType)) {
       return false;
     }
 
@@ -357,8 +357,8 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> value(aCx);
-    if (NS_FAILED(file->GetLastModifiedDate(aCx, value.address()))) {
+    JS::Value value;
+    if (NS_FAILED(file->GetLastModifiedDate(aCx, &value))) {
       return false;
     }
 

@@ -265,7 +265,7 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
                              bool* aReturn)
 {
   if (aOrientation.isObject() && IsArrayLike(aCx, &aOrientation.toObject())) {
-    JS::Rooted<JSObject*> seq(aCx, &aOrientation.toObject());
+    JSObject* seq = &aOrientation.toObject();
     uint32_t length;
     // JS_GetArrayLength actually works on all objects
     if (!JS_GetArrayLength(aCx, seq, &length)) {
@@ -278,8 +278,8 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
     }
 
     for (uint32_t i = 0; i < length; ++i) {
-      JS::Rooted<JS::Value> temp(aCx);
-      if (!JS_GetElement(aCx, seq, i, temp.address())) {
+      JS::Value temp;
+      if (!JS_GetElement(aCx, seq, i, &temp)) {
         return NS_ERROR_FAILURE;
       }
 

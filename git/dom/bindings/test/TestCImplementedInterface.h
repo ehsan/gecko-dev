@@ -17,8 +17,7 @@ namespace dom {
 class TestCImplementedInterface : public TestJSImplInterface
 {
 public:
-  TestCImplementedInterface(JS::Handle<JSObject*> aJSImpl,
-                            nsPIDOMWindow* aParent)
+  TestCImplementedInterface(JSObject* aJSImpl, nsPIDOMWindow* aParent)
     : TestJSImplInterface(aJSImpl, aParent)
   {}
 };

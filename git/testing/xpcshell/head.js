@@ -332,9 +332,9 @@ function _execute_test() {
   _load_files(_TEST_FILE);
 
   try {
-    do_test_pending("MAIN run_test");
+    do_test_pending();
     run_test();
-    do_test_finished("MAIN run_test");
+    do_test_finished();
     _do_main();
   } catch (e) {
     _passed = false;
@@ -428,9 +428,8 @@ function do_timeout(delay, func) {
   new _Timer(func, Number(delay));
 }
 
-function do_execute_soon(callback, aName) {
-  let funcName = (aName ? aName : callback.name);
-  do_test_pending(funcName);
+function do_execute_soon(callback) {
+  do_test_pending();
   var tm = Components.classes["@mozilla.org/thread-manager;1"]
                      .getService(Components.interfaces.nsIThreadManager);
 
@@ -457,7 +456,7 @@ function do_execute_soon(callback, aName) {
         }
       }
       finally {
-        do_test_finished(funcName);
+        do_test_finished();
       }
     }
   }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
@@ -786,16 +785,16 @@ function format_pattern_match_failure(diagnosis, indent="") {
   return indent + a;
 }
 
-function do_test_pending(aName) {
+function do_test_pending() {
   ++_tests_pending;
 
-  _dump("TEST-INFO | (xpcshell/head.js) | test" + (aName ? " " + aName : "") +
-         " pending (" + _tests_pending + ")\n");
+  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+         " pending\n");
 }
 
-function do_test_finished(aName) {
-  _dump("TEST-INFO | (xpcshell/head.js) | test" + (aName ? " " + aName : "") +
-         " finished (" + _tests_pending + ")\n");
+function do_test_finished() {
+  _dump("TEST-INFO | (xpcshell/head.js) | test " + _tests_pending +
+         " finished\n");
 
   if (--_tests_pending == 0)
     _do_quit();
@@ -1028,7 +1027,7 @@ function run_test_in_child(testFile, optionalCallback)
   do_load_child_test_harness();
 
   var testPath = do_get_file(testFile).path.replace(/\\/g, "/");
-  do_test_pending("run in child");
+  do_test_pending();
   sendCommand("_dump('CHILD-TEST-STARTED'); "
               + "const _TEST_FILE=['" + testPath + "']; _execute_test(); "
               + "_dump('CHILD-TEST-COMPLETED');", 
@@ -1110,10 +1109,10 @@ function run_next_test()
   function _run_next_test()
   {
     if (_gTestIndex < _gTests.length) {
+      do_test_pending();
       let _isTask;
       [_isTask, _gRunningTest] = _gTests[_gTestIndex++];
       print("TEST-INFO | " + _TEST_FILE + " | Starting " + _gRunningTest.name);
-      do_test_pending(_gRunningTest.name);
 
       if (_isTask) {
         _Task.spawn(_gRunningTest)
@@ -1133,10 +1132,10 @@ function run_next_test()
   // We do this now, before we call do_test_finished(), to ensure the pending
   // counter (_tests_pending) never reaches 0 while we still have tests to run
   // (do_execute_soon bumps that counter).
-  do_execute_soon(_run_next_test, "run_next_test " + _gTestIndex);
+  do_execute_soon(_run_next_test);
 
   if (_gRunningTest !== null) {
     // Close the previous test do_test_pending call.
-    do_test_finished(_gRunningTest.name);
+    do_test_finished();
   }
 }

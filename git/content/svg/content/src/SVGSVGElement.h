@@ -278,9 +278,6 @@ private:
   bool SetZoomAndPanProperty(uint16_t aValue);
   uint16_t GetZoomAndPanProperty() const;
   bool ClearZoomAndPanProperty();
-  bool SetTransformProperty(const SVGTransformList& aValue);
-  const SVGTransformList* GetTransformProperty() const;
-  bool ClearTransformProperty();
 
   bool IsRoot() const {
     NS_ASSERTION((IsInDoc() && !GetParent()) ==
@@ -351,6 +348,7 @@ private:
   nsSVGViewBox                   mViewBox;
   SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
 
+  nsAutoPtr<gfxMatrix>           mFragmentIdentifierTransform;
   nsAutoPtr<nsString>            mCurrentViewID;
 
   // The size of the rectangular SVG viewport into which we render. This is

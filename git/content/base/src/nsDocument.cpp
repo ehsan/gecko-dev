@@ -437,14 +437,6 @@ nsIdentifierMapEntry::RemoveNameElement(Element* aElement)
   }
 }
 
-bool
-nsIdentifierMapEntry::HasIdElementExposedAsHTMLDocumentProperty()
-{
-  Element* idElement = GetIdElement();
-  return idElement &&
-         nsGenericHTMLElement::ShouldExposeIdAsHTMLDocumentProperty(idElement);
-}
-
 // static
 size_t
 nsIdentifierMapEntry::SizeOfExcludingThis(nsIdentifierMapEntry* aEntry,
@@ -1792,9 +1784,6 @@ CustomPrototypeTrace(const nsAString& aName, JSObject* aObject, void *aArg)
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDocument)
   CustomPrototypeTraceArgs customPrototypeArgs = { aCallback, aClosure };
   tmp->mCustomPrototypes.EnumerateRead(CustomPrototypeTrace, &customPrototypeArgs);
-  if (tmp->PreservingWrapper()) {
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mExpandoAndGeneration.expando);
-  }
   nsINode::Trace(tmp, aCallback, aClosure);
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -1859,8 +1848,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   // else, and not unlink an awful lot here.
 
   tmp->mIdentifierMap.Clear();
-  ++tmp->mExpandoAndGeneration.generation;
-  tmp->mExpandoAndGeneration.expando = JS::UndefinedValue();
 
   tmp->mCustomPrototypes.Clear();
 
@@ -2245,7 +2232,9 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
     }
     mStyleAttrStyleSheet->Reset(aURI);
   } else {
-    mStyleAttrStyleSheet = new nsHTMLCSSStyleSheet(aURI, this);
+    mStyleAttrStyleSheet = new nsHTMLCSSStyleSheet();
+    nsresult rv = mStyleAttrStyleSheet->Init(aURI, this);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // The loop over style sets below will handle putting this sheet
@@ -2736,19 +2725,11 @@ nsIDocument::GetLastModified(nsAString& aLastModified) const
 void
 nsDocument::AddToNameTable(Element *aElement, nsIAtom* aName)
 {
-  MOZ_ASSERT(nsGenericHTMLElement::ShouldExposeNameAsHTMLDocumentProperty(aElement),
-             "Only put elements that need to be exposed as document['name'] in "
-             "the named table.");
-
   nsIdentifierMapEntry *entry =
     mIdentifierMap.PutEntry(nsDependentAtomString(aName));
 
   // Null for out-of-memory
   if (entry) {
-    if (!entry->HasNameElement() &&
-        !entry->HasIdElementExposedAsHTMLDocumentProperty()) {
-      ++mExpandoAndGeneration.generation;
-    }
     entry->AddNameElement(this, aElement);
   }
 }
@@ -2766,10 +2747,6 @@ nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
     return;
 
   entry->RemoveNameElement(aElement);
-  if (!entry->HasNameElement() &&
-      !entry->HasIdElementExposedAsHTMLDocumentProperty()) {
-    ++mExpandoAndGeneration.generation;
-  }
 }
 
 void
@@ -2779,11 +2756,6 @@ nsDocument::AddToIdTable(Element *aElement, nsIAtom* aId)
     mIdentifierMap.PutEntry(nsDependentAtomString(aId));
 
   if (entry) { /* True except on OOM */
-    if (nsGenericHTMLElement::ShouldExposeIdAsHTMLDocumentProperty(aElement) &&
-        !entry->HasNameElement() &&
-        !entry->HasIdElementExposedAsHTMLDocumentProperty()) {
-      ++mExpandoAndGeneration.generation;
-    }
     entry->AddIdElement(aElement);
   }
 }
@@ -2804,11 +2776,6 @@ nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
     return;
 
   entry->RemoveIdElement(aElement);
-  if (nsGenericHTMLElement::ShouldExposeIdAsHTMLDocumentProperty(aElement) &&
-      !entry->HasNameElement() &&
-      !entry->HasIdElementExposedAsHTMLDocumentProperty()) {
-    ++mExpandoAndGeneration.generation;
-  }
   if (entry->IsEmpty()) {
     mIdentifierMap.RawRemoveEntry(entry);
   }
@@ -3370,30 +3337,35 @@ nsDocument::TryChannelCharset(nsIChannel *aChannel,
   }
 }
 
-already_AddRefed<nsIPresShell>
+nsresult
 nsDocument::CreateShell(nsPresContext* aContext, nsViewManager* aViewManager,
-                        nsStyleSet* aStyleSet)
+                        nsStyleSet* aStyleSet,
+                        nsIPresShell** aInstancePtrResult)
 {
   // Don't add anything here.  Add it to |doCreateShell| instead.
   // This exists so that subclasses can pass other values for the 4th
   // parameter some of the time.
   return doCreateShell(aContext, aViewManager, aStyleSet,
-                       eCompatibility_FullStandards);
+                       eCompatibility_FullStandards, aInstancePtrResult);
 }
 
-already_AddRefed<nsIPresShell>
+nsresult
 nsDocument::doCreateShell(nsPresContext* aContext,
                           nsViewManager* aViewManager, nsStyleSet* aStyleSet,
-                          nsCompatibility aCompatMode)
+                          nsCompatibility aCompatMode,
+                          nsIPresShell** aInstancePtrResult)
 {
+  *aInstancePtrResult = nullptr;
+
   NS_ASSERTION(!mPresShell, "We have a presshell already!");
 
-  NS_ENSURE_FALSE(GetBFCacheEntry(), nullptr);
+  NS_ENSURE_FALSE(GetBFCacheEntry(), NS_ERROR_FAILURE);
 
   FillStyleSet(aStyleSet);
 
   nsRefPtr<PresShell> shell = new PresShell;
-  shell->Init(this, aContext, aViewManager, aStyleSet, aCompatMode);
+  nsresult rv = shell->Init(this, aContext, aViewManager, aStyleSet, aCompatMode);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Note: we don't hold a ref to the shell (it holds a ref to us)
   mPresShell = shell;
@@ -3402,7 +3374,9 @@ nsDocument::doCreateShell(nsPresContext* aContext,
 
   MaybeRescheduleAnimationFrameNotifications();
 
-  return shell.forget();
+  shell.forget(aInstancePtrResult);
+
+  return NS_OK;
 }
 
 void
@@ -5035,10 +5009,9 @@ nsDocument::Register(const nsAString& aName, const JS::Value& aOptions,
   ElementRegistrationOptions options;
   if (aOptionalArgc > 0) {
     JSAutoCompartment ac(aCx, GetWrapper());
-    JS::Rooted<JS::Value> opts(aCx, aOptions);
-    NS_ENSURE_TRUE(JS_WrapValue(aCx, opts.address()),
+    NS_ENSURE_TRUE(JS_WrapValue(aCx, const_cast<JS::Value*>(&aOptions)),
                    NS_ERROR_UNEXPECTED);
-    NS_ENSURE_TRUE(options.Init(aCx, opts),
+    NS_ENSURE_TRUE(options.Init(aCx, aOptions),
                    NS_ERROR_UNEXPECTED);
   }
 
@@ -8155,7 +8128,6 @@ nsDocument::DestroyElementMaps()
 #endif
   mStyledLinks.Clear();
   mIdentifierMap.Clear();
-  ++mExpandoAndGeneration.generation;
 }
 
 static

@@ -121,7 +121,7 @@ protected:
      * non-null.
      */
   public:
-    CallSetup(JS::Handle<JSObject*> aCallable, ErrorResult& aRv,
+    CallSetup(JSObject* const aCallable, ErrorResult& aRv,
               ExceptionHandling aExceptionHandling);
     ~CallSetup();
 
@@ -341,13 +341,12 @@ public:
       return nullptr;
     }
 
-    AutoSafeJSContext cx;
-
-    JS::Rooted<JSObject*> obj(cx);
-    if (NS_FAILED(wrappedJS->GetJSObject(obj.address())) || !obj) {
+    JSObject* obj;
+    if (NS_FAILED(wrappedJS->GetJSObject(&obj)) || !obj) {
       return nullptr;
     }
 
+    SafeAutoJSContext cx;
     JSAutoCompartment ac(cx, obj);
 
     nsRefPtr<WebIDLCallbackT> newCallback = new WebIDLCallbackT(obj);

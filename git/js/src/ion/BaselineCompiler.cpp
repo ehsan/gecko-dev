@@ -29,9 +29,6 @@ BaselineCompiler::BaselineCompiler(JSContext *cx, HandleScript script)
 bool
 BaselineCompiler::init()
 {
-    if (!analysis_.init())
-        return false;
-
     if (!labels_.init(script->length))
         return false;
 
@@ -67,12 +64,8 @@ BaselineCompiler::compile()
     IonSpew(IonSpew_BaselineScripts, "Baseline compiling script %s:%d (%p)",
             script->filename(), script->lineno, script.get());
 
-    // Only need to analyze scripts which are marked |argumensHasVarBinding|, to
-    // compute |needsArgsObj| flag.
-    if (script->argumentsHasVarBinding()) {
-        if (!script->ensureRanAnalysis(cx))
-            return Method_Error;
-    }
+    if (!script->ensureRanAnalysis(cx))
+        return Method_Error;
 
     // Pin analysis info during compilation.
     types::AutoEnterAnalysis autoEnterAnalysis(cx);
@@ -526,7 +519,7 @@ BaselineCompiler::emitSPSPop()
     Label noPop;
     masm.branchTest32(Assembler::Zero, frame.addressOfFlags(),
                       Imm32(BaselineFrame::HAS_PUSHED_SPS_FRAME), &noPop);
-    masm.spsPopFrameSafe(&cx->runtime->spsProfiler, R1.scratchReg());
+    masm.spsPopFrame(&cx->runtime->spsProfiler, R1.scratchReg());
     masm.bind(&noPop);
 }
 
@@ -544,10 +537,10 @@ BaselineCompiler::emitBody()
         IonSpew(IonSpew_BaselineOp, "Compiling op @ %d: %s",
                 int(pc - script->code), js_CodeName[op]);
 
-        BytecodeInfo *info = analysis_.maybeInfo(pc);
+        analyze::Bytecode *code = script->analysis()->maybeCode(pc);
 
         // Skip unreachable ops.
-        if (!info) {
+        if (!code) {
             if (op == JSOP_STOP)
                 break;
             pc += GetBytecodeLength(pc);
@@ -556,9 +549,9 @@ BaselineCompiler::emitBody()
         }
 
         // Fully sync the stack if there are incoming jumps.
-        if (info->jumpTarget) {
+        if (code->jumpTarget) {
             frame.syncStack(0);
-            frame.setStackDepth(info->stackDepth);
+            frame.setStackDepth(code->stackDepth);
         }
 
         // Always sync in debug mode.
@@ -2426,7 +2419,7 @@ BaselineCompiler::emit_JSOP_ARGUMENTS()
     frame.syncStack(0);
 
     Label done;
-    if (!script->argumentsHasVarBinding() || !script->needsArgsObj()) {
+    if (!script->needsArgsObj()) {
         // We assume the script does not need an arguments object. However, this
         // assumption can be invalidated later, see argumentsOptimizationFailed
         // in JSScript. Because we can't invalidate baseline JIT code, we set a

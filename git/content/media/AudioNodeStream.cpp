@@ -102,19 +102,19 @@ AudioNodeStream::SetInt32Parameter(uint32_t aIndex, int32_t aValue)
 
 void
 AudioNodeStream::SetTimelineParameter(uint32_t aIndex,
-                                      const AudioParamTimeline& aValue)
+                                      const AudioEventTimeline<ErrorResult>& aValue)
 {
   class Message : public ControlMessage {
   public:
     Message(AudioNodeStream* aStream, uint32_t aIndex,
-            const AudioParamTimeline& aValue)
+            const AudioEventTimeline<ErrorResult>& aValue)
       : ControlMessage(aStream), mValue(aValue), mIndex(aIndex) {}
     virtual void Run()
     {
       static_cast<AudioNodeStream*>(mStream)->Engine()->
           SetTimelineParameter(mIndex, mValue);
     }
-    AudioParamTimeline mValue;
+    AudioEventTimeline<ErrorResult> mValue;
     uint32_t mIndex;
   };
   GraphImpl()->AppendMessage(new Message(this, aIndex, aValue));
@@ -237,25 +237,20 @@ AudioNodeStream::AllInputsFinished() const
   return !!inputCount;
 }
 
-void
-AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
+AudioChunk*
+AudioNodeStream::ObtainInputBlock(AudioChunk* aTmpChunk)
 {
   uint32_t inputCount = mInputs.Length();
   uint32_t outputChannelCount = 1;
   nsAutoTArray<AudioChunk*,250> inputChunks;
   for (uint32_t i = 0; i < inputCount; ++i) {
-    if (aPortIndex != mInputs[i]->InputNumber()) {
-      // This input is connected to a different port
-      continue;
-    }
     MediaStream* s = mInputs[i]->GetSource();
     AudioNodeStream* a = static_cast<AudioNodeStream*>(s);
     MOZ_ASSERT(a == s->AsAudioNodeStream());
-    if (a->IsFinishedOnGraphThread() ||
-        a->IsAudioParamStream()) {
+    if (a->IsFinishedOnGraphThread()) {
       continue;
     }
-    AudioChunk* chunk = &a->mLastChunks[mInputs[i]->OutputNumber()];
+    AudioChunk* chunk = &a->mLastChunk;
     MOZ_ASSERT(chunk);
     if (chunk->IsNull()) {
       continue;
@@ -283,17 +278,16 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
 
   uint32_t inputChunkCount = inputChunks.Length();
   if (inputChunkCount == 0) {
-    aTmpChunk.SetNull(WEBAUDIO_BLOCK_SIZE);
-    return;
+    aTmpChunk->SetNull(WEBAUDIO_BLOCK_SIZE);
+    return aTmpChunk;
   }
 
   if (inputChunkCount == 1 &&
       inputChunks[0]->mChannelData.Length() == outputChannelCount) {
-    aTmpChunk = *inputChunks[0];
-    return;
+    return inputChunks[0];
   }
 
-  AllocateAudioBlock(outputChannelCount, &aTmpChunk);
+  AllocateAudioBlock(outputChannelCount, aTmpChunk);
   float silenceChannel[WEBAUDIO_BLOCK_SIZE] = {0.f};
   // The static storage here should be 1KB, so it's fine
   nsAutoTArray<float, GUESS_AUDIO_CHANNELS*WEBAUDIO_BLOCK_SIZE> downmixBuffer;
@@ -338,7 +332,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
 
     for (uint32_t c = 0; c < channels.Length(); ++c) {
       const float* inputData = static_cast<const float*>(channels[c]);
-      float* outputData = static_cast<float*>(const_cast<void*>(aTmpChunk.mChannelData[c]));
+      float* outputData = static_cast<float*>(const_cast<void*>(aTmpChunk->mChannelData[c]));
       if (inputData) {
         if (i == 0) {
           AudioBlockCopyChannelWithScale(inputData, chunk->mVolume, outputData);
@@ -352,6 +346,8 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
       }
     }
   }
+
+  return aTmpChunk;
 }
 
 // The MediaStreamGraph guarantees that this is actually one block, for
@@ -368,42 +364,34 @@ AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo)
 
   StreamBuffer::Track* track = EnsureTrack();
 
+  AudioChunk outputChunk;
   AudioSegment* segment = track->Get<AudioSegment>();
 
-  mLastChunks.SetLength(1);
-  mLastChunks[0].SetNull(0);
+  outputChunk.SetNull(0);
 
   if (mInCycle) {
     // XXX DelayNode not supported yet so just produce silence
-    mLastChunks[0].SetNull(WEBAUDIO_BLOCK_SIZE);
+    outputChunk.SetNull(WEBAUDIO_BLOCK_SIZE);
   } else {
-    // We need to generate at least one input
-    uint16_t maxInputs = std::max(uint16_t(1), mEngine->InputCount());
-    OutputChunks inputChunks;
-    inputChunks.SetLength(maxInputs);
-    for (uint16_t i = 0; i < maxInputs; ++i) {
-      ObtainInputBlock(inputChunks[i], i);
-    }
+    AudioChunk tmpChunk;
+    AudioChunk* inputChunk = ObtainInputBlock(&tmpChunk);
     bool finished = false;
-    if (maxInputs <= 1 && mEngine->OutputCount() <= 1) {
-      mEngine->ProduceAudioBlock(this, inputChunks[0], &mLastChunks[0], &finished);
-    } else {
-      mEngine->ProduceAudioBlocksOnPorts(this, inputChunks, mLastChunks, &finished);
-    }
+    mEngine->ProduceAudioBlock(this, *inputChunk, &outputChunk, &finished);
     if (finished) {
       mMarkAsFinishedAfterThisBlock = true;
     }
   }
 
+  mLastChunk = outputChunk;
   if (mKind == MediaStreamGraph::EXTERNAL_STREAM) {
-    segment->AppendAndConsumeChunk(&mLastChunks[0]);
+    segment->AppendAndConsumeChunk(&outputChunk);
   } else {
-    segment->AppendNullData(mLastChunks[0].GetDuration());
+    segment->AppendNullData(outputChunk.GetDuration());
   }
 
   for (uint32_t j = 0; j < mListeners.Length(); ++j) {
     MediaStreamListener* l = mListeners[j];
-    AudioChunk copyChunk = mLastChunks[0];
+    AudioChunk copyChunk = outputChunk;
     AudioSegment tmpSegment;
     tmpSegment.AppendAndConsumeChunk(&copyChunk);
     l->NotifyQueuedTrackChanges(Graph(), AUDIO_NODE_STREAM_TRACK_ID,

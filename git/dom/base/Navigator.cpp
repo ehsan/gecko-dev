@@ -772,7 +772,7 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
     }
   }
   else {
-    JS::Rooted<JSObject*> obj(cx, aPattern.toObjectOrNull());
+    JSObject *obj = JSVAL_TO_OBJECT(aPattern);
     uint32_t length;
     if (!JS_GetArrayLength(cx, obj, &length) || length > sMaxVibrateListLen) {
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
@@ -780,9 +780,9 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
     pattern.SetLength(length);
 
     for (uint32_t i = 0; i < length; ++i) {
-      JS::Rooted<JS::Value> v(cx);
+      JS::Value v;
       int32_t pv;
-      if (JS_GetElement(cx, obj, i, v.address()) &&
+      if (JS_GetElement(cx, obj, i, &v) &&
           GetVibrationDurationFromJsval(v, cx, &pv)) {
         pattern[i] = pv;
       }
@@ -812,7 +812,9 @@ Navigator::Vibrate(const JS::Value& aPattern, JSContext* cx)
   }
   gVibrateWindowListener = new VibrateWindowListener(win, doc);
 
-  hal::Vibrate(pattern, win);
+  nsCOMPtr<nsIDOMWindow> domWindow =
+    do_QueryInterface(static_cast<nsIDOMWindow*>(win));
+  hal::Vibrate(pattern, domWindow);
   return NS_OK;
 }
 
@@ -1359,8 +1361,7 @@ Navigator::GetMozMobileConnection(nsIDOMMozMobileConnection** aMobileConnection)
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
     NS_ENSURE_TRUE(window, NS_OK);
 
-    if (!CheckPermission("mobileconnection") &&
-        !CheckPermission("mobilenetwork")) {
+    if (!CheckPermission("mobileconnection")) {
       return NS_OK;
     }
 

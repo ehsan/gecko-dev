@@ -92,7 +92,7 @@ namespace JS {
  * public interface are meant to be used by embedders!  See inline comments to
  * for details.
  */
-class MOZ_STACK_CLASS CallReceiver
+class CallReceiver
 {
   protected:
 #ifdef DEBUG
@@ -233,7 +233,7 @@ CallReceiverFromVp(Value *vp)
  * public interface are meant to be used by embedders!  See inline comments to
  * for details.
  */
-class MOZ_STACK_CLASS CallArgs : public CallReceiver
+class CallArgs : public CallReceiver
 {
   protected:
     unsigned argc_;

@@ -16,8 +16,7 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
                       JSObject* aFunctionObject)
 {
   AutoPushJSContext cx(aContext->GetNativeContext());
-  JS::RootedObject function(cx, aFunctionObject);
-  return nsContentUtils::XPConnect()->WriteFunction(aStream, cx, function);
+  return nsContentUtils::XPConnect()->WriteFunction(aStream, cx, aFunctionObject);
 }
 
 nsresult

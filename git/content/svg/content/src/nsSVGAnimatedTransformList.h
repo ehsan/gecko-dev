@@ -56,8 +56,6 @@ public:
     return mBaseVal;
   }
 
-  nsresult SetBaseValue(const SVGTransformList& aValue);
-
   nsresult SetBaseValueString(const nsAString& aValue);
 
   void ClearBaseValue();

@@ -45,7 +45,7 @@ static const uint32_t STALL_MS = 3000;
 // catching up with the download. Having this margin make the
 // MediaDecoder::CanPlayThrough() calculation more stable in the case of
 // fluctuating bitrates.
-static const int64_t CAN_PLAY_THROUGH_MARGIN = 1;
+static const int64_t CAN_PLAY_THROUGH_MARGIN = 10;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaDecoderLog;
@@ -1688,13 +1688,6 @@ MediaDecoder::IsWMFEnabled()
   return WMFDecoder::IsEnabled();
 }
 #endif
-
-MediaDecoderOwner*
-MediaDecoder::GetOwner()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return mOwner;
-}
 
 MediaMemoryReporter* MediaMemoryReporter::sUniqueInstance;
 

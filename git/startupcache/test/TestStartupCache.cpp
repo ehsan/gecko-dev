@@ -424,11 +424,9 @@ GetHistogramCounts(const char *testmsg, const nsACString &histogram_id,
 }
 
 nsresult
-CompareCountArrays(JSContext *cx, JSObject *aBefore, JSObject *aAfter)
+CompareCountArrays(JSContext *cx, JSObject *before, JSObject *after)
 {
   uint32_t before_size, after_size;
-  JS::RootedObject before(cx, aBefore);
-  JS::RootedObject after(cx, aAfter);
   if (!(JS_GetArrayLength(cx, before, &before_size)
         && JS_GetArrayLength(cx, after, &after_size))) {
     return NS_ERROR_UNEXPECTED;
@@ -438,10 +436,11 @@ CompareCountArrays(JSContext *cx, JSObject *aBefore, JSObject *aAfter)
     return NS_ERROR_UNEXPECTED;
   }
 
-  JS::RootedValue before_num(cx), after_num(cx);
   for (uint32_t i = 0; i < before_size; ++i) {
-    if (!(JS_GetElement(cx, before, i, before_num.address())
-          && JS_GetElement(cx, after, i, after_num.address()))) {
+    Value before_num, after_num;
+
+    if (!(JS_GetElement(cx, before, i, &before_num)
+          && JS_GetElement(cx, after, i, &after_num))) {
       return NS_ERROR_UNEXPECTED;
     }
 

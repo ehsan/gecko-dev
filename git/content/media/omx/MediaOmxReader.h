@@ -8,7 +8,6 @@
 
 #include "MediaResource.h"
 #include "MediaDecoderReader.h"
-#include <ui/GraphicBuffer.h>
 
 namespace android {
 class OmxDecoder;

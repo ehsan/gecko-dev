@@ -41,7 +41,9 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             const JS::CallArgs& args,
+             uint32_t argc,
+             JS::Value* argv,
+             JS::Value* vp,
              bool* _retval)
 {
   JSObject* global = JS_GetGlobalForScopeChain(cx);

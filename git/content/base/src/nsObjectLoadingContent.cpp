@@ -2838,17 +2838,12 @@ nsObjectLoadingContent::GetContentDocument()
     return nullptr;
   }
 
-  // Return null for cross-origin contentDocument.
-  if (!nsContentUtils::GetSubjectPrincipal()->Subsumes(sub_doc->NodePrincipal())) {
-    return nullptr;
-  }
-
   return sub_doc;
 }
 
 JS::Value
 nsObjectLoadingContent::LegacyCall(JSContext* aCx,
-                                   JS::Handle<JS::Value> aThisVal,
+                                   JS::Value aThisVal,
                                    const Sequence<JS::Value>& aArguments,
                                    ErrorResult& aRv)
 {
@@ -2875,7 +2870,6 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
   // Now wrap things up into the compartment of "obj"
   JSAutoCompartment ac(aCx, obj);
   nsTArray<JS::Value> args(aArguments);
-  JS::AutoArrayRooter rooter(aCx, args.Length(), args.Elements());
   for (JS::Value *arg = args.Elements(), *arg_end = arg + args.Length();
        arg != arg_end;
        ++arg) {
@@ -2885,8 +2879,7 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     }
   }
 
-  JS::Rooted<JS::Value> thisVal(aCx, aThisVal);
-  if (!JS_WrapValue(aCx, thisVal.address())) {
+  if (!JS_WrapValue(aCx, &aThisVal)) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return JS::UndefinedValue();
   }
@@ -2904,10 +2897,10 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     return JS::UndefinedValue();
   }
 
-  JS::Rooted<JSObject*> pi_obj(aCx);
-  JS::Rooted<JSObject*> pi_proto(aCx);
+  JSObject *pi_obj;
+  JSObject *pi_proto;
 
-  rv = GetPluginJSObject(aCx, obj, pi, pi_obj.address(), pi_proto.address());
+  rv = GetPluginJSObject(aCx, obj, pi, &pi_obj, &pi_proto);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return JS::UndefinedValue();
@@ -2918,9 +2911,9 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     return JS::UndefinedValue();
   }
 
-  JS::Rooted<JS::Value> retval(aCx);
-  bool ok = ::JS::Call(aCx, thisVal, pi_obj, args.Length(),
-                       args.Elements(), retval.address());
+  JS::Value retval;
+  bool ok = ::JS::Call(aCx, aThisVal, pi_obj, args.Length(),
+                       args.Elements(), &retval);
   if (!ok) {
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::UndefinedValue();
@@ -2971,10 +2964,10 @@ nsObjectLoadingContent::SetupProtoChain(JSContext* aCx,
     return;
   }
 
-  JS::Rooted<JSObject*> pi_obj(aCx); // XPConnect-wrapped peer object, when we get it.
-  JS::Rooted<JSObject*> pi_proto(aCx); // 'pi.__proto__'
+  JSObject *pi_obj; // XPConnect-wrapped peer object, when we get it.
+  JSObject *pi_proto; // 'pi.__proto__'
 
-  rv = GetPluginJSObject(aCx, aObject, pi, pi_obj.address(), pi_proto.address());
+  rv = GetPluginJSObject(aCx, aObject, pi, &pi_obj, &pi_proto);
   if (NS_FAILED(rv)) {
     return;
   }

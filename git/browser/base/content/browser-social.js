@@ -616,8 +616,7 @@ SocialMark = {
 
   updateMarkState: function SSB_updateMarkState() {
     this.update();
-    if (!this.button.hidden)
-      Social.isURIMarked(gBrowser.currentURI, this._updateMarkState.bind(this));
+    Social.isURIMarked(gBrowser.currentURI, this._updateMarkState.bind(this));
   },
 
   _updateMarkState: function(currentPageMarked) {

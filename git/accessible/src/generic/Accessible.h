@@ -9,7 +9,7 @@
 #include "mozilla/a11y/AccTypes.h"
 #include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/States.h"
-#include "nsAccessNode.h"
+#include "nsAccessNodeWrap.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -100,7 +100,7 @@ typedef nsRefPtrHashtable<nsPtrHashKey<const void>, Accessible>
   { 0xbd, 0x50, 0x42, 0x6b, 0xd1, 0xd6, 0xe1, 0xad }    \
 }
 
-class Accessible : public nsAccessNode,
+class Accessible : public nsAccessNodeWrap,
                    public nsIAccessible,
                    public nsIAccessibleHyperLink,
                    public nsIAccessibleSelectable,

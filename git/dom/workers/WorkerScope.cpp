@@ -860,10 +860,10 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> message(aCx);
-    JS::Rooted<JS::Value> transferable(aCx, JSVAL_VOID);
+    jsval message;
+    jsval transferable = JSVAL_VOID;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v/v",
-                             message.address(), transferable.address())) {
+                             &message, &transferable)) {
       return false;
     }
 

@@ -105,14 +105,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
-// This must come outside of any namespace, or else it won't overload with the
-// double based version in nsMathUtils.h
-inline NS_HIDDEN_(mozilla::Decimal)
-NS_floorModulo(mozilla::Decimal x, mozilla::Decimal y)
-{
-  return (x - y * (x / y).floor());
-}
-
 namespace mozilla {
 namespace dom {
 
@@ -191,13 +183,13 @@ static const nsAttrValue::EnumTable kInputInputmodeTable[] = {
 // Default inputmode value is "auto".
 static const nsAttrValue::EnumTable* kInputDefaultInputmode = &kInputInputmodeTable[0];
 
-const Decimal HTMLInputElement::kStepScaleFactorDate = 86400000;
-const Decimal HTMLInputElement::kStepScaleFactorNumberRange = 1;
-const Decimal HTMLInputElement::kStepScaleFactorTime = 1000;
-const Decimal HTMLInputElement::kDefaultStepBase = 0;
-const Decimal HTMLInputElement::kDefaultStep = 1;
-const Decimal HTMLInputElement::kDefaultStepTime = 60;
-const Decimal HTMLInputElement::kStepAny = 0;
+const double HTMLInputElement::kStepScaleFactorDate = 86400000;
+const double HTMLInputElement::kStepScaleFactorNumberRange = 1;
+const double HTMLInputElement::kStepScaleFactorTime = 1000;
+const double HTMLInputElement::kDefaultStepBase = 0;
+const double HTMLInputElement::kDefaultStep = 1;
+const double HTMLInputElement::kDefaultStepTime = 60;
+const double HTMLInputElement::kStepAny = 0;
 
 #define NS_INPUT_ELEMENT_STATE_IID                 \
 { /* dc3b3d14-23e2-4479-b513-7b369343e3a0 */       \
@@ -741,8 +733,17 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
   nsresult rv = const_cast<HTMLInputElement*>(this)->CopyInnerTo(it);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  switch (GetValueMode()) {
-    case VALUE_MODE_VALUE:
+  switch (mType) {
+    case NS_FORM_INPUT_EMAIL:
+    case NS_FORM_INPUT_SEARCH:
+    case NS_FORM_INPUT_TEXT:
+    case NS_FORM_INPUT_PASSWORD:
+    case NS_FORM_INPUT_TEL:
+    case NS_FORM_INPUT_URL:
+    case NS_FORM_INPUT_NUMBER:
+    case NS_FORM_INPUT_DATE:
+    case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_RANGE:
       if (mValueChanged) {
         // We don't have our default value anymore.  Set our value on
         // the clone.
@@ -752,7 +753,7 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
         it->SetValueInternal(value, false, true);
       }
       break;
-    case VALUE_MODE_FILENAME:
+    case NS_FORM_INPUT_FILE:
       if (it->OwnerDoc()->IsStaticDocument()) {
         // We're going to be used in print preview.  Since the doc is static
         // we can just grab the pretty string and use it as wallpaper
@@ -762,17 +763,20 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
         it->mFiles.AppendObjects(mFiles);
       }
       break;
-    case VALUE_MODE_DEFAULT_ON:
+    case NS_FORM_INPUT_RADIO:
+    case NS_FORM_INPUT_CHECKBOX:
       if (mCheckedChanged) {
         // We no longer have our original checked state.  Set our
         // checked state on the clone.
         it->DoSetChecked(mChecked, false, true);
       }
       break;
-    case VALUE_MODE_DEFAULT:
-      if (mType == NS_FORM_INPUT_IMAGE && it->OwnerDoc()->IsStaticDocument()) {
+    case NS_FORM_INPUT_IMAGE:
+      if (it->OwnerDoc()->IsStaticDocument()) {
         CreateStaticImageClone(it);
       }
+      break;
+    default:
       break;
   }
 
@@ -1152,19 +1156,9 @@ HTMLInputElement::IsValueEmpty() const
   return value.IsEmpty();
 }
 
-static Decimal StringToDecimal(nsAString& aValue)
-{
-  if (!IsASCII(aValue)) {
-    return Decimal::nan();
-  }
-  NS_LossyConvertUTF16toASCII asciiString(aValue);
-  std::string stdString = asciiString.get();
-  return Decimal::fromString(stdString);
-}
-
 bool
 HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
-                                        Decimal& aResultValue) const
+                                        double& aResultValue) const
 {
   MOZ_ASSERT(DoesValueAsNumberApply(),
              "ConvertStringToNumber only applies if .valueAsNumber applies");
@@ -1173,10 +1167,12 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_RANGE:
       {
-        aResultValue = StringToDecimal(aValue);
-        if (!aResultValue.isFinite()) {
+        nsresult ec;
+        aResultValue = PromiseFlatString(aValue).ToDouble(&ec);
+        if (NS_FAILED(ec) || !MOZ_DOUBLE_IS_FINITE(aResultValue)) {
           return false;
         }
+
         return true;
       }
     case NS_FORM_INPUT_DATE:
@@ -1191,7 +1187,7 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
           return false;
         }
 
-        aResultValue = Decimal::fromDouble(date);
+        aResultValue = date;
         return true;
       }
     case NS_FORM_INPUT_TIME:
@@ -1200,7 +1196,7 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
         return false;
       }
 
-      aResultValue = int32_t(milliseconds);
+      aResultValue = static_cast<double>(milliseconds);
       return true;
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
@@ -1208,16 +1204,16 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
   }
 }
 
-Decimal
-HTMLInputElement::GetValueAsDecimal() const
+double
+HTMLInputElement::GetValueAsDouble() const
 {
-  Decimal decimalValue;
+  double doubleValue;
   nsAutoString stringValue;
 
   GetValueInternal(stringValue);
 
-  return !ConvertStringToNumber(stringValue, decimalValue) ? Decimal::nan()
-                                                           : decimalValue;
+  return !ConvertStringToNumber(stringValue, doubleValue) ? MOZ_DOUBLE_NaN()
+                                                          : doubleValue;
 }
 
 void
@@ -1317,11 +1313,11 @@ HTMLInputElement::GetList(nsIDOMHTMLElement** aValue)
 }
 
 void
-HTMLInputElement::SetValue(Decimal aValue)
+HTMLInputElement::SetValue(double aValue)
 {
-  MOZ_ASSERT(!aValue.isInfinity(), "aValue must not be Infinity!");
+  MOZ_ASSERT(!MOZ_DOUBLE_IS_INFINITE(aValue), "aValue must not be Infinity!");
 
-  if (aValue.isNaN()) {
+  if (MOZ_DOUBLE_IS_NaN(aValue)) {
     SetValue(EmptyString());
     return;
   }
@@ -1332,12 +1328,12 @@ HTMLInputElement::SetValue(Decimal aValue)
 }
 
 bool
-HTMLInputElement::ConvertNumberToString(Decimal aValue,
+HTMLInputElement::ConvertNumberToString(double aValue,
                                         nsAString& aResultString) const
 {
   MOZ_ASSERT(DoesValueAsNumberApply(),
              "ConvertNumberToString is only implemented for types implementing .valueAsNumber");
-  MOZ_ASSERT(aValue.isFinite(),
+  MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(aValue) && !MOZ_DOUBLE_IS_INFINITE(aValue),
              "aValue must be a valid non-Infinite number.");
 
   aResultString.Truncate();
@@ -1345,21 +1341,16 @@ HTMLInputElement::ConvertNumberToString(Decimal aValue,
   switch (mType) {
     case NS_FORM_INPUT_NUMBER:
     case NS_FORM_INPUT_RANGE:
-      {
-        char buf[32];
-        bool ok = aValue.toString(buf, ArrayLength(buf));
-        aResultString.AssignASCII(buf);
-        MOZ_ASSERT(ok, "buf not big enough");
-        return ok;
-      }
+      aResultString.AppendFloat(aValue);
+      return true;
     case NS_FORM_INPUT_DATE:
       {
         // The specs (and our JS APIs) require |aValue| to be truncated.
-        aValue = aValue.floor();
+        aValue = floor(aValue);
 
-        double year = JS::YearFromTime(aValue.toDouble());
-        double month = JS::MonthFromTime(aValue.toDouble());
-        double day = JS::DayFromTime(aValue.toDouble());
+        double year = JS::YearFromTime(aValue);
+        double month = JS::MonthFromTime(aValue);
+        double day = JS::DayFromTime(aValue);
 
         if (MOZ_DOUBLE_IS_NaN(year) ||
             MOZ_DOUBLE_IS_NaN(month) ||
@@ -1377,7 +1368,7 @@ HTMLInputElement::ConvertNumberToString(Decimal aValue,
         // Per spec, we need to truncate |aValue| and we should only represent
         // times inside a day [00:00, 24:00[, which means that we should do a
         // modulo on |aValue| using the number of milliseconds in a day (86400000).
-        uint32_t value = NS_floorModulo(aValue.floor(), 86400000).toDouble();
+        uint32_t value = NS_floorModulo(floor(aValue), 86400000);
 
         uint16_t milliseconds = value % 1000;
         value /= 1000;
@@ -1459,7 +1450,7 @@ HTMLInputElement::SetValueAsDate(Nullable<Date> aDate, ErrorResult& aRv)
     return;
   }
 
-  SetValue(Decimal::fromDouble(aDate.Value().TimeStamp()));
+  SetValue(aDate.Value().TimeStamp());
 }
 
 NS_IMETHODIMP
@@ -1484,7 +1475,7 @@ HTMLInputElement::SetValueAsNumber(double aValueAsNumber, ErrorResult& aRv)
     return;
   }
 
-  SetValue(Decimal::fromDouble(aValueAsNumber));
+  SetValue(aValueAsNumber);
 }
 
 NS_IMETHODIMP
@@ -1495,15 +1486,15 @@ HTMLInputElement::SetValueAsNumber(double aValueAsNumber)
   return rv.ErrorCode();
 }
 
-Decimal
+double
 HTMLInputElement::GetMinimum() const
 {
   MOZ_ASSERT(DoesValueAsNumberApply(),
-             "GetMinimum() should only be used for types that allow .valueAsNumber");
+             "GetMinAsDouble() should only be used for types that allow .valueAsNumber");
 
   // Only type=range has a default minimum
-  Decimal defaultMinimum =
-    mType == NS_FORM_INPUT_RANGE ? 0 : Decimal::nan();
+  double defaultMinimum =
+    mType == NS_FORM_INPUT_RANGE ? 0.0 : MOZ_DOUBLE_NaN();
 
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::min)) {
     return defaultMinimum;
@@ -1512,19 +1503,19 @@ HTMLInputElement::GetMinimum() const
   nsAutoString minStr;
   GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
 
-  Decimal min;
+  double min;
   return ConvertStringToNumber(minStr, min) ? min : defaultMinimum;
 }
 
-Decimal
+double
 HTMLInputElement::GetMaximum() const
 {
   MOZ_ASSERT(DoesValueAsNumberApply(),
-             "GetMaximum() should only be used for types that allow .valueAsNumber");
+             "GetMaxAsDouble() should only be used for types that allow .valueAsNumber");
 
   // Only type=range has a default maximum
-  Decimal defaultMaximum =
-    mType == NS_FORM_INPUT_RANGE ? 100 : Decimal::nan();
+  double defaultMaximum =
+    mType == NS_FORM_INPUT_RANGE ? 100.0 : MOZ_DOUBLE_NaN();
 
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::max)) {
     return defaultMaximum;
@@ -1533,11 +1524,11 @@ HTMLInputElement::GetMaximum() const
   nsAutoString maxStr;
   GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
 
-  Decimal max;
+  double max;
   return ConvertStringToNumber(maxStr, max) ? max : defaultMaximum;
 }
 
-Decimal
+double
 HTMLInputElement::GetStepBase() const
 {
   MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER ||
@@ -1546,7 +1537,7 @@ HTMLInputElement::GetStepBase() const
              mType == NS_FORM_INPUT_RANGE,
              "Check that kDefaultStepBase is correct for this new type");
 
-  Decimal stepBase;
+  double stepBase;
 
   // Do NOT use GetMinimum here - the spec says to use "the min content
   // attribute", not "the minimum".
@@ -1573,20 +1564,20 @@ HTMLInputElement::ApplyStep(int32_t aStep)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  Decimal step = GetStep();
+  double step = GetStep();
   if (step == kStepAny) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  Decimal value = GetValueAsDecimal();
-  if (value.isNaN()) {
+  double value = GetValueAsDouble();
+  if (MOZ_DOUBLE_IS_NaN(value)) {
     return NS_OK;
   }
 
-  Decimal minimum = GetMinimum();
+  double minimum = GetMinimum();
 
-  Decimal maximum = GetMaximum();
-  if (!maximum.isNaN()) {
+  double maximum = GetMaximum();
+  if (!MOZ_DOUBLE_IS_NaN(maximum)) {
     // "max - (max - stepBase) % step" is the nearest valid value to max.
     maximum = maximum - NS_floorModulo(maximum - GetStepBase(), step);
   }
@@ -1610,16 +1601,15 @@ HTMLInputElement::ApplyStep(int32_t aStep)
     }
   }
 
-  value += step * aStep;
+  value += aStep * step;
 
   // For date inputs, the value can hold a string that is not a day. We do not
   // want to round it, as it might result in a step mismatch. Instead we want to
   // clamp to the next valid value.
   if (mType == NS_FORM_INPUT_DATE &&
       NS_floorModulo(value - GetStepBase(), GetStepScaleFactor()) != 0) {
-    MOZ_ASSERT(GetStep() > 0);
-    Decimal validStep = EuclidLCM<Decimal>(GetStep().floor(),
-                                           GetStepScaleFactor().floor());
+    double validStep = EuclidLCM<uint64_t>(static_cast<uint64_t>(step),
+                                           static_cast<uint64_t>(GetStepScaleFactor()));
     if (aStep > 0) {
       value -= NS_floorModulo(value - GetStepBase(), validStep);
       value += validStep;
@@ -1632,12 +1622,12 @@ HTMLInputElement::ApplyStep(int32_t aStep)
   // minimum unless stepUp() moves us higher than minimum.
   if (GetValidityState(VALIDITY_STATE_RANGE_UNDERFLOW) && aStep > 0 &&
       value <= minimum) {
-    MOZ_ASSERT(!minimum.isNaN(), "Can't be NaN if we are here");
+    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(minimum), "Can't be NaN if we are here");
     value = minimum;
   // Same goes for stepDown() and maximum.
   } else if (GetValidityState(VALIDITY_STATE_RANGE_OVERFLOW) && aStep < 0 &&
              value >= maximum) {
-    MOZ_ASSERT(!maximum.isNaN(), "Can't be NaN if we are here");
+    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(maximum), "Can't be NaN if we are here");
     value = maximum;
   // If we go down, we want to clamp on min.
   } else if (aStep < 0 && minimum == minimum) {
@@ -2609,7 +2599,7 @@ void
 HTMLInputElement::StartRangeThumbDrag(nsGUIEvent* aEvent)
 {
   mIsDraggingRange = true;
-  mRangeThumbDragStartValue = GetValueAsDecimal();
+  mRangeThumbDragStartValue = GetValueAsDouble();
   nsIPresShell::SetCapturingContent(this, CAPTURE_IGNOREALLOWED |
                                           CAPTURE_RETARGETTOELEMENT);
   nsRangeFrame* rangeFrame = do_QueryFrame(GetPrimaryFrame());
@@ -2661,9 +2651,9 @@ HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent)
 }
 
 void
-HTMLInputElement::SetValueOfRangeForUserEvent(Decimal aValue)
+HTMLInputElement::SetValueOfRangeForUserEvent(double aValue)
 {
-  MOZ_ASSERT(aValue.isFinite());
+  MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(aValue));
 
   nsAutoString val;
   ConvertNumberToString(aValue, val);
@@ -3002,17 +2992,19 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                keyEvent->keyCode == NS_VK_PAGE_DOWN ||
                keyEvent->keyCode == NS_VK_HOME ||
                keyEvent->keyCode == NS_VK_END)) {
-            Decimal minimum = GetMinimum();
-            Decimal maximum = GetMaximum();
-            MOZ_ASSERT(minimum.isFinite() && maximum.isFinite());
+            double minimum = GetMinimum();
+            double maximum = GetMaximum();
+            MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(minimum) &&
+                       MOZ_DOUBLE_IS_FINITE(maximum));
             if (minimum < maximum) { // else the value is locked to the minimum
-              Decimal value = GetValueAsDecimal();
-              Decimal step = GetStep();
+              double value = GetValueAsDouble();
+              double step = GetStep();
               if (step == kStepAny) {
                 step = GetDefaultStep();
               }
-              MOZ_ASSERT(value.isFinite() && step.isFinite());
-              Decimal newValue;
+              MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(value) &&
+                         MOZ_DOUBLE_IS_FINITE(step));
+              double newValue;
               switch (keyEvent->keyCode) {
                 case  NS_VK_LEFT:
                   newValue = value + (IsLTR(this) ? -step : step);
@@ -3037,10 +3029,10 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                 case  NS_VK_PAGE_UP:
                   // For PgUp/PgDn we jump 10% of the total range, unless step
                   // requires us to jump more.
-                  newValue = value + std::max(step, (maximum - minimum) / 10);
+                  newValue = value + std::max(step, 0.1 * (maximum - minimum));
                   break;
                 case  NS_VK_PAGE_DOWN:
-                  newValue = value - std::max(step, (maximum - minimum) / 10);
+                  newValue = value - std::max(step, 0.1 * (maximum - minimum));
                   break;
               }
               SetValueOfRangeForUserEvent(newValue);
@@ -3450,9 +3442,10 @@ HTMLInputElement::SanitizeValue(nsAString& aValue)
       break;
     case NS_FORM_INPUT_RANGE:
       {
-        Decimal minimum = GetMinimum();
-        Decimal maximum = GetMaximum();
-        MOZ_ASSERT(minimum.isFinite() && maximum.isFinite(),
+        double minimum = GetMinimum();
+        double maximum = GetMaximum();
+        MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(minimum) &&
+                   MOZ_DOUBLE_IS_FINITE(maximum),
                    "type=range should have a default maximum/minimum");
 
         // We use this to avoid modifying the string unnecessarily, since that
@@ -3460,12 +3453,12 @@ HTMLInputElement::SanitizeValue(nsAString& aValue)
         // parse out from aValue needs to be sanitized.
         bool needSanitization = false;
 
-        Decimal value;
+        double value;
         bool ok = ConvertStringToNumber(aValue, value);
         if (!ok) {
           needSanitization = true;
           // Set value to midway between minimum and maximum.
-          value = maximum <= minimum ? minimum : minimum + (maximum - minimum)/2;
+          value = maximum <= minimum ? minimum : minimum + (maximum - minimum)/2.0;
         } else if (value < minimum || maximum < minimum) {
           needSanitization = true;
           value = minimum;
@@ -3474,13 +3467,13 @@ HTMLInputElement::SanitizeValue(nsAString& aValue)
           value = maximum;
         }
 
-        Decimal step = GetStep();
+        double step = GetStep();
         if (step != kStepAny) {
-          Decimal stepBase = GetStepBase();
+          double stepBase = GetStepBase();
           // There could be rounding issues below when dealing with fractional
           // numbers, but let's ignore that until ECMAScript supplies us with a
           // decimal number type.
-          Decimal deltaToStep = NS_floorModulo(value - stepBase, step);
+          double deltaToStep = NS_floorModulo(value - stepBase, step);
           if (deltaToStep != 0) {
             // "suffering from a step mismatch"
             // Round the element's value to the nearest number for which the
@@ -3489,9 +3482,9 @@ HTMLInputElement::SanitizeValue(nsAString& aValue)
             // less than the minimum, which is less than or equal to the
             // maximum, if there is a number that matches these constraints:
             MOZ_ASSERT(deltaToStep > 0, "stepBelow/stepAbove will be wrong");
-            Decimal stepBelow = value - deltaToStep;
-            Decimal stepAbove = value - deltaToStep + step;
-            Decimal halfStep = step / 2;
+            double stepBelow = value - deltaToStep;
+            double stepAbove = value - deltaToStep + step;
+            double halfStep = step / 2;
             bool stepAboveIsClosest = (stepAbove - value) <= halfStep;
             bool stepAboveInRange = stepAbove >= minimum &&
                                     stepAbove <= maximum;
@@ -3509,10 +3502,8 @@ HTMLInputElement::SanitizeValue(nsAString& aValue)
         }
 
         if (needSanitization) {
-          char buf[32];
-          DebugOnly<bool> ok = value.toString(buf, ArrayLength(buf));
-          aValue.AssignASCII(buf);
-          MOZ_ASSERT(ok, "buf not big enough");
+          aValue.Truncate();
+          aValue.AppendFloat(value);
         }
       }
       break;
@@ -4424,40 +4415,53 @@ NS_IMETHODIMP
 HTMLInputElement::SaveState()
 {
   nsRefPtr<HTMLInputElementState> inputState;
-  switch (GetValueMode()) {
-    case VALUE_MODE_DEFAULT_ON:
-      if (mCheckedChanged) {
-        inputState = new HTMLInputElementState();
-        inputState->SetChecked(mChecked);
-      }
-      break;
-    case VALUE_MODE_FILENAME:
-      if (mFiles.Count()) {
-        inputState = new HTMLInputElementState();
-        inputState->SetFiles(mFiles);
-      }
-      break;
-    case VALUE_MODE_VALUE:
-    case VALUE_MODE_DEFAULT:
-      // VALUE_MODE_DEFAULT shouldn't have their value saved except 'hidden',
-      // mType shouldn't be NS_FORM_INPUT_PASSWORD and value should have changed.
-      if ((GetValueMode() == VALUE_MODE_DEFAULT &&
-           mType != NS_FORM_INPUT_HIDDEN) ||
-          mType == NS_FORM_INPUT_PASSWORD || !mValueChanged) {
+  switch (mType) {
+    case NS_FORM_INPUT_CHECKBOX:
+    case NS_FORM_INPUT_RADIO:
+      {
+        if (mCheckedChanged) {
+          inputState = new HTMLInputElementState();
+          inputState->SetChecked(mChecked);
+        }
         break;
       }
 
-      inputState = new HTMLInputElementState();
-      nsAutoString value;
-      GetValue(value);
-      DebugOnly<nsresult> rv =
-        nsLinebreakConverter::ConvertStringLineBreaks(
-             value,
-             nsLinebreakConverter::eLinebreakPlatform,
-             nsLinebreakConverter::eLinebreakContent);
-      NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
-      inputState->SetValue(value);
+    // Never save passwords in session history
+    case NS_FORM_INPUT_PASSWORD:
       break;
+    case NS_FORM_INPUT_EMAIL:
+    case NS_FORM_INPUT_SEARCH:
+    case NS_FORM_INPUT_TEXT:
+    case NS_FORM_INPUT_TEL:
+    case NS_FORM_INPUT_URL:
+    case NS_FORM_INPUT_HIDDEN:
+    case NS_FORM_INPUT_NUMBER:
+    case NS_FORM_INPUT_DATE:
+    case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_RANGE:
+      {
+        if (mValueChanged) {
+          inputState = new HTMLInputElementState();
+          nsAutoString value;
+          GetValue(value);
+          DebugOnly<nsresult> rv =
+            nsLinebreakConverter::ConvertStringLineBreaks(
+                 value,
+                 nsLinebreakConverter::eLinebreakPlatform,
+                 nsLinebreakConverter::eLinebreakContent);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
+          inputState->SetValue(value);
+       }
+      break;
+    }
+    case NS_FORM_INPUT_FILE:
+      {
+        if (mFiles.Count()) {
+          inputState = new HTMLInputElementState();
+          inputState->SetFiles(mFiles);
+        }
+        break;
+      }
   }
 
   nsresult rv = NS_OK;
@@ -4601,29 +4605,37 @@ HTMLInputElement::RestoreState(nsPresState* aState)
     (do_QueryInterface(aState->GetStateProperty()));
 
   if (inputState) {
-    switch (GetValueMode()) {
-      case VALUE_MODE_DEFAULT_ON:
-        if (inputState->IsCheckedSet()) {
-          restoredCheckedState = true;
-          DoSetChecked(inputState->GetChecked(), true, true);
-        }
-        break;
-      case VALUE_MODE_FILENAME:
+    switch (mType) {
+      case NS_FORM_INPUT_CHECKBOX:
+      case NS_FORM_INPUT_RADIO:
         {
-          const nsCOMArray<nsIDOMFile>& files = inputState->GetFiles();
-          SetFiles(files, true);
-        }
-        break;
-      case VALUE_MODE_VALUE:
-      case VALUE_MODE_DEFAULT:
-        if (GetValueMode() == VALUE_MODE_DEFAULT &&
-            mType != NS_FORM_INPUT_HIDDEN) {
+          if (inputState->IsCheckedSet()) {
+            restoredCheckedState = true;
+            DoSetChecked(inputState->GetChecked(), true, true);
+          }
           break;
         }
 
-        SetValueInternal(inputState->GetValue(), false, true);
-        break;
-        break;
+      case NS_FORM_INPUT_EMAIL:
+      case NS_FORM_INPUT_SEARCH:
+      case NS_FORM_INPUT_TEXT:
+      case NS_FORM_INPUT_TEL:
+      case NS_FORM_INPUT_URL:
+      case NS_FORM_INPUT_HIDDEN:
+      case NS_FORM_INPUT_NUMBER:
+      case NS_FORM_INPUT_DATE:
+      case NS_FORM_INPUT_TIME:
+      case NS_FORM_INPUT_RANGE:
+        {
+          SetValueInternal(inputState->GetValue(), false, true);
+          break;
+        }
+      case NS_FORM_INPUT_FILE:
+        {
+          const nsCOMArray<nsIDOMFile>& files = inputState->GetFiles();
+          SetFiles(files, true);
+          break;
+        }
     }
   }
 
@@ -4997,7 +5009,7 @@ HTMLInputElement::DoesMinMaxApply() const
   }
 }
 
-Decimal
+double
 HTMLInputElement::GetStep() const
 {
   MOZ_ASSERT(DoesStepApply(), "GetStep() can only be called if @step applies");
@@ -5014,8 +5026,9 @@ HTMLInputElement::GetStep() const
     return kStepAny;
   }
 
-  Decimal step = StringToDecimal(stepStr);
-  if (!step.isFinite() || step <= 0) {
+  nsresult ec;
+  double step = stepStr.ToDouble(&ec);
+  if (NS_FAILED(ec) || !MOZ_DOUBLE_IS_FINITE(step) || step <= 0) {
     step = GetDefaultStep();
   }
 
@@ -5160,13 +5173,13 @@ HTMLInputElement::IsRangeOverflow() const
     return false;
   }
 
-  Decimal maximum = GetMaximum();
-  if (maximum.isNaN()) {
+  double maximum = GetMaximum();
+  if (MOZ_DOUBLE_IS_NaN(maximum)) {
     return false;
   }
 
-  Decimal value = GetValueAsDecimal();
-  if (value.isNaN()) {
+  double value = GetValueAsDouble();
+  if (MOZ_DOUBLE_IS_NaN(value)) {
     return false;
   }
 
@@ -5180,13 +5193,13 @@ HTMLInputElement::IsRangeUnderflow() const
     return false;
   }
 
-  Decimal minimum = GetMinimum();
-  if (minimum.isNaN()) {
+  double minimum = GetMinimum();
+  if (MOZ_DOUBLE_IS_NaN(minimum)) {
     return false;
   }
 
-  Decimal value = GetValueAsDecimal();
-  if (value.isNaN()) {
+  double value = GetValueAsDouble();
+  if (MOZ_DOUBLE_IS_NaN(value)) {
     return false;
   }
 
@@ -5200,13 +5213,13 @@ HTMLInputElement::HasStepMismatch() const
     return false;
   }
 
-  Decimal value = GetValueAsDecimal();
-  if (value.isNaN()) {
+  double value = GetValueAsDouble();
+  if (MOZ_DOUBLE_IS_NaN(value)) {
     // The element can't suffer from step mismatch if it's value isn't a number.
     return false;
   }
 
-  Decimal step = GetStep();
+  double step = GetStep();
   if (step == kStepAny) {
     return false;
   }
@@ -5217,7 +5230,7 @@ HTMLInputElement::HasStepMismatch() const
     // an integer (millisecond precision), we can get rid of the precision
     // loss by rounding step. This will however lead to erroneous results
     // when step was intented to have a precision superior to a millisecond.
-    step = step.round();
+    step = NS_round(step);
   }
 
   // Value has to be an integral multiple of step.
@@ -5452,13 +5465,10 @@ HTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       if (mType == NS_FORM_INPUT_NUMBER ||
           mType == NS_FORM_INPUT_RANGE) {
         //We want to show the value as parsed when it's a number
-        Decimal maximum = GetMaximum();
-        MOZ_ASSERT(!maximum.isNaN());
+        double maximum = GetMaximum();
+        MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(maximum));
 
-        char buf[32];
-        DebugOnly<bool> ok = maximum.toString(buf, ArrayLength(buf));
-        maxStr.AssignASCII(buf);
-        MOZ_ASSERT(ok, "buf not big enough");
+        maxStr.AppendFloat(maximum);
       } else if (mType == NS_FORM_INPUT_DATE || mType == NS_FORM_INPUT_TIME) {
         GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
       } else {
@@ -5479,13 +5489,10 @@ HTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       nsAutoString minStr;
       if (mType == NS_FORM_INPUT_NUMBER ||
           mType == NS_FORM_INPUT_RANGE) {
-        Decimal minimum = GetMinimum();
-        MOZ_ASSERT(!minimum.isNaN());
+        double minimum = GetMinimum();
+        MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(minimum));
 
-        char buf[32];
-        DebugOnly<bool> ok = minimum.toString(buf, ArrayLength(buf));
-        minStr.AssignASCII(buf);
-        MOZ_ASSERT(ok, "buf not big enough");
+        minStr.AppendFloat(minimum);
       } else if (mType == NS_FORM_INPUT_DATE || mType == NS_FORM_INPUT_TIME) {
         GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
       } else {
@@ -5503,11 +5510,11 @@ HTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
     {
       nsXPIDLString message;
 
-      Decimal value = GetValueAsDecimal();
-      MOZ_ASSERT(!value.isNaN());
+      double value = GetValueAsDouble();
+      MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(value));
 
-      Decimal step = GetStep();
-      MOZ_ASSERT(step != kStepAny && step > 0);
+      double step = GetStep();
+      MOZ_ASSERT(step != kStepAny);
 
       // In case this is a date and the step is not an integer, we don't want to
       // display the dates corresponding to the truncated timestamps of valueLow
@@ -5515,18 +5522,18 @@ HTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       // Instead we want the timestamps to correspond to a rounded day. That is,
       // we want a multiple of the step scale factor (1 day) as well as of step.
       if (mType == NS_FORM_INPUT_DATE) {
-        step = EuclidLCM<Decimal>(step.floor(),
-                                  GetStepScaleFactor().floor());
+        step = EuclidLCM<uint64_t>(static_cast<uint64_t>(step),
+                                   static_cast<uint64_t>(GetStepScaleFactor()));
       }
 
-      Decimal stepBase = GetStepBase();
+      double stepBase = GetStepBase();
 
-      Decimal valueLow = value - NS_floorModulo(value - stepBase, step);
-      Decimal valueHigh = value + step - NS_floorModulo(value - stepBase, step);
+      double valueLow = value - NS_floorModulo(value - stepBase, step);
+      double valueHigh = value + step - NS_floorModulo(value - stepBase, step);
 
-      Decimal maximum = GetMaximum();
+      double maximum = GetMaximum();
 
-      if (maximum.isNaN() || valueHigh <= maximum) {
+      if (MOZ_DOUBLE_IS_NaN(maximum) || valueHigh <= maximum) {
         nsAutoString valueLowStr, valueHighStr;
         ConvertNumberToString(valueLow, valueLowStr);
         ConvertNumberToString(valueHigh, valueHighStr);
@@ -5966,7 +5973,7 @@ HTMLInputElement::GetFilterFromAccept()
   return filter;
 }
 
-Decimal
+double
 HTMLInputElement::GetStepScaleFactor() const
 {
   MOZ_ASSERT(DoesStepApply());
@@ -5981,11 +5988,11 @@ HTMLInputElement::GetStepScaleFactor() const
       return kStepScaleFactorTime;
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
-      return Decimal::nan();
+      return MOZ_DOUBLE_NaN();
   }
 }
 
-Decimal
+double
 HTMLInputElement::GetDefaultStep() const
 {
   MOZ_ASSERT(DoesStepApply());
@@ -5999,7 +6006,7 @@ HTMLInputElement::GetDefaultStep() const
       return kDefaultStepTime;
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
-      return Decimal::nan();
+      return MOZ_DOUBLE_NaN();
   }
 }
 
@@ -6034,14 +6041,14 @@ HTMLInputElement::UpdateHasRange()
     return;
   }
 
-  Decimal minimum = GetMinimum();
-  if (!minimum.isNaN()) {
+  double minimum = GetMinimum();
+  if (!MOZ_DOUBLE_IS_NaN(minimum)) {
     mHasRange = true;
     return;
   }
 
-  Decimal maximum = GetMaximum();
-  if (!maximum.isNaN()) {
+  double maximum = GetMaximum();
+  if (!MOZ_DOUBLE_IS_NaN(maximum)) {
     mHasRange = true;
     return;
   }

@@ -26,11 +26,3 @@ CPPSRCS += \
   fixed-dtoa.cc \
   strtod.cc \
   $(NULL)
-
-# Imported decimal sources.
-VPATH += $(MFBT_ROOT)/decimal \
-  $(NULL)
-
-CPPSRCS += \
-  Decimal.cpp
-

@@ -11,27 +11,14 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor(DOMString type, optional AnimationEventInit eventInitDict)]
 interface AnimationEvent : Event {
   readonly attribute DOMString animationName;
   readonly attribute float     elapsedTime;
-  readonly attribute DOMString pseudoElement;
-};
 
-dictionary AnimationEventInit : EventInit {
-  DOMString animationName = "";
-  float elapsedTime = 0;
-  DOMString pseudoElement = "";
-};
-
-// initAnimationEvent is a legacy method, and removed from the latest version
-// of the specification.
-partial interface AnimationEvent {
   [Throws]
   void initAnimationEvent(DOMString type,
                           boolean canBubble,
                           boolean cancelable,
                           DOMString animationName,
-                          float elapsedTime,
-                          optional DOMString pseudoElement);
+                          float elapsedTime);
 };

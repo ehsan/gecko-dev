@@ -60,7 +60,7 @@ public:
   virtual void ProduceAudioBlock(AudioNodeStream* aStream,
                                  const AudioChunk& aInput,
                                  AudioChunk* aOutput,
-                                 bool* aFinished) MOZ_OVERRIDE
+                                 bool* aFinished)
   {
     *aOutput = aInput;
 

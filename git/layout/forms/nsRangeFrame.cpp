@@ -369,11 +369,13 @@ nsRangeFrame::GetValueAsFractionOfRange()
 
   MOZ_ASSERT(input->GetType() == NS_FORM_INPUT_RANGE);
 
-  Decimal value = input->GetValueAsDecimal();
-  Decimal minimum = input->GetMinimum();
-  Decimal maximum = input->GetMaximum();
+  double value = input->GetValueAsDouble();
+  double minimum = input->GetMinimum();
+  double maximum = input->GetMaximum();
 
-  MOZ_ASSERT(value.isFinite() && minimum.isFinite() && maximum.isFinite(),
+  MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(value) &&
+             MOZ_DOUBLE_IS_FINITE(minimum) &&
+             MOZ_DOUBLE_IS_FINITE(maximum),
              "type=range should have a default maximum/minimum");
   
   if (maximum <= minimum) {
@@ -383,10 +385,10 @@ nsRangeFrame::GetValueAsFractionOfRange()
   
   MOZ_ASSERT(value >= minimum && value <= maximum, "Unsanitized value");
   
-  return ((value - minimum) / (maximum - minimum)).toDouble();
+  return (value - minimum) / (maximum - minimum);
 }
 
-Decimal
+double
 nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent->eventStructType == NS_MOUSE_EVENT ||
@@ -398,14 +400,15 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
 
   MOZ_ASSERT(input->GetType() == NS_FORM_INPUT_RANGE);
 
-  Decimal minimum = input->GetMinimum();
-  Decimal maximum = input->GetMaximum();
-  MOZ_ASSERT(minimum.isFinite() && maximum.isFinite(),
+  double minimum = input->GetMinimum();
+  double maximum = input->GetMaximum();
+  MOZ_ASSERT(MOZ_DOUBLE_IS_FINITE(minimum) &&
+             MOZ_DOUBLE_IS_FINITE(maximum),
              "type=range should have a default maximum/minimum");
   if (maximum <= minimum) {
     return minimum;
   }
-  Decimal range = maximum - minimum;
+  double range = maximum - minimum;
 
   nsIntPoint absPoint;
   if (aEvent->eventStructType == NS_TOUCH_EVENT) {
@@ -420,7 +423,7 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
 
   if (point == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)) {
     // We don't want to change the current value for this error state.
-    return static_cast<dom::HTMLInputElement*>(mContent)->GetValueAsDecimal();
+    return GetValue();
   }
 
   nsRect rangeContentRect = GetContentRectRelativeToSelf();
@@ -446,7 +449,7 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
     }
   }
 
-  Decimal fraction;
+  double fraction;
   if (IsHorizontal()) {
     nscoord traversableDistance = rangeContentRect.width - thumbSize.width;
     if (traversableDistance <= 0) {
@@ -455,9 +458,9 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
     nscoord posAtStart = rangeContentRect.x + thumbSize.width/2;
     nscoord posAtEnd = posAtStart + traversableDistance;
     nscoord posOfPoint = mozilla::clamped(point.x, posAtStart, posAtEnd);
-    fraction = Decimal(posOfPoint - posAtStart) / traversableDistance;
+    fraction = (posOfPoint - posAtStart) / double(traversableDistance);
     if (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-      fraction = Decimal(1) - fraction;
+      fraction = 1.0 - fraction;
     }
   } else {
     nscoord traversableDistance = rangeContentRect.height - thumbSize.height;
@@ -469,10 +472,10 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
     nscoord posOfPoint = mozilla::clamped(point.y, posAtStart, posAtEnd);
     // For a vertical range, the top (posAtStart) is the highest value, so we
     // subtract the fraction from 1.0 to get that polarity correct.
-    fraction = Decimal(1) - Decimal(posOfPoint - posAtStart) / traversableDistance;
+    fraction = 1.0 - (posOfPoint - posAtStart) / double(traversableDistance);
   }
 
-  MOZ_ASSERT(fraction >= 0 && fraction <= 1);
+  MOZ_ASSERT(fraction >= 0.0 && fraction <= 1.0);
   return minimum + fraction * range;
 }
 
@@ -720,19 +723,19 @@ nsRangeFrame::IsHorizontal(const nsSize *aFrameSizeOverride) const
 double
 nsRangeFrame::GetMin() const
 {
-  return static_cast<dom::HTMLInputElement*>(mContent)->GetMinimum().toDouble();
+  return static_cast<dom::HTMLInputElement*>(mContent)->GetMinimum();
 }
 
 double
 nsRangeFrame::GetMax() const
 {
-  return static_cast<dom::HTMLInputElement*>(mContent)->GetMaximum().toDouble();
+  return static_cast<dom::HTMLInputElement*>(mContent)->GetMaximum();
 }
 
 double
 nsRangeFrame::GetValue() const
 {
-  return static_cast<dom::HTMLInputElement*>(mContent)->GetValueAsDecimal().toDouble();
+  return static_cast<dom::HTMLInputElement*>(mContent)->GetValueAsDouble();
 }
 
 nsIAtom*

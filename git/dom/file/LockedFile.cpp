@@ -218,7 +218,7 @@ GetInputStreamForJSVal(const JS::Value& aValue, JSContext* aCx,
   nsresult rv;
 
   if (!JSVAL_IS_PRIMITIVE(aValue)) {
-    JS::Rooted<JSObject*> obj(aCx, &aValue.toObject());
+    JSObject* obj = JSVAL_TO_OBJECT(aValue);
     if (JS_IsArrayBufferObject(obj)) {
       char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
       uint32_t length = JS_GetArrayBufferByteLength(obj);
@@ -1027,9 +1027,9 @@ nsresult
 ReadHelper::GetSuccessResult(JSContext* aCx,
                              JS::Value* aVal)
 {
-  JS::Rooted<JSObject*> arrayBuffer(aCx);
+  JSObject *arrayBuffer;
   nsresult rv =
-    nsContentUtils::CreateArrayBuffer(aCx, mStream->Data(), arrayBuffer.address());
+    nsContentUtils::CreateArrayBuffer(aCx, mStream->Data(), &arrayBuffer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aVal = OBJECT_TO_JSVAL(arrayBuffer);

@@ -24,8 +24,7 @@ class StringObject : public JSObject
      * Creates a new String object boxing the given string.  The object's
      * [[Prototype]] is determined from context.
      */
-    static inline StringObject *create(JSContext *cx, HandleString str,
-                                       NewObjectKind newKind = GenericObject);
+    static inline StringObject *create(JSContext *cx, HandleString str);
 
     JSString *unbox() const {
         return getFixedSlot(PRIMITIVE_VALUE_SLOT).toString();

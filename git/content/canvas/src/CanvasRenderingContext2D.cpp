@@ -1154,12 +1154,11 @@ MatrixToJSObject(JSContext* cx, const Matrix& matrix, ErrorResult& error)
   return obj;
 }
 
-static bool
-ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
-               ErrorResult& error)
+bool
+ObjectToMatrix(JSContext* cx, JSObject& obj, Matrix& matrix, ErrorResult& error)
 {
   uint32_t length;
-  if (!JS_GetArrayLength(cx, obj, &length) || length != 6) {
+  if (!JS_GetArrayLength(cx, &obj, &length) || length != 6) {
     // Not an array-like thing or wrong size
     error.Throw(NS_ERROR_INVALID_ARG);
     return false;
@@ -1168,9 +1167,9 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
   Float* elts[] = { &matrix._11, &matrix._12, &matrix._21, &matrix._22,
                     &matrix._31, &matrix._32 };
   for (uint32_t i = 0; i < 6; ++i) {
-    JS::Rooted<JS::Value> elt(cx);
+    JS::Value elt;
     double d;
-    if (!JS_GetElement(cx, obj, i, elt.address())) {
+    if (!JS_GetElement(cx, &obj, i, &elt)) {
       error.Throw(NS_ERROR_FAILURE);
       return false;
     }
@@ -1189,10 +1188,9 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransform(JSContext* cx,
-                                                 JSObject& currentTransform_,
+                                                 JSObject& currentTransform,
                                                  ErrorResult& error)
 {
-  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1214,10 +1212,9 @@ CanvasRenderingContext2D::GetMozCurrentTransform(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransformInverse(JSContext* cx,
-                                                        JSObject& currentTransform_,
+                                                        JSObject& currentTransform,
                                                         ErrorResult& error)
 {
-  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1257,7 +1254,7 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
-                                              JS::Handle<JS::Value> value,
+                                              JS::Value& value,
                                               Style whichStyle)
 {
   if (value.isString()) {
@@ -1272,10 +1269,9 @@ CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
     nsCOMPtr<nsISupports> holder;
 
     CanvasGradient* gradient;
-    JS::Rooted<JS::Value> rootedVal(cx, value);
     nsresult rv = xpc_qsUnwrapArg<CanvasGradient>(cx, value, &gradient,
                                                   static_cast<nsISupports**>(getter_AddRefs(holder)),
-                                                  rootedVal.address());
+                                                  &value);
     if (NS_SUCCEEDED(rv)) {
       SetStyleFromGradient(gradient, whichStyle);
       return;
@@ -1284,7 +1280,7 @@ CanvasRenderingContext2D::SetStyleFromJSValue(JSContext* cx,
     CanvasPattern* pattern;
     rv = xpc_qsUnwrapArg<CanvasPattern>(cx, value, &pattern,
                                         static_cast<nsISupports**>(getter_AddRefs(holder)),
-                                        rootedVal.address());
+                                        &value);
     if (NS_SUCCEEDED(rv)) {
       SetStyleFromPattern(pattern, whichStyle);
       return;
@@ -1299,19 +1295,19 @@ WrapStyle(JSContext* cx, JSObject* objArg,
           CanvasRenderingContext2D::CanvasMultiGetterType type,
           nsAString& str, nsISupports* supports, ErrorResult& error)
 {
-  JS::Rooted<JS::Value> v(cx);
+  JS::Value v;
   bool ok;
   switch (type) {
     case CanvasRenderingContext2D::CMG_STYLE_STRING:
     {
-      ok = xpc::StringToJsval(cx, str, v.address());
+      ok = xpc::StringToJsval(cx, str, &v);
       break;
     }
     case CanvasRenderingContext2D::CMG_STYLE_PATTERN:
     case CanvasRenderingContext2D::CMG_STYLE_GRADIENT:
     {
       JS::Rooted<JSObject*> obj(cx, objArg);
-      ok = dom::WrapObject(cx, obj, supports, v.address());
+      ok = dom::WrapObject(cx, obj, supports, &v);
       break;
     }
     default:
@@ -3379,8 +3375,8 @@ CanvasRenderingContext2D::GetImageData(JSContext* aCx, double aSx,
     h = 1;
   }
 
-  JS::Rooted<JSObject*> array(aCx);
-  error = GetImageDataArray(aCx, x, y, w, h, array.address());
+  JSObject* array;
+  error = GetImageDataArray(aCx, x, y, w, h, &array);
   if (error.Failed()) {
     return nullptr;
   }

@@ -117,9 +117,9 @@ JSValToDashArray(JSContext* cx, const JS::Value& patternArray,
 
         bool haveNonzeroElement = false;
         for (uint32_t i = 0; i < length; ++i) {
-            JS::Rooted<JS::Value> elt(cx);
+            JS::Value elt;
             double d;
-            if (!JS_GetElement(cx, obj, i, elt.address())) {
+            if (!JS_GetElement(cx, obj, i, &elt)) {
                 return NS_ERROR_FAILURE;
             }
             if (!(CoerceDouble(elt, &d) &&

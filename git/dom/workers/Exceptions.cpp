@@ -45,9 +45,9 @@ public:
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj)
   {
-    JS::Rooted<JSObject*> proto(aCx, JS_InitClass(aCx, aObj, nullptr, &sClass, Construct, 0,
-                                                  sProperties, sFunctions, sStaticProperties,
-                                                  nullptr));
+    JSObject* proto = JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0,
+                                   sProperties, sFunctions, sStaticProperties,
+                                   NULL);
     if (proto && !JS_DefineProperties(aCx, proto, sStaticProperties)) {
       return NULL;
     }
@@ -87,7 +87,7 @@ private:
   static JSBool
   ToString(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
     if (!obj) {
       return false;
     }
@@ -100,7 +100,7 @@ private:
       return false;
     }
 
-    JS::Rooted<JS::Value> name(aCx, JS_GetReservedSlot(obj, SLOT_name));
+    jsval name = JS_GetReservedSlot(obj, SLOT_name);
     JS_ASSERT(name.isString());
 
     JSString *colon = JS_NewStringCopyN(aCx, ": ", 2);
@@ -216,7 +216,7 @@ const JSPropertySpec DOMException::sStaticProperties[] = {
 JSObject*
 DOMException::Create(JSContext* aCx, nsresult aNSResult)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, &sClass, NULL, NULL));
+  JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
   if (!obj) {
     return NULL;
   }

@@ -58,13 +58,11 @@ namespace mozilla {
 namespace dom {
 
 typedef bool
-(* ResolveOwnProperty)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                       JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+(* ResolveOwnProperty)(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
                        JSPropertyDescriptor* desc, unsigned flags);
 
 typedef bool
-(* EnumerateOwnProperties)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                           JS::Handle<JSObject*> obj,
+(* EnumerateOwnProperties)(JSContext* cx, JSObject* wrapper, JSObject* obj,
                            JS::AutoIdVector& props);
 
 struct ConstantSpec

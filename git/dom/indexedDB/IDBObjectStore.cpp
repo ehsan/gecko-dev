@@ -820,10 +820,9 @@ public:
       return obj;
     }
 
-    JS::Rooted<JSString*> name(aCx,
-      JS_NewUCStringCopyN(aCx, aData.name.get(), aData.name.Length()));
-    JS::Rooted<JSObject*> date(aCx,
-      JS_NewDateObjectMsec(aCx, aData.lastModifiedDate));
+    JSString* name =
+      JS_NewUCStringCopyN(aCx, aData.name.get(), aData.name.Length());
+    JSObject* date = JS_NewDateObjectMsec(aCx, aData.lastModifiedDate);
     if (!name || !date ||
         !JS_DefineProperty(aCx, obj, "name", STRING_TO_JSVAL(name),
                            nullptr, nullptr, 0) ||
@@ -925,8 +924,8 @@ IDBObjectStore::AppendIndexUpdateInfo(
     return NS_OK;
   }
 
-  JS::Rooted<JS::Value> val(aCx);
-  if (NS_FAILED(aKeyPath.ExtractKeyAsJSVal(aCx, aVal, val.address()))) {
+  JS::Value val;
+  if (NS_FAILED(aKeyPath.ExtractKeyAsJSVal(aCx, aVal, &val))) {
     return NS_OK;
   }
 

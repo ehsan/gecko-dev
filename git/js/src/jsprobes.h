@@ -78,7 +78,6 @@ bool wantNativeAddressInfo(JSContext *);
 bool enterScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
 
 /* About to leave a JS function */
-bool exitScript(JSContext *, JSScript *, JSFunction *, AbstractFramePtr);
 bool exitScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
 
 /* Executing a script */
@@ -206,7 +205,7 @@ Probes::enterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
 
 inline bool
 Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
-                   AbstractFramePtr fp)
+                   StackFrame *fp)
 {
     bool ok = true;
 
@@ -224,16 +223,12 @@ Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
      * IonMonkey will only call exitScript() when absolutely necessary, so it is
      * guaranteed that fp->hasPushedSPSFrame() would have been true
      */
-    if ((!fp && rt->spsProfiler.enabled()) || (fp && fp.hasPushedSPSFrame()))
+    if ((fp == NULL && rt->spsProfiler.enabled()) ||
+        (fp != NULL && fp->hasPushedSPSFrame()))
+    {
         rt->spsProfiler.exit(cx, script, maybeFun);
+    }
     return ok;
-}
-
-inline bool
-Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
-                   StackFrame *fp)
-{
-    return Probes::exitScript(cx, script, maybeFun, fp ? AbstractFramePtr(fp) : AbstractFramePtr());
 }
 
 #ifdef INCLUDE_MOZILLA_DTRACE

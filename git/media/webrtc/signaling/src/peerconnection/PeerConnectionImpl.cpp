@@ -384,8 +384,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
   }
   JSAutoCompartment ac(aCx, &aSrc.toObject());
   RTCConfiguration config;
-  JS::Rooted<JS::Value> src(aCx, aSrc);
-  if (!(config.Init(aCx, src) && config.mIceServers.WasPassed())) {
+  if (!(config.Init(aCx, aSrc) && config.mIceServers.WasPassed())) {
     return NS_ERROR_FAILURE;
   }
   for (uint32_t i = 0; i < config.mIceServers.Value().Length(); i++) {

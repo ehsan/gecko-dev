@@ -40,18 +40,38 @@
                         android:layout_marginTop="16dp"
                         android:layout_alignLeft="@id/tabs"/>
 
-    <ImageView android:id="@+id/awesome_bar_entry"
-               android:layout_width="fill_parent"
-               android:layout_height="fill_parent"
-               android:layout_toRightOf="@id/tabs"
+    <FrameLayout android:layout_width="fill_parent"
+                 android:layout_height="fill_parent"
+                 android:layout_toRightOf="@id/tabs"
+                 android:layout_toLeftOf="@id/menu_items"
+                 android:layout_marginLeft="-18dp"
+                 android:paddingRight="18dp"
+                 android:layout_marginTop="7dp"
+                 android:layout_marginBottom="7dp"
+                 android:duplicateParentState="true">
+
+        <ImageView android:id="@+id/awesome_bar_entry"
+                   style="@style/AddressBar.Button"
+                   android:layout_toRightOf="@id/tabs"
+                   android:layout_toLeftOf="@id/menu_items"
+                   android:duplicateParentState="true"
+                   android:clickable="false"
+                   android:focusable="false"
+                   android:src="@drawable/address_bar_url"
+                   android:scaleType="fitXY"/>
+
+    </FrameLayout>
+
+    <ImageView android:id="@+id/awesome_bar_right_edge"
+               style="@style/AddressBar.Button"
                android:layout_toLeftOf="@id/menu_items"
-               android:layout_marginLeft="-18dp"
                android:layout_marginTop="7dp"
                android:layout_marginBottom="7dp"
                android:duplicateParentState="true"
                android:clickable="false"
                android:focusable="false"
-               android:background="@drawable/address_bar_url"/>
+               android:src="@drawable/address_bar_right_edge"
+               android:scaleType="fitXY"/>
 
     <org.mozilla.gecko.ForwardButton style="@style/AddressBar.ImageButton.Forward"
                                      android:id="@+id/forward"

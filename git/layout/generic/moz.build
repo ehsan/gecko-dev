@@ -26,7 +26,6 @@ EXPORTS += [
     'nsIPageSequenceFrame.h',
     'nsIScrollableFrame.h',
     'nsIScrollbarOwner.h',
-    'nsIScrollPositionListener.h',
     'nsIStatefulFrame.h',
     'nsObjectFrame.h',
     'nsQueryFrame.h',

@@ -2361,12 +2361,12 @@ private:
 };
 
 /**
- * AutoSafeJSContext is similar to AutoJSContext but will only return the safe
+ * SafeAutoJSContext is similar to AutoJSContext but will only return the safe
  * JS context. That means it will never call ::GetCurrentJSContext().
  */
-class MOZ_STACK_CLASS AutoSafeJSContext : public AutoJSContext {
+class MOZ_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
 public:
-  AutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
+  SafeAutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
 };
 
 /**
