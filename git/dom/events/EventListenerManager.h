@@ -447,7 +447,8 @@ protected:
    * aScopeGlobal must be non-null.  Otherwise, aContext and aScopeGlobal are
    * allowed to be null.
    */
-  Listener* SetEventHandlerInternal(nsIAtom* aName,
+  Listener* SetEventHandlerInternal(JS::Handle<JSObject*> aScopeGlobal,
+                                    nsIAtom* aName,
                                     const nsAString& aTypeString,
                                     const nsEventHandler& aHandler,
                                     bool aPermitUntrustedEvents);

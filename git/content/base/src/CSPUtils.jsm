@@ -1772,6 +1772,9 @@ this.CSPNonceSource = function CSPNonceSource() {
 }
 
 CSPNonceSource.fromString = function(aStr, aCSPRep) {
+  if (!CSPPrefObserver.experimentalEnabled)
+    return null;
+
   let nonce = R_NONCESRC.exec(aStr)[1];
   if (!nonce) {
     cspError(aCSPRep, "Error in parsing nonce-source from string: nonce was empty");
@@ -1786,6 +1789,8 @@ CSPNonceSource.fromString = function(aStr, aCSPRep) {
 CSPNonceSource.prototype = {
 
   permits: function(aContext) {
+    if (!CSPPrefObserver.experimentalEnabled) return false;
+
     if (aContext instanceof Ci.nsIDOMHTMLElement) {
       return this._nonce === aContext.getAttribute('nonce');
     } else if (typeof aContext === 'string') {
@@ -1817,6 +1822,9 @@ this.CSPHashSource = function CSPHashSource() {
 }
 
 CSPHashSource.fromString = function(aStr, aCSPRep) {
+  if (!CSPPrefObserver.experimentalEnabled)
+    return null;
+
   let hashSrcMatch = R_HASHSRC.exec(aStr);
   let algo = hashSrcMatch[1];
   let hash = hashSrcMatch[2];
@@ -1838,6 +1846,8 @@ CSPHashSource.fromString = function(aStr, aCSPRep) {
 CSPHashSource.prototype = {
 
   permits: function(aContext) {
+    if (!CSPPrefObserver.experimentalEnabled) return false;
+
     let ScriptableUnicodeConverter =
       Components.Constructor("@mozilla.org/intl/scriptableunicodeconverter",
                              "nsIScriptableUnicodeConverter");

@@ -244,7 +244,7 @@ AsyncCompositionManager::AlignFixedAndStickyLayers(Layer* aLayer,
   bool isStickyForSubtree = aLayer->GetIsStickyPosition() &&
     aTransformedSubtreeRoot->AsContainerLayer() &&
     aLayer->GetStickyScrollContainerId() ==
-      aTransformedSubtreeRoot->AsContainerLayer()->GetFrameMetrics().GetScrollId();
+      aTransformedSubtreeRoot->AsContainerLayer()->GetFrameMetrics().mScrollId;
   if (aLayer != aTransformedSubtreeRoot && (isRootFixed || isStickyForSubtree)) {
     // Insert a translation so that the position of the anchor point is the same
     // before and after the change to the transform of aTransformedSubtreeRoot.
@@ -606,7 +606,7 @@ AsyncCompositionManager::ApplyAsyncTransformToScrollbar(ContainerLayer* aLayer)
       continue;
     }
     const FrameMetrics& metrics = scrollTarget->AsContainerLayer()->GetFrameMetrics();
-    if (metrics.GetScrollId() != aLayer->GetScrollbarTargetContainerId()) {
+    if (metrics.mScrollId != aLayer->GetScrollbarTargetContainerId()) {
       continue;
     }
     if (!LayerHasNonContainerDescendants(scrollTarget->AsContainerLayer())) {

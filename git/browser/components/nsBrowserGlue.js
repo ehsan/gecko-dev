@@ -12,6 +12,7 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/SignInToWebsite.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AboutHome",
                                   "resource:///modules/AboutHome.jsm");
@@ -86,11 +87,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
 
 XPCOMUtils.defineLazyModuleGetter(this, "AsyncShutdown",
                                   "resource://gre/modules/AsyncShutdown.jsm");
-
-#ifdef NIGHTLY_BUILD
-XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
-                                  "resource:///modules/SignInToWebsite.jsm");
-#endif
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -476,11 +472,7 @@ BrowserGlue.prototype = {
     PageThumbs.init();
     NewTabUtils.init();
     BrowserNewTabPreloader.init();
-#ifdef NIGHTLY_BUILD
-    if (Services.prefs.getBoolPref("dom.identity.enabled")) {
-      SignInToWebsiteUX.init();
-    }
-#endif
+    SignInToWebsiteUX.init();
     PdfJs.init();
 #ifdef NIGHTLY_BUILD
     ShumwayUtils.init();
@@ -663,11 +655,7 @@ BrowserGlue.prototype = {
     BrowserNewTabPreloader.uninit();
     CustomizationTabPreloader.uninit();
     WebappManager.uninit();
-#ifdef NIGHTLY_BUILD
-    if (Services.prefs.getBoolPref("dom.identity.enabled")) {
-      SignInToWebsiteUX.uninit();
-    }
-#endif
+    SignInToWebsiteUX.uninit();
     webrtcUI.uninit();
   },
 

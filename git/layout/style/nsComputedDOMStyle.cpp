@@ -2274,20 +2274,18 @@ nsComputedDOMStyle::DoGetBackgroundSize()
 CSSValue*
 nsComputedDOMStyle::DoGetGridTemplateAreas()
 {
-  const css::GridTemplateAreasValue* areas =
-    StylePosition()->mGridTemplateAreas;
-  if (!areas) {
+  const nsTArray<nsString>& templates =
+    StylePosition()->mGridTemplateAreas.mTemplates;
+  if (templates.IsEmpty()) {
     nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
     val->SetIdent(eCSSKeyword_none);
     return val;
   }
 
-  MOZ_ASSERT(!areas->mTemplates.IsEmpty(),
-             "Unexpected empty array in GridTemplateAreasValue");
   nsDOMCSSValueList *valueList = GetROCSSValueList(false);
-  for (uint32_t i = 0; i < areas->mTemplates.Length(); i++) {
+  for (uint32_t i = 0; i < templates.Length(); i++) {
     nsAutoString str;
-    nsStyleUtil::AppendEscapedCSSString(areas->mTemplates[i], str);
+    nsStyleUtil::AppendEscapedCSSString(templates[i], str);
     nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
     val->SetString(str);
     valueList->AppendCSSValue(val);

@@ -35,6 +35,11 @@ var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptS
 let permissionSpecificChecker = {};
 
 XPCOMUtils.defineLazyServiceGetter(this,
+                                   "PermSettings",
+                                   "@mozilla.org/permissionSettings;1",
+                                   "nsIDOMPermissionSettings");
+
+XPCOMUtils.defineLazyServiceGetter(this,
                                    "AudioManager",
                                    "@mozilla.org/telephony/audiomanager;1",
                                    "nsIAudioManager");

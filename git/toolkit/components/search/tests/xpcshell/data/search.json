@@ -24,7 +24,6 @@
             },
             {
               "template": "http://www.google.com/search",
-              "resultDomain": "google.com",
               "rels": [
               ],
               "params": [
@@ -65,7 +64,6 @@
             },
             {
               "template": "http://www.google.com/search",
-              "resultDomain": "purpose.google.com",
               "rels": [
               ],
               "type": "application/x-moz-default-purpose",

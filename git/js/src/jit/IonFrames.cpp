@@ -1370,7 +1370,7 @@ SnapshotIterator::allocationReadable(const RValueAllocation &alloc)
         return hasRegister(alloc.fpuReg());
 
       case RValueAllocation::TYPED_REG:
-        return hasRegister(alloc.reg2());
+        return hasRegister(alloc.reg());
 
 #if defined(JS_NUNBOX32)
       case RValueAllocation::UNTYPED_REG_REG:

@@ -68,8 +68,7 @@ struct AnimationProperty
 struct ElementAnimation
 {
   ElementAnimation()
-    : mIsRunningOnCompositor(false)
-    , mLastNotification(LAST_NOTIFICATION_NONE)
+    : mLastNotification(LAST_NOTIFICATION_NONE)
   {
   }
 
@@ -107,7 +106,6 @@ struct ElementAnimation
   mozilla::TimeStamp mPauseStart;
   mozilla::TimeDuration mDelay;
   mozilla::TimeDuration mIterationDuration;
-  bool mIsRunningOnCompositor;
 
   enum {
     LAST_NOTIFICATION_NONE = uint32_t(-1),
