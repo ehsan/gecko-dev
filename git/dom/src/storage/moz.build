@@ -19,6 +19,3 @@ CPP_SOURCES += [
     'DOMStorageObserver.cpp',
 ]
 
-IPDL_SOURCES += [
-    'PStorage.ipdl',
-]

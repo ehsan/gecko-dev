@@ -69,8 +69,3 @@ EXPORTS.mozilla.dom.bluetooth += [
     'BluetoothCommon.h',
 ]
 
-IPDL_SOURCES += [
-    'ipc/BluetoothTypes.ipdlh',
-    'ipc/PBluetooth.ipdl',
-    'ipc/PBluetoothRequest.ipdl',
-]

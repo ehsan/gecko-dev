@@ -17,10 +17,8 @@
 #include "ion/IonSpewer.h"
 #include "jsnum.h"
 #include "jsstr.h"
-
 #include "jsatominlines.h"
-
-#include "vm/Shape-inl.h"
+#include "jstypedarrayinlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -2309,25 +2307,25 @@ MInArray::needsNegativeIntCheck() const
 void *
 MLoadTypedArrayElementStatic::base() const
 {
-    return typedArray_->viewData();
+    return TypedArrayObject::viewData(typedArray_);
 }
 
 size_t
 MLoadTypedArrayElementStatic::length() const
 {
-    return typedArray_->byteLength();
+    return TypedArrayObject::byteLength(typedArray_);
 }
 
 void *
 MStoreTypedArrayElementStatic::base() const
 {
-    return typedArray_->viewData();
+    return TypedArrayObject::viewData(typedArray_);
 }
 
 size_t
 MStoreTypedArrayElementStatic::length() const
 {
-    return typedArray_->byteLength();
+    return TypedArrayObject::byteLength(typedArray_);
 }
 
 bool

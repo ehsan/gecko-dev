@@ -31,8 +31,3 @@ CPP_SOURCES += [
     'RemoteOpenFileParent.cpp',
 ]
 
-IPDL_SOURCES = [
-    'NeckoChannelParams.ipdlh',
-    'PNecko.ipdl',
-    'PRemoteOpenFile.ipdl',
-]

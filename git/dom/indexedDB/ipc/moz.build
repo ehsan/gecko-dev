@@ -17,14 +17,3 @@ CPP_SOURCES += [
     'IndexedDBChild.cpp',
     'IndexedDBParent.cpp',
 ]
-
-IPDL_SOURCES += [
-    'PIndexedDB.ipdl',
-    'PIndexedDBCursor.ipdl',
-    'PIndexedDBDatabase.ipdl',
-    'PIndexedDBDeleteDatabaseRequest.ipdl',
-    'PIndexedDBIndex.ipdl',
-    'PIndexedDBObjectStore.ipdl',
-    'PIndexedDBRequest.ipdl',
-    'PIndexedDBTransaction.ipdl',
-]

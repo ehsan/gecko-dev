@@ -11,7 +11,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMGeoPositionError.h"
 #include "CoreLocationLocationProvider.h"
-#include "prtime.h"
 
 #include <Corelocation/CLError.h>
 #include <Corelocation/CLLocation.h>

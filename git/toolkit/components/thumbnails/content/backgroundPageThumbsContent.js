@@ -21,6 +21,9 @@ const backgroundPageThumbsContent = {
     docShell.allowMedia = false;
     docShell.allowPlugins = false;
 
+    // Stop about:blank from loading.  If it finishes loading after a capture
+    // request is received, it could trigger the capture's load listener.
+    this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
     addMessageListener("BackgroundPageThumbs:capture",
                        this._onCapture.bind(this));
   },
@@ -30,9 +33,10 @@ const backgroundPageThumbsContent = {
   },
 
   _onCapture: function (msg) {
-    this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
-    if (this._onLoad)
+    if (this._onLoad) {
+      this._webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
       removeEventListener("load", this._onLoad, true);
+    }
 
     this._onLoad = function onLoad(event) {
       if (event.target != content.document)
@@ -54,11 +58,6 @@ const backgroundPageThumbsContent = {
         });
       };
       canvas.toBlob(blob => fileReader.readAsArrayBuffer(blob));
-
-      // Load about:blank to cause the captured window to be collected...
-      // eventually.
-      this._webNav.loadURI("about:blank", Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
-                           null, null, null);
     }.bind(this);
 
     addEventListener("load", this._onLoad, true);

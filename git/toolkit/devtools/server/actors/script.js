@@ -280,7 +280,10 @@ ThreadActor.prototype = {
       resolve(onPacket(packet)).then(this.conn.send.bind(this.conn));
       return this._nest();
     } catch(e) {
-      reportError(e, "Got an exception during TA__pauseAndRespond: ");
+      let msg = "Got an exception during TA__pauseAndRespond: " + e +
+                ": " + e.stack;
+      Cu.reportError(msg);
+      dumpn(msg);
       return undefined;
     }
   },
@@ -1238,7 +1241,8 @@ ThreadActor.prototype = {
       this.conn.send(packet);
       return this._nest();
     } catch(e) {
-      reportError(e, "Got an exception during TA_onExceptionUnwind: ");
+      Cu.reportError("Got an exception during TA_onExceptionUnwind: " + e +
+                     ": " + e.stack);
       return undefined;
     }
   },
@@ -1486,7 +1490,10 @@ SourceActor.prototype = {
           source: aSourceGrip
         };
       }, (aError) => {
-        reportError(aError, "Got an exception during SA_onSource: ");
+        let msg = "Got an exception during SA_onSource: " + aError +
+          "\n" + aError.stack;
+        Cu.reportError(msg);
+        dumpn(msg);
         return {
           "from": this.actorID,
           "error": "loadSourceError",
@@ -2917,14 +2924,8 @@ function convertToUnicode(aString, aCharset=null) {
 
 /**
  * Report the given error in the error console and to stdout.
- *
- * @param Error aError
- *        The error object you wish to report.
- * @param String aPrefix
- *        An optional prefix for the reported error message.
  */
-function reportError(aError, aPrefix="") {
-  let msg = prefix + aError.message + ":\n" + aError.stack;
-  Cu.reportError(msg);
-  dumpn(msg);
+function reportError(aError) {
+  Cu.reportError(aError);
+  dumpn(aError.message + ":\n" + aError.stack);
 }

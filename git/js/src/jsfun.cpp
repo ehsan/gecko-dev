@@ -1156,11 +1156,10 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
 JSBool
 js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    RootedFunction fun(cx, &args.callee().as<JSFunction>());
+    RootedFunction fun(cx, &vp[0].toObject().as<JSFunction>());
     JS_ASSERT(fun->isBoundFunction());
 
-    bool constructing = args.isConstructing();
+    bool constructing = IsConstructing(vp);
     if (constructing && fun->isArrow()) {
         /*
          * Per spec, arrow functions do not even have a [[Construct]] method.
@@ -1184,25 +1183,25 @@ js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
     /* 15.3.4.5.1 step 2. */
     const Value &boundThis = fun->getBoundFunctionThis();
 
-    InvokeArgs invokeArgs(cx);
-    if (!invokeArgs.init(argc + argslen))
+    InvokeArgs args(cx);
+    if (!args.init(argc + argslen))
         return false;
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 4. */
     for (unsigned i = 0; i < argslen; i++)
-        invokeArgs[i] = fun->getBoundFunctionArgument(i);
-    PodCopy(invokeArgs.array() + argslen, vp + 2, argc);
+        args[i] = fun->getBoundFunctionArgument(i);
+    PodCopy(args.array() + argslen, vp + 2, argc);
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 5. */
-    invokeArgs.setCallee(ObjectValue(*target));
+    args.setCallee(ObjectValue(*target));
 
     if (!constructing)
-        invokeArgs.setThis(boundThis);
+        args.setThis(boundThis);
 
-    if (constructing ? !InvokeConstructor(cx, invokeArgs) : !Invoke(cx, invokeArgs))
+    if (constructing ? !InvokeConstructor(cx, args) : !Invoke(cx, args))
         return false;
 
-    *vp = invokeArgs.rval();
+    *vp = args.rval();
     return true;
 }
 
@@ -1754,18 +1753,3 @@ JSObject::hasIdempotentProtoChain() const
     MOZ_ASSUME_UNREACHABLE("Should not get here");
 }
 
-namespace JS {
-namespace detail {
-
-JS_PUBLIC_API(void)
-CheckIsValidConstructible(Value calleev)
-{
-    JSObject *callee = &calleev.toObject();
-    if (callee->is<JSFunction>())
-        JS_ASSERT(callee->as<JSFunction>().isNativeConstructor());
-    else
-        JS_ASSERT(callee->getClass()->construct != NULL);
-}
-
-} // namespace detail
-} // namespace JS

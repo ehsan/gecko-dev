@@ -39,9 +39,6 @@ public:
   virtual void SetChannelCount(uint32_t aChannelCount,
                                ErrorResult& aRv) MOZ_OVERRIDE;
 
-  void Mute();
-  void Unmute();
-
   void StartRendering();
 
   void DestroyGraph();

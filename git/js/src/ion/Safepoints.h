@@ -39,8 +39,6 @@ class SafepointWriter
     void writeGcSlots(LSafepoint *safepoint);
     void writeValueSlots(LSafepoint *safepoint);
 
-    void writeSlotsOrElementsSlots(LSafepoint *safepoint);
-
 #ifdef JS_NUNBOX32
     void writeNunboxParts(LSafepoint *safepoint);
 #endif
@@ -67,16 +65,13 @@ class SafepointReader
     uint32_t osiCallPointOffset_;
     GeneralRegisterSet gcSpills_;
     GeneralRegisterSet valueSpills_;
-    GeneralRegisterSet slotsOrElementsSpills_;
     GeneralRegisterSet allSpills_;
     uint32_t nunboxSlotsRemaining_;
-    uint32_t slotsOrElementsSlotsRemaining_;
 
   private:
     void advanceFromGcRegs();
     void advanceFromGcSlots();
     void advanceFromValueSlots();
-    void advanceFromNunboxSlots();
     bool getSlotFromBitmap(uint32_t *slot);
 
   public:
@@ -89,9 +84,6 @@ class SafepointReader
     }
     GeneralRegisterSet gcSpills() const {
         return gcSpills_;
-    }
-    GeneralRegisterSet slotsOrElementsSpills() const {
-        return slotsOrElementsSpills_;
     }
     GeneralRegisterSet valueSpills() const {
         return valueSpills_;
@@ -110,9 +102,6 @@ class SafepointReader
     // Returns true if a nunbox slot was read, false if there are no more
     // nunbox slots.
     bool getNunboxSlot(LAllocation *type, LAllocation *payload);
-
-    // Returns true if a slot was read, false if there are no more slots.
-    bool getSlotsOrElementsSlot(uint32_t *slot);
 };
 
 } // namespace ion

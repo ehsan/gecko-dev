@@ -14,6 +14,7 @@
 #include "jslibmath.h"
 #include "jsinfer.h"
 #include "jsinferinlines.h"
+#include "jstypedarrayinlines.h"
 #include "ion/TypePolicy.h"
 #include "ion/IonAllocPolicy.h"
 #include "ion/InlineList.h"
@@ -23,7 +24,6 @@
 #include "ion/Bailouts.h"
 #include "ion/FixedList.h"
 #include "ion/CompilerRoot.h"
-#include "vm/ScopeObject.h"
 
 namespace js {
 namespace ion {
@@ -263,6 +263,7 @@ class AliasSet {
 class MDefinition : public MNode
 {
     friend class MBasicBlock;
+    friend class Loop;
 
   public:
     enum Opcode {
@@ -313,6 +314,7 @@ class MDefinition : public MNode
     void setFlags(uint32_t flags) {
         flags_ |= flags;
     }
+    virtual bool neverHoist() const { return false; }
   public:
     MDefinition()
       : id_(0),
@@ -330,9 +332,6 @@ class MDefinition : public MNode
     void printName(FILE *fp);
     static void PrintOpcodeName(FILE *fp, Opcode op);
     virtual void printOpcode(FILE *fp);
-
-    // For LICM.
-    virtual bool neverHoist() const { return false; }
 
     void setTrackedPc(jsbytecode *pc) {
         trackedPc_ = pc;
@@ -2640,7 +2639,6 @@ class MBitNot
             return AliasSet::Store(AliasSet::Any);
         return AliasSet::None();
     }
-    void computeRange();
 };
 
 class MTypeOf
@@ -2786,7 +2784,6 @@ class MBitOr : public MBinaryBitwiseInstruction
     MDefinition *foldIfEqual() {
         return getOperand(0); // x | x => x
     }
-    void computeRange();
 };
 
 class MBitXor : public MBinaryBitwiseInstruction
@@ -2809,7 +2806,6 @@ class MBitXor : public MBinaryBitwiseInstruction
     MDefinition *foldIfEqual() {
         return this;
     }
-    void computeRange();
 };
 
 class MShiftInstruction
@@ -2916,8 +2912,6 @@ class MUrsh : public MShiftInstruction
     bool fallible() {
         return canOverflow();
     }
-
-    void computeRange();
 };
 
 class MBinaryArithInstruction
@@ -3023,7 +3017,6 @@ class MMinMax
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void computeRange();
 };
 
 class MAbs
@@ -3312,6 +3305,7 @@ class MAdd : public MBinaryArithInstruction
         }
         return add;
     }
+    void analyzeTruncateBackward();
 
     double getIdentity() {
         return 0;
@@ -5012,23 +5006,23 @@ class MLoadTypedArrayElementHole
 // Load a value fallibly or infallibly from a statically known typed array.
 class MLoadTypedArrayElementStatic : public MUnaryInstruction
 {
-    MLoadTypedArrayElementStatic(TypedArrayObject *typedArray, MDefinition *ptr)
+    MLoadTypedArrayElementStatic(JSObject *typedArray, MDefinition *ptr)
       : MUnaryInstruction(ptr), typedArray_(typedArray), fallible_(true)
     {
-        int type = typedArray_->type();
+        int type = TypedArrayObject::type(typedArray_);
         if (type == TypedArrayObject::TYPE_FLOAT32 || type == TypedArrayObject::TYPE_FLOAT64)
             setResultType(MIRType_Double);
         else
             setResultType(MIRType_Int32);
     }
 
-    CompilerRoot<TypedArrayObject*> typedArray_;
+    CompilerRootObject typedArray_;
     bool fallible_;
 
   public:
     INSTRUCTION_HEADER(LoadTypedArrayElementStatic);
 
-    static MLoadTypedArrayElementStatic *New(TypedArrayObject *typedArray, MDefinition *ptr) {
+    static MLoadTypedArrayElementStatic *New(JSObject *typedArray, MDefinition *ptr) {
         return new MLoadTypedArrayElementStatic(typedArray, ptr);
     }
 
@@ -5182,18 +5176,16 @@ class MStoreTypedArrayElementStatic :
     public MBinaryInstruction
   , public StoreTypedArrayElementStaticPolicy
 {
-    MStoreTypedArrayElementStatic(TypedArrayObject *typedArray, MDefinition *ptr, MDefinition *v)
+    MStoreTypedArrayElementStatic(JSObject *typedArray, MDefinition *ptr, MDefinition *v)
       : MBinaryInstruction(ptr, v), typedArray_(typedArray)
     {}
 
-    CompilerRoot<TypedArrayObject*> typedArray_;
+    CompilerRootObject typedArray_;
 
   public:
     INSTRUCTION_HEADER(StoreTypedArrayElementStatic);
 
-    static MStoreTypedArrayElementStatic *New(TypedArrayObject *typedArray, MDefinition *ptr,
-                                              MDefinition *v)
-    {
+    static MStoreTypedArrayElementStatic *New(JSObject *typedArray, MDefinition *ptr, MDefinition *v) {
         return new MStoreTypedArrayElementStatic(typedArray, ptr, v);
     }
 
