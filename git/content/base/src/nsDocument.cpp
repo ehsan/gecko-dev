@@ -3604,10 +3604,6 @@ nsDocument::GetWindow()
 nsPIDOMWindow *
 nsDocument::GetInnerWindow()
 {
-  if (!mRemovedFromDocShell) {
-    return mWindow;
-  }
-
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
   return win;

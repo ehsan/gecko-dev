@@ -57,6 +57,12 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
+nsresult
+nsHTMLLinkAccessible::GetNameInternal(nsAString& aName)
+{
+  return GetHTMLName(aName, PR_TRUE);
+}
+
 NS_IMETHODIMP
 nsHTMLLinkAccessible::GetRole(PRUint32 *aRole)
 {

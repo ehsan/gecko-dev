@@ -112,7 +112,7 @@ public:
   virtual void Reset() = 0;
 
 protected:
-  nsCOMPtr<nsINode> mRoot;
+  nsINode* mRoot;
   nsCOMPtr<nsINode> mStartParent;
   nsCOMPtr<nsINode> mEndParent;
   PRInt32 mStartOffset;

@@ -69,6 +69,8 @@ nsHTMLAreaAccessible::GetNameInternal(nsAString & aName)
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
+                        aName) &&  
+      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title,
                         aName)) {
     return GetValue(aName);
   }

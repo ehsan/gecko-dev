@@ -127,6 +127,12 @@ nsXULColumnItemAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
+nsresult
+nsXULColumnItemAccessible::GetNameInternal(nsAString& aName)
+{
+  return GetXULName(aName);
+}
+
 NS_IMETHODIMP
 nsXULColumnItemAccessible::GetNumActions(PRUint8 *aNumActions)
 {

@@ -2532,7 +2532,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
   NS_ASSERTION(!aBindingParent || IsRootOfNativeAnonymousSubtree() ||
                !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
-               (aParent && aParent->IsInNativeAnonymousSubtree()),
+               aBindingParent->IsInNativeAnonymousSubtree(),
                "Trying to re-bind content from native anonymous subtree to "
                "non-native anonymous parent!");
   if (IsRootOfNativeAnonymousSubtree() ||
@@ -2802,9 +2802,7 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
     }
   }
 
-  nsIContent* parent = aContent->GetParent();
-  // Event may need to be retargeted if aContent is the root of a native
-  // anonymous content subtree or event is dispatched somewhere inside XBL.
+  nsCOMPtr<nsIContent> parent = aContent->GetParent();
   if (isAnonForEvents) {
     // If a DOM event is explicitly dispatched using node.dispatchEvent(), then
     // all the events are allowed even in the native anonymous content..
@@ -2812,7 +2810,7 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
                  aVisitor.mDOMEvent,
                  "Mutation event dispatched in native anonymous content!?!");
     aVisitor.mEventTargetAtParent = parent;
-  } else if (parent && aVisitor.mOriginalTargetIsInAnon) {
+  } else if (parent) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aVisitor.mEvent->target));
     if (content && content->GetBindingParent() == parent) {
       aVisitor.mEventTargetAtParent = parent;
@@ -4255,9 +4253,11 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     attrValue.SetTo(aValue);
   }
 
-  return SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
-                          attrValue, modification, hasListeners, aNotify,
-                          &aValue);
+  rv = SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
+                        attrValue, modification, hasListeners, aNotify);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return AfterSetAttr(aNamespaceID, aName, &aValue, aNotify);
 }
   
 nsresult
@@ -4268,8 +4268,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
                                    nsAttrValue& aParsedValue,
                                    PRBool aModification,
                                    PRBool aFireMutation,
-                                   PRBool aNotify,
-                                   const nsAString* aValueForAfterSetAttr)
+                                   PRBool aNotify)
 {
   nsresult rv;
   PRUint8 modType = aModification ?
@@ -4328,16 +4327,7 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType,
                                   stateMask);
   }
-
-  if (aNamespaceID == kNameSpaceID_XMLEvents && 
-      aName == nsGkAtoms::event && mNodeInfo->GetDocument()) {
-    mNodeInfo->GetDocument()->AddXMLEventsContent(this);
-  }
-  if (aValueForAfterSetAttr) {
-    rv = AfterSetAttr(aNamespaceID, aName, aValueForAfterSetAttr, aNotify);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
+  
   if (aFireMutation) {
     mozAutoRemovableBlockerRemover blockerRemover;
     
@@ -4364,6 +4354,11 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
 
     mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
+  }
+
+  if (aNamespaceID == kNameSpaceID_XMLEvents && 
+      aName == nsGkAtoms::event && mNodeInfo->GetDocument()) {
+    mNodeInfo->GetDocument()->AddXMLEventsContent(this);
   }
 
   return NS_OK;
@@ -4590,9 +4585,6 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   stateMask);
   }
 
-  rv = AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   if (hasMutationListeners) {
     mozAutoRemovableBlockerRemover blockerRemover;
 
@@ -4613,7 +4605,7 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
   }
 
-  return NS_OK;
+  return AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
 }
 
 const nsAttrName*

@@ -72,6 +72,7 @@ public:
   NS_IMETHOD GetRole(PRUint32 *_retval); 
 
   // nsAccessible
+  virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
