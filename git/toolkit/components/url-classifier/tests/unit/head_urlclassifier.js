@@ -174,8 +174,9 @@ function doStreamUpdate(updateText, success, failure, downloadFailure) {
   if (!downloadFailure)
     downloadFailure = failure;
 
+  streamUpdater.updateUrl = dataUpdate;
   streamUpdater.downloadUpdates("test-phish-simple,test-malware-simple", "",
-                                dataUpdate, success, failure, downloadFailure);
+                                success, failure, downloadFailure);
 }
 
 var gAssertions = {

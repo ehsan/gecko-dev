@@ -290,6 +290,10 @@ TooltipsOverlay.prototype = {
 
     // Image preview tooltip
     if (type === VIEW_NODE_IMAGE_URL_TYPE && inspector.hasUrlToImageDataResolver) {
+      let dim = Services.prefs.getIntPref(PREF_IMAGE_TOOLTIP_SIZE);
+      let uri = CssLogic.getBackgroundImageUriFromProperty(prop.value,
+        prop.sheetHref); // sheetHref is undefined for computed-view properties,
+                         // but we don't care as URIs are absolute
       tooltipType = TOOLTIP_IMAGE_TYPE;
     }
 
@@ -333,8 +337,10 @@ TooltipsOverlay.prototype = {
 
     if (type === TOOLTIP_IMAGE_TYPE) {
       let dim = Services.prefs.getIntPref(PREF_IMAGE_TOOLTIP_SIZE);
-      // nodeInfo contains an absolute uri
-      let uri = nodeInfo.value.url;
+      let uri = CssLogic.getBackgroundImageUriFromProperty(nodeInfo.value.value,
+        nodeInfo.value.sheetHref); // sheetHref is undefined for computed-view
+                                   // properties, but we don't care as uris are
+                                   // absolute
       return this.previewTooltip.setRelativeImageContent(uri,
         inspector.inspector, dim);
     }

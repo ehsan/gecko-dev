@@ -11,7 +11,6 @@
 #include "nsWeakReference.h"
 #include "nsIObserver.h"
 #include "nsWrapperCache.h"
-#include "nsMimeTypeArray.h"
 #include "nsPluginTags.h"
 #include "nsPIDOMWindow.h"
 

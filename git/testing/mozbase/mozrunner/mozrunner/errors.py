@@ -11,3 +11,6 @@ class RunnerNotStartedError(RunnerException):
 
 class TimeoutException(RunnerException):
     """Raised on timeout waiting for targets to start."""
+
+class ScriptTimeoutException(RunnerException):
+    """Raised on timeout waiting for execute_script to finish."""
