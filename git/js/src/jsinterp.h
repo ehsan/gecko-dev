@@ -76,11 +76,6 @@ enum JSFrameFlags {
     JSFRAME_SPECIAL            = JSFRAME_DEBUGGER | JSFRAME_EVAL
 };
 
-namespace js { namespace mjit {
-    class Compiler;
-    class InlineFrameAssembler;
-} }
-
 /*
  * JS stack frame, may be allocated on the C stack by native callers.  Always
  * allocated on cx->stackPool for calls from the interpreter to an interpreted
@@ -294,10 +289,6 @@ struct JSStackFrame
         blockChain = obj;
     }
 
-    static size_t offsetBlockChain() {
-        return offsetof(JSStackFrame, blockChain);
-    }
-
     /* IMacroPC accessors. */
 
     bool hasIMacroPC() const { return flags & JSFRAME_IN_IMACRO; }
@@ -344,10 +335,6 @@ struct JSStackFrame
         annotation = annot;
     }
 
-    static size_t offsetAnnotation() {
-        return offsetof(JSStackFrame, annotation);
-    }
-
     /* Debugger hook data accessors */
 
     bool hasHookData() const {
@@ -367,10 +354,6 @@ struct JSStackFrame
         hookData = data;
     }
 
-    static size_t offsetHookData() {
-        return offsetof(JSStackFrame, hookData);
-    }
-
     /* Version accessors */
 
     JSVersion getCallerVersion() const {
@@ -379,10 +362,6 @@ struct JSStackFrame
 
     void setCallerVersion(JSVersion version) {
         callerVersion = version;
-    }
-
-    static size_t offsetCallerVersion() {
-        return offsetof(JSStackFrame, callerVersion);
     }
 
     /* Script accessors */
@@ -429,10 +408,6 @@ struct JSStackFrame
 
     JSFunction* maybeFunction() const {
         return fun;
-    }
-
-    static size_t offsetFunction() {
-        return offsetof(JSStackFrame, fun);
     }
 
     size_t numFormalArgs() const {
@@ -710,52 +685,38 @@ Invoke(JSContext *cx, const CallArgs &args, uintN flags);
 #define JSINVOKE_FUNFLAGS       JSINVOKE_CONSTRUCT
 
 /*
- * "External" calls may come from C or C++ code using a JSContext on which no
+ * "Internal" calls may come from C or C++ code using a JSContext on which no
  * JS is running (!cx->fp), so they may need to push a dummy JSStackFrame.
  */
-
-extern bool
-ExternalInvoke(JSContext *cx, const Value &thisv, const Value &fval,
+extern JSBool
+InternalInvoke(JSContext *cx, const Value &thisv, const Value &fval, uintN flags,
                uintN argc, Value *argv, Value *rval);
 
 static JS_ALWAYS_INLINE bool
-ExternalInvoke(JSContext *cx, JSObject *obj, const Value &fval,
-               uintN argc, Value *argv, Value *rval)
+InternalCall(JSContext *cx, JSObject *obj, const Value &fval,
+             uintN argc, Value *argv, Value *rval)
 {
-    return ExternalInvoke(cx, ObjectOrNullValue(obj), fval, argc, argv, rval);
+    return InternalInvoke(cx, ObjectOrNullValue(obj), fval, 0, argc, argv, rval);
+}
+
+static JS_ALWAYS_INLINE bool
+InternalConstruct(JSContext *cx, JSObject *obj, const Value &fval,
+                  uintN argc, Value *argv, Value *rval)
+{
+    return InternalInvoke(cx, ObjectOrNullValue(obj), fval, JSINVOKE_CONSTRUCT, argc, argv, rval);
 }
 
 extern bool
-ExternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
+InternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
                  JSAccessMode mode, uintN argc, Value *argv, Value *rval);
 
-/*
- * These two functions invoke a function called from a constructor context
- * (e.g. 'new'). InvokeConstructor handles the general case where a new object
- * needs to be created for/by the constructor. ConstructWithGivenThis directly
- * calls the constructor with the given 'this', hence the caller must
- * understand the semantics of the constructor call.
- */
-
-extern JS_REQUIRES_STACK bool
-InvokeConstructor(JSContext *cx, const CallArgs &args);
-
-extern JS_REQUIRES_STACK bool
-InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
-                               uintN argc, Value *argv, Value *rval);
-
-/*
- * Executes a script with the given scope chain in the context of the given
- * frame.
- */
 extern JS_FORCES_STACK bool
 Execute(JSContext *cx, JSObject *chain, JSScript *script,
         JSStackFrame *down, uintN flags, Value *result);
 
-/*
- * Execute the caller-initialized frame for a user-defined script or function
- * pointed to by cx->fp until completion or error.
- */
+extern JS_REQUIRES_STACK bool
+InvokeConstructor(JSContext *cx, const CallArgs &args);
+
 extern JS_REQUIRES_STACK bool
 Interpret(JSContext *cx, JSStackFrame *stopFp, uintN inlineCallCount = 0);
 

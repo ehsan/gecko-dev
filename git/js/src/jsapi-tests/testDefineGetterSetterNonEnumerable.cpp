@@ -6,7 +6,7 @@
 #include "jsxdrapi.h"
 
 static JSBool
-native(JSContext *cx, uintN argc, jsval *vp)
+native(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     return JS_TRUE;
 }

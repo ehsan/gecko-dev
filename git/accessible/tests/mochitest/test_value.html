@@ -22,10 +22,7 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-          src="common.js"></script>
-
-  <script type="application/javascript"
-          src="chrome://mochikit/content/chrome-harness.js"/>
+          src="chrome://mochikit/content/a11y/accessible/common.js"></script>
 
   <script type="application/javascript">
     function doTest()
@@ -38,8 +35,7 @@
         is(acc.value, aValue, "Wrong value for " + aID + "!");
       }
 
-      var rootDir = getRootDirectory(window.location.href);
-      var href = rootDir.path + "/foo";
+      var href = "chrome://mochikit/content/a11y/accessible/foo";
 
       // roles that can't live as nsHTMLLinkAccessibles
       testValue("aria_menuitem_link", "");

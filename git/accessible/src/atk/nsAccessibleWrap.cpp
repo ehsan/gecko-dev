@@ -452,8 +452,11 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
     }
 
-    // HyperLinkAccessible
-    if (IsHyperLink()) {
+    //nsIAccessibleHyperLink
+    nsCOMPtr<nsIAccessibleHyperLink> accessInterfaceHyperlink;
+    QueryInterface(NS_GET_IID(nsIAccessibleHyperLink),
+                   getter_AddRefs(accessInterfaceHyperlink));
+    if (accessInterfaceHyperlink) {
        interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
     }
 
@@ -475,7 +478,10 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
       }
       
       //nsIAccessibleSelection
-      if (IsSelect()) {
+      nsCOMPtr<nsIAccessibleSelectable> accessInterfaceSelection;
+      QueryInterface(NS_GET_IID(nsIAccessibleSelectable),
+                     getter_AddRefs(accessInterfaceSelection));
+      if (accessInterfaceSelection) {
           interfacesBits |= 1 << MAI_INTERFACE_SELECTION;
       }
     }

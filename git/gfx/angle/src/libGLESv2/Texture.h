@@ -106,8 +106,13 @@ class Texture : public RefCountObject
     static D3DFORMAT selectFormat(GLenum format);
     int imagePitch(const Image& img) const;
 
+    GLenum mMinFilter;
+    GLenum mMagFilter;
+    GLenum mWrapS;
+    GLenum mWrapT;
+
     void setImage(GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels, Image *img);
-    bool subImage(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels, Image *img);
+    void subImage(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels, Image *img);
 
     void needRenderTarget();
 
@@ -127,26 +132,22 @@ class Texture : public RefCountObject
 
     Blit *getBlitter();
 
-    int levelCount() const;
-
     unsigned int mWidth;
     unsigned int mHeight;
-    GLenum mMinFilter;
-    GLenum mMagFilter;
-    GLenum mWrapS;
-    GLenum mWrapT;
+
+    int levelCount() const;
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Texture);
 
-    void loadImageData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type,
-                       GLint unpackAlignment, const void *input, std::size_t outputPitch, void *output) const;
-
     IDirect3DBaseTexture9 *mBaseTexture; // This is a weak pointer. The derived class is assumed to own a strong pointer.
-
-    bool mDirty;
     bool mDirtyMetaData;
     bool mIsRenderable;
+
+    bool mDirty;
+
+    void loadImageData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type,
+                       GLint unpackAlignment, const void *input, std::size_t outputPitch, void *output) const;
 };
 
 class Texture2D : public Texture
@@ -175,11 +176,9 @@ class Texture2D : public Texture
     virtual IDirect3DBaseTexture9 *createTexture();
     virtual void updateTexture();
     virtual IDirect3DBaseTexture9 *convertToRenderTarget();
-    virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
 
     virtual bool dirtyImageData() const;
 
-    bool redefineTexture(GLint level, GLenum internalFormat, GLsizei width, GLsizei height);
     void commitRect(GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height);
 
     Image mImageArray[MAX_TEXTURE_LEVELS];
@@ -187,6 +186,10 @@ class Texture2D : public Texture
     IDirect3DTexture9 *mTexture;
 
     Renderbuffer *mColorbufferProxy;
+
+    bool redefineTexture(GLint level, GLenum internalFormat, GLsizei width, GLsizei height);
+
+    virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
 };
 
 class TextureCubeMap : public Texture
@@ -221,7 +224,6 @@ class TextureCubeMap : public Texture
     virtual IDirect3DBaseTexture9 *createTexture();
     virtual void updateTexture();
     virtual IDirect3DBaseTexture9 *convertToRenderTarget();
-    virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
 
     virtual bool dirtyImageData() const;
 
@@ -242,6 +244,8 @@ class TextureCubeMap : public Texture
     IDirect3DCubeTexture9 *mTexture;
 
     Renderbuffer *mFaceProxies[6];
+
+    virtual IDirect3DSurface9 *getRenderTarget(GLenum target);
 };
 }
 
