@@ -25,7 +25,6 @@
 #include "mozilla/dom/XMLDocument.h"
 #include "nsIStreamListener.h"
 #include "ChildIterator.h"
-#include "nsITimer.h"
 
 #include "nsXBLBinding.h"
 #include "nsXBLPrototypeBinding.h"
@@ -371,16 +370,6 @@ nsBindingManager::PostProcessAttachedQueueEvent()
   }
 }
 
-// static
-void
-nsBindingManager::PostPAQEventCallback(nsITimer* aTimer, void* aClosure)
-{
-  nsRefPtr<nsBindingManager> mgr = 
-    already_AddRefed<nsBindingManager>(static_cast<nsBindingManager*>(aClosure));
-  mgr->PostProcessAttachedQueueEvent();
-  NS_RELEASE(aTimer);
-}
-
 void
 nsBindingManager::DoProcessAttachedQueue()
 {
@@ -395,19 +384,7 @@ nsBindingManager::DoProcessAttachedQueue()
     // Someone's doing event processing from inside a constructor.
     // They're evil, but we'll fight back!  Just poll on them being
     // done and repost the attached queue event.
-    //
-    // But don't poll in a tight loop -- otherwise we keep the Gecko
-    // event loop non-empty and trigger bug 1021240 on OS X.
-    nsresult rv = NS_ERROR_FAILURE;
-    nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
-    if (timer) {
-      rv = timer->InitWithFuncCallback(PostPAQEventCallback, this,
-                                       100, nsITimer::TYPE_ONE_SHOT);
-    }
-    if (NS_SUCCEEDED(rv)) {
-      NS_ADDREF_THIS();
-      NS_ADDREF(timer);
-    }
+    PostProcessAttachedQueueEvent();
   }
 
   // No matter what, unblock onload for the event that's fired.

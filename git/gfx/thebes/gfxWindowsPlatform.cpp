@@ -360,7 +360,7 @@ gfxWindowsPlatform::UpdateRenderMode()
     if (gfxInfo) {
         int32_t status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
-            if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
+            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
                 d2dBlocked = true;
             }
         }

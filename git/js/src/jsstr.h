@@ -319,9 +319,8 @@ CopyAndInflateChars(jschar *dst, const JS::Latin1Char *src, size_t srclen)
  * must to be initialized with the buffer size and will contain on return the
  * number of copied bytes.
  */
-template <typename CharT>
 extern bool
-DeflateStringToBuffer(JSContext *maybecx, const CharT *chars,
+DeflateStringToBuffer(JSContext *maybecx, const jschar *chars,
                       size_t charsLength, char *bytes, size_t *length);
 
 /*

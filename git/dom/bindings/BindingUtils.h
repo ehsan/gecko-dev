@@ -12,7 +12,6 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Alignment.h"
 #include "mozilla/Array.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/CallbackObject.h"
 #include "mozilla/dom/DOMJSClass.h"
@@ -1056,16 +1055,16 @@ HandleNewBindingWrappingFailure(JSContext* cx, JS::Handle<JSObject*> scope,
 
 template<bool Fatal>
 inline bool
-EnumValueNotFound(JSContext* cx, JSString* str, const char* type,
-                  const char* sourceDescription)
+EnumValueNotFound(JSContext* cx, const jschar* chars, size_t length,
+                  const char* type, const char* sourceDescription)
 {
   return false;
 }
 
 template<>
 inline bool
-EnumValueNotFound<false>(JSContext* cx, JSString* str, const char* type,
-                         const char* sourceDescription)
+EnumValueNotFound<false>(JSContext* cx, const jschar* chars, size_t length,
+                         const char* type, const char* sourceDescription)
 {
   // TODO: Log a warning to the console.
   return true;
@@ -1073,21 +1072,34 @@ EnumValueNotFound<false>(JSContext* cx, JSString* str, const char* type,
 
 template<>
 inline bool
-EnumValueNotFound<true>(JSContext* cx, JSString* str, const char* type,
-                        const char* sourceDescription)
+EnumValueNotFound<true>(JSContext* cx, const jschar* chars, size_t length,
+                        const char* type, const char* sourceDescription)
 {
-  JSAutoByteString deflated(cx, str);
-  if (!deflated) {
-    return false;
-  }
+  NS_LossyConvertUTF16toASCII deflated(static_cast<const char16_t*>(chars),
+                                       length);
   return ThrowErrorMessage(cx, MSG_INVALID_ENUM_VALUE, sourceDescription,
-                           deflated.ptr(), type);
+                           deflated.get(), type);
 }
 
-template<typename CharT>
+
+template<bool InvalidValueFatal>
 inline int
-FindEnumStringIndexImpl(const CharT* chars, size_t length, const EnumEntry* values)
+FindEnumStringIndex(JSContext* cx, JS::Handle<JS::Value> v, const EnumEntry* values,
+                    const char* type, const char* sourceDescription, bool* ok)
 {
+  // JS_StringEqualsAscii is slow as molasses, so don't use it here.
+  JSString* str = JS::ToString(cx, v);
+  if (!str) {
+    *ok = false;
+    return 0;
+  }
+  JS::Anchor<JSString*> anchor(str);
+  size_t length;
+  const jschar* chars = JS_GetStringCharsAndLength(cx, str, &length);
+  if (!chars) {
+    *ok = false;
+    return 0;
+  }
   int i = 0;
   for (const EnumEntry* value = values; value->value; ++value, ++i) {
     if (length != value->length) {
@@ -1104,54 +1116,13 @@ FindEnumStringIndexImpl(const CharT* chars, size_t length, const EnumEntry* valu
     }
 
     if (equal) {
+      *ok = true;
       return i;
     }
   }
 
-  return -1;
-}
-
-template<bool InvalidValueFatal>
-inline int
-FindEnumStringIndex(JSContext* cx, JS::Handle<JS::Value> v, const EnumEntry* values,
-                    const char* type, const char* sourceDescription, bool* ok)
-{
-  // JS_StringEqualsAscii is slow as molasses, so don't use it here.
-  JSString* str = JS::ToString(cx, v);
-  if (!str) {
-    *ok = false;
-    return 0;
-  }
-  JS::Anchor<JSString*> anchor(str);
-
-  {
-    int index;
-    size_t length;
-    JS::AutoCheckCannotGC nogc;
-    if (JS_StringHasLatin1Chars(str)) {
-      const JS::Latin1Char* chars = JS_GetLatin1StringCharsAndLength(cx, nogc, str,
-                                                                     &length);
-      if (!chars) {
-        *ok = false;
-        return 0;
-      }
-      index = FindEnumStringIndexImpl(chars, length, values);
-    } else {
-      const jschar* chars = JS_GetTwoByteStringCharsAndLength(cx, nogc, str,
-                                                              &length);
-      if (!chars) {
-        *ok = false;
-        return 0;
-      }
-      index = FindEnumStringIndexImpl(chars, length, values);
-    }
-    if (index >= 0) {
-      *ok = true;
-      return index;
-    }
-  }
-
-  *ok = EnumValueNotFound<InvalidValueFatal>(cx, str, type, sourceDescription);
+  *ok = EnumValueNotFound<InvalidValueFatal>(cx, chars, length, type,
+                                             sourceDescription);
   return -1;
 }
 
@@ -1729,8 +1700,8 @@ struct FakeDependentString {
   {
   }
 
-  void Rebind(const nsDependentString::char_type* aData,
-              nsDependentString::size_type aLength) {
+  void SetData(const nsDependentString::char_type* aData,
+               nsDependentString::size_type aLength) {
     MOZ_ASSERT(mFlags == nsDependentString::F_TERMINATED);
     mData = aData;
     mLength = aLength;
@@ -1741,9 +1712,7 @@ struct FakeDependentString {
     mLength = 0;
   }
 
-  void SetIsVoid(bool aValue) {
-    MOZ_ASSERT(aValue,
-               "We don't support SetIsVoid(false) on FakeDependentString!");
+  void SetNull() {
     Truncate();
     mFlags |= nsDependentString::F_VOIDED;
   }
@@ -1809,13 +1778,12 @@ enum StringificationBehavior {
 };
 
 // pval must not be null and must point to a rooted JS::Value
-template<typename T>
 static inline bool
 ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
                        JS::MutableHandle<JS::Value> pval,
                        StringificationBehavior nullBehavior,
                        StringificationBehavior undefinedBehavior,
-                       T& result)
+                       binding_detail::FakeDependentString& result)
 {
   JSString *s;
   if (v.isString()) {
@@ -1834,7 +1802,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
       if (behavior == eEmpty) {
         result.Truncate();
       } else {
-        result.SetIsVoid(true);
+        result.SetNull();
       }
       return true;
     }
@@ -1852,7 +1820,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
     return false;
   }
 
-  result.Rebind(chars, len);
+  result.SetData(chars, len);
   return true;
 }
 

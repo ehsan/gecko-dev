@@ -94,24 +94,19 @@ AudioNodeView.prototype.getType = Task.async(function* () {
 });
 
 // Helper method to create connections in the AudioNodeConnections
-// WeakMap for rendering. Returns a boolean indicating
-// if the connection was successfully created. Will return `false`
-// when the connection was previously made.
+// WeakMap for rendering
 AudioNodeView.prototype.connect = function (destination) {
-  let connections = AudioNodeConnections.get(this) || new Set();
-  AudioNodeConnections.set(this, connections);
-
-  // Don't duplicate add.
-  if (!connections.has(destination)) {
-    connections.add(destination);
-    return true;
+  let connections = AudioNodeConnections.get(this);
+  if (!connections) {
+    connections = [];
+    AudioNodeConnections.set(this, connections);
   }
-  return false;
+  connections.push(destination);
 };
 
 // Helper method to remove audio connections from the current AudioNodeView
 AudioNodeView.prototype.disconnect = function () {
-  AudioNodeConnections.set(this, new Set());
+  AudioNodeConnections.set(this, []);
 };
 
 // Returns a promise that resolves to an array of objects containing
@@ -298,10 +293,8 @@ let WebAudioEditorController = {
     // adding an edge.
     let [source, dest] = yield waitForNodeCreation(sourceActor, destActor);
 
-    // Connect nodes, and only emit if it's a new connection.
-    if (source.connect(dest)) {
-      window.emit(EVENTS.CONNECT_NODE, source.id, dest.id);
-    }
+    source.connect(dest);
+    window.emit(EVENTS.CONNECT_NODE, source.id, dest.id);
 
     function waitForNodeCreation (sourceActor, destActor) {
       let deferred = defer();

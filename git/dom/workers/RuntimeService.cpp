@@ -34,7 +34,6 @@
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/WorkerBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Navigator.h"
@@ -2071,11 +2070,14 @@ RuntimeService::CancelWorkersForWindow(nsPIDOMWindow* aWindow)
   GetWorkersForWindow(aWindow, workers);
 
   if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
+    nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
+    MOZ_ASSERT(sgo);
+
+    nsIScriptContext* scx = sgo->GetContext();
+
+    AutoPushJSContext cx(scx ?
+                         scx->GetNativeContext() :
+                         nsContentUtils::GetSafeJSContext());
 
     for (uint32_t index = 0; index < workers.Length(); index++) {
       WorkerPrivate*& worker = workers[index];
@@ -2099,11 +2101,14 @@ RuntimeService::SuspendWorkersForWindow(nsPIDOMWindow* aWindow)
   GetWorkersForWindow(aWindow, workers);
 
   if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
+    nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
+    MOZ_ASSERT(sgo);
+
+    nsIScriptContext* scx = sgo->GetContext();
+
+    AutoPushJSContext cx(scx ?
+                         scx->GetNativeContext() :
+                         nsContentUtils::GetSafeJSContext());
 
     for (uint32_t index = 0; index < workers.Length(); index++) {
       if (!workers[index]->Suspend(cx, aWindow)) {
@@ -2123,14 +2128,17 @@ RuntimeService::ResumeWorkersForWindow(nsPIDOMWindow* aWindow)
   GetWorkersForWindow(aWindow, workers);
 
   if (!workers.IsEmpty()) {
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(aWindow))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
+    nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
+    MOZ_ASSERT(sgo);
+
+    nsIScriptContext* scx = sgo->GetContext();
+
+    AutoPushJSContext cx(scx ?
+                         scx->GetNativeContext() :
+                         nsContentUtils::GetSafeJSContext());
 
     for (uint32_t index = 0; index < workers.Length(); index++) {
-      if (!workers[index]->SynchronizeAndResume(cx, aWindow)) {
+      if (!workers[index]->SynchronizeAndResume(cx, aWindow, scx)) {
         JS_ReportPendingException(cx);
       }
     }

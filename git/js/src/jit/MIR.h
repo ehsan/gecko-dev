@@ -3936,10 +3936,6 @@ class MMinMax
         return AliasSet::None();
     }
     void computeRange(TempAllocator &alloc);
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
-    }
 };
 
 class MAbs

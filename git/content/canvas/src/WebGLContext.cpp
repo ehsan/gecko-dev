@@ -599,7 +599,7 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     if (mOptions.antialias &&
         gfxInfo &&
         NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_MSAA, &status))) {
-        if (status == nsIGfxInfo::FEATURE_STATUS_OK || forceMSAA) {
+        if (status == nsIGfxInfo::FEATURE_NO_INFO || forceMSAA) {
             caps.antialias = true;
         }
     }
@@ -619,13 +619,13 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
 
     if (gfxInfo && !forceEnabled) {
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
-            if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
+            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
                 useOpenGL = false;
             }
         }
 #ifdef XP_WIN
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
-            if (status != nsIGfxInfo::FEATURE_STATUS_OK) {
+            if (status != nsIGfxInfo::FEATURE_NO_INFO) {
                 useANGLE = false;
             }
         }

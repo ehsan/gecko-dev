@@ -77,10 +77,13 @@ nsStyleLinkElement::SetStyleSheet(CSSStyleSheet* aStyleSheet)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(CSSStyleSheet*)
-nsStyleLinkElement::GetStyleSheet()
+NS_IMETHODIMP 
+nsStyleLinkElement::GetStyleSheet(nsIStyleSheet*& aStyleSheet)
 {
-  return mStyleSheet;
+  aStyleSheet = mStyleSheet;
+  NS_IF_ADDREF(aStyleSheet);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP 

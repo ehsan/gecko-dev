@@ -25,6 +25,7 @@ class TPSFirefoxRunner(object):
             self.url = None
             self.binary = binary
 
+        self.runner = None
         self.installdir = None
 
     def __del__(self):
@@ -77,8 +78,8 @@ class TPSFirefoxRunner(object):
         if self.binary is None and self.url:
             self.binary = self.download_build()
 
-        runner = FirefoxRunner(profile=self.profile, binary=self.binary,
-                               env=env, cmdargs=args)
+        if self.runner is None:
+            self.runner = FirefoxRunner(profile=self.profile, binary=self.binary, env=env, cmdargs=args)
 
-        runner.start(timeout=timeout)
-        return runner.wait()
+        self.runner.start(timeout=timeout)
+        return self.runner.wait()
