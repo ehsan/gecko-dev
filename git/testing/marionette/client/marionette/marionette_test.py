@@ -117,11 +117,10 @@ class MarionetteJSTestCase(CommonTestCase):
     timeout_re = re.compile(r"MARIONETTE_TIMEOUT(\s*)=(\s*)(\d+);")
     launch_re = re.compile(r"MARIONETTE_LAUNCH_APP(\s*)=(\s*)['|\"](.*?)['|\"];")
 
-    def __init__(self, marionette_weakref, methodName='runTest', jsFile=None):
+    def __init__(self, marionette, methodName='runTest', jsFile=None):
         assert(jsFile)
         self.jsFile = jsFile
-        self._marionette_weakref = marionette_weakref
-        self.marionette = None
+        self.marionette = marionette
         CommonTestCase.__init__(self, methodName)
 
     def runTest(self):
