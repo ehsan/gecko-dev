@@ -1330,15 +1330,8 @@ gfxFcPangoFontSet::SortPreferredFonts()
 
     FcFontSet *sets[1] = { fontSet };
     FcResult result;
-#ifdef SOLARIS
-    // Get around a crash of FcFontSetSort when FcConfig is NULL
-    // Solaris's FcFontSetSort needs an FcConfig (bug 474758)
-    fontSet.own(FcFontSetSort(FcConfigGetCurrent(), sets, 1, mSortPattern,
-                              FcFalse, NULL, &result));
-#else
     fontSet.own(FcFontSetSort(NULL, sets, 1, mSortPattern,
                               FcFalse, NULL, &result));
-#endif
 
     if (truncateMarker != NULL && fontSet) {
         nsAutoRef<FcFontSet> truncatedSet(FcFontSetCreate());
@@ -2245,9 +2238,7 @@ gfxFcFont::GetOrMakeFont(FcPattern *aPattern)
         // one particular language to choose and converting the set to a
         // string through FcNameUnparse() is more trouble than it's worth.
         NS_NAMED_LITERAL_CSTRING(langGroup, "x-unicode");
-        // FIXME: Pass a real stretch based on aPattern!
-        gfxFontStyle fontStyle(style, weight, NS_FONT_STRETCH_NORMAL,
-                               size, langGroup, 0.0,
+        gfxFontStyle fontStyle(style, weight, size, langGroup, 0.0,
                                PR_TRUE, PR_FALSE, PR_FALSE);
 
         nsRefPtr<gfxFontEntry> fe;

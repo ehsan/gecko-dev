@@ -665,7 +665,7 @@ public:
 
   /**
    * Create a new presentation shell that will use aContext for
-   * its presentation context (presentation context's <b>must not</b> be
+   * it's presentation context (presentation context's <b>must not</b> be
    * shared among multiple presentation shell's).
    */
   virtual nsresult CreateShell(nsPresContext* aContext,
@@ -1007,9 +1007,7 @@ public:
 
   nsresult CloneDocHelper(nsDocument* clone) const;
 
-  void MaybeInitializeFinalizeFrameLoaders();
-
-  void MaybeEndOutermostXBLUpdate();
+  void InitializeFinalizeFrameLoaders();
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1190,8 +1188,6 @@ protected:
   // document was created entirely in memory
   PRPackedBool mHaveInputEncoding:1;
 
-  PRPackedBool mInXBLUpdate:1;
-
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
@@ -1276,7 +1272,7 @@ private:
 
   nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
-  nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
+  nsCOMPtr<nsIRunnable> mFrameLoaderRunner;
 
   nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 

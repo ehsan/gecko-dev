@@ -73,7 +73,6 @@
 #include "nsInspectorCSSUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsFrameManager.h"
-#include "prlog.h"
 #include "nsCSSKeywords.h"
 #include "nsStyleCoord.h"
 #include "nsDisplayList.h"
@@ -297,7 +296,7 @@ nsComputedDOMStyle::GetPropertyValue(const nsAString& aPropertyName,
 
   aReturn.Truncate();
 
-  nsresult rv = GetPropertyCSSValueInternal(aPropertyName, getter_AddRefs(val));
+  nsresult rv = GetPropertyCSSValue(aPropertyName, getter_AddRefs(val));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (val) {
@@ -311,18 +310,6 @@ nsComputedDOMStyle::GetPropertyValue(const nsAString& aPropertyName,
 NS_IMETHODIMP
 nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
                                         nsIDOMCSSValue** aReturn)
-{
-  nsCOMPtr<nsIDocument> document = do_QueryReferent(mDocumentWeak);
-  nsStyleUtil::
-    ReportUseOfDeprecatedMethod(document ? document->GetDocumentURI() : nsnull,
-                                "UseOfGetPropertyCSSValueWarning");
-
-  return GetPropertyCSSValueInternal(aPropertyName, aReturn);
-}
-
-nsresult
-nsComputedDOMStyle::GetPropertyCSSValueInternal(const nsAString& aPropertyName,
-                                                nsIDOMCSSValue** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nsnull;
@@ -459,7 +446,7 @@ nsComputedDOMStyle::GetBinding(nsIDOMCSSValue** aValue)
   if (display->mBinding) {
     val->SetURI(display->mBinding->mURI);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -474,10 +461,12 @@ nsComputedDOMStyle::GetClear(nsIDOMCSSValue** aValue)
   const nsStyleDisplay *display = GetStyleDisplay();
 
   if (display->mBreakType != NS_STYLE_CLEAR_NONE) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(display->mBreakType,
-                                                 nsCSSProps::kClearKTable));
+    const nsAFlatCString& clear =
+      nsCSSProps::ValueToKeyword(display->mBreakType,
+                                 nsCSSProps::kClearKTable);
+    val->SetIdent(clear);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -492,10 +481,12 @@ nsComputedDOMStyle::GetCssFloat(nsIDOMCSSValue** aValue)
   const nsStyleDisplay* display = GetStyleDisplay();
 
   if (display->mFloats != NS_STYLE_FLOAT_NONE) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(display->mFloats,
-                                                 nsCSSProps::kFloatKTable));
+    const nsAFlatCString& cssFloat =
+      nsCSSProps::ValueToKeyword(display->mFloats,
+                                 nsCSSProps::kFloatKTable);
+    val->SetIdent(cssFloat);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -513,8 +504,8 @@ nsComputedDOMStyle::GetStackSizing(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(GetStyleXUL()->mStretchStack ? eCSSKeyword_stretch_to_fit :
-                eCSSKeyword_ignore);
+  val->SetIdent(GetStyleXUL()->mStretchStack ? nsGkAtoms::stretch_to_fit :
+                nsGkAtoms::ignore);
 
   return CallQueryInterface(val, aValue);
 }
@@ -524,7 +515,7 @@ nsComputedDOMStyle::SetToRGBAColor(nsROCSSPrimitiveValue* aValue,
                                    nscolor aColor)
 {
   if (NS_GET_A(aColor) == 0) {
-    aValue->SetIdent(eCSSKeyword_transparent);
+    aValue->SetIdent(nsGkAtoms::transparent);
     return NS_OK;
   }
 
@@ -594,7 +585,7 @@ nsComputedDOMStyle::GetColumnCount(nsIDOMCSSValue** aValue)
   const nsStyleColumn* column = GetStyleColumn();
 
   if (column->mColumnCount == NS_STYLE_COLUMN_COUNT_AUTO) {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   } else {
     val->SetNumber(column->mColumnCount);
   }
@@ -651,11 +642,12 @@ nsComputedDOMStyle::GetColumnRuleStyle(nsIDOMCSSValue** aValue)
 
   const nsStyleColumn* column = GetStyleColumn();
   if (column->mColumnRuleStyle == NS_STYLE_BORDER_STYLE_NONE) {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   } else {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(column->mColumnRuleStyle,
-                                     nsCSSProps::kBorderStyleKTable));
+    const nsAFlatCString& style =
+      nsCSSProps::ValueToKeyword(column->mColumnRuleStyle,
+                                 nsCSSProps::kBorderStyleKTable);
+    val->SetIdent(style);
   }
   return CallQueryInterface(val, aValue);
 }
@@ -687,7 +679,7 @@ nsComputedDOMStyle::GetContent(nsIDOMCSSValue** aValue)
   if (content->ContentCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -800,7 +792,7 @@ nsComputedDOMStyle::GetCounterIncrement(nsIDOMCSSValue** aValue)
   if (content->CounterIncrementCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -952,7 +944,7 @@ nsComputedDOMStyle::GetCounterReset(nsIDOMCSSValue** aValue)
   if (content->CounterResetCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -990,7 +982,7 @@ nsComputedDOMStyle::GetQuotes(nsIDOMCSSValue** aValue)
   if (quotes->QuotesCount() == 0) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -1083,37 +1075,7 @@ nsComputedDOMStyle::GetFontSizeAdjust(nsIDOMCSSValue** aValue)
   if (font->mFont.sizeAdjust) {
     val->SetNumber(font->mFont.sizeAdjust);
   } else {
-    val->SetIdent(eCSSKeyword_none);
-  }
-
-  return CallQueryInterface(val, aValue);
-}
-
-nsresult
-nsComputedDOMStyle::GetFontStretch(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  const nsStyleFont* font = GetStyleFont();
-
-  // The computed value space isn't actually representable in string
-  // form, so just represent anything with widers or narrowers in it as
-  // 'wider' or 'narrower'.
-  PR_STATIC_ASSERT(NS_FONT_STRETCH_NARROWER % 2 == 0);
-  PR_STATIC_ASSERT(NS_FONT_STRETCH_WIDER % 2 == 0);
-  PR_STATIC_ASSERT(NS_FONT_STRETCH_NARROWER + NS_FONT_STRETCH_WIDER == 0);
-  PR_STATIC_ASSERT(NS_FONT_STRETCH_NARROWER < 0);
-  PRInt16 stretch = font->mFont.stretch;
-  if (stretch == NS_FONT_STRETCH_NORMAL) {
-    val->SetIdent(eCSSKeyword_normal);
-  } else if (stretch <= NS_FONT_STRETCH_NARROWER / 2) {
-    val->SetIdent(eCSSKeyword_narrower);
-  } else if (stretch >= NS_FONT_STRETCH_WIDER / 2) {
-    val->SetIdent(eCSSKeyword_wider);
-  } else {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(stretch, nsCSSProps::kFontStretchKTable));
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1128,10 +1090,12 @@ nsComputedDOMStyle::GetFontStyle(nsIDOMCSSValue** aValue)
   const nsStyleFont* font = GetStyleFont();
 
   if (font->mFont.style != NS_STYLE_FONT_STYLE_NORMAL) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(font->mFont.style,
-                                                 nsCSSProps::kFontStyleKTable));
+    const nsAFlatCString& style=
+      nsCSSProps::ValueToKeyword(font->mFont.style,
+                                 nsCSSProps::kFontStyleKTable);
+    val->SetIdent(style);
   } else {
-    val->SetIdent(eCSSKeyword_normal);
+    val->SetIdent(nsGkAtoms::normal);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1145,12 +1109,11 @@ nsComputedDOMStyle::GetFontWeight(nsIDOMCSSValue** aValue)
 
   const nsStyleFont* font = GetStyleFont();
 
-  // XXX This doesn't deal with bolder/lighter very well.
-  const nsCSSKeyword enum_weight =
-    nsCSSProps::ValueToKeywordEnum(font->mFont.weight,
-                                   nsCSSProps::kFontWeightKTable);
-  if (enum_weight != eCSSKeyword_UNKNOWN) {
-    val->SetIdent(enum_weight);
+  const nsAFlatCString& str_weight=
+    nsCSSProps::ValueToKeyword(font->mFont.weight,
+                               nsCSSProps::kFontWeightKTable);
+  if (!str_weight.IsEmpty()) {
+    val->SetIdent(str_weight);
   } else {
     val->SetNumber(font->mFont.weight);
   }
@@ -1167,11 +1130,12 @@ nsComputedDOMStyle::GetFontVariant(nsIDOMCSSValue** aValue)
   const nsStyleFont* font = GetStyleFont();
 
   if (font->mFont.variant != NS_STYLE_FONT_VARIANT_NORMAL) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(font->mFont.variant,
-                                     nsCSSProps::kFontVariantKTable));
+    const nsAFlatCString& variant=
+      nsCSSProps::ValueToKeyword(font->mFont.variant,
+                                 nsCSSProps::kFontVariantKTable);
+    val->SetIdent(variant);
   } else {
-    val->SetIdent(eCSSKeyword_normal);
+    val->SetIdent(nsGkAtoms::normal);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1185,9 +1149,10 @@ nsComputedDOMStyle::GetBackgroundAttachment(nsIDOMCSSValue** aValue)
 
   const nsStyleBackground *background = GetStyleBackground();
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(background->mBackgroundAttachment,
-                                   nsCSSProps::kBackgroundAttachmentKTable));
+  const nsAFlatCString& backgroundAttachment =
+    nsCSSProps::ValueToKeyword(background->mBackgroundAttachment,
+                               nsCSSProps::kBackgroundAttachmentKTable);
+  val->SetIdent(backgroundAttachment);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1198,9 +1163,11 @@ nsComputedDOMStyle::GetBackgroundClip(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBackground()->mBackgroundClip,
-                                   nsCSSProps::kBackgroundClipKTable));
+  const nsAFlatCString& backgroundClip =
+    nsCSSProps::ValueToKeyword(GetStyleBackground()->mBackgroundClip,
+                               nsCSSProps::kBackgroundClipKTable);
+
+  val->SetIdent(backgroundClip);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1230,7 +1197,7 @@ nsComputedDOMStyle::GetBackgroundImage(nsIDOMCSSValue** aValue)
   const nsStyleBackground* color = GetStyleBackground();
 
   if (color->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE) {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   } else {
     nsCOMPtr<nsIURI> uri;
     if (color->mBackgroundImage) {
@@ -1248,9 +1215,11 @@ nsComputedDOMStyle::GetBackgroundInlinePolicy(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                  GetStyleBackground()->mBackgroundInlinePolicy,
-                  nsCSSProps::kBackgroundInlinePolicyKTable));
+  const nsAFlatCString& backgroundPolicy =
+      nsCSSProps::ValueToKeyword(GetStyleBackground()->mBackgroundInlinePolicy,
+                                 nsCSSProps::kBackgroundInlinePolicyKTable);
+
+  val->SetIdent(backgroundPolicy);
 
   return CallQueryInterface(val, aValue);  
 }
@@ -1261,9 +1230,11 @@ nsComputedDOMStyle::GetBackgroundOrigin(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBackground()->mBackgroundOrigin,
-                                   nsCSSProps::kBackgroundOriginKTable));
+  const nsAFlatCString& backgroundOrigin =
+    nsCSSProps::ValueToKeyword(GetStyleBackground()->mBackgroundOrigin,
+                               nsCSSProps::kBackgroundOriginKTable);
+
+  val->SetIdent(backgroundOrigin);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1319,9 +1290,10 @@ nsComputedDOMStyle::GetBackgroundRepeat(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBackground()->mBackgroundRepeat,
-                                   nsCSSProps::kBackgroundRepeatKTable));
+  const nsAFlatCString& backgroundRepeat =
+    nsCSSProps::ValueToKeyword(GetStyleBackground()->mBackgroundRepeat,
+                               nsCSSProps::kBackgroundRepeatKTable);
+  val->SetIdent(backgroundRepeat);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1365,9 +1337,10 @@ nsComputedDOMStyle::GetBorderCollapse(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mBorderCollapse,
-                                   nsCSSProps::kBorderCollapseKTable));
+  const nsAFlatCString& ident=
+    nsCSSProps::ValueToKeyword(GetStyleTableBorder()->mBorderCollapse,
+                               nsCSSProps::kBorderCollapseKTable);
+  val->SetIdent(ident);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1413,9 +1386,10 @@ nsComputedDOMStyle::GetCaptionSide(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mCaptionSide,
-                                   nsCSSProps::kCaptionSideKTable));
+  const nsAFlatCString& side =
+    nsCSSProps::ValueToKeyword(GetStyleTableBorder()->mCaptionSide,
+                               nsCSSProps::kCaptionSideKTable);
+  val->SetIdent(side);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1426,9 +1400,10 @@ nsComputedDOMStyle::GetEmptyCells(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleTableBorder()->mEmptyCells,
-                                   nsCSSProps::kEmptyCellsKTable));
+  const nsAFlatCString& emptyCells =
+    nsCSSProps::ValueToKeyword(GetStyleTableBorder()->mEmptyCells,
+                               nsCSSProps::kEmptyCellsKTable);
+  val->SetIdent(emptyCells);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1442,11 +1417,12 @@ nsComputedDOMStyle::GetTableLayout(nsIDOMCSSValue** aValue)
   const nsStyleTable *table = GetStyleTable();
 
   if (table->mLayoutStrategy != NS_STYLE_TABLE_LAYOUT_AUTO) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(table->mLayoutStrategy,
-                                     nsCSSProps::kTableLayoutKTable));
+    const nsAFlatCString& tableLayout =
+      nsCSSProps::ValueToKeyword(table->mLayoutStrategy,
+                                 nsCSSProps::kTableLayoutKTable);
+    val->SetIdent(tableLayout);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1681,15 +1657,16 @@ nsComputedDOMStyle::GetOutlineStyle(nsIDOMCSSValue** aValue)
   PRUint8 outlineStyle = GetStyleOutline()->GetOutlineStyle();
   switch (outlineStyle) {
   case NS_STYLE_BORDER_STYLE_NONE:
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     break;
   case NS_STYLE_BORDER_STYLE_AUTO:
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
     break;
   default:
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(outlineStyle,
-                                     nsCSSProps::kOutlineStyleKTable));
+    const nsAFlatCString& style =
+      nsCSSProps::ValueToKeyword(outlineStyle,
+                                 nsCSSProps::kOutlineStyleKTable);
+    val->SetIdent(style);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1812,7 +1789,7 @@ nsComputedDOMStyle::GetCSSShadowArray(nsCSSShadowArray* aArray,
 {
   if (!aArray) {
     nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -1910,7 +1887,7 @@ nsComputedDOMStyle::GetListStyleImage(nsIDOMCSSValue** aValue)
   const nsStyleList* list = GetStyleList();
 
   if (!list->mListStyleImage) {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   } else {
     nsCOMPtr<nsIURI> uri;
     if (list->mListStyleImage) {
@@ -1928,9 +1905,10 @@ nsComputedDOMStyle::GetListStylePosition(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleList()->mListStylePosition,
-                                   nsCSSProps::kListStylePositionKTable));
+  const nsAFlatCString& style =
+    nsCSSProps::ValueToKeyword(GetStyleList()->mListStylePosition,
+                               nsCSSProps::kListStylePositionKTable);
+  val->SetIdent(style);
 
   return CallQueryInterface(val, aValue);
 }
@@ -1944,11 +1922,12 @@ nsComputedDOMStyle::GetListStyleType(nsIDOMCSSValue** aValue)
   const nsStyleList *list = GetStyleList();
 
   if (list->mListStyleType == NS_STYLE_LIST_STYLE_NONE) {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   } else {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(list->mListStyleType,
-                                     nsCSSProps::kListStyleKTable));
+    const nsAFlatCString& style =
+      nsCSSProps::ValueToKeyword(list->mListStyleType,
+                                 nsCSSProps::kListStyleKTable);
+    val->SetIdent(style);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1968,7 +1947,7 @@ nsComputedDOMStyle::GetImageRegion(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *bottomVal = nsnull;
   nsROCSSPrimitiveValue *leftVal = nsnull;
   if (list->mImageRegion.width <= 0 || list->mImageRegion.height <= 0) {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
     topVal = GetROCSSPrimitiveValue();
@@ -2037,9 +2016,10 @@ nsComputedDOMStyle::GetTextAlign(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleText()->mTextAlign,
-                                   nsCSSProps::kTextAlignKTable));
+  const nsAFlatCString& align=
+    nsCSSProps::ValueToKeyword(GetStyleText()->mTextAlign,
+                               nsCSSProps::kTextAlignKTable);
+  val->SetIdent(align);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2053,7 +2033,9 @@ nsComputedDOMStyle::GetTextDecoration(nsIDOMCSSValue** aValue)
   const nsStyleTextReset* text = GetStyleTextReset();
 
   if (NS_STYLE_TEXT_DECORATION_NONE == text->mTextDecoration) {
-    val->SetIdent(eCSSKeyword_none);
+    const nsAFlatCString& decoration=
+      nsCSSKeywords::GetStringValue(eCSSKeyword_none);
+    val->SetIdent(decoration);
   } else {
     nsAutoString decorationString;
     if (text->mTextDecoration & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
@@ -2124,11 +2106,12 @@ nsComputedDOMStyle::GetTextTransform(nsIDOMCSSValue** aValue)
   const nsStyleText *text = GetStyleText();
 
   if (text->mTextTransform != NS_STYLE_TEXT_TRANSFORM_NONE) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(text->mTextTransform,
-                                     nsCSSProps::kTextTransformKTable));
+    const nsAFlatCString& textTransform =
+      nsCSSProps::ValueToKeyword(text->mTextTransform,
+                                 nsCSSProps::kTextTransformKTable);
+    val->SetIdent(textTransform);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2165,11 +2148,12 @@ nsComputedDOMStyle::GetWhiteSpace(nsIDOMCSSValue** aValue)
   const nsStyleText *text = GetStyleText();
 
   if (text->mWhiteSpace != NS_STYLE_WHITESPACE_NORMAL) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(text->mWhiteSpace,
-                                     nsCSSProps::kWhitespaceKTable));
+    const nsAFlatCString& whiteSpace =
+      nsCSSProps::ValueToKeyword(text->mWhiteSpace,
+                                 nsCSSProps::kWhitespaceKTable);
+    val->SetIdent(whiteSpace);
   } else {
-    val->SetIdent(eCSSKeyword_normal);
+    val->SetIdent(nsGkAtoms::normal);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2184,11 +2168,12 @@ nsComputedDOMStyle::GetWindowShadow(nsIDOMCSSValue** aValue)
   const nsStyleUIReset *uiData = GetStyleUIReset();
 
   if (uiData->mWindowShadow != NS_STYLE_WINDOW_SHADOW_NONE) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(uiData->mWindowShadow,
-                                     nsCSSProps::kWindowShadowKTable));
+    const nsAFlatCString& windowShadow =
+      nsCSSProps::ValueToKeyword(uiData->mWindowShadow,
+                                 nsCSSProps::kWindowShadowKTable);
+    val->SetIdent(windowShadow);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2204,11 +2189,12 @@ nsComputedDOMStyle::GetWordWrap(nsIDOMCSSValue** aValue)
   const nsStyleText *text = GetStyleText();
 
   if (text->mWordWrap != NS_STYLE_WORDWRAP_NORMAL) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(text->mWordWrap,
-                                     nsCSSProps::kWordwrapKTable));
+    const nsAFlatCString& wordWrap =
+      nsCSSProps::ValueToKeyword(text->mWordWrap,
+                                 nsCSSProps::kWordwrapKTable);
+    val->SetIdent(wordWrap);
   } else {
-    val->SetIdent(eCSSKeyword_normal);
+    val->SetIdent(nsGkAtoms::normal);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2220,8 +2206,10 @@ nsComputedDOMStyle::GetVisibility(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleVisibility()->mVisible,
-                                               nsCSSProps::kVisibilityKTable));
+  const nsAFlatCString& value=
+    nsCSSProps::ValueToKeyword(GetStyleVisibility()->mVisible,
+                               nsCSSProps::kVisibilityKTable);
+  val->SetIdent(value);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2232,9 +2220,10 @@ nsComputedDOMStyle::GetDirection(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleVisibility()->mDirection,
-                                   nsCSSProps::kDirectionKTable));
+  const nsAFlatCString & direction =
+    nsCSSProps::ValueToKeyword(GetStyleVisibility()->mDirection,
+                               nsCSSProps::kDirectionKTable);
+  val->SetIdent(direction);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2248,11 +2237,12 @@ nsComputedDOMStyle::GetUnicodeBidi(nsIDOMCSSValue** aValue)
   const nsStyleTextReset *text = GetStyleTextReset();
 
   if (text->mUnicodeBidi != NS_STYLE_UNICODE_BIDI_NORMAL) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(text->mUnicodeBidi,
-                                     nsCSSProps::kUnicodeBidiKTable));
+    const nsAFlatCString& bidi =
+      nsCSSProps::ValueToKeyword(text->mUnicodeBidi,
+                                 nsCSSProps::kUnicodeBidiKTable);
+    val->SetIdent(bidi);
   } else {
-    val->SetIdent(eCSSKeyword_normal);
+    val->SetIdent(nsGkAtoms::normal);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2313,11 +2303,12 @@ nsComputedDOMStyle::GetCursor(nsIDOMCSSValue** aValue)
   }
 
   if (ui->mCursor == NS_STYLE_CURSOR_AUTO) {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   } else {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(ui->mCursor,
-                                     nsCSSProps::kCursorKTable));
+    const nsAFlatCString& cursor =
+      nsCSSProps::ValueToKeyword(ui->mCursor,
+                                 nsCSSProps::kCursorKTable);
+    val->SetIdent(cursor);
   }
   if (!valueList->AppendCSSValue(val)) {
     delete valueList;
@@ -2334,8 +2325,10 @@ nsComputedDOMStyle::GetAppearance(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mAppearance,
-                                               nsCSSProps::kAppearanceKTable));
+  const nsAFlatCString& appearanceIdent =
+    nsCSSProps::ValueToKeyword(GetStyleDisplay()->mAppearance,
+                               nsCSSProps::kAppearanceKTable);
+  val->SetIdent(appearanceIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2347,8 +2340,10 @@ nsComputedDOMStyle::GetBoxAlign(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxAlign,
-                                               nsCSSProps::kBoxAlignKTable));
+  const nsAFlatCString& boxAlignIdent =
+    nsCSSProps::ValueToKeyword(GetStyleXUL()->mBoxAlign,
+                               nsCSSProps::kBoxAlignKTable);
+  val->SetIdent(boxAlignIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2359,9 +2354,10 @@ nsComputedDOMStyle::GetBoxDirection(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxDirection,
-                                   nsCSSProps::kBoxDirectionKTable));
+  const nsAFlatCString& boxDirectionIdent =
+    nsCSSProps::ValueToKeyword(GetStyleXUL()->mBoxDirection,
+                               nsCSSProps::kBoxDirectionKTable);
+  val->SetIdent(boxDirectionIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2394,9 +2390,10 @@ nsComputedDOMStyle::GetBoxOrient(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxOrient,
-                                   nsCSSProps::kBoxOrientKTable));
+  const nsAFlatCString& boxOrientIdent =
+    nsCSSProps::ValueToKeyword(GetStyleXUL()->mBoxOrient,
+                               nsCSSProps::kBoxOrientKTable);
+  val->SetIdent(boxOrientIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2407,8 +2404,10 @@ nsComputedDOMStyle::GetBoxPack(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleXUL()->mBoxPack,
-                                               nsCSSProps::kBoxPackKTable));
+  const nsAFlatCString& boxPackIdent =
+    nsCSSProps::ValueToKeyword(GetStyleXUL()->mBoxPack,
+                               nsCSSProps::kBoxPackKTable);
+  val->SetIdent(boxPackIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2419,9 +2418,10 @@ nsComputedDOMStyle::GetBoxSizing(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStylePosition()->mBoxSizing,
-                                   nsCSSProps::kBoxSizingKTable));
+  const nsAFlatCString& boxSizingIdent =
+    nsCSSProps::ValueToKeyword(GetStylePosition()->mBoxSizing,
+                               nsCSSProps::kBoxSizingKTable);
+  val->SetIdent(boxSizingIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2435,7 +2435,7 @@ nsComputedDOMStyle::GetBorderImage(nsIDOMCSSValue** aValue)
   if (!border->GetBorderImage()) {
     nsROCSSPrimitiveValue *valNone = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(valNone, NS_ERROR_OUT_OF_MEMORY);
-    valNone->SetIdent(eCSSKeyword_none);
+    valNone->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(valNone, aValue);
   }
   
@@ -2493,9 +2493,10 @@ nsComputedDOMStyle::GetBorderImage(nsIDOMCSSValue** aValue)
     delete valueList;
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  keyword->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mBorderImageHFill,
-                                   nsCSSProps::kBorderImageKTable));
+  const nsAFlatCString& borderImageIdent =
+            nsCSSProps::ValueToKeyword(GetStyleBorder()->mBorderImageHFill,
+                                       nsCSSProps::kBorderImageKTable);
+  keyword->SetIdent(borderImageIdent);
   
   // second keyword
   nsROCSSPrimitiveValue *keyword2 = GetROCSSPrimitiveValue();
@@ -2504,9 +2505,10 @@ nsComputedDOMStyle::GetBorderImage(nsIDOMCSSValue** aValue)
     delete valueList;
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  keyword2->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mBorderImageVFill,
-                                   nsCSSProps::kBorderImageKTable));
+  const nsAFlatCString& borderImageIdent2 =
+            nsCSSProps::ValueToKeyword(GetStyleBorder()->mBorderImageVFill,
+                                       nsCSSProps::kBorderImageKTable);
+  keyword2->SetIdent(borderImageIdent2);
   
   return CallQueryInterface(valueList, aValue);
 }
@@ -2517,9 +2519,10 @@ nsComputedDOMStyle::GetFloatEdge(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleBorder()->mFloatEdge,
-                                   nsCSSProps::kFloatEdgeKTable));
+  const nsAFlatCString& floatEdgeIdent =
+    nsCSSProps::ValueToKeyword(GetStyleBorder()->mFloatEdge,
+                               nsCSSProps::kFloatEdgeKTable);
+  val->SetIdent(floatEdgeIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2552,7 +2555,7 @@ nsComputedDOMStyle::GetIMEMode(nsIDOMCSSValue** aValue)
     keyword = nsCSSProps::ValueToKeywordEnum(uiData->mIMEMode,
                 nsCSSProps::kIMEModeKTable);
   }
-  val->SetIdent(keyword);
+  val->SetIdent(nsCSSKeywords::GetStringValue(keyword));
 
   return CallQueryInterface(val, aValue);
 }
@@ -2567,14 +2570,19 @@ nsComputedDOMStyle::GetUserFocus(nsIDOMCSSValue** aValue)
 
   if (uiData->mUserFocus != NS_STYLE_USER_FOCUS_NONE) {
     if (uiData->mUserFocus == NS_STYLE_USER_FOCUS_NORMAL) {
-      val->SetIdent(eCSSKeyword_normal);
+      const nsAFlatCString& userFocusIdent =
+              nsCSSKeywords::GetStringValue(eCSSKeyword_normal);
+      val->SetIdent(userFocusIdent);
     } else {
-      val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(uiData->mUserFocus,
-                                       nsCSSProps::kUserFocusKTable));
+      const nsAFlatCString& userFocusIdent =
+        nsCSSProps::ValueToKeyword(uiData->mUserFocus,
+                                   nsCSSProps::kUserFocusKTable);
+      val->SetIdent(userFocusIdent);
     }
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    const nsAFlatCString& userFocusIdent =
+            nsCSSKeywords::GetStringValue(eCSSKeyword_none);
+    val->SetIdent(userFocusIdent);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2590,14 +2598,19 @@ nsComputedDOMStyle::GetUserInput(nsIDOMCSSValue** aValue)
 
   if (uiData->mUserInput != NS_STYLE_USER_INPUT_AUTO) {
     if (uiData->mUserInput == NS_STYLE_USER_INPUT_NONE) {
-      val->SetIdent(eCSSKeyword_none);
+      const nsAFlatCString& userInputIdent =
+        nsCSSKeywords::GetStringValue(eCSSKeyword_none);
+      val->SetIdent(userInputIdent);
     } else {
-      val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(uiData->mUserInput,
-                                       nsCSSProps::kUserInputKTable));
+      const nsAFlatCString& userInputIdent =
+        nsCSSProps::ValueToKeyword(uiData->mUserInput,
+                                   nsCSSProps::kUserInputKTable);
+      val->SetIdent(userInputIdent);
     }
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    const nsAFlatCString& userInputIdent =
+            nsCSSKeywords::GetStringValue(eCSSKeyword_auto);
+    val->SetIdent(userInputIdent);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2609,9 +2622,10 @@ nsComputedDOMStyle::GetUserModify(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleUserInterface()->mUserModify,
-                                   nsCSSProps::kUserModifyKTable));
+  const nsAFlatCString& userModifyIdent =
+    nsCSSProps::ValueToKeyword(GetStyleUserInterface()->mUserModify,
+                               nsCSSProps::kUserModifyKTable);
+  val->SetIdent(userModifyIdent);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2626,14 +2640,19 @@ nsComputedDOMStyle::GetUserSelect(nsIDOMCSSValue** aValue)
 
   if (uiData->mUserSelect != NS_STYLE_USER_SELECT_AUTO) {
     if (uiData->mUserSelect == NS_STYLE_USER_SELECT_NONE) {
-      val->SetIdent(eCSSKeyword_none);
+      const nsAFlatCString& userSelectIdent =
+        nsCSSKeywords::GetStringValue(eCSSKeyword_none);
+      val->SetIdent(userSelectIdent);
     } else {
-      val->SetIdent(
-        nsCSSProps::ValueToKeywordEnum(uiData->mUserSelect,
-                                       nsCSSProps::kUserSelectKTable));
+      const nsAFlatCString& userSelectIdent =
+        nsCSSProps::ValueToKeyword(uiData->mUserSelect,
+                                   nsCSSProps::kUserSelectKTable);
+      val->SetIdent(userSelectIdent);
     }
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    const nsAFlatCString& userSelectIdent =
+            nsCSSKeywords::GetStringValue(eCSSKeyword_auto);
+    val->SetIdent(userSelectIdent);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2648,10 +2667,12 @@ nsComputedDOMStyle::GetDisplay(nsIDOMCSSValue** aValue)
   const nsStyleDisplay *displayData = GetStyleDisplay();
 
   if (displayData->mDisplay == NS_STYLE_DISPLAY_NONE) {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   } else {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(displayData->mDisplay,
-                                                 nsCSSProps::kDisplayKTable));
+    const nsAFlatCString& display =
+      nsCSSProps::ValueToKeyword(displayData->mDisplay,
+                                 nsCSSProps::kDisplayKTable);
+    val->SetIdent(display);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2663,8 +2684,10 @@ nsComputedDOMStyle::GetPosition(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(GetStyleDisplay()->mPosition,
-                                               nsCSSProps::kPositionKTable));
+  const nsAFlatCString& position =
+    nsCSSProps::ValueToKeyword(GetStyleDisplay()->mPosition,
+                               nsCSSProps::kPositionKTable);
+  val->SetIdent(position);
 
   return CallQueryInterface(val, aValue);
 }
@@ -2683,7 +2706,7 @@ nsComputedDOMStyle::GetClip(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *bottomVal = nsnull;
   nsROCSSPrimitiveValue *leftVal = nsnull;
   if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
     topVal = GetROCSSPrimitiveValue();
@@ -2695,25 +2718,25 @@ nsComputedDOMStyle::GetClip(nsIDOMCSSValue** aValue)
                                                 bottomVal, leftVal);
       if (domRect) {
         if (display->mClipFlags & NS_STYLE_CLIP_TOP_AUTO) {
-          topVal->SetIdent(eCSSKeyword_auto);
+          topVal->SetIdent(nsGkAtoms::_auto);
         } else {
           topVal->SetAppUnits(display->mClip.y);
         }
         
         if (display->mClipFlags & NS_STYLE_CLIP_RIGHT_AUTO) {
-          rightVal->SetIdent(eCSSKeyword_auto);
+          rightVal->SetIdent(nsGkAtoms::_auto);
         } else {
           rightVal->SetAppUnits(display->mClip.width + display->mClip.x);
         }
         
         if (display->mClipFlags & NS_STYLE_CLIP_BOTTOM_AUTO) {
-          bottomVal->SetIdent(eCSSKeyword_auto);
+          bottomVal->SetIdent(nsGkAtoms::_auto);
         } else {
           bottomVal->SetAppUnits(display->mClip.height + display->mClip.y);
         }
         
         if (display->mClipFlags & NS_STYLE_CLIP_LEFT_AUTO) {
-          leftVal->SetIdent(eCSSKeyword_auto);
+          leftVal->SetIdent(nsGkAtoms::_auto);
         } else {
           leftVal->SetAppUnits(display->mClip.x);
         }
@@ -2756,10 +2779,12 @@ nsComputedDOMStyle::GetOverflow(nsIDOMCSSValue** aValue)
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   if (display->mOverflowX != NS_STYLE_OVERFLOW_AUTO) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(display->mOverflowX,
-                                                 nsCSSProps::kOverflowKTable));
+    const nsAFlatCString& overflow =
+      nsCSSProps::ValueToKeyword(display->mOverflowX,
+                                 nsCSSProps::kOverflowKTable);
+    val->SetIdent(overflow);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2774,10 +2799,12 @@ nsComputedDOMStyle::GetOverflowX(nsIDOMCSSValue** aValue)
   const nsStyleDisplay* display = GetStyleDisplay();
 
   if (display->mOverflowX != NS_STYLE_OVERFLOW_AUTO) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                    display->mOverflowX, nsCSSProps::kOverflowSubKTable));
+    const nsAFlatCString& overflow =
+      nsCSSProps::ValueToKeyword(display->mOverflowX,
+                                 nsCSSProps::kOverflowSubKTable);
+    val->SetIdent(overflow);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2792,10 +2819,12 @@ nsComputedDOMStyle::GetOverflowY(nsIDOMCSSValue** aValue)
   const nsStyleDisplay* display = GetStyleDisplay();
 
   if (display->mOverflowY != NS_STYLE_OVERFLOW_AUTO) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                    display->mOverflowY, nsCSSProps::kOverflowSubKTable));
+    const nsAFlatCString& overflow =
+      nsCSSProps::ValueToKeyword(display->mOverflowY,
+                                 nsCSSProps::kOverflowSubKTable);
+    val->SetIdent(overflow);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2810,9 +2839,9 @@ nsComputedDOMStyle::GetPageBreakAfter(nsIDOMCSSValue** aValue)
   const nsStyleDisplay *display = GetStyleDisplay();
 
   if (display->mBreakAfter) {
-    val->SetIdent(eCSSKeyword_always);
+    val->SetIdent(nsGkAtoms::always);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -2827,9 +2856,9 @@ nsComputedDOMStyle::GetPageBreakBefore(nsIDOMCSSValue** aValue)
   const nsStyleDisplay *display = GetStyleDisplay();
 
   if (display->mBreakBefore) {
-    val->SetIdent(eCSSKeyword_always);
+    val->SetIdent(nsGkAtoms::always);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3228,7 +3257,7 @@ nsComputedDOMStyle::GetBorderColorsFor(PRUint8 aSide, nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(eCSSKeyword_none);
+  val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3299,10 +3328,12 @@ nsComputedDOMStyle::GetBorderStyleFor(PRUint8 aSide, nsIDOMCSSValue** aValue)
   PRUint8 borderStyle = GetStyleBorder()->GetBorderStyle(aSide);
 
   if (borderStyle != NS_STYLE_BORDER_STYLE_NONE) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                    borderStyle, nsCSSProps::kBorderStyleKTable));
+    const nsAFlatCString& style=
+      nsCSSProps::ValueToKeyword(borderStyle,
+                                 nsCSSProps::kBorderStyleKTable);
+    val->SetIdent(style);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3320,11 +3351,11 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
   
   switch (aCoord.GetUnit()) {
     case eStyleUnit_Normal:
-      aValue->SetIdent(eCSSKeyword_normal);
+      aValue->SetIdent(nsGkAtoms::normal);
       break;
       
     case eStyleUnit_Auto:
-      aValue->SetIdent(eCSSKeyword_auto);
+      aValue->SetIdent(nsGkAtoms::_auto);
       break;
       
     case eStyleUnit_Percent:
@@ -3357,12 +3388,12 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
       
     case eStyleUnit_Enumerated:
       NS_ASSERTION(aTable, "Must have table to handle this case");
-      aValue->SetIdent(nsCSSProps::ValueToKeywordEnum(aCoord.GetIntValue(),
-                                                      aTable));
+      aValue->SetIdent(nsCSSProps::ValueToKeyword(aCoord.GetIntValue(),
+                                                  aTable));
       break;
       
     case eStyleUnit_None:
-      aValue->SetIdent(eCSSKeyword_none);
+      aValue->SetIdent(nsGkAtoms::none);
       break;
       
     default:
@@ -3502,7 +3533,7 @@ nsComputedDOMStyle::GetSVGPaintFor(PRBool aFill,
   switch (paint->mType) {
   case eStyleSVGPaintType_None:
   {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     break;
   }
   case eStyleSVGPaintType_Color:
@@ -3569,7 +3600,7 @@ nsComputedDOMStyle::GetMarkerEnd(nsIDOMCSSValue** aValue)
   if (svg->mMarkerEnd)
     val->SetURI(svg->mMarkerEnd);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3585,7 +3616,7 @@ nsComputedDOMStyle::GetMarkerMid(nsIDOMCSSValue** aValue)
   if (svg->mMarkerMid)
     val->SetURI(svg->mMarkerMid);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3601,7 +3632,7 @@ nsComputedDOMStyle::GetMarkerStart(nsIDOMCSSValue** aValue)
   if (svg->mMarkerStart)
     val->SetURI(svg->mMarkerStart);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3614,7 +3645,7 @@ nsComputedDOMStyle::GetStrokeDasharray(nsIDOMCSSValue** aValue)
   if (!svg->mStrokeDasharrayLength || !svg->mStrokeDasharray) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
     NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
     return CallQueryInterface(val, aValue);
   }
 
@@ -3718,8 +3749,10 @@ nsComputedDOMStyle::GetClipRule(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                  GetStyleSVG()->mClipRule, nsCSSProps::kFillRuleKTable));
+  const nsAFlatCString& keyword =
+    nsCSSProps::ValueToKeyword(GetStyleSVG()->mClipRule,
+                               nsCSSProps::kFillRuleKTable);
+  val->SetIdent(keyword);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3730,8 +3763,10 @@ nsComputedDOMStyle::GetFillRule(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                  GetStyleSVG()->mFillRule, nsCSSProps::kFillRuleKTable));
+  const nsAFlatCString& keyword =
+    nsCSSProps::ValueToKeyword(GetStyleSVG()->mFillRule,
+                               nsCSSProps::kFillRuleKTable);
+  val->SetIdent(keyword);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3742,9 +3777,10 @@ nsComputedDOMStyle::GetStrokeLinecap(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mStrokeLinecap,
-                                   nsCSSProps::kStrokeLinecapKTable));
+  const nsAFlatCString& keyword =
+    nsCSSProps::ValueToKeyword(GetStyleSVG()->mStrokeLinecap,
+                               nsCSSProps::kStrokeLinecapKTable);
+  val->SetIdent(keyword);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3755,9 +3791,10 @@ nsComputedDOMStyle::GetStrokeLinejoin(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mStrokeLinejoin,
-                                   nsCSSProps::kStrokeLinejoinKTable));
+  const nsAFlatCString& keyword =
+    nsCSSProps::ValueToKeyword(GetStyleSVG()->mStrokeLinejoin,
+                               nsCSSProps::kStrokeLinejoinKTable);
+  val->SetIdent(keyword);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3768,9 +3805,10 @@ nsComputedDOMStyle::GetTextAnchor(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-  val->SetIdent(
-    nsCSSProps::ValueToKeywordEnum(GetStyleSVG()->mTextAnchor,
-                                   nsCSSProps::kTextAnchorKTable));
+  const nsAFlatCString& keyword =
+    nsCSSProps::ValueToKeyword(GetStyleSVG()->mTextAnchor,
+                               nsCSSProps::kTextAnchorKTable);
+  val->SetIdent(keyword);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3784,11 +3822,12 @@ nsComputedDOMStyle::GetColorInterpolation(nsIDOMCSSValue** aValue)
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (svg->mColorInterpolation != NS_STYLE_COLOR_INTERPOLATION_AUTO) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(svg->mColorInterpolation,
-                                     nsCSSProps::kColorInterpolationKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mColorInterpolation,
+                                 nsCSSProps::kColorInterpolationKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3803,11 +3842,12 @@ nsComputedDOMStyle::GetColorInterpolationFilters(nsIDOMCSSValue** aValue)
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (svg->mColorInterpolationFilters != NS_STYLE_COLOR_INTERPOLATION_AUTO) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(svg->mColorInterpolationFilters,
-                                     nsCSSProps::kColorInterpolationKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mColorInterpolationFilters,
+                                 nsCSSProps::kColorInterpolationKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3822,11 +3862,12 @@ nsComputedDOMStyle::GetDominantBaseline(nsIDOMCSSValue** aValue)
   const nsStyleSVGReset* svg = GetStyleSVGReset();
 
   if (svg->mDominantBaseline != NS_STYLE_DOMINANT_BASELINE_AUTO) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(svg->mDominantBaseline,
-                                     nsCSSProps::kDominantBaselineKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mDominantBaseline,
+                                 nsCSSProps::kDominantBaselineKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3841,11 +3882,12 @@ nsComputedDOMStyle::GetPointerEvents(nsIDOMCSSValue** aValue)
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (svg->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
-    val->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(svg->mPointerEvents,
-                                     nsCSSProps::kPointerEventsKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mPointerEvents,
+                                 nsCSSProps::kPointerEventsKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3860,10 +3902,12 @@ nsComputedDOMStyle::GetShapeRendering(nsIDOMCSSValue** aValue)
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (svg->mShapeRendering != NS_STYLE_SHAPE_RENDERING_AUTO) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                    svg->mShapeRendering, nsCSSProps::kShapeRenderingKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mShapeRendering,
+                                 nsCSSProps::kShapeRenderingKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3878,10 +3922,12 @@ nsComputedDOMStyle::GetTextRendering(nsIDOMCSSValue** aValue)
   const nsStyleSVG* svg = GetStyleSVG();
 
   if (svg->mTextRendering != NS_STYLE_TEXT_RENDERING_AUTO) {
-    val->SetIdent(nsCSSProps::ValueToKeywordEnum(
-                    svg->mTextRendering, nsCSSProps::kTextRenderingKTable));
+    const nsAFlatCString& keyword =
+      nsCSSProps::ValueToKeyword(svg->mTextRendering,
+                                 nsCSSProps::kTextRenderingKTable);
+    val->SetIdent(keyword);
   } else {
-    val->SetIdent(eCSSKeyword_auto);
+    val->SetIdent(nsGkAtoms::_auto);
   }
 
   return CallQueryInterface(val, aValue);
@@ -3943,7 +3989,7 @@ nsComputedDOMStyle::GetClipPath(nsIDOMCSSValue** aValue)
   if (svg->mClipPath)
     val->SetURI(svg->mClipPath);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3959,7 +4005,7 @@ nsComputedDOMStyle::GetFilter(nsIDOMCSSValue** aValue)
   if (svg->mFilter)
     val->SetURI(svg->mFilter);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -3975,7 +4021,7 @@ nsComputedDOMStyle::GetMask(nsIDOMCSSValue** aValue)
   if (svg->mMask)
     val->SetURI(svg->mMask);
   else
-    val->SetIdent(eCSSKeyword_none);
+    val->SetIdent(nsGkAtoms::none);
 
   return CallQueryInterface(val, aValue);
 }
@@ -4057,7 +4103,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(font_family,                   FontFamily),
     COMPUTED_STYLE_MAP_ENTRY(font_size,                     FontSize),
     COMPUTED_STYLE_MAP_ENTRY(font_size_adjust,              FontSizeAdjust),
-    COMPUTED_STYLE_MAP_ENTRY(font_stretch,                  FontStretch),
+    // COMPUTED_STYLE_MAP_ENTRY(font_stretch,               FontStretch),
     COMPUTED_STYLE_MAP_ENTRY(font_style,                    FontStyle),
     COMPUTED_STYLE_MAP_ENTRY(font_variant,                  FontVariant),
     COMPUTED_STYLE_MAP_ENTRY(font_weight,                   FontWeight),

@@ -140,7 +140,7 @@ namespace nanojit
 	};
 
     inline bool isGuard(LOpcode op) {
-        return op == LIR_x || op == LIR_xf || op == LIR_xt || op == LIR_loop || op == LIR_xbarrier;
+        return op==LIR_x || op==LIR_xf || op==LIR_xt || op==LIR_loop;
     }
 
     inline bool isCall(LOpcode op) {
@@ -165,9 +165,9 @@ namespace nanojit
 
 	// Sun Studio requires explicitly declaring signed int bit-field
 	#if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-	#define _sign_int signed int
+	#define _sign_ signed 
 	#else
-	#define _sign_int int32_t
+	#define _sign_
 	#endif
 
 	// Low-level Instruction 4B
@@ -187,7 +187,7 @@ namespace nanojit
         struct sti_type
         {
 			LOpcode			code:8;
-			_sign_int		disp:8;
+			_sign_ int32_t	disp:8;
 			uint32_t		oprnd_1:8;  // 256 ins window and since they only point backwards this is sufficient.
 			uint32_t		oprnd_2:8;  
         };
@@ -205,7 +205,7 @@ namespace nanojit
         struct t_type
         {
             LOpcode         code:8;
-            _sign_int       imm24:24;
+            _sign_ int32_t  imm24:24;
         };
 
 		// imm16 form
@@ -213,7 +213,7 @@ namespace nanojit
 		{
 			LOpcode			code:8;
 			uint32_t		resv:8;  // cobberred during assembly
-			_sign_int		imm16:16;
+			_sign_ int32_t  imm16:16;
 		};
 
 		// overlay used during code generation ( note that last byte is reserved for allocation )
@@ -490,7 +490,6 @@ namespace nanojit
 		const char *dup(const char *);
 		const char *format(const void *p);
 		void promoteAll(const void *newbase);
-		void clear();
     };
 
 	class LirNameMap MMGC_SUBCLASS_DECL

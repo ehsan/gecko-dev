@@ -67,7 +67,7 @@
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsITimer.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
@@ -2747,7 +2747,7 @@ protected:
   };
 
   nsCOMPtr<nsITimer> mTimer;
-  nsTArray<FrameData*> mFrames;
+  nsVoidArray     mFrames;
   nsPresContext* mPresContext;
 
 protected:
@@ -2796,31 +2796,32 @@ NS_IMPL_ISUPPORTS1(nsBlinkTimer, nsITimerCallback)
 void nsBlinkTimer::AddFrame(nsPresContext* aPresContext, nsIFrame* aFrame) {
   FrameData* frameData = new FrameData(aPresContext, aFrame);
   mFrames.AppendElement(frameData);
-  if (1 == mFrames.Length()) {
+  if (1 == mFrames.Count()) {
     Start();
   }
 }
 
 PRBool nsBlinkTimer::RemoveFrame(nsIFrame* aFrame) {
-  PRUint32 i, n = mFrames.Length();
+  PRInt32 i, n = mFrames.Count();
+  PRBool rv = PR_FALSE;
   for (i = 0; i < n; i++) {
-    FrameData* frameData = mFrames.ElementAt(i);
+    FrameData* frameData = (FrameData*) mFrames.ElementAt(i);
 
     if (frameData->mFrame == aFrame) {
-      mFrames.RemoveElementAt(i);
+      rv = mFrames.RemoveElementAt(i);
       delete frameData;
       break;
     }
   }
   
-  if (0 == mFrames.Length()) {
+  if (0 == mFrames.Count()) {
     Stop();
   }
-  return PR_TRUE;
+  return rv;
 }
 
 PRInt32 nsBlinkTimer::FrameCount() {
-  return PRInt32(mFrames.Length());
+  return mFrames.Count();
 }
 
 NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
@@ -2843,9 +2844,9 @@ NS_IMETHODIMP nsBlinkTimer::Notify(nsITimer *timer)
   printf("%s\n", buf);
 #endif
 
-  PRUint32 i, n = mFrames.Length();
+  PRInt32 i, n = mFrames.Count();
   for (i = 0; i < n; i++) {
-    FrameData* frameData = mFrames.ElementAt(i);
+    FrameData* frameData = (FrameData*) mFrames.ElementAt(i);
 
     // Determine damaged area and tell view manager to redraw it
     // blink doesn't blink outline ... I hope

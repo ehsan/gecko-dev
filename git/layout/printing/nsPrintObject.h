@@ -79,7 +79,7 @@ public:
   nsIContent*      mContent;
   PrintObjectType  mFrameType;
   
-  nsTArray<nsPrintObject*> mKids;
+  nsVoidArray      mKids;
   nsPrintObject*   mParent;
   PRPackedBool     mHasBeenPrinted;
   PRPackedBool     mDontPrint;

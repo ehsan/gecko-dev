@@ -388,18 +388,9 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 500;"/>
       <property name="searchButton"
-                onget="return this.getAttribute('searchbutton') == 'true';">
-        <setter><![CDATA[
-          if (val) {
-            this.setAttribute("searchbutton", "true");
-            this.removeAttribute("aria-autocomplete");
-          } else {
-            this.removeAttribute("searchbutton");
-            this.setAttribute("aria-autocomplete", "list");
-          }
-          return val;
-        ]]></setter>
-      </property>
+                onget="return this.hasAttribute('searchbutton');"
+                onset="if (val) this.setAttribute('searchbutton', 'true');
+                       else this.removeAttribute('searchbutton'); return val;"/>
       <property name="value"
                 onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
         <setter><![CDATA[
@@ -419,12 +410,6 @@
           return val;
         ]]></setter>
       </property>
-      <constructor><![CDATA[
-        if (this.searchButton)
-          this.removeAttribute("aria-autocomplete");
-        else
-          this.setAttribute("aria-autocomplete", "list");
-      ]]></constructor>
       <method name="_fireCommand">
         <parameter name="me"/>
         <body><![CDATA[

@@ -54,6 +54,7 @@ bin/run-mozilla.sh
 bin/plugins/libnullplugin.so
 bin/libsqlite3.so
 bin/README.txt
+bin/libjemalloc.so
 bin/blocklist.xml
 
 ; [Components]
@@ -148,7 +149,7 @@ bin/components/necko_socket.xpt
 bin/components/necko_strconv.xpt
 bin/components/necko_viewsource.xpt
 bin/components/necko.xpt
-#ifdef OJI
+#ifdef MOZ_OJI
 bin/components/oji.xpt
 #endif
 bin/components/loginmgr.xpt

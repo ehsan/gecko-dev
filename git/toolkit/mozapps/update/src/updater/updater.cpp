@@ -1069,8 +1069,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
 
   WCHAR exefile[MAXPATHLEN];
   WCHAR exearg[MAXPATHLEN];
-  WCHAR exeasync[10];
-  PRBool async = PR_TRUE;
 
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeRelPath", NULL, exefile,
                                 MAXPATHLEN, inifile))
@@ -1078,10 +1076,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
 
   if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeArg", NULL, exearg,
                                 MAXPATHLEN, inifile))
-    return;
-
-  if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeAsync", L"TRUE", exeasync,
-                                sizeof(exeasync)/sizeof(exeasync[0]), inifile))
     return;
 
   WCHAR exefullpath[MAXPATHLEN];
@@ -1110,9 +1104,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
   wcscpy(cmdline, dummyArg);
   wcscat(cmdline, exearg);
 
-  if (!_wcsnicmp(exeasync, L"false", 6) || !_wcsnicmp(exeasync, L"0", 2))
-    async = PR_FALSE;
-
   // We want to launch the post update helper app to update the Windows
   // registry even if there is a failure with removing the uninstall.update
   // file or copying the update.log file.
@@ -1135,9 +1126,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
   free(cmdline);
 
   if (ok) {
-    if (!async)
-      WaitForSingleObject(pi.hProcess, INFINITE);
-
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
   }

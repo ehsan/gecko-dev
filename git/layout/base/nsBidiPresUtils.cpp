@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Uri Bernstein <uriber@gmail.com>
  *   Haamed Gheibi <gheibi@metanetworking.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -257,7 +256,7 @@ AdvanceLineIteratorToFrame(nsIFrame* aFrame,
  * Overview of the implementation of Resolve():
  *
  *  Walk through the descendants of aBlockFrame and build:
- *   * mLogicalFrames: an nsTArray of nsIFrame* pointers in logical order
+ *   * mLogicalArray: an nsVoidArray of nsIFrame* pointers in logical order
  *   * mBuffer: an nsAutoString containing a representation of
  *     the content of the frames.
  *     In the case of text frames, this is the actual text context of the
@@ -274,7 +273,7 @@ AdvanceLineIteratorToFrame(nsIFrame* aFrame,
  *  nsBidi::CountRuns().
  *
  *  Finally, walk these runs in logical order using nsBidi::GetLogicalRun() and
- *  correlate them with the frames indexed in mLogicalFrames, setting the
+ *  correlate them with the frames indexed in mLogicalArray, setting the
  *  baseLevel, embeddingLevel, and charType properties according to the results
  *  returned by the Bidi engine and CalculateCharType().
  *
@@ -361,7 +360,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
   PRInt32                  fragmentLength = 0;
   PRInt32                  temp;
   PRInt32                  frameIndex     = -1;
-  PRInt32                  frameCount     = mLogicalFrames.Length();
+  PRInt32                  frameCount     = mLogicalFrames.Count();
   PRInt32                  contentOffset  = 0;   // offset within current frame
   PRInt32                  lineOffset     = 0;   // offset within mBuffer
   PRInt32                  logicalLimit   = 0;
@@ -392,7 +391,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
       }
       contentOffset = 0;
       
-      frame = mLogicalFrames[frameIndex];
+      frame = (nsIFrame*) (mLogicalFrames[frameIndex]);
       frameType = frame->GetType();
       lineNeedsUpdate = PR_TRUE;
       if (nsGkAtoms::textFrame == frameType) {
@@ -516,7 +515,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
   return mSuccess;
 }
 
-// Should this frame be treated as a leaf (e.g. when building mLogicalFrames)?
+// Should this frame be treated as a leaf (e.g. when building mLogicalArray)?
 PRBool IsBidiLeaf(nsIFrame* aFrame) {
   nsIFrame* kid = aFrame->GetFirstChild(nsnull);
   return !kid
@@ -594,7 +593,7 @@ nsBidiPresUtils::InitLogicalArray(nsIFrame*       aCurrentFrame)
        */
       nsIContent* content = frame->GetContent();
       if (content) {
-        mContentToFrameIndex.Put(content, mLogicalFrames.Length());
+        mContentToFrameIndex.Put(content, mLogicalFrames.Count());
       }
       mLogicalFrames.AppendElement(frame);
     }
@@ -623,10 +622,10 @@ nsBidiPresUtils::CreateBlockBuffer()
   nsIFrame*                 frame;
   nsIContent*               prevContent = nsnull;
   PRUint32                  i;
-  PRUint32                  count = mLogicalFrames.Length();
+  PRUint32                  count = mLogicalFrames.Count();
 
   for (i = 0; i < count; i++) {
-    frame = mLogicalFrames[i];
+    frame = (nsIFrame*) (mLogicalFrames[i]);
     nsIAtom* frameType = frame->GetType();
 
     if (nsGkAtoms::textFrame == frameType) {
@@ -686,7 +685,7 @@ nsBidiPresUtils::Reorder(PRBool& aReordered, PRBool& aHasRTLFrames)
 {
   aReordered = PR_FALSE;
   aHasRTLFrames = PR_FALSE;
-  PRInt32 count = mLogicalFrames.Length();
+  PRInt32 count = mLogicalFrames.Count();
 
   if (mArraySize < count) {
     mArraySize = count << 1;
@@ -711,7 +710,7 @@ nsBidiPresUtils::Reorder(PRBool& aReordered, PRBool& aHasRTLFrames)
   PRInt32   i;
 
   for (i = 0; i < count; i++) {
-    frame = mLogicalFrames[i];
+    frame = (nsIFrame*) (mLogicalFrames[i]);
     mLevels[i] = GetFrameEmbeddingLevel(frame);
     if (mLevels[i] & 1) {
       aHasRTLFrames = PR_TRUE;
@@ -885,15 +884,15 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*              aFrame,
     // If aIsOddLevel is true, so we need to traverse the child list
     // in reverse order, to make it O(n) we store the list locally and
     // iterate the list reversely
-    nsTArray<nsIFrame*> childList;
+    nsVoidArray childList;
     nsIFrame *frame = aFrame->GetFirstChild(nsnull);
     if (frame && aIsOddLevel) {
-      childList.AppendElement((nsIFrame*)nsnull);
+      childList.AppendElement(nsnull);
       while (frame) {
         childList.AppendElement(frame);
         frame = frame->GetNextSibling();
       }
-      frame = childList[childList.Length() - 1];
+      frame = (nsIFrame*)childList[childList.Count() - 1];
     }
 
     // Reposition the child frames
@@ -905,7 +904,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*              aFrame,
                       aContinuationStates);
       index++;
       frame = aIsOddLevel ?
-                childList[childList.Length() - index - 1] :
+                (nsIFrame*)childList[childList.Count() - index - 1] :
                 frame->GetNextSibling();
     }
 
@@ -959,7 +958,7 @@ nsBidiPresUtils::RepositionInlineFrames(nsIFrame* aFirstChild) const
 
   nscoord left = aFirstChild->GetPosition().x - leftSpace;
   nsIFrame* frame;
-  PRInt32 count = mVisualFrames.Length();
+  PRInt32 count = mVisualFrames.Count();
   PRInt32 index;
   nsContinuationStates continuationStates;
 
@@ -968,12 +967,13 @@ nsBidiPresUtils::RepositionInlineFrames(nsIFrame* aFirstChild) const
   // Initialize continuation states to (nsnull, 0) for
   // each frame on the line.
   for (index = 0; index < count; index++) {
-    InitContinuationStates(mVisualFrames[index], &continuationStates);
+    InitContinuationStates((nsIFrame*)mVisualFrames[index],
+                           &continuationStates);
   }
 
   // Reposition frames in visual order
   for (index = 0; index < count; index++) {
-    frame = mVisualFrames[index];
+    frame = (nsIFrame*) (mVisualFrames[index]);
     RepositionFrame(frame,
                     (mLevels[mIndexMap[index]] & 1),
                     left,
@@ -1003,13 +1003,13 @@ nsBidiPresUtils::CheckLineOrder(nsIFrame*  aFirstFrameOnLine,
   PRBool isReordered;
   PRBool hasRTLFrames;
   Reorder(isReordered, hasRTLFrames);
-  PRInt32 count = mLogicalFrames.Length();
+  PRInt32 count = mLogicalFrames.Count();
   
   if (aFirstVisual) {
-    *aFirstVisual = mVisualFrames[0];
+    *aFirstVisual = (nsIFrame*)mVisualFrames[0];
   }
   if (aLastVisual) {
-    *aLastVisual = mVisualFrames[count-1];
+    *aLastVisual = (nsIFrame*)mVisualFrames[count-1];
   }
   
   // If there's an RTL frame, assume the line is reordered
@@ -1026,14 +1026,14 @@ nsBidiPresUtils::GetFrameToRightOf(const nsIFrame*  aFrame,
   PRBool isReordered;
   PRBool hasRTLFrames;
   Reorder(isReordered, hasRTLFrames);
-  PRInt32 count = mVisualFrames.Length();
+  PRInt32 count = mVisualFrames.Count();
 
   if (aFrame == nsnull)
-    return mVisualFrames[0];
+    return (nsIFrame*)mVisualFrames[0];
   
   for (PRInt32 i = 0; i < count - 1; i++) {
-    if (mVisualFrames[i] == aFrame) {
-      return mVisualFrames[i+1];
+    if ((nsIFrame*)mVisualFrames[i] == aFrame) {
+      return (nsIFrame*)mVisualFrames[i+1];
     }
   }
   
@@ -1050,14 +1050,14 @@ nsBidiPresUtils::GetFrameToLeftOf(const nsIFrame*  aFrame,
   PRBool isReordered;
   PRBool hasRTLFrames;
   Reorder(isReordered, hasRTLFrames);
-  PRInt32 count = mVisualFrames.Length();
+  PRInt32 count = mVisualFrames.Count();
   
   if (aFrame == nsnull)
-    return mVisualFrames[count-1];
+    return (nsIFrame*)mVisualFrames[count-1];
   
   for (PRInt32 i = 1; i < count; i++) {
-    if (mVisualFrames[i] == aFrame) {
-      return mVisualFrames[i-1];
+    if ((nsIFrame*)mVisualFrames[i] == aFrame) {
+      return (nsIFrame*)mVisualFrames[i-1];
     }
   }
   
@@ -1083,8 +1083,8 @@ nsBidiPresUtils::EnsureBidiContinuation(nsIFrame*       aFrame,
   nsCharType charType = (nsCharType)NS_PTR_TO_INT32(aFrame->GetProperty(nsGkAtoms::charType));
   
   // Skip fluid continuations
-  while (aFrameIndex + 1 < PRInt32(mLogicalFrames.Length())) {
-    nsIFrame* frame = mLogicalFrames[aFrameIndex + 1];
+  while (aFrameIndex + 1 < mLogicalFrames.Count()) {
+    nsIFrame* frame = (nsIFrame*)mLogicalFrames[aFrameIndex + 1];
     if (frame->GetPrevInFlow() != aFrame) {
       // If we found a non-fluid continuation, use it
       if (frame->GetPrevContinuation() == aFrame) {
@@ -1133,7 +1133,7 @@ nsBidiPresUtils::RemoveBidiContinuation(nsIFrame*       aFrame,
   NS_ASSERTION(NS_SUCCEEDED(rv), "charType attribute missing from aFrame");
   
   for (PRInt32 index = aFirstIndex + 1; index <= aLastIndex; index++) {
-    nsIFrame* frame = mLogicalFrames[index];
+    nsIFrame* frame = (nsIFrame*) mLogicalFrames[index];
     if (nsGkAtoms::directionalFrame == frame->GetType()) {
       frame->Destroy();
       ++aOffset;
@@ -1187,10 +1187,6 @@ nsBidiPresUtils::FormatUnicodeText(nsPresContext*  aPresContext,
       HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_ARABIC);
       break;
 
-    case IBMBIDI_NUMERAL_PERSIAN:
-      HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_PERSIAN);
-      break;
-
     case IBMBIDI_NUMERAL_REGULAR:
 
       switch (aCharType) {
@@ -1207,17 +1203,10 @@ nsBidiPresUtils::FormatUnicodeText(nsPresContext*  aPresContext,
           break;
       }
       break;
-
+      
     case IBMBIDI_NUMERAL_HINDICONTEXT:
       if ( ( (GET_BIDI_OPTION_DIRECTION(bidiOptions)==IBMBIDI_TEXTDIRECTION_RTL) && (IS_ARABIC_DIGIT (aText[0])) ) || (eCharType_ArabicNumber == aCharType) )
         HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_HINDI);
-      else if (eCharType_EuropeanNumber == aCharType)
-        HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_ARABIC);
-      break;
-
-    case IBMBIDI_NUMERAL_PERSIANCONTEXT:
-      if ( ( (GET_BIDI_OPTION_DIRECTION(bidiOptions)==IBMBIDI_TEXTDIRECTION_RTL) && (IS_ARABIC_DIGIT (aText[0])) ) || (eCharType_ArabicNumber == aCharType) )
-        HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_PERSIAN);
       else if (eCharType_EuropeanNumber == aCharType)
         HandleNumbers(aText,aTextLength,IBMBIDI_NUMERAL_ARABIC);
       break;
@@ -1427,7 +1416,7 @@ nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
       
       nsAutoString runVisualText;
       runVisualText.Assign(aText + start, subRunLength);
-      if (PRInt32(runVisualText.Length()) < subRunLength)
+      if (runVisualText.Length() < subRunLength)
         return NS_ERROR_OUT_OF_MEMORY;
       FormatUnicodeText(aPresContext, runVisualText.BeginWriting(), subRunLength,
                         (nsCharType)charType, level & 1);

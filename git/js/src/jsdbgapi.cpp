@@ -674,7 +674,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-JS_REQUIRES_STACK JSBool
+JSBool
 js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval)
 {
@@ -735,13 +735,10 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
         return JS_FALSE;
     }
 
-    if (JSVAL_IS_INT(idval)) {
+    if (JSVAL_IS_INT(idval))
         propid = INT_JSVAL_TO_JSID(idval);
-    } else {
-        if (!js_ValueToStringId(cx, idval, &propid))
-            return JS_FALSE;
-        CHECK_FOR_STRING_INDEX(propid);
-    }
+    else if (!js_ValueToStringId(cx, idval, &propid))
+        return JS_FALSE;
 
     if (!js_LookupProperty(cx, obj, propid, &pobj, &prop))
         return JS_FALSE;
@@ -1242,29 +1239,36 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                           jsval *rval)
 {
     JSObject *scobj;
-    JSScript *script;
+    JSScript *script, *oldscript;
+    JSStackFrame **disp, *displaySave;
     JSBool ok;
 
     scobj = JS_GetFrameScopeChain(cx, fp);
     if (!scobj)
         return JS_FALSE;
 
-    /*
-     * NB: This function breaks the assumption that the compiler can see all
-     * calls and properly compute a static depth. In order to get around this,
-     * we use a static depth that will cause us not to attempt to optimize
-     * variable references made by this frame.
-     */
+    oldscript = fp->script;
     script = js_CompileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
                               TCF_COMPILE_N_GO |
-                              TCF_PUT_STATIC_DEPTH(JS_DISPLAY_SIZE),
+                              TCF_PUT_STATIC_DEPTH(oldscript->staticDepth + 1),
                               chars, length, NULL,
                               filename, lineno);
     if (!script)
         return JS_FALSE;
 
+    /* Ensure that the display is up to date for this particular stack frame. */
+    if (oldscript->staticDepth < JS_DISPLAY_SIZE) {
+        disp = &cx->display[oldscript->staticDepth];
+        displaySave = *disp;
+        *disp = fp;
+    } else {
+        disp = NULL;
+        displaySave = NULL;
+    }
     ok = js_Execute(cx, scobj, script, fp, JSFRAME_DEBUGGER | JSFRAME_EVAL,
                     rval);
+    if (disp)
+        *disp = displaySave;
     js_DestroyScript(cx, script);
     return ok;
 }

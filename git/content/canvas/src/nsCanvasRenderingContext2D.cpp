@@ -1972,7 +1972,6 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
-                       fontStyle->mFont.stretch,
                        NSAppUnitsToFloatPixels(fontSize, aupcp),
                        langGroup,
                        fontStyle->mFont.sizeAdjust,

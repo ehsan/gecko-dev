@@ -157,14 +157,6 @@ namespace avmplus {
         {
             return calloc(1, size);
         }
-        
-        inline void*
-        operator new(size_t size, char* c)
-        {
-          // We use placement-new in LIR buffers sometimes.
-          memset(c, 0, size);
-          return c;
-        }
     
         static void operator delete (void *gcObject)
         {

@@ -46,6 +46,7 @@
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsSVGAnimatedRect.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
@@ -55,6 +56,7 @@
 #include "nsISVGSVGFrame.h" //XXX
 #include "nsSVGNumber.h"
 #include "nsSVGRect.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
 #include "nsISVGChildFrame.h"
@@ -152,12 +154,33 @@ nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser)
 {
 }
 
+nsSVGSVGElement::~nsSVGSVGElement()
+{
+  if (mViewBox) {
+    NS_REMOVE_SVGVALUE_OBSERVER(mViewBox);
+  }
+}
+
+  
 nsresult
 nsSVGSVGElement::Init()
 {
   nsresult rv = nsSVGSVGElementBase::Init();
   NS_ENSURE_SUCCESS(rv,rv);
   
+  // nsIDOMSVGFitToViewBox attributes ------:
+  
+  // DOM property: viewBox , #IMPLIED attrib: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
   // DOM property: currentScale
   {
     rv = NS_NewSVGNumber(getter_AddRefs(mCurrentScale), 1.0f);
@@ -705,7 +728,9 @@ nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_re
 NS_IMETHODIMP
 nsSVGSVGElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
@@ -1171,6 +1196,36 @@ nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
     nsSVGSVGElementBase::IsAttributeMapped(name);
 }
 
+nsresult
+nsSVGSVGElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                              const nsAString* aValue, PRBool aNotify)
+{
+  nsSVGSVGElementBase::AfterSetAttr(aNameSpaceID, aName, aValue, aNotify);
+
+  // We need to do this here because the calling
+  // InvalidateTransformNotifyFrame in DidModifySVGObservable would
+  // happen too early, before HasAttr(viewBox) returns true (important
+  // in the case of adding a viewBox)
+  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::viewBox) {
+    InvalidateTransformNotifyFrame();
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsSVGSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                           PRBool aNotify)
+{
+  nsSVGSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
+
+  if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::viewBox) {
+    InvalidateTransformNotifyFrame();
+  }
+
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 // nsIContent methods:
 
@@ -1236,7 +1291,8 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
     else {
       return NS_OK;  // we don't care about currentScale changes on non-root
     }
-  } else {
+  }
+  else {
     nsCOMPtr<nsIDOMSVGPoint> p = do_QueryInterface(observable);
     if (p && p==mCurrentTranslate) {
       if (mDispatchEvent && IsRoot()) {
@@ -1251,7 +1307,11 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
     }
   }
 
-  InvalidateTransformNotifyFrame();
+  // Deal with viewBox in AfterSetAttr (see comment there for reason)
+  nsCOMPtr<nsIDOMSVGAnimatedRect> r = do_QueryInterface(observable);
+  if (r != mViewBox) {
+    InvalidateTransformNotifyFrame();
+  }
 
   return NS_OK;
 }
@@ -1291,23 +1351,29 @@ nsSVGSVGElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
     viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
   }
 
-  nsSVGViewBoxRect viewbox;
+  float viewboxX, viewboxY, viewboxWidth, viewboxHeight;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
-    viewbox = mViewBox.GetAnimValue();
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    NS_ASSERTION(vb, "could not get viewbox");
+    vb->GetX(&viewboxX);
+    vb->GetY(&viewboxY);
+    vb->GetWidth(&viewboxWidth);
+    vb->GetHeight(&viewboxHeight);
   } else {
-    viewbox.x = viewbox.y = 0.0f;
-    viewbox.width  = viewportWidth;
-    viewbox.height = viewportHeight;
+    viewboxX = viewboxY = 0.0f;
+    viewboxWidth = viewportWidth;
+    viewboxHeight = viewportHeight;
   }
 
-  if (viewbox.width <= 0.0f || viewbox.height <= 0.0f) {
+  if (viewboxWidth <= 0.0f || viewboxHeight <= 0.0f) {
     return NS_ERROR_FAILURE; // invalid - don't paint element
   }
 
   nsCOMPtr<nsIDOMSVGMatrix> xform =
     nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
-                                    viewbox.x, viewbox.y,
-                                    viewbox.width, viewbox.height,
+                                    viewboxX, viewboxY,
+                                    viewboxWidth, viewboxHeight,
                                     mPreserveAspectRatio);
   xform.swap(*_retval);
 
@@ -1456,15 +1522,15 @@ nsSVGSVGElement::InvalidateTransformNotifyFrame()
 //----------------------------------------------------------------------
 // nsSVGSVGElement
 
-float
-nsSVGSVGElement::GetLength(PRUint8 aCtxType)
+already_AddRefed<nsIDOMSVGRect>
+nsSVGSVGElement::GetCtxRect()
 {
-  float h, w;
-
+  float w, h;
+  nsCOMPtr<nsIDOMSVGRect> vb;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
-    w = viewbox.width;
-    h = viewbox.height;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    vb->GetWidth(&w);
+    vb->GetHeight(&h);
   } else {
     nsSVGSVGElement *ctx = GetCtx();
     if (ctx) {
@@ -1476,8 +1542,42 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     }
   }
 
-  w = PR_MAX(w, 0.0f);
-  h = PR_MAX(h, 0.0f);
+  if (!vb || w < 0.0f || h < 0.0f) {
+    NS_NewSVGRect(getter_AddRefs(vb), 0, 0, PR_MAX(w, 0.0f), PR_MAX(h, 0.0f));
+  }
+
+  nsIDOMSVGRect *retval = nsnull;
+  vb.swap(retval);
+  return retval;
+}
+
+float
+nsSVGSVGElement::GetLength(PRUint8 aCtxType)
+{
+  float h, w;
+
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    vb->GetHeight(&h);
+    vb->GetWidth(&w);
+  } else {
+    nsSVGSVGElement *ctx = GetCtx();
+    if (ctx) {
+      w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
+      h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
+    } else {
+      w = mViewportWidth;
+      h = mViewportHeight;
+    }
+  }
+
+  if (w < 0.0f) {
+    w = 0.0f;
+  }
+  if (h < 0.0f) {
+    h = 0.0f;
+  }
 
   switch (aCtxType) {
   case nsSVGUtils::X:
@@ -1530,20 +1630,6 @@ nsSVGSVGElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-void
-nsSVGSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
-{
-  nsSVGSVGElementBase::DidChangeViewBox(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-nsSVGViewBox *
-nsSVGSVGElement::GetViewBox()
-{
-  return &mViewBox;
 }
 
 void

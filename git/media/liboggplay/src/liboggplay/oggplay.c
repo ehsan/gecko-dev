@@ -522,11 +522,9 @@ read_more_data:
       }
 
       /*
-       * ensure all tracks have their final data packet set to end_of_stream.
-       * But skip doing this if we're shutting down --- me->buffer may not
-       * be in a safe state.
+       * ensure all tracks have their final data packet set to end_of_stream
        */
-      if (me->buffer != NULL && !me->shutdown) {
+      if (me->buffer != NULL) {
         oggplay_buffer_set_last_data(me, me->buffer);
       }
 

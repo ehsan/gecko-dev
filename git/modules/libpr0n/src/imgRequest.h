@@ -110,6 +110,10 @@ public:
   // being made...
   PRBool IsReusable(void *aCacheId) { return !mLoading || (aCacheId == mCacheId); }
 
+  // get the current or last network status from our
+  // internal nsIChannel.
+  nsresult GetNetworkStatus();
+
   // Cancel, but also ensure that all work done in Init() is undone. Call this
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
@@ -120,7 +124,6 @@ private:
   friend class imgRequestProxy;
   friend class imgLoader;
   friend class imgCacheValidator;
-  friend class imgCacheExpirationTracker;
 
   inline void SetLoadId(void *aLoadId) {
     mLoadId = aLoadId;
@@ -140,14 +143,6 @@ private:
   inline nsIProperties *Properties() {
     return mProperties;
   }
-
-  // Reset the cache entry after we've dropped our reference to it. Used by the
-  // imgLoader when our cache entry is re-requested after we've dropped our
-  // reference to it.
-  void SetCacheEntry(imgCacheEntry *entry);
-
-  // Returns whether we've got a reference to the cache entry.
-  PRBool HasCacheEntry() const;
 
   // Return true if at least one of our proxies, excluding
   // aProxyToIgnore, has an observer.  aProxyToIgnore may be null.
@@ -189,6 +184,7 @@ private:
   PRPackedBool mLoading;
   PRPackedBool mProcessing;
   PRPackedBool mHadLastPart;
+  PRUint32 mNetworkStatus;
   PRUint32 mImageStatus;
   PRUint32 mState;
   nsCString mContentType;

@@ -17,8 +17,6 @@
 
   <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/common.js" />
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/events.js" />        
 
   <script type="application/javascript">
   <![CDATA[

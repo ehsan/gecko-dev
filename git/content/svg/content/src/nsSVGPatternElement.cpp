@@ -40,6 +40,8 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "nsSVGAnimatedRect.h"
+#include "nsSVGRect.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPatternElement.h"
 #include "nsIFrame.h"
@@ -80,10 +82,10 @@ NS_IMPL_ADDREF_INHERITED(nsSVGPatternElement,nsSVGPatternElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPatternElement,nsSVGPatternElementBase)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGPatternElement)
-  NS_NODE_INTERFACE_TABLE7(nsSVGPatternElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE8(nsSVGPatternElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
                            nsIDOMSVGURIReference, nsIDOMSVGPatternElement,
-                           nsIDOMSVGUnitTypes)
+                           nsIDOMSVGUnitTypes, nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPatternElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPatternElementBase)
 
@@ -93,6 +95,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPatternElementBase)
 nsSVGPatternElement::nsSVGPatternElement(nsINodeInfo* aNodeInfo)
   : nsSVGPatternElementBase(aNodeInfo)
 {
+  AddMutationObserver(this);
 }
 
 nsresult
@@ -115,6 +118,19 @@ nsSVGPatternElement::Init()
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
+  // nsIDOMSVGFitToViewBox properties
+
+  // DOM property: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
   return NS_OK;
 }
 
@@ -129,7 +145,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGPatternElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
 NS_IMETHODIMP nsSVGPatternElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
@@ -236,12 +254,6 @@ nsSVGPatternElement::GetEnumInfo()
                             NS_ARRAY_LENGTH(sEnumInfo));
 }
 
-nsSVGViewBox *
-nsSVGPatternElement::GetViewBox()
-{
-  return &mViewBox;
-}
-
 nsSVGPreserveAspectRatio *
 nsSVGPatternElement::GetPreserveAspectRatio()
 {
@@ -255,3 +267,64 @@ nsSVGPatternElement::GetStringInfo()
                               NS_ARRAY_LENGTH(sStringInfo));
 }
 
+//----------------------------------------------------------------------
+// nsIMutationObserver methods
+
+void
+nsSVGPatternElement::PushUpdate()
+{
+  nsIFrame *frame = GetPrimaryFrame();
+
+  if (frame) {
+    nsISVGValue *value = do_QueryFrame(frame);
+    if (value) {
+      value->BeginBatchUpdate();
+      value->EndBatchUpdate();
+    }
+  }
+}
+
+void
+nsSVGPatternElement::CharacterDataChanged(nsIDocument *aDocument,
+                                          nsIContent *aContent,
+                                          CharacterDataChangeInfo *aInfo)
+{
+  PushUpdate();
+}
+
+void
+nsSVGPatternElement::AttributeChanged(nsIDocument *aDocument,
+                                      nsIContent *aContent,
+                                      PRInt32 aNameSpaceID,
+                                      nsIAtom *aAttribute,
+                                      PRInt32 aModType,
+                                      PRUint32 aStateMask)
+{
+  PushUpdate();
+}
+
+void
+nsSVGPatternElement::ContentAppended(nsIDocument *aDocument,
+                                     nsIContent *aContainer,
+                                     PRInt32 aNewIndexInContainer)
+{
+  PushUpdate();
+}
+
+void
+nsSVGPatternElement::ContentInserted(nsIDocument *aDocument,
+                                     nsIContent *aContainer,
+                                     nsIContent *aChild,
+                                     PRInt32 aIndexInContainer)
+{
+  PushUpdate();
+}
+
+void
+nsSVGPatternElement::ContentRemoved(nsIDocument *aDocument,
+                                    nsIContent *aContainer,
+                                    nsIContent *aChild,
+                                    PRInt32 aIndexInContainer)
+{
+  PushUpdate();
+}

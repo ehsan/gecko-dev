@@ -1302,7 +1302,6 @@ public:
    *                   scripts. Passing null is allowed and results in nothing
    *                   happening. It is also allowed to pass an object that
    *                   has not yet been AddRefed.
-   * @return false on out of memory, true otherwise.
    */
   static PRBool AddScriptRunner(nsIRunnable* aRunnable);
 
@@ -1630,7 +1629,7 @@ private:
   
   // sMutationCount is a global mutation counter which is decreased by one at
   // every mutation. It is capped at 0 to avoid wrapping.
-  // Its value is always between 0 and 300, inclusive.
+  // It's value is always between 0 and 300, inclusive.
   static PRUint32 sMutationCount;
 };
 

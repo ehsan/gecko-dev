@@ -44,6 +44,7 @@
 class nsPresContext;
 class nsString;
 class nsIContent;
+class nsVoidArray;
 class nsCSSFrameConstructor;
 
 /** 
