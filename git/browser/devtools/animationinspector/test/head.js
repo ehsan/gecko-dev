@@ -159,12 +159,7 @@ let openAnimationInspector = Task.async(function*() {
   let win = inspector.sidebar.getWindowForTab("animationinspector");
   let {AnimationsController, AnimationsPanel} = win;
 
-  info("Waiting for the animation controller and panel to be ready");
-  if (AnimationsPanel.initialized) {
-    yield AnimationsPanel.initialized;
-  } else {
-    yield AnimationsPanel.once(AnimationsPanel.PANEL_INITIALIZED);
-  }
+  yield AnimationsPanel.once(AnimationsPanel.PANEL_INITIALIZED);
 
   return {
     toolbox: toolbox,
