@@ -52,13 +52,7 @@ case $product in
 
     js)
 
-        if [[ -e "$BUILDTREE/mozilla/js/src/configure.in" ]]; then
-
-            rm -f $BUILDTREE/mozilla/js/src/configure
-            rm -fR $BUILDTREE/mozilla/js/src/*_*.OBJ
-
-        elif [[ -e "$BUILDTREE/mozilla/js/src/Makefile.ref" ]]; then
-
+        if [[ -e "$BUILDTREE/mozilla/js/src/Makefile.ref" ]]; then
             if ! $buildbash $bashlogin -c "cd $BUILDTREE/mozilla/js/src/editline; make -f Makefile.ref clobber" 2>&1; then
                 error "during editline clobber" $LINENO
             fi
@@ -68,11 +62,8 @@ case $product in
                 echo "Forcing clobber" $LINENO
                 rm -fR $BUILDTREE/mozilla/js/src/*_*.OBJ
             fi
-
         else
-
-            error "Neither Makefile.ref or autoconf builds available"
-
+            rm -fR $BUILDTREE/mozilla/js/src/*_*.OBJ
         fi
         ;;
 esac

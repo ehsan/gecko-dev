@@ -90,7 +90,6 @@ mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
 mozStorageConnection::~mozStorageConnection()
 {
     (void)Close();
-    nsAutoLock::DestroyLock(mAsyncExecutionMutex);
     nsAutoLock::DestroyLock(mTransactionMutex);
     nsAutoLock::DestroyLock(mFunctionsMutex);
     nsAutoLock::DestroyLock(mProgressHandlerMutex);
@@ -112,7 +111,6 @@ NS_IMETHODIMP
 mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
 {
     NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
-    NS_ENSURE_TRUE(mAsyncExecutionMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mTransactionMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mFunctionsMutex, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_TRUE(mProgressHandlerMutex, NS_ERROR_OUT_OF_MEMORY);

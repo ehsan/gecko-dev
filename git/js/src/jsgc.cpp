@@ -2791,19 +2791,12 @@ js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp)
         JS_CALL_OBJECT_TRACER(trc, fp->varobj, "variables");
     if (fp->script) {
         js_TraceScript(trc, fp->script);
-
-        /* fp->slots is null for watch pseudo-frames, see js_watch_set. */
-        if (fp->slots) {
+        if (fp->regs) {
             /*
              * Don't mark what has not been pushed yet, or what has been
              * popped already.
              */
-            if (fp->regs) {
-                nslots = (uintN) (fp->regs->sp - fp->slots);
-                JS_ASSERT(nslots >= fp->script->nfixed);
-            } else {
-                nslots = fp->script->nfixed;
-            }
+            nslots = (uintN) (fp->regs->sp - fp->slots);
             TRACE_JSVALS(trc, nslots, fp->slots, "slot");
         }
     } else {
