@@ -6096,7 +6096,7 @@ HTMLInputElement::IsValidEmailAddressList(const nsAString& aValue)
     }
   }
 
-  return !tokenizer.separatorAfterCurrentToken();
+  return !tokenizer.lastTokenEndedWithSeparator();
 }
 
 //static

@@ -200,7 +200,6 @@ AsyncPanZoomController::InitializeGlobalState()
 }
 
 AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
-                                               APZCTreeManager* aTreeManager,
                                                GeckoContentController* aGeckoContentController,
                                                GestureBehavior aGestures)
   :  mLayersId(aLayersId),
@@ -222,8 +221,7 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mAsyncScrollTimeoutTask(nullptr),
      mDisableNextTouchBatch(false),
      mHandlingTouchQueue(false),
-     mDelayPanning(false),
-     mTreeManager(aTreeManager)
+     mDelayPanning(false)
 {
   MOZ_COUNT_CTOR(AsyncPanZoomController);
 
@@ -264,7 +262,6 @@ AsyncPanZoomController::Destroy()
   mPrevSibling = nullptr;
   mLastChild = nullptr;
   mParent = nullptr;
-  mTreeManager = nullptr;
 }
 
 /* static */float
@@ -730,49 +727,7 @@ void AsyncPanZoomController::UpdateWithTouchAtDevicePoint(const MultiTouchInput&
   mY.UpdateWithTouchAtDevicePoint(point.y, timeDelta);
 }
 
-void AsyncPanZoomController::AttemptScroll(const ScreenPoint& aStartPoint,
-                                           const ScreenPoint& aEndPoint) {
-  // "start - end" rather than "end - start" because e.g. moving your finger
-  // down (*positive* direction along y axis) causes the vertical scroll offset
-  // to *decrease* as the page follows your finger.
-  ScreenPoint displacement = aStartPoint - aEndPoint;
-
-  ScreenPoint overscroll;  // will be used outside monitor block
-  {
-    ReentrantMonitorAutoEnter lock(mMonitor);
-
-    CSSToScreenScale zoom = mFrameMetrics.mZoom;
-
-    // Inversely scale the offset by the resolution (when you're zoomed further in,
-    // a larger swipe should move you a shorter distance).
-    CSSPoint cssDisplacement = displacement / zoom;
-
-    CSSPoint cssOverscroll;
-    gfx::Point scrollOffset(mX.AdjustDisplacement(cssDisplacement.x, cssOverscroll.x),
-                            mY.AdjustDisplacement(cssDisplacement.y, cssOverscroll.y));
-    overscroll = cssOverscroll * zoom;
-
-    if (fabs(scrollOffset.x) > EPSILON || fabs(scrollOffset.y) > EPSILON) {
-      ScrollBy(CSSPoint::FromUnknownPoint(scrollOffset));
-      ScheduleComposite();
-
-      TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
-      if (timePaintDelta.ToMilliseconds() > gPanRepaintInterval) {
-        RequestContentRepaint();
-      }
-    }
-  }
-
-  if (fabs(overscroll.x) > EPSILON || fabs(overscroll.y) > EPSILON) {
-    // "+ overscroll" rather than "- overscroll" for the same reason as above.
-    mTreeManager->HandleOverscroll(this, aEndPoint + overscroll, aEndPoint);
-  }
-}
-
 void AsyncPanZoomController::TrackTouch(const MultiTouchInput& aEvent) {
-  SingleTouchData& touch = GetFirstSingleTouch(aEvent);
-  ScreenIntPoint prevTouchPoint(mX.GetPos(), mY.GetPos());
-  ScreenIntPoint touchPoint = touch.mScreenPoint;
   TimeDuration timeDelta = TimeDuration().FromMilliseconds(aEvent.mTime - mLastEventTime);
 
   // Probably a duplicate event, just throw it away.
@@ -782,7 +737,29 @@ void AsyncPanZoomController::TrackTouch(const MultiTouchInput& aEvent) {
 
   UpdateWithTouchAtDevicePoint(aEvent);
 
-  AttemptScroll(prevTouchPoint, touchPoint);
+  {
+    ReentrantMonitorAutoEnter lock(mMonitor);
+
+    // We want to inversely scale it because when you're zoomed further in, a
+    // larger swipe should move you a shorter distance.
+    ScreenToCSSScale inverseResolution = mFrameMetrics.mZoom.Inverse();
+
+    gfx::Point displacement(mX.GetDisplacementForDuration(inverseResolution.scale,
+                                                          timeDelta),
+                            mY.GetDisplacementForDuration(inverseResolution.scale,
+                                                          timeDelta));
+    if (fabs(displacement.x) <= EPSILON && fabs(displacement.y) <= EPSILON) {
+      return;
+    }
+
+    ScrollBy(CSSPoint::FromUnknownPoint(displacement));
+    ScheduleComposite();
+
+    TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
+    if (timePaintDelta.ToMilliseconds() > gPanRepaintInterval) {
+      RequestContentRepaint();
+    }
+  }
 }
 
 SingleTouchData& AsyncPanZoomController::GetFirstSingleTouch(const MultiTouchInput& aEvent) {
@@ -807,16 +784,13 @@ bool AsyncPanZoomController::DoFling(const TimeDuration& aDelta) {
     return false;
   }
 
-  CSSPoint overscroll; // overscroll is ignored for flings
-  ScreenPoint offset(aDelta.ToMilliseconds() * mX.GetVelocity(),
-                     aDelta.ToMilliseconds() * mY.GetVelocity());
+  // We want to inversely scale it because when you're zoomed further in, a
+  // larger swipe should move you a shorter distance.
+  ScreenToCSSScale inverseResolution = mFrameMetrics.mZoom.Inverse();
 
-  // Inversely scale the offset by the resolution (when you're zoomed further in,
-  // a larger swipe should move you a shorter distance).
-  CSSPoint cssOffset = offset / mFrameMetrics.mZoom;
   ScrollBy(CSSPoint::FromUnknownPoint(gfx::Point(
-    mX.AdjustDisplacement(cssOffset.x, overscroll.x),
-    mY.AdjustDisplacement(cssOffset.y, overscroll.y)
+    mX.GetDisplacementForDuration(inverseResolution.scale, aDelta),
+    mY.GetDisplacementForDuration(inverseResolution.scale, aDelta)
   )));
   TimeDuration timePaintDelta = mPaintThrottler.TimeSinceLastRequest(GetFrameTime());
   if (timePaintDelta.ToMilliseconds() > gFlingRepaintInterval) {

@@ -50,6 +50,9 @@ using namespace mozilla::hal;
     (!mIsMainThreadELM && ls->mTypeString.Equals(typeString)))) ||   \
    (allEvents && ls->mAllEvents))
 
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
+
 static const uint32_t kAllMutationBits =
   NS_EVENT_BITS_MUTATION_SUBTREEMODIFIED |
   NS_EVENT_BITS_MUTATION_NODEINSERTED |
@@ -570,18 +573,19 @@ nsEventListenerManager::FindEventHandler(uint32_t aEventType,
   return nullptr;
 }
 
-nsListenerStruct*
+nsresult
 nsEventListenerManager::SetEventHandlerInternal(nsIScriptContext *aContext,
                                                 JS::Handle<JSObject*> aScopeObject,
                                                 nsIAtom* aName,
                                                 const nsAString& aTypeString,
                                                 const nsEventHandler& aHandler,
-                                                bool aPermitUntrustedEvents)
+                                                bool aPermitUntrustedEvents,
+                                                nsListenerStruct **aListenerStruct)
 {
-  MOZ_ASSERT((aContext && aScopeObject) || aHandler.HasEventHandler(),
-             "Must have one or the other!");
-  MOZ_ASSERT(aName || !aTypeString.IsEmpty());
+  NS_ASSERTION((aContext && aScopeObject) || aHandler.HasEventHandler(),
+               "Must have one or the other!");
 
+  nsresult rv = NS_OK;
   uint32_t eventType = nsContentUtils::GetEventId(aName);
   nsListenerStruct* ls = FindEventHandler(eventType, aName, aTypeString);
 
@@ -592,14 +596,16 @@ nsEventListenerManager::SetEventHandlerInternal(nsIScriptContext *aContext,
     flags.mListenerIsJSListener = true;
 
     nsCOMPtr<nsIJSEventListener> scriptListener;
-    NS_NewJSEventListener(aContext, aScopeObject, mTarget, aName,
-                          aHandler, getter_AddRefs(scriptListener));
+    rv = NS_NewJSEventListener(aContext, aScopeObject, mTarget, aName,
+                               aHandler, getter_AddRefs(scriptListener));
 
-    EventListenerHolder holder(scriptListener);
-    AddEventListenerInternal(holder, eventType, aName, aTypeString, flags,
-                             true);
+    if (NS_SUCCEEDED(rv)) {
+      EventListenerHolder holder(scriptListener);
+      AddEventListenerInternal(holder, eventType, aName, aTypeString, flags,
+                               true);
 
-    ls = FindEventHandler(eventType, aName, aTypeString);
+      ls = FindEventHandler(eventType, aName, aTypeString);
+    }
   } else {
     nsIJSEventListener* scriptListener = ls->GetJSListener();
     MOZ_ASSERT(scriptListener,
@@ -614,13 +620,19 @@ nsEventListenerManager::SetEventHandlerInternal(nsIScriptContext *aContext,
     }
   }
 
-  // Set flag to indicate possible need for compilation later
-  ls->mHandlerIsString = !aHandler.HasEventHandler();
-  if (aPermitUntrustedEvents) {
-    ls->mFlags.mAllowUntrustedEvents = true;
+  if (NS_SUCCEEDED(rv) && ls) {
+    // Set flag to indicate possible need for compilation later
+    ls->mHandlerIsString = !aHandler.HasEventHandler();
+    if (aPermitUntrustedEvents) {
+      ls->mFlags.mAllowUntrustedEvents = true;
+    }
+
+    *aListenerStruct = ls;
+  } else {
+    *aListenerStruct = nullptr;
   }
 
-  return ls;
+  return rv;
 }
 
 nsresult
@@ -746,10 +758,10 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
   JS::Rooted<JSObject*> scope(context->GetNativeContext(),
                               global->GetGlobalJSObject());
 
-  nsListenerStruct* ls = SetEventHandlerInternal(context, scope, aName,
-                                                 EmptyString(),
-                                                 nsEventHandler(),
-                                                 aPermitUntrustedEvents);
+  nsListenerStruct *ls;
+  rv = SetEventHandlerInternal(context, scope, aName, EmptyString(),
+                               nsEventHandler(), aPermitUntrustedEvents, &ls);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aDeferCompilation) {
     return CompileEventHandlerInternal(ls, true, &aBody);
@@ -1217,54 +1229,60 @@ nsEventListenerManager::HasUnloadListeners()
   return false;
 }
 
-void
+nsresult
 nsEventListenerManager::SetEventHandler(nsIAtom* aEventName,
                                         const nsAString& aTypeString,
                                         EventHandlerNonNull* aHandler)
 {
   if (!aHandler) {
     RemoveEventHandler(aEventName, aTypeString);
-    return;
+    return NS_OK;
   }
 
   // Untrusted events are always permitted for non-chrome script
   // handlers.
-  SetEventHandlerInternal(nullptr, JS::NullPtr(), aEventName,
-                          aTypeString, nsEventHandler(aHandler),
-                          !mIsMainThreadELM ||
-                          !nsContentUtils::IsCallerChrome());
+  nsListenerStruct *ignored;
+  return SetEventHandlerInternal(nullptr, JS::NullPtr(), aEventName,
+                                 aTypeString, nsEventHandler(aHandler),
+                                 !mIsMainThreadELM ||
+                                 !nsContentUtils::IsCallerChrome(),
+                                 &ignored);
 }
 
-void
+nsresult
 nsEventListenerManager::SetEventHandler(OnErrorEventHandlerNonNull* aHandler)
 {
   if (!aHandler) {
     RemoveEventHandler(nsGkAtoms::onerror, EmptyString());
-    return;
+    return NS_OK;
   }
 
   // Untrusted events are always permitted for non-chrome script
   // handlers.
-  SetEventHandlerInternal(nullptr, JS::NullPtr(), nsGkAtoms::onerror,
-                          EmptyString(), nsEventHandler(aHandler),
-                          !mIsMainThreadELM ||
-                          !nsContentUtils::IsCallerChrome());
+  nsListenerStruct *ignored;
+  return SetEventHandlerInternal(nullptr, JS::NullPtr(), nsGkAtoms::onerror,
+                                 EmptyString(), nsEventHandler(aHandler),
+                                 !mIsMainThreadELM ||
+                                 !nsContentUtils::IsCallerChrome(),
+                                 &ignored);
 }
 
-void
+nsresult
 nsEventListenerManager::SetEventHandler(BeforeUnloadEventHandlerNonNull* aHandler)
 {
   if (!aHandler) {
     RemoveEventHandler(nsGkAtoms::onbeforeunload, EmptyString());
-    return;
+    return NS_OK;
   }
 
   // Untrusted events are always permitted for non-chrome script
   // handlers.
-  SetEventHandlerInternal(nullptr, JS::NullPtr(), nsGkAtoms::onbeforeunload,
-                          EmptyString(), nsEventHandler(aHandler),
-                          !mIsMainThreadELM ||
-                          !nsContentUtils::IsCallerChrome());
+  nsListenerStruct *ignored;
+  return SetEventHandlerInternal(nullptr, JS::NullPtr(), nsGkAtoms::onbeforeunload,
+                                 EmptyString(), nsEventHandler(aHandler),
+                                 !mIsMainThreadELM ||
+                                 !nsContentUtils::IsCallerChrome(),
+                                 &ignored);
 }
 
 const nsEventHandler*

@@ -957,7 +957,22 @@ CSSParserImpl::ParseStyleAttribute(const nsAString& aAttributeValue,
 
   mSection = eCSSSection_General;
 
+  // In quirks mode, allow style declarations to have braces or not
+  // (bug 99554).
+  bool haveBraces;
+  if (mNavQuirkMode && GetToken(true)) {
+    haveBraces = eCSSToken_Symbol == mToken.mType &&
+                 '{' == mToken.mSymbol;
+    UngetToken();
+  }
+  else {
+    haveBraces = false;
+  }
+
   uint32_t parseFlags = eParseDeclaration_AllowImportant;
+  if (haveBraces) {
+    parseFlags |= eParseDeclaration_InBraces;
+  }
 
   css::Declaration* declaration = ParseDeclarationBlock(parseFlags);
   if (declaration) {
@@ -4345,7 +4360,8 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
         SkipUntil(')');
         return false;
       }
-      else if (mToken.mIdent.LowerCaseEqualsLiteral("rgba")) {
+      else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-rgba") ||
+               mToken.mIdent.LowerCaseEqualsLiteral("rgba")) {
         // rgba ( component , component , component , opacity )
         uint8_t r, g, b, a;
         int32_t type = COLOR_TYPE_UNKNOWN;
@@ -4369,7 +4385,8 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
         SkipUntil(')');
         return false;
       }
-      else if (mToken.mIdent.LowerCaseEqualsLiteral("hsla")) {
+      else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-hsla") ||
+               mToken.mIdent.LowerCaseEqualsLiteral("hsla")) {
         // hsla ( hue , saturation , lightness , opacity )
         // "hue" is a number, "saturation" and "lightness" are percentages,
         // "opacity" is a number.
@@ -5237,6 +5254,8 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
         ((eCSSToken_Function == tk->mType) &&
          (tk->mIdent.LowerCaseEqualsLiteral("rgb") ||
           tk->mIdent.LowerCaseEqualsLiteral("hsl") ||
+          tk->mIdent.LowerCaseEqualsLiteral("-moz-rgba") ||
+          tk->mIdent.LowerCaseEqualsLiteral("-moz-hsla") ||
           tk->mIdent.LowerCaseEqualsLiteral("rgba") ||
           tk->mIdent.LowerCaseEqualsLiteral("hsla"))))
     {

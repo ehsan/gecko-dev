@@ -1186,9 +1186,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     void clampValueToUint8(ValueOperand value, MDefinition *input,
                            Label *handleStringEntry, Label *handleStringRejoin,
+                           Label *truncateDoubleSlow,
                            Register stringReg, FloatRegister temp, Register output, Label *fail)
     {
-        convertValueToInt(value, input, handleStringEntry, handleStringRejoin, NULL,
+        convertValueToInt(value, input, handleStringEntry, handleStringRejoin, truncateDoubleSlow,
                           stringReg, temp, output, fail, IntConversion_ClampToUint8);
     }
     void clampValueToUint8(ValueOperand value, MDefinition *input,

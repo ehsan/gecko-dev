@@ -47,6 +47,13 @@ SVGPointList::GetValueAsString(nsAString& aValue) const
   }
 }
 
+static inline char* SkipWhitespace(char* str)
+{
+  while (IsSVGWhitespace(*str))
+    ++str;
+  return str;
+}
+
 nsresult
 SVGPointList::SetValueFromString(const nsAString& aValue)
 {
@@ -103,7 +110,7 @@ SVGPointList::SetValueFromString(const nsAString& aValue)
 
     temp.AppendItem(SVGPoint(x, y));
   }
-  if (tokenizer.separatorAfterCurrentToken()) {
+  if (tokenizer.lastTokenEndedWithSeparator()) {
     rv = NS_ERROR_DOM_SYNTAX_ERR; // trailing comma
   }
   nsresult rv2 = CopyFrom(temp);

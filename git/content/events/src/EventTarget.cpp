@@ -32,27 +32,25 @@ EventTarget::GetEventHandler(nsIAtom* aType, const nsAString& aTypeString)
 void
 EventTarget::SetEventHandler(const nsAString& aType,
                              EventHandlerNonNull* aHandler,
-                             ErrorResult& aRv)
+                             ErrorResult& rv)
 {
-  if (!StringBeginsWith(aType, NS_LITERAL_STRING("on"))) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
   if (NS_IsMainThread()) {
     nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
-    SetEventHandler(type, EmptyString(), aHandler);
-    return;
+    return SetEventHandler(type, EmptyString(), aHandler, rv);
   }
-  SetEventHandler(nullptr,
-                  Substring(aType, 2), // Remove "on"
-                  aHandler);
+  return SetEventHandler(nullptr,
+                         Substring(aType, 2), // Remove "on"
+                         aHandler, rv);
 }
 
 void
 EventTarget::SetEventHandler(nsIAtom* aType, const nsAString& aTypeString,
-                             EventHandlerNonNull* aHandler)
+                             EventHandlerNonNull* aHandler,
+                             ErrorResult& rv)
 {
-  GetListenerManager(true)->SetEventHandler(aType, aTypeString, aHandler);
+  rv = GetListenerManager(true)->SetEventHandler(aType,
+                                                 aTypeString,
+                                                 aHandler);
 }
 
 } // namespace dom

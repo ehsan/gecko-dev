@@ -76,6 +76,9 @@
 
 #include "mozilla/dom/NavigatorBinding.h"
 
+// This should not be in the namespace.
+DOMCI_DATA(Navigator, mozilla::dom::Navigator)
+
 namespace mozilla {
 namespace dom {
 

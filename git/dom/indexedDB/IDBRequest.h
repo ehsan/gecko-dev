@@ -23,7 +23,7 @@ class nsPIDOMWindow;
 
 namespace mozilla {
 namespace dom {
-class OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
+class IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
 }
 }
 
@@ -65,7 +65,7 @@ public:
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
 
-  void GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const;
+  void GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const;
 
   void Reset();
 

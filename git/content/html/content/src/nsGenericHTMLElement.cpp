@@ -868,7 +868,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return nsINode::GetOn##name_();                                             \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -878,10 +879,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
                                                                               \
     nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                  \
     nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);       \
-    return globalWin->SetOn##name_(handler);                                  \
+    return globalWin->SetOn##name_(handler, error);                           \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #define ERROR_EVENT(name_, id_, type_, struct_)                               \
 already_AddRefed<EventHandlerNonNull>                                         \
@@ -907,7 +908,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return handler.forget();                                                    \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -921,10 +923,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
     if (handler) {                                                            \
       errorHandler = new OnErrorEventHandlerNonNull(handler);                 \
     }                                                                         \
-    return globalWin->SetOn##name_(errorHandler);                             \
+    return globalWin->SetOn##name_(errorHandler, error);                      \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #include "nsEventNameList.h" // IWYU pragma: keep
 #undef ERROR_EVENT

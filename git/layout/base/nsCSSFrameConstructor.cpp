@@ -145,8 +145,6 @@ extern nsIFrame*
 NS_NewSVGStopFrame(nsIPresShell *aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsIFrame*
-NS_NewSVGMarkerAnonChildFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 extern nsIFrame*
 NS_NewSVGImageFrame(nsIPresShell *aPresShell, nsStyleContext* aContext);
 nsIFrame*
@@ -4567,23 +4565,20 @@ nsCSSFrameConstructor::FindMathMLData(Element* aElement,
 }
 
 
+// Construct an nsSVGOuterSVGFrame, the anonymous child that wraps its real
+// children, and its descendant frames.
 nsIFrame*
-nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
-                                   nsFrameConstructorState& aState,
-                                   FrameConstructionItem&   aItem,
-                                   nsIFrame*                aParentFrame,
-                                   const nsStyleDisplay*    aDisplay,
-                                   nsFrameItems&            aFrameItems,
-                                   FrameCreationFunc        aConstructor,
-                                   FrameCreationFunc        aInnerConstructor,
-                                   nsICSSAnonBoxPseudo*     aInnerPseudo,
-                                   bool                     aCandidateRootFrame)
+nsCSSFrameConstructor::ConstructOuterSVG(nsFrameConstructorState& aState,
+                                         FrameConstructionItem&   aItem,
+                                         nsIFrame*                aParentFrame,
+                                         const nsStyleDisplay*    aDisplay,
+                                         nsFrameItems&            aFrameItems)
 {
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
-  // Create the outer frame:
-  nsIFrame* newFrame = aConstructor(mPresShell, styleContext);
+  // Create the nsSVGOuterSVGFrame:
+  nsIFrame* newFrame = NS_NewSVGOuterSVGFrame(mPresShell, styleContext);
 
   nsIFrame* geometricParent =
     aState.GetGeometricParent(styleContext->StyleDisplay(),
@@ -4594,10 +4589,11 @@ nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
   // Create the pseudo SC for the anonymous wrapper child as a child of the SC:
   nsRefPtr<nsStyleContext> scForAnon;
   scForAnon = mPresShell->StyleSet()->
-    ResolveAnonymousBoxStyle(aInnerPseudo, styleContext);
+    ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozSVGOuterSVGAnonChild,
+                             styleContext);
 
   // Create the anonymous inner wrapper frame
-  nsIFrame* innerFrame = aInnerConstructor(mPresShell, scForAnon);
+  nsIFrame* innerFrame = NS_NewSVGOuterSVGAnonChildFrame(mPresShell, scForAnon);
 
   InitAndRestoreFrame(aState, content, newFrame, innerFrame);
 
@@ -4606,7 +4602,7 @@ nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
 
   aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame);
 
-  if (!mRootElementFrame && aCandidateRootFrame) {
+  if (!mRootElementFrame) {
     // The frame we're constructing will be the root element frame.
     // Set mRootElementFrame before processing children.
     mRootElementFrame = newFrame;
@@ -4627,32 +4623,6 @@ nsCSSFrameConstructor::ConstructFrameWithAnonymousChild(
   innerFrame->SetInitialChildList(kPrincipalList, childItems);
 
   return newFrame;
-}
-
-nsIFrame*
-nsCSSFrameConstructor::ConstructOuterSVG(nsFrameConstructorState& aState,
-                                         FrameConstructionItem&   aItem,
-                                         nsIFrame*                aParentFrame,
-                                         const nsStyleDisplay*    aDisplay,
-                                         nsFrameItems&            aFrameItems)
-{
-  return ConstructFrameWithAnonymousChild(
-      aState, aItem, aParentFrame, aDisplay, aFrameItems,
-      NS_NewSVGOuterSVGFrame, NS_NewSVGOuterSVGAnonChildFrame,
-      nsCSSAnonBoxes::mozSVGOuterSVGAnonChild, true);
-}
-
-nsIFrame*
-nsCSSFrameConstructor::ConstructMarker(nsFrameConstructorState& aState,
-                                       FrameConstructionItem&   aItem,
-                                       nsIFrame*                aParentFrame,
-                                       const nsStyleDisplay*    aDisplay,
-                                       nsFrameItems&            aFrameItems)
-{
-  return ConstructFrameWithAnonymousChild(
-      aState, aItem, aParentFrame, aDisplay, aFrameItems,
-      NS_NewSVGMarkerFrame, NS_NewSVGMarkerAnonChildFrame,
-      nsCSSAnonBoxes::mozSVGMarkerAnonChild, false);
 }
 
 // Only outer <svg> elements can be floated or positioned.  All other SVG
@@ -4746,12 +4716,6 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     static const FrameConstructionData sOuterSVGData =
       FULL_CTOR_FCDATA(0, &nsCSSFrameConstructor::ConstructOuterSVG);
     return &sOuterSVGData;
-  }
-
-  if (aTag == nsGkAtoms::marker) {
-    static const FrameConstructionData sMarkerSVGData =
-      FULL_CTOR_FCDATA(0, &nsCSSFrameConstructor::ConstructMarker);
-    return &sMarkerSVGData;
   }
 
   nsCOMPtr<SVGTests> tests(do_QueryInterface(aElement));
@@ -4877,6 +4841,7 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     SIMPLE_SVG_CREATE(stop, NS_NewSVGStopFrame),
     SIMPLE_SVG_CREATE(use, NS_NewSVGUseFrame),
     SIMPLE_SVG_CREATE(view, NS_NewSVGViewFrame),
+    SIMPLE_SVG_CREATE(marker, NS_NewSVGMarkerFrame),
     SIMPLE_SVG_CREATE(image, NS_NewSVGImageFrame),
     SIMPLE_SVG_CREATE(clipPath, NS_NewSVGClipPathFrame),
     SIMPLE_SVG_CREATE(textPath, NS_NewSVGTextPathFrame),

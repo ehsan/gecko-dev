@@ -25,7 +25,6 @@ from results import TestOutput
 
 TESTS_LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 JS_DIR = os.path.dirname(os.path.dirname(TESTS_LIB_DIR))
-TOP_SRC_DIR = os.path.dirname(os.path.dirname(JS_DIR))
 TEST_DIR = os.path.join(JS_DIR, 'jit-test', 'tests')
 LIB_DIR = os.path.join(JS_DIR, 'jit-test', 'lib') + os.path.sep
 
@@ -70,14 +69,7 @@ class Test:
     del valgrinds
 
     def __init__(self, path):
-        # Absolute path of the test file.
-        self.path = path
-
-        # Path relative to the top mozilla/ directory.
-        self.relpath_top = os.path.relpath(path, TOP_SRC_DIR)
-
-        # Path relative to mozilla/js/src/.
-        self.relpath_js = os.path.relpath(path, JS_DIR)
+        self.path = path       # path to test file
 
         self.jitflags = []     # jit flags to enable
         self.slow = False      # True means the test is slow-running
@@ -347,30 +339,20 @@ def check_output(out, err, rc, test):
 
     return True
 
-def print_tinderbox(ok, res):
+def print_tinderbox(label, test, message=None):
     # Output test failures in a TBPL parsable format, eg:
     # TEST-PASS | /foo/bar/baz.js | --no-jm
     # TEST-UNEXPECTED-FAIL | /foo/bar/baz.js | --no-ion: Assertion failure: ...
-    # INFO exit-status     : 3
-    # INFO timed-out       : False
-    # INFO stdout          > foo
-    # INFO stdout          > bar
-    # INFO stdout          > baz
-    # INFO stderr         2> TypeError: or something
     # TEST-UNEXPECTED-FAIL | jit_test.py: Test execution interrupted by user
-    label = "TEST-PASS" if ok else "TEST-UNEXPECTED-FAIL"
-    jitflags = " ".join(res.test.jitflags)
-    print("%s | %s | %s" % (label, res.test.relpath_top, jitflags))
-    if ok:
-        return
+    if (test != None):
+        jitflags = " ".join(test.jitflags)
+        result = "%s | %s | %s" % (label, test.path, jitflags)
+    else:
+        result = "%s | jit_test.py" % label
 
-    # For failed tests, print as much information as we have, to aid debugging.
-    print("INFO exit-status     : {}".format(res.rc))
-    print("INFO timed-out       : {}".format(res.timed_out))
-    for line in res.out.split('\n'):
-        print("INFO stdout          > " + line)
-    for line in res.out.split('\n'):
-        print("INFO stderr         2> " + line)
+    if message:
+        result += ": " + message
+    print(result)
 
 def wrap_parallel_run_test(test, prefix, resultQueue, options):
     # Ignore SIGINT in the child
@@ -546,6 +528,7 @@ def process_test_results(results, num_tests, options):
     doing = 'before starting'
     try:
         for i, res in enumerate(results):
+
             if options.show_output:
                 sys.stdout.write(res.out)
                 sys.stdout.write(res.err)
@@ -554,17 +537,26 @@ def process_test_results(results, num_tests, options):
                 sys.stdout.write(res.err)
 
             ok = check_output(res.out, res.err, res.rc, res.test)
-            doing = 'after %s' % res.test.relpath_js
+            doing = 'after %s' % res.test.path
             if not ok:
                 failures.append(res)
                 if res.timed_out:
-                    pb.message("TIMEOUT - %s" % res.test.relpath_js)
+                    pb.message("TIMEOUT - %s" % res.test.path)
                     timeouts += 1
                 else:
-                    pb.message("FAIL - %s" % res.test.relpath_js)
+                    pb.message("FAIL - %s" % res.test.path)
 
             if options.tinderbox:
-                print_tinderbox(ok, res)
+                if ok:
+                    print_tinderbox("TEST-PASS", res.test);
+                else:
+                    lines = [ _ for _ in res.out.split('\n') + res.err.split('\n')
+                              if _ != '' ]
+                    if len(lines) >= 1:
+                        msg = lines[-1]
+                    else:
+                        msg = ''
+                    print_tinderbox("TEST-UNEXPECTED-FAIL", res.test, msg);
 
             n = i + 1
             pb.update(n, {
@@ -575,8 +567,7 @@ def process_test_results(results, num_tests, options):
             )
         complete = True
     except KeyboardInterrupt:
-        print("TEST-UNEXPECTED-FAIL | jit_test.py" +
-              " : Test execution interrupted by user")
+        print_tinderbox("TEST-UNEXPECTED-FAIL", None, "Test execution interrupted by user");
 
     pb.finish(True)
     return print_test_summary(num_tests, failures, complete, doing, options)

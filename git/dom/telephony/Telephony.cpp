@@ -375,7 +375,7 @@ Telephony::SetSpeakerEnabled(bool aEnabled, ErrorResult& aRv)
 }
 
 void
-Telephony::GetActive(Nullable<OwningTelephonyCallOrTelephonyCallGroup>& aValue)
+Telephony::GetActive(Nullable<TelephonyCallOrTelephonyCallGroupReturnValue>& aValue)
 {
   if (mActiveCall) {
     aValue.SetValue().SetAsTelephonyCall() = mActiveCall;

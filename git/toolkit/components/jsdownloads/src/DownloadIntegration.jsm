@@ -696,13 +696,6 @@ this.DownloadIntegration = {
       Services.obs.addObserver(DownloadObserver, "offline-requested", true);
       Services.obs.addObserver(DownloadObserver, "last-pb-context-exiting", true);
       Services.obs.addObserver(DownloadObserver, "last-pb-context-exited", true);
-
-      Services.obs.addObserver(DownloadObserver, "sleep_notification", true);
-      Services.obs.addObserver(DownloadObserver, "suspend_process_notification", true);
-      Services.obs.addObserver(DownloadObserver, "wake_notification", true);
-      Services.obs.addObserver(DownloadObserver, "resume_process_notification", true);
-      Services.obs.addObserver(DownloadObserver, "network:offline-about-to-go-offline", true);
-      Services.obs.addObserver(DownloadObserver, "network:offline-status-changed", true);
     }
     return Promise.resolve();
   },
@@ -732,37 +725,23 @@ this.DownloadObserver = {
   observersAdded: false,
 
   /**
-   * Timer used to delay restarting canceled downloads upon waking and returning
-   * online.
-   */
-  _wakeTimer: null,
-
-  /**
    * Set that contains the in progress publics downloads.
-   * It's kept updated when a public download is added, removed or changes its
+   * It's keep updated when a public download is added, removed or change its
    * properties.
    */
   _publicInProgressDownloads: new Set(),
 
   /**
    * Set that contains the in progress private downloads.
-   * It's kept updated when a private download is added, removed or changes its
+   * It's keep updated when a private download is added, removed or change its
    * properties.
    */
   _privateInProgressDownloads: new Set(),
 
   /**
-   * Set that contains the downloads that have been canceled when going offline
-   * or to sleep. These are started again when returning online or waking. This
-   * list is not persisted so when exiting and restarting, the downloads will not
-   * be started again.
-   */
-  _canceledOfflineDownloads: new Set(),
-
-  /**
    * Registers a view that updates the corresponding downloads state set, based
    * on the aIsPrivate argument. The set is updated when a download is added,
-   * removed or changes its properties.
+   * removed or changed its properties.
    *
    * @param aList
    *        The public or private downloads list.
@@ -773,22 +752,20 @@ this.DownloadObserver = {
     let downloadsSet = aIsPrivate ? this._privateInProgressDownloads
                                   : this._publicInProgressDownloads;
     let downloadsView = {
-      onDownloadAdded: aDownload => {
+      onDownloadAdded: function DO_V_onDownloadAdded(aDownload) {
         if (!aDownload.stopped) {
           downloadsSet.add(aDownload);
         }
       },
-      onDownloadChanged: aDownload => {
+      onDownloadChanged: function DO_V_onDownloadChanged(aDownload) {
         if (aDownload.stopped) {
           downloadsSet.delete(aDownload);
         } else {
           downloadsSet.add(aDownload);
         }
       },
-      onDownloadRemoved: aDownload => {
+      onDownloadRemoved: function DO_V_onDownloadRemoved(aDownload) {
         downloadsSet.delete(aDownload);
-        // The download must also be removed from the canceled when offline set.
-        this._canceledOfflineDownloads.delete(aDownload);
       }
     };
 
@@ -822,18 +799,6 @@ this.DownloadObserver = {
     }
 
     aCancel.data = aPrompter.confirmCancelDownloads(aDownloadsCount, aPromptType);
-  },
-
-  /**
-   * Resume all downloads that were paused when going offline, used when waking
-   * from sleep or returning from being offline.
-   */
-  _resumeOfflineDownloads: function DO_resumeOfflineDownloads() {
-    this._wakeTimer = null;
-
-    for (let download of this._canceledOfflineDownloads) {
-      download.start();
-    }
   },
 
   ////////////////////////////////////////////////////////////////////////////
@@ -872,35 +837,6 @@ this.DownloadObserver = {
         if (DownloadIntegration.testMode) {
           deferred.then((value) => { DownloadIntegration._deferTestClearPrivateList.resolve("success"); },
                         (error) => { DownloadIntegration._deferTestClearPrivateList.reject(error); });
-        }
-        break;
-      case "sleep_notification":
-      case "suspend_process_notification":
-      case "network:offline-about-to-go-offline":
-        for (let download of this._publicInProgressDownloads) {
-          download.cancel();
-          this._canceledOfflineDownloads.add(download);
-        }
-        for (let download of this._privateInProgressDownloads) {
-          download.cancel();
-          this._canceledOfflineDownloads.add(download);
-        }
-        break;
-      case "wake_notification":
-      case "resume_process_notification":
-        let wakeDelay = 10000;
-        try {
-          wakeDelay = Services.prefs.getIntPref("browser.download.manager.resumeOnWakeDelay");
-        } catch(e) {}
-
-        if (wakeDelay >= 0) {
-          this._wakeTimer = new Timer(this._resumeOfflineDownloads.bind(this), wakeDelay,
-                                      Ci.nsITimer.TYPE_ONE_SHOT);
-        }
-        break;
-      case "network:offline-status-changed":
-        if (aData == "online") {
-          this._resumeOfflineDownloads();
         }
         break;
     }

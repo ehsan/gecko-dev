@@ -27,8 +27,12 @@ interface Telephony : EventTarget {
   [Throws]
   void stopTone();
 
+  [SetterThrows]
   attribute EventHandler onincoming;
+  [SetterThrows]
   attribute EventHandler oncallschanged;
+  [SetterThrows]
   attribute EventHandler onremoteheld;
+  [SetterThrows]
   attribute EventHandler onremoteresumed;
 };

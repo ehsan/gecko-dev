@@ -373,6 +373,16 @@ JS_ClearWatchPointsForObject(JSContext *cx, JSObject *obj)
     return true;
 }
 
+JS_PUBLIC_API(bool)
+JS_ClearAllWatchPoints(JSContext *cx)
+{
+    if (JSCompartment *comp = cx->compartment()) {
+        if (WatchpointMap *wpmap = comp->watchpointMap)
+            wpmap->clear();
+    }
+    return true;
+}
+
 /************************************************************************/
 
 JS_PUBLIC_API(unsigned)
@@ -571,7 +581,7 @@ JS_GetScriptSourceMap(JSContext *cx, JSScript *script)
 {
     ScriptSource *source = script->scriptSource();
     JS_ASSERT(source);
-    return source->hasSourceMapURL() ? source->sourceMapURL() : NULL;
+    return source->hasSourceMap() ? source->sourceMap() : NULL;
 }
 
 JS_PUBLIC_API(unsigned)

@@ -6,16 +6,17 @@
 #include "mozilla/Util.h"
 
 #include "nsSVGLength2.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
-#include "mozilla/dom/SVGSVGElement.h"
-#include "nsContentUtils.h" // NS_ENSURE_FINITE
-#include "nsIFrame.h"
-#include "nsSMILFloatType.h"
-#include "nsSMILValue.h"
-#include "nsSVGAttrTearoffTable.h"
-#include "nsSVGIntegrationUtils.h"
-#include "nsTextFormatter.h"
 #include "prdtoa.h"
+#include "nsTextFormatter.h"
+#include "mozilla/dom/SVGSVGElement.h"
+#include "nsIFrame.h"
+#include "nsSVGIntegrationUtils.h"
+#include "nsSVGAttrTearoffTable.h"
+#include "nsContentUtils.h" // NS_ENSURE_FINITE
+#include "nsSMILValue.h"
+#include "nsSMILFloatType.h"
+#include "nsAttrValueInlines.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -130,7 +131,7 @@ GetValueFromString(const nsAString &aValueAsString,
   NS_ConvertUTF16toUTF8 value(aValueAsString);
   const char *str = value.get();
 
-  if (IsSVGWhitespace(*str))
+  if (NS_IsAsciiWhitespace(*str))
     return NS_ERROR_DOM_SYNTAX_ERR;
   
   char *rest;

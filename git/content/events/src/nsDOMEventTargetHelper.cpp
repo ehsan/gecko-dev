@@ -276,8 +276,9 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
       JS_ObjectIsCallable(aCx, callable = &aValue.toObject())) {
     handler = new EventHandlerNonNull(callable);
   }
-  SetEventHandler(aType, EmptyString(), handler);
-  return NS_OK;
+  ErrorResult rv;
+  SetEventHandler(aType, EmptyString(), handler, rv);
+  return rv.ErrorCode();
 }
 
 void

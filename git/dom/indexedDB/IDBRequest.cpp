@@ -39,7 +39,7 @@ uint64_t gNextSerialNumber = 1;
 } // anonymous namespace
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
+using mozilla::dom::IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
@@ -130,7 +130,7 @@ IDBRequest::AssertSourceIsCorrect() const
 #endif
 
 void
-IDBRequest::GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const
+IDBRequest::GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const
 {
   MOZ_ASSERT(NS_IsMainThread());
 

@@ -432,7 +432,7 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
       // Totally unsupported codec
       return CANPLAY_NO;
     }
-    expectMoreTokens = tokenizer.separatorAfterCurrentToken();
+    expectMoreTokens = tokenizer.lastTokenEndedWithSeparator();
   }
   if (expectMoreTokens) {
     // Last codec name was empty

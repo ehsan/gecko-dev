@@ -62,8 +62,6 @@ public:
 
   already_AddRefed<gfxImageSurface> GetAsSurface();
 
-  GLuint GetGLTexture();
-
 protected:
   CompositorOGL* mCompositor;
   android::sp<android::GraphicBuffer> mGraphicBuffer;

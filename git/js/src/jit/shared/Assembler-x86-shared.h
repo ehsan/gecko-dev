@@ -295,16 +295,13 @@ class AssemblerX86Shared
 
     void movsd(const FloatRegister &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        // Use movapd instead of movsd so that we define the entire output
-        // register and avoid false dependencies.
-        masm.movapd_rr(src.code(), dest.code());
+        masm.movsd_rr(src.code(), dest.code());
     }
     void movsd(const Operand &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         switch (src.kind()) {
           case Operand::FPREG:
-            // As above; use movapd instead of movsd to avoid dependencies.
-            masm.movapd_rr(src.fpu(), dest.code());
+            masm.movsd_rr(src.fpu(), dest.code());
             break;
           case Operand::MEM_REG_DISP:
             masm.movsd_mr(src.disp(), src.base(), dest.code());
@@ -320,8 +317,7 @@ class AssemblerX86Shared
         JS_ASSERT(HasSSE2());
         switch (dest.kind()) {
           case Operand::FPREG:
-            // As above; use movapd instead of movsd to avoid dependencies.
-            masm.movapd_rr(src.code(), dest.fpu());
+            masm.movsd_rr(src.code(), dest.fpu());
             break;
           case Operand::MEM_REG_DISP:
             masm.movsd_rm(src.code(), dest.disp(), dest.base());
@@ -335,15 +331,13 @@ class AssemblerX86Shared
     }
     void movss(const FloatRegister &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        // As with movsd; use movaps instead of movss to avoid dependencies.
-        masm.movaps_rr(src.code(), dest.code());
+        masm.movss_rr(src.code(), dest.code());
     }
     void movss(const Operand &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         switch (src.kind()) {
           case Operand::FPREG:
-            // As above; use movaps instead of movss to avoid dependencies.
-            masm.movaps_rr(src.fpu(), dest.code());
+            masm.movss_rr(src.fpu(), dest.code());
             break;
           case Operand::MEM_REG_DISP:
             masm.movss_mr(src.disp(), src.base(), dest.code());
@@ -359,8 +353,7 @@ class AssemblerX86Shared
         JS_ASSERT(HasSSE2());
         switch (dest.kind()) {
           case Operand::FPREG:
-            // As above; use movaps instead of movss to avoid dependencies.
-            masm.movaps_rr(src.code(), dest.fpu());
+            masm.movss_rr(src.code(), dest.fpu());
             break;
           case Operand::MEM_REG_DISP:
             masm.movss_rm(src.code(), dest.disp(), dest.base());
