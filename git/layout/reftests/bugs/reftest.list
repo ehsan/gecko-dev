@@ -130,6 +130,9 @@ fails == 25888-3r.html 25888-3r-ref.html # bug 25888
 == 201293-1c.html 201293-1-ref.html
 == 201293-1d.html 201293-1-ref.html
 == 206516-1.html 206516-1-ref.html
+== 210094-1a.html 210094-1-ref.html
+== 210094-1b.html 210094-1-ref.html
+!= 210094-1c.html 210094-1-ref.html
 == 210876-1.html 210876-1-ref.html
 == 212563-1.html 212563-1-ref.html
 == 214077-1a.html 214077-1-ref.html
@@ -177,6 +180,8 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # 
 == 291078-1.html 291078-1-ref.html
 == 291078-2.html 291078-2-ref.html
 == 291262-1.html 291262-1-ref.html
+== 294306-1.html 294306-1a-ref.html
+!= 294306-1.html 294306-1b-ref.html
 == 296904-1.html 296904-1-ref.html
 == 300691-1a.html 300691-1-ref.html
 == 300691-1b.html 300691-1-ref.html
@@ -861,6 +866,11 @@ random == 429849-1.html 429849-1-ref.html # bug 432288
 == 436356-1.html 436356-1-ref.html
 == 436356-2.html 436356-2-ref.html
 == 438981-1.xhtml about:blank
+== 438987-1.html 438987-1-ref.html
+== 438987-2a.html 438987-2-ref.html
+== 438987-2b.html 438987-2-ref.html
+== 438987-2c.html 438987-2-ref.html
+!= about:blank 438987-2-ref.html # check that backgrounds work at all 
 == 439004-1.html 439004-1-ref.html
 == 439910.html 439910-ref.html
 # == 448987.html 448987-ref.html  # Disabled for now - it needs privileges
