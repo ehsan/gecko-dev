@@ -135,9 +135,9 @@ struct JSSecurityCallbacks;
 struct JSStructuredCloneCallbacks;
 struct JSStructuredCloneReader;
 struct JSStructuredCloneWriter;
-class JS_PUBLIC_API(JSTracer);
+struct JSTracer;
 
-class JSFlatString;
+class                                       JSFlatString;
 
 #ifdef JS_THREADSAFE
 typedef struct PRCallOnceType   JSCallOnceType;

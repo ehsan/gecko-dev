@@ -1807,6 +1807,20 @@ js_GetGCThingTraceKind(void *thing)
     return GetGCThingTraceKind(thing);
 }
 
+void
+js::InitTracer(JSTracer *trc, JSRuntime *rt, JSTraceCallback callback)
+{
+    trc->runtime = rt;
+    trc->callback = callback;
+    trc->debugPrinter = nullptr;
+    trc->debugPrintArg = nullptr;
+    trc->debugPrintIndex = size_t(-1);
+    trc->eagerlyTraceWeakMaps = TraceWeakMapValues;
+#ifdef JS_GC_ZEAL
+    trc->realLocation = nullptr;
+#endif
+}
+
 /* static */ int64_t
 SliceBudget::TimeBudget(int64_t millis)
 {
@@ -1849,19 +1863,15 @@ SliceBudget::checkOverBudget()
     return over;
 }
 
-/*
- * DoNotTraceWeakMaps: the GC is recomputing the liveness of WeakMap entries,
- * so we delay visting entries.
- */
 GCMarker::GCMarker(JSRuntime *rt)
-  : JSTracer(rt, nullptr, DoNotTraceWeakMaps),
-    stack(size_t(-1)),
+  : stack(size_t(-1)),
     color(BLACK),
     started(false),
     unmarkedArenaStackTop(nullptr),
     markLaterArenas(0),
     grayBufferState(GRAY_BUFFER_UNUSED)
 {
+    InitTracer(this, rt, nullptr);
 }
 
 bool
@@ -1880,6 +1890,11 @@ GCMarker::start()
     JS_ASSERT(!unmarkedArenaStackTop);
     JS_ASSERT(markLaterArenas == 0);
 
+    /*
+     * The GC is recomputing the liveness of WeakMap entries, so we delay
+     * visting entries.
+     */
+    eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
 }
 
 void
@@ -1986,8 +2001,8 @@ bool
 GCMarker::markDelayedChildren(SliceBudget &budget)
 {
     gcstats::MaybeAutoPhase ap;
-    if (runtime()->gcIncrementalState == MARK)
-        ap.construct(runtime()->gcStats, gcstats::PHASE_MARK_DELAYED);
+    if (runtime->gcIncrementalState == MARK)
+        ap.construct(runtime->gcStats, gcstats::PHASE_MARK_DELAYED);
 
     JS_ASSERT(unmarkedArenaStackTop);
     do {
@@ -2034,7 +2049,7 @@ GCMarker::startBufferingGrayRoots()
 {
     JS_ASSERT(grayBufferState == GRAY_BUFFER_UNUSED);
     grayBufferState = GRAY_BUFFER_OK;
-    for (GCZonesIter zone(runtime()); !zone.done(); zone.next())
+    for (GCZonesIter zone(runtime); !zone.done(); zone.next())
         JS_ASSERT(zone->gcGrayRoots.empty());
 
     JS_ASSERT(!callback);
@@ -2055,7 +2070,7 @@ GCMarker::endBufferingGrayRoots()
 void
 GCMarker::resetBufferedGrayRoots()
 {
-    for (GCZonesIter zone(runtime()); !zone.done(); zone.next())
+    for (GCZonesIter zone(runtime); !zone.done(); zone.next())
         zone->gcGrayRoots.clearAndFree();
 }
 
@@ -2067,10 +2082,12 @@ GCMarker::markBufferedGrayRoots(JS::Zone *zone)
 
     for (GrayRoot *elem = zone->gcGrayRoots.begin(); elem != zone->gcGrayRoots.end(); elem++) {
 #ifdef DEBUG
-        setTracingDetails(elem->debugPrinter, elem->debugPrintArg, elem->debugPrintIndex);
+        debugPrinter = elem->debugPrinter;
+        debugPrintArg = elem->debugPrintArg;
+        debugPrintIndex = elem->debugPrintIndex;
 #endif
         void *tmp = elem->thing;
-        setTracingLocation((void *)&elem->thing);
+        JS_SET_TRACING_LOCATION(this, (void *)&elem->thing);
         MarkKind(this, &tmp, elem->kind);
         JS_ASSERT(tmp == elem->thing);
     }
@@ -2086,9 +2103,9 @@ GCMarker::appendGrayRoot(void *thing, JSGCTraceKind kind)
 
     GrayRoot root(thing, kind);
 #ifdef DEBUG
-    root.debugPrinter = debugPrinter();
-    root.debugPrintArg = debugPrintArg();
-    root.debugPrintIndex = debugPrintIndex();
+    root.debugPrinter = debugPrinter;
+    root.debugPrintArg = debugPrintArg;
+    root.debugPrintIndex = debugPrintIndex;
 #endif
 
     Zone *zone = static_cast<Cell *>(thing)->tenuredZone();
@@ -2114,7 +2131,7 @@ size_t
 GCMarker::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const
 {
     size_t size = stack.sizeOfExcludingThis(mallocSizeOf);
-    for (ZonesIter zone(runtime(), WithAtoms); !zone.done(); zone.next())
+    for (ZonesIter zone(runtime, WithAtoms); !zone.done(); zone.next())
         size += zone->gcGrayRoots.sizeOfExcludingThis(mallocSizeOf);
     return size;
 }
@@ -2886,13 +2903,8 @@ ShouldPreserveJITCode(JSCompartment *comp, int64_t currentTime)
 }
 
 #ifdef DEBUG
-class CompartmentCheckTracer : public JSTracer
+struct CompartmentCheckTracer : public JSTracer
 {
-  public:
-    CompartmentCheckTracer(JSRuntime *rt, JSTraceCallback callback)
-      : JSTracer(rt, callback)
-    {}
-
     Cell *src;
     JSGCTraceKind srcKind;
     Zone *zone;
@@ -2929,7 +2941,7 @@ CheckCompartment(CompartmentCheckTracer *trc, JSCompartment *thingCompartment,
                  Cell *thing, JSGCTraceKind kind)
 {
     JS_ASSERT(thingCompartment == trc->compartment ||
-              trc->runtime()->isAtomsCompartment(thingCompartment) ||
+              trc->runtime->isAtomsCompartment(thingCompartment) ||
               (trc->srcKind == JSTRACE_OBJECT &&
                InCrossCompartmentMap((JSObject *)trc->src, thing, kind)));
 }
@@ -2960,7 +2972,7 @@ CheckCompartmentCallback(JSTracer *trcArg, void **thingp, JSGCTraceKind kind)
         CheckCompartment(trc, comp, thing, kind);
     } else {
         JS_ASSERT(thing->tenuredZone() == trc->zone ||
-                  trc->runtime()->isAtomsZone(thing->tenuredZone()));
+                  trc->runtime->isAtomsZone(thing->tenuredZone()));
     }
 }
 
@@ -2970,7 +2982,9 @@ CheckForCompartmentMismatches(JSRuntime *rt)
     if (rt->gcDisableStrictProxyCheckingCount)
         return;
 
-    CompartmentCheckTracer trc(rt, CheckCompartmentCallback);
+    CompartmentCheckTracer trc;
+    JS_TracerInit(&trc, rt, CheckCompartmentCallback);
+
     for (ZonesIter zone(rt, SkipAtoms); !zone.done(); zone.next()) {
         trc.zone = zone;
         for (size_t thingKind = 0; thingKind < FINALIZE_LAST; thingKind++) {

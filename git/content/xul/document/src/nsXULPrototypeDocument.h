@@ -6,7 +6,6 @@
 #ifndef nsXULPrototypeDocument_h__
 #define nsXULPrototypeDocument_h__
 
-#include "js/TracingAPI.h"
 #include "mozilla/Attributes.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
@@ -22,6 +21,7 @@ class nsNodeInfoManager;
 class nsXULPrototypeElement;
 class nsXULPrototypePI;
 class nsXULPDGlobalObject;
+struct JSTracer;
 
 namespace mozilla {
 namespace dom {

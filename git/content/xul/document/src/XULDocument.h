@@ -25,7 +25,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "js/TracingAPI.h"
 #include "js/TypeDecls.h"
 
 class nsIRDFResource;
@@ -43,6 +42,7 @@ class nsIXULPrototypeScript;
 #include "nsURIHashKey.h"
 #include "nsInterfaceHashtable.h"
 
+struct JSTracer;
 struct PRLogModuleInfo;
 
 class nsRefMapEntry : public nsStringHashKey

@@ -720,13 +720,12 @@ js_DumpObject(JSObject *obj)
 
 #endif
 
-struct DumpHeapTracer : public JSTracer
+struct JSDumpHeapTracer : public JSTracer
 {
     FILE   *output;
 
-    DumpHeapTracer(FILE *fp, JSRuntime *rt, JSTraceCallback callback,
-                   WeakMapTraceKind weakTraceKind)
-      : JSTracer(rt, callback, weakTraceKind), output(fp)
+    JSDumpHeapTracer(FILE *fp)
+      : output(fp)
     {}
 };
 
@@ -743,7 +742,7 @@ MarkDescriptor(void *thing)
 static void
 DumpHeapVisitZone(JSRuntime *rt, void *data, Zone *zone)
 {
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(data);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
     fprintf(dtrc->output, "# zone %p\n", (void *)zone);
 }
 
@@ -756,7 +755,7 @@ DumpHeapVisitCompartment(JSRuntime *rt, void *data, JSCompartment *comp)
     else
         strcpy(name, "<unknown>");
 
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(data);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
     fprintf(dtrc->output, "# compartment %s [in zone %p]\n", name, (void *)comp->zone());
 }
 
@@ -764,7 +763,7 @@ static void
 DumpHeapVisitArena(JSRuntime *rt, void *data, gc::Arena *arena,
                    JSGCTraceKind traceKind, size_t thingSize)
 {
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(data);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
     fprintf(dtrc->output, "# arena allockind=%u size=%u\n",
             unsigned(arena->aheader.getAllocKind()), unsigned(thingSize));
 }
@@ -773,7 +772,7 @@ static void
 DumpHeapVisitCell(JSRuntime *rt, void *data, void *thing,
                   JSGCTraceKind traceKind, size_t thingSize)
 {
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(data);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(data);
     char cellDesc[1024 * 32];
     JS_GetTraceThingInfo(cellDesc, sizeof(cellDesc), dtrc, thing, traceKind, true);
     fprintf(dtrc->output, "%p %c %s\n", thing, MarkDescriptor(thing), cellDesc);
@@ -783,41 +782,44 @@ DumpHeapVisitCell(JSRuntime *rt, void *data, void *thing,
 static void
 DumpHeapVisitChild(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
-    if (gc::IsInsideNursery(trc->runtime(), *thingp))
+    if (gc::IsInsideNursery(trc->runtime, *thingp))
         return;
 
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(trc);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
     char buffer[1024];
     fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            dtrc->getTracingEdgeName(buffer, sizeof(buffer)));
+            JS_GetTraceEdgeName(dtrc, buffer, sizeof(buffer)));
 }
 
 static void
 DumpHeapVisitRoot(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
-    if (gc::IsInsideNursery(trc->runtime(), *thingp))
+    if (gc::IsInsideNursery(trc->runtime, *thingp))
         return;
 
-    DumpHeapTracer *dtrc = static_cast<DumpHeapTracer *>(trc);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
     char buffer[1024];
     fprintf(dtrc->output, "%p %c %s\n", *thingp, MarkDescriptor(*thingp),
-            dtrc->getTracingEdgeName(buffer, sizeof(buffer)));
+            JS_GetTraceEdgeName(dtrc, buffer, sizeof(buffer)));
 }
 
 void
 js::DumpHeapComplete(JSRuntime *rt, FILE *fp, js::DumpHeapNurseryBehaviour nurseryBehaviour)
 {
+    JSDumpHeapTracer dtrc(fp);
+
 #ifdef JSGC_GENERATIONAL
     if (nurseryBehaviour == js::CollectNurseryBeforeDump)
         MinorGC(rt, JS::gcreason::API);
 #endif
 
-    DumpHeapTracer dtrc(fp, rt, DumpHeapVisitRoot, TraceWeakMapKeysValues);
+    JS_TracerInit(&dtrc, rt, DumpHeapVisitRoot);
+    dtrc.eagerlyTraceWeakMaps = TraceWeakMapKeysValues;
     TraceRuntime(&dtrc);
 
     fprintf(dtrc.output, "==========\n");
 
-    dtrc.setTraceCallback(DumpHeapVisitChild);
+    JS_TracerInit(&dtrc, rt, DumpHeapVisitChild);
     IterateZonesCompartmentsArenasCells(rt, &dtrc,
                                         DumpHeapVisitZone,
                                         DumpHeapVisitCompartment,
@@ -916,7 +918,7 @@ JS::IsIncrementalGCEnabled(JSRuntime *rt)
 JS_FRIEND_API(bool)
 JS::IsIncrementalGCInProgress(JSRuntime *rt)
 {
-    return rt->gcIncrementalState != gc::NO_INCREMENTAL && !rt->gcVerifyPreData;
+    return (rt->gcIncrementalState != gc::NO_INCREMENTAL && !rt->gcVerifyPreData);
 }
 
 JS_FRIEND_API(void)
@@ -970,7 +972,7 @@ JS::IsGenerationalGCEnabled(JSRuntime *rt)
 JS_FRIEND_API(bool)
 JS::IsIncrementalBarrierNeeded(JSRuntime *rt)
 {
-    return rt->gcIncrementalState == gc::MARK && !rt->isHeapBusy();
+    return (rt->gcIncrementalState == gc::MARK && !rt->isHeapBusy());
 }
 
 JS_FRIEND_API(bool)

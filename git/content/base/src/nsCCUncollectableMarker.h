@@ -6,9 +6,10 @@
 #ifndef nsCCUncollectableMarker_h_
 #define nsCCUncollectableMarker_h_
 
-#include "js/TracingAPI.h"
-#include "mozilla/Attributes.h"
 #include "nsIObserver.h"
+#include "mozilla/Attributes.h"
+
+struct JSTracer;
 
 class nsCCUncollectableMarker MOZ_FINAL : public nsIObserver
 {

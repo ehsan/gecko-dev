@@ -2445,6 +2445,20 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   }
 }
 
+void
+nsCrypto::PopChallengeResponse(const nsAString& aChallenge,
+                               nsAString& aReturn,
+                               ErrorResult& aRv)
+{
+  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+}
+
+void
+nsCrypto::Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv)
+{
+  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+}
+
 static void
 GetDocumentFromContext(JSContext *cx, nsIDocument **aDocument)
 {
@@ -2815,6 +2829,12 @@ nsCrypto::Logout(ErrorResult& aRv)
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
   }
+}
+
+void
+nsCrypto::DisableRightClick(ErrorResult& aRv)
+{
+  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
 }
 
 CRMFObject::CRMFObject()

@@ -66,6 +66,12 @@ public:
                                       nsAString& aReturn,
                                       ErrorResult& aRv);
 
+  virtual void PopChallengeResponse(const nsAString& aChallenge,
+                                    nsAString& aReturn,
+                                    ErrorResult& aRv);
+
+  virtual void Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv);
+
   virtual void SignText(JSContext* aContext,
                         const nsAString& aStringToSign,
                         const nsAString& aCaOption,
@@ -74,6 +80,7 @@ public:
 
   virtual void Logout(ErrorResult& aRv);
 
+  virtual void DisableRightClick(ErrorResult& aRv);
 #endif
 
   // WebIDL

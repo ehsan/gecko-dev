@@ -10,7 +10,7 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "js/RootingAPI.h"
-#include "js/TracingAPI.h"
+#include "js/Tracer.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsWrapperCache.h"

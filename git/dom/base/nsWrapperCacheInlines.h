@@ -8,7 +8,7 @@
 
 #include "nsWrapperCache.h"
 #include "js/GCAPI.h"
-#include "js/TracingAPI.h"
+#include "js/Tracer.h"
 
 inline JSObject*
 nsWrapperCache::GetWrapper() const

@@ -829,7 +829,7 @@ HashableValue
 HashableValue::mark(JSTracer *trc) const
 {
     HashableValue hv(*this);
-    trc->setTracingLocation((void *)this);
+    JS_SET_TRACING_LOCATION(trc, (void *)this);
     gc::MarkValue(trc, &hv.value, "key");
     return hv;
 }

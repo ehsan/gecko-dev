@@ -61,18 +61,51 @@ rdtsc(void)
     result = result<<32;
     result = result|lower;
 
-    return result;
+    return(result);
 }
 #endif
 
 TraceLogging traceLoggers;
 
-static const char* const text[] =
-{
+// The text that will get logged for eagerly created logged text.
+// When adding/removing something here, you must update the enum
+// Tracelogger::TextId in TraceLogging.h too.
+const char* const text[] = {
     "TraceLogger failed to process text",
-#define NAME(x) #x,
-    TRACELOGGER_TEXT_ID_LIST(NAME)
-#undef NAME
+    "Bailout",
+    "Baseline",
+    "GC",
+    "GCAllocation",
+    "GCSweeping",
+    "Interpreter",
+    "Invalidation",
+    "IonCompilation",
+    "IonLinking",
+    "IonMonkey",
+    "MinorGC",
+    "ParserCompileFunction",
+    "ParserCompileLazy",
+    "ParserCompileScript",
+    "TraceLogger",
+    "YarrCompile",
+    "YarrInterpret",
+    "YarrJIT",
+    "VM",
+    "SplitCriticalEdges",
+    "RenumberBlocks",
+    "DominatorTree",
+    "PhiAnalysis",
+    "ApplyTypes",
+    "ParallelSafetyAnalysis",
+    "AliasAnalysis",
+    "GVN",
+    "UCE",
+    "LICM",
+    "RangeAnalysis",
+    "EffectiveAddressAnalysis",
+    "EliminateDeadCode",
+    "EdgeCaseAnalysis",
+    "EliminateRedundantChecks"
 };
 
 TraceLogger::TraceLogger()
@@ -800,7 +833,6 @@ TraceLogging::lazyInit()
     if (ContainsFlag(env, "Default") || strlen(env) == 0) {
         enabledTextIds[TraceLogger::Bailout] = true;
         enabledTextIds[TraceLogger::Baseline] = true;
-        enabledTextIds[TraceLogger::BaselineCompilation] = true;
         enabledTextIds[TraceLogger::GC] = true;
         enabledTextIds[TraceLogger::GCAllocation] = true;
         enabledTextIds[TraceLogger::GCSweeping] = true;

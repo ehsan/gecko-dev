@@ -197,16 +197,24 @@ LSnapshot::rewriteRecoveredInput(LUse input)
     }
 }
 
+bool
+LPhi::init(MIRGenerator *gen)
+{
+    inputs_ = gen->allocate<LAllocation>(numInputs_);
+    return !!inputs_;
+}
+
+LPhi::LPhi(MPhi *mir)
+  : numInputs_(mir->numOperands())
+{
+}
+
 LPhi *
 LPhi::New(MIRGenerator *gen, MPhi *ins)
 {
-    LPhi *phi = new (gen->alloc()) LPhi();
-    LAllocation *inputs = gen->allocate<LAllocation>(ins->numOperands());
-    if (!inputs)
+    LPhi *phi = new(gen->alloc()) LPhi(ins);
+    if (!phi->init(gen))
         return nullptr;
-
-    phi->inputs_ = inputs;
-    phi->setMir(ins);
     return phi;
 }
 
@@ -381,7 +389,7 @@ LInstruction::dump(FILE *fp)
         }
         fprintf(fp, ")");
     }
-    fprintf(fp, "\n");
+    fprintf(stderr, "\n");
 }
 
 void

@@ -3794,7 +3794,7 @@ class NewTypeObjectsSetRef : public BufferableRef
 
     void mark(JSTracer *trc) {
         JSObject *prior = proto;
-        trc->setTracingLocation(&*prior);
+        JS_SET_TRACING_LOCATION(trc, (void*)&*prior);
         Mark(trc, &proto, "newTypeObjects set prototype");
         if (prior == proto)
             return;

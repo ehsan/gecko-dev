@@ -1428,17 +1428,17 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
 /*** Debugger JSObjects **************************************************************************/
 
 void
-Debugger::markKeysInCompartment(JSTracer *trc)
+Debugger::markKeysInCompartment(JSTracer *tracer)
 {
     /*
      * WeakMap::Range is deliberately private, to discourage C++ code from
      * enumerating WeakMap keys. However in this case we need access, so we
      * make a base-class reference. Range is public in HashMap.
      */
-    objects.markKeys(trc);
-    environments.markKeys(trc);
-    scripts.markKeys(trc);
-    sources.markKeys(trc);
+    objects.markKeys(tracer);
+    environments.markKeys(tracer);
+    scripts.markKeys(tracer);
+    sources.markKeys(tracer);
 }
 
 /*
@@ -1464,9 +1464,9 @@ Debugger::markKeysInCompartment(JSTracer *trc)
  * all the edges being reported here are strong references.
  */
 void
-Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *trc)
+Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer)
 {
-    JSRuntime *rt = trc->runtime();
+    JSRuntime *rt = tracer->runtime;
 
     /*
      * Mark all objects in comp that are referents of Debugger.Objects in other
@@ -1474,7 +1474,7 @@ Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *trc)
      */
     for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
         if (!dbg->object->zone()->isCollecting())
-            dbg->markKeysInCompartment(trc);
+            dbg->markKeysInCompartment(tracer);
     }
 }
 
@@ -1497,7 +1497,7 @@ Debugger::markAllIteratively(GCMarker *trc)
      * Find all Debugger objects in danger of GC. This code is a little
      * convoluted since the easiest way to find them is via their debuggees.
      */
-    JSRuntime *rt = trc->runtime();
+    JSRuntime *rt = trc->runtime;
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
         GlobalObjectSet &debuggees = c->getDebuggees();
         for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
@@ -1566,7 +1566,7 @@ Debugger::markAllIteratively(GCMarker *trc)
 void
 Debugger::markAll(JSTracer *trc)
 {
-    JSRuntime *rt = trc->runtime();
+    JSRuntime *rt = trc->runtime;
     for (Debugger *dbg = rt->debuggerList.getFirst(); dbg; dbg = dbg->getNext()) {
         GlobalObjectSet &debuggees = dbg->debuggees;
         for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {

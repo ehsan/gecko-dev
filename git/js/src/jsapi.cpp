@@ -1645,13 +1645,7 @@ struct JSHeapDumpNode {
 
 typedef HashSet<void *, PointerHasher<void *, 3>, SystemAllocPolicy> VisitedSet;
 
-class DumpingTracer
-{
-  public:
-    DumpingTracer(JSRuntime *rt, JSTraceCallback callback)
-      : base(rt, callback)
-    {}
-
+typedef struct JSDumpingTracer {
     JSTracer            base;
     VisitedSet          visited;
     bool                ok;
@@ -1661,14 +1655,14 @@ class DumpingTracer
     JSHeapDumpNode      *parentNode;
     JSHeapDumpNode      **lastNodep;
     char                buffer[200];
-};
+} JSDumpingTracer;
 
 static void
 DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
     JS_ASSERT(trc->callback == DumpNotify);
 
-    DumpingTracer *dtrc = (DumpingTracer *)trc;
+    JSDumpingTracer *dtrc = (JSDumpingTracer *)trc;
     void *thing = *thingp;
 
     if (!dtrc->ok || thing == dtrc->thingToIgnore)
@@ -1700,7 +1694,7 @@ DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
         }
     }
 
-    const char *edgeName = dtrc->base.getTracingEdgeName(dtrc->buffer, sizeof(dtrc->buffer));
+    const char *edgeName = JS_GetTraceEdgeName(&dtrc->base, dtrc->buffer, sizeof(dtrc->buffer));
     size_t edgeNameSize = strlen(edgeName) + 1;
     size_t bytes = offsetof(JSHeapDumpNode, edgeName) + edgeNameSize;
     JSHeapDumpNode *node = (JSHeapDumpNode *) js_malloc(bytes);
@@ -1722,7 +1716,7 @@ DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 
 /* Dump node and the chain that leads to thing it contains. */
 static bool
-DumpNode(DumpingTracer *dtrc, FILE* fp, JSHeapDumpNode *node)
+DumpNode(JSDumpingTracer *dtrc, FILE* fp, JSHeapDumpNode *node)
 {
     JSHeapDumpNode *prev, *following;
     size_t chainLimit;
@@ -1792,9 +1786,10 @@ JS_DumpHeap(JSRuntime *rt, FILE *fp, void* startThing, JSGCTraceKind startKind,
     if (maxDepth == 0)
         return true;
 
-    DumpingTracer dtrc(rt, DumpNotify);
+    JSDumpingTracer dtrc;
     if (!dtrc.visited.init())
         return false;
+    JS_TracerInit(&dtrc.base, rt, DumpNotify);
     dtrc.ok = true;
     dtrc.startThing = startThing;
     dtrc.thingToFind = thingToFind;
@@ -4346,8 +4341,6 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions &rhs)
     extraWarningsOption = rhs.extraWarningsOption;
     werrorOption = rhs.werrorOption;
     asmJSOption = rhs.asmJSOption;
-    forceAsync = rhs.forceAsync;
-    installedFile = rhs.installedFile;
     sourcePolicy = rhs.sourcePolicy;
     introductionType = rhs.introductionType;
     introductionLineno = rhs.introductionLineno;
