@@ -1644,8 +1644,6 @@ pref("image.mem.max_decoded_image_kb", 256000);
 pref("loop.enabled", true);
 pref("loop.server", "https://loop.services.mozilla.com");
 pref("loop.seenToS", "unseen");
-pref("loop.gettingStarted.seen", false);
-pref("loop.gettingStarted.url", "https://bugzilla.mozilla.org/show_bug.cgi?id=1099462");
 pref("loop.learnMoreUrl", "https://www.firefox.com/hello/");
 pref("loop.legal.ToS_url", "https://hello.firefox.com/legal/terms/");
 pref("loop.legal.privacy_url", "https://www.mozilla.org/privacy/");
@@ -1666,7 +1664,7 @@ pref("loop.CSP", "default-src 'self' about: file: chrome:; img-src 'self' data: 
 #endif
 pref("loop.oauth.google.redirect_uri", "urn:ietf:wg:oauth:2.0:oob:auto");
 pref("loop.oauth.google.scope", "https://www.google.com/m8/feeds");
-pref("loop.rooms.enabled", true);
+pref("loop.rooms.enabled", false);
 pref("loop.fxa_oauth.tokendata", "");
 pref("loop.fxa_oauth.profile", "");
 

@@ -718,14 +718,12 @@ loop.shared.views = (function(_, OT, l10n) {
       onClick: React.PropTypes.func.isRequired,
       disabled: React.PropTypes.bool,
       additionalClass: React.PropTypes.string,
-      htmlId: React.PropTypes.string,
     },
 
     getDefaultProps: function() {
       return {
         disabled: false,
         additionalClass: "",
-        htmlId: "",
       };
     },
 
@@ -738,7 +736,6 @@ loop.shared.views = (function(_, OT, l10n) {
       return (
         React.DOM.button({onClick: this.props.onClick, 
                 disabled: this.props.disabled, 
-                id: this.props.htmlId, 
                 className: cx(classObject)}, 
           React.DOM.span({className: "button-caption"}, this.props.caption), 
           this.props.children

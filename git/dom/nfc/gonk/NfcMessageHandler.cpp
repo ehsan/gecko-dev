@@ -20,7 +20,6 @@ static const char* kChangeRFStateRequest = "changeRFState";
 static const char* kReadNDEFRequest = "readNDEF";
 static const char* kWriteNDEFRequest = "writeNDEF";
 static const char* kMakeReadOnlyRequest = "makeReadOnly";
-static const char* kFormatRequest = "format";
 static const char* kConnectRequest = "connect";
 static const char* kCloseRequest = "close";
 
@@ -28,7 +27,6 @@ static const char* kChangeRFStateResponse = "ChangeRFStateResponse";
 static const char* kReadNDEFResponse = "ReadNDEFResponse";
 static const char* kWriteNDEFResponse = "WriteNDEFResponse";
 static const char* kMakeReadOnlyResponse = "MakeReadOnlyResponse";
-static const char* kFormatResponse = "FormatResponse";
 static const char* kConnectResponse = "ConnectResponse";
 static const char* kCloseResponse = "CloseResponse";
 
@@ -54,9 +52,6 @@ NfcMessageHandler::Marshall(Parcel& aParcel, const CommandOptions& aOptions)
   } else if (!strcmp(type, kMakeReadOnlyRequest)) {
     result = MakeReadOnlyRequest(aParcel, aOptions);
     mPendingReqQueue.AppendElement(NfcRequest::MakeReadOnlyReq);
-  } else if (!strcmp(type, kFormatRequest)) {
-    result = FormatRequest(aParcel, aOptions);
-    mPendingReqQueue.AppendElement(NfcRequest::FormatReq);
   } else if (!strcmp(type, kConnectRequest)) {
     result = ConnectRequest(aParcel, aOptions);
     mPendingReqQueue.AppendElement(NfcRequest::ConnectReq);
@@ -121,9 +116,6 @@ NfcMessageHandler::GeneralResponse(const Parcel& aParcel, EventOptions& aOptions
       break;
     case NfcRequest::MakeReadOnlyReq:
       type = kMakeReadOnlyResponse;
-      break;
-    case NfcRequest::FormatReq:
-      type = kFormatResponse;
       break;
     case NfcRequest::ConnectReq:
       type = kConnectResponse;
@@ -210,15 +202,6 @@ bool
 NfcMessageHandler::MakeReadOnlyRequest(Parcel& aParcel, const CommandOptions& aOptions)
 {
   aParcel.writeInt32(NfcRequest::MakeReadOnlyReq);
-  aParcel.writeInt32(aOptions.mSessionId);
-  mRequestIdQueue.AppendElement(aOptions.mRequestId);
-  return true;
-}
-
-bool
-NfcMessageHandler::FormatRequest(Parcel& aParcel, const CommandOptions& aOptions)
-{
-  aParcel.writeInt32(NfcRequest::FormatReq);
   aParcel.writeInt32(aOptions.mSessionId);
   mRequestIdQueue.AppendElement(aOptions.mRequestId);
   return true;
