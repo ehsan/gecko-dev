@@ -12,8 +12,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
 #include "nsIStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 

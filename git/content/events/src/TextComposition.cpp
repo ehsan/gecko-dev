@@ -9,7 +9,6 @@
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
-#include "nsIContent.h"
 #include "nsIMEStateManager.h"
 #include "nsIPresShell.h"
 #include "nsIWidget.h"

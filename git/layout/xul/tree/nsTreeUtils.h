@@ -6,13 +6,9 @@
 #ifndef nsTreeUtils_h__
 #define nsTreeUtils_h__
 
-#include "nsError.h"
 #include "nsString.h"
 #include "nsTreeStyleCache.h"
-
-class nsIAtom;
-class nsIContent;
-class nsISupportsArray;
+#include "nsIContent.h"
 
 class nsTreeUtils
 {

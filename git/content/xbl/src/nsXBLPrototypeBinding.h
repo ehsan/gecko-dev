@@ -12,6 +12,7 @@
 #include "nsXBLProtoImplMethod.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
+#include "nsIContent.h"
 #include "nsHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsXBLDocumentInfo.h"
@@ -19,7 +20,6 @@
 #include "nsXBLProtoImpl.h"
 
 class nsIAtom;
-class nsIContent;
 class nsIDocument;
 class nsIScriptContext;
 class nsSupportsHashtable;

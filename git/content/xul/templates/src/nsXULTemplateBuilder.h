@@ -8,6 +8,7 @@
 
 #include "nsStubDocumentObserver.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFContainer.h"
@@ -30,10 +31,9 @@
 extern PRLogModuleInfo* gXULTemplateLog;
 #endif
 
-class nsIContent;
-class nsIObserverService;
-class nsIRDFCompositeDataSource;
 class nsIXULDocument;
+class nsIRDFCompositeDataSource;
+class nsIObserverService;
 
 /**
  * An object that translates an RDF graph into a presentation using a

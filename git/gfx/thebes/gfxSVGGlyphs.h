@@ -46,6 +46,7 @@
 #include "nsClassHashtable.h"
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
+#include "nsIDocument.h"
 #include "gfxPattern.h"
 #include "gfxFont.h"
 #include "mozilla/gfx/UserData.h"

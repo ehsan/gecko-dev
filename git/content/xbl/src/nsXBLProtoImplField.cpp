@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIAtom.h"
-#include "nsIContent.h"
 #include "nsString.h"
 #include "nsJSUtils.h"
 #include "jsapi.h"

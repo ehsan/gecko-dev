@@ -12,13 +12,12 @@
 #ifndef nsHTMLStyleSheet_h_
 #define nsHTMLStyleSheet_h_
 
-#include "nsAutoPtr.h"
-#include "nsColor.h"
-#include "nsCOMPtr.h"
-#include "nsIStyleRule.h"
-#include "nsIStyleRuleProcessor.h"
 #include "nsIStyleSheet.h"
+#include "nsIStyleRuleProcessor.h"
+#include "nsIStyleRule.h"
 #include "pldhash.h"
+#include "nsCOMPtr.h"
+#include "nsColor.h"
 #include "mozilla/Attributes.h"
 
 class nsMappedAttributes;

@@ -12,7 +12,6 @@
 #include "WrapperFactory.h"
 
 #include "nsINode.h"
-#include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 

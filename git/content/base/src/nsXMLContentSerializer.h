@@ -12,6 +12,7 @@
 #ifndef nsXMLContentSerializer_h__
 #define nsXMLContentSerializer_h__
 
+#include "nsIContent.h"
 #include "nsIContentSerializer.h"
 #include "nsISupportsUtils.h"
 #include "nsCOMPtr.h"
@@ -21,9 +22,8 @@
 #define kIndentStr NS_LITERAL_STRING("  ")
 #define kEndTag NS_LITERAL_STRING("</")
 
-class nsIAtom;
 class nsIDOMNode;
-class nsINode;
+class nsIAtom;
 
 class nsXMLContentSerializer : public nsIContentSerializer {
  public:

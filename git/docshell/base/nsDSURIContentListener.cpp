@@ -10,7 +10,6 @@
 #include "nsXPIDLString.h"
 #include "nsDocShellCID.h"
 #include "nsIWebNavigationInfo.h"
-#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsNetUtil.h"
 #include "nsAutoPtr.h"

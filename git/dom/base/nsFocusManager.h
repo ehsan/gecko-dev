@@ -6,12 +6,11 @@
 #ifndef nsFocusManager_h___
 #define nsFocusManager_h___
 
-#include "nsCycleCollectionParticipant.h"
-#include "nsIDocument.h"
 #include "nsIFocusManager.h"
-#include "nsIObserver.h"
-#include "nsIWidget.h"
 #include "nsWeakReference.h"
+#include "nsIObserver.h"
+#include "nsIContent.h"
+#include "nsIWidget.h"
 #include "mozilla/Attributes.h"
 
 #define FOCUSMETHOD_MASK 0xF000
@@ -19,7 +18,6 @@
 
 #define FOCUSMANAGER_CONTRACTID "@mozilla.org/focus-manager;1"
 
-class nsIContent;
 class nsIDocShellTreeItem;
 class nsPIDOMWindow;
 
