@@ -70,8 +70,8 @@ var Appbar = {
   },
 
   onDownloadButton: function() {
-    let notificationBox = Browser.getNotificationBox();
-    notificationBox.notificationsHidden = !notificationBox.notificationsHidden;
+    // TODO: Bug 883962: Toggle the downloads infobar when the
+    // download button is clicked
     ContextUI.dismiss();
   },
 

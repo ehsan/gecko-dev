@@ -22,8 +22,7 @@ let Keyboard = {
   _messageNames: [
     'SetValue', 'RemoveFocus', 'SetSelectedOption', 'SetSelectedOptions',
     'SetSelectionRange', 'ReplaceSurroundingText', 'ShowInputMethodPicker',
-    'SwitchToNextInputMethod', 'HideInputMethod',
-    'GetText', 'SendKey', 'GetContext'
+    'SwitchToNextInputMethod', 'HideInputMethod'
   ],
 
   get messageManager() {
@@ -59,13 +58,6 @@ let Keyboard = {
     } else {
       mm.addMessageListener('Forms:Input', this);
       mm.addMessageListener('Forms:SelectionChange', this);
-      mm.addMessageListener('Forms:GetText:Result:OK', this);
-      mm.addMessageListener('Forms:GetText:Result:Error', this);
-      mm.addMessageListener('Forms:SetSelectionRange:Result:OK', this);
-      mm.addMessageListener('Forms:ReplaceSurroundingText:Result:OK', this);
-      mm.addMessageListener('Forms:SendKey:Result:OK', this);
-      mm.addMessageListener('Forms:SequenceError', this);
-      mm.addMessageListener('Forms:GetContext:Result:OK', this);
 
       // When not running apps OOP, we need to load forms.js here since this
       // won't happen from dom/ipc/preload.js
@@ -106,20 +98,11 @@ let Keyboard = {
 
     switch (msg.name) {
       case 'Forms:Input':
-        this.forwardEvent('Keyboard:FocusChange', msg);
+        this.handleFormsInput(msg);
         break;
       case 'Forms:SelectionChange':
-      case 'Forms:GetText:Result:OK':
-      case 'Forms:GetText:Result:Error':
-      case 'Forms:SetSelectionRange:Result:OK':
-      case 'Forms:ReplaceSurroundingText:Result:OK':
-      case 'Forms:SendKey:Result:OK':
-      case 'Forms:SequenceError':
-      case 'Forms:GetContext:Result:OK':
-        let name = msg.name.replace(/^Forms/, 'Keyboard');
-        this.forwardEvent(name, msg);
+        this.handleFormsSelectionChange(msg);
         break;
-
       case 'Keyboard:SetValue':
         this.setValue(msg);
         break;
@@ -144,23 +127,21 @@ let Keyboard = {
       case 'Keyboard:ShowInputMethodPicker':
         this.showInputMethodPicker();
         break;
-      case 'Keyboard:GetText':
-        this.getText(msg);
-        break;
-      case 'Keyboard:SendKey':
-        this.sendKey(msg);
-        break;
-      case 'Keyboard:GetContext':
-        this.getContext(msg);
-        break;
     }
   },
 
-  forwardEvent: function keyboardForwardEvent(newEventName, msg) {
+  handleFormsInput: function keyboardHandleFormsInput(msg) {
     this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
                              .frameLoader.messageManager;
 
-    ppmm.broadcastAsyncMessage(newEventName, msg.data);
+    ppmm.broadcastAsyncMessage('Keyboard:FocusChange', msg.data);
+  },
+
+  handleFormsSelectionChange: function keyboardHandleFormsSelectionChange(msg) {
+    this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
+                             .frameLoader.messageManager;
+
+    ppmm.broadcastAsyncMessage('Keyboard:SelectionChange', msg.data);
   },
 
   setSelectedOption: function keyboardSetSelectedOption(msg) {
@@ -200,18 +181,6 @@ let Keyboard = {
     browser.shell.sendChromeEvent({
       type: "input-method-switch-to-next"
     });
-  },
-
-  getText: function keyboardGetText(msg) {
-    this.messageManager.sendAsyncMessage('Forms:GetText', msg.data);
-  },
-
-  sendKey: function keyboardSendKey(msg) {
-    this.messageManager.sendAsyncMessage('Forms:Input:SendKey', msg.data);
-  },
-
-  getContext: function keyboardGetContext(msg) {
-    this.messageManager.sendAsyncMessage('Forms:GetContext', msg.data);
   }
 };
 
