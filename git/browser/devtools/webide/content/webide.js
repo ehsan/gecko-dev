@@ -195,9 +195,6 @@ let UI = {
       case "runtime-apps-found":
         this.autoSelectProject();
         break;
-      case "pre-package":
-        this.prePackageLog(details);
-        break;
     };
     this._updatePromise = promise.resolve();
   },
@@ -771,13 +768,9 @@ let UI = {
   },
 
   selectDeckPanel: function(id) {
-    let deck = document.querySelector("#deck");
-    if (deck.selectedPanel && deck.selectedPanel.id === "deck-panel-" + id) {
-      // This panel is already displayed.
-      return;
-    }
     this.hidePanels();
     this.resetFocus();
+    let deck = document.querySelector("#deck");
     let panel = deck.querySelector("#deck-panel-" + id);
     let lazysrc = panel.getAttribute("lazysrc");
     if (lazysrc) {
@@ -1011,12 +1004,6 @@ let UI = {
     document.querySelector("#action-button-debug").removeAttribute("active");
     this.updateToolboxFullscreenState();
   },
-
-  prePackageLog: function (msg) {
-    if (msg == "start") {
-      UI.selectDeckPanel("logs");
-    }
-  }
 };
 
 let Cmds = {

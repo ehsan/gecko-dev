@@ -26,7 +26,7 @@ let AppConstants = Object.freeze({
 #endif
 
   ACCESSIBILITY:
-#ifdef ACCESSIBILITY
+#ifdef MOZ_ACCESSIBILITY
   true,
 #else
   false,

@@ -405,7 +405,6 @@ public class TabsPanel extends LinearLayout
             int height = getVerticalPanelHeight();
             dispatchLayoutChange(getWidth(), height);
         }
-        mHeaderVisible = true;
     }
 
     public void prepareToDrag() {
@@ -415,7 +414,6 @@ public class TabsPanel extends LinearLayout
         } else {
             prepareToShow(TabsPanel.Panel.NORMAL_TABS);
         }
-        mHeaderVisible = true;
         if (mIsSideBar) {
             prepareSidebarAnimation(getWidth());
         }

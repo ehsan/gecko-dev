@@ -669,10 +669,9 @@ if not CONFIG['MOZILLA_OFFICIAL']:
         'org/lucasr/dspec/RawResource.java'
     ] ]
 
-# Putting branding earlier allows branders to override default resources.
 ANDROID_RES_DIRS += [
-    TOPSRCDIR + '/' + CONFIG['MOZ_BRANDING_DIRECTORY'] + '/res',
     SRCDIR + '/resources',
+    TOPSRCDIR + '/' + CONFIG['MOZ_BRANDING_DIRECTORY'] + '/res',
     OBJDIR + '/res',
 ]
 
