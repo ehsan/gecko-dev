@@ -253,6 +253,18 @@ ThreadActor.prototype = {
     };
   },
 
+  onReconfigure: function TA_onReconfigure(aRequest) {
+    if (this.state == "exited") {
+      return { error: "wrongState" };
+    }
+
+    update(this._options, aRequest.options || {});
+    // Clear existing sources, so they can be recreated on next access.
+    this._sources = null;
+
+    return {};
+  },
+
   /**
    * Pause the debuggee, by entering a nested event loop, and return a 'paused'
    * packet to the client.
@@ -481,7 +493,7 @@ ThreadActor.prototype = {
       promises.push(promise);
     }
 
-    return resolveAll(promises).then(function () {
+    return all(promises).then(function () {
       return { frames: frames };
     });
   },
@@ -550,7 +562,7 @@ ThreadActor.prototype = {
       let originalLocation = this.sources.getOriginalLocation(aLocation.url,
                                                               aLocation.line);
 
-      return resolveAll([response, originalLocation])
+      return all([response, originalLocation])
         .then(([aResponse, {url, line}]) => {
           if (aResponse.actualLocation) {
             let actualOrigLocation = this.sources.getOriginalLocation(
@@ -680,8 +692,8 @@ ThreadActor.prototype = {
    * Get the script and source lists from the debugger.
    */
   _discoverScriptsAndSources: function TA__discoverScriptsAndSources() {
-    return resolveAll([this._addScript(s)
-                       for (s of this.dbg.findScripts())]);
+    return all([this._addScript(s)
+                for (s of this.dbg.findScripts())]);
   },
 
   onSources: function TA_onSources(aRequest) {
@@ -1281,6 +1293,7 @@ ThreadActor.prototype = {
 ThreadActor.prototype.requestTypes = {
   "attach": ThreadActor.prototype.onAttach,
   "detach": ThreadActor.prototype.onDetach,
+  "reconfigure": ThreadActor.prototype.onReconfigure,
   "resume": ThreadActor.prototype.onResume,
   "clientEvaluate": ThreadActor.prototype.onClientEvaluate,
   "frames": ThreadActor.prototype.onFrames,

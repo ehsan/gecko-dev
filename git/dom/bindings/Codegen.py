@@ -8,6 +8,7 @@ import operator
 import os
 import re
 import string
+import math
 
 from WebIDL import BuiltinTypes, IDLBuiltinType, IDLNullValue, IDLSequenceType, IDLType
 from Configuration import NoSuchDescriptorError, getTypesFromDescriptor, getTypesFromDictionary, getTypesFromCallback, Descriptor
@@ -1786,6 +1787,9 @@ class CGDefineDOMInterfaceMethod(CGAbstractMethod):
     def definition_body(self):
         if len(self.descriptor.interface.namedConstructors) > 0:
             getConstructor = """  JSObject* interfaceObject = GetConstructorObject(aCx, aGlobal);
+  if (!interfaceObject) {
+    return nullptr;
+  }
   for (unsigned slot = DOM_INTERFACE_SLOTS_BASE; slot < JSCLASS_RESERVED_SLOTS(&InterfaceObjectClass.mBase); ++slot) {
     JSObject* constructor = &js::GetReservedSlot(interfaceObject, slot).toObject();
     if (JS_GetFunctionId(JS_GetObjectFunction(constructor)) == JSID_TO_STRING(id)) {
@@ -1862,6 +1866,7 @@ def CreateBindingJSObject(descriptor, parent):
         create += """  // Make sure the native objects inherit from NonRefcountedDOMObject so that we
   // log their ctor and dtor.
   MustInheritFromNonRefcountedDOMObject(aObject);
+  *aTookOwnership = true;
 """
     return create % parent
 
@@ -2000,6 +2005,8 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
         assert descriptor.interface.hasInterfacePrototypeObject()
         args = [Argument('JSContext*', 'aCx'), Argument('JSObject*', 'aScope'),
                 Argument(descriptor.nativeType + '*', 'aObject')]
+        if descriptor.nativeOwnership == 'owned':
+            args.append(Argument('bool*', 'aTookOwnership'))
         CGAbstractMethod.__init__(self, descriptor, 'Wrap', 'JSObject*', args)
         self.properties = properties
 
@@ -2042,9 +2049,22 @@ numericSuffixes = {
     IDLType.Tags.uint32: 'U',
     IDLType.Tags.int64: 'LL',
     IDLType.Tags.uint64: 'ULL',
+    IDLType.Tags.unrestricted_float: 'F',
     IDLType.Tags.float: 'F',
+    IDLType.Tags.unrestricted_double: 'D',
     IDLType.Tags.double: 'D'
 }
+
+def numericValue(t, v):
+    if (t == IDLType.Tags.unrestricted_double or
+        t == IDLType.Tags.unrestricted_float):
+        if v == float("inf"):
+            return "MOZ_DOUBLE_POSITIVE_INFINITY()"
+        if v == float("-inf"):
+            return "MOZ_DOUBLE_NEGATIVE_INFINITY()"
+        if math.isnan(v):
+            return "MOZ_DOUBLE_NaN()"
+    return "%s%s" % (v, numericSuffixes[t])
 
 class CastableObjectUnwrapper():
     """
@@ -3176,7 +3196,7 @@ for (uint32_t i = 0; i < length; ++i) {
         tag = defaultValue.type.tag()
         if tag in numericSuffixes:
             # Some numeric literals require a suffix to compile without warnings
-            defaultStr = "%s%s" % (defaultValue.value, numericSuffixes[tag])
+            defaultStr = numericValue(tag, defaultValue.value)
         else:
             assert(tag == IDLType.Tags.bool)
             defaultStr = toStringBool(defaultValue.value)
@@ -3283,7 +3303,7 @@ def convertConstIDLValueToJSVal(value):
     if tag == IDLType.Tags.uint32:
         return "UINT_TO_JSVAL(%sU)" % (value.value)
     if tag in [IDLType.Tags.int64, IDLType.Tags.uint64]:
-        return "DOUBLE_TO_JSVAL(%s%s)" % (value.value, numericSuffixes[tag])
+        return "DOUBLE_TO_JSVAL(%s)" % numericValue(tag, value.value)
     if tag == IDLType.Tags.bool:
         return "JSVAL_TRUE" if value.value else "JSVAL_FALSE"
     if tag in [IDLType.Tags.float, IDLType.Tags.double]:
@@ -3443,7 +3463,7 @@ def getWrapTemplateForType(type, descriptorProvider, result, successCode,
                "}\n" +
                successCode) % (wrapCall)
         return str
-    
+
     if type is None or type.isVoid():
         return (setValue("JSVAL_VOID"), True)
 
@@ -3525,11 +3545,15 @@ if (!returnArray) {
             failed = None
         elif not descriptor.interface.isExternal() and not descriptor.skipGen:
             if descriptor.wrapperCache:
+                assert descriptor.nativeOwnership != 'owned'
                 wrapMethod = "WrapNewBindingObject"
             else:
                 if not isCreator:
                     raise MethodNotCreatorError(descriptor.interface.identifier.name)
-                wrapMethod = "WrapNewBindingNonWrapperCachedObject"
+                if descriptor.nativeOwnership == 'owned':
+                    wrapMethod = "WrapNewBindingNonWrapperCachedOwnedObject"
+                else:
+                    wrapMethod = "WrapNewBindingNonWrapperCachedObject"
             wrap = "%s(cx, ${obj}, %s, ${jsvalPtr})" % (wrapMethod, result)
             if not descriptor.hasXPConnectImpls:
                 # Can only fail to wrap as a new-binding object
@@ -3720,11 +3744,17 @@ def typeNeedsCx(type, descriptorProvider, retVal=False):
     if type.isUnion():
         return any(typeNeedsCx(t, descriptorProvider) for t in
                    type.unroll().flatMemberTypes)
+    if type.isDictionary():
+        return dictionaryNeedsCx(type.inner, descriptorProvider)
     if retVal and type.isSpiderMonkeyInterface():
         return True
     if type.isCallback():
         return descriptorProvider.workers
     return type.isAny() or type.isObject()
+
+def dictionaryNeedsCx(dictionary, descriptorProvider):
+    return (any(typeNeedsCx(m.type, descriptorProvider) for m in dictionary.members) or
+        (dictionary.parent and dictionaryNeedsCx(dictionary.parent, descriptorProvider)))
 
 # Returns a tuple consisting of a CGThing containing the type of the return
 # value, or None if there is no need for a return value, and a boolean signaling
@@ -3756,6 +3786,9 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             returnType.unroll().inner.identifier.name).nativeType)
         if resultAlreadyAddRefed:
             result = CGTemplatedType("nsRefPtr", result)
+        elif descriptorProvider.getDescriptor(
+            returnType.unroll().inner.identifier.name).nativeOwnership == 'owned':
+            result = CGTemplatedType("nsAutoPtr", result)
         else:
             result = CGWrapper(result, post="*")
         return result, False
@@ -3982,6 +4015,9 @@ if (global.Failed()) {
             # We better be returning addrefed things!
             assert(isResultAlreadyAddRefed(self.descriptor,
                                            self.extendedAttributes) or
+                   # Creators can return raw pointers to owned objects
+                   (self.returnType.isGeckoInterface() and
+                    self.descriptor.getDescriptor(self.returnType.unroll().inner.identifier.name).nativeOwnership == 'owned') or
                    # Workers use raw pointers for new-object return
                    # values or something
                    self.descriptor.workers)
@@ -6597,6 +6633,11 @@ class CGDescriptor(CGThing):
 
         assert not descriptor.concrete or descriptor.interface.hasInterfacePrototypeObject()
 
+        if descriptor.nativeOwnership == 'owned' and (
+           descriptor.interface.hasChildInterfaces() or
+           descriptor.interface.parent):
+           raise TypeError("Owned interface cannot have a parent or children")
+
         self._deps = descriptor.interface.getDeps()
 
         cgThings = []
@@ -7961,9 +8002,7 @@ ${nativeType}::${nativeType}()
 ${nativeType}::~${nativeType}()
 {
 }
-"""
-        if self.descriptor.wrapperCache:
-            classImpl += """
+
 JSObject*
 ${nativeType}::WrapObject(JSContext* aCx, JSObject* aScope)
 {
@@ -7971,16 +8010,6 @@ ${nativeType}::WrapObject(JSContext* aCx, JSObject* aScope)
 }
 
 """
-        else:
-            classImpl += """
-JSObject*
-${nativeType}::WrapObject(JSContext* aCx, JSObject* aScope)
-{
-  return ${ifaceName}Binding::Wrap(aCx, aScope, this);
-}
-
-"""
-
         return string.Template(classImpl).substitute(
             { "ifaceName": self.descriptor.name,
               "nativeType": self.descriptor.nativeType.split('::')[-1] }
