@@ -42,7 +42,7 @@ class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
   typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
 
-  nsCSSRuleProcessor(const sheet_array_type& aSheets, uint8_t aSheetType);
+  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -129,8 +129,8 @@ public:
 
 #ifdef XP_WIN
   // Cached theme identifier for the moz-windows-theme media query.
-  static uint8_t GetWindowsThemeIdentifier();
-  static void SetWindowsThemeIdentifier(uint8_t aId) { 
+  static PRUint8 GetWindowsThemeIdentifier();
+  static void SetWindowsThemeIdentifier(PRUint8 aId) { 
     sWinThemeId = aId;
   }
 #endif
@@ -161,10 +161,10 @@ private:
   nsPresContext *mLastPresContext;
   
   // type of stylesheet using this processor
-  uint8_t mSheetType;  // == nsStyleSet::sheetType
+  PRUint8 mSheetType;  // == nsStyleSet::sheetType
 
 #ifdef XP_WIN
-  static uint8_t sWinThemeId;
+  static PRUint8 sWinThemeId;
 #endif
 };
 

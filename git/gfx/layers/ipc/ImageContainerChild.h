@@ -52,7 +52,7 @@ public:
    * compositor side to fetch the images without having to keep direct references
    * between the ShadowImageLayer and the InmageBridgeParent.
    */
-  const uint64_t& GetID() const
+  const PRUint64& GetID() const
   {
     return mImageContainerID;
   }
@@ -137,7 +137,7 @@ protected:
    */
   void DestroyNow();
 
-  inline void SetID(uint64_t id)
+  inline void SetID(PRUint64 id)
   {
     mImageContainerID = id;
   }
@@ -190,7 +190,7 @@ protected:
   SharedImage * CreateSharedImageFromData(Image* aImage);
 
 private:
-  uint64_t mImageContainerID;
+  PRUint64 mImageContainerID;
   nsTArray<SharedImage*> mSharedImagePool;
 
   /**

@@ -148,9 +148,9 @@ struct EnumSerializer {
 };
 
 template<>
-struct ParamTraits<int8_t>
+struct ParamTraits<PRInt8>
 {
-  typedef int8_t paramType;
+  typedef PRInt8 paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -169,9 +169,9 @@ struct ParamTraits<int8_t>
 };
 
 template<>
-struct ParamTraits<uint8_t>
+struct ParamTraits<PRUint8>
 {
-  typedef uint8_t paramType;
+  typedef PRUint8 paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -219,7 +219,7 @@ struct ParamTraits<nsACString>
       // represents a NULL pointer
       return;
 
-    uint32_t length = aParam.Length();
+    PRUint32 length = aParam.Length();
     WriteParam(aMsg, length);
     aMsg->WriteBytes(aParam.BeginReading(), length);
   }
@@ -235,7 +235,7 @@ struct ParamTraits<nsACString>
       return true;
     }
 
-    uint32_t length;
+    PRUint32 length;
     if (ReadParam(aMsg, aIter, &length)) {
       const char* buf;
       if (aMsg->ReadBytes(aIter, &buf, length)) {
@@ -269,7 +269,7 @@ struct ParamTraits<nsAString>
       // represents a NULL pointer
       return;
 
-    uint32_t length = aParam.Length();
+    PRUint32 length = aParam.Length();
     WriteParam(aMsg, length);
     aMsg->WriteBytes(aParam.BeginReading(), length * sizeof(PRUnichar));
   }
@@ -285,7 +285,7 @@ struct ParamTraits<nsAString>
       return true;
     }
 
-    uint32_t length;
+    PRUint32 length;
     if (ReadParam(aMsg, aIter, &length)) {
       const PRUnichar* buf;
       if (aMsg->ReadBytes(aIter, reinterpret_cast<const char**>(&buf),
@@ -305,8 +305,8 @@ struct ParamTraits<nsAString>
 #ifdef WCHAR_T_IS_UTF16
       aLog->append(reinterpret_cast<const wchar_t*>(aParam.BeginReading()));
 #else
-      uint32_t length = aParam.Length();
-      for (uint32_t index = 0; index < length; index++) {
+      PRUint32 length = aParam.Length();
+      for (PRUint32 index = 0; index < length; index++) {
         aLog->push_back(std::wstring::value_type(aParam[index]));
       }
 #endif
@@ -343,22 +343,22 @@ struct ParamTraits<nsTArray<E, A> >
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    uint32_t length = aParam.Length();
+    PRUint32 length = aParam.Length();
     WriteParam(aMsg, length);
-    for (uint32_t index = 0; index < length; index++) {
+    for (PRUint32 index = 0; index < length; index++) {
       WriteParam(aMsg, aParam[index]);
     }
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint32_t length;
+    PRUint32 length;
     if (!ReadParam(aMsg, aIter, &length)) {
       return false;
     }
 
     aResult->SetCapacity(length);
-    for (uint32_t index = 0; index < length; index++) {
+    for (PRUint32 index = 0; index < length; index++) {
       E* element = aResult->AppendElement();
       if (!(element && ReadParam(aMsg, aIter, element))) {
         return false;
@@ -370,7 +370,7 @@ struct ParamTraits<nsTArray<E, A> >
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    for (uint32_t index = 0; index < aParam.Length(); index++) {
+    for (PRUint32 index = 0; index < aParam.Length(); index++) {
       if (index) {
         aLog->append(L" ");
       }
@@ -763,24 +763,6 @@ struct ParamTraits<nsIntSize>
 };
 
 template<>
-struct ParamTraits<mozilla::gfx::Point>
-{
-  typedef mozilla::gfx::Point paramType;
-
-  static void Write(Message* msg, const paramType& param)
-  {
-    WriteParam(msg, param.x);
-    WriteParam(msg, param.y);
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    return (ReadParam(msg, iter, &result->x) &&
-            ReadParam(msg, iter, &result->y));
-  }
-};
-
-template<>
 struct ParamTraits<mozilla::gfx::Size>
 {
   typedef mozilla::gfx::Size paramType;
@@ -967,7 +949,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mDisplayPort);
     WriteParam(aMsg, aParam.mScrollId);
     WriteParam(aMsg, aParam.mResolution);
-    WriteParam(aMsg, aParam.mMayHaveTouchListeners);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -978,8 +959,7 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mViewportScrollOffset) &&
             ReadParam(aMsg, aIter, &aResult->mDisplayPort) &&
             ReadParam(aMsg, aIter, &aResult->mScrollId) &&
-            ReadParam(aMsg, aIter, &aResult->mResolution) &&
-            ReadParam(aMsg, aIter, &aResult->mMayHaveTouchListeners));
+            ReadParam(aMsg, aIter, &aResult->mResolution));
   }
 };
 

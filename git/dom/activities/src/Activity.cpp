@@ -39,7 +39,7 @@ NS_IMETHODIMP
 Activity::Initialize(nsISupports* aOwner,
                      JSContext* aContext,
                      JSObject* aObject,
-                     uint32_t aArgc,
+                     PRUint32 aArgc,
                      JS::Value* aArgv)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aOwner);

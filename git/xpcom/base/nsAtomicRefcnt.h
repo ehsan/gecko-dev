@@ -23,12 +23,12 @@ typedef volatile long nsAtomicRefcnt;
 
 #else /* !defined(XP_WIN) */
 
-typedef int32_t  nsAtomicRefcnt;
+typedef PRInt32  nsAtomicRefcnt;
 
 #endif
 
-inline int32_t
-NS_AtomicIncrementRefcnt(int32_t &refcnt)
+inline PRInt32
+NS_AtomicIncrementRefcnt(PRInt32 &refcnt)
 {
   return PR_ATOMIC_INCREMENT(&refcnt);
 }
@@ -58,8 +58,8 @@ NS_AtomicDecrementRefcnt(nsAutoRefCnt &refcnt)
   return (nsrefcnt) PR_ATOMIC_DECREMENT((nsAtomicRefcnt*)&refcnt);
 }
 
-inline int32_t
-NS_AtomicDecrementRefcnt(int32_t &refcnt)
+inline PRInt32
+NS_AtomicDecrementRefcnt(PRInt32 &refcnt)
 {
   return PR_ATOMIC_DECREMENT(&refcnt);
 }

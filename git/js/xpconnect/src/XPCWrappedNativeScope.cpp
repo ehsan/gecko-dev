@@ -217,20 +217,23 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal,
         native = aNative;
     } else {
         const JSClass *jsClass = js::GetObjectJSClass(aGlobal);
+        nsISupports *priv;
         if (!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                                  JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
             // Our global has an nsISupports native pointer.  Let's
             // see whether it's what we want.
-            nsISupports *priv =
-                static_cast<nsISupports*>(xpc_GetJSPrivate(aGlobal));
-            nsCOMPtr<nsIXPConnectWrappedNative> wn = do_QueryInterface(priv);
-            if (wn)
-                native = static_cast<XPCWrappedNative*>(wn.get())->GetIdentityObject();
-            else
-                native = nullptr;
-        } else if (!mozilla::dom::UnwrapDOMObjectToISupports(aGlobal, native)) {
-            native = nullptr;
+            priv = static_cast<nsISupports*>(xpc_GetJSPrivate(aGlobal));
+        } else if (dom::IsDOMClass(jsClass) &&
+                   dom::DOMJSClass::FromJSClass(jsClass)->mDOMObjectIsISupports) {
+            priv = dom::UnwrapDOMObject<nsISupports>(aGlobal);
+        } else {
+            priv = nullptr;
         }
+        nsCOMPtr<nsIXPConnectWrappedNative> wn = do_QueryInterface(priv);
+        if (wn)
+            native = static_cast<XPCWrappedNative*>(wn.get())->GetIdentityObject();
+        else
+            native = priv;
     }
 
     // Now init our script object principal, if the new global has one.
@@ -791,7 +794,7 @@ XPCWrappedNativeScope::TraceDOMPrototypes(JSTracer *trc)
 
 // static
 void
-XPCWrappedNativeScope::DebugDumpAllScopes(int16_t depth)
+XPCWrappedNativeScope::DebugDumpAllScopes(PRInt16 depth)
 {
 #ifdef DEBUG
     depth-- ;
@@ -817,20 +820,20 @@ static JSDHashOperator
 WrappedNativeMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                uint32_t number, void *arg)
 {
-    ((Native2WrappedNativeMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
+    ((Native2WrappedNativeMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
 WrappedNativeProtoMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                     uint32_t number, void *arg)
 {
-    ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
+    ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 #endif
 
 void
-XPCWrappedNativeScope::DebugDump(int16_t depth)
+XPCWrappedNativeScope::DebugDump(PRInt16 depth)
 {
 #ifdef DEBUG
     depth-- ;

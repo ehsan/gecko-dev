@@ -46,15 +46,15 @@ public:
   nsXFormsTriggerAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t aIndex);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // Accessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -69,14 +69,14 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t aIndex);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -89,15 +89,15 @@ public:
   nsXFormsInputBooleanAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t aIndex);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -125,7 +125,7 @@ public:
   // Accessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 
@@ -146,7 +146,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 
@@ -161,7 +161,7 @@ public:
   nsXFormsSelectAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 
@@ -218,11 +218,11 @@ public:
                                    DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 
@@ -239,11 +239,11 @@ public:
                                    DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 
@@ -260,8 +260,8 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
-  virtual uint64_t NativeInteractiveState() const;
+  virtual PRUint64 NativeState();
+  virtual PRUint64 NativeInteractiveState() const;
   virtual bool CanHaveAnonChildren();
 };
 
@@ -279,12 +279,12 @@ public:
                                  DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
-  virtual uint64_t NativeInteractiveState() const;
+  virtual PRUint64 NativeState();
+  virtual PRUint64 NativeInteractiveState() const;
 };
 
 #endif

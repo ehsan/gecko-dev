@@ -39,7 +39,7 @@ public:
   nsDOMPerformanceNavigationType GetType() const {
     return mNavigationType;
   }
-  uint16_t GetRedirectCount();
+  PRUint16 GetRedirectCount();
 
   DOMTimeMilliSec GetRedirectStart();
   DOMTimeMilliSec GetRedirectEnd();
@@ -115,7 +115,7 @@ private:
                  NO_REDIRECTS,
                  CHECK_FAILED} RedirectCheckState;
   RedirectCheckState mRedirectCheck;
-  int16_t mRedirectCount;
+  PRInt16 mRedirectCount;
 
   nsDOMPerformanceNavigationType mNavigationType;
   DOMTimeMilliSec mNavigationStart;

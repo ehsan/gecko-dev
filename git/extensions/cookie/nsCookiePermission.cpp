@@ -33,10 +33,10 @@
 // 1 == ask before accepting
 // 2 == downgrade to session
 // 3 == limit lifetime to N days
-static const uint32_t ACCEPT_NORMALLY = 0;
-static const uint32_t ASK_BEFORE_ACCEPT = 1;
-static const uint32_t ACCEPT_SESSION = 2;
-static const uint32_t ACCEPT_FOR_N_DAYS = 3;
+static const PRUint32 ACCEPT_NORMALLY = 0;
+static const PRUint32 ASK_BEFORE_ACCEPT = 1;
+static const PRUint32 ACCEPT_SESSION = 2;
+static const PRUint32 ACCEPT_FOR_N_DAYS = 3;
 
 static const bool kDefaultPolicy = true;
 static const char kCookiesLifetimePolicy[] = "network.cookie.lifetimePolicy";
@@ -91,7 +91,7 @@ nsCookiePermission::Init()
       // if they're limiting lifetime and not using the prompts, use the 
       // appropriate limited lifetime pref
       if (lifetimeEnabled && !warnAboutCookies) {
-        int32_t lifetimeBehavior;
+        PRInt32 lifetimeBehavior;
         prefBranch->GetIntPref(kCookiesLifetimeBehavior, &lifetimeBehavior);
         if (lifetimeBehavior)
           prefBranch->SetIntPref(kCookiesLifetimePolicy, ACCEPT_FOR_N_DAYS);
@@ -109,7 +109,7 @@ void
 nsCookiePermission::PrefChanged(nsIPrefBranch *aPrefBranch,
                                 const char    *aPref)
 {
-  int32_t val;
+  PRInt32 val;
 
 #define PREF_CHANGED(_P) (!aPref || !strcmp(aPref, _P))
 
@@ -165,7 +165,7 @@ nsCookiePermission::CanAccess(nsIURI         *aURI,
     return NS_ERROR_UNEXPECTED;
 
   // finally, check with permission manager...
-  rv = mPermMgr->TestPermission(aURI, kPermissionType, (uint32_t *) aResult);
+  rv = mPermMgr->TestPermission(aURI, kPermissionType, (PRUint32 *) aResult);
   if (NS_SUCCEEDED(rv)) {
     switch (*aResult) {
     // if we have one of the publicly-available values, just return it
@@ -194,7 +194,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
                                  nsIChannel *aChannel,
                                  nsICookie2 *aCookie,
                                  bool       *aIsSession,
-                                 int64_t    *aExpiry,
+                                 PRInt64    *aExpiry,
                                  bool       *aResult)
 {
   NS_ASSERTION(aURI, "null uri");
@@ -205,7 +205,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
   if (!EnsureInitialized())
     return NS_ERROR_UNEXPECTED;
 
-  uint32_t perm;
+  PRUint32 perm;
   mPermMgr->TestPermission(aURI, kPermissionType, &perm);
   switch (perm) {
   case nsICookiePermission::ACCESS_SESSION:
@@ -232,8 +232,8 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
     }
     
     // declare this here since it'll be used in all of the remaining cases
-    int64_t currentTime = PR_Now() / PR_USEC_PER_SEC;
-    int64_t delta = *aExpiry - currentTime;
+    PRInt64 currentTime = PR_Now() / PR_USEC_PER_SEC;
+    PRInt64 delta = *aExpiry - currentTime;
     
     // check whether the user wants to be prompted
     if (mCookiesLifetimePolicy == ASK_BEFORE_ACCEPT) {
@@ -289,7 +289,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       // whether a previous cookie already exists, and how many cookies this host
       // has set
       bool foundCookie = false;
-      uint32_t countFromHost;
+      PRUint32 countFromHost;
       nsCOMPtr<nsICookieManager2> cookieManager = do_GetService(NS_COOKIEMANAGER_CONTRACTID, &rv);
       if (NS_SUCCEEDED(rv)) {
         nsCAutoString rawHost;
@@ -312,7 +312,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       }
 
       bool rememberDecision = false;
-      int32_t dialogRes = nsICookiePromptService::DENY_COOKIE;
+      PRInt32 dialogRes = nsICookiePromptService::DENY_COOKIE;
       rv = cookiePromptService->CookieDialog(parent, aCookie, hostPort, 
                                              countFromHost, foundCookie,
                                              &rememberDecision, &dialogRes);
@@ -325,11 +325,11 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (rememberDecision) {
         switch (dialogRes) {
           case nsICookiePromptService::DENY_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (uint32_t) nsIPermissionManager::DENY_ACTION,
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::DENY_ACTION,
                           nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_COOKIE:
-            mPermMgr->Add(aURI, kPermissionType, (uint32_t) nsIPermissionManager::ALLOW_ACTION,
+            mPermMgr->Add(aURI, kPermissionType, (PRUint32) nsIPermissionManager::ALLOW_ACTION,
                           nsIPermissionManager::EXPIRE_NEVER, 0);
             break;
           case nsICookiePromptService::ACCEPT_SESSION_COOKIE:

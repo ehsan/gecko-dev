@@ -15,7 +15,6 @@
 #include "nsCSSFrameConstructor.h"
 
 using namespace mozilla;
-using namespace mozilla::css;
 
 ElementAnimations::ElementAnimations(mozilla::dom::Element *aElement, nsIAtom *aElementProperty,
                                      nsAnimationManager *aAnimationManager)
@@ -42,7 +41,7 @@ ElementAnimationsPropertyDtor(void           *aObject,
 double
 ElementAnimations::GetPositionInIteration(TimeStamp aStartTime, TimeStamp aCurrentTime,
                                           TimeDuration aDuration, double aIterationCount,
-                                          uint32_t aDirection, bool aIsForElement,
+                                          PRUint32 aDirection, bool aIsForElement,
                                           ElementAnimation* aAnimation,
                                           ElementAnimations* aEa,
                                           EventArray* aEventsToDispatch)
@@ -96,7 +95,7 @@ ElementAnimations::GetPositionInIteration(TimeStamp aStartTime, TimeStamp aCurre
   // Set |positionInIteration| to the position from 0% to 100% along
   // the keyframes.
   NS_ABORT_IF_FALSE(currentIterationCount >= 0.0, "must be positive");
-  uint32_t whichIteration = int(currentIterationCount);
+  PRUint32 whichIteration = int(currentIterationCount);
   if (whichIteration == aIterationCount && whichIteration != 0) {
     // When the animation's iteration count is an integer (as it
     // normally is), we need to end at 100% of its last iteration
@@ -134,7 +133,7 @@ ElementAnimations::GetPositionInIteration(TimeStamp aStartTime, TimeStamp aCurre
     // dynamically, this will fire an extra iteration event
     // immediately in many cases.  It's not clear to me if that's the
     // right thing to do.
-    uint32_t message =
+    PRUint32 message =
       aAnimation->mLastNotification == ElementAnimation::LAST_NOTIFICATION_NONE
         ? NS_ANIMATION_START : NS_ANIMATION_ITERATION;
     // XXXdz: If this is a start, invalidate the frame here once we throttle animations.
@@ -170,7 +169,7 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
     // Therefore, we iterate from last animation to first.
     nsCSSPropertySet properties;
 
-    for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    for (PRUint32 animIdx = mAnimations.Length(); animIdx-- != 0; ) {
       ElementAnimation &anim = mAnimations[animIdx];
 
       if (anim.mProperties.Length() == 0 ||
@@ -202,7 +201,7 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
                           positionInIteration <= 1.0,
                         "position should be in [0-1]");
 
-      for (uint32_t propIdx = 0, propEnd = anim.mProperties.Length();
+      for (PRUint32 propIdx = 0, propEnd = anim.mProperties.Length();
            propIdx != propEnd; ++propIdx)
       {
         const AnimationProperty &prop = anim.mProperties[propIdx];
@@ -263,10 +262,28 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
   }
 }
 
-bool
-ElementAnimation::IsRunningAt(TimeStamp aTime) const
+static bool
+CanPerformAnimationOnCompositor(const ElementAnimation* aAnim,
+                                mozilla::dom::Element* aElement)
 {
-  return !IsPaused() && aTime > mStartTime &&
+  for (PRUint32 propIdx = 0, propEnd = aAnim->mProperties.Length();
+       propIdx != propEnd; ++propIdx) {
+    const AnimationProperty &prop = aAnim->mProperties[propIdx];
+    if (!mozilla::css::CommonElementAnimationData::
+           CanAnimatePropertyOnCompositor(aElement,
+                                          prop.mProperty)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+ElementAnimation::CanPerformOnCompositor(mozilla::dom::Element* aElement,
+                                         TimeStamp aTime) const
+{
+  return CanPerformAnimationOnCompositor(this, aElement) &&
+    !IsPaused() && aTime > mStartTime &&
     (aTime - mStartTime)  / mIterationDuration < mIterationCount;
 }
 
@@ -274,7 +291,7 @@ ElementAnimation::IsRunningAt(TimeStamp aTime) const
 bool
 ElementAnimation::HasAnimationOfProperty(nsCSSProperty aProperty) const
 {
-  for (uint32_t propIdx = 0, propEnd = mProperties.Length();
+  for (PRUint32 propIdx = 0, propEnd = mProperties.Length();
        propIdx != propEnd; ++propIdx) {
     if (aProperty == mProperties[propIdx].mProperty) {
       return true;
@@ -287,7 +304,7 @@ ElementAnimation::HasAnimationOfProperty(nsCSSProperty aProperty) const
 bool
 ElementAnimations::HasAnimationOfProperty(nsCSSProperty aProperty) const
 {
-  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+  for (PRUint32 animIdx = mAnimations.Length(); animIdx-- != 0; ) {
     const ElementAnimation &anim = mAnimations[animIdx];
     if (anim.HasAnimationOfProperty(aProperty)) {
       return true;
@@ -299,42 +316,19 @@ ElementAnimations::HasAnimationOfProperty(nsCSSProperty aProperty) const
 bool
 ElementAnimations::CanPerformOnCompositorThread() const
 {
-  if (mElementProperty != nsGkAtoms::animationsProperty) {
+  if (mElementProperty != nsGkAtoms::animationsProperty)
     return false;
-  }
-  bool hasGeometricProperty = false;
-  nsIFrame* frame = mElement->GetPrimaryFrame();
-  TimeStamp now = frame->PresContext()->RefreshDriver()->MostRecentRefresh();
-
-  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
-    const ElementAnimation& anim = mAnimations[animIdx];
-    for (uint32_t propIdx = 0, propEnd = anim.mProperties.Length();
-         propIdx != propEnd; ++propIdx) {
-      if (IsGeometricProperty(anim.mProperties[propIdx].mProperty) &&
-          anim.IsRunningAt(now)) {
-        hasGeometricProperty = true;
-        break;
-      }
-    }
-  }
-
-  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
-    const ElementAnimation& anim = mAnimations[animIdx];
+  for (PRUint32 animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    const ElementAnimation &anim = mAnimations[animIdx];
     if (anim.mIterationDuration.ToMilliseconds() <= 0.0) {
       // No animation data
       continue;
     }
 
-    for (uint32_t propIdx = 0, propEnd = anim.mProperties.Length();
-         propIdx != propEnd; ++propIdx) {
-      const AnimationProperty& prop = anim.mProperties[propIdx];
-      if (!CanAnimatePropertyOnCompositor(mElement,
-                                          prop.mProperty,
-                                          hasGeometricProperty)) {
-        return false;
-      }
-    }
-  }
+    if (!CanPerformAnimationOnCompositor(&anim, mElement))
+      return false;
+ }
+
   return true;
 }
 
@@ -493,7 +487,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
       // (or potentially optimize BuildAnimations to avoid rebuilding it
       // in the first place).
       if (!ea->mAnimations.IsEmpty()) {
-        for (uint32_t newIdx = 0, newEnd = newAnimations.Length();
+        for (PRUint32 newIdx = 0, newEnd = newAnimations.Length();
              newIdx != newEnd; ++newIdx) {
           ElementAnimation *newAnim = &newAnimations[newIdx];
 
@@ -506,7 +500,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
           // We'll use the last one since it's more likely to be the one
           // doing something.
           const ElementAnimation *oldAnim = nullptr;
-          for (uint32_t oldIdx = ea->mAnimations.Length(); oldIdx-- != 0; ) {
+          for (PRUint32 oldIdx = ea->mAnimations.Length(); oldIdx-- != 0; ) {
             const ElementAnimation *a = &ea->mAnimations[oldIdx];
             if (a->mName == newAnim->mName) {
               oldAnim = a;
@@ -567,10 +561,10 @@ public:
 
   static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
   static PLDHashNumber HashKey(KeyTypePointer aKey) {
-    MOZ_STATIC_ASSERT(sizeof(PLDHashNumber) == sizeof(uint32_t),
-                      "this hash function assumes PLDHashNumber is uint32_t");
+    MOZ_STATIC_ASSERT(sizeof(PLDHashNumber) == sizeof(PRUint32),
+                      "this hash function assumes PLDHashNumber is PRUint32");
     MOZ_STATIC_ASSERT(PLDHashNumber(-1) > PLDHashNumber(0),
-                      "this hash function assumes PLDHashNumber is uint32_t");
+                      "this hash function assumes PLDHashNumber is PRUint32");
     float key = *aKey;
     NS_ABORT_IF_FALSE(0.0f <= key && key <= 1.0f, "out of range");
     return PLDHashNumber(key * PR_UINT32_MAX);
@@ -583,7 +577,7 @@ private:
 
 struct KeyframeData {
   float mKey;
-  uint32_t mIndex; // store original order since sort algorithm is not stable
+  PRUint32 mIndex; // store original order since sort algorithm is not stable
   nsCSSKeyframeRule *mRule;
 };
 
@@ -644,7 +638,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
 
   const nsStyleDisplay *disp = aStyleContext->GetStyleDisplay();
   TimeStamp now = mPresContext->RefreshDriver()->MostRecentRefresh();
-  for (uint32_t animIdx = 0, animEnd = disp->mAnimations.Length();
+  for (PRUint32 animIdx = 0, animEnd = disp->mAnimations.Length();
        animIdx != animEnd; ++animIdx) {
     const nsAnimation& aSrc = disp->mAnimations[animIdx];
     ElementAnimation& aDest = *aAnimations.AppendElement();
@@ -679,7 +673,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
 
     AutoInfallibleTArray<KeyframeData, 16> sortedKeyframes;
 
-    for (uint32_t ruleIdx = 0, ruleEnd = rule->StyleRuleCount();
+    for (PRUint32 ruleIdx = 0, ruleEnd = rule->StyleRuleCount();
          ruleIdx != ruleEnd; ++ruleIdx) {
       css::Rule* cssRule = rule->GetStyleRuleAt(ruleIdx);
       NS_ABORT_IF_FALSE(cssRule, "must have rule");
@@ -688,7 +682,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
       nsCSSKeyframeRule *kfRule = static_cast<nsCSSKeyframeRule*>(cssRule);
 
       const nsTArray<float> &keys = kfRule->GetKeys();
-      for (uint32_t keyIdx = 0, keyEnd = keys.Length();
+      for (PRUint32 keyIdx = 0, keyEnd = keys.Length();
            keyIdx != keyEnd; ++keyIdx) {
         float key = keys[keyIdx];
         // FIXME (spec):  The spec doesn't say what to do with
@@ -715,10 +709,10 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     // are using.
     nsCSSPropertySet properties;
 
-    for (uint32_t kfIdx = 0, kfEnd = sortedKeyframes.Length();
+    for (PRUint32 kfIdx = 0, kfEnd = sortedKeyframes.Length();
          kfIdx != kfEnd; ++kfIdx) {
       css::Declaration *decl = sortedKeyframes[kfIdx].mRule->Declaration();
-      for (uint32_t propIdx = 0, propEnd = decl->Count();
+      for (PRUint32 propIdx = 0, propEnd = decl->Count();
            propIdx != propEnd; ++propIdx) {
         properties.AddProperty(decl->OrderValueAt(propIdx));
       }
@@ -736,9 +730,9 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
       // means we need every keyframe with the property in it, except
       // for those keyframes where a later keyframe with the *same key*
       // also has the property.
-      AutoInfallibleTArray<uint32_t, 16> keyframesWithProperty;
+      AutoInfallibleTArray<PRUint32, 16> keyframesWithProperty;
       float lastKey = 100.0f; // an invalid key
-      for (uint32_t kfIdx = 0, kfEnd = sortedKeyframes.Length();
+      for (PRUint32 kfIdx = 0, kfEnd = sortedKeyframes.Length();
            kfIdx != kfEnd; ++kfIdx) {
         KeyframeData &kf = sortedKeyframes[kfIdx];
         if (!kf.mRule->Declaration()->HasProperty(prop)) {
@@ -759,9 +753,9 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
       KeyframeData *fromKeyframe = nullptr;
       nsRefPtr<nsStyleContext> fromContext;
       bool interpolated = true;
-      for (uint32_t wpIdx = 0, wpEnd = keyframesWithProperty.Length();
+      for (PRUint32 wpIdx = 0, wpEnd = keyframesWithProperty.Length();
            wpIdx != wpEnd; ++wpIdx) {
-        uint32_t kfIdx = keyframesWithProperty[wpIdx];
+        PRUint32 kfIdx = keyframesWithProperty[wpIdx];
         KeyframeData &toKeyframe = sortedKeyframes[kfIdx];
 
         nsRefPtr<nsStyleContext> toContext =
@@ -921,7 +915,7 @@ nsAnimationManager::DoDispatchEvents()
 {
   EventArray events;
   mPendingEvents.SwapElements(events);
-  for (uint32_t i = 0, i_end = events.Length(); i < i_end; ++i) {
+  for (PRUint32 i = 0, i_end = events.Length(); i < i_end; ++i) {
     AnimationEventInfo &info = events[i];
     nsEventDispatcher::Dispatch(info.mElement, mPresContext, &info.mEvent);
 
@@ -942,7 +936,7 @@ nsAnimationManager::KeyframesRuleFor(const nsSubstring& aName)
 
     // Per css3-animations, the last @keyframes rule specified wins.
     mKeyframesRules.Clear();
-    for (uint32_t i = 0, i_end = rules.Length(); i != i_end; ++i) {
+    for (PRUint32 i = 0, i_end = rules.Length(); i != i_end; ++i) {
       nsCSSKeyframesRule *rule = rules[i];
       mKeyframesRules.Put(rule->GetName(), rule);
     }

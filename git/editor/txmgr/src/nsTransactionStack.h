@@ -25,9 +25,9 @@ public:
   already_AddRefed<nsTransactionItem> Pop();
   already_AddRefed<nsTransactionItem> PopBottom();
   already_AddRefed<nsTransactionItem> Peek();
-  already_AddRefed<nsTransactionItem> GetItem(int32_t aIndex);
+  already_AddRefed<nsTransactionItem> GetItem(PRInt32 aIndex);
   void Clear();
-  int32_t GetSize() { return mQue.GetSize(); }
+  PRInt32 GetSize() { return mQue.GetSize(); }
 
   void DoUnlink() { Clear(); }
   void DoTraverse(nsCycleCollectionTraversalCallback &cb);

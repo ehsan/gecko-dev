@@ -14,8 +14,8 @@ class nsResizerFrame : public nsTitleBarFrame
 {
 protected:
   struct Direction {
-    int8_t mHorizontal;
-    int8_t mVertical;
+    PRInt8 mHorizontal;
+    PRInt8 mVertical;
   };
 
 public:
@@ -48,9 +48,9 @@ protected:
    * @param aMovement the amount the mouse was moved
    * @param aResizerDirection resizer direction returned by GetDirection
    */
-  static void AdjustDimensions(int32_t* aPos, int32_t* aSize,
-                               int32_t aMinSize, int32_t aMaxSize,
-                               int32_t aMovement, int8_t aResizerDirection);
+  static void AdjustDimensions(PRInt32* aPos, PRInt32* aSize,
+                               PRInt32 aMinSize, PRInt32 aMaxSize,
+                               PRInt32 aMovement, PRInt8 aResizerDirection);
 
   struct SizeInfo {
     nsString width, height;

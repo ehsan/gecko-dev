@@ -32,7 +32,7 @@ public:
     /**
      * Returns the number of items in this txList
     **/
-    int32_t getLength();
+    PRInt32 getLength();
 
     /**
      * Returns true if there are no items in this txList
@@ -70,7 +70,7 @@ private:
 
       ListItem* firstItem;
       ListItem* lastItem;
-      int32_t itemCount;
+      PRInt32 itemCount;
 
       nsresult insertAfter(void* objPtr, ListItem* sItem);
       nsresult insertBefore(void* objPtr, ListItem* sItem);

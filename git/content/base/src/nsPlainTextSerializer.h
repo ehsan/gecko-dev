@@ -36,21 +36,21 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIContentSerializer
-  NS_IMETHOD Init(uint32_t flags, uint32_t aWrapColumn,
+  NS_IMETHOD Init(PRUint32 flags, PRUint32 aWrapColumn,
                   const char* aCharSet, bool aIsCopying,
                   bool aIsWholeDocument);
 
-  NS_IMETHOD AppendText(nsIContent* aText, int32_t aStartOffset,
-                        int32_t aEndOffset, nsAString& aStr);
+  NS_IMETHOD AppendText(nsIContent* aText, PRInt32 aStartOffset,
+                        PRInt32 aEndOffset, nsAString& aStr);
   NS_IMETHOD AppendCDATASection(nsIContent* aCDATASection,
-                                int32_t aStartOffset, int32_t aEndOffset,
+                                PRInt32 aStartOffset, PRInt32 aEndOffset,
                                 nsAString& aStr);
   NS_IMETHOD AppendProcessingInstruction(nsIContent* aPI,
-                                         int32_t aStartOffset,
-                                         int32_t aEndOffset,
+                                         PRInt32 aStartOffset,
+                                         PRInt32 aEndOffset,
                                          nsAString& aStr)  { return NS_OK; }
-  NS_IMETHOD AppendComment(nsIContent* aComment, int32_t aStartOffset,
-                           int32_t aEndOffset, nsAString& aStr)  { return NS_OK; }
+  NS_IMETHOD AppendComment(nsIContent* aComment, PRInt32 aStartOffset,
+                           PRInt32 aEndOffset, nsAString& aStr)  { return NS_OK; }
   NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
                            nsAString& aStr)  { return NS_OK; }
   NS_IMETHOD AppendElementStart(mozilla::dom::Element* aElement,
@@ -65,9 +65,9 @@ public:
 
 protected:
   nsresult GetAttributeValue(nsIAtom* aName, nsString& aValueRet);
-  void AddToLine(const PRUnichar* aStringToAdd, int32_t aLength);
+  void AddToLine(const PRUnichar* aStringToAdd, PRInt32 aLength);
   void EndLine(bool softlinebreak, bool aBreakBySpace = false);
-  void EnsureVerticalSpace(int32_t noOfRows);
+  void EnsureVerticalSpace(PRInt32 noOfRows);
   void FlushLine();
   void OutputQuotesAndIndent(bool stripTrailingSpaces=false);
   void Output(nsString& aString);
@@ -108,7 +108,7 @@ protected:
   
 protected:
   nsString         mCurrentLine;
-  uint32_t         mHeadLevel;
+  PRUint32         mHeadLevel;
   bool             mAtFirstColumn;
 
   // Handling of quoted text (for mail):
@@ -127,28 +127,28 @@ protected:
   // old messages).
   bool             mHasWrittenCiteBlockquote;
 
-  int32_t          mIndent;
+  PRInt32          mIndent;
   // mInIndentString keeps a header that has to be written in the indent.
   // That could be, for instance, the bullet in a bulleted list.
   nsString         mInIndentString;
-  int32_t          mCiteQuoteLevel;
-  int32_t          mFlags;
-  int32_t          mFloatingLines; // To store the number of lazy line breaks
+  PRInt32          mCiteQuoteLevel;
+  PRInt32          mFlags;
+  PRInt32          mFloatingLines; // To store the number of lazy line breaks
 
   // The wrap column is how many standard sized chars (western languages)
   // should be allowed on a line. There could be less chars if the chars
   // are wider than latin chars of more if the chars are more narrow.
-  uint32_t         mWrapColumn;
+  PRUint32         mWrapColumn;
 
   // The width of the line as it will appear on the screen (approx.) 
-  uint32_t         mCurrentLineWidth; 
+  PRUint32         mCurrentLineWidth; 
 
   // Treat quoted text as though it's preformatted -- don't wrap it.
   // Having it on a pref is a temporary measure, See bug 69638.
-  int32_t          mSpanLevel;
+  PRInt32          mSpanLevel;
 
 
-  int32_t          mEmptyLines; // Will be the number of empty lines before
+  PRInt32          mEmptyLines; // Will be the number of empty lines before
                                 // the current. 0 if we are starting a new
                                 // line and -1 if we are in a line.
 
@@ -162,12 +162,12 @@ protected:
   bool             mLineBreakDue; 
 
   nsString         mURL;
-  int32_t          mHeaderStrategy;    /* Header strategy (pref)
+  PRInt32          mHeaderStrategy;    /* Header strategy (pref)
                                           0 = no indention
                                           1 = indention, increased with
                                               header level (default)
                                           2 = numbering and slight indention */
-  int32_t          mHeaderCounter[7];  /* For header-numbering:
+  PRInt32          mHeaderCounter[7];  /* For header-numbering:
                                           Number of previous headers of
                                           the same depth and in the same
                                           section.
@@ -188,16 +188,16 @@ protected:
   // The stack only ever points to static atoms, so they don't need to be
   // refcounted.
   nsIAtom**        mTagStack;
-  uint32_t         mTagStackIndex;
+  PRUint32         mTagStackIndex;
 
   // Content in the stack above this index should be ignored:
-  uint32_t          mIgnoreAboveIndex;
+  PRUint32          mIgnoreAboveIndex;
 
   // The stack for ordered lists
-  int32_t         *mOLStack;
-  uint32_t         mOLStackIndex;
+  PRInt32         *mOLStack;
+  PRUint32         mOLStackIndex;
 
-  uint32_t         mULCount;
+  PRUint32         mULCount;
 
   nsString                     mLineBreak;
   nsCOMPtr<nsILineBreaker>     mLineBreaker;

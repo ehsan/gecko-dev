@@ -109,8 +109,8 @@ NS_IMETHODIMP nsIconChannel::OnStopRequest(nsIRequest* aRequest, nsISupports* aC
 NS_IMETHODIMP nsIconChannel::OnDataAvailable(nsIRequest* aRequest,
                                              nsISupports* aContext,
                                              nsIInputStream* aStream,
-                                             uint32_t aOffset,
-                                             uint32_t aCount)
+                                             PRUint32 aOffset,
+                                             PRUint32 aCount)
 {
   if (mListener)
     return mListener->OnDataAvailable(this, aContext, aStream, aOffset, aCount);
@@ -147,7 +147,7 @@ nsIconChannel::Open(nsIInputStream **_retval)
   return MakeInputStream(_retval, false);
 }
 
-nsresult nsIconChannel::ExtractIconInfoFromUrl(nsIFile ** aLocalFile, uint32_t * aDesiredImageSize, nsACString &aContentType, nsACString &aFileExtension)
+nsresult nsIconChannel::ExtractIconInfoFromUrl(nsIFile ** aLocalFile, PRUint32 * aDesiredImageSize, nsACString &aContentType, nsACString &aFileExtension)
 {
   nsresult rv = NS_OK;
   nsCOMPtr<nsIMozIconURI> iconURI (do_QueryInterface(mUrl, &rv));
@@ -184,7 +184,7 @@ NS_IMETHODIMP nsIconChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Init our stream pump
-  rv = mPump->Init(inStream, int64_t(-1), int64_t(-1), 0, 0, false);
+  rv = mPump->Init(inStream, PRInt64(-1), PRInt64(-1), 0, 0, false);
   NS_ENSURE_SUCCESS(rv, rv);
   
   rv = mPump->AsyncRead(this, ctxt);
@@ -206,7 +206,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   nsXPIDLCString contentType;
   nsCAutoString fileExt;
   nsCOMPtr<nsIFile> fileloc; // file we want an icon for
-  uint32_t desiredImageSize;
+  PRUint32 desiredImageSize;
   nsresult rv = ExtractIconInfoFromUrl(getter_AddRefs(fileloc), &desiredImageSize, contentType, fileExt);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -261,28 +261,28 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
                  NS_ERROR_UNEXPECTED);
   
   // rgba, pre-multiplied data
-  uint8_t* bitmapRepData = (uint8_t*)[bitmapRep bitmapData];
+  PRUint8* bitmapRepData = (PRUint8*)[bitmapRep bitmapData];
   
   // create our buffer
-  int32_t bufferCapacity = 2 + desiredImageSize * desiredImageSize * 4;
-  nsAutoTArray<uint8_t, 3 + 16 * 16 * 5> iconBuffer; // initial size is for 16x16
+  PRInt32 bufferCapacity = 2 + desiredImageSize * desiredImageSize * 4;
+  nsAutoTArray<PRUint8, 3 + 16 * 16 * 5> iconBuffer; // initial size is for 16x16
   if (!iconBuffer.SetLength(bufferCapacity))
     return NS_ERROR_OUT_OF_MEMORY;
   
-  uint8_t* iconBufferPtr = iconBuffer.Elements();
+  PRUint8* iconBufferPtr = iconBuffer.Elements();
   
   // write header data into buffer
   *iconBufferPtr++ = desiredImageSize;
   *iconBufferPtr++ = desiredImageSize;
 
-  uint32_t dataCount = (desiredImageSize * desiredImageSize) * 4;
-  uint32_t index = 0;
+  PRUint32 dataCount = (desiredImageSize * desiredImageSize) * 4;
+  PRUint32 index = 0;
   while (index < dataCount) {
     // get data from the bitmap
-    uint8_t r = bitmapRepData[index++];
-    uint8_t g = bitmapRepData[index++];
-    uint8_t b = bitmapRepData[index++];
-    uint8_t a = bitmapRepData[index++];
+    PRUint8 r = bitmapRepData[index++];
+    PRUint8 g = bitmapRepData[index++];
+    PRUint8 b = bitmapRepData[index++];
+    PRUint8 a = bitmapRepData[index++];
 
     // write data out to our buffer
     // non-cairo uses native image format, but the A channel is ignored.
@@ -309,7 +309,7 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   rv = NS_NewPipe(getter_AddRefs(inStream), getter_AddRefs(outStream), bufferCapacity, bufferCapacity, nonBlocking);  
 
   if (NS_SUCCEEDED(rv)) {
-    uint32_t written;
+    PRUint32 written;
     rv = outStream->Write((char*)iconBuffer.Elements(), bufferCapacity, &written);
     if (NS_SUCCEEDED(rv))
       NS_IF_ADDREF(*_retval = inStream);
@@ -323,12 +323,12 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsIconChannel::GetLoadFlags(uint32_t *aLoadAttributes)
+NS_IMETHODIMP nsIconChannel::GetLoadFlags(PRUint32 *aLoadAttributes)
 {
   return mPump->GetLoadFlags(aLoadAttributes);
 }
 
-NS_IMETHODIMP nsIconChannel::SetLoadFlags(uint32_t aLoadAttributes)
+NS_IMETHODIMP nsIconChannel::SetLoadFlags(PRUint32 aLoadAttributes)
 {
   return mPump->SetLoadFlags(aLoadAttributes);
 }
@@ -362,7 +362,7 @@ nsIconChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsIconChannel::GetContentDisposition(uint32_t *aContentDisposition)
+nsIconChannel::GetContentDisposition(PRUint32 *aContentDisposition)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -379,13 +379,13 @@ nsIconChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader
   return NS_ERROR_NOT_AVAILABLE;
 }
 
-NS_IMETHODIMP nsIconChannel::GetContentLength(int32_t *aContentLength)
+NS_IMETHODIMP nsIconChannel::GetContentLength(PRInt32 *aContentLength)
 {
   *aContentLength = mContentLength;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsIconChannel::SetContentLength(int32_t aContentLength)
+NS_IMETHODIMP nsIconChannel::SetContentLength(PRInt32 aContentLength)
 {
   NS_NOTREACHED("nsIconChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;

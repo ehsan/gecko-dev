@@ -266,7 +266,7 @@ typedef nsTArray< nsRefPtr<nsGlobalWindow> > WindowArray;
 
 static
 PLDHashOperator
-GetWindows(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aClosure)
+GetWindows(const PRUint64& aId, nsGlobalWindow*& aWindow, void* aClosure)
 {
   ((WindowArray *)aClosure)->AppendElement(aWindow);
 
@@ -307,7 +307,7 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 
   // Collect window memory usage.
   nsWindowSizes windowTotalSizes(NULL);
-  for (uint32_t i = 0; i < windows.Length(); i++) {
+  for (PRUint32 i = 0; i < windows.Length(); i++) {
     nsresult rv = CollectWindowReports(windows[i], &windowTotalSizes,
                                        &ghostWindows, &windowPaths,
                                        aCb, aClosure);
@@ -407,14 +407,14 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 }
 
 NS_IMETHODIMP
-nsWindowMemoryReporter::GetExplicitNonHeap(int64_t* aAmount)
+nsWindowMemoryReporter::GetExplicitNonHeap(PRInt64* aAmount)
 {
   // This reporter only measures heap memory, so we don't need to report any
   // bytes for it.  However, the JS multi-reporter needs to be invoked.
   return xpc::JSMemoryMultiReporter::GetExplicitNonHeap(aAmount);
 }
 
-uint32_t
+PRUint32
 nsWindowMemoryReporter::GetGhostTimeout()
 {
   return Preferences::GetUint("memory.ghost_window_timeout_seconds", 60);
@@ -496,7 +496,7 @@ struct CheckForGhostWindowsEnumeratorData
   nsTHashtable<nsCStringHashKey> *nonDetachedDomains;
   nsTHashtable<nsUint64HashKey> *ghostWindowIDs;
   nsIEffectiveTLDService *tldService;
-  uint32_t ghostTimeout;
+  PRUint32 ghostTimeout;
   TimeStamp now;
 };
 
@@ -569,7 +569,7 @@ struct GetNonDetachedWindowDomainsEnumeratorData
 };
 
 static PLDHashOperator
-GetNonDetachedWindowDomainsEnumerator(const uint64_t& aId, nsGlobalWindow* aWindow,
+GetNonDetachedWindowDomainsEnumerator(const PRUint64& aId, nsGlobalWindow* aWindow,
                                       void* aClosure)
 {
   GetNonDetachedWindowDomainsEnumeratorData *data =
@@ -666,7 +666,7 @@ GhostURLsReporter::GetName(nsACString& aName)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-GhostURLsReporter::GetExplicitNonHeap(int64_t* aOut)
+GhostURLsReporter::GetExplicitNonHeap(PRInt64* aOut)
 {
   *aOut = 0;
   return NS_OK;
@@ -766,7 +766,7 @@ NumGhostsReporter::GetPath(nsACString& aPath)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetKind(int32_t* aKind)
+NumGhostsReporter::GetKind(PRInt32* aKind)
 {
   *aKind = KIND_OTHER;
   return NS_OK;
@@ -774,7 +774,7 @@ NumGhostsReporter::GetKind(int32_t* aKind)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetUnits(int32_t* aUnits)
+NumGhostsReporter::GetUnits(PRInt32* aUnits)
 {
   *aUnits = nsIMemoryReporter::UNITS_COUNT;
   return NS_OK;
@@ -801,7 +801,7 @@ in the browser or add-ons.",
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetAmount(int64_t* aAmount)
+NumGhostsReporter::GetAmount(PRInt64* aAmount)
 {
   nsTHashtable<nsUint64HashKey> ghostWindows;
   ghostWindows.Init();

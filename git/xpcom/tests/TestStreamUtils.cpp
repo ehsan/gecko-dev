@@ -26,7 +26,7 @@ static bool test_consume_stream() {
   if (!input || !output)
     return false;
 
-  uint32_t n = 0;
+  PRUint32 n = 0;
   output->Write(kData, sizeof(kData) - 1, &n);
   if (n != (sizeof(kData) - 1))
     return false;

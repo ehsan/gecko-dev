@@ -1286,7 +1286,9 @@ var gBrowserInit = {
 
     UpdateUrlbarSearchSplitterState();
 
-    if (!isLoadingBlank || !focusAndSelectUrlBar())
+    if (isLoadingBlank && gURLBar)
+      gURLBar.focus();
+    if (!isLoadingBlank || !gURLBar || !gURLBar.focused)
       gBrowser.selectedBrowser.focus();
 
     gNavToolbox.customizeDone = BrowserToolboxCustomizeDone;
@@ -1656,8 +1658,8 @@ var gBrowserInit = {
                          'View:PageInfo', 'Tasks:InspectPage', 'Browser:ToggleTabView', 'Browser:ToggleAddonBar'];
     var element;
 
-    for (let disabledItem of disabledItems) {
-      element = document.getElementById(disabledItem);
+  for (let disabledItem of disabledItems) {
+    element = document.getElementById(disabledItem);
       if (element)
         element.setAttribute("disabled", "true");
     }
@@ -1666,8 +1668,8 @@ var gBrowserInit = {
     // and zoom menu commands as well
     if (window.location.href == "chrome://browser/content/hiddenWindow.xul") {
       var hiddenWindowDisabledItems = ['cmd_close', 'minimizeWindow', 'zoomWindow'];
-      for (let hiddenWindowDisabledItem of hiddenWindowDisabledItems) {
-        element = document.getElementById(hiddenWindowDisabledItem);
+    for (let hiddenWindowDisabledItem of hiddenWindowDisabledItems) {
+      element = document.getElementById(hiddenWindowDisabledItem);
         if (element)
           element.setAttribute("disabled", "true");
       }
@@ -1988,7 +1990,7 @@ function focusAndSelectUrlBar() {
       FullScreen.mouseoverToggle(true);
 
     gURLBar.focus();
-    if (document.activeElement == gURLBar.inputField) {
+    if (gURLBar.focused) {
       gURLBar.select();
       return true;
     }
@@ -3348,7 +3350,7 @@ const BrowserSearch = {
       FullScreen.mouseoverToggle(true);
     if (searchBar)
       searchBar.focus();
-    if (searchBar && document.activeElement == searchBar.textbox.inputField) {
+    if (searchBar && searchBar.textbox.focused) {
       searchBar.select();
     } else {
       openUILinkIn(Services.search.defaultEngine.searchForm, "current");

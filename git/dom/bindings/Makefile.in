@@ -45,7 +45,6 @@ CPPSRCS = \
   $(linked_binding_cpp_files) \
   $(filter %.cpp, $(globalgen_targets)) \
   BindingUtils.cpp \
-  DOMJSProxyHandler.cpp \
   $(NULL)
 
 EXPORTS_NAMESPACES = $(binding_include_path) mozilla
@@ -57,7 +56,6 @@ EXPORTS_mozilla = \
 EXPORTS_$(binding_include_path) = \
   BindingUtils.h \
   DOMJSClass.h \
-  DOMJSProxyHandler.h \
   Errors.msg \
   Nullable.h \
   PrimitiveConversions.h \

@@ -62,7 +62,7 @@ nsBaseAppShell::Init()
 void
 nsBaseAppShell::NativeEventCallback()
 {
-  int32_t hasPending = PR_ATOMIC_SET(&mNativeEventPending, 0);
+  PRInt32 hasPending = PR_ATOMIC_SET(&mNativeEventPending, 0);
   if (hasPending == 0)
     return;
 
@@ -118,7 +118,7 @@ nsBaseAppShell::DoProcessMoreGeckoEvents()
 
 // Main thread via OnProcessNextEvent below
 bool
-nsBaseAppShell::DoProcessNextNativeEvent(bool mayWait, uint32_t recursionDepth)
+nsBaseAppShell::DoProcessNextNativeEvent(bool mayWait, PRUint32 recursionDepth)
 {
   // The next native event to be processed may trigger our NativeEventCallback,
   // in which case we do not want it to process any thread events since we'll
@@ -180,7 +180,7 @@ nsBaseAppShell::Exit(void)
 
 NS_IMETHODIMP
 nsBaseAppShell::FavorPerformanceHint(bool favorPerfOverStarvation,
-                                     uint32_t starvationDelay)
+                                     PRUint32 starvationDelay)
 {
   mStarvationDelay = PR_MillisecondsToInterval(starvationDelay);
   if (favorPerfOverStarvation) {
@@ -208,7 +208,7 @@ nsBaseAppShell::ResumeNative()
 }
 
 NS_IMETHODIMP
-nsBaseAppShell::GetEventloopNestingLevel(uint32_t* aNestingLevelResult)
+nsBaseAppShell::GetEventloopNestingLevel(PRUint32* aNestingLevelResult)
 {
   NS_ENSURE_ARG_POINTER(aNestingLevelResult);
 
@@ -227,7 +227,7 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (mBlockNativeEvent)
     return NS_OK;
 
-  int32_t lastVal = PR_ATOMIC_SET(&mNativeEventPending, 1);
+  PRInt32 lastVal = PR_ATOMIC_SET(&mNativeEventPending, 1);
   if (lastVal == 1)
     return NS_OK;
 
@@ -239,7 +239,7 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
 // Called from the main thread
 NS_IMETHODIMP
 nsBaseAppShell::OnProcessNextEvent(nsIThreadInternal *thr, bool mayWait,
-                                   uint32_t recursionDepth)
+                                   PRUint32 recursionDepth)
 {
   if (mBlockNativeEvent) {
     if (!mayWait)
@@ -327,7 +327,7 @@ nsBaseAppShell::DispatchDummyEvent(nsIThread* aTarget)
 
 void
 nsBaseAppShell::RunSyncSectionsInternal(bool aStable,
-                                        uint32_t aThreadRecursionLevel)
+                                        PRUint32 aThreadRecursionLevel)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mSyncSections.IsEmpty(), "Nothing to do!");
@@ -343,7 +343,7 @@ nsBaseAppShell::RunSyncSectionsInternal(bool aStable,
 
   nsTArray<SyncSection> pendingSyncSections;
 
-  for (uint32_t i = 0; i < mSyncSections.Length(); i++) {
+  for (PRUint32 i = 0; i < mSyncSections.Length(); i++) {
     SyncSection& section = mSyncSections[i];
     if ((aStable && section.mStable) ||
         (!section.mStable &&
@@ -383,7 +383,7 @@ nsBaseAppShell::ScheduleSyncSection(nsIRunnable* aRunnable, bool aStable)
     nsCOMPtr<nsIThreadInternal> threadInternal = do_QueryInterface(thread);
     NS_ASSERTION(threadInternal, "This should never fail!");
 
-    uint32_t recursionLevel;
+    PRUint32 recursionLevel;
     if (NS_FAILED(threadInternal->GetRecursionDepth(&recursionLevel))) {
       NS_ERROR("This should never fail!");
     }
@@ -402,7 +402,7 @@ nsBaseAppShell::ScheduleSyncSection(nsIRunnable* aRunnable, bool aStable)
 // Called from the main thread
 NS_IMETHODIMP
 nsBaseAppShell::AfterProcessNextEvent(nsIThreadInternal *thr,
-                                      uint32_t recursionDepth)
+                                      PRUint32 recursionDepth)
 {
   // We've just finished running an event, so we're in a stable state. 
   RunSyncSections(true, recursionDepth);

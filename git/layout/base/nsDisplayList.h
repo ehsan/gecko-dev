@@ -318,7 +318,7 @@ public:
    * information available in the display list builder. Currently only
    * accounts for mSyncDecodeImages.
    */
-  uint32_t GetBackgroundPaintFlags();
+  PRUint32 GetBackgroundPaintFlags();
 
   /**
    * Subtracts aRegion from *aVisibleRegion. We avoid letting
@@ -387,7 +387,7 @@ public:
    * @param aRect the device-pixel rect relative to the widget's displayRoot
    * for the themed widget
    */
-  void RegisterThemeGeometry(uint8_t aWidgetType,
+  void RegisterThemeGeometry(PRUint8 aWidgetType,
                              const nsIntRect& aRect) {
     if (mIsPaintingToWindow && mPresShellStates.Length() == 1) {
       ThemeGeometry geometry(aWidgetType, aRect);
@@ -514,7 +514,7 @@ private:
   struct PresShellState {
     nsIPresShell* mPresShell;
     nsIFrame*     mCaretFrame;
-    uint32_t      mFirstFrameMarkedForDisplay;
+    PRUint32      mFirstFrameMarkedForDisplay;
     bool          mIsBackgroundOnly;
   };
   PresShellState* CurrentPresShellState() {
@@ -665,7 +665,7 @@ public:
    * display items to be individually wrapped --- currently nsDisplayClip
    * and nsDisplayClipRoundedRect only.
    */
-  virtual uint32_t GetPerFrameKey() { return uint32_t(GetType()); }
+  virtual PRUint32 GetPerFrameKey() { return PRUint32(GetType()); }
   /**
    * This is called after we've constructed a display list for event handling.
    * When this is called, we've already ensured that aRect intersects the
@@ -910,20 +910,13 @@ public:
    */
   virtual void DisableComponentAlpha() {}
 
-  /**
-   * Check if we can add async animations to the layer for this display item.
-   */
-  virtual bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return false;
-  }
-
 protected:
   friend class nsDisplayList;
-
+  
   nsDisplayItem() {
     mAbove = nullptr;
   }
-
+  
   nsIFrame* mFrame;
   // Result of ToReferenceFrame(mFrame), if mFrame is non-null
   nsPoint   mToReferenceFrame;
@@ -1080,7 +1073,7 @@ public:
    * This is *linear time*!
    * @return the number of items in the list
    */
-  uint32_t Count() const;
+  PRUint32 Count() const;
   /**
    * Stable sort the list by the z-order of GetUnderlyingFrame() on
    * each item. 'auto' is counted as zero. Content order is used as the
@@ -1195,13 +1188,13 @@ public:
     PAINT_NO_COMPOSITE = 0x08
   };
   void PaintRoot(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
-                 uint32_t aFlags) const;
+                 PRUint32 aFlags) const;
   /**
    * Like PaintRoot, but used for internal display sublists.
    * aForFrame is the frame that the list is associated with.
    */
   void PaintForFrame(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
-                     nsIFrame* aForFrame, uint32_t aFlags) const;
+                     nsIFrame* aForFrame, PRUint32 aFlags) const;
   /**
    * Get the bounds. Takes the union of the bounds of all children.
    */
@@ -1350,7 +1343,7 @@ struct nsDisplayListCollection : public nsDisplayListSet {
    * Sort all lists by content order.
    */                     
   void SortAllByContentOrder(nsDisplayListBuilder* aBuilder, nsIContent* aCommonAncestor) {
-    for (int32_t i = 0; i < 6; ++i) {
+    for (PRInt32 i = 0; i < 6; ++i) {
       mLists[i].SortByContentOrder(aBuilder, aCommonAncestor);
     }
   }
@@ -1432,7 +1425,7 @@ class nsDisplayReflowCount : public nsDisplayItem {
 public:
   nsDisplayReflowCount(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                        const char* aFrameName,
-                       uint32_t aColor = 0)
+                       PRUint32 aColor = 0)
     : nsDisplayItem(aBuilder, aFrame),
       mFrameName(aFrameName),
       mColor(aColor)
@@ -1636,7 +1629,7 @@ protected:
   typedef class mozilla::layers::ImageContainer ImageContainer;
   typedef class mozilla::layers::ImageLayer ImageLayer;
 
-  nsRegion GetInsideClipRegion(nsPresContext* aPresContext, uint8_t aClip,
+  nsRegion GetInsideClipRegion(nsPresContext* aPresContext, PRUint8 aClip,
                                const nsRect& aRect, bool* aSnap);
 
   bool TryOptimizeToImageLayer(nsDisplayListBuilder* aBuilder);
@@ -1880,7 +1873,7 @@ public:
 protected:
   nsDisplayWrapper() {}
 };
-
+                              
 /**
  * The standard display item to paint a stacking context with translucency
  * set by the stacking context root frame's 'opacity' style.
@@ -1892,7 +1885,7 @@ public:
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayOpacity();
 #endif
-
+  
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap);
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -1906,10 +1899,6 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion);  
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Opacity", TYPE_OPACITY)
-
-  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return GetUnderlyingFrame()->AreLayersMarkedActive(nsChangeHint_UpdateOpacityLayer);
-  }
 };
 
 /**
@@ -2104,7 +2093,7 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion);
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Clip", TYPE_CLIP)
-  virtual uint32_t GetPerFrameKey() { return 0; }
+  virtual PRUint32 GetPerFrameKey() { return 0; }
   
   const nsRect& GetClipRect() { return mClip; }
   void SetClipRect(const nsRect& aRect) { mClip = aRect; }
@@ -2173,7 +2162,7 @@ public:
    */
   nsDisplayZoom(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                 nsDisplayList* aList,
-                int32_t aAPD, int32_t aParentAPD);
+                PRInt32 aAPD, PRInt32 aParentAPD);
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayZoom();
 #endif
@@ -2194,12 +2183,12 @@ public:
   NS_DISPLAY_DECL_NAME("Zoom", TYPE_ZOOM)
 
   // Get the app units per dev pixel ratio of the child document.
-  int32_t GetChildAppUnitsPerDevPixel() { return mAPD; }
+  PRInt32 GetChildAppUnitsPerDevPixel() { return mAPD; }
   // Get the app units per dev pixel ratio of the parent document.
-  int32_t GetParentAppUnitsPerDevPixel() { return mParentAPD; }
+  PRInt32 GetParentAppUnitsPerDevPixel() { return mParentAPD; }
 
 private:
-  int32_t mAPD, mParentAPD;
+  PRInt32 mAPD, mParentAPD;
 };
 
 /**
@@ -2268,7 +2257,7 @@ public:
    * ferries the underlying frame to the nsDisplayItem constructor.
    */
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayList *aList, uint32_t aIndex = 0) :
+                     nsDisplayList *aList, PRUint32 aIndex = 0) :
     nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aList), mIndex(aIndex)
   {
     MOZ_COUNT_CTOR(nsDisplayTransform);
@@ -2276,7 +2265,7 @@ public:
   }
 
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayItem *aItem, uint32_t aIndex = 0) :
+                     nsDisplayItem *aItem, PRUint32 aIndex = 0) :
   nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aItem), mIndex(aIndex)
   {
     MOZ_COUNT_CTOR(nsDisplayTransform);
@@ -2319,7 +2308,7 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion);
   virtual bool TryMerge(nsDisplayListBuilder *aBuilder, nsDisplayItem *aItem);
   
-  virtual uint32_t GetPerFrameKey() { return (mIndex << nsDisplayItem::TYPE_BITS) | nsDisplayItem::GetPerFrameKey(); }
+  virtual PRUint32 GetPerFrameKey() { return (mIndex << nsDisplayItem::TYPE_BITS) | nsDisplayItem::GetPerFrameKey(); }
 
   enum {
     INDEX_MAX = PR_UINT32_MAX >> nsDisplayItem::TYPE_BITS
@@ -2421,16 +2410,12 @@ public:
    */
   static bool ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame);
-  bool CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder) {
-    return nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder,
-                                                                 GetUnderlyingFrame());
-  }
 
 private:
   nsDisplayWrapList mStoredList;
   gfx3DMatrix mTransform;
   float mCachedAppUnitsPerPixel;
-  uint32_t mIndex;
+  PRUint32 mIndex;
 };
 
 /**

@@ -189,7 +189,7 @@ CollectNewLoadedModules()
   while (!done) {
     NS_LossyConvertUTF16toASCII moduleName(module.szModule);
     bool found = false;
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < NUM_LOADEDMODULEINFO &&
                 sLoadedModules[i].mStartAddr; ++i) {
       if (sLoadedModules[i].mStartAddr == module.modBaseAddr &&
@@ -211,7 +211,7 @@ CollectNewLoadedModules()
     done = !Module32NextW(hModuleSnap, &module);
   }
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < NUM_LOADEDMODULEINFO &&
               sLoadedModules[i].mStartAddr; ++i) {}
 

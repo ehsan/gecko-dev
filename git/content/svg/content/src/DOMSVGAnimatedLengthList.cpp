@@ -55,16 +55,17 @@ DOMSVGAnimatedLengthList::GetAnimVal(nsIDOMSVGLengthList **_retval)
 /* static */ already_AddRefed<DOMSVGAnimatedLengthList>
 DOMSVGAnimatedLengthList::GetDOMWrapper(SVGAnimatedLengthList *aList,
                                         nsSVGElement *aElement,
-                                        uint8_t aAttrEnum,
-                                        uint8_t aAxis)
+                                        PRUint8 aAttrEnum,
+                                        PRUint8 aAxis)
 {
-  nsRefPtr<DOMSVGAnimatedLengthList> wrapper =
+  DOMSVGAnimatedLengthList *wrapper =
     sSVGAnimatedLengthListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGAnimatedLengthList(aElement, aAttrEnum, aAxis);
     sSVGAnimatedLengthListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGAnimatedLengthList*

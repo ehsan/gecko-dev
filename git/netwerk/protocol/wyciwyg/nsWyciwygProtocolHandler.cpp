@@ -50,13 +50,13 @@ nsWyciwygProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsWyciwygProtocolHandler::GetDefaultPort(int32_t *result) 
+nsWyciwygProtocolHandler::GetDefaultPort(PRInt32 *result) 
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP 
-nsWyciwygProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsWyciwygProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
   // don't override anything.  
   *_retval = false;
@@ -112,10 +112,10 @@ nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
     nsCAutoString path;
     rv = url->GetPath(path);
     NS_ENSURE_SUCCESS(rv, rv);
-    int32_t slashIndex = path.FindChar('/', 2);
+    PRInt32 slashIndex = path.FindChar('/', 2);
     if (slashIndex == kNotFound)
       return NS_ERROR_FAILURE;
-    if (path.Length() < (uint32_t)slashIndex + 1 + 5)
+    if (path.Length() < (PRUint32)slashIndex + 1 + 5)
       return NS_ERROR_FAILURE;
     if (!PL_strncasecmp(path.get() + slashIndex + 1, "https", 5))
       net_EnsurePSMInit();
@@ -133,7 +133,7 @@ nsWyciwygProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
 }
 
 NS_IMETHODIMP
-nsWyciwygProtocolHandler::GetProtocolFlags(uint32_t *result) 
+nsWyciwygProtocolHandler::GetProtocolFlags(PRUint32 *result) 
 {
   // Should this be an an nsINestedURI?  We don't really want random webpages
   // loading these URIs...

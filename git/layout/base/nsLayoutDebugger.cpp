@@ -34,13 +34,13 @@ public:
   NS_IMETHOD GetShowEventTargetFrameBorder(bool* aResult);
 
   NS_IMETHOD GetContentSize(nsIDocument* aDocument,
-                            int32_t* aSizeInBytesResult);
+                            PRInt32* aSizeInBytesResult);
 
   NS_IMETHOD GetFrameSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult);
+                          PRInt32* aSizeInBytesResult);
 
   NS_IMETHOD GetStyleSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult);
+                          PRInt32* aSizeInBytesResult);
 
 };
 
@@ -95,7 +95,7 @@ nsLayoutDebugger::GetShowEventTargetFrameBorder(bool* aResult)
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetContentSize(nsIDocument* aDocument,
-                                 int32_t* aSizeInBytesResult)
+                                 PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
@@ -103,7 +103,7 @@ nsLayoutDebugger::GetContentSize(nsIDocument* aDocument,
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetFrameSize(nsIPresShell* aPresentation,
-                               int32_t* aSizeInBytesResult)
+                               PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
@@ -111,7 +111,7 @@ nsLayoutDebugger::GetFrameSize(nsIPresShell* aPresentation,
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetStyleSize(nsIPresShell* aPresentation,
-                               int32_t* aSizeInBytesResult)
+                               PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
@@ -178,7 +178,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     if (aDumpHtml && i->Painted()) {
       nsCString string(i->Name());
       string.Append("-");
-      string.AppendInt((uint64_t)i);
+      string.AppendInt((PRUint64)i);
       fprintf(aOutput, "<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
     }
     fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)(%d,%d,%d,%d)%s",
@@ -195,7 +195,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       fprintf(aOutput, "</a>");
     }
     if (f) {
-      uint32_t key = i->GetPerFrameKey();
+      PRUint32 key = i->GetPerFrameKey();
       Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
       if (layer) {
         if (aDumpHtml) {

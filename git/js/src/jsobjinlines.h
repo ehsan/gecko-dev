@@ -525,7 +525,7 @@ namespace js {
 static inline JSAtom *
 CallObjectLambdaName(JSFunction &fun)
 {
-    return fun.isNamedLambda() ? fun.atom() : NULL;
+    return (fun.flags & JSFUN_LAMBDA) ? fun.atom.get() : NULL;
 }
 
 } /* namespace js */

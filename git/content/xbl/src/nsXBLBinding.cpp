@@ -579,7 +579,7 @@ BuildContentLists(nsISupports* aKey,
 
   nsIContent *boundElement = binding->GetBoundElement();
 
-  int32_t count = aData->Length();
+  PRInt32 count = aData->Length();
   
   if (count == 0)
     return PL_DHASH_NEXT;
@@ -591,7 +591,7 @@ BuildContentLists(nsISupports* aKey,
     data->mRv = NS_ERROR_FAILURE;
     return PL_DHASH_STOP;
   }
-  int32_t currIndex = currPoint->GetInsertionIndex();
+  PRInt32 currIndex = currPoint->GetInsertionIndex();
 
   // XXX Could this array just be altered in place and passed directly to
   // SetContentListFor?  We'd save space if we could pull this off.
@@ -613,15 +613,15 @@ BuildContentLists(nsISupports* aKey,
   }
 
   nsXBLInsertionPoint* pseudoPoint = nullptr;
-  uint32_t childCount;
+  PRUint32 childCount;
   nodeList->GetLength(&childCount);
-  int32_t j = 0;
+  PRInt32 j = 0;
 
-  for (uint32_t i = 0; i < childCount; i++) {
+  for (PRUint32 i = 0; i < childCount; i++) {
     nsCOMPtr<nsIDOMNode> node;
     nodeList->Item(i, getter_AddRefs(node));
     nsCOMPtr<nsIContent> child(do_QueryInterface(node));
-    if (((int32_t)i) == currIndex) {
+    if (((PRInt32)i) == currIndex) {
       // Add the currPoint to the insertion point list.
       contentList->AppendElement(currPoint);
 
@@ -637,7 +637,7 @@ BuildContentLists(nsISupports* aKey,
     }
     
     if (!pseudoPoint) {
-      pseudoPoint = new nsXBLInsertionPoint(parent, (uint32_t) -1, nullptr);
+      pseudoPoint = new nsXBLInsertionPoint(parent, (PRUint32) -1, nullptr);
       if (pseudoPoint) {
         contentList->AppendElement(pseudoPoint);
       }
@@ -670,11 +670,11 @@ RealizeDefaultContent(nsISupports* aKey,
   nsBindingManager* bm = data->mBindingManager;
   nsXBLBinding* binding = data->mBinding;
 
-  int32_t count = aData->Length();
+  PRInt32 count = aData->Length();
  
-  for (int32_t i = 0; i < count; i++) {
+  for (PRInt32 i = 0; i < count; i++) {
     nsXBLInsertionPoint* currPoint = aData->ElementAt(i);
-    int32_t insCount = currPoint->ChildCount();
+    PRInt32 insCount = currPoint->ChildCount();
     
     if (insCount == 0) {
       nsCOMPtr<nsIContent> defContent = currPoint->GetDefaultContentTemplate();
@@ -722,8 +722,8 @@ ChangeDocumentForDefaultContent(nsISupports* aKey,
                                 nsAutoPtr<nsInsertionPointList>& aData,
                                 void* aClosure)
 {
-  int32_t count = aData->Length();
-  for (int32_t i = 0; i < count; i++) {
+  PRInt32 count = aData->Length();
+  for (PRInt32 i = 0; i < count; i++) {
     aData->ElementAt(i)->UnbindDefaultContent();
   }
 
@@ -750,7 +750,7 @@ nsXBLBinding::GenerateAnonymousContent()
      
   // Find out if we're really building kids or if we're just
   // using the attribute-setting shorthand hack.
-  uint32_t contentCount = content->GetChildCount();
+  PRUint32 contentCount = content->GetChildCount();
 
   // Plan to build the content by default.
   bool hasContent = (contentCount > 0);
@@ -779,14 +779,14 @@ nsXBLBinding::GenerateAnonymousContent()
  
     nsCOMPtr<nsIDOMNode> node;
     nsCOMPtr<nsIContent> childContent;
-    uint32_t length;
+    PRUint32 length;
     children->GetLength(&length);
     if (length > 0 && !hasInsertionPoints) {
       // There are children being placed underneath us, but we have no specified
       // insertion points, and therefore no place to put the kids.  Don't generate
       // anonymous content.
       // Special case template and observes.
-      for (uint32_t i = 0; i < length; i++) {
+      for (PRUint32 i = 0; i < length; i++) {
         children->Item(i, getter_AddRefs(node));
         childContent = do_QueryInterface(node);
 
@@ -832,7 +832,7 @@ nsXBLBinding::GenerateAnonymousContent()
 
         // We need to place the children
         // at their respective insertion points.
-        uint32_t index = 0;
+        PRUint32 index = 0;
         bool multiplePoints = false;
         nsIContent *singlePoint = GetSingleInsertionPoint(&index,
                                                           &multiplePoints);
@@ -842,12 +842,12 @@ nsXBLBinding::GenerateAnonymousContent()
             // We must walk the entire content list in order to determine where
             // each child belongs.
             children->GetLength(&length);
-            for (uint32_t i = 0; i < length; i++) {
+            for (PRUint32 i = 0; i < length; i++) {
               children->Item(i, getter_AddRefs(node));
               childContent = do_QueryInterface(node);
 
               // Now determine the insertion point in the prototype table.
-              uint32_t index;
+              PRUint32 index;
               nsIContent *point = GetInsertionPoint(childContent, &index);
               bindingManager->SetInsertionParent(childContent, point);
 
@@ -855,8 +855,8 @@ nsXBLBinding::GenerateAnonymousContent()
               nsInsertionPointList* arr = nullptr;
               GetInsertionPointsFor(point, &arr);
               nsXBLInsertionPoint* insertionPoint = nullptr;
-              int32_t arrCount = arr->Length();
-              for (int32_t j = 0; j < arrCount; j++) {
+              PRInt32 arrCount = arr->Length();
+              for (PRInt32 j = 0; j < arrCount; j++) {
                 insertionPoint = arr->ElementAt(j);
                 if (insertionPoint->Matches(point, index))
                   break;
@@ -894,10 +894,10 @@ nsXBLBinding::GenerateAnonymousContent()
         
             nsCOMPtr<nsIDOMNode> node;
             nsCOMPtr<nsIContent> content;
-            uint32_t length;
+            PRUint32 length;
             children->GetLength(&length);
           
-            for (uint32_t i = 0; i < length; i++) {
+            for (PRUint32 i = 0; i < length; i++) {
               children->Item(i, getter_AddRefs(node));
               content = do_QueryInterface(node);
               bindingManager->SetInsertionParent(content, singlePoint);
@@ -923,8 +923,8 @@ nsXBLBinding::GenerateAnonymousContent()
   // This shorthand hack always happens, even when we didn't
   // build anonymous content.
   const nsAttrName* attrName;
-  for (uint32_t i = 0; (attrName = content->GetAttrNameAt(i)); ++i) {
-    int32_t namespaceID = attrName->NamespaceID();
+  for (PRUint32 i = 0; (attrName = content->GetAttrNameAt(i)); ++i) {
+    PRInt32 namespaceID = attrName->NamespaceID();
     // Hold a strong reference here so that the atom doesn't go away during
     // UnsetAttr.
     nsCOMPtr<nsIAtom> name = attrName->LocalName();
@@ -974,7 +974,7 @@ nsXBLBinding::InstallEventHandlers()
         nsXBLEventHandler* handler = curr->GetEventHandler();
         if (handler) {
           // Figure out if we're using capturing or not.
-          int32_t flags = (curr->GetPhase() == NS_PHASE_CAPTURING) ?
+          PRInt32 flags = (curr->GetPhase() == NS_PHASE_CAPTURING) ?
             NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
           // If this is a command, add it in the system event group
@@ -998,7 +998,7 @@ nsXBLBinding::InstallEventHandlers()
 
       const nsCOMArray<nsXBLKeyEventHandler>* keyHandlers =
         mPrototypeBinding->GetKeyEventHandlers();
-      int32_t i;
+      PRInt32 i;
       for (i = 0; i < keyHandlers->Count(); ++i) {
         nsXBLKeyEventHandler* handler = keyHandlers->ObjectAt(i);
         handler->SetIsBoundToChrome(isChromeDoc);
@@ -1010,7 +1010,7 @@ nsXBLBinding::InstallEventHandlers()
         // add it to the standard event group.
 
         // Figure out if we're using capturing or not.
-        int32_t flags = (handler->GetPhase() == NS_PHASE_CAPTURING) ?
+        PRInt32 flags = (handler->GetPhase() == NS_PHASE_CAPTURING) ?
           NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
         if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND |
@@ -1052,7 +1052,7 @@ nsXBLBinding::InstallImplementation()
 }
 
 nsIAtom*
-nsXBLBinding::GetBaseTag(int32_t* aNameSpaceID)
+nsXBLBinding::GetBaseTag(PRInt32* aNameSpaceID)
 {
   nsIAtom *tag = mPrototypeBinding->GetBaseTag(aNameSpaceID);
   if (!tag && mNextBinding)
@@ -1062,7 +1062,7 @@ nsXBLBinding::GetBaseTag(int32_t* aNameSpaceID)
 }
 
 void
-nsXBLBinding::AttributeChanged(nsIAtom* aAttribute, int32_t aNameSpaceID,
+nsXBLBinding::AttributeChanged(nsIAtom* aAttribute, PRInt32 aNameSpaceID,
                                bool aRemoveFlag, bool aNotify)
 {
   // XXX Change if we ever allow multiple bindings in a chain to contribute anonymous content
@@ -1124,7 +1124,7 @@ nsXBLBinding::UnhookEventHandlers()
         continue;
 
       // Figure out if we're using capturing or not.
-      int32_t flags = (curr->GetPhase() == NS_PHASE_CAPTURING) ?
+      PRInt32 flags = (curr->GetPhase() == NS_PHASE_CAPTURING) ?
         NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
       // If this is a command, remove it from the system event group,
@@ -1143,7 +1143,7 @@ nsXBLBinding::UnhookEventHandlers()
 
     const nsCOMArray<nsXBLKeyEventHandler>* keyHandlers =
       mPrototypeBinding->GetKeyEventHandlers();
-    int32_t i;
+    PRInt32 i;
     for (i = 0; i < keyHandlers->Count(); ++i) {
       nsXBLKeyEventHandler* handler = keyHandlers->ObjectAt(i);
 
@@ -1151,7 +1151,7 @@ nsXBLBinding::UnhookEventHandlers()
       handler->GetEventName(type);
 
       // Figure out if we're using capturing or not.
-      int32_t flags = (handler->GetPhase() == NS_PHASE_CAPTURING) ?
+      PRInt32 flags = (handler->GetPhase() == NS_PHASE_CAPTURING) ?
         NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
       // If this is a command, remove it from the system event group, otherwise 
@@ -1540,8 +1540,8 @@ nsXBLBinding::RemoveInsertionParent(nsIContent* aParent)
     nsInsertionPointList* list = nullptr;
     mInsertionPointTable->Get(aParent, &list);
     if (list) {
-      int32_t count = list->Length();
-      for (int32_t i = 0; i < count; ++i) {
+      PRInt32 count = list->Length();
+      for (PRInt32 i = 0; i < count; ++i) {
         nsRefPtr<nsXBLInsertionPoint> currPoint = list->ElementAt(i);
         currPoint->UnbindDefaultContent();
 #ifdef DEBUG
@@ -1602,7 +1602,7 @@ nsXBLBinding::GetExistingInsertionPointsFor(nsIContent* aParent)
 }
 
 nsIContent*
-nsXBLBinding::GetInsertionPoint(const nsIContent* aChild, uint32_t* aIndex)
+nsXBLBinding::GetInsertionPoint(const nsIContent* aChild, PRUint32* aIndex)
 {
   if (mContent) {
     return mPrototypeBinding->GetInsertionPoint(mBoundElement, mContent,
@@ -1616,7 +1616,7 @@ nsXBLBinding::GetInsertionPoint(const nsIContent* aChild, uint32_t* aIndex)
 }
 
 nsIContent*
-nsXBLBinding::GetSingleInsertionPoint(uint32_t* aIndex,
+nsXBLBinding::GetSingleInsertionPoint(PRUint32* aIndex,
                                       bool* aMultipleInsertionPoints)
 {
   *aMultipleInsertionPoints = false;

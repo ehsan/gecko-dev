@@ -51,7 +51,7 @@ public:
    * Generic ctor for DOMSVGTransform objects that are created for an attribute.
    */
   DOMSVGTransform(DOMSVGTransformList *aList,
-                  uint32_t aListIndex,
+                  PRUint32 aListIndex,
                   bool aIsAnimValItem);
 
   /**
@@ -115,15 +115,15 @@ public:
    * DOMSVGTransformList).)
    */
   void InsertingIntoList(DOMSVGTransformList *aList,
-                         uint32_t aListIndex,
+                         PRUint32 aListIndex,
                          bool aIsAnimValItem);
 
-  static uint32_t MaxListIndex() {
+  static PRUint32 MaxListIndex() {
     return (1U << MOZ_SVG_LIST_INDEX_BIT_COUNT) - 1;
   }
 
   /// This method is called to notify this object that its list index changed.
-  void UpdateListIndex(uint32_t aListIndex) {
+  void UpdateListIndex(PRUint32 aListIndex) {
     mListIndex = aListIndex;
   }
 
@@ -181,7 +181,7 @@ private:
   // Bounds for the following are checked in the ctor, so be sure to update
   // that if you change the capacity of any of the following.
 
-  uint32_t mListIndex:MOZ_SVG_LIST_INDEX_BIT_COUNT;
+  PRUint32 mListIndex:MOZ_SVG_LIST_INDEX_BIT_COUNT;
   bool mIsAnimValItem:1;
 
   // Usually this class acts as a wrapper for an SVGTransform object which is

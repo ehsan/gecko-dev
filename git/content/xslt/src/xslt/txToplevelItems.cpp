@@ -17,7 +17,7 @@ TX_IMPL_GETTYPE(txStripSpaceItem, txToplevelItem::stripSpace)
 
 txStripSpaceItem::~txStripSpaceItem()
 {
-    int32_t i, count = mStripSpaceTests.Length();
+    PRInt32 i, count = mStripSpaceTests.Length();
     for (i = 0; i < count; ++i) {
         delete mStripSpaceTests[i];
     }

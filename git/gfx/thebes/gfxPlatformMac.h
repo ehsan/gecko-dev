@@ -57,28 +57,28 @@ public:
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
-                                           uint32_t aLength);
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
 
-    bool IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags);
+    bool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
     nsresult UpdateFontList();
 
-    virtual void GetCommonFallbackFonts(const uint32_t aCh,
-                                        int32_t aRunScript,
+    virtual void GetCommonFallbackFonts(const PRUint32 aCh,
+                                        PRInt32 aRunScript,
                                         nsTArray<const char*>& aFontList);
 
     // Returns the OS X version as returned from Gestalt(gestaltSystemVersion, ...)
     // Ex: Mac OS X 10.4.x ==> 0x104x
-    int32_t OSXVersion();
+    PRInt32 OSXVersion();
 
     bool UseAcceleratedCanvas();
 
     // lower threshold on font anti-aliasing
-    uint32_t GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
+    PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
 
     virtual already_AddRefed<gfxASurface>
     GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
@@ -86,10 +86,10 @@ private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
     
     // read in the pref value for the lower threshold on font anti-aliasing
-    static uint32_t ReadAntiAliasingThreshold();    
+    static PRUint32 ReadAntiAliasingThreshold();    
     
-    int32_t mOSXVersion;
-    uint32_t mFontAntiAliasingThreshold;
+    PRInt32 mOSXVersion;
+    PRUint32 mFontAntiAliasingThreshold;
 };
 
 #endif /* GFX_PLATFORM_MAC_H */

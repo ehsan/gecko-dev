@@ -43,9 +43,9 @@ public:
                   nsIFrame*        aPrevInFlow);
 #endif
 
-  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType);
+                               PRInt32         aModType);
 
   /**
    * Get the "type" of the frame
@@ -61,13 +61,13 @@ public:
   }
 #endif
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
+  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
   
   // nsISVGGlyphFragmentNode interface:
-  virtual uint32_t GetNumberOfChars();
+  virtual PRUint32 GetNumberOfChars();
   virtual float GetComputedTextLength();
-  virtual float GetSubStringLength(uint32_t charnum, uint32_t fragmentChars);
-  virtual int32_t GetCharNumAtPosition(nsIDOMSVGPoint *point);
+  virtual float GetSubStringLength(PRUint32 charnum, PRUint32 fragmentChars);
+  virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
   NS_IMETHOD_(nsSVGGlyphFrame *) GetFirstGlyphFrame();
   NS_IMETHOD_(nsSVGGlyphFrame *) GetNextGlyphFrame();
   NS_IMETHOD_(void) SetWhitespaceCompression(bool aCompressWhitespace);

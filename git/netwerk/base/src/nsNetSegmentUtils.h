@@ -11,7 +11,7 @@
  * applies defaults to segment params in a consistent way.
  */
 static inline void
-net_ResolveSegmentParams(uint32_t &segsize, uint32_t &segcount)
+net_ResolveSegmentParams(PRUint32 &segsize, PRUint32 &segcount)
 {
     if (!segsize)
         segsize = nsIOService::gDefaultSegmentSize;

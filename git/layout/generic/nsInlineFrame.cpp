@@ -146,12 +146,12 @@ nsInlineFrame::IsEmpty()
 }
 
 bool
-nsInlineFrame::PeekOffsetCharacter(bool aForward, int32_t* aOffset,
+nsInlineFrame::PeekOffsetCharacter(bool aForward, PRInt32* aOffset,
                                    bool aRespectClusters)
 {
   // Override the implementation in nsFrame, to skip empty inline frames
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
-  int32_t startOffset = *aOffset;
+  PRInt32 startOffset = *aOffset;
   if (startOffset < 0)
     startOffset = 1;
   if (aForward == (startOffset == 0)) {
@@ -201,7 +201,7 @@ nsInlineFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
 nsInlineFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                            nsSize aCBSize, nscoord aAvailableWidth,
                            nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                           uint32_t aFlags)
+                           PRUint32 aFlags)
 {
   // Inlines and text don't compute size before reflow.
   return nsSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);

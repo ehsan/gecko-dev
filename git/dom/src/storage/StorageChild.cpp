@@ -112,7 +112,7 @@ StorageChild::GetKeys(bool aCallerSecure)
 }
 
 nsresult
-StorageChild::GetLength(bool aCallerSecure, uint32_t* aLength)
+StorageChild::GetLength(bool aCallerSecure, PRUint32* aLength)
 {
   nsresult rv;
   SendGetLength(aCallerSecure, mSessionOnly, aLength, &rv);
@@ -120,7 +120,7 @@ StorageChild::GetLength(bool aCallerSecure, uint32_t* aLength)
 }
 
 nsresult
-StorageChild::GetKey(bool aCallerSecure, uint32_t aIndex, nsAString& aKey)
+StorageChild::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
 {
   nsresult rv;
   nsString key;
@@ -185,10 +185,10 @@ StorageChild::RemoveValue(bool aCallerSecure, const nsAString& aKey,
 }
 
 nsresult
-StorageChild::Clear(bool aCallerSecure, int32_t* aOldCount)
+StorageChild::Clear(bool aCallerSecure, PRInt32* aOldCount)
 {
   nsresult rv;
-  int32_t oldCount;
+  PRInt32 oldCount;
   SendClear(aCallerSecure, mSessionOnly, &oldCount, &rv);
   if (NS_FAILED(rv))
     return rv;

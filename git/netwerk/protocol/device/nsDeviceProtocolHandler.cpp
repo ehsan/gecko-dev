@@ -28,14 +28,14 @@ nsDeviceProtocolHandler::GetScheme(nsACString &aResult)
 }
 
 NS_IMETHODIMP
-nsDeviceProtocolHandler::GetDefaultPort(int32_t *aResult)
+nsDeviceProtocolHandler::GetDefaultPort(PRInt32 *aResult)
 {
   *aResult = -1;        // no port for moz_device: URLs
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDeviceProtocolHandler::GetProtocolFlags(uint32_t *aResult)
+nsDeviceProtocolHandler::GetProtocolFlags(PRUint32 *aResult)
 {
   *aResult = URI_NORELATIVE | URI_NOAUTH | URI_DANGEROUS_TO_LOAD;
   return NS_OK;
@@ -66,7 +66,7 @@ nsDeviceProtocolHandler::NewChannel(nsIURI* aURI, nsIChannel **aResult)
 }
 
 NS_IMETHODIMP 
-nsDeviceProtocolHandler::AllowPort(int32_t port,
+nsDeviceProtocolHandler::AllowPort(PRInt32 port,
                                    const char *scheme,
                                    bool *aResult)
 {

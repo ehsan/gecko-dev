@@ -15,7 +15,6 @@
 #include "nsIPrefBranchInternal.h"
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 #include "nsWeakReference.h"
 
 class nsIFile;
@@ -31,18 +30,12 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 
 namespace mozilla {
 
-namespace dom {
-class PrefSetting;
-}
-
 class Preferences : public nsIPrefService,
                     public nsIObserver,
                     public nsIPrefBranchInternal,
                     public nsSupportsWeakReference
 {
 public:
-  typedef mozilla::dom::PrefSetting PrefSetting;
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
   NS_FORWARD_NSIPREFBRANCH(sRootBranch->)
@@ -109,16 +102,16 @@ public:
     return result;
   }
 
-  static int32_t GetInt(const char* aPref, int32_t aDefault = 0)
+  static PRInt32 GetInt(const char* aPref, PRInt32 aDefault = 0)
   {
-    int32_t result = aDefault;
+    PRInt32 result = aDefault;
     GetInt(aPref, &result);
     return result;
   }
 
-  static uint32_t GetUint(const char* aPref, uint32_t aDefault = 0)
+  static PRUint32 GetUint(const char* aPref, PRUint32 aDefault = 0)
   {
-    uint32_t result = aDefault;
+    PRUint32 result = aDefault;
     GetUint(aPref, &result);
     return result;
   }
@@ -157,13 +150,13 @@ public:
    *                    these methods fail.
    */
   static nsresult GetBool(const char* aPref, bool* aResult);
-  static nsresult GetInt(const char* aPref, int32_t* aResult);
-  static nsresult GetUint(const char* aPref, uint32_t* aResult)
+  static nsresult GetInt(const char* aPref, PRInt32* aResult);
+  static nsresult GetUint(const char* aPref, PRUint32* aResult)
   {
-    int32_t result;
+    PRInt32 result;
     nsresult rv = GetInt(aPref, &result);
     if (NS_SUCCEEDED(rv)) {
-      *aResult = static_cast<uint32_t>(result);
+      *aResult = static_cast<PRUint32>(result);
     }
     return rv;
   }
@@ -187,10 +180,10 @@ public:
    * Sets various type pref values.
    */
   static nsresult SetBool(const char* aPref, bool aValue);
-  static nsresult SetInt(const char* aPref, int32_t aValue);
-  static nsresult SetUint(const char* aPref, uint32_t aValue)
+  static nsresult SetInt(const char* aPref, PRInt32 aValue);
+  static nsresult SetUint(const char* aPref, PRUint32 aValue)
   {
-    return SetInt(aPref, static_cast<int32_t>(aValue));
+    return SetInt(aPref, static_cast<PRInt32>(aValue));
   }
   static nsresult SetCString(const char* aPref, const char* aValue);
   static nsresult SetCString(const char* aPref, const nsACString &aValue);
@@ -213,7 +206,7 @@ public:
   /**
    * Gets the type of the pref.
    */
-  static int32_t GetType(const char* aPref);
+  static PRInt32 GetType(const char* aPref);
 
   /**
    * Adds/Removes the observer for the root pref branch.
@@ -255,12 +248,12 @@ public:
   static nsresult AddBoolVarCache(bool* aVariable,
                                   const char* aPref,
                                   bool aDefault = false);
-  static nsresult AddIntVarCache(int32_t* aVariable,
+  static nsresult AddIntVarCache(PRInt32* aVariable,
                                  const char* aPref,
-                                 int32_t aDefault = 0);
-  static nsresult AddUintVarCache(uint32_t* aVariable,
+                                 PRInt32 aDefault = 0);
+  static nsresult AddUintVarCache(PRUint32* aVariable,
                                   const char* aPref,
-                                  uint32_t aDefault = 0);
+                                  PRUint32 aDefault = 0);
 
   /**
    * Gets the default bool, int or uint value of the pref.
@@ -269,10 +262,10 @@ public:
    * If not so, you could use below methods.
    */
   static nsresult GetDefaultBool(const char* aPref, bool* aResult);
-  static nsresult GetDefaultInt(const char* aPref, int32_t* aResult);
-  static nsresult GetDefaultUint(const char* aPref, uint32_t* aResult)
+  static nsresult GetDefaultInt(const char* aPref, PRInt32* aResult);
+  static nsresult GetDefaultUint(const char* aPref, PRUint32* aResult)
   {
-    return GetDefaultInt(aPref, reinterpret_cast<int32_t*>(aResult));
+    return GetDefaultInt(aPref, reinterpret_cast<PRInt32*>(aResult));
   }
 
   /**
@@ -287,15 +280,15 @@ public:
     return NS_SUCCEEDED(GetDefaultBool(aPref, &result)) ? result :
                                                           aFailedResult;
   }
-  static int32_t GetDefaultInt(const char* aPref, int32_t aFailedResult)
+  static PRInt32 GetDefaultInt(const char* aPref, PRInt32 aFailedResult)
   {
-    int32_t result;
+    PRInt32 result;
     return NS_SUCCEEDED(GetDefaultInt(aPref, &result)) ? result : aFailedResult;
   }
-  static uint32_t GetDefaultUint(const char* aPref, uint32_t aFailedResult)
+  static PRUint32 GetDefaultUint(const char* aPref, PRUint32 aFailedResult)
   {
-   return static_cast<uint32_t>(
-     GetDefaultInt(aPref, static_cast<int32_t>(aFailedResult)));
+   return static_cast<PRUint32>(
+     GetDefaultInt(aPref, static_cast<PRInt32>(aFailedResult)));
   }
 
   /**
@@ -324,12 +317,14 @@ public:
   /**
    * Gets the type of the pref.
    */
-  static int32_t GetDefaultType(const char* aPref);
+  static PRInt32 GetDefaultType(const char* aPref);
 
   // Used to synchronise preferences between chrome and content processes.
-  static void GetPreferences(InfallibleTArray<PrefSetting>* aPrefs);
-  static void GetPreference(PrefSetting* aPref);
-  static void SetPreference(const PrefSetting& aPref);
+  static void MirrorPreferences(nsTArray<PrefTuple,
+                                nsTArrayInfallibleAllocator> *aArray);
+  static bool MirrorPreference(const char *aPref, PrefTuple *aTuple);
+  static void ClearContentPref(const char *aPref);
+  static void SetPreference(const PrefTuple *aTuple);
 
 protected:
   nsresult NotifyServiceObservers(const char *aSubject);

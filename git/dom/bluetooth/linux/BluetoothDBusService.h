@@ -51,13 +51,13 @@ public:
                                   const nsAString& aPattern,
                                   int aAttributeId);
 
-  virtual nsTArray<uint32_t>
+  virtual nsTArray<PRUint32>
   AddReservedServicesInternal(const nsAString& aAdapterPath,
-                              const nsTArray<uint32_t>& aServices);
+                              const nsTArray<PRUint32>& aServices);
 
   virtual bool
   RemoveReservedServicesInternal(const nsAString& aAdapterPath,
-                                 const nsTArray<uint32_t>& aServiceHandles);
+                                 const nsTArray<PRUint32>& aServiceHandles);
 
   virtual nsresult
   CreatePairedDeviceInternal(const nsAString& aAdapterPath,
@@ -74,7 +74,7 @@ public:
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode);
 
   virtual bool
-  SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey);
+  SetPasskeyInternal(const nsAString& aDeviceAddress, PRUint32 aPasskey);
 
   virtual bool 
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm);

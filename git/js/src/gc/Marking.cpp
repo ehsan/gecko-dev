@@ -1160,14 +1160,11 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         if (v.isString()) {
             JSString *str = v.toString();
             JS_COMPARTMENT_ASSERT_STR(runtime, str);
-            JS_ASSERT(str->compartment() == runtime->atomsCompartment ||
-                      str->compartment() == obj->compartment());
-    if (str->markIfUnmarked())
+            if (str->markIfUnmarked())
                 ScanString(this, str);
         } else if (v.isObject()) {
             JSObject *obj2 = &v.toObject();
             JS_COMPARTMENT_ASSERT(runtime, obj2);
-            JS_ASSERT(obj->compartment() == obj2->compartment());
             if (obj2->markIfUnmarked(getMarkColor())) {
                 pushValueArray(obj, vp, end);
                 obj = obj2;

@@ -84,7 +84,7 @@ nsComposerCommandsUpdater::NotifyDocumentStateChanged(bool aNowDirty)
 
 NS_IMETHODIMP
 nsComposerCommandsUpdater::NotifySelectionChanged(nsIDOMDocument *,
-                                                  nsISelection *, int16_t)
+                                                  nsISelection *, PRInt16)
 {
   return PrimeUpdateTimer();
 }
@@ -106,7 +106,7 @@ nsComposerCommandsUpdater::DidDo(nsITransactionManager *aManager,
   nsITransaction *aTransaction, nsresult aDoResult)
 {
   // only need to update if the status of the Undo menu item changes.
-  int32_t undoCount;
+  PRInt32 undoCount;
   aManager->GetNumberOfUndoItems(&undoCount);
   if (undoCount == 1)
   {
@@ -132,7 +132,7 @@ nsComposerCommandsUpdater::DidUndo(nsITransactionManager *aManager,
                                    nsITransaction *aTransaction,
                                    nsresult aUndoResult)
 {
-  int32_t undoCount;
+  PRInt32 undoCount;
   aManager->GetNumberOfUndoItems(&undoCount);
   if (undoCount == 0)
     mFirstDoOfFirstUndo = true;    // reset the state for the next do
@@ -236,7 +236,7 @@ nsComposerCommandsUpdater::PrimeUpdateTimer()
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  const uint32_t kUpdateTimerDelay = 150;
+  const PRUint32 kUpdateTimerDelay = 150;
   return mUpdateTimer->InitWithCallback(static_cast<nsITimerCallback*>(this),
                                         kUpdateTimerDelay,
                                         nsITimer::TYPE_ONE_SHOT);

@@ -82,7 +82,7 @@ nsSVGEnum::GetBaseValueAtom(nsSVGElement *aSVGElement)
 }
 
 nsresult
-nsSVGEnum::SetBaseValue(uint16_t aValue,
+nsSVGEnum::SetBaseValue(PRUint16 aValue,
                         nsSVGElement *aSVGElement)
 {
   nsSVGEnumMapping *mapping = GetMapping(aSVGElement);
@@ -90,8 +90,8 @@ nsSVGEnum::SetBaseValue(uint16_t aValue,
   while (mapping && mapping->mKey) {
     if (mapping->mVal == aValue) {
       mIsBaseSet = true;
-      if (mBaseVal != uint8_t(aValue)) {
-        mBaseVal = uint8_t(aValue);
+      if (mBaseVal != PRUint8(aValue)) {
+        mBaseVal = PRUint8(aValue);
         if (!mIsAnimated) {
           mAnimVal = mBaseVal;
         }
@@ -108,7 +108,7 @@ nsSVGEnum::SetBaseValue(uint16_t aValue,
 }
 
 void
-nsSVGEnum::SetAnimValue(uint16_t aValue, nsSVGElement *aSVGElement)
+nsSVGEnum::SetAnimValue(PRUint16 aValue, nsSVGElement *aSVGElement)
 {
   if (mIsAnimated && aValue == mAnimVal) {
     return;
@@ -186,8 +186,8 @@ nsSVGEnum::SMILEnum::SetAnimValue(const nsSMILValue& aValue)
                "Unexpected type to assign animated value");
   if (aValue.mType == &SMILEnumType::sSingleton) {
     NS_ABORT_IF_FALSE(aValue.mU.mUint <= USHRT_MAX,
-                      "Very large enumerated value - too big for uint16_t");
-    mVal->SetAnimValue(uint16_t(aValue.mU.mUint), mSVGElement);
+                      "Very large enumerated value - too big for PRUint16");
+    mVal->SetAnimValue(PRUint16(aValue.mU.mUint), mSVGElement);
   }
   return NS_OK;
 }

@@ -132,7 +132,7 @@ nsAccessibilityService::NotifyOfAnchorJumpTo(nsIContent* aTargetNode)
 
 // nsIAccessibilityService
 void
-nsAccessibilityService::FireAccessibleEvent(uint32_t aEvent,
+nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
                                             Accessible* aTarget)
 {
   nsEventShell::FireEvent(aEvent, aTarget);
@@ -627,7 +627,7 @@ nsAccessibilityService::GetAccessibleFor(nsIDOMNode *aNode,
 }
 
 NS_IMETHODIMP
-nsAccessibilityService::GetStringRole(uint32_t aRole, nsAString& aString)
+nsAccessibilityService::GetStringRole(PRUint32 aRole, nsAString& aString)
 {
 #define ROLE(geckoRole, stringRole, atkRole, \
              macRole, msaaRole, ia2Role, nameRule) \
@@ -646,13 +646,13 @@ nsAccessibilityService::GetStringRole(uint32_t aRole, nsAString& aString)
 }
 
 NS_IMETHODIMP
-nsAccessibilityService::GetStringStates(uint32_t aState, uint32_t aExtraState,
+nsAccessibilityService::GetStringStates(PRUint32 aState, PRUint32 aExtraState,
                                         nsIDOMDOMStringList **aStringStates)
 {
   nsAccessibleDOMStringList* stringStates = new nsAccessibleDOMStringList();
   NS_ENSURE_TRUE(stringStates, NS_ERROR_OUT_OF_MEMORY);
 
-  uint64_t state = nsAccUtils::To64State(aState, aExtraState);
+  PRUint64 state = nsAccUtils::To64State(aState, aExtraState);
 
   // states
   if (state & states::UNAVAILABLE)
@@ -753,7 +753,7 @@ nsAccessibilityService::GetStringStates(uint32_t aState, uint32_t aExtraState,
     stringStates->Add(NS_LITERAL_STRING("expandable"));
 
   //unknown states
-  uint32_t stringStatesLength = 0;
+  PRUint32 stringStatesLength = 0;
   stringStates->GetLength(&stringStatesLength);
   if (!stringStatesLength)
     stringStates->Add(NS_LITERAL_STRING("unknown"));
@@ -764,7 +764,7 @@ nsAccessibilityService::GetStringStates(uint32_t aState, uint32_t aExtraState,
 
 // nsIAccessibleRetrieval::getStringEventType()
 NS_IMETHODIMP
-nsAccessibilityService::GetStringEventType(uint32_t aEventType,
+nsAccessibilityService::GetStringEventType(PRUint32 aEventType,
                                            nsAString& aString)
 {
   NS_ASSERTION(nsIAccessibleEvent::EVENT_LAST_ENTRY == ArrayLength(kEventTypeNames),
@@ -781,7 +781,7 @@ nsAccessibilityService::GetStringEventType(uint32_t aEventType,
 
 // nsIAccessibleRetrieval::getStringRelationType()
 NS_IMETHODIMP
-nsAccessibilityService::GetStringRelationType(uint32_t aRelationType,
+nsAccessibilityService::GetStringRelationType(PRUint32 aRelationType,
                                               nsAString& aString)
 {
   if (aRelationType >= ArrayLength(kRelationTypeNames)) {
@@ -1273,7 +1273,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
   if (!accessibleProvider)
     return nullptr;
 
-  int32_t type;
+  PRInt32 type;
   nsresult rv = accessibleProvider->GetAccessibleType(&type);
   if (NS_FAILED(rv))
     return nullptr;
@@ -1778,7 +1778,7 @@ nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
   if (!treeColumns)
     return nullptr;
 
-  int32_t count = 0;
+  PRInt32 count = 0;
   treeColumns->GetCount(&count);
 
   // Outline of list accessible.

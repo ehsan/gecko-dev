@@ -8,9 +8,9 @@
 include protocol PNecko;
 
 include "mozilla/net/NeckoMessageUtils.h";
-include IPCSerializableParams;
 
 using IPC::URI;
+using IPC::InputStream;
 using IPC::SerializedLoadContext;
 using PRTime;
 
@@ -25,20 +25,20 @@ parent:
   __delete__();
 
   AsyncOpen(URI uri,
-            uint64_t startPos,
+            PRUint64 startPos,
             nsCString entityID,
-            OptionalInputStreamParams uploadStream,
+            InputStream uploadStream,
             SerializedLoadContext loadContext);
 
-  ConnectChannel(uint32_t channelId);
+  ConnectChannel(PRUint32 channelId);
   Cancel(nsresult status);
   Suspend();
   Resume();
 
 child:
-  OnStartRequest(int32_t aContentLength, nsCString aContentType,
+  OnStartRequest(PRInt32 aContentLength, nsCString aContentType,
                  PRTime aLastModified, nsCString aEntityID, URI aURI);
-  OnDataAvailable(nsCString data, uint32_t offset, uint32_t count);
+  OnDataAvailable(nsCString data, PRUint32 offset, PRUint32 count);
   OnStopRequest(nsresult statusCode);
   FailedAsyncOpen(nsresult statusCode);
   DeleteSelf();

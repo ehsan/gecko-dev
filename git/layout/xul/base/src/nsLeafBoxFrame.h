@@ -24,7 +24,7 @@ public:
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aState);
 
   virtual nsIAtom* GetType() const;
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     // This is bogus, but it's what we've always done.
     // Note that nsLeafFrame is also eReplacedContainsBlock.
@@ -64,9 +64,9 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType);
+                              PRInt32 aModType);
 
   virtual bool ComputesOwnOverflowArea() { return false; }
 

@@ -436,7 +436,7 @@ struct NameSetClosure {
 
 static PLDHashOperator
 NameSetInitCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                    uint32_t number, void *arg)
+                    PRUint32 number, void *arg)
 {
   GlobalNameMapEntry *entry = static_cast<GlobalNameMapEntry *>(hdr);
 
@@ -512,7 +512,7 @@ nsScriptNameSpaceManager::LookupNavigatorName(const nsAString& aName,
 
 nsresult
 nsScriptNameSpaceManager::RegisterClassName(const char *aClassName,
-                                            int32_t aDOMClassInfoID,
+                                            PRInt32 aDOMClassInfoID,
                                             bool aPrivileged,
                                             bool aDisabled,
                                             const PRUnichar **aResult)
@@ -604,7 +604,7 @@ nsScriptNameSpaceManager::RegisterDOMCIData(const char *aName,
                                             nsDOMClassInfoExternalConstructorFnc aConstructorFptr,
                                             const nsIID *aProtoChainInterface,
                                             const nsIID **aInterfaces,
-                                            uint32_t aScriptableFlags,
+                                            PRUint32 aScriptableFlags,
                                             bool aHasClassInterface,
                                             const nsCID *aConstructorCID)
 {
@@ -781,7 +781,7 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
 
 void
 nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
-    mozilla::dom::DefineInterface aDefineDOMInterface)
+    mozilla::dom::binding::DefineInterface aDefineDOMInterface)
 {
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, &aName);
   if (s) {

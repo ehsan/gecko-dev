@@ -21,11 +21,11 @@ class ArchiveInputStream MOZ_FINAL : public nsIInputStream,
                                      public nsISeekableStream
 {
 public:
-  ArchiveInputStream(uint64_t aParentSize,
+  ArchiveInputStream(PRUint64 aParentSize,
                      nsIInputStream* aInputStream,
                      nsString& aFilename,
-                     uint32_t aStart,
-                     uint32_t aLength,
+                     PRUint32 aStart,
+                     PRUint32 aLength,
                      ZipCentral& aCentral)
   : mCentral(aCentral),
     mFilename(aFilename),
@@ -58,8 +58,8 @@ private:
 private: // data
   ZipCentral mCentral;
   nsString mFilename;
-  uint32_t mStart;
-  uint32_t mLength;
+  PRUint32 mStart;
+  PRUint32 mLength;
 
   z_stream mZs;
 
@@ -70,12 +70,12 @@ private: // data
   } mStatus;
 
   struct {
-    uint64_t parentSize;
+    PRUint64 parentSize;
     nsCOMPtr<nsIInputStream> inputStream;
 
     unsigned char input[ZIP_CHUNK];
-    uint32_t sizeToBeRead;
-    uint32_t cursor;
+    PRUint32 sizeToBeRead;
+    PRUint32 cursor;
 
     bool compressed; // a zip file can contain stored or compressed files
   } mData;
@@ -97,7 +97,7 @@ ArchiveInputStream::Init()
 
   mData.sizeToBeRead = ArchiveZipItem::StrToInt32(mCentral.size);
 
-  uint32_t offset = ArchiveZipItem::StrToInt32(mCentral.localhdr_offset);
+  PRUint32 offset = ArchiveZipItem::StrToInt32(mCentral.localhdr_offset);
 
   // The file is corrupt
   if (offset + ZIPLOCAL_SIZE > mData.parentSize)
@@ -111,8 +111,8 @@ ArchiveInputStream::Init()
 
   // Seek + read the ZipLocal struct
   seekableStream->Seek(nsISeekableStream::NS_SEEK_SET, offset);
-  uint8_t buffer[ZIPLOCAL_SIZE];
-  uint32_t ret;
+  PRUint8 buffer[ZIPLOCAL_SIZE];
+  PRUint32 ret;
 
   rv = mData.inputStream->Read((char*)buffer, ZIPLOCAL_SIZE, &ret);
   if (NS_FAILED(rv) || ret != ZIPLOCAL_SIZE)
@@ -161,7 +161,7 @@ ArchiveInputStream::Close()
 }
 
 NS_IMETHODIMP
-ArchiveInputStream::Available(uint64_t* _retval)
+ArchiveInputStream::Available(PRUint64* _retval)
 {
   *_retval = mLength - mData.cursor - mStart;
   return NS_OK;
@@ -169,8 +169,8 @@ ArchiveInputStream::Available(uint64_t* _retval)
 
 NS_IMETHODIMP
 ArchiveInputStream::Read(char* aBuffer,
-                         uint32_t aCount,
-                         uint32_t* _retval)
+                         PRUint32 aCount,
+                         PRUint32* _retval)
 {
   NS_ENSURE_ARG_POINTER(aBuffer);
   NS_ENSURE_ARG_POINTER(_retval);
@@ -216,7 +216,7 @@ ArchiveInputStream::Read(char* aBuffer,
   // We have nothing ready to be processed:
   if (mZs.avail_out != 0 && mData.sizeToBeRead != 0)
   {
-    uint32_t ret;
+    PRUint32 ret;
     rv = mData.inputStream->Read((char*)mData.input,
                                  (mData.sizeToBeRead > sizeof(mData.input) ?
                                       sizeof(mData.input) : mData.sizeToBeRead),
@@ -253,8 +253,8 @@ ArchiveInputStream::Read(char* aBuffer,
 NS_IMETHODIMP
 ArchiveInputStream::ReadSegments(nsWriteSegmentFun aWriter,
                                  void* aClosure,
-                                 uint32_t aCount,
-                                 uint32_t* _retval)
+                                 PRUint32 aCount,
+                                 PRUint32* _retval)
 {
   // don't have a buffer to read from, so this better not be called!
   NS_NOTREACHED("Consumers should be using Read()!");
@@ -270,9 +270,9 @@ ArchiveInputStream::IsNonBlocking(bool* _retval)
 }
 
 NS_IMETHODIMP
-ArchiveInputStream::Seek(int32_t aWhence, int64_t aOffset)
+ArchiveInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
-  int64_t pos = aOffset;
+  PRInt64 pos = aOffset;
 
   switch (aWhence) {
   case NS_SEEK_SET:
@@ -291,7 +291,7 @@ ArchiveInputStream::Seek(int32_t aWhence, int64_t aOffset)
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (pos == int64_t(mData.cursor))
+  if (pos == PRInt64(mData.cursor))
     return NS_OK;
 
   if (pos < 0 || pos >= mLength)
@@ -308,10 +308,10 @@ ArchiveInputStream::Seek(int32_t aWhence, int64_t aOffset)
   mData.cursor = 0;
 
   // Note: This code is heavy but inflate does not have any seek() support:
-  uint32_t ret;
+  PRUint32 ret;
   char buffer[1024];
   while (pos > 0) {
-    rv = Read(buffer, pos > int64_t(sizeof(buffer)) ? sizeof(buffer) : pos, &ret);
+    rv = Read(buffer, pos > PRInt64(sizeof(buffer)) ? sizeof(buffer) : pos, &ret);
     if (NS_FAILED(rv))
       return rv;
 
@@ -325,7 +325,7 @@ ArchiveInputStream::Seek(int32_t aWhence, int64_t aOffset)
 }
 
 NS_IMETHODIMP
-ArchiveInputStream::Tell(int64_t *aResult)
+ArchiveInputStream::Tell(PRInt64 *aResult)
 {
   LL_UI2L(*aResult, mData.cursor);
   return NS_OK;
@@ -345,7 +345,7 @@ ArchiveZipFile::GetInternalStream(nsIInputStream** aStream)
   if (mLength > PR_INT32_MAX)
     return NS_ERROR_FAILURE;
 
-  uint64_t size;
+  PRUint64 size;
   nsresult rv = mArchiveReader->GetSize(&size);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -367,8 +367,8 @@ ArchiveZipFile::GetInternalStream(nsIInputStream** aStream)
 }
 
 already_AddRefed<nsIDOMBlob>
-ArchiveZipFile::CreateSlice(uint64_t aStart,
-                            uint64_t aLength,
+ArchiveZipFile::CreateSlice(PRUint64 aStart,
+                            PRUint64 aLength,
                             const nsAString& aContentType)
 {
   nsCOMPtr<nsIDOMBlob> t = new ArchiveZipFile(mFilename,

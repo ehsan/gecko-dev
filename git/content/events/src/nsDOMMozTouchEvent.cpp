@@ -40,7 +40,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
 
 /* readonly attribute unsigned long steramId; */
 NS_IMETHODIMP
-nsDOMMozTouchEvent::GetStreamId(uint32_t *aStreamId)
+nsDOMMozTouchEvent::GetStreamId(PRUint32 *aStreamId)
 {
   NS_ENSURE_ARG_POINTER(aStreamId);
   *aStreamId = static_cast<nsMozTouchEvent*>(mEvent)->streamId;
@@ -52,18 +52,18 @@ nsDOMMozTouchEvent::InitMozTouchEvent(const nsAString& aTypeArg,
                                       bool aCanBubbleArg,
                                       bool aCancelableArg,
                                       nsIDOMWindow* aViewArg,
-                                      int32_t aDetailArg,
-                                      int32_t aScreenX,
-                                      int32_t aScreenY,
-                                      int32_t aClientX,
-                                      int32_t aClientY,
+                                      PRInt32 aDetailArg,
+                                      PRInt32 aScreenX,
+                                      PRInt32 aScreenY,
+                                      PRInt32 aClientX,
+                                      PRInt32 aClientY,
                                       bool aCtrlKeyArg,
                                       bool aAltKeyArg,
                                       bool aShiftKeyArg,
                                       bool aMetaKeyArg,
-                                      uint16_t aButton,
+                                      PRUint16 aButton,
                                       nsIDOMEventTarget* aRelatedTarget,
-                                      uint32_t aStreamId)
+                                      PRUint32 aStreamId)
 {
   nsresult rv = nsDOMMouseEvent::InitMouseEvent(aTypeArg,
                                                 aCanBubbleArg,

@@ -16,9 +16,9 @@ public:
 
   nsresult GetUsagesArray(const char *suffix,
                bool localOnly,
-               uint32_t outArraySize,
-               uint32_t *_verified,
-               uint32_t *_count,
+               PRUint32 outArraySize,
+               PRUint32 *_verified,
+               PRUint32 *_count,
                PRUnichar **tmpUsages);
 
   enum { max_returned_out_array_size = 12 };
@@ -31,10 +31,10 @@ private:
 
   void check(const char *suffix,
              SECCertificateUsage aCertUsage,
-             uint32_t &aCounter,
+             PRUint32 &aCounter,
              PRUnichar **outUsages);
 
-  void verifyFailed(uint32_t *_verified, int err);
+  void verifyFailed(PRUint32 *_verified, int err);
 };
 
 #endif

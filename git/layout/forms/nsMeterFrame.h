@@ -40,11 +40,11 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32  aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t  aModType);
+                              PRInt32  aModType);
 
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
@@ -54,7 +54,7 @@ public:
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));

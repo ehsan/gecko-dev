@@ -81,14 +81,14 @@ class nsScannerBufferList
             const Buffer* Prev() const { return static_cast<const Buffer*>(prev); }
                   Buffer* Prev()       { return static_cast<Buffer*>(prev); }
 
-            uint32_t DataLength() const { return mDataEnd - DataStart(); }
-            void SetDataLength(uint32_t len) { mDataEnd = DataStart() + len; }
+            PRUint32 DataLength() const { return mDataEnd - DataStart(); }
+            void SetDataLength(PRUint32 len) { mDataEnd = DataStart() + len; }
 
           private:
 
             friend class nsScannerBufferList;
 
-            int32_t    mUsageCount;
+            PRInt32    mUsageCount;
             PRUnichar* mDataEnd;
         };
 
@@ -121,7 +121,7 @@ class nsScannerBufferList
         };
 
       static Buffer* AllocBufferFromString( const nsAString& );
-      static Buffer* AllocBuffer( uint32_t capacity ); // capacity = number of chars
+      static Buffer* AllocBuffer( PRUint32 capacity ); // capacity = number of chars
 
       nsScannerBufferList( Buffer* buf )
         : mRefCnt(0)
@@ -151,7 +151,7 @@ class nsScannerBufferList
       ~nsScannerBufferList() { ReleaseAll(); }
       void ReleaseAll();
 
-      int32_t mRefCnt;
+      PRInt32 mRefCnt;
       PRCList mBuffers;
   };
 
@@ -181,7 +181,7 @@ class nsScannerSubstring
     public:
       typedef nsScannerBufferList::Buffer      Buffer;
       typedef nsScannerBufferList::Position    Position;
-      typedef uint32_t                         size_type;
+      typedef PRUint32                         size_type;
 
       nsScannerSubstring();
       nsScannerSubstring( const nsAString& s );
@@ -193,7 +193,7 @@ class nsScannerSubstring
 
       size_type Length() const { return mLength; }
 
-      int32_t CountChar( PRUnichar ) const;
+      PRInt32 CountChar( PRUnichar ) const;
 
       void Rebind( const nsScannerSubstring&, const nsScannerIterator&, const nsScannerIterator& );
       void Rebind( const nsAString& );
@@ -456,10 +456,10 @@ struct nsCharSourceTraits<nsScannerIterator>
     typedef nsScannerIterator::difference_type difference_type;
 
     static
-    uint32_t
+    PRUint32
     readable_distance( const nsScannerIterator& first, const nsScannerIterator& last )
       {
-        return uint32_t(SameFragment(first, last) ? last.get() - first.get() : first.size_forward());
+        return PRUint32(SameFragment(first, last) ? last.get() - first.get() : first.size_forward());
       }
 
     static

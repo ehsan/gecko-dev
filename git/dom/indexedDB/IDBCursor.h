@@ -139,7 +139,7 @@ public:
 
   nsresult
   ContinueInternal(const Key& aKey,
-                   int32_t aCount);
+                   PRInt32 aCount);
 
 protected:
   IDBCursor();

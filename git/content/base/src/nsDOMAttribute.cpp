@@ -235,12 +235,12 @@ nsDOMAttribute::SetNodeValue(const nsAString& aNodeValue)
 }
 
 NS_IMETHODIMP
-nsDOMAttribute::GetNodeType(uint16_t* aNodeType)
+nsDOMAttribute::GetNodeType(PRUint16* aNodeType)
 {
   NS_ENSURE_ARG_POINTER(aNodeType);
   OwnerDoc()->WarnOnceAbout(nsIDocument::eNodeType);
 
-  *aNodeType = (uint16_t)nsIDOMNode::ATTRIBUTE_NODE;
+  *aNodeType = (PRUint16)nsIDOMNode::ATTRIBUTE_NODE;
   return NS_OK;
 }
 
@@ -391,7 +391,7 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 NS_IMETHODIMP
-nsDOMAttribute::CloneNode(bool aDeep, uint8_t aOptionalArgc, nsIDOMNode** aResult)
+nsDOMAttribute::CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode** aResult)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eCloneNode);
 
@@ -466,7 +466,7 @@ nsDOMAttribute::GetDOMBaseURI(nsAString &aURI)
 
 NS_IMETHODIMP
 nsDOMAttribute::CompareDocumentPosition(nsIDOMNode *other,
-                                        uint16_t *aResult)
+                                        PRUint16 *aResult)
 {
   return nsINode::CompareDocumentPosition(other, aResult);
 }
@@ -561,38 +561,38 @@ nsDOMAttribute::GetIsId(bool* aReturn)
 }
 
 bool
-nsDOMAttribute::IsNodeOfType(uint32_t aFlags) const
+nsDOMAttribute::IsNodeOfType(PRUint32 aFlags) const
 {
     return !(aFlags & ~eATTRIBUTE);
 }
 
-uint32_t
+PRUint32
 nsDOMAttribute::GetChildCount() const
 {
   return 0;
 }
 
 nsIContent *
-nsDOMAttribute::GetChildAt(uint32_t aIndex) const
+nsDOMAttribute::GetChildAt(PRUint32 aIndex) const
 {
   return nullptr;
 }
 
 nsIContent * const *
-nsDOMAttribute::GetChildArray(uint32_t* aChildCount) const
+nsDOMAttribute::GetChildArray(PRUint32* aChildCount) const
 {
   *aChildCount = 0;
   return NULL;
 }
 
-int32_t
+PRInt32
 nsDOMAttribute::IndexOf(nsINode* aPossibleChild) const
 {
   return -1;
 }
 
 nsresult
-nsDOMAttribute::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
+nsDOMAttribute::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                               bool aNotify)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -605,7 +605,7 @@ nsDOMAttribute::AppendChildTo(nsIContent* aKid, bool aNotify)
 }
 
 void
-nsDOMAttribute::RemoveChildAt(uint32_t aIndex, bool aNotify)
+nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
 }
 

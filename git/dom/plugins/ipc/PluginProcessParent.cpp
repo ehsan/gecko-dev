@@ -38,7 +38,7 @@ PluginProcessParent::~PluginProcessParent()
 }
 
 bool
-PluginProcessParent::Launch(int32_t timeoutMs)
+PluginProcessParent::Launch(PRInt32 timeoutMs)
 {
     ProcessArchitecture currentArchitecture = base::GetCurrentProcessArchitecture();
     uint32 containerArchitectures = GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);

@@ -102,7 +102,7 @@ static PLDHashTableOps gMapOps = {
 #ifdef DEBUG
 class nsAutoAtomic {
   public:
-    nsAutoAtomic(int32_t &i)
+    nsAutoAtomic(PRInt32 &i)
     :mI(i) {
       PR_ATOMIC_INCREMENT(&mI);
     }
@@ -112,7 +112,7 @@ class nsAutoAtomic {
     }
 
   protected:
-    int32_t &mI;
+    PRInt32 &mI;
 
   private:
     nsAutoAtomic(); // not accessible
@@ -237,7 +237,7 @@ nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)
 }
 
 NS_IMETHODIMP
-nsSecureBrowserUIImpl::GetState(uint32_t* aState)
+nsSecureBrowserUIImpl::GetState(PRUint32* aState)
 {
   ReentrantMonitorAutoEnter lock(mReentrantMonitor);
   return MapInternalToExternalState(aState, mNotifiedSecurityState, mNotifiedToplevelIsEV);
@@ -262,7 +262,7 @@ nsSecureBrowserUIImpl::ExtractSecurityInfo(nsIRequest* aRequest)
 }
 
 nsresult
-nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev)
+nsSecureBrowserUIImpl::MapInternalToExternalState(PRUint32* aState, lockIconState lock, bool ev)
 {
   NS_ENSURE_ARG(aState);
 
@@ -353,10 +353,10 @@ static nsresult IsChildOfDomWindow(nsIDOMWindow *parent, nsIDOMWindow *child,
   return NS_OK;
 }
 
-static uint32_t GetSecurityStateFromSecurityInfo(nsISupports *info)
+static PRUint32 GetSecurityStateFromSecurityInfo(nsISupports *info)
 {
   nsresult res;
-  uint32_t securityState;
+  PRUint32 securityState;
 
   nsCOMPtr<nsITransportSecurityInfo> psmInfo(do_QueryInterface(info));
   if (!psmInfo) {
@@ -447,10 +447,10 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
 NS_IMETHODIMP 
 nsSecureBrowserUIImpl::OnProgressChange(nsIWebProgress* aWebProgress,
                                         nsIRequest* aRequest,
-                                        int32_t aCurSelfProgress,
-                                        int32_t aMaxSelfProgress,
-                                        int32_t aCurTotalProgress,
-                                        int32_t aMaxTotalProgress)
+                                        PRInt32 aCurSelfProgress,
+                                        PRInt32 aMaxSelfProgress,
+                                        PRInt32 aCurTotalProgress,
+                                        PRInt32 aMaxTotalProgress)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -478,7 +478,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsIS
      I want to make it clear these are temp variables that relate to the 
      member variables with the same suffix.*/
 
-  uint32_t temp_NewToplevelSecurityState = nsIWebProgressListener::STATE_IS_INSECURE;
+  PRUint32 temp_NewToplevelSecurityState = nsIWebProgressListener::STATE_IS_INSECURE;
   bool temp_NewToplevelIsEV = false;
 
   bool updateStatus = false;
@@ -553,7 +553,7 @@ nsSecureBrowserUIImpl::UpdateSubrequestMembers(nsISupports *securityInfo)
 {
   // For wyciwyg channels in subdocuments we only update our
   // subrequest state members.
-  uint32_t reqState = GetSecurityStateFromSecurityInfo(securityInfo);
+  PRUint32 reqState = GetSecurityStateFromSecurityInfo(securityInfo);
 
   // the code above this line should run without a lock
   ReentrantMonitorAutoEnter lock(mReentrantMonitor);
@@ -582,7 +582,7 @@ nsSecureBrowserUIImpl::UpdateSubrequestMembers(nsISupports *securityInfo)
 NS_IMETHODIMP
 nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
                                      nsIRequest* aRequest,
-                                     uint32_t aProgressStateFlags,
+                                     PRUint32 aProgressStateFlags,
                                      nsresult aStatus)
 {
 #ifdef DEBUG
@@ -710,7 +710,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
   if (httpChannel) 
   {
-    uint32_t response;
+    PRUint32 response;
     isNoContentResponse = NS_SUCCEEDED(httpChannel->GetResponseStatus(&response)) &&
         (response == 204 || response == 205);
   }
@@ -784,7 +784,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     }
   }
 
-  uint32_t loadFlags = 0;
+  PRUint32 loadFlags = 0;
   aRequest->GetLoadFlags(&loadFlags);
 
 #ifdef PR_LOGGING
@@ -849,7 +849,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
 
 #if defined(DEBUG)
   nsCString info2;
-  uint32_t testFlags = loadFlags;
+  PRUint32 testFlags = loadFlags;
 
   if (testFlags & nsIChannel::LOAD_DOCUMENT_URI)
   {
@@ -870,7 +870,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   const char *_status = NS_SUCCEEDED(aStatus) ? "1" : "0";
 
   nsCString info;
-  uint32_t f = aProgressStateFlags;
+  PRUint32 f = aProgressStateFlags;
   if (f & nsIWebProgressListener::STATE_START)
   {
     f -= nsIWebProgressListener::STATE_START;
@@ -1038,16 +1038,16 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   {
     bool inProgress;
 
-    int32_t saveSubHigh;
-    int32_t saveSubLow;
-    int32_t saveSubBroken;
-    int32_t saveSubNo;
+    PRInt32 saveSubHigh;
+    PRInt32 saveSubLow;
+    PRInt32 saveSubBroken;
+    PRInt32 saveSubNo;
     nsCOMPtr<nsIAssociatedContentSecurity> prevContentSecurity;
 
-    int32_t newSubHigh = 0;
-    int32_t newSubLow = 0;
-    int32_t newSubBroken = 0;
-    int32_t newSubNo = 0;
+    PRInt32 newSubHigh = 0;
+    PRInt32 newSubLow = 0;
+    PRInt32 newSubBroken = 0;
+    PRInt32 newSubNo = 0;
 
     {
       ReentrantMonitorAutoEnter lock(mReentrantMonitor);
@@ -1165,7 +1165,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       &&
       loadFlags & nsIChannel::LOAD_DOCUMENT_URI)
   {
-    int32_t temp_DocumentRequestsInProgress;
+    PRInt32 temp_DocumentRequestsInProgress;
     nsCOMPtr<nsISecurityEventSink> temp_ToplevelEventSink;
 
     {
@@ -1244,10 +1244,10 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
         mNewToplevelSecurityStateKnown = true;
       }
 
-      int32_t subHigh = 0;
-      int32_t subLow = 0;
-      int32_t subBroken = 0;
-      int32_t subNo = 0;
+      PRInt32 subHigh = 0;
+      PRInt32 subLow = 0;
+      PRInt32 subBroken = 0;
+      PRInt32 subNo = 0;
 
       if (currentContentSecurity)
       {
@@ -1502,7 +1502,7 @@ nsresult nsSecureBrowserUIImpl::TellTheWorld(bool showWarning,
 
   if (temp_ToplevelEventSink)
   {
-    uint32_t newState = STATE_IS_INSECURE;
+    PRUint32 newState = STATE_IS_INSECURE;
     MapInternalToExternalState(&newState, 
                                temp_NotifiedSecurityState, 
                                temp_NotifiedToplevelIsEV);
@@ -1551,7 +1551,7 @@ NS_IMETHODIMP
 nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
                                         nsIRequest* aRequest,
                                         nsIURI* aLocation,
-                                        uint32_t aFlags)
+                                        PRUint32 aFlags)
 {
 #ifdef DEBUG
   nsAutoAtomic atomic(mOnStateLocationChangeReentranceDetection);
@@ -1655,7 +1655,7 @@ nsSecureBrowserUIImpl::OnStatusChange(nsIWebProgress* aWebProgress,
 nsresult
 nsSecureBrowserUIImpl::OnSecurityChange(nsIWebProgress *aWebProgress,
                                         nsIRequest *aRequest,
-                                        uint32_t state)
+                                        PRUint32 state)
 {
 #if defined(DEBUG)
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));

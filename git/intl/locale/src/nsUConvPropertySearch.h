@@ -22,7 +22,7 @@ class nsUConvPropertySearch
      * @return NS_OK if found or NS_ERROR_FAILURE if not found
      */
     static nsresult SearchPropertyValue(const char* aProperties[][3],
-                                        int32_t aNumberOfProperties,
+                                        PRInt32 aNumberOfProperties,
                                         const nsACString& aKey,
                                         nsACString& aValue);
 };

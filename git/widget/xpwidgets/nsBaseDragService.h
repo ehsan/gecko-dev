@@ -48,7 +48,7 @@ public:
 
   void SetDragEndPoint(nsIntPoint aEndDragPoint) { mEndDragPoint = aEndDragPoint; }
 
-  uint16_t GetInputSource() { return mInputSource; }
+  PRUint16 GetInputSource() { return mInputSource; }
 
 protected:
 
@@ -75,7 +75,7 @@ protected:
    */
   nsresult DrawDrag(nsIDOMNode* aDOMNode,
                     nsIScriptableRegion* aRegion,
-                    int32_t aScreenX, int32_t aScreenY,
+                    PRInt32 aScreenX, PRInt32 aScreenY,
                     nsIntRect* aScreenDragRect,
                     gfxASurface** aSurface,
                     nsPresContext **aPresContext);
@@ -87,7 +87,7 @@ protected:
   nsresult DrawDragForImage(nsPresContext* aPresContext,
                             nsIImageLoadingContent* aImageLoader,
                             nsICanvasElementExternal* aCanvas,
-                            int32_t aScreenX, int32_t aScreenY,
+                            PRInt32 aScreenX, PRInt32 aScreenY,
                             nsIntRect* aScreenDragRect,
                             gfxASurface** aSurface);
 
@@ -96,7 +96,7 @@ protected:
    */
   void
   ConvertToUnscaledDevPixels(nsPresContext* aPresContext,
-                             int32_t* aScreenX, int32_t* aScreenY);
+                             PRInt32* aScreenX, PRInt32* aScreenY);
 
   /**
    * If the drag image is a popup, open the popup when the drag begins.
@@ -111,7 +111,7 @@ protected:
   // true if the user cancelled the drag operation
   bool mUserCancelled;
 
-  uint32_t mDragAction;
+  PRUint32 mDragAction;
   nsSize mTargetSize;
   nsCOMPtr<nsIDOMNode> mSourceNode;
   nsCOMPtr<nsIDOMDocument> mSourceDocument;       // the document at the drag source. will be null
@@ -121,8 +121,8 @@ protected:
   // used to determine the image to appear on the cursor while dragging
   nsCOMPtr<nsIDOMNode> mImage;
   // offset of cursor within the image 
-  int32_t mImageX;
-  int32_t mImageY;
+  PRInt32 mImageX;
+  PRInt32 mImageY;
 
   // set if a selection is being dragged
   nsCOMPtr<nsISelection> mSelection;
@@ -134,16 +134,16 @@ protected:
   // the screen position where drag gesture occurred, used for positioning the
   // drag image when no image is specified. If a value is -1, no event was
   // supplied so the screen position is not known
-  int32_t mScreenX;
-  int32_t mScreenY;
+  PRInt32 mScreenX;
+  PRInt32 mScreenY;
 
   // the screen position where the drag ended
   nsIntPoint mEndDragPoint;
 
-  uint32_t mSuppressLevel;
+  PRUint32 mSuppressLevel;
 
   // The input source of the drag event. Possible values are from nsIDOMMouseEvent.
-  uint16_t mInputSource;
+  PRUint16 mInputSource;
 };
 
 #endif // nsBaseDragService_h__

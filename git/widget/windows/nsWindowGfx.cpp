@@ -74,13 +74,13 @@ using namespace mozilla::widget;
  *
  **************************************************************/
 
-static nsAutoPtr<uint8_t>  sSharedSurfaceData;
+static nsAutoPtr<PRUint8>  sSharedSurfaceData;
 static gfxIntSize          sSharedSurfaceSize;
 
 struct IconMetrics {
-  int32_t xMetric;
-  int32_t yMetric;
-  int32_t defaultSize;
+  PRInt32 xMetric;
+  PRInt32 yMetric;
+  PRInt32 defaultSize;
 };
 
 // Corresponds 1:1 to the IconSizeType enum
@@ -113,7 +113,7 @@ nsWindowGfx::ConvertHRGNToRegion(HRGN aRgn)
   nsIntRegion rgn;
 
   DWORD size = ::GetRegionData(aRgn, 0, NULL);
-  nsAutoTArray<uint8_t,100> buffer;
+  nsAutoTArray<PRUint8,100> buffer;
   if (!buffer.SetLength(size))
     return rgn;
 
@@ -127,7 +127,7 @@ nsWindowGfx::ConvertHRGNToRegion(HRGN aRgn)
   }
 
   RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
-  for (uint32_t i = 0; i < data->rdh.nCount; ++i) {
+  for (PRUint32 i = 0; i < data->rdh.nCount; ++i) {
     RECT* r = rects + i;
     rgn.Or(rgn, ToIntRect(*r));
   }
@@ -187,13 +187,13 @@ EnsureSharedSurfaceSize(gfxIntSize size)
   if (!sSharedSurfaceData || (WORDSSIZE(size) > WORDSSIZE(sSharedSurfaceSize))) {
     sSharedSurfaceSize = size;
     sSharedSurfaceData = nullptr;
-    sSharedSurfaceData = (uint8_t *)malloc(WORDSSIZE(sSharedSurfaceSize) * 4);
+    sSharedSurfaceData = (PRUint8 *)malloc(WORDSSIZE(sSharedSurfaceSize) * 4);
   }
 
   return (sSharedSurfaceData != nullptr);
 }
 
-bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
+bool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 {
   // We never have reentrant paint events, except when we're running our RPC
   // windows event spin loop. If we don't trap for this, we'll try to paint,
@@ -294,7 +294,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
                          this,
                          region,
                          nsCAutoString("noname"),
-                         (int32_t) mWnd);
+                         (PRInt32) mWnd);
 #endif // WIDGET_DEBUG_OUTPUT
 
     switch (GetLayerManager()->GetBackendType()) {
@@ -339,7 +339,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
               (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
                IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)))
           {
-            uint32_t flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
+            PRUint32 flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
                 gfxWindowsSurface::FLAG_IS_TRANSPARENT;
             targetSurfaceWin = new gfxWindowsSurface(hDC, flags);
             targetSurface = targetSurfaceWin;
@@ -607,8 +607,8 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
 }
 
 gfxIntSize nsWindowGfx::GetIconMetrics(IconSizeType aSizeType) {
-  int32_t width = ::GetSystemMetrics(sIconMetrics[aSizeType].xMetric);
-  int32_t height = ::GetSystemMetrics(sIconMetrics[aSizeType].yMetric);
+  PRInt32 width = ::GetSystemMetrics(sIconMetrics[aSizeType].xMetric);
+  PRInt32 height = ::GetSystemMetrics(sIconMetrics[aSizeType].yMetric);
 
   if (width == 0 || height == 0) {
     width = height = sIconMetrics[aSizeType].defaultSize;
@@ -619,8 +619,8 @@ gfxIntSize nsWindowGfx::GetIconMetrics(IconSizeType aSizeType) {
 
 nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   bool aIsCursor,
-                                  uint32_t aHotspotX,
-                                  uint32_t aHotspotY,
+                                  PRUint32 aHotspotX,
+                                  PRUint32 aHotspotY,
                                   gfxIntSize aScaledSize,
                                   HICON *aIcon) {
 
@@ -632,12 +632,12 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
-  int32_t width = frame->Width();
-  int32_t height = frame->Height();
+  PRInt32 width = frame->Width();
+  PRInt32 height = frame->Height();
   if (!width || !height)
     return NS_ERROR_FAILURE;
 
-  uint8_t *data;
+  PRUint8 *data;
   if ((aScaledSize.width == 0 && aScaledSize.height == 0) ||
       (aScaledSize.width == width && aScaledSize.height == height)) {
     // We're not scaling the image. The data is simply what's in the frame.
@@ -670,7 +670,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   }
 
   HBITMAP bmp = DataToBitmap(data, width, -height, 32);
-  uint8_t* a1data = Data32BitTo1Bit(data, width, height);
+  PRUint8* a1data = Data32BitTo1Bit(data, width, height);
   if (!a1data) {
     return NS_ERROR_FAILURE;
   }
@@ -695,23 +695,23 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
 }
 
 // Adjust cursor image data
-uint8_t* nsWindowGfx::Data32BitTo1Bit(uint8_t* aImageData,
-                                      uint32_t aWidth, uint32_t aHeight)
+PRUint8* nsWindowGfx::Data32BitTo1Bit(PRUint8* aImageData,
+                                      PRUint32 aWidth, PRUint32 aHeight)
 {
   // We need (aWidth + 7) / 8 bytes plus zero-padding up to a multiple of
   // 4 bytes for each row (HBITMAP requirement). Bug 353553.
-  uint32_t outBpr = ((aWidth + 31) / 8) & ~3;
+  PRUint32 outBpr = ((aWidth + 31) / 8) & ~3;
 
   // Allocate and clear mask buffer
-  uint8_t* outData = (uint8_t*)PR_Calloc(outBpr, aHeight);
+  PRUint8* outData = (PRUint8*)PR_Calloc(outBpr, aHeight);
   if (!outData)
     return NULL;
 
-  int32_t *imageRow = (int32_t*)aImageData;
-  for (uint32_t curRow = 0; curRow < aHeight; curRow++) {
-    uint8_t *outRow = outData + curRow * outBpr;
-    uint8_t mask = 0x80;
-    for (uint32_t curCol = 0; curCol < aWidth; curCol++) {
+  PRInt32 *imageRow = (PRInt32*)aImageData;
+  for (PRUint32 curRow = 0; curRow < aHeight; curRow++) {
+    PRUint8 *outRow = outData + curRow * outBpr;
+    PRUint8 mask = 0x80;
+    for (PRUint32 curCol = 0; curCol < aWidth; curCol++) {
       // Use sign bit to test for transparency, as alpha byte is highest byte
       if (*imageRow++ < 0)
         *outRow |= mask;
@@ -741,10 +741,10 @@ uint8_t* nsWindowGfx::Data32BitTo1Bit(uint8_t* aImageData,
  *         DeleteObject when done with the bitmap.
  *         On failure, NULL will be returned.
  */
-HBITMAP nsWindowGfx::DataToBitmap(uint8_t* aImageData,
-                                  uint32_t aWidth,
-                                  uint32_t aHeight,
-                                  uint32_t aDepth)
+HBITMAP nsWindowGfx::DataToBitmap(PRUint8* aImageData,
+                                  PRUint32 aWidth,
+                                  PRUint32 aHeight,
+                                  PRUint32 aDepth)
 {
   HDC dc = ::GetDC(NULL);
 

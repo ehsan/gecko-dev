@@ -63,7 +63,7 @@ public:
                       const nsHTMLReflowState& aReflowState,
                       nsReflowStatus&      aStatus);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     // We don't actually contain a block, but we do always want a
     // computed width, so tell a little white lie here.

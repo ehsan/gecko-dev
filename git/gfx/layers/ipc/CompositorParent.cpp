@@ -616,7 +616,7 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
 
   bool activeAnimations = false;
 
-  for (uint32_t i = animations.Length(); i-- !=0; ) {
+  for (PRUint32 i = animations.Length(); i-- !=0; ) {
     Animation& animation = animations[i];
     AnimData& animData = animationData[i];
 
@@ -761,9 +761,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     if (mIsFirstPaint) {
       mContentRect = metrics.mContentRect;
-      const gfx::Point& scrollOffset = metrics.mViewportScrollOffset;
-      SetFirstPaintViewport(nsIntPoint(NS_lround(scrollOffset.x),
-                                       NS_lround(scrollOffset.y)),
+      SetFirstPaintViewport(metrics.mViewportScrollOffset,
                             1/rootScaleX,
                             mContentRect,
                             metrics.mCSSContentRect);
@@ -777,9 +775,9 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
     // notifications, so that Java can take these into account in its response.
     // Calculate the absolute display port to send to Java
     nsIntRect displayPort = metrics.mDisplayPort;
-    gfx::Point scrollOffset = metrics.mViewportScrollOffset;
-    displayPort.x += NS_lround(scrollOffset.x);
-    displayPort.y += NS_lround(scrollOffset.y);
+    nsIntPoint scrollOffset = metrics.mViewportScrollOffset;
+    displayPort.x += scrollOffset.x;
+    displayPort.y += scrollOffset.y;
 
     SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
                      mScrollOffset, mXScale, mYScale);
@@ -796,8 +794,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     nsIntPoint metricsScrollOffset(0, 0);
     if (metrics.IsScrollable()) {
-      metricsScrollOffset =
-        nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
+      metricsScrollOffset = metrics.mViewportScrollOffset;
     }
 
     nsIntPoint scrollCompensation(
@@ -952,7 +949,7 @@ CompositorParent::DeallocPLayers(PLayersParent* actor)
 }
 
 
-typedef map<uint64_t,CompositorParent*> CompositorMap;
+typedef map<PRUint64,CompositorParent*> CompositorMap;
 static CompositorMap* sCompositorMap;
 
 void CompositorParent::CreateCompositorMap()
@@ -972,22 +969,22 @@ void CompositorParent::DestroyCompositorMap()
   }
 }
 
-CompositorParent* CompositorParent::GetCompositor(uint64_t id)
+CompositorParent* CompositorParent::GetCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
   return it != sCompositorMap->end() ? it->second : nullptr;
 }
 
-void CompositorParent::AddCompositor(CompositorParent* compositor, uint64_t* outID)
+void CompositorParent::AddCompositor(CompositorParent* compositor, PRUint64* outID)
 {
-  static uint64_t sNextID = 1;
+  static PRUint64 sNextID = 1;
   
   ++sNextID;
   (*sCompositorMap)[sNextID] = compositor;
   *outID = sNextID;
 }
 
-CompositorParent* CompositorParent::RemoveCompositor(uint64_t id)
+CompositorParent* CompositorParent::RemoveCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
   if (it == sCompositorMap->end()) {

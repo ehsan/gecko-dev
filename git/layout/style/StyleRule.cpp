@@ -136,7 +136,7 @@ nsPseudoClassList::nsPseudoClassList(nsCSSPseudoClasses::Type aType,
 }
 
 nsPseudoClassList::nsPseudoClassList(nsCSSPseudoClasses::Type aType,
-                                     const int32_t* aIntPair)
+                                     const PRInt32* aIntPair)
   : mType(aType),
     mNext(nullptr)
 {
@@ -145,7 +145,7 @@ nsPseudoClassList::nsPseudoClassList(nsCSSPseudoClasses::Type aType,
   NS_ASSERTION(aIntPair, "integer pair expected");
   MOZ_COUNT_CTOR(nsPseudoClassList);
   u.mNumbers =
-    static_cast<int32_t*>(nsMemory::Clone(aIntPair, sizeof(int32_t) * 2));
+    static_cast<PRInt32*>(nsMemory::Clone(aIntPair, sizeof(PRInt32) * 2));
 }
 
 // adopts aSelectorList
@@ -222,7 +222,7 @@ nsPseudoClassList::~nsPseudoClassList(void)
   NS_CSS_DELETE_LIST_MEMBER(nsPseudoClassList, this, mNext);
 }
 
-nsAttrSelector::nsAttrSelector(int32_t aNameSpace, const nsString& aAttr)
+nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr)
   : mValue(),
     mNext(nullptr),
     mLowercaseAttr(nullptr),
@@ -240,7 +240,7 @@ nsAttrSelector::nsAttrSelector(int32_t aNameSpace, const nsString& aAttr)
   mLowercaseAttr = do_GetAtom(lowercase);
 }
 
-nsAttrSelector::nsAttrSelector(int32_t aNameSpace, const nsString& aAttr, uint8_t aFunction, 
+nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunction, 
                                const nsString& aValue, bool aCaseSensitive)
   : mValue(aValue),
     mNext(nullptr),
@@ -259,8 +259,8 @@ nsAttrSelector::nsAttrSelector(int32_t aNameSpace, const nsString& aAttr, uint8_
   mLowercaseAttr = do_GetAtom(lowercase);
 }
 
-nsAttrSelector::nsAttrSelector(int32_t aNameSpace,  nsIAtom* aLowercaseAttr,
-                               nsIAtom* aCasedAttr, uint8_t aFunction, 
+nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace,  nsIAtom* aLowercaseAttr,
+                               nsIAtom* aCasedAttr, PRUint8 aFunction, 
                                const nsString& aValue, bool aCaseSensitive)
   : mValue(aValue),
     mNext(nullptr),
@@ -374,7 +374,7 @@ void nsCSSSelector::Reset(void)
   mOperator = PRUnichar(0);
 }
 
-void nsCSSSelector::SetNameSpace(int32_t aNameSpace)
+void nsCSSSelector::SetNameSpace(PRInt32 aNameSpace)
 {
   mNameSpace = aNameSpace;
 }
@@ -427,7 +427,7 @@ void nsCSSSelector::AddPseudoClass(nsCSSPseudoClasses::Type aType,
 }
 
 void nsCSSSelector::AddPseudoClass(nsCSSPseudoClasses::Type aType,
-                                   const int32_t* aIntPair)
+                                   const PRInt32* aIntPair)
 {
   AddPseudoClassInternal(new nsPseudoClassList(aType, aIntPair));
 }
@@ -448,7 +448,7 @@ void nsCSSSelector::AddPseudoClassInternal(nsPseudoClassList *aPseudoClass)
   *list = aPseudoClass;
 }
 
-void nsCSSSelector::AddAttribute(int32_t aNameSpace, const nsString& aAttr)
+void nsCSSSelector::AddAttribute(PRInt32 aNameSpace, const nsString& aAttr)
 {
   if (!aAttr.IsEmpty()) {
     nsAttrSelector** list = &mAttrList;
@@ -459,7 +459,7 @@ void nsCSSSelector::AddAttribute(int32_t aNameSpace, const nsString& aAttr)
   }
 }
 
-void nsCSSSelector::AddAttribute(int32_t aNameSpace, const nsString& aAttr, uint8_t aFunc, 
+void nsCSSSelector::AddAttribute(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunc, 
                                  const nsString& aValue, bool aCaseSensitive)
 {
   if (!aAttr.IsEmpty()) {
@@ -476,9 +476,9 @@ void nsCSSSelector::SetOperator(PRUnichar aOperator)
   mOperator = aOperator;
 }
 
-int32_t nsCSSSelector::CalcWeightWithoutNegations() const
+PRInt32 nsCSSSelector::CalcWeightWithoutNegations() const
 {
-  int32_t weight = 0;
+  PRInt32 weight = 0;
 
   if (nullptr != mLowercaseTag) {
     weight += 0x000001;
@@ -511,10 +511,10 @@ int32_t nsCSSSelector::CalcWeightWithoutNegations() const
   return weight;
 }
 
-int32_t nsCSSSelector::CalcWeight() const
+PRInt32 nsCSSSelector::CalcWeight() const
 {
   // Loop over this selector and all its negations.
-  int32_t weight = 0;
+  PRInt32 weight = 0;
   for (const nsCSSSelector *n = this; n; n = n->mNegations) {
     weight += n->CalcWeightWithoutNegations();
   }
@@ -540,7 +540,7 @@ nsCSSSelector::ToString(nsAString& aString, nsCSSStyleSheet* aSheet,
   }
 
   while (!stack.IsEmpty()) {
-    uint32_t index = stack.Length() - 1;
+    PRUint32 index = stack.Length() - 1;
     const nsCSSSelector *s = stack.ElementAt(index);
     stack.RemoveElementAt(index);
 
@@ -781,7 +781,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
         nsStyleUtil::AppendEscapedCSSIdent(
           nsDependentString(list->u.mString), aString);
       } else if (nsCSSPseudoClasses::HasNthPairArg(list->mType)) {
-        int32_t a = list->u.mNumbers[0],
+        PRInt32 a = list->u.mNumbers[0],
                 b = list->u.mNumbers[1];
         temp.Truncate();
         if (a != 0) {
@@ -944,10 +944,10 @@ ImportantRule::MapRuleInfoInto(nsRuleData* aRuleData)
 
 #ifdef DEBUG
 /* virtual */ void
-ImportantRule::List(FILE* out, int32_t aIndent) const
+ImportantRule::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
+  for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fprintf(out, "! Important declaration=%p\n",
           static_cast<void*>(mDeclaration));
@@ -1193,7 +1193,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMCSSStyleRule)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMETHODIMP
-DOMCSSStyleRule::GetType(uint16_t* aType)
+DOMCSSStyleRule::GetType(PRUint16* aType)
 {
   *aType = nsIDOMCSSRule::STYLE_RULE;
   
@@ -1378,7 +1378,7 @@ StyleRule::RuleMatched()
   }
 }
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 StyleRule::GetType() const
 {
   return Rule::STYLE_RULE;
@@ -1442,10 +1442,10 @@ StyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 
 #ifdef DEBUG
 /* virtual */ void
-StyleRule::List(FILE* out, int32_t aIndent) const
+StyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
+  for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);
 
   nsAutoString buffer;
   if (mSelector)

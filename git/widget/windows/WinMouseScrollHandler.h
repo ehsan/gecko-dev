@@ -43,10 +43,10 @@ public:
    */
   static nsresult SynthesizeNativeMouseScrollEvent(nsWindow* aWindow,
                                                    const nsIntPoint& aPoint,
-                                                   uint32_t aNativeMessage,
-                                                   int32_t aDelta,
-                                                   uint32_t aModifierFlags,
-                                                   uint32_t aAdditionalFlags);
+                                                   PRUint32 aNativeMessage,
+                                                   PRInt32 aDelta,
+                                                   PRUint32 aModifierFlags,
+                                                   PRUint32 aAdditionalFlags);
 
   /**
    * IsWaitingInternalMessage() returns true if MouseScrollHandler posted
@@ -190,7 +190,7 @@ private:
 
     bool CanDispatchWheelEvent() const;
 
-    int32_t GetNativeDelta() const { return mDelta; }
+    PRInt32 GetNativeDelta() const { return mDelta; }
     HWND GetWindowHandle() const { return mWnd; }
     const TimeStamp& GetTimeStamp() const { return mTimeStamp; }
     bool IsVertical() const { return mIsVertical; }
@@ -200,7 +200,7 @@ private:
     /**
      * @return          Number of lines or pages scrolled per WHEEL_DELTA.
      */
-    int32_t GetScrollAmount() const;
+    PRInt32 GetScrollAmount() const;
 
   protected:
     EventInfo() :
@@ -213,7 +213,7 @@ private:
     // TRUE if event scrolls per page, otherwise, FALSE.
     bool mIsPage;
     // The native delta value.
-    int32_t mDelta;
+    PRInt32 mDelta;
     // The window handle which is handling the event.
     HWND mWnd;
     // Timestamp of the event.
@@ -263,9 +263,9 @@ private:
                         const ModifierKeyState& aModKeyState);
 
   private:
-    static int32_t RoundDelta(double aDelta);
+    static PRInt32 RoundDelta(double aDelta);
 
-    int32_t mAccumulatedDelta;
+    PRInt32 mAccumulatedDelta;
   };
 
   LastEventInfo mLastEventInfo;
@@ -278,7 +278,7 @@ private:
     void MarkDirty();
     void NotifyUserPrefsMayOverrideSystemSettings();
 
-    int32_t GetScrollAmount(bool aForVertical) const
+    PRInt32 GetScrollAmount(bool aForVertical) const
     {
       MOZ_ASSERT(mInitialized, "SystemSettings must be initialized");
       return aForVertical ? mScrollLines : mScrollChars;
@@ -293,8 +293,8 @@ private:
 
   private:
     bool mInitialized;
-    int32_t mScrollLines;
-    int32_t mScrollChars;
+    PRInt32 mScrollLines;
+    PRInt32 mScrollChars;
   };
 
   SystemSettings mSystemSettings;
@@ -312,19 +312,19 @@ private:
       return mScrollMessageHandledAsWheelMessage;
     }
 
-    int32_t GetOverriddenVerticalScrollAmout()
+    PRInt32 GetOverriddenVerticalScrollAmout()
     {
       Init();
       return mOverriddenVerticalScrollAmount;
     }
 
-    int32_t GetOverriddenHorizontalScrollAmout()
+    PRInt32 GetOverriddenHorizontalScrollAmout()
     {
       Init();
       return mOverriddenHorizontalScrollAmount;
     }
 
-    int32_t GetMouseScrollTransactionTimeout()
+    PRInt32 GetMouseScrollTransactionTimeout()
     {
       Init();
       return mMouseScrollTransactionTimeout;
@@ -341,9 +341,9 @@ private:
 
     bool mInitialized;
     bool mScrollMessageHandledAsWheelMessage;
-    int32_t mOverriddenVerticalScrollAmount;
-    int32_t mOverriddenHorizontalScrollAmount;
-    int32_t mMouseScrollTransactionTimeout;
+    PRInt32 mOverriddenVerticalScrollAmount;
+    PRInt32 mOverriddenHorizontalScrollAmount;
+    PRInt32 mMouseScrollTransactionTimeout;
   };
 
   UserPrefs mUserPrefs;
@@ -422,7 +422,7 @@ public:
        * GetDriverMajorVersion() returns the installed driver's major version.
        * If Elantech's driver was installed, returns 0.
        */
-      static int32_t GetDriverMajorVersion();
+      static PRInt32 GetDriverMajorVersion();
 
       /**
        * IsHelperWindow() checks whether aWnd is a helper window of Elantech's

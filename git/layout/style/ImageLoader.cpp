@@ -20,7 +20,7 @@ ImageLoader::SetAnimationModeEnumerator(nsISupports* aKey, FrameSet* aValue,
 {
   imgIRequest* request = static_cast<imgIRequest*>(aKey);
 
-  uint16_t* mode = static_cast<uint16_t*>(aClosure);
+  PRUint16* mode = static_cast<PRUint16*>(aClosure);
 
 #ifdef DEBUG
   {
@@ -76,13 +76,6 @@ ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
 
     mRequestToFrameMap.Put(aRequest, newFrameSet);
     frameSet = newFrameSet.forget();
-
-    nsPresContext* presContext = GetPresContext();
-    if (presContext) {
-      nsLayoutUtils::RegisterImageRequestIfAnimated(presContext,
-                                                    aRequest,
-                                                    nullptr);
-    }
   }
 
   RequestSet* requestSet = nullptr;
@@ -98,7 +91,7 @@ ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
   }
 
   // Add these to the sets, but only if they're not already there.
-  uint32_t i;
+  PRUint32 i;
   if (!frameSet->GreatestIndexLtEq(aFrame, i)) {
     frameSet->InsertElementAt(i, aFrame);
   }
@@ -208,7 +201,7 @@ ImageLoader::DropRequestsForFrame(nsIFrame* aFrame)
 }
 
 void
-ImageLoader::SetAnimationMode(uint16_t aMode)
+ImageLoader::SetAnimationMode(PRUint16 aMode)
 {
   NS_ASSERTION(aMode == imgIContainer::kNormalAnimMode ||
                aMode == imgIContainer::kDontAnimMode ||
@@ -372,12 +365,9 @@ ImageLoader::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
 NS_IMETHODIMP
 ImageLoader::OnImageIsAnimated(imgIRequest* aRequest)
 {
+  // NB: Don't ignore this when cloning, it's our only chance to register
+  // the request with the refresh driver.
   if (!mDocument) {
-    return NS_OK;
-  }
-
-  FrameSet* frameSet = nullptr;
-  if (!mRequestToFrameMap.Get(aRequest, &frameSet)) {
     return NS_OK;
   }
 
@@ -394,7 +384,7 @@ ImageLoader::OnImageIsAnimated(imgIRequest* aRequest)
 }
 
 NS_IMETHODIMP
-ImageLoader::OnStopFrame(imgIRequest *aRequest, uint32_t aFrame)
+ImageLoader::OnStopFrame(imgIRequest *aRequest, PRUint32 aFrame)
 {
   if (!mDocument || mInClone) {
     return NS_OK;

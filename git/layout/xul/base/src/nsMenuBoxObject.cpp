@@ -102,7 +102,7 @@ NS_IMETHODIMP nsMenuBoxObject::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent, bool* a
   if (!popupFrame)
     return NS_OK;
 
-  uint32_t keyCode;
+  PRUint32 keyCode;
   aKeyEvent->GetKeyCode(&keyCode);
   switch (keyCode) {
     case NS_VK_UP:

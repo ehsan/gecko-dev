@@ -42,7 +42,7 @@ protected:
   
 public:
 
-                              nsDocShellEnumerator(int32_t inEnumerationDirection);
+                              nsDocShellEnumerator(PRInt32 inEnumerationDirection);
   virtual                     ~nsDocShellEnumerator();
 
   // nsISupports
@@ -56,8 +56,8 @@ public:
   nsresult                    GetEnumerationRootItem(nsIDocShellTreeItem * *aEnumerationRootItem);
   nsresult                    SetEnumerationRootItem(nsIDocShellTreeItem * aEnumerationRootItem);
   
-  nsresult                    GetEnumDocShellType(int32_t *aEnumerationItemType);
-  nsresult                    SetEnumDocShellType(int32_t aEnumerationItemType);
+  nsresult                    GetEnumDocShellType(PRInt32 *aEnumerationItemType);
+  nsresult                    SetEnumDocShellType(PRInt32 aEnumerationItemType);
     
   nsresult                    First();
 
@@ -74,12 +74,12 @@ protected:
   nsWeakPtr                   mRootItem;      // weak ref!
   
   nsTArray<nsWeakPtr>         mItemArray;     // flattened list of items with matching type
-  uint32_t                    mCurIndex;
+  PRUint32                    mCurIndex;
   
-  int32_t                     mDocShellType;  // only want shells of this type
+  PRInt32                     mDocShellType;  // only want shells of this type
   bool                        mArrayValid;    // is mItemArray up to date?
 
-  const int8_t                mEnumerationDirection;
+  const PRInt8                mEnumerationDirection;
 };
 
 

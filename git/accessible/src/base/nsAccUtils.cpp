@@ -47,8 +47,8 @@ nsAccUtils::SetAccAttr(nsIPersistentProperties *aAttributes,
 
 void
 nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                             int32_t aLevel, int32_t aSetSize,
-                             int32_t aPosInSet)
+                             PRInt32 aLevel, PRInt32 aSetSize,
+                             PRInt32 aPosInSet)
 {
   nsAutoString value;
 
@@ -68,7 +68,7 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
   }
 }
 
-int32_t
+PRInt32
 nsAccUtils::GetDefaultLevel(Accessible* aAccessible)
 {
   roles::Role role = aAccessible->Role();
@@ -87,10 +87,10 @@ nsAccUtils::GetDefaultLevel(Accessible* aAccessible)
   return 0;
 }
 
-int32_t
+PRInt32
 nsAccUtils::GetARIAOrDefaultLevel(Accessible* aAccessible)
 {
-  int32_t level = 0;
+  PRInt32 level = 0;
   nsCoreUtils::GetUIntAttr(aAccessible->GetContent(),
                            nsGkAtoms::aria_level, &level);
 
@@ -100,7 +100,7 @@ nsAccUtils::GetARIAOrDefaultLevel(Accessible* aAccessible)
   return GetDefaultLevel(aAccessible);
 }
 
-int32_t
+PRInt32
 nsAccUtils::GetLevelForXULContainerItem(nsIContent *aContent)
 {
   nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aContent));
@@ -113,7 +113,7 @@ nsAccUtils::GetLevelForXULContainerItem(nsIContent *aContent)
     return 0;
 
   // Get level of the item.
-  int32_t level = -1;
+  PRInt32 level = -1;
   while (container) {
     level++;
 
@@ -205,7 +205,7 @@ nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
     { &nsGkAtoms::_false, &nsGkAtoms::_true,
       &nsGkAtoms::mixed, nullptr};
 
-  int32_t idx = aElement->FindAttrValueIn(kNameSpaceID_None,
+  PRInt32 idx = aElement->FindAttrValueIn(kNameSpaceID_None,
                                           aAttr, tokens, eCaseMatters);
   if (idx >= 0)
     return *(tokens[idx]);
@@ -214,12 +214,12 @@ nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
 }
 
 Accessible*
-nsAccUtils::GetAncestorWithRole(Accessible* aDescendant, uint32_t aRole)
+nsAccUtils::GetAncestorWithRole(Accessible* aDescendant, PRUint32 aRole)
 {
   Accessible* document = aDescendant->Document();
   Accessible* parent = aDescendant;
   while ((parent = parent->Parent())) {
-    uint32_t testRole = parent->Role();
+    PRUint32 testRole = parent->Role();
     if (testRole == aRole)
       return parent;
 
@@ -230,7 +230,7 @@ nsAccUtils::GetAncestorWithRole(Accessible* aDescendant, uint32_t aRole)
 }
 
 Accessible*
-nsAccUtils::GetSelectableContainer(Accessible* aAccessible, uint64_t aState)
+nsAccUtils::GetSelectableContainer(Accessible* aAccessible, PRUint64 aState)
 {
   if (!aAccessible)
     return nullptr;
@@ -265,7 +265,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   if (!focusDOMNode)
     return nullptr;
 
-  int32_t focusOffset = 0;
+  PRInt32 focusOffset = 0;
   aSelection->GetFocusOffset(&focusOffset);
 
   nsCOMPtr<nsINode> focusNode(do_QueryInterface(focusDOMNode));
@@ -295,8 +295,8 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
 }
 
 nsresult
-nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
-                                  uint32_t aCoordinateType,
+nsAccUtils::ConvertToScreenCoords(PRInt32 aX, PRInt32 aY,
+                                  PRUint32 aCoordinateType,
                                   nsAccessNode *aAccessNode,
                                   nsIntPoint *aCoords)
 {
@@ -330,8 +330,8 @@ nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
 }
 
 nsresult
-nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
-                                  uint32_t aCoordinateType,
+nsAccUtils::ConvertScreenCoordsTo(PRInt32 *aX, PRInt32 *aY,
+                                  PRUint32 aCoordinateType,
                                   nsAccessNode *aAccessNode)
 {
   switch (aCoordinateType) {
@@ -385,10 +385,10 @@ nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
   return nsIntPoint(parentRect.x, parentRect.y);
 }
 
-uint8_t
+PRUint8
 nsAccUtils::GetAttributeCharacteristics(nsIAtom* aAtom)
 {
-    for (uint32_t i = 0; i < nsARIAMap::gWAIUnivAttrMapLength; i++)
+    for (PRUint32 i = 0; i < nsARIAMap::gWAIUnivAttrMapLength; i++)
       if (*nsARIAMap::gWAIUnivAttrMap[i].attributeName == aAtom)
         return nsARIAMap::gWAIUnivAttrMap[i].characteristics;
 
@@ -396,7 +396,7 @@ nsAccUtils::GetAttributeCharacteristics(nsIAtom* aAtom)
 }
 
 bool
-nsAccUtils::GetLiveAttrValue(uint32_t aRule, nsAString& aValue)
+nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 {
   switch (aRule) {
     case eOffLiveAttr:
@@ -421,8 +421,8 @@ nsAccUtils::IsTextInterfaceSupportCorrect(Accessible* aAccessible)
     return true;
 
   bool foundText = false;
-  uint32_t childCount = aAccessible->ChildCount();
-  for (uint32_t childIdx = 0; childIdx < childCount; childIdx++) {
+  PRUint32 childCount = aAccessible->ChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     Accessible* child = aAccessible->GetChildAt(childIdx);
     if (IsText(child)) {
       foundText = true;
@@ -441,7 +441,7 @@ nsAccUtils::IsTextInterfaceSupportCorrect(Accessible* aAccessible)
 }
 #endif
 
-uint32_t
+PRUint32
 nsAccUtils::TextLength(Accessible* aAccessible)
 {
   if (!IsText(aAccessible))
@@ -484,27 +484,27 @@ nsAccUtils::MustPrune(Accessible* aAccessible)
 nsresult
 nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
                               nsIAccessibleTableCell *aCell,
-                              int32_t aRowOrColHeaderCells, nsIArray **aCells)
+                              PRInt32 aRowOrColHeaderCells, nsIArray **aCells)
 {
   nsresult rv = NS_OK;
   nsCOMPtr<nsIMutableArray> cells = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t rowIdx = -1;
+  PRInt32 rowIdx = -1;
   rv = aCell->GetRowIndex(&rowIdx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t colIdx = -1;
+  PRInt32 colIdx = -1;
   rv = aCell->GetColumnIndex(&colIdx);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool moveToLeft = aRowOrColHeaderCells == eRowHeaderCells;
 
   // Move to the left or top to find row header cells or column header cells.
-  int32_t index = (moveToLeft ? colIdx : rowIdx) - 1;
+  PRInt32 index = (moveToLeft ? colIdx : rowIdx) - 1;
   for (; index >= 0; index--) {
-    int32_t curRowIdx = moveToLeft ? rowIdx : index;
-    int32_t curColIdx = moveToLeft ? index : colIdx;
+    PRInt32 curRowIdx = moveToLeft ? rowIdx : index;
+    PRInt32 curColIdx = moveToLeft ? index : colIdx;
 
     nsCOMPtr<nsIAccessible> cell;
     rv = aTable->GetCellAt(curRowIdx, curColIdx, getter_AddRefs(cell));
@@ -516,7 +516,7 @@ nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
     // GetCellAt should always return an nsIAccessibleTableCell (XXX Bug 587529)
     NS_ENSURE_STATE(tableCellAcc);
 
-    int32_t origIdx = 1;
+    PRInt32 origIdx = 1;
     if (moveToLeft)
       rv = tableCellAcc->GetColumnIndex(&origIdx);
     else
@@ -525,7 +525,7 @@ nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
 
     if (origIdx == index) {
       // Append original header cells only.
-      uint32_t role = Role(cell);
+      PRUint32 role = Role(cell);
       bool isHeader = moveToLeft ?
         role == nsIAccessibleRole::ROLE_ROWHEADER :
         role == nsIAccessibleRole::ROLE_COLUMNHEADER;

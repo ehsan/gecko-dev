@@ -122,7 +122,7 @@ private:
       return false;
     }
 
-    uint64_t size;
+    PRUint64 size;
     if (NS_FAILED(blob->GetSize(&size))) {
       ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);
       return false;
@@ -182,10 +182,10 @@ private:
       return false;
     }
 
-    uint8_t optionalArgc = aArgc;
+    PRUint8 optionalArgc = aArgc;
     nsCOMPtr<nsIDOMBlob> rtnBlob;
-    if (NS_FAILED(blob->Slice(static_cast<uint64_t>(start),
-                              static_cast<uint64_t>(end),
+    if (NS_FAILED(blob->Slice(static_cast<PRUint64>(start),
+                              static_cast<PRUint64>(end),
                               contentType, optionalArgc,
                               getter_AddRefs(rtnBlob)))) {
       ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);

@@ -36,7 +36,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(LeafAccessible, Accessible)
 // LeafAccessible: Accessible public
 
 Accessible*
-LeafAccessible::ChildAtPoint(int32_t aX, int32_t aY,
+LeafAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
                              EWhichChildAtPoint aWhichChild)
 {
   // Don't walk into leaf accessibles.
@@ -77,7 +77,7 @@ LinkableAccessible::TakeFocus()
   return mActionAcc ? mActionAcc->TakeFocus() : AccessibleWrap::TakeFocus();
 }
 
-uint64_t
+PRUint64
 LinkableAccessible::NativeLinkState() const
 {
   if (mIsLink)
@@ -100,14 +100,14 @@ LinkableAccessible::Value(nsString& aValue)
 }
 
 
-uint8_t
+PRUint8
 LinkableAccessible::ActionCount()
 {
   return (mIsOnclick || mIsLink) ? 1 : 0;
 }
 
 NS_IMETHODIMP
-LinkableAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+LinkableAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   aName.Truncate();
 
@@ -127,7 +127,7 @@ LinkableAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-LinkableAccessible::DoAction(uint8_t aIndex)
+LinkableAccessible::DoAction(PRUint8 aIndex)
 {
   if (aIndex != eAction_Jump)
     return NS_ERROR_INVALID_ARG;
@@ -159,7 +159,7 @@ LinkableAccessible::Shutdown()
 // LinkableAccessible: HyperLinkAccessible
 
 already_AddRefed<nsIURI>
-LinkableAccessible::AnchorURIAt(uint32_t aAnchorIndex)
+LinkableAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
 {
   if (mIsLink) {
     NS_ASSERTION(mActionAcc->IsLink(),
@@ -177,7 +177,7 @@ LinkableAccessible::AnchorURIAt(uint32_t aAnchorIndex)
 
 void
 LinkableAccessible::BindToParent(Accessible* aParent,
-                                 uint32_t aIndexInParent)
+                                 PRUint32 aIndexInParent)
 {
   AccessibleWrap::BindToParent(aParent, aIndexInParent);
 

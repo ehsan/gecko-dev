@@ -81,7 +81,7 @@ class DeleteObjectStoreHelper : public NoRequestDatabaseHelper
 {
 public:
   DeleteObjectStoreHelper(IDBTransaction* aTransaction,
-                          int64_t aObjectStoreId)
+                          PRInt64 aObjectStoreId)
   : NoRequestDatabaseHelper(aTransaction), mObjectStoreId(aObjectStoreId)
   { }
 
@@ -90,7 +90,7 @@ public:
 
 private:
   // In-params.
-  int64_t mObjectStoreId;
+  PRInt64 mObjectStoreId;
 };
 
 class CreateFileHelper : public AsyncConnectionHelper
@@ -441,7 +441,7 @@ IDBDatabase::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-IDBDatabase::GetVersion(uint64_t* aVersion)
+IDBDatabase::GetVersion(PRUint64* aVersion)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -465,8 +465,8 @@ IDBDatabase::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
   }
 
   nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
-  uint32_t count = objectStoreNames.Length();
-  for (uint32_t index = 0; index < count; index++) {
+  PRUint32 count = objectStoreNames.Length();
+  for (PRUint32 index = 0; index < count; index++) {
     NS_ENSURE_TRUE(list->Add(objectStoreNames[index]),
                    NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
@@ -585,7 +585,7 @@ NS_IMETHODIMP
 IDBDatabase::Transaction(const jsval& aStoreNames,
                          const nsAString& aMode,
                          JSContext* aCx,
-                         uint8_t aOptionalArgCount,
+                         PRUint8 aOptionalArgCount,
                          nsIIDBTransaction** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -664,7 +664,7 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
         // We only accept DOMStringList.
         nsCOMPtr<nsIDOMDOMStringList> list = do_QueryInterface(wrappedObject);
         if (list) {
-          uint32_t length;
+          PRUint32 length;
           rv = list->GetLength(&length);
           NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -674,7 +674,7 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
 
           storesToOpen.SetCapacity(length);
 
-          for (uint32_t index = 0; index < length; index++) {
+          for (PRUint32 index = 0; index < length; index++) {
             nsString* item = storesToOpen.AppendElement();
             NS_ASSERTION(item, "This should never fail!");
 
@@ -705,7 +705,7 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
 
   // Now check to make sure the object store names we collected actually exist.
   DatabaseInfo* info = Info();
-  for (uint32_t index = 0; index < storesToOpen.Length(); index++) {
+  for (PRUint32 index = 0; index < storesToOpen.Length(); index++) {
     if (!info->ContainsStoreName(storesToOpen[index])) {
       return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
     }

@@ -207,7 +207,7 @@ nsPrintSettingsGTK::SetGtkPrinter(GtkPrinter *aPrinter)
  */
 
 /* attribute long printRange; */
-NS_IMETHODIMP nsPrintSettingsGTK::GetPrintRange(int16_t *aPrintRange)
+NS_IMETHODIMP nsPrintSettingsGTK::GetPrintRange(PRInt16 *aPrintRange)
 {
   NS_ENSURE_ARG_POINTER(aPrintRange);
   if (mPrintSelectionOnly) {
@@ -223,7 +223,7 @@ NS_IMETHODIMP nsPrintSettingsGTK::GetPrintRange(int16_t *aPrintRange)
 
   return NS_OK;
 }
-NS_IMETHODIMP nsPrintSettingsGTK::SetPrintRange(int16_t aPrintRange)
+NS_IMETHODIMP nsPrintSettingsGTK::SetPrintRange(PRInt16 aPrintRange)
 {
   if (aPrintRange == kRangeSelection) {
     mPrintSelectionOnly = true;
@@ -240,7 +240,7 @@ NS_IMETHODIMP nsPrintSettingsGTK::SetPrintRange(int16_t aPrintRange)
 
 /* attribute long startPageRange; */
 NS_IMETHODIMP
-nsPrintSettingsGTK::GetStartPageRange(int32_t *aStartPageRange)
+nsPrintSettingsGTK::GetStartPageRange(PRInt32 *aStartPageRange)
 {
   gint ctRanges;
   GtkPageRange* lstRanges = gtk_print_settings_get_page_ranges(mPrintSettings, &ctRanges);
@@ -251,7 +251,7 @@ nsPrintSettingsGTK::GetStartPageRange(int32_t *aStartPageRange)
   } else {
     // GTK supports multiple page ranges; gecko only supports 1. So find
     // the lowest start page.
-    int32_t start(lstRanges[0].start);
+    PRInt32 start(lstRanges[0].start);
     for (gint ii = 1; ii < ctRanges; ii++) {
       start = NS_MIN(lstRanges[ii].start, start);
     }
@@ -262,9 +262,9 @@ nsPrintSettingsGTK::GetStartPageRange(int32_t *aStartPageRange)
   return NS_OK;
 }
 NS_IMETHODIMP
-nsPrintSettingsGTK::SetStartPageRange(int32_t aStartPageRange)
+nsPrintSettingsGTK::SetStartPageRange(PRInt32 aStartPageRange)
 {
-  int32_t endRange;
+  PRInt32 endRange;
   GetEndPageRange(&endRange);
 
   GtkPageRange gtkRange;
@@ -278,7 +278,7 @@ nsPrintSettingsGTK::SetStartPageRange(int32_t aStartPageRange)
 
 /* attribute long endPageRange; */
 NS_IMETHODIMP
-nsPrintSettingsGTK::GetEndPageRange(int32_t *aEndPageRange)
+nsPrintSettingsGTK::GetEndPageRange(PRInt32 *aEndPageRange)
 {
   gint ctRanges;
   GtkPageRange* lstRanges = gtk_print_settings_get_page_ranges(mPrintSettings, &ctRanges);
@@ -286,7 +286,7 @@ nsPrintSettingsGTK::GetEndPageRange(int32_t *aEndPageRange)
   if (ctRanges < 1) {
     *aEndPageRange = 1;
   } else {
-    int32_t end(lstRanges[0].end);
+    PRInt32 end(lstRanges[0].end);
     for (gint ii = 1; ii < ctRanges; ii++) {
       end = NS_MAX(lstRanges[ii].end, end);
     }
@@ -297,9 +297,9 @@ nsPrintSettingsGTK::GetEndPageRange(int32_t *aEndPageRange)
   return NS_OK;
 }
 NS_IMETHODIMP
-nsPrintSettingsGTK::SetEndPageRange(int32_t aEndPageRange)
+nsPrintSettingsGTK::SetEndPageRange(PRInt32 aEndPageRange)
 {
-  int32_t startRange;
+  PRInt32 startRange;
   GetStartPageRange(&startRange);
 
   GtkPageRange gtkRange;
@@ -341,7 +341,7 @@ nsPrintSettingsGTK::SetPrintInColor(bool aPrintInColor)
 
 /* attribute short orientation; */
 NS_IMETHODIMP
-nsPrintSettingsGTK::GetOrientation(int32_t *aOrientation)
+nsPrintSettingsGTK::GetOrientation(PRInt32 *aOrientation)
 {
   NS_ENSURE_ARG_POINTER(aOrientation);
 
@@ -360,7 +360,7 @@ nsPrintSettingsGTK::GetOrientation(int32_t *aOrientation)
   return NS_OK;
 }
 NS_IMETHODIMP
-nsPrintSettingsGTK::SetOrientation(int32_t aOrientation)
+nsPrintSettingsGTK::SetOrientation(PRInt32 aOrientation)
 {
   GtkPageOrientation gtkOrient;
   if (aOrientation == kLandscapeOrientation)
@@ -475,14 +475,14 @@ nsPrintSettingsGTK::SetPrinterName(const PRUnichar * aPrinter)
 
 /* attribute long numCopies; */
 NS_IMETHODIMP
-nsPrintSettingsGTK::GetNumCopies(int32_t *aNumCopies)
+nsPrintSettingsGTK::GetNumCopies(PRInt32 *aNumCopies)
 {
   NS_ENSURE_ARG_POINTER(aNumCopies);
   *aNumCopies = gtk_print_settings_get_n_copies(mPrintSettings);
   return NS_OK;
 }
 NS_IMETHODIMP
-nsPrintSettingsGTK::SetNumCopies(int32_t aNumCopies)
+nsPrintSettingsGTK::SetNumCopies(PRInt32 aNumCopies)
 {
   gtk_print_settings_set_n_copies(mPrintSettings, aNumCopies);
   return NS_OK;
@@ -540,7 +540,7 @@ nsPrintSettingsGTK::SetPaperName(const PRUnichar * aPaperName)
 }
 
 GtkUnit
-nsPrintSettingsGTK::GetGTKUnit(int16_t aGeckoUnit)
+nsPrintSettingsGTK::GetGTKUnit(PRInt16 aGeckoUnit)
 {
   if (aGeckoUnit == kPaperSizeMillimeters)
     return GTK_UNIT_MM;
@@ -672,7 +672,7 @@ nsPrintSettingsGTK::SetPaperHeight(double aPaperHeight)
 }
 
 NS_IMETHODIMP
-nsPrintSettingsGTK::SetPaperSizeUnit(int16_t aPaperSizeUnit)
+nsPrintSettingsGTK::SetPaperSizeUnit(PRInt16 aPaperSizeUnit)
 {
   // Convert units internally. e.g. they might have set the values while we're still in mm but
   // they change to inch just afterwards, expecting that their sizes are in inches.
@@ -719,7 +719,7 @@ nsPrintSettingsGTK::SetupSilentPrinting()
 }
 
 NS_IMETHODIMP
-nsPrintSettingsGTK::GetPageRanges(nsTArray<int32_t> &aPages)
+nsPrintSettingsGTK::GetPageRanges(nsTArray<PRInt32> &aPages)
 {
   gint ctRanges;
   GtkPageRange* lstRanges = gtk_print_settings_get_page_ranges(mPrintSettings, &ctRanges);

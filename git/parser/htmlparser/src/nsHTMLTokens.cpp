@@ -29,7 +29,7 @@ static const PRUnichar kAttributeTerminalChars[] = {
   PRUnichar(0)
 };
 
-static void AppendNCR(nsSubstring& aString, int32_t aNCRValue);
+static void AppendNCR(nsSubstring& aString, PRInt32 aNCRValue);
 /**
  * Consumes an entity from aScanner and expands it into aString.
  *
@@ -44,7 +44,7 @@ static nsresult
 ConsumeEntity(nsScannerSharedSubstring& aString,
               nsScanner& aScanner,
               bool aIECompatible,
-              int32_t aFlag)
+              PRInt32 aFlag)
 {
   nsresult result = NS_OK;
 
@@ -53,7 +53,7 @@ ConsumeEntity(nsScannerSharedSubstring& aString,
 
   if (NS_SUCCEEDED(result)) {
     PRUnichar amp = 0;
-    int32_t theNCRValue = 0;
+    PRInt32 theNCRValue = 0;
     nsAutoString entity;
 
     if (nsCRT::IsAsciiAlpha(ch) && !(aFlag & NS_IPARSER_FLAG_VIEW_SOURCE)) {
@@ -122,12 +122,12 @@ ConsumeEntity(nsScannerSharedSubstring& aString,
  */
 static nsresult
 ConsumeUntil(nsScannerSharedSubstring& aString,
-             int32_t& aNewlineCount,
+             PRInt32& aNewlineCount,
              nsScanner& aScanner,
              const nsReadEndCondition& aEndCondition,
              bool aAllowNewlines,
              bool aIECompatEntities,
-             int32_t aFlag)
+             PRInt32 aFlag)
 {
   nsresult result = NS_OK;
   bool     done = false;
@@ -220,7 +220,7 @@ CStartToken::CStartToken(const nsAString& aName, eHTMLTags aTag)
 /*
  * This method returns the typeid (the tag type) for this token.
  */
-int32_t
+PRInt32
 CStartToken::GetTypeID()
 {
   if (eHTMLTag_unknown == mTypeID) {
@@ -229,7 +229,7 @@ CStartToken::GetTypeID()
   return mTypeID;
 }
 
-int32_t
+PRInt32
 CStartToken::GetTokenType()
 {
   return eToken_start;
@@ -251,7 +251,7 @@ CStartToken::IsEmpty()
  * Consume the identifier portion of the start tag
  */
 nsresult
-CStartToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CStartToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   // If you're here, we've already Consumed the < char, and are
   // ready to Consume the rest of the open tag identifier.
@@ -263,7 +263,7 @@ CStartToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
 
   if (aFlag & NS_IPARSER_FLAG_HTML) {
     result = aScanner.ReadTagIdentifier(tagIdent);
-    mTypeID = (int32_t)nsHTMLTags::LookupTag(tagIdent.str());
+    mTypeID = (PRInt32)nsHTMLTags::LookupTag(tagIdent.str());
     // Save the original tag string if this is user-defined or if we
     // are viewing source
     if (eHTMLTag_userdefined == mTypeID ||
@@ -340,7 +340,7 @@ CEndToken::CEndToken(const nsAString& aName, eHTMLTags aTag)
 }
 
 nsresult
-CEndToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CEndToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   nsresult result = NS_OK;
   nsScannerSharedSubstring tagIdent;
@@ -348,7 +348,7 @@ CEndToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
   if (aFlag & NS_IPARSER_FLAG_HTML) {
     result = aScanner.ReadTagIdentifier(tagIdent);
 
-    mTypeID = (int32_t)nsHTMLTags::LookupTag(tagIdent.str());
+    mTypeID = (PRInt32)nsHTMLTags::LookupTag(tagIdent.str());
     // Save the original tag string if this is user-defined or if we
     // are viewing source
     if (eHTMLTag_userdefined == mTypeID ||
@@ -379,7 +379,7 @@ CEndToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
  *  the token. This turns around and looks up the tag name
  *  in the tag dictionary.
  */
-int32_t
+PRInt32
 CEndToken::GetTypeID()
 {
   if (eHTMLTag_unknown == mTypeID) {
@@ -398,7 +398,7 @@ CEndToken::GetTypeID()
   return mTypeID;
 }
 
-int32_t
+PRInt32
 CEndToken::GetTokenType()
 {
   return eToken_end;
@@ -446,20 +446,20 @@ CTextToken::CTextToken(const nsAString& aName)
   mTextValue.Rebind(aName);
 }
 
-int32_t
+PRInt32
 CTextToken::GetTokenType()
 {
   return eToken_text;
 }
 
-int32_t
+PRInt32
 CTextToken::GetTextLength()
 {
   return mTextValue.Length();
 }
 
 nsresult
-CTextToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CTextToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   static const PRUnichar theTerminalsChars[] =
     { PRUnichar('\n'), PRUnichar('\r'), PRUnichar('&'), PRUnichar('<'),
@@ -558,7 +558,7 @@ nsresult
 CTextToken::ConsumeCharacterData(bool aIgnoreComments,
                                  nsScanner& aScanner,
                                  const nsAString& aEndTagName,
-                                 int32_t aFlag,
+                                 PRInt32 aFlag,
                                  bool& aFlushTokens)
 {
   nsresult result = NS_OK;
@@ -603,12 +603,12 @@ CTextToken::ConsumeCharacterData(bool aIgnoreComments,
   NS_NAMED_LITERAL_STRING(ltslash, "</");
   const nsString theTerminalString = ltslash + aEndTagName;
 
-  uint32_t termStrLen = theTerminalString.Length();
+  PRUint32 termStrLen = theTerminalString.Length();
   while (result == NS_OK && !done) {
     bool found = false;
     nsScannerIterator gtOffset, ltOffset = theCurrOffset;
     while (FindCharInReadable(PRUnichar(kLessThan), ltOffset, endPos) &&
-           ((uint32_t)ltOffset.size_forward() >= termStrLen ||
+           ((PRUint32)ltOffset.size_forward() >= termStrLen ||
             Distance(ltOffset, endPos) >= termStrLen)) {
       // Make a copy of the (presumed) end tag and
       // do a case-insensitive comparison
@@ -721,7 +721,7 @@ CTextToken::ConsumeParsedCharacterData(bool aDiscardFirstNewline,
                                        bool aConservativeConsume,
                                        nsScanner& aScanner,
                                        const nsAString& aEndTagName,
-                                       int32_t aFlag,
+                                       PRInt32 aFlag,
                                        bool& aFound)
 {
   // This function is fairly straightforward except if there is no terminating
@@ -741,8 +741,8 @@ CTextToken::ConsumeParsedCharacterData(bool aDiscardFirstNewline,
   static const nsReadEndCondition theEndCondition(terminalChars);
 
   nsScannerIterator currPos, endPos, altEndPos;
-  uint32_t truncPos = 0;
-  int32_t truncNewlineCount = 0;
+  PRUint32 truncPos = 0;
+  PRInt32 truncNewlineCount = 0;
   aScanner.CurrentPosition(currPos);
   aScanner.EndReading(endPos);
 
@@ -754,8 +754,8 @@ CTextToken::ConsumeParsedCharacterData(bool aDiscardFirstNewline,
   NS_NAMED_LITERAL_STRING(commentStart, "<!--");
   NS_NAMED_LITERAL_STRING(ltslash, "</");
   const nsString theTerminalString = ltslash + aEndTagName;
-  uint32_t termStrLen = theTerminalString.Length();
-  uint32_t commentStartLen = commentStart.Length();
+  PRUint32 termStrLen = theTerminalString.Length();
+  PRUint32 commentStartLen = commentStart.Length();
 
   nsresult result = NS_OK;
 
@@ -776,7 +776,7 @@ CTextToken::ConsumeParsedCharacterData(bool aDiscardFirstNewline,
       // writable()!
       const nsSubstring &firstChunk = theContent.str();
       if (!firstChunk.IsEmpty()) {
-        uint32_t where = 0;
+        PRUint32 where = 0;
         PRUnichar newline = firstChunk.First();
 
         if (newline == kCR || newline == kNewLine) {
@@ -927,7 +927,7 @@ CCDATASectionToken::CCDATASectionToken(const nsAString& aName)
   mTextValue.Assign(aName);
 }
 
-int32_t
+PRInt32
 CCDATASectionToken::GetTokenType()
 {
   return eToken_cdatasection;
@@ -943,7 +943,7 @@ CCDATASectionToken::GetTokenType()
  */
 nsresult
 CCDATASectionToken::Consume(PRUnichar aChar, nsScanner& aScanner,
-                            int32_t aFlag)
+                            PRInt32 aFlag)
 {
   static const PRUnichar theTerminalsChars[] =
   { PRUnichar('\r'), PRUnichar('\n'), PRUnichar(']'), PRUnichar(0) };
@@ -1060,7 +1060,7 @@ CMarkupDeclToken::CMarkupDeclToken(const nsAString& aName)
   mTextValue.Rebind(aName);
 }
 
-int32_t
+PRInt32
 CMarkupDeclToken::GetTokenType()
 {
   return eToken_markupDecl;
@@ -1077,7 +1077,7 @@ CMarkupDeclToken::GetTokenType()
  */
 nsresult
 CMarkupDeclToken::Consume(PRUnichar aChar, nsScanner& aScanner,
-                          int32_t aFlag)
+                          PRInt32 aFlag)
 {
   static const PRUnichar theTerminalsChars[] =
     { PRUnichar('\n'), PRUnichar('\r'), PRUnichar('\''), PRUnichar('"'),
@@ -1198,7 +1198,7 @@ IsCommentEnd(const nsScannerIterator& aCurrent, const nsScannerIterator& aEnd,
              nsScannerIterator& aGt)
 {
   nsScannerIterator current = aCurrent;
-  int32_t dashes = 0;
+  PRInt32 dashes = 0;
 
   while (current != aEnd && dashes != 2) {
     if (*current == kGreaterThan) {
@@ -1451,7 +1451,7 @@ CCommentToken::ConsumeQuirksComment(nsScanner& aScanner)
  *  @return  error result
  */
 nsresult
-CCommentToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CCommentToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   nsresult result = NS_OK;
 
@@ -1475,7 +1475,7 @@ CCommentToken::GetStringValue()
   return mComment.AsString();
 }
 
-int32_t
+PRInt32
 CCommentToken::GetTokenType()
 {
   return eToken_comment;
@@ -1486,7 +1486,7 @@ CNewlineToken::CNewlineToken()
 {
 }
 
-int32_t
+PRInt32
 CNewlineToken::GetTokenType()
 {
   return eToken_newline;
@@ -1527,7 +1527,7 @@ CNewlineToken::GetStringValue()
  *  @return  error result
  */
 nsresult
-CNewlineToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CNewlineToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   /*
    * Here's what the HTML spec says about newlines:
@@ -1580,7 +1580,7 @@ CAttributeToken::CAttributeToken(const nsAString& aKey, const nsAString& aName)
   mHasEqualWithoutValue = false;
 }
 
-int32_t
+PRInt32
 CAttributeToken::GetTokenType()
 {
   return eToken_attribute;
@@ -1617,14 +1617,14 @@ CAttributeToken::AppendSourceTo(nsAString& anOutputString)
 static nsresult
 ConsumeQuotedString(PRUnichar aChar,
                     nsScannerSharedSubstring& aString,
-                    int32_t& aNewlineCount,
+                    PRInt32& aNewlineCount,
                     nsScanner& aScanner,
-                    int32_t aFlag)
+                    PRInt32 aFlag)
 {
   NS_ASSERTION(aChar == kQuote || aChar == kApostrophe,
                "char is neither quote nor apostrophe");
   // Hold onto this in case this is an unterminated string literal
-  uint32_t origLen = aString.str().Length();
+  PRUint32 origLen = aString.str().Length();
 
   static const PRUnichar theTerminalCharsQuote[] = {
     PRUnichar(kQuote), PRUnichar('&'), PRUnichar(kCR),
@@ -1689,7 +1689,7 @@ static nsresult
 ConsumeInvalidAttribute(nsScanner& aScanner,
                         PRUnichar aChar,
                         nsScannerIterator& aCurrent,
-                        int32_t& aNewlineCount)
+                        PRInt32& aNewlineCount)
 {
   NS_ASSERTION(aChar == kApostrophe || aChar == kQuote || aChar == kForwardSlash,
                "aChar must be a quote or apostrophe");
@@ -1708,7 +1708,7 @@ ConsumeInvalidAttribute(nsScanner& aScanner,
  * Consume the key and value portions of the attribute.
  */
 nsresult
-CAttributeToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CAttributeToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   nsresult result;
   nsScannerIterator wsstart, wsend;
@@ -1916,7 +1916,7 @@ CWhitespaceToken::CWhitespaceToken(const nsAString& aName)
   mTextValue.writable().Assign(aName);
 }
 
-int32_t CWhitespaceToken::GetTokenType()
+PRInt32 CWhitespaceToken::GetTokenType()
 {
   return eToken_whitespace;
 }
@@ -1930,7 +1930,7 @@ int32_t CWhitespaceToken::GetTokenType()
  *  @return  error result
  */
 nsresult
-CWhitespaceToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CWhitespaceToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   // If possible, we'd like to just be a dependent substring starting at
   // |aChar|.  The scanner has already been advanced, so we need to
@@ -1982,13 +1982,13 @@ CEntityToken::CEntityToken(const nsAString& aName)
  *  @return  error result
  */
 nsresult
-CEntityToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CEntityToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   nsresult result = ConsumeEntity(aChar, mTextValue, aScanner);
   return result;
 }
 
-int32_t
+PRInt32
 CEntityToken::GetTokenType()
 {
   return eToken_entity;
@@ -2013,8 +2013,8 @@ CEntityToken::ConsumeEntity(PRUnichar aChar,
     // You're consuming a script entity...
     aScanner.GetChar(aChar); // Consume &
 
-    int32_t rightBraceCount = 0;
-    int32_t leftBraceCount  = 0;
+    PRInt32 rightBraceCount = 0;
+    PRInt32 leftBraceCount  = 0;
 
     do {
       result = aScanner.GetChar(aChar);
@@ -2103,7 +2103,7 @@ CEntityToken::ConsumeEntity(PRUnichar aChar,
  */
 #define NOT_USED 0xfffd
 
-static const uint16_t PA_HackTable[] = {
+static const PRUint16 PA_HackTable[] = {
 	0x20ac,  /* EURO SIGN */
 	NOT_USED,
 	0x201a,  /* SINGLE LOW-9 QUOTATION MARK */
@@ -2139,7 +2139,7 @@ static const uint16_t PA_HackTable[] = {
 };
 
 static void
-AppendNCR(nsSubstring& aString, int32_t aNCRValue)
+AppendNCR(nsSubstring& aString, PRInt32 aNCRValue)
 {
   /* For some illegal, but popular usage */
   if (aNCRValue >= 0x0080 && aNCRValue <= 0x009f) {
@@ -2156,10 +2156,10 @@ AppendNCR(nsSubstring& aString, int32_t aNCRValue)
  *  @param   aString will hold the resulting string value
  *  @return  numeric (unichar) value
  */
-int32_t
+PRInt32
 CEntityToken::TranslateToUnicodeStr(nsString& aString)
 {
-  int32_t value = 0;
+  PRInt32 value = 0;
 
   if (mTextValue.Length() > 1) {
     PRUnichar theChar0 = mTextValue.CharAt(0);
@@ -2208,7 +2208,7 @@ CEntityToken::AppendSourceTo(nsAString& anOutputString)
 }
 
 const PRUnichar*
-GetTagName(int32_t aTag)
+GetTagName(PRInt32 aTag)
 {
   const PRUnichar *result = nsHTMLTags::GetStringValue((nsHTMLTag) aTag);
 
@@ -2236,7 +2236,7 @@ CInstructionToken::CInstructionToken(const nsAString& aString)
 }
 
 nsresult
-CInstructionToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CInstructionToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   mTextValue.AssignLiteral("<?");
   nsresult result = NS_OK;
@@ -2268,7 +2268,7 @@ CInstructionToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
   return result;
 }
 
-int32_t
+PRInt32
 CInstructionToken::GetTokenType()
 {
   return eToken_instruction;
@@ -2299,7 +2299,7 @@ CDoctypeDeclToken::CDoctypeDeclToken(const nsAString& aString, eHTMLTags aTag)
  *  XXX Maybe this should do better in XML or strict mode?
  */
 nsresult
-CDoctypeDeclToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
+CDoctypeDeclToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
 {
   static const PRUnichar terminalChars[] =
   { PRUnichar('>'), PRUnichar('<'),
@@ -2343,7 +2343,7 @@ CDoctypeDeclToken::Consume(PRUnichar aChar, nsScanner& aScanner, int32_t aFlag)
   return result;
 }
 
-int32_t
+PRInt32
 CDoctypeDeclToken::GetTokenType()
 {
   return eToken_doctypeDecl;

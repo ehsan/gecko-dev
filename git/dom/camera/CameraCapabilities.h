@@ -11,7 +11,7 @@
 
 namespace mozilla {
 
-typedef nsresult (*ParseItemAndAddFunc)(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd);
+typedef nsresult (*ParseItemAndAddFunc)(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, const char* aStart, char** aEnd);
 
 class nsCameraCapabilities MOZ_FINAL : public nsICameraCapabilities
 {
@@ -24,11 +24,11 @@ public:
   nsresult ParameterListToNewArray(
     JSContext* cx,
     JSObject** aArray,
-    uint32_t aKey,
+    PRUint32 aKey,
     ParseItemAndAddFunc aParseItemAndAdd
   );
-  nsresult StringListToNewObject(JSContext* aCx, JS::Value* aArray, uint32_t aKey);
-  nsresult DimensionListToNewObject(JSContext* aCx, JS::Value* aArray, uint32_t aKey);
+  nsresult StringListToNewObject(JSContext* aCx, JS::Value* aArray, PRUint32 aKey);
+  nsresult DimensionListToNewObject(JSContext* aCx, JS::Value* aArray, PRUint32 aKey);
 
 private:
   nsCameraCapabilities(const nsCameraCapabilities&) MOZ_DELETE;

@@ -93,17 +93,17 @@ public:
   // Only touched on the main thread.
   nsRefPtr<nsXMLHttpRequest> mXHR;
   nsCOMPtr<nsIXMLHttpRequestUpload> mXHRUpload;
-  uint32_t mInnerEventStreamId;
-  uint32_t mInnerChannelId;
-  uint32_t mOutstandingSendCount;
+  PRUint32 mInnerEventStreamId;
+  PRUint32 mInnerChannelId;
+  PRUint32 mOutstandingSendCount;
 
   // Only touched on the worker thread.
-  uint32_t mOuterEventStreamId;
-  uint32_t mOuterChannelId;
-  uint64_t mLastLoaded;
-  uint64_t mLastTotal;
-  uint64_t mLastUploadLoaded;
-  uint64_t mLastUploadTotal;
+  PRUint32 mOuterEventStreamId;
+  PRUint32 mOuterChannelId;
+  PRUint64 mLastLoaded;
+  PRUint64 mLastTotal;
+  PRUint64 mLastUploadLoaded;
+  PRUint64 mLastUploadTotal;
   bool mIsSyncXHR;
   bool mLastLengthComputable;
   bool mLastUploadLengthComputable;
@@ -111,8 +111,8 @@ public:
   bool mSeenUploadLoadStart;
 
   // Only touched on the main thread.
-  uint32_t mSyncQueueKey;
-  uint32_t mSyncEventResponseSyncQueueKey;
+  PRUint32 mSyncQueueKey;
+  PRUint32 mSyncEventResponseSyncQueueKey;
   bool mUploadEventListenersAttached;
   bool mMainThreadSeenLoadStart;
   bool mInOpen;
@@ -189,7 +189,7 @@ public:
     }
   }
 
-  uint32_t
+  PRUint32
   GetSyncQueueKey()
   {
     AssertIsOnMainThread();
@@ -283,7 +283,7 @@ class MainThreadSyncRunnable : public WorkerSyncRunnable
 public:
   MainThreadSyncRunnable(WorkerPrivate* aWorkerPrivate,
                          ClearingBehavior aClearingBehavior,
-                         uint32_t aSyncQueueKey,
+                         PRUint32 aSyncQueueKey,
                          bool aBypassSyncEventQueue)
   : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, aBypassSyncEventQueue,
                        aClearingBehavior)
@@ -386,16 +386,16 @@ class LoadStartDetectionRunnable MOZ_FINAL : public nsIRunnable,
   XMLHttpRequest* mXMLHttpRequestPrivate;
   nsString mEventType;
   bool mReceivedLoadStart;
-  uint32_t mChannelId;
+  PRUint32 mChannelId;
 
   class ProxyCompleteRunnable : public MainThreadProxyRunnable
   {
     XMLHttpRequest* mXMLHttpRequestPrivate;
-    uint32_t mChannelId;
+    PRUint32 mChannelId;
 
   public:
     ProxyCompleteRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
-                          XMLHttpRequest* aXHRPrivate, uint32_t aChannelId)
+                          XMLHttpRequest* aXHRPrivate, PRUint32 aChannelId)
     : MainThreadProxyRunnable(aWorkerPrivate, RunWhenClearing, aProxy),
       mXMLHttpRequestPrivate(aXHRPrivate), mChannelId(aChannelId)
     { }
@@ -527,11 +527,11 @@ class EventRunnable : public MainThreadProxyRunnable
   jsval mResponse;
   nsString mResponseText;
   nsString mStatusText;
-  uint64_t mLoaded;
-  uint64_t mTotal;
-  uint32_t mEventStreamId;
-  uint32_t mStatus;
-  uint16_t mReadyState;
+  PRUint64 mLoaded;
+  PRUint64 mTotal;
+  PRUint32 mEventStreamId;
+  PRUint32 mStatus;
+  PRUint16 mReadyState;
   bool mUploadEvent;
   bool mProgressEvent;
   bool mLengthComputable;
@@ -541,7 +541,7 @@ class EventRunnable : public MainThreadProxyRunnable
 
 public:
   EventRunnable(Proxy* aProxy, bool aUploadEvent, const nsString& aType,
-                bool aLengthComputable, uint64_t aLoaded, uint64_t aTotal)
+                bool aLengthComputable, PRUint64 aLoaded, PRUint64 aTotal)
   : MainThreadProxyRunnable(aProxy->mWorkerPrivate, SkipWhenClearing, aProxy),
     mType(aType), mResponse(JSVAL_VOID), mLoaded(aLoaded), mTotal(aTotal),
     mEventStreamId(aProxy->mInnerEventStreamId), mStatus(0), mReadyState(0),
@@ -762,17 +762,17 @@ class WorkerThreadProxySyncRunnable : public nsRunnable
 protected:
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;
-  uint32_t mSyncQueueKey;
+  PRUint32 mSyncQueueKey;
 
 private:
   class ResponseRunnable : public MainThreadProxyRunnable
   {
-    uint32_t mSyncQueueKey;
+    PRUint32 mSyncQueueKey;
     nsresult mErrorCode;
 
   public:
     ResponseRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
-                     uint32_t aSyncQueueKey, nsresult aErrorCode)
+                     PRUint32 aSyncQueueKey, nsresult aErrorCode)
     : MainThreadProxyRunnable(aWorkerPrivate, SkipWhenClearing, aProxy),
       mSyncQueueKey(aSyncQueueKey), mErrorCode(aErrorCode)
     {
@@ -829,7 +829,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    uint32_t oldSyncQueueKey = mProxy->mSyncEventResponseSyncQueueKey;
+    PRUint32 oldSyncQueueKey = mProxy->mSyncEventResponseSyncQueueKey;
     mProxy->mSyncEventResponseSyncQueueKey = mSyncQueueKey;
 
     nsresult rv = MainThreadRun();
@@ -948,11 +948,11 @@ public:
 
 class SetTimeoutRunnable : public WorkerThreadProxySyncRunnable
 {
-  uint32_t mTimeout;
+  PRUint32 mTimeout;
 
 public:
   SetTimeoutRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
-                     uint32_t aTimeout)
+                     PRUint32 aTimeout)
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy),
     mTimeout(aTimeout)
   { }
@@ -1038,7 +1038,7 @@ class OpenRunnable : public WorkerThreadProxySyncRunnable
   bool mMultipart;
   bool mBackgroundRequest;
   bool mWithCredentials;
-  uint32_t mTimeout;
+  PRUint32 mTimeout;
 
 public:
   OpenRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
@@ -1046,7 +1046,7 @@ public:
                const Optional<nsAString>& aUser,
                const Optional<nsAString>& aPassword,
                bool aMultipart, bool aBackgroundRequest, bool aWithCredentials,
-               uint32_t aTimeout)
+               PRUint32 aTimeout)
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy), mMethod(aMethod),
     mURL(aURL), mMultipart(aMultipart),
     mBackgroundRequest(aBackgroundRequest), mWithCredentials(aWithCredentials),
@@ -1127,14 +1127,14 @@ class SendRunnable : public WorkerThreadProxySyncRunnable
   nsString mStringBody;
   JSAutoStructuredCloneBuffer mBody;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
-  uint32_t mSyncQueueKey;
+  PRUint32 mSyncQueueKey;
   bool mHasUploadListeners;
 
 public:
   SendRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
                const nsAString& aStringBody, JSAutoStructuredCloneBuffer& aBody,
                nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
-               uint32_t aSyncQueueKey, bool aHasUploadListeners)
+               PRUint32 aSyncQueueKey, bool aHasUploadListeners)
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy),
     mStringBody(aStringBody), mSyncQueueKey(aSyncQueueKey),
     mHasUploadListeners(aHasUploadListeners)
@@ -1329,10 +1329,10 @@ Proxy::AddRemoveEventListeners(bool aUpload, bool aAdd)
     do_QueryInterface(static_cast<nsIXMLHttpRequest*>(mXHR.get()));
   NS_ASSERTION(target, "This should never fail!");
 
-  uint32_t lastEventType = aUpload ? STRING_LAST_EVENTTARGET : STRING_LAST_XHR;
+  PRUint32 lastEventType = aUpload ? STRING_LAST_EVENTTARGET : STRING_LAST_XHR;
 
   nsAutoString eventType;
-  for (uint32_t index = 0; index <= lastEventType; index++) {
+  for (PRUint32 index = 0; index <= lastEventType; index++) {
     eventType = NS_ConvertASCIItoUTF16(sEventStrings[index]);
     if (aAdd) {
       if (NS_FAILED(target->AddEventListener(eventType, this, false))) {
@@ -1381,7 +1381,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
   nsRefPtr<EventRunnable> runnable;
 
   if (mInOpen && type.EqualsASCII(sEventStrings[STRING_readystatechange])) {
-    uint16_t readyState = 0;
+    PRUint16 readyState = 0;
     if (NS_SUCCEEDED(mXHR->GetReadyState(&readyState)) &&
         readyState == nsIXMLHttpRequest::OPENED) {
       mInnerEventStreamId++;
@@ -1390,7 +1390,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
 
   if (progressEvent) {
     bool lengthComputable;
-    uint64_t loaded, total;
+    PRUint64 loaded, total;
     if (NS_FAILED(progressEvent->GetLengthComputable(&lengthComputable)) ||
         NS_FAILED(progressEvent->GetLoaded(&loaded)) ||
         NS_FAILED(progressEvent->GetTotal(&total))) {
@@ -1682,7 +1682,7 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
 
   AutoUnpinXHR autoUnpin(this);
 
-  uint32_t syncQueueKey = PR_UINT32_MAX;
+  PRUint32 syncQueueKey = PR_UINT32_MAX;
   if (mProxy->mIsSyncXHR) {
     syncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
   }

@@ -44,7 +44,7 @@ public:
 
     bool     IsReferenced() { return mReaderRefCnt > 0; }
     nsresult Condition()    { return mCondition; }
-    uint64_t ByteCount()    { return mByteCount; }
+    PRUint64 ByteCount()    { return mByteCount; }
 
     // called by the socket transport on the socket thread...
     void OnSocketReady(nsresult condition);
@@ -56,8 +56,8 @@ private:
     // access to these is protected by mTransport->mLock
     nsresult                         mCondition;
     nsCOMPtr<nsIInputStreamCallback> mCallback;
-    uint32_t                         mCallbackFlags;
-    uint64_t                         mByteCount;
+    PRUint32                         mCallbackFlags;
+    PRUint64                         mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -74,15 +74,15 @@ public:
 
     bool     IsReferenced() { return mWriterRefCnt > 0; }
     nsresult Condition()    { return mCondition; }
-    uint64_t ByteCount()    { return mByteCount; }
+    PRUint64 ByteCount()    { return mByteCount; }
 
     // called by the socket transport on the socket thread...
     void OnSocketReady(nsresult condition); 
 
 private:
     static NS_METHOD WriteFromSegments(nsIInputStream *, void *,
-                                       const char *, uint32_t offset,
-                                       uint32_t count, uint32_t *countRead);
+                                       const char *, PRUint32 offset,
+                                       PRUint32 count, PRUint32 *countRead);
 
     nsSocketTransport                *mTransport;
     nsrefcnt                          mWriterRefCnt;
@@ -90,8 +90,8 @@ private:
     // access to these is protected by mTransport->mLock
     nsresult                          mCondition;
     nsCOMPtr<nsIOutputStreamCallback> mCallback;
-    uint32_t                          mCallbackFlags;
-    uint64_t                          mByteCount;
+    PRUint32                          mCallbackFlags;
+    PRUint64                          mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -114,8 +114,8 @@ public:
 
     // this method instructs the socket transport to open a socket of the
     // given type(s) to the given host or proxy.
-    nsresult Init(const char **socketTypes, uint32_t typeCount,
-                  const nsACString &host, uint16_t port,
+    nsresult Init(const char **socketTypes, PRUint32 typeCount,
+                  const nsACString &host, PRUint16 port,
                   nsIProxyInfo *proxyInfo);
 
     // this method instructs the socket transport to use an already connected
@@ -124,11 +124,11 @@ public:
                                      const PRNetAddr *addr);
 
     // nsASocketHandler methods:
-    void OnSocketReady(PRFileDesc *, int16_t outFlags); 
+    void OnSocketReady(PRFileDesc *, PRInt16 outFlags); 
     void OnSocketDetached(PRFileDesc *);
 
     // called when a socket event is handled
-    void OnSocketEvent(uint32_t type, nsresult status, nsISupports *param);
+    void OnSocketEvent(PRUint32 type, nsresult status, nsISupports *param);
 
 protected:
 
@@ -147,7 +147,7 @@ private:
         MSG_OUTPUT_CLOSED,
         MSG_OUTPUT_PENDING
     };
-    nsresult PostEvent(uint32_t type, nsresult status = NS_OK, nsISupports *param = nullptr);
+    nsresult PostEvent(PRUint32 type, nsresult status = NS_OK, nsISupports *param = nullptr);
 
     enum {
         STATE_CLOSED,
@@ -164,16 +164,16 @@ private:
 
     // socket type info:
     char       **mTypes;
-    uint32_t     mTypeCount;
+    PRUint32     mTypeCount;
     nsCString    mHost;
     nsCString    mProxyHost;
-    uint16_t     mPort;
-    uint16_t     mProxyPort;
+    PRUint16     mPort;
+    PRUint16     mProxyPort;
     bool mProxyTransparent;
     bool mProxyTransparentResolvesHost;
-    uint32_t     mConnectionFlags;
+    PRUint32     mConnectionFlags;
     
-    uint16_t         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
+    PRUint16         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
     const nsCString &SocketHost() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyHost : mHost; }
 
     //-------------------------------------------------------------------------
@@ -182,7 +182,7 @@ private:
     //-------------------------------------------------------------------------
 
     // socket state vars:
-    uint32_t     mState;     // STATE_??? flags
+    PRUint32     mState;     // STATE_??? flags
     bool mAttached;
     bool mInputClosed;
     bool mOutputClosed;
@@ -243,10 +243,10 @@ private:
     friend class nsSocketOutputStream;
 
     // socket timeouts are not protected by any lock.
-    uint16_t mTimeouts[2];
+    PRUint16 mTimeouts[2];
 
     // QoS setting for socket
-    uint8_t mQoSBits;
+    PRUint8 mQoSBits;
 
     //
     // mFD access methods: called with mLock held.
@@ -291,8 +291,8 @@ private:
     }
 
 #ifdef ENABLE_SOCKET_TRACING
-    void TraceInBuf(const char *buf, int32_t n);
-    void TraceOutBuf(const char *buf, int32_t n);
+    void TraceInBuf(const char *buf, PRInt32 n);
+    void TraceOutBuf(const char *buf, PRInt32 n);
 #endif
 };
 

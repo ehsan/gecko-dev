@@ -209,7 +209,7 @@ nsIMM32Handler::~nsIMM32Handler()
 }
 
 nsresult
-nsIMM32Handler::EnsureClauseArray(int32_t aCount)
+nsIMM32Handler::EnsureClauseArray(PRInt32 aCount)
 {
   NS_ENSURE_ARG_MIN(aCount, 0);
   if (!mClauseArray.SetCapacity(aCount + 32)) {
@@ -222,7 +222,7 @@ nsIMM32Handler::EnsureClauseArray(int32_t aCount)
 }
 
 nsresult
-nsIMM32Handler::EnsureAttributeArray(int32_t aCount)
+nsIMM32Handler::EnsureAttributeArray(PRInt32 aCount)
 {
   NS_ENSURE_ARG_MIN(aCount, 0);
   if (!mAttributeArray.SetCapacity(aCount + 64)) {
@@ -1168,7 +1168,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   //--------------------------------------------------------
   long clauseArrayLength =
     ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPCLAUSE, NULL, 0);
-  clauseArrayLength /= sizeof(uint32_t);
+  clauseArrayLength /= sizeof(PRUint32);
 
   if (clauseArrayLength > 0) {
     nsresult rv = EnsureClauseArray(clauseArrayLength);
@@ -1188,11 +1188,11 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
       useA_API ?
         ::ImmGetCompositionStringA(aIMEContext.get(), GCS_COMPCLAUSE,
                                    mClauseArray.Elements(),
-                                   mClauseArray.Capacity() * sizeof(uint32_t)) :
+                                   mClauseArray.Capacity() * sizeof(PRUint32)) :
         ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPCLAUSE,
                                    mClauseArray.Elements(),
-                                   mClauseArray.Capacity() * sizeof(uint32_t));
-    clauseArrayLength2 /= sizeof(uint32_t);
+                                   mClauseArray.Capacity() * sizeof(PRUint32));
+    clauseArrayLength2 /= sizeof(PRUint32);
 
     if (clauseArrayLength != clauseArrayLength2) {
       PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
@@ -1208,10 +1208,10 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
       nsCAutoString compANSIStr;
       if (ConvertToANSIString(mCompositionString, GetKeyboardCodePage(),
                               compANSIStr)) {
-        uint32_t maxlen = compANSIStr.Length();
+        PRUint32 maxlen = compANSIStr.Length();
         mClauseArray[0] = 0; // first value must be 0
-        for (int32_t i = 1; i < clauseArrayLength; i++) {
-          uint32_t len = NS_MIN(mClauseArray[i], maxlen);
+        for (PRInt32 i = 1; i < clauseArrayLength; i++) {
+          PRUint32 len = NS_MIN(mClauseArray[i], maxlen);
           mClauseArray[i] = ::MultiByteToWideChar(GetKeyboardCodePage(), 
                                                   MB_PRECOMPOSED,
                                                   (LPCSTR)compANSIStr.get(),
@@ -1235,7 +1235,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   // for doing hiliting
   long attrArrayLength =
     ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPATTR, NULL, 0);
-  attrArrayLength /= sizeof(uint8_t);
+  attrArrayLength /= sizeof(PRUint8);
 
   if (attrArrayLength > 0) {
     nsresult rv = EnsureAttributeArray(attrArrayLength);
@@ -1243,7 +1243,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
     attrArrayLength =
       ::ImmGetCompositionStringW(aIMEContext.get(), GCS_COMPATTR,
                                  mAttributeArray.Elements(),
-                                 mAttributeArray.Capacity() * sizeof(uint8_t));
+                                 mAttributeArray.Capacity() * sizeof(PRUint8));
   }
 
   // attrStrLen may be negative. I.e., ImmGetCompositionStringW may return an
@@ -1347,8 +1347,8 @@ nsIMM32Handler::HandleReconvert(nsWindow* aWindow,
     return false;
   }
 
-  uint32_t len = selection.mReply.mString.Length();
-  uint32_t needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
+  PRUint32 len = selection.mReply.mString.Length();
+  PRUint32 needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
 
   if (!pReconv) {
     // Return need size to reconvert.
@@ -1398,7 +1398,7 @@ nsIMM32Handler::HandleQueryCharPosition(nsWindow* aWindow,
                                         LPARAM lParam,
                                         LRESULT *oResult)
 {
-  uint32_t len = mIsComposing ? mCompositionString.Length() : 0;
+  PRUint32 len = mIsComposing ? mCompositionString.Length() : 0;
   *oResult = false;
   IMECHARPOSITION* pCharPosition = reinterpret_cast<IMECHARPOSITION*>(lParam);
   if (!pCharPosition) {
@@ -1463,7 +1463,7 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
   bool hasCompositionString =
     mIsComposing && ShouldDrawCompositionStringOurselves();
 
-  int32_t targetOffset, targetLength;
+  PRInt32 targetOffset, targetLength;
   if (!hasCompositionString) {
     nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, aWindow);
     aWindow->InitEvent(selection, &point);
@@ -1473,14 +1473,14 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
         ("IMM32: HandleDocumentFeed, FAILED (NS_QUERY_SELECTED_TEXT)\n"));
       return false;
     }
-    targetOffset = int32_t(selection.mReply.mOffset);
-    targetLength = int32_t(selection.mReply.mString.Length());
+    targetOffset = PRInt32(selection.mReply.mOffset);
+    targetLength = PRInt32(selection.mReply.mString.Length());
   } else {
-    targetOffset = int32_t(mCompositionStart);
-    targetLength = int32_t(mCompositionString.Length());
+    targetOffset = PRInt32(mCompositionStart);
+    targetLength = PRInt32(mCompositionString.Length());
   }
 
-  // XXX nsString::Find and nsString::RFind take int32_t for offset, so,
+  // XXX nsString::Find and nsString::RFind take PRInt32 for offset, so,
   //     we cannot support this message when the current offset is larger than
   //     PR_INT32_MAX.
   if (targetOffset < 0 || targetLength < 0 ||
@@ -1502,7 +1502,7 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
   }
 
   nsAutoString str(textContent.mReply.mString);
-  if (targetOffset > int32_t(str.Length())) {
+  if (targetOffset > PRInt32(str.Length())) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: HandleDocumentFeed, FAILED (The caret offset is invalid)\n"));
     return false;
@@ -1510,8 +1510,8 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
 
   // Get the focused paragraph, we decide that it starts from the previous CRLF
   // (or start of the editor) to the next one (or the end of the editor).
-  int32_t paragraphStart = str.RFind("\n", false, targetOffset, -1) + 1;
-  int32_t paragraphEnd =
+  PRInt32 paragraphStart = str.RFind("\n", false, targetOffset, -1) + 1;
+  PRInt32 paragraphEnd =
     str.Find("\r", false, targetOffset + targetLength, -1);
   if (paragraphEnd < 0) {
     paragraphEnd = str.Length();
@@ -1519,8 +1519,8 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
   nsDependentSubstring paragraph(str, paragraphStart,
                                  paragraphEnd - paragraphStart);
 
-  uint32_t len = paragraph.Length();
-  uint32_t needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
+  PRUint32 len = paragraph.Length();
+  PRUint32 needSize = sizeof(RECONVERTSTRING) + len * sizeof(WCHAR);
 
   if (!pReconv) {
     *oResult = needSize;
@@ -1546,7 +1546,7 @@ nsIMM32Handler::HandleDocumentFeed(nsWindow* aWindow,
     pReconv->dwCompStrOffset   =
       (targetOffset - paragraphStart) * sizeof(WCHAR);
     // Set composition target clause information
-    uint32_t offset, length;
+    PRUint32 offset, length;
     if (!GetTargetClauseRange(&offset, &length)) {
       PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
         ("IMM32: HandleDocumentFeed, FAILED, by GetTargetClauseRange\n"));
@@ -1602,8 +1602,8 @@ nsIMM32Handler::CommitCompositionOnPreviousWindow(nsWindow* aWindow)
   return mIsComposingOnPlugin;
 }
 
-static uint32_t
-PlatformToNSAttr(uint8_t aAttr)
+static PRUint32
+PlatformToNSAttr(PRUint8 aAttr)
 {
   switch (aAttr)
   {
@@ -1625,7 +1625,7 @@ PlatformToNSAttr(uint8_t aAttr)
 
 #ifdef PR_LOGGING
 static const char*
-GetRangeTypeName(uint32_t aRangeType)
+GetRangeTypeName(PRUint32 aRangeType)
 {
   switch (aRangeType) {
     case NS_TEXTRANGE_RAWINPUT:
@@ -1727,14 +1727,14 @@ nsIMM32Handler::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
       ("IMM32: SetTextRangeList, mClauseLength=0\n"));
   } else {
     // iterate over the attributes
-    uint32_t lastOffset = 0;
-    for (uint32_t i = 0; i < mClauseArray.Length() - 1; i++) {
-      uint32_t current = mClauseArray[i + 1];
+    PRUint32 lastOffset = 0;
+    for (PRUint32 i = 0; i < mClauseArray.Length() - 1; i++) {
+      PRUint32 current = mClauseArray[i + 1];
       if (current > mCompositionString.Length()) {
         PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
           ("IMM32: SetTextRangeList, mClauseArray[%ld]=%lu. This is larger than mCompositionString.Length()=%lu\n",
            i + 1, current, mCompositionString.Length()));
-        current = int32_t(mCompositionString.Length());
+        current = PRInt32(mCompositionString.Length());
       }
 
       range.mRangeType = PlatformToNSAttr(mAttributeArray[lastOffset]);
@@ -1757,8 +1757,8 @@ nsIMM32Handler::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
     return;
   }
 
-  int32_t cursor = mCursorPosition;
-  if (uint32_t(cursor) > mCompositionString.Length()) {
+  PRInt32 cursor = mCursorPosition;
+  if (PRUint32(cursor) > mCompositionString.Length()) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: SetTextRangeList, mCursorPosition=%ld. This is larger than mCompositionString.Length()=%lu\n",
        mCursorPosition, mCompositionString.Length()));
@@ -1799,7 +1799,7 @@ nsIMM32Handler::GetCompositionString(const nsIMEContext &aIMEContext,
 }
 
 bool
-nsIMM32Handler::GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength)
+nsIMM32Handler::GetTargetClauseRange(PRUint32 *aOffset, PRUint32 *aLength)
 {
   NS_ENSURE_TRUE(aOffset, false);
   NS_ENSURE_TRUE(mIsComposing, false);
@@ -1807,7 +1807,7 @@ nsIMM32Handler::GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength)
 
   bool found = false;
   *aOffset = mCompositionStart;
-  for (uint32_t i = 0; i < mAttributeArray.Length(); i++) {
+  for (PRUint32 i = 0; i < mAttributeArray.Length(); i++) {
     if (mAttributeArray[i] == ATTR_TARGET_NOTCONVERTED ||
         mAttributeArray[i] == ATTR_TARGET_CONVERTED) {
       *aOffset = mCompositionStart + i;
@@ -1827,9 +1827,9 @@ nsIMM32Handler::GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength)
     return true;
   }
 
-  uint32_t offsetInComposition = *aOffset - mCompositionStart;
+  PRUint32 offsetInComposition = *aOffset - mCompositionStart;
   *aLength = mCompositionString.Length() - offsetInComposition;
-  for (uint32_t i = offsetInComposition; i < mAttributeArray.Length(); i++) {
+  for (PRUint32 i = offsetInComposition; i < mAttributeArray.Length(); i++) {
     if (mAttributeArray[i] != ATTR_TARGET_NOTCONVERTED &&
         mAttributeArray[i] != ATTR_TARGET_CONVERTED) {
       *aLength = i - offsetInComposition;
@@ -1860,7 +1860,7 @@ nsIMM32Handler::ConvertToANSIString(const nsAFlatString& aStr, UINT aCodePage,
 
 bool
 nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
-                                                 uint32_t aOffset,
+                                                 PRUint32 aOffset,
                                                  nsIntRect &aCharRect)
 {
   nsIntPoint point(0, 0);
@@ -1875,7 +1875,7 @@ nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
     return false;
   }
 
-  uint32_t offset = selection.mReply.mOffset + aOffset;
+  PRUint32 offset = selection.mReply.mOffset + aOffset;
   bool useCaretRect = selection.mReply.mString.IsEmpty();
   if (useCaretRect && ShouldDrawCompositionStringOurselves() &&
       mIsComposing && !mCompositionString.IsEmpty()) {
@@ -1883,8 +1883,8 @@ nsIMM32Handler::GetCharacterRectOfSelectedTextAt(nsWindow* aWindow,
     // XXX mnakano - Should we implement NS_QUERY_IME_SELECTED_TEXT?
     useCaretRect = false;
     if (mCursorPosition != NO_IME_CARET) {
-      uint32_t cursorPosition =
-        NS_MIN<uint32_t>(mCursorPosition, mCompositionString.Length());
+      PRUint32 cursorPosition =
+        NS_MIN<PRUint32>(mCursorPosition, mCompositionString.Length());
       offset -= cursorPosition;
       NS_ASSERTION(offset >= 0, "offset is negative!");
     }
@@ -1925,7 +1925,7 @@ nsIMM32Handler::GetCaretRect(nsWindow* aWindow, nsIntRect &aCaretRect)
     return false;
   }
 
-  uint32_t offset = selection.mReply.mOffset;
+  PRUint32 offset = selection.mReply.mOffset;
 
   nsQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, aWindow);
   caretRect.InitForQueryCaretRect(offset);
@@ -1984,7 +1984,7 @@ nsIMM32Handler::SetIMERelatedWindowsPos(nsWindow* aWindow,
     if (mIsComposing && !mCompositionString.IsEmpty()) {
       // If there are no targetted selection, we should use it's first character
       // rect instead.
-      uint32_t offset;
+      PRUint32 offset;
       if (!GetTargetClauseRange(&offset)) {
         PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
           ("IMM32: SetIMERelatedWindowsPos, FAILED, by GetTargetClauseRange\n"));
@@ -2076,7 +2076,7 @@ nsIMM32Handler::OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction)
   nsIntRect cursorInTopLevel, cursorRect(cursor, nsIntSize(0, 0));
   ResolveIMECaretPos(aWindow, cursorRect,
                      aWindow->GetTopLevelWindow(false), cursorInTopLevel);
-  int32_t cursorXInChar = cursorInTopLevel.x - charAtPt.mReply.mRect.x;
+  PRInt32 cursorXInChar = cursorInTopLevel.x - charAtPt.mReply.mRect.x;
   // The event might hit to zero-width character, see bug 694913.
   // The reason might be:
   // * There are some zero-width characters are actually.

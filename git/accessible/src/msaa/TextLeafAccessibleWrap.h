@@ -55,13 +55,13 @@ public:
         /* [retval][out] */ BSTR __RPC_FAR *fontFamily);
     
   protected:
-    nsresult GetCharacterExtents(int32_t aStartOffset, int32_t aEndOffset,
-                                 int32_t* aX, int32_t* aY, 
-                                 int32_t* aWidth, int32_t* aHeight);
+    nsresult GetCharacterExtents(PRInt32 aStartOffset, PRInt32 aEndOffset,
+                                 PRInt32* aX, PRInt32* aY, 
+                                 PRInt32* aWidth, PRInt32* aHeight);
 
     // Return child frame containing offset on success
     nsIFrame* GetPointFromOffset(nsIFrame *aContainingFrame,
-                                 int32_t aOffset, bool aPreferNext, nsPoint& aOutPoint);
+                                 PRInt32 aOffset, bool aPreferNext, nsPoint& aOutPoint);
 };
 
 } // namespace a11y

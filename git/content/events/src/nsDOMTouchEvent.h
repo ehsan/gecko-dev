@@ -15,15 +15,15 @@ class nsDOMTouch MOZ_FINAL : public nsIDOMTouch
 {
 public:
   nsDOMTouch(nsIDOMEventTarget* aTarget,
-             int32_t aIdentifier,
-             int32_t aPageX,
-             int32_t aPageY,
-             int32_t aScreenX,
-             int32_t aScreenY,
-             int32_t aClientX,
-             int32_t aClientY,
-             int32_t aRadiusX,
-             int32_t aRadiusY,
+             PRInt32 aIdentifier,
+             PRInt32 aPageX,
+             PRInt32 aPageY,
+             PRInt32 aScreenX,
+             PRInt32 aScreenY,
+             PRInt32 aClientX,
+             PRInt32 aClientY,
+             PRInt32 aRadiusX,
+             PRInt32 aRadiusY,
              float aRotationAngle,
              float aForce)
     {
@@ -42,7 +42,7 @@ public:
       mChanged = false;
       mMessage = 0;
     }
-  nsDOMTouch(int32_t aIdentifier,
+  nsDOMTouch(PRInt32 aIdentifier,
              nsIntPoint aPoint,
              nsIntPoint aRadius,
              float aRotationAngle,
@@ -86,7 +86,7 @@ public:
   }
   bool Equals(nsIDOMTouch* aTouch);
 
-  int32_t mIdentifier;
+  PRInt32 mIdentifier;
   nsIntPoint mPagePoint;
   nsIntPoint mClientPoint;
   nsIntPoint mScreenPoint;
@@ -112,7 +112,7 @@ public:
     mPoints.AppendElement(aPoint);
   }
 
-  nsIDOMTouch* GetItemAt(uint32_t aIndex)
+  nsIDOMTouch* GetItemAt(PRUint32 aIndex)
   {
     return mPoints.SafeElementAt(aIndex, nullptr);
   }

@@ -18,7 +18,7 @@
 class nsEventStates
 {
 public:
-  typedef uint64_t InternalType;
+  typedef PRUint64 InternalType;
 
   nsEventStates()
     : mStates(0)

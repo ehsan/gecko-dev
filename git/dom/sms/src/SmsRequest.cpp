@@ -179,7 +179,7 @@ SmsRequest::SetSuccessInternal(nsISupports* aObject)
 }
 
 void
-SmsRequest::SetError(int32_t aError)
+SmsRequest::SetError(PRInt32 aError)
 {
   NS_PRECONDITION(!mDone, "mDone shouldn't have been set to true already!");
   NS_PRECONDITION(!mError, "mError shouldn't have been set!");

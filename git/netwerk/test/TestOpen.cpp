@@ -57,7 +57,7 @@ main(int argc, char **argv)
       return 1;
     }
 
-    uint32_t read;
+    PRUint32 read;
     while (NS_SUCCEEDED(stream->Read(buf, sizeof(buf), &read)) && read) {
       fwrite(buf, 1, read, outfile);
     }

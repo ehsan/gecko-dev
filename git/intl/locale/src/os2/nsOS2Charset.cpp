@@ -29,7 +29,7 @@ NS_IMPL_ISUPPORTS1(nsPlatformCharset, nsIPlatformCharset)
 nsPlatformCharset::nsPlatformCharset()
 {
   UINT acp = ::WinQueryCp(HMQ_CURRENT);
-  int32_t acpint = (int32_t)(acp & 0x00FFFF);
+  PRInt32 acpint = (PRInt32)(acp & 0x00FFFF);
   nsAutoString acpKey(NS_LITERAL_STRING("os2."));
   acpKey.AppendInt(acpint, 10);
   nsresult res = MapToCharset(acpKey, mCharset);
@@ -96,7 +96,7 @@ nsPlatformCharset::GetDefaultCharsetForLocale(const nsAString& localeName, nsACS
   if (NS_FAILED(rv)) { return rv; }
 
   nsAutoString os2_key(NS_LITERAL_STRING("os2."));
-  os2_key.AppendInt((uint32_t)codepage);
+  os2_key.AppendInt((PRUint32)codepage);
 
   return MapToCharset(os2_key, oResult);
 

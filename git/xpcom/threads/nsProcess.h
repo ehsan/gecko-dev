@@ -47,10 +47,10 @@ private:
   static void PR_CALLBACK Monitor(void *arg);
   void ProcessComplete();
   nsresult CopyArgsAndRunProcess(bool blocking, const char** args,
-                                 uint32_t count, nsIObserver* observer,
+                                 PRUint32 count, nsIObserver* observer,
                                  bool holdWeak);
   nsresult CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
-                                  uint32_t count, nsIObserver* observer,
+                                  PRUint32 count, nsIObserver* observer,
                                   bool holdWeak);
   // The 'args' array is null-terminated.
   nsresult RunProcess(bool blocking, char **args, nsIObserver* observer,
@@ -63,13 +63,13 @@ private:
 
   nsCOMPtr<nsIFile> mExecutable;
   nsString mTargetPath;
-  int32_t mPid;
+  PRInt32 mPid;
   nsCOMPtr<nsIObserver> mObserver;
   nsWeakPtr mWeakObserver;
 
   // These members are modified by multiple threads, any accesses should be
   // protected with mLock.
-  int32_t mExitValue;
+  PRInt32 mExitValue;
 #if defined(PROCESSMODEL_WINAPI)
   HANDLE mProcess;
 #elif !defined(XP_MACOSX)

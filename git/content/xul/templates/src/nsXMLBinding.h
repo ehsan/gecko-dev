@@ -73,7 +73,7 @@ public:
    * LookupTargetIndex determines the index into the array for a given
    * target symbol.
    */
-  int32_t
+  PRInt32
   LookupTargetIndex(nsIAtom* aTargetVariable, nsXMLBinding** aBinding);
 };
 
@@ -103,7 +103,7 @@ public:
 
   void SetBindingSet(nsXMLBindingSet* aBindings) { mBindings = aBindings; }
 
-  int32_t
+  PRInt32
   LookupTargetIndex(nsIAtom* aTargetVariable, nsXMLBinding** aBinding)
   {
     return mBindings ?
@@ -122,20 +122,20 @@ public:
   void
   GetAssignmentFor(nsXULTemplateResultXML* aResult,
                    nsXMLBinding* aBinding,
-                   int32_t idx,
-                   uint16_t type,
+                   PRInt32 idx,
+                   PRUint16 type,
                    nsIDOMXPathResult** aValue);
 
   void
   GetNodeAssignmentFor(nsXULTemplateResultXML* aResult,
                        nsXMLBinding* aBinding,
-                       int32_t idx,
+                       PRInt32 idx,
                        nsIDOMNode** aValue);
 
   void
   GetStringAssignmentFor(nsXULTemplateResultXML* aResult,
                          nsXMLBinding* aBinding,
-                         int32_t idx,
+                         PRInt32 idx,
                          nsAString& aValue);
 };
 

@@ -162,7 +162,7 @@ protected:
   }
 
   bool ObservesAttr(mozilla::dom::Element* aElement,
-                    int32_t aNameSpaceID,
+                    PRInt32 aNameSpaceID,
                     nsIAtom* aAttr)
   {
     if (mParent) {
@@ -180,7 +180,7 @@ protected:
     }
 
     nsCOMArray<nsIAtom>& filters = AttributeFilter();
-    for (int32_t i = 0; i < filters.Count(); ++i) {         
+    for (PRInt32 i = 0; i < filters.Count(); ++i) {         
       if (filters[i] == aAttr) {
         return true;
       }
@@ -242,7 +242,7 @@ public:
 
   void RemoveClones()
   {
-    for (int32_t i = 0; i < mTransientReceivers.Count(); ++i) {
+    for (PRInt32 i = 0; i < mTransientReceivers.Count(); ++i) {
       nsMutationReceiver* r =
         static_cast<nsMutationReceiver*>(mTransientReceivers[i]);
       r->DisconnectTransientReceiver();
@@ -277,7 +277,7 @@ public:
 
   virtual void AttributeSetToCurrentValue(nsIDocument* aDocument,
                                           mozilla::dom::Element* aElement,
-                                          int32_t aNameSpaceID,
+                                          PRInt32 aNameSpaceID,
                                           nsIAtom* aAttribute)
   {
     // We can reuse AttributeWillChange implementation.
@@ -303,7 +303,7 @@ public:
   NS_DECL_NSIDOMMUTATIONOBSERVER
 
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                        uint32_t argc, jsval* argv);
+                        PRUint32 argc, jsval* argv);
 
   void HandleMutation();
 
@@ -368,13 +368,13 @@ protected:
 
   bool                                               mWaitingForRun;
 
-  uint64_t                                           mId;
+  PRUint64                                           mId;
 
-  static uint64_t                                    sCount;
+  static PRUint64                                    sCount;
   static nsCOMArray<nsIDOMMutationObserver>*         sScheduledMutationObservers;
   static nsIDOMMutationObserver*                     sCurrentObserver;
 
-  static uint32_t                                    sMutationLevel;
+  static PRUint32                                    sMutationLevel;
   static nsAutoTArray<nsCOMArray<nsIDOMMutationObserver>, 4>*
                                                      sCurrentlyHandlingObservers;
 };
@@ -434,8 +434,8 @@ public:
   static void UpdateObserver(nsDOMMutationObserver* aObserver,
                              bool aWantsChildList)
   {
-    uint32_t l = sCurrentBatch->mObservers.Length();
-    for (uint32_t i = 0; i < l; ++i) {
+    PRUint32 l = sCurrentBatch->mObservers.Length();
+    for (PRUint32 i = 0; i < l; ++i) {
       if (sCurrentBatch->mObservers[i].mObserver == aObserver) {
         if (aWantsChildList) {
           sCurrentBatch->mObservers[i].mWantsChildList = aWantsChildList;
@@ -455,7 +455,7 @@ public:
   static void NodeRemoved(nsIContent* aChild)
   {
     if (IsBatching() && !sCurrentBatch->mRemovalDone) {
-      uint32_t len = sCurrentBatch->mRemovedNodes.Length();
+      PRUint32 len = sCurrentBatch->mRemovedNodes.Length();
       if (!len ||
           sCurrentBatch->mRemovedNodes[len - 1] != aChild) {
         sCurrentBatch->mRemovedNodes.AppendElement(aChild);

@@ -15,7 +15,7 @@
 
 namespace mozilla {
 namespace dom {
-namespace oldproxybindings {
+namespace binding {
 
 class ProxyHandler : public js::BaseProxyHandler {
 protected:

@@ -252,7 +252,7 @@ struct ChildProcessData : public nsUint32HashKey
   nsCOMPtr<nsIFile> minidump;
   // Each crashing process is assigned an increasing sequence number to
   // indicate which process crashed first.
-  uint32_t sequence;
+  PRUint32 sequence;
 #ifdef MOZ_CRASHREPORTER_INJECTOR
   InjectorCrashCallback* callback;
 #endif
@@ -260,7 +260,7 @@ struct ChildProcessData : public nsUint32HashKey
 
 typedef nsTHashtable<ChildProcessData> ChildMinidumpMap;
 static ChildMinidumpMap* pidToMinidump;
-static uint32_t crashSequence;
+static PRUint32 crashSequence;
 static bool OOPInitialized();
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR
@@ -269,12 +269,12 @@ static nsIThread* sInjectorThread;
 class ReportInjectedCrash : public nsRunnable
 {
 public:
-  ReportInjectedCrash(uint32_t pid) : mPID(pid) { }
+  ReportInjectedCrash(PRUint32 pid) : mPID(pid) { }
 
   NS_IMETHOD Run();
 
 private:
-  uint32_t mPID;
+  PRUint32 mPID;
 };
 #endif // MOZ_CRASHREPORTER_INJECTOR
 
@@ -343,7 +343,7 @@ typedef struct {
   size_t      file_offset;
 } mapping_info;
 static std::vector<mapping_info> library_mappings;
-typedef std::map<uint32_t,google_breakpad::MappingList> MappingMap;
+typedef std::map<PRUint32,google_breakpad::MappingList> MappingMap;
 static MappingMap child_library_mappings;
 
 void FileIDToGUID(const char* file_id, u_int8_t guid[sizeof(MDGUID)])
@@ -1021,7 +1021,7 @@ GetFileContents(nsIFile* aFile, nsACString& data)
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_OK;
-  int32_t filesize = PR_Available(fd);
+  PRInt32 filesize = PR_Available(fd);
   if (filesize <= 0) {
     rv = NS_ERROR_FILE_NOT_FOUND;
   }
@@ -1277,7 +1277,7 @@ static void ReplaceChar(nsCString& str, const nsACString& character,
   str.EndReading(end);
 
   while (FindInReadable(character, start, end)) {
-    int32_t pos = end.size_backward();
+    PRInt32 pos = end.size_backward();
     str.Replace(pos - 1, 1, replacement);
 
     str.BeginReading(start);
@@ -1644,7 +1644,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
                       nsIWindowsRegKey::ACCESS_SET_VALUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint32_t value = *aSubmitReports ? 1 : 0;
+    PRUint32 value = *aSubmitReports ? 1 : 0;
     rv = regKey->WriteIntValue(NS_LITERAL_STRING("SubmitCrashReport"), value);
     regKey->Close();
     return rv;
@@ -1654,7 +1654,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
   // ROOT_KEY_LOCAL_MACHINE to see if it's set there, and then fall back to
   // ROOT_KEY_CURRENT_USER. If it's not set in either place, the pref defaults
   // to "true".
-  uint32_t value;
+  PRUint32 value;
   rv = regKey->Open(nsIWindowsRegKey::ROOT_KEY_LOCAL_MACHINE,
                     NS_ConvertUTF8toUTF16(regPath),
                     nsIWindowsRegKey::ACCESS_QUERY_VALUE);
@@ -2102,7 +2102,7 @@ OnChildProcessDumpRequested(void* aContext,
     MoveToPending(minidump, extraFile);
 
   {
-    uint32_t pid =
+    PRUint32 pid =
 #ifdef XP_MACOSX
       aClientInfo.pid();
 #else
@@ -2452,7 +2452,7 @@ SetRemoteExceptionHandler()
                      kMagicChildCrashReportFd);
 
   if (gDelayedAnnotations) {
-    for (uint32_t i = 0; i < gDelayedAnnotations->Length(); i++) {
+    for (PRUint32 i = 0; i < gDelayedAnnotations->Length(); i++) {
       gDelayedAnnotations->ElementAt(i)->Run();
     }
     delete gDelayedAnnotations;
@@ -2489,7 +2489,7 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
 
 
 bool
-TakeMinidumpForChild(uint32_t childPid, nsIFile** dump, uint32_t* aSequence)
+TakeMinidumpForChild(PRUint32 childPid, nsIFile** dump, PRUint32* aSequence)
 {
   if (!GetEnabled())
     return false;
@@ -2687,7 +2687,7 @@ void AddLibraryMapping(const char* library_name,
   }
 }
 
-void AddLibraryMappingForChild(uint32_t    childPid,
+void AddLibraryMappingForChild(PRUint32    childPid,
                                const char* library_name,
                                const char* file_id,
                                uintptr_t   start_address,
@@ -2710,7 +2710,7 @@ void AddLibraryMappingForChild(uint32_t    childPid,
   child_library_mappings[childPid].push_back(mapping);
 }
 
-void RemoveLibraryMappingsForChild(uint32_t childPid)
+void RemoveLibraryMappingsForChild(PRUint32 childPid)
 {
   MappingMap::iterator iter = child_library_mappings.find(childPid);
   if (iter != child_library_mappings.end())

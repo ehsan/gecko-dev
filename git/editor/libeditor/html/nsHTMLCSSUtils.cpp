@@ -190,7 +190,7 @@ void ProcessFontSizeValue(const nsAString* aInputString, nsAString& aOutputStrin
 {
   aOutputString.Truncate();
   if (aInputString) {
-    int32_t size = nsContentUtils::ParseLegacyFontSize(*aInputString);
+    PRInt32 size = nsContentUtils::ParseLegacyFontSize(*aInputString);
     switch (size) {
       case 0:
         // Didn't parse
@@ -393,7 +393,7 @@ nsHTMLCSSUtils::IsCSSEditableProperty(nsIContent* aNode,
     if (!aValue || aValue->IsEmpty()) {
       return true;
     }
-    int32_t size = nsContentUtils::ParseLegacyFontSize(*aValue);
+    PRInt32 size = nsContentUtils::ParseLegacyFontSize(*aValue);
     return size && size != 7;
   }
 
@@ -524,7 +524,7 @@ nsHTMLCSSUtils::SetCSSProperty(nsIDOMElement *aElement, nsIAtom * aProperty, con
 nsresult
 nsHTMLCSSUtils::SetCSSPropertyPixels(nsIDOMElement *aElement,
                                      nsIAtom *aProperty,
-                                     int32_t aIntValue,
+                                     PRInt32 aIntValue,
                                      bool aSuppressTransaction)
 {
   nsAutoString s;
@@ -731,8 +731,8 @@ nsHTMLCSSUtils::ParseLength(const nsAString & aString, float * aValue, nsIAtom *
   aString.BeginReading(iter);
 
   float a = 10.0f , b = 1.0f, value = 0;
-  int8_t sign = 1;
-  int32_t i = 0, j = aString.Length();
+  PRInt8 sign = 1;
+  PRInt32 i = 0, j = aString.Length();
   PRUnichar c;
   bool floatingPointFound = false;
   c = *iter;
@@ -854,7 +854,7 @@ nsHTMLCSSUtils::BuildCSSDeclarations(nsTArray<nsIAtom*> & aPropertyArray,
     ToLowerCase(lowerCasedValue);
   }
 
-  int8_t index = 0;
+  PRInt8 index = 0;
   nsCSSEditableProperty cssProperty = aEquivTable[index].cssProperty;
   while (cssProperty) {
     if (!aGetOrRemoveRequest|| aEquivTable[index].gettable) {
@@ -956,7 +956,7 @@ nsHTMLCSSUtils::GenerateCSSDeclarationsFromHTMLStyle(dom::Element* aElement,
 // Add to aNode the CSS inline style equivalent to HTMLProperty/aAttribute/
 // aValue for the node, and return in aCount the number of CSS properties set
 // by the call.  The dom::Element version returns aCount instead.
-int32_t
+PRInt32
 nsHTMLCSSUtils::SetCSSEquivalentToHTMLStyle(dom::Element* aElement,
                                             nsIAtom* aProperty,
                                             const nsAString* aAttribute,
@@ -965,7 +965,7 @@ nsHTMLCSSUtils::SetCSSEquivalentToHTMLStyle(dom::Element* aElement,
 {
   MOZ_ASSERT(aElement && aProperty);
   MOZ_ASSERT_IF(aAttribute, aValue);
-  int32_t count;
+  PRInt32 count;
   // This can only fail if SetCSSProperty fails, which should only happen if
   // something is pretty badly wrong.  In this case we assert so that hopefully
   // someone will notice, but there's nothing more sensible to do than just
@@ -984,7 +984,7 @@ nsHTMLCSSUtils::SetCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
                                             nsIAtom *aHTMLProperty,
                                             const nsAString *aAttribute,
                                             const nsAString *aValue,
-                                            int32_t * aCount,
+                                            PRInt32 * aCount,
                                             bool aSuppressTransaction)
 {
   nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
@@ -1007,7 +1007,7 @@ nsHTMLCSSUtils::SetCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
   nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(element);
   // set the individual CSS inline styles
   *aCount = cssPropertyArray.Length();
-  for (int32_t index = 0; index < *aCount; index++) {
+  for (PRInt32 index = 0; index < *aCount; index++) {
     nsresult res = SetCSSProperty(domElement, cssPropertyArray[index],
                                   cssValueArray[index], aSuppressTransaction);
     NS_ENSURE_SUCCESS(res, res);
@@ -1040,8 +1040,8 @@ nsHTMLCSSUtils::RemoveCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
 
   nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(element);
   // remove the individual CSS inline styles
-  int32_t count = cssPropertyArray.Length();
-  for (int32_t index = 0; index < count; index++) {
+  PRInt32 count = cssPropertyArray.Length();
+  for (PRInt32 index = 0; index < count; index++) {
     nsresult res = RemoveCSSProperty(domElement,
                                      cssPropertyArray[index],
                                      cssValueArray[index],
@@ -1078,8 +1078,8 @@ nsHTMLCSSUtils::GetCSSEquivalentToHTMLInlineStyleSet(nsINode* aNode,
   // "gettable" properties
   GenerateCSSDeclarationsFromHTMLStyle(theElement, aHTMLProperty, aAttribute, nullptr,
                                        cssPropertyArray, cssValueArray, true);
-  int32_t count = cssPropertyArray.Length();
-  for (int32_t index = 0; index < count; index++) {
+  PRInt32 count = cssPropertyArray.Length();
+  for (PRInt32 index = 0; index < count; index++) {
     nsAutoString valueString;
     // retrieve the specified/computed value of the property
     nsresult res = GetCSSInlinePropertyBase(theElement, cssPropertyArray[index],
@@ -1153,7 +1153,7 @@ nsHTMLCSSUtils::IsCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode *aNode,
         aIsSet = true;
         valueString.AssignLiteral("bold");
       } else {
-        int32_t weight = 0;
+        PRInt32 weight = 0;
         nsresult errorCode;
         nsAutoString value(valueString);
         weight = value.ToInteger(&errorCode, 10);
@@ -1249,7 +1249,7 @@ nsHTMLCSSUtils::IsCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode *aNode,
       if (htmlValueString.IsEmpty()) {
         aIsSet = true;
       } else {
-        int32_t size = nsContentUtils::ParseLegacyFontSize(htmlValueString);
+        PRInt32 size = nsContentUtils::ParseLegacyFontSize(htmlValueString);
         aIsSet = (size == 1 && valueString.EqualsLiteral("x-small")) ||
                  (size == 2 && valueString.EqualsLiteral("small")) ||
                  (size == 3 && valueString.EqualsLiteral("medium")) ||
@@ -1348,7 +1348,7 @@ nsHTMLCSSUtils::ElementsSameStyle(nsIDOMNode *aFirstNode, nsIDOMNode *aSecondNod
   }
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> firstCSSDecl, secondCSSDecl;
-  uint32_t firstLength, secondLength;
+  PRUint32 firstLength, secondLength;
   res = GetInlineStyles(firstElement,  getter_AddRefs(firstCSSDecl),  &firstLength);
   if (NS_FAILED(res) || !firstCSSDecl) return false;
   res = GetInlineStyles(secondElement, getter_AddRefs(secondCSSDecl), &secondLength);
@@ -1363,7 +1363,7 @@ nsHTMLCSSUtils::ElementsSameStyle(nsIDOMNode *aFirstNode, nsIDOMNode *aSecondNod
     return true;
   }
 
-  uint32_t i;
+  PRUint32 i;
   nsAutoString propertyNameString;
   nsAutoString firstValue, secondValue;
   for (i=0; i<firstLength; i++) {
@@ -1389,7 +1389,7 @@ nsHTMLCSSUtils::ElementsSameStyle(nsIDOMNode *aFirstNode, nsIDOMNode *aSecondNod
 nsresult
 nsHTMLCSSUtils::GetInlineStyles(nsIDOMElement *aElement,
                                 nsIDOMCSSStyleDeclaration **aCssDecl,
-                                uint32_t *aLength)
+                                PRUint32 *aLength)
 {
   NS_ENSURE_TRUE(aElement && aLength, NS_ERROR_NULL_POINTER);
   *aLength = 0;
@@ -1435,7 +1435,7 @@ nsHTMLCSSUtils::SetCSSProperty(nsIDOMElement * aElement,
                                const nsAString & aValue)
 {
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  uint32_t length;
+  PRUint32 length;
   nsresult res = GetInlineStyles(aElement, getter_AddRefs(cssDecl), &length);
   if (NS_FAILED(res) || !cssDecl) return res;
 
@@ -1447,7 +1447,7 @@ nsHTMLCSSUtils::SetCSSProperty(nsIDOMElement * aElement,
 nsresult
 nsHTMLCSSUtils::SetCSSPropertyPixels(nsIDOMElement * aElement,
                                      const nsAString & aProperty,
-                                     int32_t aIntValue)
+                                     PRInt32 aIntValue)
 {
   nsAutoString s;
   s.AppendInt(aIntValue);

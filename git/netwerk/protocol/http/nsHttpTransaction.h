@@ -69,7 +69,7 @@ public:
     //        wait on this input stream for data.  on first notification,
     //        headers should be available (check transaction status).
     //
-    nsresult Init(uint8_t                caps,
+    nsresult Init(PRUint8                caps,
                   nsHttpConnectionInfo  *connInfo,
                   nsHttpRequestHead     *reqHeaders,
                   nsIInputStream        *reqBody,
@@ -97,8 +97,8 @@ public:
     bool      SSLConnectFailed() { return mSSLConnectFailed; }
 
     // SetPriority() may only be used by the connection manager.
-    void    SetPriority(int32_t priority) { mPriority = priority; }
-    int32_t    Priority()                 { return mPriority; }
+    void    SetPriority(PRInt32 priority) { mPriority = priority; }
+    PRInt32    Priority()                 { return mPriority; }
 
     const TimingStruct& Timings() const { return mTimings; }
     enum Classifier Classification() { return mClassification; }
@@ -108,23 +108,23 @@ public:
 private:
     nsresult Restart();
     nsresult RestartInProgress();
-    char    *LocateHttpStart(char *buf, uint32_t len,
+    char    *LocateHttpStart(char *buf, PRUint32 len,
                              bool aAllowPartialMatch);
     nsresult ParseLine(char *line);
-    nsresult ParseLineSegment(char *seg, uint32_t len);
-    nsresult ParseHead(char *, uint32_t count, uint32_t *countRead);
+    nsresult ParseLineSegment(char *seg, PRUint32 len);
+    nsresult ParseHead(char *, PRUint32 count, PRUint32 *countRead);
     nsresult HandleContentStart();
-    nsresult HandleContent(char *, uint32_t count, uint32_t *contentRead, uint32_t *contentRemaining);
-    nsresult ProcessData(char *, uint32_t, uint32_t *);
+    nsresult HandleContent(char *, PRUint32 count, PRUint32 *contentRead, PRUint32 *contentRemaining);
+    nsresult ProcessData(char *, PRUint32, PRUint32 *);
     void     DeleteSelfOnConsumerThread();
 
     Classifier Classify();
-    void       CancelPipeline(uint32_t reason);
+    void       CancelPipeline(PRUint32 reason);
 
     static NS_METHOD ReadRequestSegment(nsIInputStream *, void *, const char *,
-                                        uint32_t, uint32_t, uint32_t *);
+                                        PRUint32, PRUint32, PRUint32 *);
     static NS_METHOD WritePipeSegment(nsIOutputStream *, void *, char *,
-                                      uint32_t, uint32_t, uint32_t *);
+                                      PRUint32, PRUint32, PRUint32 *);
 
     bool TimingEnabled() const { return mCaps & NS_HTTP_TIMING_ENABLED; }
 
@@ -141,7 +141,7 @@ private:
 
     nsCString                       mReqHeaderBuf;    // flattened request headers
     nsCOMPtr<nsIInputStream>        mRequestStream;
-    uint64_t                        mRequestSize;
+    PRUint64                        mRequestSize;
 
     nsAHttpConnection              *mConnection;      // hard ref
     nsHttpConnectionInfo           *mConnInfo;        // hard ref
@@ -153,15 +153,15 @@ private:
 
     nsCString                       mLineBuf;         // may contain a partial line
 
-    int64_t                         mContentLength;   // equals -1 if unknown
-    int64_t                         mContentRead;     // count of consumed content bytes
+    PRInt64                         mContentLength;   // equals -1 if unknown
+    PRInt64                         mContentRead;     // count of consumed content bytes
 
     // After a 304/204 or other "no-content" style response we will skip over
     // up to MAX_INVALID_RESPONSE_BODY_SZ bytes when looking for the next
     // response header to deal with servers that actually sent a response
     // body where they should not have. This member tracks how many bytes have
     // so far been skipped.
-    uint32_t                        mInvalidResponseBytesRead;
+    PRUint32                        mInvalidResponseBytesRead;
 
     nsHttpChunkedDecoder           *mChunkedDecoder;
 
@@ -169,13 +169,13 @@ private:
 
     nsresult                        mStatus;
 
-    int16_t                         mPriority;
+    PRInt16                         mPriority;
 
-    uint16_t                        mRestartCount;        // the number of times this transaction has been restarted
-    uint8_t                         mCaps;
+    PRUint16                        mRestartCount;        // the number of times this transaction has been restarted
+    PRUint8                         mCaps;
     enum Classifier                 mClassification;
-    int32_t                         mPipelinePosition;
-    int64_t                         mMaxPipelineObjectSize;
+    PRInt32                         mPipelinePosition;
+    PRInt64                         mMaxPipelineObjectSize;
 
     nsHttpVersion                   mHttpVersion;
 
@@ -229,17 +229,17 @@ private:
         {}
         ~RestartVerifier() {}
         
-        void Set(int64_t contentLength, nsHttpResponseHead *head);
-        bool Verify(int64_t contentLength, nsHttpResponseHead *head);
+        void Set(PRInt64 contentLength, nsHttpResponseHead *head);
+        bool Verify(PRInt64 contentLength, nsHttpResponseHead *head);
         bool IsDiscardingContent() { return mToReadBeforeRestart != 0; }
         bool IsSetup() { return mSetup; }
-        int64_t AlreadyProcessed() { return mAlreadyProcessed; }
-        void SetAlreadyProcessed(int64_t val) {
+        PRInt64 AlreadyProcessed() { return mAlreadyProcessed; }
+        void SetAlreadyProcessed(PRInt64 val) {
             mAlreadyProcessed = val;
             mToReadBeforeRestart = val;
         }
-        int64_t ToReadBeforeRestart() { return mToReadBeforeRestart; }
-        void HaveReadBeforeRestart(uint32_t amt)
+        PRInt64 ToReadBeforeRestart() { return mToReadBeforeRestart; }
+        void HaveReadBeforeRestart(PRUint32 amt)
         {
             NS_ABORT_IF_FALSE(amt <= mToReadBeforeRestart,
                               "too large of a HaveReadBeforeRestart deduction");
@@ -250,7 +250,7 @@ private:
         // This is the data from the first complete response header
         // used to make sure that all subsequent response headers match
 
-        int64_t                         mContentLength;
+        PRInt64                         mContentLength;
         nsCString                       mETag;
         nsCString                       mLastModified;
         nsCString                       mContentRange;
@@ -260,12 +260,12 @@ private:
         // This is the amount of data that has been passed to the channel
         // from previous iterations of the transaction and must therefore
         // be skipped in the new one.
-        int64_t                         mAlreadyProcessed;
+        PRInt64                         mAlreadyProcessed;
 
         // The amount of data that must be discarded in the current iteration
         // (where iteration > 0) to reach the mAlreadyProcessed high water
         // mark.
-        int64_t                         mToReadBeforeRestart;
+        PRInt64                         mToReadBeforeRestart;
 
         // true when ::Set has been called with a response header
         bool                            mSetup;

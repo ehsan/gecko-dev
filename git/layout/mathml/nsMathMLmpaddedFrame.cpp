@@ -121,16 +121,16 @@ nsMathMLmpaddedFrame::ProcessAttributes()
 // [+|-] unsigned-number (% [pseudo-unit] | pseudo-unit | css-unit | namedspace)
 bool
 nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
-                                     int32_t&    aSign,
+                                     PRInt32&    aSign,
                                      nsCSSValue& aCSSValue,
-                                     int32_t&    aPseudoUnit)
+                                     PRInt32&    aPseudoUnit)
 {
   aCSSValue.Reset();
   aSign = NS_MATHML_SIGN_INVALID;
   aPseudoUnit = NS_MATHML_PSEUDO_UNIT_UNSPECIFIED;
   aString.CompressWhitespace(); // aString is not a const in this code
 
-  int32_t stringLength = aString.Length();
+  PRInt32 stringLength = aString.Length();
   if (!stringLength)
     return false;
 
@@ -139,7 +139,7 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
   //////////////////////
   // see if the sign is there
 
-  int32_t i = 0;
+  PRInt32 i = 0;
 
   if (aString[0] == '+') {
     aSign = NS_MATHML_SIGN_PLUS;
@@ -259,8 +259,8 @@ nsMathMLmpaddedFrame::ParseAttribute(nsString&   aString,
 }
 
 void
-nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
-                                  int32_t                  aPseudoUnit,
+nsMathMLmpaddedFrame::UpdateValue(PRInt32                  aSign,
+                                  PRInt32                  aPseudoUnit,
                                   const nsCSSValue&        aCSSValue,
                                   const nsBoundingMetrics& aBoundingMetrics,
                                   nscoord&                 aValueToUpdate) const
@@ -365,7 +365,7 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   nscoord width  = mBoundingMetrics.width;
   nscoord voffset = 0;
 
-  int32_t pseudoUnit;
+  PRInt32 pseudoUnit;
   nscoord initialWidth = width;
 
   // update width

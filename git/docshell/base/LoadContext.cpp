@@ -36,7 +36,7 @@ LoadContext::GetTopWindow(nsIDOMWindow**)
 }
 
 NS_IMETHODIMP
-LoadContext::IsAppOfType(uint32_t, bool*)
+LoadContext::IsAppOfType(PRUint32, bool*)
 {
   MOZ_ASSERT(mIsNotNull);
 
@@ -87,7 +87,7 @@ LoadContext::GetIsInBrowserElement(bool* aIsInBrowserElement)
 }
 
 NS_IMETHODIMP
-LoadContext::GetAppId(uint32_t* aAppId)
+LoadContext::GetAppId(PRUint32* aAppId)
 {
   MOZ_ASSERT(mIsNotNull);
 

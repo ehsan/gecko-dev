@@ -31,7 +31,7 @@ interface nsISSLCertErrorDialog : nsISupports
                      in AString textErrorMessage,
                      in AString htmlErrorMessage,
                      in ACString hostName,
-                     in uint32_t portNumber);
+                     in PRUint32 portNumber);
 };
 
 %{C++

@@ -12,7 +12,7 @@ using namespace mozilla;
 NS_IMPL_ISUPPORTS1(nsHapticFeedback, nsIHapticFeedback)
 
 NS_IMETHODIMP
-nsHapticFeedback::PerformSimpleAction(int32_t aType)
+nsHapticFeedback::PerformSimpleAction(PRInt32 aType)
 {
     AndroidBridge* bridge = AndroidBridge::Bridge();
     if (bridge) {

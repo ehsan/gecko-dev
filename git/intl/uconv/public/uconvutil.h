@@ -59,7 +59,7 @@ typedef struct  {
 } uShiftInCell;
 
 typedef struct  {
-        int16_t         numOfItem;
+        PRInt16         numOfItem;
         uShiftInCell    shiftcell[1];
 } uShiftInTableMutable;
 
@@ -75,7 +75,7 @@ typedef struct  {
 } uShiftOutCell;
 
 typedef struct  {
-        int16_t         numOfItem;
+        PRInt16         numOfItem;
         uShiftOutCell   shiftcell[1];
 } uShiftOutTableMutable;
 
@@ -91,8 +91,8 @@ typedef struct {
 
 /*=====================================*/
 
-typedef uint16_t* uMappingTableMutable; 
-typedef const uint16_t uMappingTable; 
+typedef PRUint16* uMappingTableMutable; 
+typedef const PRUint16 uMappingTable; 
  
 #endif
 

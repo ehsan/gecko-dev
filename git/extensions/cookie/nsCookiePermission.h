@@ -39,8 +39,8 @@ private:
   nsCOMPtr<nsIPermissionManager> mPermMgr;
   nsCOMPtr<nsIPrivateBrowsingService> mPBService;
 
-  int64_t      mCookiesLifetimeSec;            // lifetime limit specified in seconds
-  uint8_t      mCookiesLifetimePolicy;         // pref for how long cookies are stored
+  PRInt64      mCookiesLifetimeSec;            // lifetime limit specified in seconds
+  PRUint8      mCookiesLifetimePolicy;         // pref for how long cookies are stored
   bool mCookiesAlwaysAcceptSession;    // don't prompt for session cookies
 };
 

@@ -20,7 +20,7 @@ AccCollector::~AccCollector()
 {
 }
 
-uint32_t
+PRUint32
 AccCollector::Count()
 {
   EnsureNGetIndex(nullptr);
@@ -28,7 +28,7 @@ AccCollector::Count()
 }
 
 Accessible*
-AccCollector::GetAccessibleAt(uint32_t aIndex)
+AccCollector::GetAccessibleAt(PRUint32 aIndex)
 {
   Accessible* accessible = mObjects.SafeElementAt(aIndex, nullptr);
   if (accessible)
@@ -37,10 +37,10 @@ AccCollector::GetAccessibleAt(uint32_t aIndex)
   return EnsureNGetObject(aIndex);
 }
 
-int32_t
+PRInt32
 AccCollector::GetIndexAt(Accessible* aAccessible)
 {
-  int32_t index = mObjects.IndexOf(aAccessible);
+  PRInt32 index = mObjects.IndexOf(aAccessible);
   if (index != -1)
     return index;
 
@@ -51,9 +51,9 @@ AccCollector::GetIndexAt(Accessible* aAccessible)
 // nsAccCollector protected
 
 Accessible*
-AccCollector::EnsureNGetObject(uint32_t aIndex)
+AccCollector::EnsureNGetObject(PRUint32 aIndex)
 {
-  uint32_t childCount = mRoot->ChildCount();
+  PRUint32 childCount = mRoot->ChildCount();
   while (mRootChildIdx < childCount) {
     Accessible* child = mRoot->GetChildAt(mRootChildIdx++);
     if (!mFilterFunc(child))
@@ -67,10 +67,10 @@ AccCollector::EnsureNGetObject(uint32_t aIndex)
   return nullptr;
 }
 
-int32_t
+PRInt32
 AccCollector::EnsureNGetIndex(Accessible* aAccessible)
 {
-  uint32_t childCount = mRoot->ChildCount();
+  PRUint32 childCount = mRoot->ChildCount();
   while (mRootChildIdx < childCount) {
     Accessible* child = mRoot->GetChildAt(mRootChildIdx++);
     if (!mFilterFunc(child))
@@ -94,7 +94,7 @@ AccCollector::AppendObject(Accessible* aAccessible)
 // EmbeddedObjCollector
 ////////////////////////////////////////////////////////////////////////////////
 
-int32_t
+PRInt32
 EmbeddedObjCollector::GetIndexAt(Accessible* aAccessible)
 {
   if (aAccessible->mParent != mRoot)

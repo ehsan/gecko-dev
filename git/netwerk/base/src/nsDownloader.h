@@ -26,9 +26,9 @@ protected:
     static NS_METHOD ConsumeData(nsIInputStream *in,
                                  void           *closure,
                                  const char     *fromRawSegment,
-                                 uint32_t        toOffset,
-                                 uint32_t        count,
-                                 uint32_t       *writeCount);
+                                 PRUint32        toOffset,
+                                 PRUint32        count,
+                                 PRUint32       *writeCount);
 
     nsCOMPtr<nsIDownloadObserver> mObserver;
     nsCOMPtr<nsIFile>             mLocation;

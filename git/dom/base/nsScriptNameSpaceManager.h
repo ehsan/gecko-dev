@@ -59,7 +59,7 @@ struct nsGlobalNameStruct
   bool mDisabled;
 
   union {
-    int32_t mDOMClassInfoID; // eTypeClassConstructor
+    PRInt32 mDOMClassInfoID; // eTypeClassConstructor
     nsIID mIID; // eTypeInterface, eTypeClassProto
     nsExternalDOMClassInfoData* mData; // eTypeExternalClassInfo
     ConstructorAlias* mAlias; // eTypeExternalConstructorAlias
@@ -67,7 +67,7 @@ struct nsGlobalNameStruct
   };
 
   // For new style DOM bindings.
-  mozilla::dom::DefineInterface mDefineDOMInterface;
+  mozilla::dom::binding::DefineInterface mDefineDOMInterface;
 
 private:
 
@@ -112,7 +112,7 @@ public:
                                const nsGlobalNameStruct **aNameStruct);
 
   nsresult RegisterClassName(const char *aClassName,
-                             int32_t aDOMClassInfoID,
+                             PRInt32 aDOMClassInfoID,
                              bool aPrivileged,
                              bool aDisabled,
                              const PRUnichar **aResult);
@@ -132,14 +132,14 @@ public:
                              nsDOMClassInfoExternalConstructorFnc aConstructorFptr,
                              const nsIID *aProtoChainInterface,
                              const nsIID **aInterfaces,
-                             uint32_t aScriptableFlags,
+                             PRUint32 aScriptableFlags,
                              bool aHasClassInterface,
                              const nsCID *aConstructorCID);
 
   nsGlobalNameStruct* GetConstructorProto(const nsGlobalNameStruct* aStruct);
 
   void RegisterDefineDOMInterface(const nsAFlatString& aName,
-    mozilla::dom::DefineInterface aDefineDOMInterface);
+    mozilla::dom::binding::DefineInterface aDefineDOMInterface);
 
 private:
   // Adds a new entry to the hash and returns the nsGlobalNameStruct

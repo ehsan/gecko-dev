@@ -147,7 +147,6 @@ static bool sCCLockedOut;
 static PRTime sCCLockedOutTime;
 
 static js::GCSliceCallback sPrevGCSliceCallback;
-static js::AnalysisPurgeCallback sPrevAnalysisPurgeCallback;
 
 // The number of currently pending document loads. This count isn't
 // guaranteed to always reflect reality and can't easily as we don't
@@ -155,22 +154,22 @@ static js::AnalysisPurgeCallback sPrevAnalysisPurgeCallback;
 // all cases. This counter also gets reset if we end up GC'ing while
 // we're waiting for a slow page to load. IOW, this count may be 0
 // even when there are pending loads.
-static uint32_t sPendingLoadCount;
+static PRUint32 sPendingLoadCount;
 static bool sLoadingInProgress;
 
-static uint32_t sCCollectedWaitingForGC;
+static PRUint32 sCCollectedWaitingForGC;
 static bool sPostGCEventsToConsole;
 static bool sPostGCEventsToObserver;
 static bool sDisableExplicitCompartmentGC;
-static uint32_t sCCTimerFireCount = 0;
-static uint32_t sMinForgetSkippableTime = PR_UINT32_MAX;
-static uint32_t sMaxForgetSkippableTime = 0;
-static uint32_t sTotalForgetSkippableTime = 0;
-static uint32_t sRemovedPurples = 0;
-static uint32_t sForgetSkippableBeforeCC = 0;
-static uint32_t sPreviousSuspectedCount = 0;
-static uint32_t sCompartmentGCCount = NS_MAX_COMPARTMENT_GC_COUNT;
-static uint32_t sCleanupsSinceLastGC = PR_UINT32_MAX;
+static PRUint32 sCCTimerFireCount = 0;
+static PRUint32 sMinForgetSkippableTime = PR_UINT32_MAX;
+static PRUint32 sMaxForgetSkippableTime = 0;
+static PRUint32 sTotalForgetSkippableTime = 0;
+static PRUint32 sRemovedPurples = 0;
+static PRUint32 sForgetSkippableBeforeCC = 0;
+static PRUint32 sPreviousSuspectedCount = 0;
+static PRUint32 sCompartmentGCCount = NS_MAX_COMPARTMENT_GC_COUNT;
+static PRUint32 sCleanupsSinceLastGC = PR_UINT32_MAX;
 static bool sNeedsFullCC = false;
 static nsJSContext *sContextList = nullptr;
 
@@ -187,7 +186,7 @@ static PRTime sFirstCollectionTime;
 static bool sIsInitialized;
 static bool sDidShutdown;
 
-static int32_t sContextCount;
+static PRInt32 sContextCount;
 
 static PRTime sMaxScriptRunTime;
 static PRTime sMaxChromeScriptRunTime;
@@ -199,17 +198,6 @@ static nsIScriptSecurityManager *sSecurityManager;
 // the appropriate pref is set.
 
 static bool sGCOnMemoryPressure;
-
-static PRTime
-GetCollectionTimeDelta()
-{
-  PRTime now = PR_Now();
-  if (sFirstCollectionTime) {
-    return now - sFirstCollectionTime;
-  }
-  sFirstCollectionTime = now;
-  return 0;
-}
 
 class nsMemoryPressureObserver MOZ_FINAL : public nsIObserver
 {
@@ -296,7 +284,7 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
     nsRefPtr<nsPresContext> presContext;
     docShell->GetPresContext(getter_AddRefs(presContext));
 
-    static int32_t errorDepth; // Recursion prevention
+    static PRInt32 errorDepth; // Recursion prevention
     ++errorDepth;
 
     if (presContext && errorDepth < 2) {
@@ -316,12 +304,12 @@ class ScriptErrorEvent : public nsRunnable
 public:
   ScriptErrorEvent(nsIScriptGlobalObject* aScriptGlobal,
                    nsIPrincipal* aScriptOriginPrincipal,
-                   uint32_t aLineNr, uint32_t aColumn, uint32_t aFlags,
+                   PRUint32 aLineNr, PRUint32 aColumn, PRUint32 aFlags,
                    const nsAString& aErrorMsg,
                    const nsAString& aFileName,
                    const nsAString& aSourceLine,
                    bool aDispatchEvent,
-                   uint64_t aInnerWindowID)
+                   PRUint64 aInnerWindowID)
     : mScriptGlobal(aScriptGlobal), mOriginPrincipal(aScriptOriginPrincipal),
       mLineNr(aLineNr), mColumn(aColumn),
     mFlags(aFlags), mErrorMsg(aErrorMsg), mFileName(aFileName),
@@ -421,14 +409,14 @@ public:
 
   nsCOMPtr<nsIScriptGlobalObject> mScriptGlobal;
   nsCOMPtr<nsIPrincipal>          mOriginPrincipal;
-  uint32_t                        mLineNr;
-  uint32_t                        mColumn;
-  uint32_t                        mFlags;
+  PRUint32                        mLineNr;
+  PRUint32                        mColumn;
+  PRUint32                        mFlags;
   nsString                        mErrorMsg;
   nsString                        mFileName;
   nsString                        mSourceLine;
   bool                            mDispatchEvent;
-  uint64_t                        mInnerWindowID;
+  PRUint64                        mInnerWindowID;
 
   static bool sHandlingScriptError;
 };
@@ -458,7 +446,7 @@ NS_ScriptErrorReporter(JSContext *cx,
       if (cc) {
         nsAXPCNativeCallContext *prev = cc;
         while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
-          uint16_t lang;
+          PRUint16 lang;
           if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
             lang == nsAXPCNativeCallContext::LANG_JS) {
             return;
@@ -511,7 +499,7 @@ NS_ScriptErrorReporter(JSContext *cx,
       nsAutoString sourceLine;
       sourceLine.Assign(reinterpret_cast<const PRUnichar*>(report->uclinebuf));
       nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(globalObject);
-      uint64_t innerWindowID = 0;
+      PRUint64 innerWindowID = 0;
       if (win) {
         nsCOMPtr<nsPIDOMWindow> innerWin = win->GetCurrentInnerWindow();
         if (innerWin) {
@@ -846,9 +834,9 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
     }
   }
 
-  int32_t buttonPressed = 0; //In case user exits dialog by clicking X
+  PRInt32 buttonPressed = 0; //In case user exits dialog by clicking X
   bool neverShowDlgChk = false;
-  uint32_t buttonFlags = nsIPrompt::BUTTON_POS_1_DEFAULT +
+  PRUint32 buttonFlags = nsIPrompt::BUTTON_POS_1_DEFAULT +
                          (nsIPrompt::BUTTON_TITLE_IS_STRING *
                           (nsIPrompt::BUTTON_POS_0 + nsIPrompt::BUTTON_POS_1));
 
@@ -954,8 +942,8 @@ int
 nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 {
   nsJSContext *context = reinterpret_cast<nsJSContext *>(data);
-  uint32_t oldDefaultJSOptions = context->mDefaultJSOptions;
-  uint32_t newDefaultJSOptions = oldDefaultJSOptions;
+  PRUint32 oldDefaultJSOptions = context->mDefaultJSOptions;
+  PRUint32 newDefaultJSOptions = oldDefaultJSOptions;
 
   sPostGCEventsToConsole = Preferences::GetBool(js_memlog_option_str);
   sPostGCEventsToObserver = Preferences::GetBool(js_memnotify_option_str);
@@ -1061,10 +1049,10 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   JS_SetJitHardening(rt, useHardening);
 
 #ifdef JS_GC_ZEAL
-  int32_t zeal = Preferences::GetInt(js_zeal_option_str, -1);
-  int32_t frequency = Preferences::GetInt(js_zeal_frequency_str, JS_DEFAULT_ZEAL_FREQ);
+  PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
+  PRInt32 frequency = Preferences::GetInt(js_zeal_frequency_str, JS_DEFAULT_ZEAL_FREQ);
   if (zeal >= 0)
-    ::JS_SetGCZeal(context->mContext, (uint8_t)zeal, frequency);
+    ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, frequency);
 #endif
 
   return 0;
@@ -1217,8 +1205,8 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                      JSObject* aScopeObject,
                                      nsIPrincipal *aPrincipal,
                                      const char *aURL,
-                                     uint32_t aLineNo,
-                                     uint32_t aVersion,
+                                     PRUint32 aLineNo,
+                                     PRUint32 aVersion,
                                      JS::Value* aRetValue,
                                      bool* aIsUndefined)
 {
@@ -1410,7 +1398,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
                             nsIPrincipal *aPrincipal,
                             nsIPrincipal *aOriginPrincipal,
                             const char *aURL,
-                            uint32_t aLineNo,
+                            PRUint32 aLineNo,
                             JSVersion aVersion,
                             nsAString *aRetValue,
                             bool* aIsUndefined)
@@ -1547,11 +1535,11 @@ nsJSContext::EvaluateString(const nsAString& aScript,
 
 nsresult
 nsJSContext::CompileScript(const PRUnichar* aText,
-                           int32_t aTextLength,
+                           PRInt32 aTextLength,
                            nsIPrincipal *aPrincipal,
                            const char *aURL,
-                           uint32_t aLineNo,
-                           uint32_t aVersion,
+                           PRUint32 aLineNo,
+                           PRUint32 aVersion,
                            nsScriptObjectHolder<JSScript>& aScriptObject,
                            bool aSaveSource /* = false */)
 {
@@ -1728,11 +1716,11 @@ nsJSContext::JSObjectFromInterface(nsISupports* aTarget, JSObject* aScope, JSObj
 
 nsresult
 nsJSContext::CompileEventHandler(nsIAtom *aName,
-                                 uint32_t aArgCount,
+                                 PRUint32 aArgCount,
                                  const char** aArgNames,
                                  const nsAString& aBody,
-                                 const char *aURL, uint32_t aLineNo,
-                                 uint32_t aVersion,
+                                 const char *aURL, PRUint32 aLineNo,
+                                 PRUint32 aVersion,
                                  nsScriptObjectHolder<JSObject>& aHandler)
 {
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
@@ -1789,12 +1777,12 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
 nsresult
 nsJSContext::CompileFunction(JSObject* aTarget,
                              const nsACString& aName,
-                             uint32_t aArgCount,
+                             PRUint32 aArgCount,
                              const char** aArgArray,
                              const nsAString& aBody,
                              const char* aURL,
-                             uint32_t aLineNo,
-                             uint32_t aVersion,
+                             PRUint32 aLineNo,
+                             PRUint32 aVersion,
                              bool aShared,
                              JSObject** aFunctionObject)
 {
@@ -1900,7 +1888,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
 
   if (NS_SUCCEEDED(rv)) {
     // Convert args to jsvals.
-    uint32_t argc = 0;
+    PRUint32 argc = 0;
     jsval *argv = nullptr;
 
     JSObject *funobj = aHandler;
@@ -2133,7 +2121,7 @@ nsJSContext::InitializeExternalClasses()
 nsresult
 nsJSContext::SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aArgs)
 {
-  uint32_t  argc;
+  PRUint32  argc;
   jsval    *argv = nullptr;
 
   XPCAutoRequest ar(mContext);
@@ -2153,7 +2141,7 @@ nsJSContext::SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* 
   if (strcmp(aPropName, "dialogArguments") == 0 && argc <= 1) {
     vargs = argc ? argv[0] : JSVAL_VOID;
   } else {
-    for (uint32_t i = 0; i < argc; ++i) {
+    for (PRUint32 i = 0; i < argc; ++i) {
       if (!JS_WrapValue(mContext, &argv[i])) {
         return NS_ERROR_FAILURE;
       }
@@ -2173,7 +2161,7 @@ nsJSContext::SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* 
 nsresult
 nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      JSObject *aScope,
-                                     uint32_t *aArgc,
+                                     PRUint32 *aArgc,
                                      jsval **aArgv,
                                      Maybe<nsRootedJSValueArray> &aTempStorage)
 {
@@ -2196,7 +2184,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
 
   if (!aArgs)
     return NS_OK;
-  uint32_t argCount;
+  PRUint32 argCount;
   // This general purpose function may need to convert an arg array
   // (window.arguments, event-handler args) and a generic property.
   nsCOMPtr<nsIArray> argsArray(do_QueryInterface(aArgs));
@@ -2217,7 +2205,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
   jsval *argv = aTempStorage.ref().Elements();
 
   if (argsArray) {
-    for (uint32_t argCtr = 0; argCtr < argCount && NS_SUCCEEDED(rv); argCtr++) {
+    for (PRUint32 argCtr = 0; argCtr < argCount && NS_SUCCEEDED(rv); argCtr++) {
       nsCOMPtr<nsISupports> arg;
       jsval *thisval = argv + argCtr;
       argsArray->QueryElementAt(argCtr, NS_GET_IID(nsISupports),
@@ -2281,7 +2269,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
     return NS_ERROR_NO_INTERFACE;
 
   JSContext *cx = mContext;
-  uint16_t type;
+  PRUint16 type;
   argPrimitive->GetType(&type);
 
   switch(type) {
@@ -2336,7 +2324,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsPRUint8> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      uint8_t data;
+      PRUint8 data;
 
       p->GetData(&data);
 
@@ -2348,7 +2336,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsPRUint16> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      uint16_t data;
+      PRUint16 data;
 
       p->GetData(&data);
 
@@ -2360,7 +2348,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsPRUint32> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      uint32_t data;
+      PRUint32 data;
 
       p->GetData(&data);
 
@@ -2387,7 +2375,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsPRInt16> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      int16_t data;
+      PRInt16 data;
 
       p->GetData(&data);
 
@@ -2399,7 +2387,7 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
       nsCOMPtr<nsISupportsPRInt32> p(do_QueryInterface(argPrimitive));
       NS_ENSURE_TRUE(p, NS_ERROR_UNEXPECTED);
 
-      int32_t data;
+      PRInt32 data;
 
       p->GetData(&data);
 
@@ -3021,11 +3009,11 @@ DoMergingCC(bool aForced)
 {
   // Don't merge too many times in a row, and do at least a minimum
   // number of unmerged CCs in a row.
-  static const int32_t kMinConsecutiveUnmerged = 3;
-  static const int32_t kMaxConsecutiveMerged = 3;
+  static const PRInt32 kMinConsecutiveUnmerged = 3;
+  static const PRInt32 kMaxConsecutiveMerged = 3;
 
-  static int32_t sUnmergedNeeded = 0;
-  static int32_t sMergedInARow = 0;
+  static PRInt32 sUnmergedNeeded = 0;
+  static PRInt32 sMergedInARow = 0;
 
   MOZ_ASSERT(0 <= sUnmergedNeeded && sUnmergedNeeded <= kMinConsecutiveUnmerged);
   MOZ_ASSERT(0 <= sMergedInARow && sMergedInARow <= kMaxConsecutiveMerged);
@@ -3052,7 +3040,7 @@ DoMergingCC(bool aForced)
 }
 
 static void
-FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
+FireForgetSkippable(PRUint32 aSuspected, bool aRemoveChildless)
 {
   PRTime startTime = PR_Now();
   nsCycleCollector_forgetSkippable(aRemoveChildless);
@@ -3073,7 +3061,7 @@ FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
 //static
 void
 nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
-                             int32_t aExtraForgetSkippableCalls,
+                             PRInt32 aExtraForgetSkippableCalls,
                              bool aForced)
 {
   if (!NS_IsMainThread()) {
@@ -3093,7 +3081,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   PRTime start = PR_Now();
 
-  uint32_t suspected = nsCycleCollector_suspectedCount();
+  PRUint32 suspected = nsCycleCollector_suspectedCount();
 
   // nsCycleCollector_forgetSkippable may mark some gray js to black.
   if (sCleanupsSinceLastGC < 2 && aExtraForgetSkippableCalls >= 0) {
@@ -3102,7 +3090,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     }
   }
 
-  for (int32_t i = 0; i < aExtraForgetSkippableCalls; ++i) {
+  for (PRInt32 i = 0; i < aExtraForgetSkippableCalls; ++i) {
     FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
   }
 
@@ -3121,7 +3109,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
   PRTime now = PR_Now();
 
   if (sLastCCEndTime) {
-    uint32_t timeBetween = (uint32_t)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
+    PRUint32 timeBetween = (PRUint32)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
   }
   sLastCCEndTime = now;
@@ -3129,10 +3117,15 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
   Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
                         sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
 
-  PRTime delta = GetCollectionTimeDelta();
+  PRTime delta = 0;
+  if (sFirstCollectionTime) {
+    delta = now - sFirstCollectionTime;
+  } else {
+    sFirstCollectionTime = now;
+  }
 
-  uint32_t cleanups = sForgetSkippableBeforeCC ? sForgetSkippableBeforeCC : 1;
-  uint32_t minForgetSkippableTime = (sMinForgetSkippableTime == PR_UINT32_MAX)
+  PRUint32 cleanups = sForgetSkippableBeforeCC ? sForgetSkippableBeforeCC : 1;
+  PRUint32 minForgetSkippableTime = (sMinForgetSkippableTime == PR_UINT32_MAX)
     ? 0 : sMinForgetSkippableTime;
 
   if (sPostGCEventsToConsole) {
@@ -3250,7 +3243,7 @@ ShrinkGCBuffersTimerFired(nsITimer *aTimer, void *aClosure)
 }
 
 static bool
-ShouldTriggerCC(uint32_t aSuspected)
+ShouldTriggerCC(PRUint32 aSuspected)
 {
   return sNeedsFullCC ||
          aSuspected > NS_CC_PURPLE_LIMIT ||
@@ -3265,7 +3258,7 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
     return;
   }
 
-  static uint32_t ccDelay = NS_CC_DELAY;
+  static PRUint32 ccDelay = NS_CC_DELAY;
   if (sCCLockedOut) {
     ccDelay = NS_CC_DELAY / 3;
 
@@ -3288,9 +3281,9 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
   // During early timer fires, we only run forgetSkippable. During the first
   // late timer fire, we decide if we are going to have a second and final
   // late timer fire, where we may run the CC.
-  const uint32_t numEarlyTimerFires = ccDelay / NS_CC_SKIPPABLE_DELAY - 2;
+  const PRUint32 numEarlyTimerFires = ccDelay / NS_CC_SKIPPABLE_DELAY - 2;
   bool isLateTimerFire = sCCTimerFireCount > numEarlyTimerFires;
-  uint32_t suspected = nsCycleCollector_suspectedCount();
+  PRUint32 suspected = nsCycleCollector_suspectedCount();
   if (isLateTimerFire && ShouldTriggerCC(suspected)) {
     if (sCCTimerFireCount == numEarlyTimerFires + 1) {
       FireForgetSkippable(suspected, true);
@@ -3320,7 +3313,7 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
 }
 
 // static
-uint32_t
+PRUint32
 nsJSContext::CleanupsSinceLastGC()
 {
   return sCleanupsSinceLastGC;
@@ -3515,7 +3508,13 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
   NS_ASSERTION(NS_IsMainThread(), "GCs must run on the main thread");
 
   if (aProgress == js::GC_CYCLE_END) {
-    PRTime delta = GetCollectionTimeDelta();
+    PRTime now = PR_Now();
+    PRTime delta = 0;
+    if (sFirstCollectionTime) {
+      delta = now - sFirstCollectionTime;
+    } else {
+      sFirstCollectionTime = now;
+    }
 
     if (sPostGCEventsToConsole) {
       NS_NAMED_LITERAL_STRING(kFmt, "GC(T+%.1f) ");
@@ -3532,7 +3531,7 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
 
     if (sPostGCEventsToConsole || sPostGCEventsToObserver) {
       nsString json;
-      json.Adopt(aDesc.formatJSON(aRt, PR_Now()));
+      json.Adopt(aDesc.formatJSON(aRt, now));
       nsRefPtr<NotifyGCEndRunnable> notify = new NotifyGCEndRunnable(json);
       NS_DispatchToMainThread(notify);
     }
@@ -3587,32 +3586,6 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
 
   if (sPrevGCSliceCallback)
     (*sPrevGCSliceCallback)(aRt, aProgress, aDesc);
-}
-
-static void
-DOMAnalysisPurgeCallback(JSRuntime *aRt, JSFlatString *aDesc)
-{
-  NS_ASSERTION(NS_IsMainThread(), "GCs must run on the main thread");
-
-  PRTime delta = GetCollectionTimeDelta();
-
-  if (sPostGCEventsToConsole) {
-    NS_NAMED_LITERAL_STRING(kFmt, "Analysis Purge (T+%.1f) ");
-    nsString prefix;
-    prefix.Adopt(nsTextFormatter::smprintf(kFmt.get(),
-                                           double(delta) / PR_USEC_PER_SEC));
-
-    nsDependentJSString stats(aDesc);
-    nsString msg = prefix + stats;
-
-    nsCOMPtr<nsIConsoleService> cs = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (cs) {
-      cs->LogStringMessage(msg.get());
-    }
-  }
-
-  if (sPrevAnalysisPurgeCallback)
-    (*sPrevAnalysisPurgeCallback)(aRt, aDesc);
 }
 
 // Script object mananagement - note duplicate implementation
@@ -3707,7 +3680,7 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
   // scripts run forever.
   bool isChromePref =
     strcmp(aPrefName, "dom.max_chrome_script_run_time") == 0;
-  int32_t time = Preferences::GetInt(aPrefName, isChromePref ? 20 : 10);
+  PRInt32 time = Preferences::GetInt(aPrefName, isChromePref ? 20 : 10);
 
   PRTime t;
   if (time <= 0) {
@@ -3737,7 +3710,7 @@ ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  int32_t highwatermark = Preferences::GetInt(aPrefName, 128);
+  PRInt32 highwatermark = Preferences::GetInt(aPrefName, 128);
 
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_MALLOC_BYTES,
                     highwatermark * 1024L * 1024L);
@@ -3747,9 +3720,9 @@ SetMemoryHighWaterMarkPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  int32_t pref = Preferences::GetInt(aPrefName, -1);
+  PRInt32 pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
-  uint32_t max = (pref <= 0 || pref >= 0x1000) ? -1 : (uint32_t)pref * 1024 * 1024;
+  PRUint32 max = (pref <= 0 || pref >= 0x1000) ? -1 : (PRUint32)pref * 1024 * 1024;
   JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MAX_BYTES, max);
   return 0;
 }
@@ -3774,7 +3747,7 @@ SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryGCSliceTimePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  int32_t pref = Preferences::GetInt(aPrefName, -1);
+  PRInt32 pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
   if (pref > 0 && pref < 100000)
     JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_SLICE_TIME_BUDGET, pref);
@@ -3784,7 +3757,7 @@ SetMemoryGCSliceTimePrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryGCPrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  int32_t pref = Preferences::GetInt(aPrefName, -1);
+  PRInt32 pref = Preferences::GetInt(aPrefName, -1);
   // handle overflow and negative pref values
   if (pref > 0 && pref < 10000)
     JS_SetGCParameter(nsJSRuntime::sRuntime, (JSGCParamKey)(intptr_t)aClosure, pref);
@@ -3862,7 +3835,7 @@ NS_DOMWriteStructuredClone(JSContext* cx,
   nsCOMPtr<nsIDOMImageData> imageData = do_QueryInterface(native);
   if (imageData) {
     // Prepare the ImageData internals.
-    uint32_t width, height;
+    PRUint32 width, height;
     JS::Value dataArray;
     if (NS_FAILED(imageData->GetWidth(&width)) ||
         NS_FAILED(imageData->GetHeight(&height)) ||
@@ -3891,7 +3864,7 @@ NS_DOMStructuredCloneError(JSContext* cx,
 }
 
 static nsresult
-ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, uint32_t *len)
+ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, PRUint32 *len)
 {
   nsresult rv;
 
@@ -3924,7 +3897,7 @@ ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, uint32
   rv = scriptChannel->Open(getter_AddRefs(scriptStream));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint64_t rawLen;
+  PRUint64 rawLen;
   rv = scriptStream->Available(&rawLen);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!rawLen)
@@ -3939,7 +3912,7 @@ ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, uint32
 
   unsigned char *ptr = buf, *end = ptr + rawLen;
   while (ptr < end) {
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
     rv = scriptStream->Read(reinterpret_cast<char *>(ptr), end - ptr, &bytesRead);
     if (NS_FAILED(rv))
       return rv;
@@ -4031,7 +4004,6 @@ nsJSRuntime::Init()
   NS_ASSERTION(NS_IsMainThread(), "bad");
 
   sPrevGCSliceCallback = js::SetGCSliceCallback(sRuntime, DOMGCSliceCallback);
-  sPrevAnalysisPurgeCallback = js::SetAnalysisPurgeCallback(sRuntime, DOMAnalysisPurgeCallback);
 
   // Set up the structured clone callbacks.
   static JSStructuredCloneCallbacks cloneCallbacks = {
@@ -4125,12 +4097,6 @@ nsJSRuntime::Init()
                                 "javascript.options.mem.gc_high_frequency_high_limit_mb");
   SetMemoryGCPrefChangedCallback("javascript.options.mem.gc_high_frequency_high_limit_mb",
                                  (void *)JSGC_HIGH_FREQUENCY_HIGH_LIMIT);
-
-  Preferences::RegisterCallback(SetMemoryGCPrefChangedCallback,
-                                "javascript.options.mem.analysis_purge_mb",
-                                (void *)JSGC_ANALYSIS_PURGE_TRIGGER);
-  SetMemoryGCPrefChangedCallback("javascript.options.mem.analysis_purge_mb",
-                                 (void *)JSGC_ANALYSIS_PURGE_TRIGGER);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
@@ -4239,7 +4205,7 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime)
 // on-the-fly.
 class nsJSArgArray MOZ_FINAL : public nsIJSArgArray {
 public:
-  nsJSArgArray(JSContext *aContext, uint32_t argc, jsval *argv, nsresult *prv);
+  nsJSArgArray(JSContext *aContext, PRUint32 argc, jsval *argv, nsresult *prv);
   ~nsJSArgArray();
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -4250,17 +4216,17 @@ public:
   NS_DECL_NSIARRAY
 
   // nsIJSArgArray
-  nsresult GetArgs(uint32_t *argc, void **argv);
+  nsresult GetArgs(PRUint32 *argc, void **argv);
 
   void ReleaseJSObjects();
 
 protected:
   JSContext *mContext;
   jsval *mArgv;
-  uint32_t mArgc;
+  PRUint32 mArgc;
 };
 
-nsJSArgArray::nsJSArgArray(JSContext *aContext, uint32_t argc, jsval *argv,
+nsJSArgArray::nsJSArgArray(JSContext *aContext, PRUint32 argc, jsval *argv,
                            nsresult *prv) :
     mContext(aContext),
     mArgv(nullptr),
@@ -4279,7 +4245,7 @@ nsJSArgArray::nsJSArgArray(JSContext *aContext, uint32_t argc, jsval *argv,
   // Callers are allowed to pass in a null argv even for argc > 0. They can
   // then use GetArgs to initialize the values.
   if (argv) {
-    for (uint32_t i = 0; i < argc; ++i)
+    for (PRUint32 i = 0; i < argc; ++i)
       mArgv[i] = argv[i];
   }
 
@@ -4333,7 +4299,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsJSArgArray)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSArgArray)
 
 nsresult
-nsJSArgArray::GetArgs(uint32_t *argc, void **argv)
+nsJSArgArray::GetArgs(PRUint32 *argc, void **argv)
 {
   *argv = (void *)mArgv;
   *argc = mArgc;
@@ -4341,14 +4307,14 @@ nsJSArgArray::GetArgs(uint32_t *argc, void **argv)
 }
 
 // nsIArray impl
-NS_IMETHODIMP nsJSArgArray::GetLength(uint32_t *aLength)
+NS_IMETHODIMP nsJSArgArray::GetLength(PRUint32 *aLength)
 {
   *aLength = mArgc;
   return NS_OK;
 }
 
 /* void queryElementAt (in unsigned long index, in nsIIDRef uuid, [iid_is (uuid), retval] out nsQIResult result); */
-NS_IMETHODIMP nsJSArgArray::QueryElementAt(uint32_t index, const nsIID & uuid, void * *result)
+NS_IMETHODIMP nsJSArgArray::QueryElementAt(PRUint32 index, const nsIID & uuid, void * *result)
 {
   *result = nullptr;
   if (index >= mArgc)
@@ -4363,7 +4329,7 @@ NS_IMETHODIMP nsJSArgArray::QueryElementAt(uint32_t index, const nsIID & uuid, v
 }
 
 /* unsigned long indexOf (in unsigned long startIndex, in nsISupports element); */
-NS_IMETHODIMP nsJSArgArray::IndexOf(uint32_t startIndex, nsISupports *element, uint32_t *_retval)
+NS_IMETHODIMP nsJSArgArray::IndexOf(PRUint32 startIndex, nsISupports *element, PRUint32 *_retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -4375,7 +4341,7 @@ NS_IMETHODIMP nsJSArgArray::Enumerate(nsISimpleEnumerator **_retval)
 }
 
 // The factory function
-nsresult NS_CreateJSArgv(JSContext *aContext, uint32_t argc, void *argv,
+nsresult NS_CreateJSArgv(JSContext *aContext, PRUint32 argc, void *argv,
                          nsIJSArgArray **aArray)
 {
   nsresult rv;

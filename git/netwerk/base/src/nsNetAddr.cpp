@@ -19,7 +19,7 @@ nsNetAddr::nsNetAddr(PRNetAddr* addr)
 }
 
 /* readonly attribute unsigned short family; */
-NS_IMETHODIMP nsNetAddr::GetFamily(uint16_t *aFamily)
+NS_IMETHODIMP nsNetAddr::GetFamily(PRUint16 *aFamily)
 {
   switch(mAddr.raw.family) {
   case PR_AF_INET: 
@@ -67,7 +67,7 @@ NS_IMETHODIMP nsNetAddr::GetAddress(nsACString & aAddress)
 }
 
 /* readonly attribute unsigned short port; */
-NS_IMETHODIMP nsNetAddr::GetPort(uint16_t *aPort)
+NS_IMETHODIMP nsNetAddr::GetPort(PRUint16 *aPort)
 {
   switch(mAddr.raw.family) {
   case PR_AF_INET: 
@@ -87,7 +87,7 @@ NS_IMETHODIMP nsNetAddr::GetPort(uint16_t *aPort)
 }
 
 /* readonly attribute unsigned long flow; */
-NS_IMETHODIMP nsNetAddr::GetFlow(uint32_t *aFlow)
+NS_IMETHODIMP nsNetAddr::GetFlow(PRUint32 *aFlow)
 {
   switch(mAddr.raw.family) {
   case PR_AF_INET6:
@@ -105,7 +105,7 @@ NS_IMETHODIMP nsNetAddr::GetFlow(uint32_t *aFlow)
 }
 
 /* readonly attribute unsigned long scope; */
-NS_IMETHODIMP nsNetAddr::GetScope(uint32_t *aScope)
+NS_IMETHODIMP nsNetAddr::GetScope(PRUint32 *aScope)
 {
   switch(mAddr.raw.family) {
   case PR_AF_INET6:

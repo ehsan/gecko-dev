@@ -22,11 +22,11 @@ using mozilla::DOMSVGPoint;
 
 void
 UpdateListIndicesFromIndex(nsTArray<DOMSVGPoint*>& aItemsArray,
-                           uint32_t aStartingIndex)
+                           PRUint32 aStartingIndex)
 {
-  uint32_t length = aItemsArray.Length();
+  PRUint32 length = aItemsArray.Length();
 
-  for (uint32_t i = aStartingIndex; i < length; ++i) {
+  for (PRUint32 i = aStartingIndex; i < length; ++i) {
     if (aItemsArray[i]) {
       aItemsArray[i]->UpdateListIndex(i);
     }
@@ -74,13 +74,14 @@ DOMSVGPointList::GetDOMWrapper(void *aList,
                                nsSVGElement *aElement,
                                bool aIsAnimValList)
 {
-  nsRefPtr<DOMSVGPointList> wrapper =
+  DOMSVGPointList *wrapper =
     sSVGPointListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGPointList(aElement, aIsAnimValList);
     sSVGPointListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGPointList*
@@ -102,12 +103,12 @@ DOMSVGPointList::~DOMSVGPointList()
 JSObject*
 DOMSVGPointList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::SVGPointList::create(cx, scope, this,
+  return mozilla::dom::binding::SVGPointList::create(cx, scope, this,
                                                      triedToWrap);
 }
 
 nsIDOMSVGPoint*
-DOMSVGPointList::GetItemAt(uint32_t aIndex)
+DOMSVGPointList::GetItemAt(PRUint32 aIndex)
 {
   if (IsAnimValList()) {
     Element()->FlushAnimations();
@@ -126,9 +127,9 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   // in sync. Everything in the scary comment in
   // DOMSVGLengthList::InternalBaseValListWillChangeTo applies here too!
 
-  uint32_t oldLength = mItems.Length();
+  PRUint32 oldLength = mItems.Length();
 
-  uint32_t newLength = aNewValue.Length();
+  PRUint32 newLength = aNewValue.Length();
   if (newLength > DOMSVGPoint::MaxListIndex()) {
     // It's safe to get out of sync with our internal list as long as we have
     // FEWER items than it does.
@@ -143,7 +144,7 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   }
 
   // If our length will decrease, notify the items that will be removed:
-  for (uint32_t i = newLength; i < oldLength; ++i) {
+  for (PRUint32 i = newLength; i < oldLength; ++i) {
     if (mItems[i]) {
       mItems[i]->RemovingFromList();
     }
@@ -157,7 +158,7 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   }
 
   // If our length has increased, null out the new pointers:
-  for (uint32_t i = oldLength; i < newLength; ++i) {
+  for (PRUint32 i = oldLength; i < newLength; ++i) {
     mItems[i] = nullptr;
   }
 }
@@ -186,7 +187,7 @@ DOMSVGPointList::InternalAList() const
 // nsIDOMSVGPointList implementation:
 
 NS_IMETHODIMP
-DOMSVGPointList::GetNumberOfItems(uint32_t *aNumberOfItems)
+DOMSVGPointList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
   if (IsAnimValList()) {
     Element()->FlushAnimations();
@@ -258,7 +259,7 @@ DOMSVGPointList::Initialize(nsIDOMSVGPoint *aNewItem,
 }
 
 NS_IMETHODIMP
-DOMSVGPointList::GetItem(uint32_t aIndex,
+DOMSVGPointList::GetItem(PRUint32 aIndex,
                          nsIDOMSVGPoint **_retval)
 {
   *_retval = GetItemAt(aIndex);
@@ -271,7 +272,7 @@ DOMSVGPointList::GetItem(uint32_t aIndex,
 
 NS_IMETHODIMP
 DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
-                                  uint32_t aIndex,
+                                  PRUint32 aIndex,
                                   nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
@@ -322,7 +323,7 @@ DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
 
 NS_IMETHODIMP
 DOMSVGPointList::ReplaceItem(nsIDOMSVGPoint *aNewItem,
-                             uint32_t aIndex,
+                             PRUint32 aIndex,
                              nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
@@ -364,7 +365,7 @@ DOMSVGPointList::ReplaceItem(nsIDOMSVGPoint *aNewItem,
 }
 
 NS_IMETHODIMP
-DOMSVGPointList::RemoveItem(uint32_t aIndex,
+DOMSVGPointList::RemoveItem(PRUint32 aIndex,
                             nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
@@ -410,13 +411,13 @@ DOMSVGPointList::AppendItem(nsIDOMSVGPoint *aNewItem,
 }
 
 NS_IMETHODIMP
-DOMSVGPointList::GetLength(uint32_t *aNumberOfItems)
+DOMSVGPointList::GetLength(PRUint32 *aNumberOfItems)
 {
   return GetNumberOfItems(aNumberOfItems);
 }
 
 void
-DOMSVGPointList::EnsureItemAt(uint32_t aIndex)
+DOMSVGPointList::EnsureItemAt(PRUint32 aIndex)
 {
   if (!mItems[aIndex]) {
     mItems[aIndex] = new DOMSVGPoint(this, aIndex, IsAnimValList());
@@ -424,7 +425,7 @@ DOMSVGPointList::EnsureItemAt(uint32_t aIndex)
 }
 
 void
-DOMSVGPointList::MaybeInsertNullInAnimValListAt(uint32_t aIndex)
+DOMSVGPointList::MaybeInsertNullInAnimValListAt(PRUint32 aIndex)
 {
   NS_ABORT_IF_FALSE(!IsAnimValList(), "call from baseVal to animVal");
 
@@ -450,7 +451,7 @@ DOMSVGPointList::MaybeInsertNullInAnimValListAt(uint32_t aIndex)
 }
 
 void
-DOMSVGPointList::MaybeRemoveItemFromAnimValListAt(uint32_t aIndex)
+DOMSVGPointList::MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex)
 {
   NS_ABORT_IF_FALSE(!IsAnimValList(), "call from baseVal to animVal");
 

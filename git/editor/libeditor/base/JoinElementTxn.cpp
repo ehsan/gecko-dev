@@ -139,7 +139,7 @@ NS_IMETHODIMP JoinElementTxn::UndoTransaction(void)
     nsCOMPtr<nsIDOMNode>child;
     result = mRightNode->GetFirstChild(getter_AddRefs(child));
     nsCOMPtr<nsIDOMNode>nextSibling;
-    uint32_t i;
+    PRUint32 i;
     for (i=0; i<mOffset; i++)
     {
       if (NS_FAILED(result)) {return result;}

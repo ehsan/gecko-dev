@@ -171,8 +171,8 @@ nsTextEquivUtils::AppendFromAccessibleChildren(Accessible* aAccessible,
 {
   nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
 
-  uint32_t childCount = aAccessible->ChildCount();
-  for (uint32_t childIdx = 0; childIdx < childCount; childIdx++) {
+  PRUint32 childCount = aAccessible->ChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     Accessible* child = aAccessible->GetChildAt(childIdx);
     rv = AppendFromAccessible(child, aString);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -212,7 +212,7 @@ nsTextEquivUtils::AppendFromAccessible(Accessible* aAccessible,
   // into subtree if accessible allows "text equivalent from subtree rule" or
   // it's not root and not control.
   if (isEmptyTextEquiv) {
-    uint32_t nameRule = GetRoleRule(aAccessible->Role());
+    PRUint32 nameRule = GetRoleRule(aAccessible->Role());
     if (nameRule & eFromSubtreeIfRec) {
       rv = AppendFromAccessibleChildren(aAccessible, aString);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -361,7 +361,7 @@ nsTextEquivUtils::IsWhitespace(PRUnichar aChar)
     aChar == '\r' || aChar == '\t' || aChar == 0xa0;
 }
 
-uint32_t 
+PRUint32 
 nsTextEquivUtils::GetRoleRule(role aRole)
 {
 #define ROLE(geckoRole, stringRole, atkRole, \

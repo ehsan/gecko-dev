@@ -29,7 +29,7 @@ public:
 
   virtual void RemoveInput(MediaInputPort* aPort)
   {
-    for (int32_t i = mTrackMap.Length() - 1; i >= 0; --i) {
+    for (PRInt32 i = mTrackMap.Length() - 1; i >= 0; --i) {
       if (mTrackMap[i].mInputPort == aPort) {
         EndTrack(i);
         mTrackMap.RemoveElementAt(i);
@@ -41,12 +41,12 @@ public:
   {
     nsAutoTArray<bool,8> mappedTracksFinished;
     nsAutoTArray<bool,8> mappedTracksWithMatchingInputTracks;
-    for (uint32_t i = 0; i < mTrackMap.Length(); ++i) {
+    for (PRUint32 i = 0; i < mTrackMap.Length(); ++i) {
       mappedTracksFinished.AppendElement(true);
       mappedTracksWithMatchingInputTracks.AppendElement(false);
     }
     bool allFinished = true;
-    for (uint32_t i = 0; i < mInputs.Length(); ++i) {
+    for (PRUint32 i = 0; i < mInputs.Length(); ++i) {
       MediaStream* stream = mInputs[i]->GetSource();
       if (!stream->IsFinishedOnGraphThread()) {
         allFinished = false;
@@ -54,7 +54,7 @@ public:
       for (StreamBuffer::TrackIter tracks(stream->GetStreamBuffer());
            !tracks.IsEnded(); tracks.Next()) {
         bool found = false;
-        for (uint32_t j = 0; j < mTrackMap.Length(); ++j) {
+        for (PRUint32 j = 0; j < mTrackMap.Length(); ++j) {
           TrackMapEntry* map = &mTrackMap[j];
           if (map->mInputPort == mInputs[i] && map->mInputTrack == tracks.get()) {
             bool trackFinished;
@@ -71,14 +71,14 @@ public:
         }
         if (!found) {
           bool trackFinished = false;
-          uint32_t mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
+          PRUint32 mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
           CopyTrackData(mapIndex, aFrom, aTo, &trackFinished);
           mappedTracksFinished.AppendElement(trackFinished);
           mappedTracksWithMatchingInputTracks.AppendElement(true);
         }
       }
     }
-    for (int32_t i = mTrackMap.Length() - 1; i >= 0; --i) {
+    for (PRInt32 i = mTrackMap.Length() - 1; i >= 0; --i) {
       if (mappedTracksFinished[i]) {
         EndTrack(i);
       } else {
@@ -106,7 +106,7 @@ protected:
     nsAutoPtr<MediaSegment> mSegment;
   };
 
-  uint32_t AddTrack(MediaInputPort* aPort, StreamBuffer::Track* aTrack,
+  PRUint32 AddTrack(MediaInputPort* aPort, StreamBuffer::Track* aTrack,
                     GraphTime aFrom)
   {
     // Use the ID of the source track if we can, otherwise allocate a new
@@ -122,7 +122,7 @@ protected:
 
     nsAutoPtr<MediaSegment> segment;
     segment = aTrack->GetSegment()->CreateEmptyClone();
-    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
+    for (PRUint32 j = 0; j < mListeners.Length(); ++j) {
       MediaStreamListener* l = mListeners[j];
       l->NotifyQueuedTrackChanges(Graph(), id, rate, outputStart,
                                   MediaStreamListener::TRACK_EVENT_CREATED,
@@ -142,12 +142,12 @@ protected:
     map->mSegment = aTrack->GetSegment()->CreateEmptyClone();
     return mTrackMap.Length() - 1;
   }
-  void EndTrack(uint32_t aIndex)
+  void EndTrack(PRUint32 aIndex)
   {
     StreamBuffer::Track* outputTrack = mTrackMap[aIndex].mOutputTrack;
     if (outputTrack->IsEnded())
       return;
-    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
+    for (PRUint32 j = 0; j < mListeners.Length(); ++j) {
       MediaStreamListener* l = mListeners[j];
       TrackTicks offset = outputTrack->GetSegment()->GetDuration();
       nsAutoPtr<MediaSegment> segment;
@@ -159,7 +159,7 @@ protected:
     }
     outputTrack->SetEnded();
   }
-  void CopyTrackData(uint32_t aMapIndex, GraphTime aFrom, GraphTime aTo,
+  void CopyTrackData(PRUint32 aMapIndex, GraphTime aFrom, GraphTime aTo,
                      bool* aOutputTrackFinished)
   {
     TrackMapEntry* map = &mTrackMap[aMapIndex];
@@ -224,7 +224,7 @@ protected:
             this, (long long)(NS_MIN(inputTrackEndPoint, inputEndTicks) - NS_MIN(inputTrackEndPoint, inputStartTicks)),
             outputTrack->GetID()));
       }
-      for (uint32_t j = 0; j < mListeners.Length(); ++j) {
+      for (PRUint32 j = 0; j < mListeners.Length(); ++j) {
         MediaStreamListener* l = mListeners[j];
         l->NotifyQueuedTrackChanges(Graph(), outputTrack->GetID(),
                                     outputTrack->GetRate(), startTicks, 0,

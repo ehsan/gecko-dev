@@ -174,9 +174,9 @@ nsSVGRenderingObserver::NotifyEvictedFromRenderingObserverList()
 void
 nsSVGRenderingObserver::AttributeChanged(nsIDocument* aDocument,
                                          dom::Element* aElement,
-                                         int32_t aNameSpaceID,
+                                         PRInt32 aNameSpaceID,
                                          nsIAtom* aAttribute,
-                                         int32_t aModType)
+                                         PRInt32 aModType)
 {
   // An attribute belonging to the element that we are observing *or one of its
   // descendants* has changed.
@@ -198,7 +198,7 @@ void
 nsSVGRenderingObserver::ContentAppended(nsIDocument *aDocument,
                                         nsIContent *aContainer,
                                         nsIContent *aFirstNewContent,
-                                        int32_t /* unused */)
+                                        PRInt32 /* unused */)
 {
   DoUpdate();
 }
@@ -207,7 +207,7 @@ void
 nsSVGRenderingObserver::ContentInserted(nsIDocument *aDocument,
                                         nsIContent *aContainer,
                                         nsIContent *aChild,
-                                        int32_t /* unused */)
+                                        PRInt32 /* unused */)
 {
   DoUpdate();
 }
@@ -216,7 +216,7 @@ void
 nsSVGRenderingObserver::ContentRemoved(nsIDocument *aDocument,
                                        nsIContent *aContainer,
                                        nsIContent *aChild,
-                                       int32_t aIndexInContainer,
+                                       PRInt32 aIndexInContainer,
                                        nsIContent *aPreviousSibling)
 {
   DoUpdate();
@@ -540,7 +540,7 @@ nsSVGRenderingObserverList::InvalidateAll()
   // The PL_DHASH_REMOVE in GatherEnumerator drops all our observers here:
   mObservers.EnumerateEntries(GatherEnumerator, &observers);
 
-  for (uint32_t i = 0; i < observers.Length(); ++i) {
+  for (PRUint32 i = 0; i < observers.Length(); ++i) {
     observers[i]->InvalidateViaReferencedElement();
   }
 }
@@ -555,7 +555,7 @@ nsSVGRenderingObserverList::RemoveAll()
 
   // Our list is now cleared.  We need to notify the observers we've removed,
   // so they can update their state & remove themselves as mutation-observers.
-  for (uint32_t i = 0; i < observers.Length(); ++i) {
+  for (PRUint32 i = 0; i < observers.Length(); ++i) {
     observers[i]->NotifyEvictedFromRenderingObserverList();
   }
 }

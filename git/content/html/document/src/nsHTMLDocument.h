@@ -76,7 +76,7 @@ public:
 
   virtual bool IsWriting()
   {
-    return mWriteLevel != uint32_t(0);
+    return mWriteLevel != PRUint32(0);
   }
 
   virtual NS_HIDDEN_(nsContentList*) GetForms();
@@ -116,7 +116,7 @@ public:
 
   virtual void AddedForm();
   virtual void RemovedForm();
-  virtual int32_t GetNumFormsSynchronous();
+  virtual PRInt32 GetNumFormsSynchronous();
   virtual void TearingDownEditor(nsIEditor *aEditor);
   virtual void SetIsXHTML(bool aXHTML) { mIsRegularHTML = !aXHTML; }
   virtual void SetDocWriteDisabled(bool aDisabled)
@@ -124,7 +124,7 @@ public:
     mDisableDocWrite = aDisabled;
   }
 
-  nsresult ChangeContentEditableCount(nsIContent *aElement, int32_t aChange);
+  nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
   void DeferredContentEditableCountChange(nsIContent *aElement);
 
   virtual EditingState GetEditingState()
@@ -174,16 +174,16 @@ public:
   // DocSizeOfIncludingThis is inherited from nsIDocument.
 
 protected:
-  nsresult GetBodySize(int32_t* aWidth,
-                       int32_t* aHeight);
+  nsresult GetBodySize(PRInt32* aWidth,
+                       PRInt32* aHeight);
 
   nsIContent *MatchId(nsIContent *aContent, const nsAString& aId);
 
-  static bool MatchLinks(nsIContent *aContent, int32_t aNamespaceID,
+  static bool MatchLinks(nsIContent *aContent, PRInt32 aNamespaceID,
                            nsIAtom* aAtom, void* aData);
-  static bool MatchAnchors(nsIContent *aContent, int32_t aNamespaceID,
+  static bool MatchAnchors(nsIContent *aContent, PRInt32 aNamespaceID,
                              nsIAtom* aAtom, void* aData);
-  static bool MatchNameAttribute(nsIContent* aContent, int32_t aNamespaceID,
+  static bool MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
                                    nsIAtom* aAtom, void* aData);
   static void* UseExistingNameString(nsINode* aRootNode, const nsString* aName);
 
@@ -214,28 +214,28 @@ protected:
   nsRefPtr<nsContentList> mFormControls;
 
   /** # of forms in the document, synchronously set */
-  int32_t mNumForms;
+  PRInt32 mNumForms;
 
-  static uint32_t gWyciwygSessionCnt;
+  static PRUint32 gWyciwygSessionCnt;
 
   static bool TryHintCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                               int32_t& aCharsetSource,
+                               PRInt32& aCharsetSource,
                                nsACString& aCharset);
   static bool TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
                                      nsIDocShell*  aDocShell,
-                                     int32_t& aCharsetSource,
+                                     PRInt32& aCharsetSource,
                                      nsACString& aCharset);
   static bool TryCacheCharset(nsICachingChannel* aCachingChannel,
-                                int32_t& aCharsetSource,
+                                PRInt32& aCharsetSource,
                                 nsACString& aCharset);
   // aParentDocument could be null.
   bool TryParentCharset(nsIDocShell*  aDocShell,
                           nsIDocument* aParentDocument,
-                          int32_t& charsetSource, nsACString& aCharset);
-  static bool UseWeakDocTypeDefault(int32_t& aCharsetSource,
+                          PRInt32& charsetSource, nsACString& aCharset);
+  static bool UseWeakDocTypeDefault(PRInt32& aCharsetSource,
                                       nsACString& aCharset);
   static bool TryDefaultCharset(nsIMarkupDocumentViewer* aMarkupDV,
-                                  int32_t& aCharsetSource,
+                                  PRInt32& aCharsetSource,
                                   nsACString& aCharset);
 
   // Override so we can munge the charset on our wyciwyg channel as needed.
@@ -245,10 +245,10 @@ protected:
   // implicit or explicit). Note that if a write call writes out something which
   // would block the parser, then mWriteLevel will be incorrect until the parser
   // finishes processing that script.
-  uint32_t mWriteLevel;
+  PRUint32 mWriteLevel;
 
   // Load flags of the document's channel
-  uint32_t mLoadFlags;
+  PRUint32 mLoadFlags;
 
   bool mTooDeepWriteRecursion;
 
@@ -267,7 +267,7 @@ protected:
   nsresult EditingStateChanged();
   void MaybeEditingStateChanged();
 
-  uint32_t mContentEditableCount;
+  PRUint32 mContentEditableCount;
   EditingState mEditingState;
 
   nsresult   DoClipboardSecurityCheck(bool aPaste);

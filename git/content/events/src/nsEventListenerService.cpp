@@ -168,7 +168,7 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
 
 NS_IMETHODIMP
 nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
-                                           uint32_t* aCount,
+                                           PRUint32* aCount,
                                            nsIEventListenerInfo*** aOutArray)
 {
   NS_ENSURE_ARG_POINTER(aEventTarget);
@@ -181,7 +181,7 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
     elm->GetListenerInfo(&listenerInfos);
   }
 
-  int32_t count = listenerInfos.Count();
+  PRInt32 count = listenerInfos.Count();
   if (count == 0) {
     return NS_OK;
   }
@@ -191,7 +191,7 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
       nsMemory::Alloc(sizeof(nsIEventListenerInfo*) * count));
   NS_ENSURE_TRUE(*aOutArray, NS_ERROR_OUT_OF_MEMORY);
 
-  for (int32_t i = 0; i < count; ++i) {
+  for (PRInt32 i = 0; i < count; ++i) {
     NS_ADDREF((*aOutArray)[i] = listenerInfos[i]);
   }
   *aCount = count;
@@ -200,7 +200,7 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
 
 NS_IMETHODIMP
 nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
-                                               uint32_t* aCount,
+                                               PRUint32* aCount,
                                                nsIDOMEventTarget*** aOutArray)
 {
   *aCount = 0;
@@ -211,7 +211,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   nsresult rv = nsEventDispatcher::Dispatch(aEventTarget, nullptr, &event,
                                             nullptr, nullptr, nullptr, &targets);
   NS_ENSURE_SUCCESS(rv, rv);
-  int32_t count = targets.Count();
+  PRInt32 count = targets.Count();
   if (count == 0) {
     return NS_OK;
   }
@@ -221,7 +221,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
       nsMemory::Alloc(sizeof(nsIDOMEventTarget*) * count));
   NS_ENSURE_TRUE(*aOutArray, NS_ERROR_OUT_OF_MEMORY);
 
-  for (int32_t i = 0; i < count; ++i) {
+  for (PRInt32 i = 0; i < count; ++i) {
     NS_ADDREF((*aOutArray)[i] = targets[i]);
   }
   *aCount = count;
@@ -251,7 +251,7 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
   nsEventListenerManager* manager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(manager);
 
-  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+  PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
                                 NS_EVENT_FLAG_SYSTEM_EVENT :
                                 NS_EVENT_FLAG_BUBBLE |
                                 NS_EVENT_FLAG_SYSTEM_EVENT;
@@ -270,7 +270,7 @@ nsEventListenerService::RemoveSystemEventListener(nsIDOMEventTarget *aTarget,
 
   nsEventListenerManager* manager = aTarget->GetListenerManager(false);
   if (manager) {
-    int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+    PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
                                   NS_EVENT_FLAG_SYSTEM_EVENT :
                                   NS_EVENT_FLAG_BUBBLE |
                                   NS_EVENT_FLAG_SYSTEM_EVENT;

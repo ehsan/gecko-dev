@@ -180,7 +180,7 @@ private:
 
   mozilla::dom::ContentParent* mContentParent;
 
-  int32_t mInvalidated;
+  PRInt32 mInvalidated;
   bool mRegistered;
   bool mClosed;
   bool mRunningVersionChange;

@@ -82,7 +82,7 @@ public:
                       const nsIntRect& aTargetBounds,
                       const nsIntRect& aPostFilterDirtyRect,
                       const nsIntRect& aPreFilterDirtyRect,
-                      uint16_t aPrimitiveUnits) :
+                      PRUint16 aPrimitiveUnits) :
     mTargetFrame(aTargetFrame),
     mPaintCallback(aPaintCallback),
     mFilterElement(aFilterElement),
@@ -115,8 +115,8 @@ public:
    * nsIntRect.)
    */
   const nsIntSize& GetFilterSpaceSize() { return mFilterSpaceSize; }
-  uint32_t GetFilterResX() const { return mFilterSpaceSize.width; }
-  uint32_t GetFilterResY() const { return mFilterSpaceSize.height; }
+  PRUint32 GetFilterResX() const { return mFilterSpaceSize.width; }
+  PRUint32 GetFilterResY() const { return mFilterSpaceSize.height; }
 
   /**
    * Returns the dimensions of the offscreen surface that is required for the
@@ -125,8 +125,8 @@ public:
    * region.
    */
   const nsIntRect& GetSurfaceRect() const { return mSurfaceRect; }
-  int32_t GetSurfaceWidth() const { return mSurfaceRect.width; }
-  int32_t GetSurfaceHeight() const { return mSurfaceRect.height; }
+  PRInt32 GetSurfaceWidth() const { return mSurfaceRect.width; }
+  PRInt32 GetSurfaceHeight() const { return mSurfaceRect.height; }
 
   /**
    * Allocates a gfxASurface, renders the filtered element into the surface,
@@ -162,11 +162,11 @@ public:
    */
   nsresult ComputeOutputBBox(nsIntRect* aBBox);
 
-  float GetPrimitiveNumber(uint8_t aCtxType, const nsSVGNumber2 *aNumber) const
+  float GetPrimitiveNumber(PRUint8 aCtxType, const nsSVGNumber2 *aNumber) const
   {
     return GetPrimitiveNumber(aCtxType, aNumber->GetAnimValue());
   }
-  float GetPrimitiveNumber(uint8_t aCtxType, const nsSVGNumberPair *aNumberPair,
+  float GetPrimitiveNumber(PRUint8 aCtxType, const nsSVGNumberPair *aNumberPair,
                            nsSVGNumberPair::PairIndex aIndex) const
   {
     return GetPrimitiveNumber(aCtxType, aNumberPair->GetAnimValue(aIndex));
@@ -205,7 +205,7 @@ public:
     return mFilterSpaceToFrameSpaceInCSSPxTransform;
   }
 
-  int32_t AppUnitsPerCSSPixel() const {
+  PRInt32 AppUnitsPerCSSPixel() const {
     return mTargetFrame->PresContext()->AppUnitsPerCSSPixel();
   }
 
@@ -258,7 +258,7 @@ private:
      * primitives that are not used, or whose ouput in not used during the
      * current operation.
      */
-    int32_t   mImageUsers;
+    PRInt32   mImageUsers;
   
     // Can't use nsAutoTArray here, because these Info objects
     // live in nsTArrays themselves and nsTArray moves the elements
@@ -367,7 +367,7 @@ private:
    * Scales a numeric filter primitive length in the X, Y or "XY" directions
    * into a length in filter space (no offset is applied).
    */
-  float GetPrimitiveNumber(uint8_t aCtxType, float aValue) const;
+  float GetPrimitiveNumber(PRUint8 aCtxType, float aValue) const;
 
   gfxRect UserSpaceToFilterSpace(const gfxRect& aUserSpace) const;
 
@@ -423,7 +423,7 @@ private:
   /**
    * The 'primitiveUnits' attribute value (objectBoundingBox or userSpaceOnUse).
    */
-  uint16_t                mPrimitiveUnits;
+  PRUint16                mPrimitiveUnits;
 
   PrimitiveInfo           mSourceColorAlpha;
   PrimitiveInfo           mSourceAlpha;

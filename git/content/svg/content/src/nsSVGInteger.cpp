@@ -27,7 +27,7 @@ NS_INTERFACE_MAP_END
 
 static nsresult
 GetValueFromString(const nsAString &aValueAsString,
-                   int32_t *aValue)
+                   PRInt32 *aValue)
 {
   NS_ConvertUTF16toUTF8 value(aValueAsString);
   const char *str = value.get();
@@ -50,7 +50,7 @@ nsresult
 nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
                                  nsSVGElement *aSVGElement)
 {
-  int32_t value;
+  PRInt32 value;
 
   nsresult rv = GetValueFromString(aValueAsString, &value);
   if (NS_FAILED(rv)) {
@@ -132,7 +132,7 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
                                            nsSMILValue& aValue,
                                            bool& aPreventCachingOfSandwich) const
 {
-  int32_t val;
+  PRInt32 val;
 
   nsresult rv = GetValueFromString(aStr, &val);
   if (NS_FAILED(rv)) {

@@ -41,14 +41,14 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mRuleNode(aRuleNode),
     mAllocations(nullptr),
     mCachedResetData(nullptr),
-    mBits(((uint32_t)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
+    mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
 {
   // This check has to be done "backward", because if it were written the
   // more natural way it wouldn't fail even when it needed to.
   MOZ_STATIC_ASSERT((PR_UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
                     nsCSSPseudoElements::ePseudo_MAX,
-                    "pseudo element bits no longer fit in a uint32_t");
+                    "pseudo element bits no longer fit in a PRUint32");
 
   mNextSibling = this;
   mPrevSibling = this;
@@ -149,7 +149,7 @@ nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,
 {
   NS_ABORT_IF_FALSE(aRulesIfVisited || !aRelevantLinkVisited,
     "aRelevantLinkVisited should only be set when we have a separate style");
-  uint32_t threshold = 10; // The # of siblings we're willing to examine
+  PRUint32 threshold = 10; // The # of siblings we're willing to examine
                            // before just giving this whole thing up.
 
   nsStyleContext* result = nullptr;
@@ -306,7 +306,7 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
   } else {
     // We might have defined a decoration.
     const nsStyleTextReset* text = GetStyleTextReset();
-    uint8_t decorationLine = text->mTextDecorationLine;
+    PRUint8 decorationLine = text->mTextDecorationLine;
     if (decorationLine != NS_STYLE_TEXT_DECORATION_LINE_NONE &&
         decorationLine != NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL) {
       mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;
@@ -614,10 +614,10 @@ nsStyleContext::Mark()
 }
 
 #ifdef DEBUG
-void nsStyleContext::List(FILE* out, int32_t aIndent)
+void nsStyleContext::List(FILE* out, PRInt32 aIndent)
 {
   // Indent
-  int32_t ix;
+  PRInt32 ix;
   for (ix = aIndent; --ix >= 0; ) fputs("  ", out);
   fprintf(out, "%p(%d) parent=%p ",
           (void*)this, mRefCnt, (void *)mParent);
@@ -735,7 +735,7 @@ ExtractColorLenient(nsCSSProperty aProperty,
 }
 
 struct ColorIndexSet {
-  uint8_t colorIndex, alphaIndex;
+  PRUint8 colorIndex, alphaIndex;
 };
 
 static const ColorIndexSet gVisitedIndices[2] = { { 0, 0 }, { 1, 0 } };

@@ -83,7 +83,7 @@ static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
 #define SIZE_PERSISTENCE_TIMEOUT 500 // msec
 
-nsWebShellWindow::nsWebShellWindow(uint32_t aChromeFlags)
+nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
   : nsXULWindow(aChromeFlags)
   , mSPTimerLock("nsWebShellWindow.mSPTimerLock")
 {
@@ -107,8 +107,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsXULWindow)
 nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
                                       nsIXULWindow* aOpener,
                                       nsIURI* aUrl,
-                                      int32_t aInitialWidth,
-                                      int32_t aInitialHeight,
+                                      PRInt32 aInitialWidth,
+                                      PRInt32 aInitialHeight,
                                       bool aIsHiddenWindow,
                                       nsWidgetInitData& widgetInitData)
 {
@@ -117,7 +117,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mIsHiddenWindow = aIsHiddenWindow;
 
-  int32_t initialX = 0, initialY = 0;
+  PRInt32 initialX = 0, initialY = 0;
   nsCOMPtr<nsIBaseWindow> base(do_QueryInterface(aOpener));
   if (base) {
     rv = base->GetPositionAndSize(&mOpenerScreenRect.x,
@@ -228,7 +228,7 @@ nsWebShellWindow::GetPresShell()
 }
 
 bool
-nsWebShellWindow::WindowMoved(nsIWidget* aWidget, int32_t x, int32_t y)
+nsWebShellWindow::WindowMoved(nsIWidget* aWidget, PRInt32 x, PRInt32 y)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
@@ -243,7 +243,7 @@ nsWebShellWindow::WindowMoved(nsIWidget* aWidget, int32_t x, int32_t y)
 }
 
 bool
-nsWebShellWindow::WindowResized(nsIWidget* aWidget, int32_t aWidth, int32_t aHeight)
+nsWebShellWindow::WindowResized(nsIWidget* aWidget, PRInt32 aWidth, PRInt32 aHeight)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
@@ -296,7 +296,7 @@ nsWebShellWindow::SizeModeChanged(nsSizeMode sizeMode)
   // zlevel if it's maximized. We make no provision for automatically
   // re-raising it when restored.
   if (sizeMode == nsSizeMode_Maximized || sizeMode == nsSizeMode_Fullscreen) {
-    uint32_t zLevel;
+    PRUint32 zLevel;
     GetZLevel(&zLevel);
     if (zLevel > nsIXULWindow::normalZ)
       SetZLevel(nsIXULWindow::normalZ);
@@ -339,7 +339,7 @@ nsWebShellWindow::OSToolbarButtonPressed()
   //      due to components with multiple sidebar components
   //      (such as Mail/News, Addressbook, etc)... and frankly,
   //      Mac IE, OmniWeb, and other Mac OS X apps all work this way
-  uint32_t    chromeMask = (nsIWebBrowserChrome::CHROME_TOOLBAR |
+  PRUint32    chromeMask = (nsIWebBrowserChrome::CHROME_TOOLBAR |
                             nsIWebBrowserChrome::CHROME_LOCATIONBAR |
                             nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
 
@@ -347,7 +347,7 @@ nsWebShellWindow::OSToolbarButtonPressed()
   if (!wbc)
     return;
 
-  uint32_t    chromeFlags, newChromeFlags = 0;
+  PRUint32    chromeFlags, newChromeFlags = 0;
   wbc->GetChromeFlags(&chromeFlags);
   newChromeFlags = chromeFlags & chromeMask;
   if (!newChromeFlags)    chromeFlags |= chromeMask;
@@ -449,7 +449,7 @@ NS_IMPL_THREADSAFE_QUERY_INTERFACE1(WebShellWindowTimerCallback,
 } // namespace mozilla
 
 void
-nsWebShellWindow::SetPersistenceTimer(uint32_t aDirtyFlags)
+nsWebShellWindow::SetPersistenceTimer(PRUint32 aDirtyFlags)
 {
   MutexAutoLock lock(mSPTimerLock);
   if (!mSPTimer) {
@@ -482,10 +482,10 @@ nsWebShellWindow::FirePersistenceTimer()
 NS_IMETHODIMP
 nsWebShellWindow::OnProgressChange(nsIWebProgress *aProgress,
                                    nsIRequest *aRequest,
-                                   int32_t aCurSelfProgress,
-                                   int32_t aMaxSelfProgress,
-                                   int32_t aCurTotalProgress,
-                                   int32_t aMaxTotalProgress)
+                                   PRInt32 aCurSelfProgress,
+                                   PRInt32 aMaxSelfProgress,
+                                   PRInt32 aCurTotalProgress,
+                                   PRInt32 aMaxTotalProgress)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -494,7 +494,7 @@ nsWebShellWindow::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsWebShellWindow::OnStateChange(nsIWebProgress *aProgress,
                                 nsIRequest *aRequest,
-                                uint32_t aStateFlags,
+                                PRUint32 aStateFlags,
                                 nsresult aStatus)
 {
   // If the notification is not about a document finishing, then just
@@ -543,7 +543,7 @@ NS_IMETHODIMP
 nsWebShellWindow::OnLocationChange(nsIWebProgress *aProgress,
                                    nsIRequest *aRequest,
                                    nsIURI *aURI,
-                                   uint32_t aFlags)
+                                   PRUint32 aFlags)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -562,7 +562,7 @@ nsWebShellWindow::OnStatusChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsWebShellWindow::OnSecurityChange(nsIWebProgress *aWebProgress,
                                    nsIRequest *aRequest,
-                                   uint32_t state)
+                                   PRUint32 state)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -600,14 +600,14 @@ void nsWebShellWindow::LoadContentAreas() {
   // content URLs are specified in the search part of the URL
   // as <contentareaID>=<escapedURL>[;(repeat)]
   if (!searchSpec.IsEmpty()) {
-    int32_t     begPos,
+    PRInt32     begPos,
                 eqPos,
                 endPos;
     nsString    contentAreaID,
                 contentURL;
     char        *urlChar;
     nsresult rv;
-    for (endPos = 0; endPos < (int32_t)searchSpec.Length(); ) {
+    for (endPos = 0; endPos < (PRInt32)searchSpec.Length(); ) {
       // extract contentAreaID and URL substrings
       begPos = endPos;
       eqPos = searchSpec.FindChar('=', begPos);
@@ -682,14 +682,14 @@ bool nsWebShellWindow::ExecuteCloseHandler()
   return false;
 } // ExecuteCloseHandler
 
-void nsWebShellWindow::ConstrainToOpenerScreen(int32_t* aX, int32_t* aY)
+void nsWebShellWindow::ConstrainToOpenerScreen(PRInt32* aX, PRInt32* aY)
 {
   if (mOpenerScreenRect.IsEmpty()) {
     *aX = *aY = 0;
     return;
   }
 
-  int32_t left, top, width, height;
+  PRInt32 left, top, width, height;
   // Constrain initial positions to the same screen as opener
   nsCOMPtr<nsIScreenManager> screenmgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
   if (screenmgr) {

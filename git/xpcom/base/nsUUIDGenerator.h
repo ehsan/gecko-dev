@@ -30,7 +30,7 @@ protected:
 #if !defined(XP_WIN) && !defined(XP_MACOSX) && !defined(ANDROID)
     char mState[128];
     char *mSavedState;
-    uint8_t mRBytes;
+    PRUint8 mRBytes;
 #endif
 };
 

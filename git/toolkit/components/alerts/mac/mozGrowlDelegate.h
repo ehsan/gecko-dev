@@ -21,7 +21,7 @@ class nsIDOMWindow;
 @interface mozGrowlDelegate : NSObject <GrowlApplicationBridgeDelegate>
 {
 @private
-  uint32_t mKey;
+  PRUint32 mKey;
   NSMutableDictionary *mDict;
   NSMutableArray *mNames;
   NSMutableArray *mEnabled;
@@ -41,7 +41,7 @@ class nsIDOMWindow;
                   title:(const nsAString&)aTitle
             description:(const nsAString&)aText
                iconData:(NSData*)aImage
-                    key:(uint32_t)aKey
+                    key:(PRUint32)aKey
                  cookie:(const nsAString&)aCookie;
 
 /**
@@ -64,7 +64,7 @@ class nsIDOMWindow;
  * @param aObserver The observer we are adding.
  * @return The key it was stored in.
  */
-- (uint32_t) addObserver:(nsIObserver*)aObserver;
+- (PRUint32) addObserver:(nsIObserver*)aObserver;
 
 /**
  * Gives Growl the application name.

@@ -115,12 +115,12 @@ nsStyleLinkElement::OverrideBaseURI(nsIURI* aNewBaseURI)
 }
 
 /* virtual */ void
-nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
+nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
 {
   mLineNumber = aLineNumber;
 }
 
-uint32_t ToLinkMask(const nsAString& aLink)
+PRUint32 ToLinkMask(const nsAString& aLink)
 { 
   if (aLink.EqualsLiteral("prefetch"))
      return PREFETCH;
@@ -136,9 +136,9 @@ uint32_t ToLinkMask(const nsAString& aLink)
     return 0;
 }
 
-uint32_t nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
+PRUint32 nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
 {
-  uint32_t linkMask = 0;
+  PRUint32 linkMask = 0;
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
   aTypes.EndReading(done);

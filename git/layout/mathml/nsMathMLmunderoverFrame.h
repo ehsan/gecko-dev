@@ -31,19 +31,19 @@ public:
   TransmitAutomaticData();
 
   NS_IMETHOD
-  UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate);
+  UpdatePresentationData(PRUint32        aFlagsValues,
+                         PRUint32        aFlagsToUpdate);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate);
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate);
 
   NS_IMETHOD
-  AttributeChanged(int32_t         aNameSpaceID,
+  AttributeChanged(PRInt32         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType);
+                   PRInt32         aModType);
 
 protected:
   nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}

@@ -29,7 +29,7 @@ nsScreenWin :: ~nsScreenWin()
 
 
 NS_IMETHODIMP
-nsScreenWin :: GetRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, int32_t *outHeight)
+nsScreenWin :: GetRect(PRInt32 *outLeft, PRInt32 *outTop, PRInt32 *outWidth, PRInt32 *outHeight)
 {
   BOOL success = FALSE;
   if ( mScreen ) {
@@ -59,7 +59,7 @@ nsScreenWin :: GetRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, int
 
 
 NS_IMETHODIMP
-nsScreenWin :: GetAvailRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, int32_t *outHeight)
+nsScreenWin :: GetAvailRect(PRInt32 *outLeft, PRInt32 *outTop, PRInt32 *outWidth, PRInt32 *outHeight)
 {
   BOOL success = FALSE;
 
@@ -90,13 +90,13 @@ nsScreenWin :: GetAvailRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth
 
 
 NS_IMETHODIMP 
-nsScreenWin :: GetPixelDepth(int32_t *aPixelDepth)
+nsScreenWin :: GetPixelDepth(PRInt32 *aPixelDepth)
 {
   //XXX not sure how to get this info for multiple monitors, this might be ok...
   HDC hDCScreen = ::GetDC(nullptr);
   NS_ASSERTION(hDCScreen,"GetDC Failure");
 
-  int32_t depth = ::GetDeviceCaps(hDCScreen, BITSPIXEL);
+  PRInt32 depth = ::GetDeviceCaps(hDCScreen, BITSPIXEL);
   if (depth == 32) {
     // If a device uses 32 bits per pixel, it's still only using 8 bits
     // per color component, which is what our callers want to know.
@@ -112,7 +112,7 @@ nsScreenWin :: GetPixelDepth(int32_t *aPixelDepth)
 
 
 NS_IMETHODIMP 
-nsScreenWin :: GetColorDepth(int32_t *aColorDepth)
+nsScreenWin :: GetColorDepth(PRInt32 *aColorDepth)
 {
   return GetPixelDepth(aColorDepth);
 

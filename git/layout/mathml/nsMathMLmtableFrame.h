@@ -28,14 +28,14 @@ public:
   InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  UpdatePresentationData(uint32_t aFlagsValues,
-                         uint32_t aWhichFlags);
+  UpdatePresentationData(PRUint32 aFlagsValues,
+                         PRUint32 aWhichFlags);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aWhichFlags);
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aWhichFlags);
 
   // overloaded nsTableOuterFrame methods
 
@@ -46,11 +46,11 @@ public:
          nsReflowStatus&          aStatus);
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType);
+                   PRInt32  aModType);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsTableOuterFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
   }
@@ -64,7 +64,7 @@ protected:
   // up to the first row. Used for alignments that are relative to a given row
   nsIFrame*
   GetRowFrameAt(nsPresContext* aPresContext,
-                int32_t         aRowIndex);
+                PRInt32         aRowIndex);
 }; // class nsMathMLmtableOuterFrame
 
 // --------------
@@ -110,7 +110,7 @@ public:
     return rv;
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsTableFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
   }
@@ -137,9 +137,9 @@ public:
   // overloaded nsTableRowFrame methods
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType);
+                   PRInt32  aModType);
 
   NS_IMETHOD
   AppendFrames(ChildListID  aListID,
@@ -169,7 +169,7 @@ public:
     return rv;
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsTableRowFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
   }
@@ -201,13 +201,13 @@ public:
   // overloaded nsTableCellFrame methods
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType);
+                   PRInt32  aModType);
 
-  virtual int32_t GetRowSpan();
-  virtual int32_t GetColSpan();
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual PRInt32 GetRowSpan();
+  virtual PRInt32 GetColSpan();
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsTableCellFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
   }
@@ -230,10 +230,10 @@ public:
   // Overloaded nsIMathMLFrame methods
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate)
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate)
   {
     nsMathMLContainerFrame::PropagatePresentationDataFromChildAt(this,
       aFirstIndex, aLastIndex, aFlagsValues, aFlagsToUpdate);
@@ -246,7 +246,7 @@ public:
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));

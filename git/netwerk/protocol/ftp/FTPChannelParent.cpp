@@ -12,9 +12,6 @@
 #include "nsIRedirectChannelRegistrar.h"
 #include "nsFtpProtocolHandler.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-
-using namespace mozilla::ipc;
 
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -59,9 +56,9 @@ NS_IMPL_ISUPPORTS4(FTPChannelParent,
 
 bool
 FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
-                                const uint64_t& aStartPos,
+                                const PRUint64& aStartPos,
                                 const nsCString& aEntityID,
-                                const OptionalInputStreamParams& aUploadStream,
+                                const IPC::InputStream& aUploadStream,
                                 const IPC::SerializedLoadContext& loadContext)
 {
   nsCOMPtr<nsIURI> uri(aURI);
@@ -85,7 +82,7 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
 
   mChannel = static_cast<nsFtpChannel*>(chan.get());
   
-  nsCOMPtr<nsIInputStream> upload = DeserializeInputStream(aUploadStream);
+  nsCOMPtr<nsIInputStream> upload(aUploadStream);
   if (upload) {
     // contentType and contentLength are ignored
     rv = mChannel->SetUploadStream(upload, EmptyCString(), 0);
@@ -108,7 +105,7 @@ FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
 }
 
 bool
-FTPChannelParent::RecvConnectChannel(const uint32_t& channelId)
+FTPChannelParent::RecvConnectChannel(const PRUint32& channelId)
 {
   nsresult rv;
 
@@ -158,7 +155,7 @@ FTPChannelParent::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   LOG(("FTPChannelParent::OnStartRequest [this=%x]\n", this));
 
   nsFtpChannel* chan = static_cast<nsFtpChannel*>(aRequest);
-  int32_t aContentLength;
+  PRInt32 aContentLength;
   chan->GetContentLength(&aContentLength);
   nsCString contentType;
   chan->GetContentType(contentType);
@@ -198,8 +195,8 @@ NS_IMETHODIMP
 FTPChannelParent::OnDataAvailable(nsIRequest* aRequest,
                                   nsISupports* aContext,
                                   nsIInputStream* aInputStream,
-                                  uint32_t aOffset,
-                                  uint32_t aCount)
+                                  PRUint32 aOffset,
+                                  PRUint32 aCount)
 {
   LOG(("FTPChannelParent::OnDataAvailable [this=%x]\n", this));
   

@@ -50,9 +50,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame interface:
-  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType);
+                               PRInt32         aModType);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
@@ -78,7 +78,7 @@ public:
                               const nsDisplayListSet& aLists);
 
   // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM(uint32_t aFor);
+  gfxMatrix GetCanvasTM(PRUint32 aFor);
 
 protected:
   // nsISVGChildFrame interface:
@@ -87,9 +87,9 @@ protected:
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   virtual void ReflowSVG();
-  virtual void NotifySVGChanged(uint32_t aFlags);
+  virtual void NotifySVGChanged(PRUint32 aFlags);
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                      uint32_t aFlags);
+                                      PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
 
 protected:

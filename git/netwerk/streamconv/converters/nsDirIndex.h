@@ -18,10 +18,10 @@ public:
     NS_DECL_NSIDIRINDEX
 
 protected:
-    uint32_t mType;
+    PRUint32 mType;
     nsXPIDLCString mContentType;
     nsXPIDLCString mLocation;
     nsString mDescription;
-    int64_t mSize;
-    int64_t mLastModified;
+    PRInt64 mSize;
+    PRInt64 mLastModified;
 };

@@ -12,7 +12,7 @@
 #include "nsID.h"                       // for REFNSIID
 #include "nsIDOMNode.h"                 // for nsIDOMNode
 #include "nscore.h"                     // for NS_IMETHOD
-#include "prtypes.h"                    // for uint32_t
+#include "prtypes.h"                    // for PRUint32
 
 class nsEditor;
 
@@ -54,7 +54,7 @@ protected:
     * mOffset is the index of the first child in the right node. 
     * -1 means the left node had no children.
     */
-  uint32_t  mOffset;
+  PRUint32  mOffset;
 
   /** the parent node containing mLeftNode and mRightNode */
   nsCOMPtr<nsIDOMNode> mParent;

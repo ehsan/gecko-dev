@@ -62,7 +62,7 @@ class nsIIDKey : public nsHashKey {
     nsIIDKey(REFNSIID key) : mKey(key) {}
     ~nsIIDKey(void) {}
 
-    uint32_t HashCode(void) const {
+    PRUint32 HashCode(void) const {
       // Just use the 32-bit m0 field.
       return mKey.m0;
     }
@@ -83,7 +83,7 @@ class nsXBLAttributeEntry {
 public:
   nsIAtom* GetSrcAttribute() { return mSrcAttribute; }
   nsIAtom* GetDstAttribute() { return mDstAttribute; }
-  int32_t GetDstNameSpace() { return mDstNameSpace; }
+  PRInt32 GetDstNameSpace() { return mDstNameSpace; }
   
   nsIContent* GetElement() { return mElement; }
 
@@ -91,7 +91,7 @@ public:
   void SetNext(nsXBLAttributeEntry* aEntry) { mNext = aEntry; }
 
   static nsXBLAttributeEntry*
-  Create(nsIAtom* aSrcAtom, nsIAtom* aDstAtom, int32_t aDstNameSpace, nsIContent* aContent) {
+  Create(nsIAtom* aSrcAtom, nsIAtom* aDstAtom, PRInt32 aDstNameSpace, nsIContent* aContent) {
     void* place = nsXBLPrototypeBinding::kAttrPool->Alloc(sizeof(nsXBLAttributeEntry));
     return place ? ::new (place) nsXBLAttributeEntry(aSrcAtom, aDstAtom, aDstNameSpace, 
                                                      aContent) : nullptr;
@@ -108,10 +108,10 @@ protected:
 
   nsCOMPtr<nsIAtom> mSrcAttribute;
   nsCOMPtr<nsIAtom> mDstAttribute;
-  int32_t mDstNameSpace;
+  PRInt32 mDstNameSpace;
   nsXBLAttributeEntry* mNext;
 
-  nsXBLAttributeEntry(nsIAtom* aSrcAtom, nsIAtom* aDstAtom, int32_t aDstNameSpace,
+  nsXBLAttributeEntry(nsIAtom* aSrcAtom, nsIAtom* aDstAtom, PRInt32 aDstNameSpace,
                       nsIContent* aContent)
     : mElement(aContent),
       mSrcAttribute(aSrcAtom),
@@ -150,8 +150,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPointEntry)
 
   nsIContent* GetInsertionParent() { return mInsertionParent; }
-  uint32_t GetInsertionIndex() { return mInsertionIndex; }
-  void SetInsertionIndex(uint32_t aIndex) { mInsertionIndex = aIndex; }
+  PRUint32 GetInsertionIndex() { return mInsertionIndex; }
+  void SetInsertionIndex(PRUint32 aIndex) { mInsertionIndex = aIndex; }
 
   nsIContent* GetDefaultContent() { return mDefaultContent; }
   void SetDefaultContent(nsIContent* aChildren) { mDefaultContent = aChildren; }
@@ -163,7 +163,7 @@ public:
   // nsXBLInsertionPointEntry::gRefCnt as long as there's at least one
   // nsXBLPrototypeBinding alive.
 
-  static void InitPool(int32_t aInitialSize)
+  static void InitPool(PRInt32 aInitialSize)
   {
     if (++gRefCnt == 1) {
       kPool = new nsFixedSizeAllocator();
@@ -209,7 +209,7 @@ public:
 protected:
   nsCOMPtr<nsIContent> mInsertionParent;
   nsCOMPtr<nsIContent> mDefaultContent;
-  uint32_t mInsertionIndex;
+  PRUint32 mInsertionIndex;
 
   nsXBLInsertionPointEntry(nsIContent* aParent)
     : mInsertionParent(aParent),
@@ -222,10 +222,10 @@ private:
   static void operator delete(void*, size_t) {}
 
   static nsFixedSizeAllocator* kPool;
-  static uint32_t gRefCnt;
+  static PRUint32 gRefCnt;
 };
 
-uint32_t nsXBLInsertionPointEntry::gRefCnt = 0;
+PRUint32 nsXBLInsertionPointEntry::gRefCnt = 0;
 nsFixedSizeAllocator* nsXBLInsertionPointEntry::kPool;
 
 NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPointEntry)
@@ -250,20 +250,20 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsXBLInsertionPointEntry, Release)
 // =============================================================================
 
 // Static initialization
-uint32_t nsXBLPrototypeBinding::gRefCnt = 0;
+PRUint32 nsXBLPrototypeBinding::gRefCnt = 0;
 
 nsFixedSizeAllocator* nsXBLPrototypeBinding::kAttrPool;
 
-static const int32_t kNumElements = 128;
+static const PRInt32 kNumElements = 128;
 
 static const size_t kAttrBucketSizes[] = {
   sizeof(nsXBLAttributeEntry)
 };
 
-static const int32_t kAttrNumBuckets = sizeof(kAttrBucketSizes)/sizeof(size_t);
-static const int32_t kAttrInitialSize = sizeof(nsXBLAttributeEntry) * kNumElements;
+static const PRInt32 kAttrNumBuckets = sizeof(kAttrBucketSizes)/sizeof(size_t);
+static const PRInt32 kAttrInitialSize = sizeof(nsXBLAttributeEntry) * kNumElements;
 
-static const int32_t kInsInitialSize = sizeof(nsXBLInsertionPointEntry) * kNumElements;
+static const PRInt32 kInsInitialSize = sizeof(nsXBLInsertionPointEntry) * kNumElements;
 
 // Implementation /////////////////////////////////////////////////////////////////
 
@@ -548,7 +548,7 @@ nsXBLPrototypeBinding::InstallImplementation(nsIContent* aBoundElement)
 // XXXbz this duplicates lots of SetAttrs
 void
 nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
-                                        int32_t aNameSpaceID,
+                                        PRInt32 aNameSpaceID,
                                         bool aRemoveFlag, 
                                         nsIContent* aChangedElement,
                                         nsIContent* aAnonymousContent,
@@ -580,7 +580,7 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
       // Hold a strong reference here so that the atom doesn't go away during
       // UnsetAttr.
       nsCOMPtr<nsIAtom> dstAttr = xblAttr->GetDstAttribute();
-      int32_t dstNs = xblAttr->GetDstNameSpace();
+      PRInt32 dstNs = xblAttr->GetDstNameSpace();
 
       if (aRemoveFlag)
         realElement->UnsetAttr(dstNs, dstAttr, aNotify);
@@ -615,8 +615,8 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
                                            kNameSpaceID_XUL) &&
            dstAttr == nsGkAtoms::value)) {
         // Flush out all our kids.
-        uint32_t childCount = realElement->GetChildCount();
-        for (uint32_t i = 0; i < childCount; i++)
+        PRUint32 childCount = realElement->GetChildCount();
+        for (PRUint32 i = 0; i < childCount; i++)
           realElement->RemoveChildAt(0, aNotify);
 
         if (!aRemoveFlag) {
@@ -660,7 +660,7 @@ bool InstantiateInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
 
   // Get the insertion parent.
   nsIContent* content = entry->GetInsertionParent();
-  uint32_t index = entry->GetInsertionIndex();
+  PRUint32 index = entry->GetInsertionIndex();
   nsIContent* defContent = entry->GetDefaultContent();
 
   // Locate the real content.
@@ -675,20 +675,20 @@ bool InstantiateInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
   nsInsertionPointList* points = nullptr;
   binding->GetInsertionPointsFor(realContent, &points);
   nsXBLInsertionPoint* insertionPoint = nullptr;
-  int32_t count = points->Length();
-  int32_t i = 0;
-  int32_t currIndex = 0;  
+  PRInt32 count = points->Length();
+  PRInt32 i = 0;
+  PRInt32 currIndex = 0;  
   
   for ( ; i < count; i++) {
     nsXBLInsertionPoint* currPoint = points->ElementAt(i);
     currIndex = currPoint->GetInsertionIndex();
-    if (currIndex == (int32_t)index) {
+    if (currIndex == (PRInt32)index) {
       // This is a match. Break out of the loop and set our variable.
       insertionPoint = currPoint;
       break;
     }
     
-    if (currIndex > (int32_t)index)
+    if (currIndex > (PRInt32)index)
       // There was no match. Break.
       break;
   }
@@ -716,7 +716,7 @@ nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
                                          const nsIContent* aChild,
-                                         uint32_t* aIndex)
+                                         PRUint32* aIndex)
 {
   if (!mInsertionPointTable)
     return nullptr;
@@ -746,7 +746,7 @@ nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
 nsIContent*
 nsXBLPrototypeBinding::GetSingleInsertionPoint(nsIContent* aBoundElement,
                                                nsIContent* aCopyRoot,
-                                               uint32_t* aIndex,
+                                               PRUint32* aIndex,
                                                bool* aMultipleInsertionPoints)
 { 
   *aMultipleInsertionPoints = false;
@@ -788,14 +788,14 @@ nsXBLPrototypeBinding::GetSingleInsertionPoint(nsIContent* aBoundElement,
 }
 
 void
-nsXBLPrototypeBinding::SetBaseTag(int32_t aNamespaceID, nsIAtom* aTag)
+nsXBLPrototypeBinding::SetBaseTag(PRInt32 aNamespaceID, nsIAtom* aTag)
 {
   mBaseNameSpaceID = aNamespaceID;
   mBaseTag = aTag;
 }
 
 nsIAtom*
-nsXBLPrototypeBinding::GetBaseTag(int32_t* aNamespaceID)
+nsXBLPrototypeBinding::GetBaseTag(PRInt32* aNamespaceID)
 {
   if (mBaseTag) {
     *aNamespaceID = mBaseNameSpaceID;
@@ -909,8 +909,8 @@ nsXBLPrototypeBinding::LocateInstance(nsIContent* aBoundElement,
       binding->GetInsertionPointsFor(aBoundElement, &points);
     else
       binding->GetInsertionPointsFor(copyParent, &points);
-    int32_t count = points->Length();
-    for (int32_t i = 0; i < count; i++) {
+    PRInt32 count = points->Length();
+    for (PRInt32 i = 0; i < count; i++) {
       // Next we have to find the real insertion point for this proto insertion
       // point.  If it does not contain any default content, then we should 
       // return null, since the content is not in the clone.
@@ -922,7 +922,7 @@ nsXBLPrototypeBinding::LocateInstance(nsIContent* aBoundElement,
         defContent = currPoint->GetDefaultContent();
         if (defContent) {
           // Find out the index of the template element within the <children> elt.
-          int32_t index = childPoint->IndexOf(aTemplChild);
+          PRInt32 index = childPoint->IndexOf(aTemplChild);
           
           // Now we just have to find the corresponding elt underneath the cloned
           // default content.
@@ -934,7 +934,7 @@ nsXBLPrototypeBinding::LocateInstance(nsIContent* aBoundElement,
   }
   else if (copyParent)
   {
-    int32_t index = templParent->IndexOf(aTemplChild);
+    PRInt32 index = templParent->IndexOf(aTemplChild);
     result = copyParent->GetChildAt(index);
   }
 
@@ -946,7 +946,7 @@ struct nsXBLAttrChangeData
   nsXBLPrototypeBinding* mProto;
   nsIContent* mBoundElement;
   nsIContent* mContent;
-  int32_t mSrcNamespace;
+  PRInt32 mSrcNamespace;
 
   nsXBLAttrChangeData(nsXBLPrototypeBinding* aProto,
                       nsIContent* aElt, nsIContent* aContent) 
@@ -960,7 +960,7 @@ bool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
   nsXBLAttrChangeData* changeData = static_cast<nsXBLAttrChangeData*>(aClosure);
 
   nsIAtom* src = entry->GetSrcAttribute();
-  int32_t srcNs = changeData->mSrcNamespace;
+  PRInt32 srcNs = changeData->mSrcNamespace;
   nsAutoString value;
   bool attrPresent = true;
 
@@ -986,7 +986,7 @@ bool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
     nsXBLAttributeEntry* curr = entry;
     while (curr) {
       nsIAtom* dst = curr->GetDstAttribute();
-      int32_t dstNs = curr->GetDstNameSpace();
+      PRInt32 dstNs = curr->GetDstNameSpace();
       nsIContent* element = curr->GetElement();
 
       nsIContent *realElement =
@@ -1089,8 +1089,8 @@ nsXBLPrototypeBinding::EnsureAttributeTable()
 }
 
 void
-nsXBLPrototypeBinding::AddToAttributeTable(int32_t aSourceNamespaceID, nsIAtom* aSourceTag,
-                                           int32_t aDestNamespaceID, nsIAtom* aDestTag,
+nsXBLPrototypeBinding::AddToAttributeTable(PRInt32 aSourceNamespaceID, nsIAtom* aSourceTag,
+                                           PRInt32 aDestNamespaceID, nsIAtom* aDestTag,
                                            nsIContent* aContent)
 {
     nsPRUint32Key nskey(aSourceNamespaceID);
@@ -1140,13 +1140,13 @@ nsXBLPrototypeBinding::ConstructAttributeTable(nsIContent* aElement)
       while( token != NULL ) {
         // Build an atom out of this attribute.
         nsCOMPtr<nsIAtom> atom;
-        int32_t atomNsID = kNameSpaceID_None;
+        PRInt32 atomNsID = kNameSpaceID_None;
         nsCOMPtr<nsIAtom> attribute;
-        int32_t attributeNsID = kNameSpaceID_None;
+        PRInt32 attributeNsID = kNameSpaceID_None;
 
         // Figure out if this token contains a :.
         nsAutoString attrTok; attrTok.AssignWithConversion(token);
-        int32_t index = attrTok.Find("=", true);
+        PRInt32 index = attrTok.Find("=", true);
         nsresult rv;
         if (index != -1) {
           // This attribute maps to something different.
@@ -1213,7 +1213,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
   GetNestedChildren(nsGkAtoms::children, kNameSpaceID_XBL, aContent,
                     childrenElements);
 
-  int32_t count = childrenElements.Count();
+  PRInt32 count = childrenElements.Count();
   if (count == 0)
     return;
 
@@ -1223,7 +1223,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
   if (!mInsertionPointTable)
     return;
 
-  int32_t i;
+  PRInt32 i;
   for (i = 0; i < count; i++) {
     nsIContent* child = childrenElements[i];
     nsCOMPtr<nsIContent> parent = child->GetParent(); 
@@ -1270,8 +1270,8 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
     // if we dynamically obtain our index each time, then the removals of previous
     // siblings will cause the index to adjust (and we won't have to take that into
     // account explicitly).
-    int32_t index = parent->IndexOf(child);
-    xblIns->SetInsertionIndex((uint32_t)index);
+    PRInt32 index = parent->IndexOf(child);
+    xblIns->SetInsertionIndex((PRUint32)index);
 
     // Now remove the <children> element from the template.  This ensures that the
     // binding instantiation will not contain a clone of the <children> element when
@@ -1281,7 +1281,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
     // See if the insertion point contains default content.  Default content must
     // be cached in our insertion point entry, since it will need to be cloned
     // in situations where no content ends up being placed at the insertion point.
-    uint32_t defaultCount = child->GetChildCount();
+    PRUint32 defaultCount = child->GetChildCount();
     if (defaultCount > 0) {
       nsAutoScriptBlocker scriptBlocker;
       // Annotate the insertion point with our default content.
@@ -1372,7 +1372,7 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
 }
 
 void
-nsXBLPrototypeBinding::GetNestedChildren(nsIAtom* aTag, int32_t aNamespace,
+nsXBLPrototypeBinding::GetNestedChildren(nsIAtom* aTag, PRInt32 aNamespace,
                                          nsIContent* aContent,
                                          nsCOMArray<nsIContent> & aList)
 {
@@ -1408,11 +1408,11 @@ nsXBLPrototypeBinding::CreateKeyHandlers()
     if (eventAtom == nsGkAtoms::keyup ||
         eventAtom == nsGkAtoms::keydown ||
         eventAtom == nsGkAtoms::keypress) {
-      uint8_t phase = curr->GetPhase();
-      uint8_t type = curr->GetType();
+      PRUint8 phase = curr->GetPhase();
+      PRUint8 type = curr->GetType();
 
-      int32_t count = mKeyHandlers.Count();
-      int32_t i;
+      PRInt32 count = mKeyHandlers.Count();
+      PRInt32 i;
       nsXBLKeyEventHandler* handler = nullptr;
       for (i = 0; i < count; ++i) {
         handler = mKeyHandlers[i];
@@ -1463,7 +1463,7 @@ nsresult
 nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
                             nsXBLDocumentInfo* aDocInfo,
                             nsIDocument* aDocument,
-                            uint8_t aFlags)
+                            PRUint8 aFlags)
 {
   mInheritStyle = (aFlags & XBLBinding_Serialize_InheritStyle) ? true : false;
 
@@ -1510,7 +1510,7 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     mBinding->AppendChildTo(child, false);
   }
 
-  uint32_t interfaceCount;
+  PRUint32 interfaceCount;
   rv = aStream->Read32(&interfaceCount);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1669,7 +1669,7 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   nsIScriptContext *context = globalObject->GetContext();
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-  uint8_t flags = mInheritStyle ? XBLBinding_Serialize_InheritStyle : 0;
+  PRUint8 flags = mInheritStyle ? XBLBinding_Serialize_InheritStyle : 0;
 
   // mAlternateBindingURI is only set on the first binding.
   if (mAlternateBindingURI) {
@@ -1779,7 +1779,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 {
   *aContent = nullptr;
 
-  int32_t namespaceID;
+  PRInt32 namespaceID;
   nsresult rv = ReadNamespace(aStream, namespaceID);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1833,7 +1833,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
   nsCOMPtr<nsINodeInfo> nodeInfo =
     aNim->GetNodeInfo(tagAtom, prefixAtom, namespaceID, nsIDOMNode::ELEMENT_NODE);
 
-  uint32_t attrCount;
+  PRUint32 attrCount;
   rv = aStream->Read32(&attrCount);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1856,7 +1856,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
     prototype->mAttributes = attrs;
     prototype->mNumAttributes = attrCount;
 
-    for (uint32_t i = 0; i < attrCount; i++) {
+    for (PRUint32 i = 0; i < attrCount; i++) {
       rv = ReadNamespace(aStream, namespaceID);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1897,7 +1897,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 #endif
     NS_NewElement(getter_AddRefs(content), nodeInfo.forget(), NOT_FROM_PARSER);
 
-    for (uint32_t i = 0; i < attrCount; i++) {
+    for (PRUint32 i = 0; i < attrCount; i++) {
       rv = ReadNamespace(aStream, namespaceID);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1923,7 +1923,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 
   // Now read the attribute forwarding entries (xbl:inherits)
 
-  int32_t srcNamespaceID, destNamespaceID;
+  PRInt32 srcNamespaceID, destNamespaceID;
   rv = ReadNamespace(aStream, srcNamespaceID);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1947,7 +1947,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
   }
 
   // Next, read the insertion points.
-  uint32_t insertionPointIndex;
+  PRUint32 insertionPointIndex;
   rv = aStream->Read32(&insertionPointIndex);
   NS_ENSURE_SUCCESS(rv, rv);
   while (insertionPointIndex != XBLBinding_Serialize_NoMoreInsertionPoints) {
@@ -1980,7 +1980,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
     // Now read in the tags that can be inserted at this point, which is
     // specified by the syntax includes="menupopup|panel", and add them to
     // the hash.
-    uint32_t count;
+    PRUint32 count;
     rv = aStream->Read32(&count);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1998,11 +1998,11 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
   }
 
   // Finally, read in the child nodes.
-  uint32_t childCount;
+  PRUint32 childCount;
   rv = aStream->Read32(&childCount);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  for (uint32_t i = 0; i < childCount; i++) {
+  for (PRUint32 i = 0; i < childCount; i++) {
     nsCOMPtr<nsIContent> child;
     ReadContentNode(aStream, aDocument, aNim, getter_AddRefs(child));
 
@@ -2024,7 +2024,7 @@ struct WriteAttributeData
   nsXBLPrototypeBinding* binding;
   nsIObjectOutputStream* stream;
   nsIContent* content;
-  int32_t srcNamespace;
+  PRInt32 srcNamespace;
 
   WriteAttributeData(nsXBLPrototypeBinding* aBinding,
                      nsIObjectOutputStream* aStream,
@@ -2039,7 +2039,7 @@ WriteAttribute(nsHashKey *aKey, void *aData, void* aClosure)
 {
   WriteAttributeData* data = static_cast<WriteAttributeData *>(aClosure);
   nsIObjectOutputStream* stream = data->stream;
-  const int32_t srcNamespace = data->srcNamespace;
+  const PRInt32 srcNamespace = data->srcNamespace;
 
   nsXBLAttributeEntry* entry = static_cast<nsXBLAttributeEntry *>(aData);
   do {
@@ -2082,7 +2082,7 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
 
   if (!aNode->IsElement()) {
     // Text is writen out as a single byte for the type, followed by the text.
-    uint8_t type = XBLBinding_Serialize_NoContent;
+    PRUint8 type = XBLBinding_Serialize_NoContent;
     switch (aNode->NodeType()) {
       case nsIDOMNode::TEXT_NODE:
         type = XBLBinding_Serialize_TextNode;
@@ -2120,11 +2120,11 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Write attributes
-  uint32_t count = aNode->GetAttrCount();
+  PRUint32 count = aNode->GetAttrCount();
   rv = aStream->Write32(count);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < count; i++) {
     // Write out the namespace id, the namespace prefix, the local tag name,
     // and the value, in that order.
@@ -2132,7 +2132,7 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
     const nsAttrName* attr = aNode->GetAttrNameAt(i);
 
     // XXXndeakin don't write out xbl:inherits?
-    int32_t namespaceID = attr->NamespaceID();
+    PRInt32 namespaceID = attr->NamespaceID();
     rv = WriteNamespace(aStream, namespaceID);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2163,11 +2163,11 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
   // Write out the insertion points.
   nsAutoTArray<InsertionItem, 1>* list;
   if (aInsertionPointsByContent.Get(aNode, &list)) {
-    uint32_t lastInsertionIndex = 0xFFFFFFFF;
+    PRUint32 lastInsertionIndex = 0xFFFFFFFF;
 
     // Iterate over the insertion points and see if they match this point
     // in the content tree by comparing insertion indices.
-    for (uint32_t l = 0; l < list->Length(); l++) {
+    for (PRUint32 l = 0; l < list->Length(); l++) {
       InsertionItem item = list->ElementAt(l);
       // The list is sorted by insertionIndex so all items pertaining to
       // this point will be in the list in order. We only need to write out the
@@ -2188,8 +2188,8 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
 
         // Determine how many insertion points share the same index, so that
         // the total count can be written out.
-        uint32_t icount = 1;
-        for (uint32_t i = l + 1; i < list->Length(); i++) {
+        PRUint32 icount = 1;
+        for (PRUint32 i = l + 1; i < list->Length(); i++) {
           if (list->ElementAt(i).insertionIndex != lastInsertionIndex)
             break;
           icount++;
@@ -2224,9 +2224,9 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
 
 nsresult
 nsXBLPrototypeBinding::ReadNamespace(nsIObjectInputStream* aStream,
-                                     int32_t& aNameSpaceID)
+                                     PRInt32& aNameSpaceID)
 {
-  uint8_t namespaceID;
+  PRUint8 namespaceID;
   nsresult rv = aStream->Read8(&namespaceID);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2246,7 +2246,7 @@ nsXBLPrototypeBinding::ReadNamespace(nsIObjectInputStream* aStream,
 
 nsresult
 nsXBLPrototypeBinding::WriteNamespace(nsIObjectOutputStream* aStream,
-                                      int32_t aNameSpaceID)
+                                      PRInt32 aNameSpaceID)
 {
   // Namespaces are stored as a single byte id for well-known namespaces.
   // This saves time and space as other namespaces aren't very common in
@@ -2256,7 +2256,7 @@ nsXBLPrototypeBinding::WriteNamespace(nsIObjectOutputStream* aStream,
   nsresult rv;
 
   if (aNameSpaceID <= kNameSpaceID_LastBuiltin) {
-    rv = aStream->Write8((int8_t)aNameSpaceID);
+    rv = aStream->Write8((PRInt8)aNameSpaceID);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
@@ -2272,7 +2272,7 @@ nsXBLPrototypeBinding::WriteNamespace(nsIObjectOutputStream* aStream,
 }
 
 
-bool CheckTagNameWhiteList(int32_t aNameSpaceID, nsIAtom *aTagName)
+bool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
 {
   static nsIContent::AttrValuesArray kValidXULTagNames[] =  {
     &nsGkAtoms::autorepeatbutton, &nsGkAtoms::box, &nsGkAtoms::browser,
@@ -2281,7 +2281,7 @@ bool CheckTagNameWhiteList(int32_t aNameSpaceID, nsIAtom *aTagName)
     &nsGkAtoms::row, &nsGkAtoms::slider, &nsGkAtoms::spacer,
     &nsGkAtoms::splitter, &nsGkAtoms::text, &nsGkAtoms::tree, nullptr};
 
-  uint32_t i;
+  PRUint32 i;
   if (aNameSpaceID == kNameSpaceID_XUL) {
     for (i = 0; kValidXULTagNames[i]; ++i) {
       if (aTagName == *(kValidXULTagNames[i])) {
@@ -2319,7 +2319,7 @@ nsXBLPrototypeBinding::ResolveBaseBinding()
        
   // Now slice 'em up to see what we've got.
   nsAutoString prefix;
-  int32_t offset;
+  PRInt32 offset;
   if (hasDisplay) {
     offset = display.FindChar(':');
     if (-1 != offset) {
@@ -2341,7 +2341,7 @@ nsXBLPrototypeBinding::ResolveBaseBinding()
   if (!prefix.IsEmpty()) {
     mBinding->LookupNamespaceURI(prefix, nameSpace);
     if (!nameSpace.IsEmpty()) {
-      int32_t nameSpaceID =
+      PRInt32 nameSpaceID =
         nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
 
       nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);

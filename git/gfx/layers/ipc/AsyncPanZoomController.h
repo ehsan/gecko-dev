@@ -15,8 +15,6 @@
 #include "InputData.h"
 #include "Axis.h"
 
-#include "base/message_loop.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -78,10 +76,10 @@ public:
   /**
    * General handler for incoming input events. Manipulates the frame metrics
    * basde on what type of input it is. For example, a PinchGestureEvent will
-   * cause scaling. This should only be called externally to this class.
-   * HandleInputEvent() should be used internally.
+   * cause scaling.
    */
-  nsEventStatus ReceiveInputEvent(const InputData& aEvent);
+
+  nsEventStatus HandleInputEvent(const InputData& aEvent);
 
   /**
    * Special handler for nsInputEvents. Also sets |aOutEvent| (which is assumed
@@ -93,8 +91,8 @@ public:
    * called on the main thread. See widget/InputData.h for more information on
    * why we have InputData and nsInputEvent separated.
    */
-  nsEventStatus ReceiveInputEvent(const nsInputEvent& aEvent,
-                                  nsInputEvent* aOutEvent);
+  nsEventStatus HandleInputEvent(const nsInputEvent& aEvent,
+                                 nsInputEvent* aOutEvent);
 
   /**
    * Updates the viewport size, i.e. the dimensions of the frame (not
@@ -108,6 +106,16 @@ public:
    * XXX: Use nsIntRect instead.
    */
   void UpdateViewportSize(int aWidth, int aHeight);
+
+  /**
+   * A DOM touch listener has been added. When called, we enable the machinery
+   * that allows touch listeners to preventDefault any touch inputs. This should
+   * not be called unless there are actually touch listeners as it introduces
+   * potentially unbounded lag because it causes a round-trip through content.
+   * Usually, if content is responding in a timely fashion, this only introduces
+   * a nearly constant few hundred ms of lag.
+   */
+  void NotifyDOMTouchListenerAdded();
 
   /**
    * We have found a scrollable subframe, so disable our machinery until we hit
@@ -125,14 +133,6 @@ public:
    * up. |aRect| must be given in CSS pixels, relative to the document.
    */
   void ZoomToRect(const gfxRect& aRect);
-
-  /**
-   * If we have touch listeners, this should always be called when we know
-   * definitively whether or not content has preventDefaulted any touch events
-   * that have come in. If |aPreventDefault| is true, any touch events in the
-   * queue will be discarded.
-   */
-  void ContentReceivedTouch(bool aPreventDefault);
 
   // --------------------------------------------------------------------------
   // These methods must only be called on the compositor thread.
@@ -194,11 +194,6 @@ public:
   int GetDPI();
 
 protected:
-  /**
-   * Internal handler for ReceiveInputEvent(). Does all the actual work.
-   */
-  nsEventStatus HandleInputEvent(const InputData& aEvent);
-
   /**
    * Helper method for touches beginning. Sets everything up for panning and any
    * multitouch gestures.
@@ -280,7 +275,7 @@ protected:
   /**
    * Scrolls the viewport by an X,Y offset.
    */
-  void ScrollBy(const gfx::Point& aOffset);
+  void ScrollBy(const nsIntPoint& aOffset);
 
   /**
    * Scales the viewport by an amount (note that it multiplies this scale in to
@@ -387,15 +382,6 @@ protected:
    */
   const FrameMetrics& GetFrameMetrics();
 
-  /**
-   * Timeout function for touch listeners. This should be called on a timer
-   * after we get our first touch event in a batch, under the condition that we
-   * have touch listeners. If a notification comes indicating whether or not
-   * content preventDefaulted a series of touch events before the timeout, the
-   * timeout should be cancelled.
-   */
-  void TimeoutTouchListeners();
-
 private:
   enum PanZoomState {
     NOTHING,        /* no touch-start events received */
@@ -403,10 +389,7 @@ private:
     TOUCHING,       /* one touch-start event received */
     PANNING,        /* panning without axis lock */
     PINCHING,       /* nth touch-start, where n > 1. this mode allows pan and zoom */
-    ANIMATING_ZOOM, /* animated zoom to a new rect */
-    WAITING_LISTENERS, /* a state halfway between NOTHING and TOUCHING - the user has
-                    put a finger down, but we don't yet know if a touch listener has
-                    prevented the default actions yet. we still need to abort animations. */
+    ANIMATING_ZOOM  /* animated zoom to a new rect */
   };
 
   enum ContentPainterStatus {
@@ -460,10 +443,6 @@ private:
   // |mResolution| fields on this.
   FrameMetrics mEndZoomToMetrics;
 
-  nsTArray<MultiTouchInput> mTouchQueue;
-
-  CancelableTask* mTouchListenerTimeoutTask;
-
   AxisX mX;
   AxisY mY;
 
@@ -477,7 +456,7 @@ private:
   // frame.
   TimeStamp mLastSampleTime;
   // The last time a touch event came through on the UI thread.
-  int32_t mLastEventTime;
+  PRInt32 mLastEventTime;
 
   // Start time of an animation. This is used for a zoom to animation to mark
   // the beginning.
@@ -499,15 +478,13 @@ private:
   // requests a repaint.
   ContentPainterStatus mContentPainterStatus;
 
+  // Whether or not we might have touch listeners. This is a conservative
+  // approximation and may not be accurate.
+  bool mMayHaveTouchListeners;
+
   // Flag used to determine whether or not we should disable handling of the
   // next batch of touch events. This is used for sync scrolling of subframes.
   bool mDisableNextTouchBatch;
-
-  // Flag used to determine whether or not we should try to enter the
-  // WAITING_LISTENERS state. This is used in the case that we are processing a
-  // queued up event block. If set, this means that we are handling this queue
-  // and we don't want to queue the events back up again.
-  bool mHandlingTouchQueue;
 
   friend class Axis;
 };

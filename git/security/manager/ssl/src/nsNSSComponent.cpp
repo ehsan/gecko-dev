@@ -261,7 +261,7 @@ bool EnsureNSSInitialized(EnsureNSSOperator op)
   }
 
   static bool loading = false;
-  static int32_t haveLoaded = 0;
+  static PRInt32 haveLoaded = 0;
 
   switch (op)
   {
@@ -477,9 +477,9 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow *domWin,
       return rv;
     }
 
-    uint32_t length;
+    PRUint32 length;
     frames->GetLength(&length);
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < length; i++) {
       nsCOMPtr<nsIDOMWindow> childWin;
       frames->Item(i, getter_AddRefs(childWin));
@@ -558,7 +558,7 @@ nsNSSComponent::DispatchEventToWindow(nsIDOMWindow *domWin,
 NS_IMETHODIMP
 nsNSSComponent::PIPBundleFormatStringFromName(const char *name,
                                               const PRUnichar **params,
-                                              uint32_t numParams,
+                                              PRUint32 numParams,
                                               nsAString &outString)
 {
   nsresult rv = NS_ERROR_FAILURE;
@@ -598,7 +598,7 @@ nsNSSComponent::GetPIPNSSBundleString(const char *name,
 NS_IMETHODIMP
 nsNSSComponent::NSSBundleFormatStringFromName(const char *name,
                                               const PRUnichar **params,
-                                              uint32_t numParams,
+                                              PRUint32 numParams,
                                               nsAString &outString)
 {
   nsresult rv = NS_ERROR_FAILURE;
@@ -772,7 +772,7 @@ nsNSSComponent::InstallLoadableRoots()
   }
 
   if (RootsModule) {
-    int32_t modType;
+    PRInt32 modType;
     SECMOD_DeleteModule(RootsModule->commonName, &modType);
     SECMOD_DestroyModule(RootsModule);
     RootsModule = nullptr;
@@ -1059,7 +1059,7 @@ static CipherPref CipherPrefs[] = {
 };
 
 static void
-setNonPkixOcspEnabled(int32_t ocspEnabled, nsIPrefBranch * pref)
+setNonPkixOcspEnabled(PRInt32 ocspEnabled, nsIPrefBranch * pref)
 {
   switch (ocspEnabled) {
   case 0:
@@ -1110,7 +1110,7 @@ void nsNSSComponent::setValidationOptions(nsIPrefBranch * pref)
   if (NS_FAILED(rv))
     crlDownloading = CRL_DOWNLOAD_DEFAULT;
   
-  int32_t ocspEnabled;
+  PRInt32 ocspEnabled;
   rv = pref->GetIntPref("security.OCSP.enabled", &ocspEnabled);
   // 0 = disabled, 1 = enabled, 
   // 2 = enabled with given default responder
@@ -1182,7 +1182,7 @@ NS_IMETHODIMP
 nsNSSComponent::SkipOcspOff()
 {
   nsNSSShutDownPreventionLock locker;
-  int32_t ocspEnabled;
+  PRInt32 ocspEnabled;
   if (NS_FAILED(mPrefBranch->GetIntPref("security.OCSP.enabled", &ocspEnabled)))
     ocspEnabled = OCSP_ENABLED_DEFAULT;
   // 0 = disabled, 1 = enabled, 
@@ -1244,7 +1244,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
   const char *updateTimePref = CRL_AUTOUPDATE_TIME_PREF;
   const char *updateURLPref = CRL_AUTOUPDATE_URL_PREF;
   char **allCrlsToBeUpdated;
-  uint32_t noOfCrls;
+  PRUint32 noOfCrls;
   PRTime nearestUpdateTime = 0;
   nsAutoString crlKey;
   char *tempUrl;
@@ -1260,7 +1260,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
     return NS_ERROR_FAILURE;
   }
 
-  for(uint32_t i=0;i<noOfCrls;i++) {
+  for(PRUint32 i=0;i<noOfCrls;i++) {
     //First check if update pref is enabled for this crl
     bool autoUpdateEnabled = false;
     rv = pref->GetBoolPref(*(allCrlsToBeUpdated+i), &autoUpdateEnabled);
@@ -1288,7 +1288,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
     PRTime tempTime;
     nsCAutoString timingPrefCString(updateTimePref);
     LossyAppendUTF16toASCII(tempCrlKey, timingPrefCString);
-    // No PRTime/Int64 type in prefs; stored as string; parsed here as int64_t
+    // No PRTime/Int64 type in prefs; stored as string; parsed here as PRInt64
     rv = pref->GetCharPref(timingPrefCString.get(), &tempTimeString);
     if (NS_FAILED(rv)){
       // Assume corrupted. Force download. Pref should be reset after download.
@@ -1386,9 +1386,9 @@ nsNSSComponent::DefineNextTimer()
 {
   PRTime nextFiring;
   PRTime now = PR_Now();
-  uint64_t diff;
-  uint32_t interval;
-  uint32_t primaryDelay = CRL_AUTOUPDATE_DEFAULT_DELAY;
+  PRUint64 diff;
+  PRUint32 interval;
+  PRUint32 primaryDelay = CRL_AUTOUPDATE_DEFAULT_DELAY;
   nsresult rv;
 
   if(!mTimer){
@@ -1735,7 +1735,7 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
     // later.  It also allows us to work around a bug in the system NSS in
     // Ubuntu 8.04, which loads any nonexistent "<configdir>/libnssckbi.so" as
     // "/usr/lib/nss/libnssckbi.so".
-    uint32_t init_flags = NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE;
+    PRUint32 init_flags = NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE;
     SECStatus init_rv = ::NSS_Initialize(profileStr.get(), "", "",
                                          SECMOD_DB, init_flags);
 
@@ -1811,9 +1811,9 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
 #endif
 
       // Disable any ciphers that NSS might have enabled by default
-      for (uint16_t i = 0; i < SSL_NumImplementedCiphers; ++i)
+      for (PRUint16 i = 0; i < SSL_NumImplementedCiphers; ++i)
       {
-        uint16_t cipher_id = SSL_ImplementedCiphers[i];
+        PRUint16 cipher_id = SSL_ImplementedCiphers[i];
         SSL_CipherPrefSetDefault(cipher_id, false);
       }
 
@@ -1997,7 +1997,7 @@ nsNSSComponent::Init()
   mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
   nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
 
-  int32_t warnLevel = 1;
+  PRInt32 warnLevel = 1;
   mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
   nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
   
@@ -2071,9 +2071,9 @@ static void * GetPasswordKeyCallback(void *arg, void *handle)
 }
 
 NS_IMETHODIMP
-nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
-                                const char* aPlaintext, uint32_t aPlaintextLen,
-                                int32_t* aErrorCode,
+nsNSSComponent::VerifySignature(const char* aRSABuf, PRUint32 aRSABufLen,
+                                const char* aPlaintext, PRUint32 aPlaintextLen,
+                                PRInt32* aErrorCode,
                                 nsIPrincipal** aPrincipal)
 {
   if (!aPrincipal || !aErrorCode) {
@@ -2111,7 +2111,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
 
   if (aPlaintext) {
     HASHContext* hash_ctxt;
-    uint32_t hashLen = 0;
+    PRUint32 hashLen = 0;
 
     hash_ctxt = HASH_Create(HASH_AlgSHA1);
     HASH_Begin(hash_ctxt);
@@ -2193,7 +2193,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
 }
 
 NS_IMETHODIMP
-nsNSSComponent::RandomUpdate(void *entropy, int32_t bufLen)
+nsNSSComponent::RandomUpdate(void *entropy, PRInt32 bufLen)
 {
   nsNSSShutDownPreventionLock locker;
 
@@ -2339,7 +2339,7 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
       mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
       nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
     } else if (prefName.Equals("security.ssl.warn_missing_rfc5746")) {
-      int32_t warnLevel = 1;
+      PRInt32 warnLevel = 1;
       mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
       nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
 #ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
@@ -2700,7 +2700,7 @@ void nsCryptoHash::destructorSafeDestroyNSSReference()
 NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
 
 NS_IMETHODIMP 
-nsCryptoHash::Init(uint32_t algorithm)
+nsCryptoHash::Init(PRUint32 algorithm)
 {
   nsNSSShutDownPreventionLock locker;
 
@@ -2754,7 +2754,7 @@ nsCryptoHash::InitWithString(const nsACString & aAlgorithm)
 }
 
 NS_IMETHODIMP
-nsCryptoHash::Update(const uint8_t *data, uint32_t len)
+nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 {
   nsNSSShutDownPreventionLock locker;
   
@@ -2766,7 +2766,7 @@ nsCryptoHash::Update(const uint8_t *data, uint32_t len)
 }
 
 NS_IMETHODIMP
-nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
+nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 aLen)
 {
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
@@ -2774,7 +2774,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
   if (!data)
     return NS_ERROR_INVALID_ARG;
 
-  uint64_t n;
+  PRUint64 n;
   nsresult rv = data->Available(&n);
   if (NS_FAILED(rv))
     return rv;
@@ -2782,7 +2782,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
   // if the user has passed PR_UINT32_MAX, then read
   // everything in the stream
 
-  uint64_t len = aLen;
+  PRUint64 len = aLen;
   if (aLen == PR_UINT32_MAX)
     len = n;
 
@@ -2797,16 +2797,16 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
     return NS_ERROR_NOT_AVAILABLE;
   
   char buffer[NS_CRYPTO_HASH_BUFFER_SIZE];
-  uint32_t read, readLimit;
+  PRUint32 read, readLimit;
   
   while(NS_SUCCEEDED(rv) && len>0)
   {
-    readLimit = (uint32_t)NS_MIN<uint64_t>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
+    readLimit = (PRUint32)NS_MIN<PRUint64>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
     
     rv = data->Read(buffer, readLimit, &read);
     
     if (NS_SUCCEEDED(rv))
-      rv = Update((const uint8_t*)buffer, read);
+      rv = Update((const PRUint8*)buffer, read);
     
     len -= read;
   }
@@ -2822,7 +2822,7 @@ nsCryptoHash::Finish(bool ascii, nsACString & _retval)
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
   
-  uint32_t hashLen = 0;
+  PRUint32 hashLen = 0;
   unsigned char buffer[HASH_LENGTH_MAX];
   unsigned char* pbuffer = buffer;
 
@@ -2884,7 +2884,7 @@ void nsCryptoHMAC::destructorSafeDestroyNSSReference()
 }
 
 /* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
-NS_IMETHODIMP nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
+NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 {
   nsNSSShutDownPreventionLock locker;
 
@@ -2917,7 +2917,7 @@ NS_IMETHODIMP nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
 
   nsresult rv;
 
-  int16_t keyType;
+  PRInt16 keyType;
   rv = aKeyObject->GetType(&keyType);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2942,7 +2942,7 @@ NS_IMETHODIMP nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
 }
 
 /* void update ([array, size_is (aLen), const] in octet aData, in unsigned long aLen); */
-NS_IMETHODIMP nsCryptoHMAC::Update(const uint8_t *aData, uint32_t aLen)
+NS_IMETHODIMP nsCryptoHMAC::Update(const PRUint8 *aData, PRUint32 aLen)
 {
   nsNSSShutDownPreventionLock locker;
 
@@ -2959,7 +2959,7 @@ NS_IMETHODIMP nsCryptoHMAC::Update(const uint8_t *aData, uint32_t aLen)
 }
 
 /* void updateFromStream (in nsIInputStream aStream, in unsigned long aLen); */
-NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t aLen)
+NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 aLen)
 {
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
@@ -2967,7 +2967,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
   if (!aStream)
     return NS_ERROR_INVALID_ARG;
 
-  uint64_t n;
+  PRUint64 n;
   nsresult rv = aStream->Available(&n);
   if (NS_FAILED(rv))
     return rv;
@@ -2975,7 +2975,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
   // if the user has passed PR_UINT32_MAX, then read
   // everything in the stream
 
-  uint64_t len = aLen;
+  PRUint64 len = aLen;
   if (aLen == PR_UINT32_MAX)
     len = n;
 
@@ -2990,18 +2990,18 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
     return NS_ERROR_NOT_AVAILABLE;
   
   char buffer[NS_CRYPTO_HASH_BUFFER_SIZE];
-  uint32_t read, readLimit;
+  PRUint32 read, readLimit;
   
   while(NS_SUCCEEDED(rv) && len > 0)
   {
-    readLimit = (uint32_t)NS_MIN<uint64_t>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
+    readLimit = (PRUint32)NS_MIN<PRUint64>(NS_CRYPTO_HASH_BUFFER_SIZE, len);
     
     rv = aStream->Read(buffer, readLimit, &read);
     if (read == 0)
       return NS_BASE_STREAM_CLOSED;
     
     if (NS_SUCCEEDED(rv))
-      rv = Update((const uint8_t*)buffer, read);
+      rv = Update((const PRUint8*)buffer, read);
     
     len -= read;
   }
@@ -3017,7 +3017,7 @@ NS_IMETHODIMP nsCryptoHMAC::Finish(bool aASCII, nsACString & _retval)
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
   
-  uint32_t hashLen = 0;
+  PRUint32 hashLen = 0;
   unsigned char buffer[HASH_LENGTH_MAX];
   unsigned char* pbuffer = buffer;
 
@@ -3136,7 +3136,7 @@ setPassword(PK11SlotInfo *slot, nsIInterfaceRequestor *ctx)
 }
 
 
-PSMContentDownloader::PSMContentDownloader(uint32_t type)
+PSMContentDownloader::PSMContentDownloader(PRUint32 type)
   : mByteData(nullptr),
     mType(type),
     mDoSilentDownload(false)
@@ -3151,7 +3151,7 @@ PSMContentDownloader::~PSMContentDownloader()
 
 NS_IMPL_ISUPPORTS2(PSMContentDownloader, nsIStreamListener, nsIRequestObserver)
 
-const int32_t kDefaultCertAllocLength = 2048;
+const PRInt32 kDefaultCertAllocLength = 2048;
 
 NS_IMETHODIMP
 PSMContentDownloader::OnStartRequest(nsIRequest* request, nsISupports* context)
@@ -3164,7 +3164,7 @@ PSMContentDownloader::OnStartRequest(nsIRequest* request, nsISupports* context)
   // Get the URI //
   channel->GetURI(getter_AddRefs(mURI));
 
-  int32_t contentLength;
+  PRInt32 contentLength;
   rv = channel->GetContentLength(&contentLength);
   if (NS_FAILED(rv) || contentLength <= 0)
     contentLength = kDefaultCertAllocLength;
@@ -3183,16 +3183,16 @@ NS_IMETHODIMP
 PSMContentDownloader::OnDataAvailable(nsIRequest* request,
                                 nsISupports* context,
                                 nsIInputStream *aIStream,
-                                uint32_t aSourceOffset,
-                                uint32_t aLength)
+                                PRUint32 aSourceOffset,
+                                PRUint32 aLength)
 {
   if (!mByteData)
     return NS_ERROR_OUT_OF_MEMORY;
   
-  uint32_t amt;
+  PRUint32 amt;
   nsresult err;
   //Do a check to see if we need to allocate more memory.
-  if ((mBufferOffset + (int32_t)aLength) > mBufferSize) {
+  if ((mBufferOffset + (PRInt32)aLength) > mBufferSize) {
       size_t newSize = (mBufferOffset + aLength) *2; // grow some more than needed
       char *newBuffer;
       newBuffer = (char*)nsMemory::Realloc(mByteData, newSize);
@@ -3255,13 +3255,13 @@ PSMContentDownloader::OnStopRequest(nsIRequest* request,
 
   switch (mType) {
   case PSMContentDownloader::X509_CA_CERT:
-    return certdb->ImportCertificates((uint8_t*)mByteData, mBufferOffset, mType, ctx); 
+    return certdb->ImportCertificates((PRUint8*)mByteData, mBufferOffset, mType, ctx); 
   case PSMContentDownloader::X509_USER_CERT:
-    return certdb->ImportUserCertificate((uint8_t*)mByteData, mBufferOffset, ctx);
+    return certdb->ImportUserCertificate((PRUint8*)mByteData, mBufferOffset, ctx);
   case PSMContentDownloader::X509_EMAIL_CERT:
-    return certdb->ImportEmailCertificate((uint8_t*)mByteData, mBufferOffset, ctx); 
+    return certdb->ImportEmailCertificate((PRUint8*)mByteData, mBufferOffset, ctx); 
   case PSMContentDownloader::PKCS7_CRL:
-    return crlManager->ImportCrl((uint8_t*)mByteData, mBufferOffset, mURI, SEC_CRL_TYPE, mDoSilentDownload, mCrlAutoDownloadKey.get());
+    return crlManager->ImportCrl((PRUint8*)mByteData, mBufferOffset, mURI, SEC_CRL_TYPE, mDoSilentDownload, mCrlAutoDownloadKey.get());
   default:
     rv = NS_ERROR_FAILURE;
     break;
@@ -3294,7 +3294,7 @@ PSMContentDownloader::handleContentDownloadError(nsresult errCode)
       nsCAutoString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
       nsCAutoString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
       nsCString errMsg;
-      int32_t errCnt;
+      PRInt32 errCnt;
 
       nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID,&rv);
       if(NS_FAILED(rv)){
@@ -3355,7 +3355,7 @@ PSMContentDownloader::setCrlAutodownloadKey(nsAutoString key)
    
 */
 
-uint32_t
+PRUint32
 getPSMContentType(const char * aContentType)
 { 
   // Don't forget to update RegisterPSMContentListeners in nsNSSModule.cpp 
@@ -3422,7 +3422,7 @@ PSMContentListener::CanHandleContent(const char * aContentType,
                                       char ** aDesiredContentType,
                                       bool * aCanHandleContent)
 {
-  uint32_t type;
+  PRUint32 type;
   type = getPSMContentType(aContentType);
   if (type == PSMContentDownloader::UNKNOWN_TYPE) {
     *aCanHandleContent = false;
@@ -3440,7 +3440,7 @@ PSMContentListener::DoContent(const char * aContentType,
                                bool * aAbortProcess)
 {
   PSMContentDownloader *downLoader;
-  uint32_t type;
+  PRUint32 type;
   type = getPSMContentType(aContentType);
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("PSMContentListener::DoContent\n"));
   if (type != PSMContentDownloader::UNKNOWN_TYPE) {

@@ -37,9 +37,9 @@ NS_INTERFACE_MAP_END
 DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
                                 nsSVGElement *aElement,
                                 bool aIsConditionalProcessingAttribute,
-                                uint8_t aAttrEnum)
+                                PRUint8 aAttrEnum)
 {
-  nsRefPtr<DOMSVGStringList> wrapper =
+  DOMSVGStringList *wrapper =
     sSVGStringListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGStringList(aElement, 
@@ -47,7 +47,8 @@ DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
                                    aAttrEnum);
     sSVGStringListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 DOMSVGStringList::~DOMSVGStringList()
@@ -60,14 +61,14 @@ DOMSVGStringList::~DOMSVGStringList()
 // nsIDOMSVGStringList implementation:
 
 NS_IMETHODIMP
-DOMSVGStringList::GetNumberOfItems(uint32_t *aNumberOfItems)
+DOMSVGStringList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
   *aNumberOfItems = InternalList().Length();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMSVGStringList::GetLength(uint32_t *aLength)
+DOMSVGStringList::GetLength(PRUint32 *aLength)
 {
   return GetNumberOfItems(aLength);
 }
@@ -96,7 +97,7 @@ DOMSVGStringList::Initialize(const nsAString & newItem, nsAString & _retval)
 }
 
 NS_IMETHODIMP
-DOMSVGStringList::GetItem(uint32_t index,
+DOMSVGStringList::GetItem(PRUint32 index,
                           nsAString & _retval)
 {
   if (index >= InternalList().Length()) {
@@ -108,7 +109,7 @@ DOMSVGStringList::GetItem(uint32_t index,
 
 NS_IMETHODIMP
 DOMSVGStringList::InsertItemBefore(const nsAString & newItem,
-                                   uint32_t index,
+                                   PRUint32 index,
                                    nsAString & _retval)
 {
   if (newItem.IsEmpty()) { // takes care of DOMStringIsNull too
@@ -134,7 +135,7 @@ DOMSVGStringList::InsertItemBefore(const nsAString & newItem,
 
 NS_IMETHODIMP
 DOMSVGStringList::ReplaceItem(const nsAString & newItem,
-                              uint32_t index,
+                              PRUint32 index,
                               nsAString & _retval)
 {
   if (newItem.IsEmpty()) { // takes care of DOMStringIsNull too
@@ -156,7 +157,7 @@ DOMSVGStringList::ReplaceItem(const nsAString & newItem,
 }
 
 NS_IMETHODIMP
-DOMSVGStringList::RemoveItem(uint32_t index,
+DOMSVGStringList::RemoveItem(PRUint32 index,
                              nsAString & _retval)
 {
   if (index >= InternalList().Length()) {

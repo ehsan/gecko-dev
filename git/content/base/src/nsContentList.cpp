@@ -59,7 +59,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsBaseContentList)
   if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack()) {
-    for (uint32_t i = 0; i < tmp->mElements.Length(); ++i) {
+    for (PRUint32 i = 0; i < tmp->mElements.Length(); ++i) {
       nsIContent* c = tmp->mElements[i];
       if (c->IsPurple()) {
         c->RemovePurple();
@@ -101,7 +101,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsBaseContentList)
 
 
 NS_IMETHODIMP
-nsBaseContentList::GetLength(uint32_t* aLength)
+nsBaseContentList::GetLength(PRUint32* aLength)
 {
   *aLength = mElements.Length();
 
@@ -109,7 +109,7 @@ nsBaseContentList::GetLength(uint32_t* aLength)
 }
 
 NS_IMETHODIMP
-nsBaseContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
+nsBaseContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
   nsISupports *tmp = GetNodeAt(aIndex);
 
@@ -123,19 +123,19 @@ nsBaseContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 }
 
 nsIContent*
-nsBaseContentList::GetNodeAt(uint32_t aIndex)
+nsBaseContentList::GetNodeAt(PRUint32 aIndex)
 {
   return mElements.SafeElementAt(aIndex);
 }
 
 
-int32_t
+PRInt32
 nsBaseContentList::IndexOf(nsIContent *aContent, bool aDoFlush)
 {
   return mElements.IndexOf(aContent);
 }
 
-int32_t
+PRInt32
 nsBaseContentList::IndexOf(nsIContent* aContent)
 {
   return IndexOf(aContent, true);
@@ -162,7 +162,7 @@ JSObject*
 nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope,
                                 bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::NodeList::create(cx, scope, this, triedToWrap);
+  return mozilla::dom::binding::NodeList::create(cx, scope, this, triedToWrap);
 }
 
 // nsFormContentList
@@ -174,7 +174,7 @@ nsFormContentList::nsFormContentList(nsIContent *aForm,
 
   // move elements that belong to mForm into this content list
 
-  uint32_t i, length = 0;
+  PRUint32 i, length = 0;
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
@@ -215,7 +215,7 @@ ContentListHashtableMatchEntry(PLDHashTable *table,
 
 already_AddRefed<nsContentList>
 NS_GetContentList(nsINode* aRootNode, 
-                  int32_t  aMatchNameSpaceId,
+                  PRInt32  aMatchNameSpaceId,
                   const nsAString& aTagname)
                   
 {
@@ -394,7 +394,7 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
 // nsContentList implementation
 
 nsContentList::nsContentList(nsINode* aRootNode,
-                             int32_t aMatchNameSpaceId,
+                             PRInt32 aMatchNameSpaceId,
                              nsIAtom* aHTMLMatchAtom,
                              nsIAtom* aXMLMatchAtom,
                              bool aDeep)
@@ -435,7 +435,7 @@ nsContentList::nsContentList(nsINode* aRootNode,
                              void* aData,
                              bool aDeep,
                              nsIAtom* aMatchAtom,
-                             int32_t aMatchNameSpaceId,
+                             PRInt32 aMatchNameSpaceId,
                              bool aFuncMayDependOnAttr)
   : nsBaseContentList(),
     mRootNode(aRootNode),
@@ -478,7 +478,7 @@ nsContentList::~nsContentList()
 JSObject*
 nsContentList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope, this,
+  return mozilla::dom::binding::HTMLCollection::create(cx, scope, this,
                                                        triedToWrap);
 }
 
@@ -500,7 +500,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 NS_IMPL_ADDREF_INHERITED(nsContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsContentList, nsBaseContentList)
 
-uint32_t
+PRUint32
 nsContentList::Length(bool aDoFlush)
 {
   BringSelfUpToDate(aDoFlush);
@@ -509,7 +509,7 @@ nsContentList::Length(bool aDoFlush)
 }
 
 nsIContent *
-nsContentList::Item(uint32_t aIndex, bool aDoFlush)
+nsContentList::Item(PRUint32 aIndex, bool aDoFlush)
 {
   if (mRootNode && aDoFlush && mFlushesNeeded) {
     // XXX sXBL/XBL2 issue
@@ -535,7 +535,7 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
 {
   BringSelfUpToDate(aDoFlush);
     
-  uint32_t i, count = mElements.Length();
+  PRUint32 i, count = mElements.Length();
 
   // Typically IDs and names are atomized
   nsCOMPtr<nsIAtom> name = do_GetAtom(aName);
@@ -556,7 +556,7 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
   return nullptr;
 }
 
-int32_t
+PRInt32
 nsContentList::IndexOf(nsIContent *aContent, bool aDoFlush)
 {
   BringSelfUpToDate(aDoFlush);
@@ -564,7 +564,7 @@ nsContentList::IndexOf(nsIContent *aContent, bool aDoFlush)
   return mElements.IndexOf(aContent);
 }
 
-int32_t
+PRInt32
 nsContentList::IndexOf(nsIContent* aContent)
 {
   return IndexOf(aContent, true);
@@ -584,7 +584,7 @@ nsContentList::NodeWillBeDestroyed(const nsINode* aNode)
 }
 
 NS_IMETHODIMP
-nsContentList::GetLength(uint32_t* aLength)
+nsContentList::GetLength(PRUint32* aLength)
 {
   *aLength = Length(true);
 
@@ -592,7 +592,7 @@ nsContentList::GetLength(uint32_t* aLength)
 }
 
 NS_IMETHODIMP
-nsContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
+nsContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
   nsINode* node = GetNodeAt(aIndex);
 
@@ -620,7 +620,7 @@ nsContentList::NamedItem(const nsAString& aName, nsIDOMNode** aReturn)
 }
 
 nsIContent*
-nsContentList::GetNodeAt(uint32_t aIndex)
+nsContentList::GetNodeAt(PRUint32 aIndex)
 {
   return Item(aIndex, true);
 }
@@ -635,8 +635,8 @@ nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
 
 void
 nsContentList::AttributeChanged(nsIDocument *aDocument, Element* aElement,
-                                int32_t aNameSpaceID, nsIAtom* aAttribute,
-                                int32_t aModType)
+                                PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                                PRInt32 aModType)
 {
   NS_PRECONDITION(aElement, "Must have a content node to work with");
   
@@ -667,7 +667,7 @@ nsContentList::AttributeChanged(nsIDocument *aDocument, Element* aElement,
 void
 nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
                                nsIContent* aFirstNewContent,
-                               int32_t aNewIndexInContainer)
+                               PRInt32 aNewIndexInContainer)
 {
   NS_PRECONDITION(aContainer, "Can't get at the new content if no container!");
   
@@ -691,10 +691,10 @@ nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
    * already have.
    */
   
-  int32_t count = aContainer->GetChildCount();
+  PRInt32 count = aContainer->GetChildCount();
 
   if (count > 0) {
-    uint32_t ourCount = mElements.Length();
+    PRUint32 ourCount = mElements.Length();
     bool appendToList = false;
     if (ourCount == 0) {
       appendToList = true;
@@ -763,7 +763,7 @@ void
 nsContentList::ContentInserted(nsIDocument *aDocument,
                                nsIContent* aContainer,
                                nsIContent* aChild,
-                               int32_t aIndexInContainer)
+                               PRInt32 aIndexInContainer)
 {
   // Note that aContainer can be null here if we are inserting into
   // the document itself; any attempted optimizations to this method
@@ -782,7 +782,7 @@ void
 nsContentList::ContentRemoved(nsIDocument *aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              int32_t aIndexInContainer,
+                              PRInt32 aIndexInContainer,
                               nsIContent* aPreviousSibling)
 {
   // Note that aContainer can be null here if we are removing from
@@ -865,7 +865,7 @@ nsContentList::MatchSelf(nsIContent *aContent)
 }
 
 void 
-nsContentList::PopulateSelf(uint32_t aNeededLength)
+nsContentList::PopulateSelf(PRUint32 aNeededLength)
 {
   if (!mRootNode) {
     return;
@@ -873,16 +873,16 @@ nsContentList::PopulateSelf(uint32_t aNeededLength)
 
   ASSERT_IN_SYNC;
 
-  uint32_t count = mElements.Length();
+  PRUint32 count = mElements.Length();
   NS_ASSERTION(mState != LIST_DIRTY || count == 0,
                "Reset() not called when setting state to LIST_DIRTY?");
 
   if (count >= aNeededLength) // We're all set
     return;
 
-  uint32_t elementsToAppend = aNeededLength - count;
+  PRUint32 elementsToAppend = aNeededLength - count;
 #ifdef DEBUG
-  uint32_t invariant = elementsToAppend + mElements.Length();
+  PRUint32 invariant = elementsToAppend + mElements.Length();
 #endif
 
   if (mDeep) {
@@ -958,7 +958,7 @@ nsContentList::BringSelfUpToDate(bool aDoFlush)
   }
 
   if (mState != LIST_UP_TO_DATE)
-    PopulateSelf(uint32_t(-1));
+    PopulateSelf(PRUint32(-1));
     
   ASSERT_IN_SYNC;
   NS_ASSERTION(!mRootNode || mState == LIST_UP_TO_DATE,
@@ -1019,7 +1019,7 @@ nsContentList::AssertInSync()
     iter->First();
   }
 
-  uint32_t cnt = 0, index = 0;
+  PRUint32 cnt = 0, index = 0;
   while (true) {
     if (cnt == mElements.Length() && mState == LIST_LAZY) {
       break;

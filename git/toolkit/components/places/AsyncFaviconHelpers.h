@@ -22,9 +22,9 @@
 #define ICON_STATUS_CACHED 1 << 3
 
 #define TO_CHARBUFFER(_buffer) \
-  reinterpret_cast<char*>(const_cast<uint8_t*>(_buffer))
+  reinterpret_cast<char*>(const_cast<PRUint8*>(_buffer))
 #define TO_INTBUFFER(_string) \
-  reinterpret_cast<uint8_t*>(const_cast<char*>(_string.get()))
+  reinterpret_cast<PRUint8*>(const_cast<char*>(_string.get()))
 
 /**
  * The maximum time we will keep a favicon around.  We always ask the cache, if
@@ -60,13 +60,13 @@ struct IconData
     guid.SetIsVoid(PR_TRUE);
   }
 
-  int64_t id;
+  PRInt64 id;
   nsCString spec;
   nsCString data;
   nsCString mimeType;
   PRTime expiration;
   enum AsyncFaviconFetchMode fetchMode;
-  uint16_t status; // This is a bitset, see ICON_STATUS_* defines above.
+  PRUint16 status; // This is a bitset, see ICON_STATUS_* defines above.
   nsCString guid;
 };
 
@@ -83,12 +83,12 @@ struct PageData
     guid.SetIsVoid(true);
   }
 
-  int64_t id;
+  PRInt64 id;
   nsCString spec;
   nsCString bookmarkedSpec;
   nsString revHost;
   bool canAddToHistory; // False for disabled history and unsupported schemas.
-  int64_t iconId;
+  PRInt64 iconId;
   nsCString guid;
 };
 

@@ -136,7 +136,7 @@ void nsNodeIterator::NodePointer::MoveBackward(nsINode *aParent, nsINode *aNode)
  */
 
 nsNodeIterator::nsNodeIterator(nsINode *aRoot,
-                               uint32_t aWhatToShow,
+                               PRUint32 aWhatToShow,
                                nsIDOMNodeFilter *aFilter) :
     nsTraversal(aRoot, aWhatToShow, aFilter),
     mDetached(false),
@@ -193,7 +193,7 @@ NS_IMETHODIMP nsNodeIterator::GetRoot(nsIDOMNode * *aRoot)
 }
 
 /* readonly attribute unsigned long whatToShow; */
-NS_IMETHODIMP nsNodeIterator::GetWhatToShow(uint32_t *aWhatToShow)
+NS_IMETHODIMP nsNodeIterator::GetWhatToShow(PRUint32 *aWhatToShow)
 {
     *aWhatToShow = mWhatToShow;
     return NS_OK;
@@ -233,7 +233,7 @@ nsNodeIterator::NextOrPrevNode(NodePointer::MoveToMethodType aMove,
                                nsIDOMNode **_retval)
 {
     nsresult rv;
-    int16_t filtered;
+    PRInt16 filtered;
 
     *_retval = nullptr;
 
@@ -303,7 +303,7 @@ NS_IMETHODIMP nsNodeIterator::GetPointerBeforeReferenceNode(bool *aBeforeNode)
 void nsNodeIterator::ContentRemoved(nsIDocument *aDocument,
                                     nsIContent *aContainer,
                                     nsIContent *aChild,
-                                    int32_t aIndexInContainer,
+                                    PRInt32 aIndexInContainer,
                                     nsIContent *aPreviousSibling)
 {
     nsINode *container = NODE_FROM(aContainer, aDocument);

@@ -91,7 +91,7 @@ FileHandle::GetType(nsAString& aType)
 
 NS_IMETHODIMP
 FileHandle::Open(const nsAString& aMode,
-                 uint8_t aOptionalArgCount,
+                 PRUint8 aOptionalArgCount,
                  nsIDOMLockedFile** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -155,7 +155,7 @@ FileHandle::GetFile(nsIDOMDOMRequest** _retval)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(int64_t)
+NS_IMETHODIMP_(PRInt64)
 FileHandle::GetFileId()
 {
   return -1;

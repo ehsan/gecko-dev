@@ -106,8 +106,8 @@ NS_IMETHODIMP
 nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
                                        nsISupports *aContext,
                                        nsIInputStream *aInputStream,
-                                       uint32_t aSourceOffset,
-                                       uint32_t aCount)
+                                       PRUint32 aSourceOffset,
+                                       PRUint32 aCount)
 {
   if (!mObserver) {
     NS_ERROR("nsUnicharStreamLoader::OnDataAvailable called before ::Init");
@@ -120,7 +120,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
   nsresult rv = NS_OK;
   if (mDecoder) {
     // process everything we've got
-    uint32_t dummy;
+    PRUint32 dummy;
     aInputStream->ReadSegments(WriteSegmentFun, this, aCount, &dummy);
   } else {
     // no decoder yet.  Read up to SNIFFING_BUFFER_SIZE octets into
@@ -129,9 +129,9 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
     // ahead and fire charset detection and read the rest.  Otherwise
     // wait for more data.
 
-    uint32_t haveRead = mRawData.Length();
-    uint32_t toRead = NS_MIN(SNIFFING_BUFFER_SIZE - haveRead, aCount);
-    uint32_t n;
+    PRUint32 haveRead = mRawData.Length();
+    PRUint32 toRead = NS_MIN(SNIFFING_BUFFER_SIZE - haveRead, aCount);
+    PRUint32 n;
     char *here = mRawData.BeginWriting() + haveRead;
 
     rv = aInputStream->Read(here, toRead, &n);
@@ -141,7 +141,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
         rv = DetermineCharset();
         if (NS_SUCCEEDED(rv)) {
           // process what's left
-          uint32_t dummy;
+          PRUint32 dummy;
           aInputStream->ReadSegments(WriteSegmentFun, this, aCount - n, &dummy);
         }
       } else {
@@ -178,7 +178,7 @@ nsUnicharStreamLoader::DetermineCharset()
   if (NS_FAILED(rv)) return rv;
 
   // Process the data into mBuffer
-  uint32_t dummy;
+  PRUint32 dummy;
   rv = WriteSegmentFun(nullptr, this,
                        mRawData.BeginReading(),
                        0, mRawData.Length(),
@@ -191,21 +191,21 @@ NS_METHOD
 nsUnicharStreamLoader::WriteSegmentFun(nsIInputStream *,
                                        void *aClosure,
                                        const char *aSegment,
-                                       uint32_t,
-                                       uint32_t aCount,
-                                       uint32_t *aWriteCount)
+                                       PRUint32,
+                                       PRUint32 aCount,
+                                       PRUint32 *aWriteCount)
 {
   nsUnicharStreamLoader* self = static_cast<nsUnicharStreamLoader*>(aClosure);
 
-  uint32_t haveRead = self->mBuffer.Length();
-  uint32_t consumed = 0;
+  PRUint32 haveRead = self->mBuffer.Length();
+  PRUint32 consumed = 0;
   nsresult rv;
   do {
-    int32_t srcLen = aCount - consumed;
-    int32_t dstLen;
+    PRInt32 srcLen = aCount - consumed;
+    PRInt32 dstLen;
     self->mDecoder->GetMaxLength(aSegment + consumed, srcLen, &dstLen);
 
-    uint32_t capacity = haveRead + dstLen;
+    PRUint32 capacity = haveRead + dstLen;
     if (!self->mBuffer.SetCapacity(capacity, fallible_t())) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -227,7 +227,7 @@ nsUnicharStreamLoader::WriteSegmentFun(nsIInputStream *,
       ++consumed;
       // XXX this is needed to make sure we don't underrun our buffer;
       // bug 160784 again
-      consumed = NS_MAX<uint32_t>(consumed, 0);
+      consumed = NS_MAX<PRUint32>(consumed, 0);
       self->mDecoder->Reset();
     }
   } while (consumed < aCount);

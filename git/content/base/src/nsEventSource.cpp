@@ -165,7 +165,7 @@ nsEventSource::GetUrl(nsAString& aURL)
 }
 
 NS_IMETHODIMP
-nsEventSource::GetReadyState(int32_t *aReadyState)
+nsEventSource::GetReadyState(PRInt32 *aReadyState)
 {
   NS_ENSURE_ARG_POINTER(aReadyState);
   *aReadyState = mReadyState;
@@ -351,7 +351,7 @@ NS_IMETHODIMP
 nsEventSource::Initialize(nsISupports* aOwner,
                           JSContext* aContext,
                           JSObject* aObject,
-                          uint32_t aArgc,
+                          PRUint32 aArgc,
                           jsval* aArgv)
 {
   if (mReadyState != nsIEventSource::CONNECTING || !PrefEnabled() ||
@@ -504,9 +504,9 @@ NS_METHOD
 nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
                                 void *aClosure,
                                 const char *aFromRawSegment,
-                                uint32_t aToOffset,
-                                uint32_t aCount,
-                                uint32_t *aWriteCount)
+                                PRUint32 aToOffset,
+                                PRUint32 aCount,
+                                PRUint32 *aWriteCount)
 {
   nsEventSource* thisObject = static_cast<nsEventSource*>(aClosure);
   if (!thisObject || !aWriteCount) {
@@ -516,7 +516,7 @@ nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
 
   *aWriteCount = 0;
 
-  int32_t srcCount, outCount;
+  PRInt32 srcCount, outCount;
   PRUnichar out[2];
   nsresult rv;
 
@@ -539,7 +539,7 @@ nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
       p = p + srcCount + 1;
       thisObject->mUnicodeDecoder->Reset();
     } else {
-      for (int32_t i = 0; i < outCount; ++i) {
+      for (PRInt32 i = 0; i < outCount; ++i) {
         rv = thisObject->ParseCharacter(out[i]);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -563,15 +563,15 @@ NS_IMETHODIMP
 nsEventSource::OnDataAvailable(nsIRequest *aRequest,
                                nsISupports *aContext,
                                nsIInputStream *aInputStream,
-                               uint32_t aOffset,
-                               uint32_t aCount)
+                               PRUint32 aOffset,
+                               PRUint32 aCount)
 {
   NS_ENSURE_ARG_POINTER(aInputStream);
 
   nsresult rv = CheckHealthOfRequestCallback(aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t totalRead;
+  PRUint32 totalRead;
   return aInputStream->ReadSegments(nsEventSource::StreamReaderFunc, this,
                                     aCount, &totalRead);
 }
@@ -693,7 +693,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(AsyncVerifyRedirectCallbackFwr)
 NS_IMETHODIMP
 nsEventSource::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
                                       nsIChannel *aNewChannel,
-                                      uint32_t    aFlags,
+                                      PRUint32    aFlags,
                                       nsIAsyncVerifyRedirectCallback *aCallback)
 {
   nsCOMPtr<nsIRequest> aOldRequest = do_QueryInterface(aOldChannel);
@@ -1089,7 +1089,7 @@ nsresult
 nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
                                    const PRUnichar *aError,
                                    const PRUnichar **aFormatStrings,
-                                   uint32_t aFormatStringsLen)
+                                   PRUint32 aFormatStringsLen)
 {
   nsCOMPtr<nsIStringBundleService> bundleService =
     mozilla::services::GetStringBundleService();
@@ -1228,7 +1228,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
   nsCOMPtr<nsIURI> srcToTest = aSrc ? aSrc : mSrc.get();
   NS_ENSURE_TRUE(srcToTest, false);
 
-  uint32_t aCheckURIFlags =
+  PRUint32 aCheckURIFlags =
     nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL |
     nsIScriptSecurityManager::DISALLOW_SCRIPT;
 
@@ -1248,7 +1248,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
   // Still need to consider the case that doc is nullptr however.
   rv = CheckInnerWindowCorrectness();
   NS_ENSURE_SUCCESS(rv, false);
-  int16_t shouldLoad = nsIContentPolicy::ACCEPT;
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
   rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_DATAREQUEST,
                                  srcToTest,
                                  mPrincipal,
@@ -1358,7 +1358,7 @@ nsEventSource::DispatchCurrentMessageEvent()
     message->mLastEventID.Assign(mLastEventID);
   }
 
-  int32_t sizeBefore = mMessagesToDispatch.GetSize();
+  PRInt32 sizeBefore = mMessagesToDispatch.GetSize();
   mMessagesToDispatch.Push(message.forget());
   NS_ENSURE_TRUE(mMessagesToDispatch.GetSize() == sizeBefore + 1,
                  NS_ERROR_OUT_OF_MEMORY);
@@ -1502,8 +1502,8 @@ nsEventSource::SetFieldAndClear()
 
     case PRUnichar('r'):
       if (mLastFieldName.EqualsLiteral("retry")) {
-        uint32_t newValue=0;
-        uint32_t i = 0;  // we must ensure that there are only digits
+        PRUint32 newValue=0;
+        PRUint32 i = 0;  // we must ensure that there are only digits
         bool assign = true;
         for (i = 0; i < mLastFieldValue.Length(); ++i) {
           if (mLastFieldValue.CharAt(i) < (PRUnichar)'0' ||
@@ -1512,8 +1512,8 @@ nsEventSource::SetFieldAndClear()
             break;
           }
           newValue = newValue*10 +
-                     (((uint32_t)mLastFieldValue.CharAt(i))-
-                       ((uint32_t)((PRUnichar)'0')));
+                     (((PRUint32)mLastFieldValue.CharAt(i))-
+                       ((PRUint32)((PRUnichar)'0')));
         }
 
         if (assign) {

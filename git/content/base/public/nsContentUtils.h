@@ -160,11 +160,11 @@ struct ViewportInfo
 
     // The width of the viewport, specified by the <meta name="viewport"> tag,
     // in CSS pixels.
-    uint32_t width;
+    PRUint32 width;
 
     // The height of the viewport, specified by the <meta name="viewport"> tag,
     // in CSS pixels.
-    uint32_t height;
+    PRUint32 height;
 
     // Whether or not we should automatically size the viewport to the device's
     // width. This is true if the document has been optimized for mobile, and
@@ -174,22 +174,30 @@ struct ViewportInfo
 
     // Whether or not the user can zoom in and out on the page. Default is true.
     bool allowZoom;
+
+    // This is a holdover from e10s fennec, and might be removed in the future.
+    // It's a hack to work around bugs that didn't allow zooming of documents
+    // from within the parent process. It is still used in native Fennec for XUL
+    // documents, but it should probably be removed.
+    // Currently, from, within GetViewportInfo(), This is only set to false
+    // if the document is a XUL document.
+    bool autoScale;
 };
 
 struct EventNameMapping
 {
   nsIAtom* mAtom;
-  uint32_t mId;
-  int32_t  mType;
-  uint32_t mStructType;
+  PRUint32 mId;
+  PRInt32  mType;
+  PRUint32 mStructType;
 };
 
 struct nsShortcutCandidate {
-  nsShortcutCandidate(uint32_t aCharCode, bool aIgnoreShift) :
+  nsShortcutCandidate(PRUint32 aCharCode, bool aIgnoreShift) :
     mCharCode(aCharCode), mIgnoreShift(aIgnoreShift)
   {
   }
-  uint32_t mCharCode;
+  PRUint32 mCharCode;
   bool     mIgnoreShift;
 };
 
@@ -271,9 +279,9 @@ public:
    * This method just sucks.
    */
   static nsresult GetAncestorsAndOffsets(nsIDOMNode* aNode,
-                                         int32_t aOffset,
+                                         PRInt32 aOffset,
                                          nsTArray<nsIContent*>* aAncestorNodes,
-                                         nsTArray<int32_t>* aAncestorOffsets);
+                                         nsTArray<PRInt32>* aAncestorOffsets);
 
   /*
    * The out parameter, |aCommonAncestor| will be the closest node, if any,
@@ -314,11 +322,11 @@ public:
    *  the result is 1, and the optional aDisconnected parameter
    *  is set to true.
    */
-  static int32_t ComparePoints(nsINode* aParent1, int32_t aOffset1,
-                               nsINode* aParent2, int32_t aOffset2,
+  static PRInt32 ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
+                               nsINode* aParent2, PRInt32 aOffset2,
                                bool* aDisconnected = nullptr);
-  static int32_t ComparePoints(nsIDOMNode* aParent1, int32_t aOffset1,
-                               nsIDOMNode* aParent2, int32_t aOffset2,
+  static PRInt32 ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
+                               nsIDOMNode* aParent2, PRInt32 aOffset2,
                                bool* aDisconnected = nullptr);
 
   /**
@@ -342,15 +350,15 @@ public:
    *
    * @see nsIDOMNode
    */
-  static uint16_t ReverseDocumentPosition(uint16_t aDocumentPosition);
+  static PRUint16 ReverseDocumentPosition(PRUint16 aDocumentPosition);
 
-  static uint32_t CopyNewlineNormalizedUnicodeTo(const nsAString& aSource,
-                                                 uint32_t aSrcOffset,
+  static PRUint32 CopyNewlineNormalizedUnicodeTo(const nsAString& aSource,
+                                                 PRUint32 aSrcOffset,
                                                  PRUnichar* aDest,
-                                                 uint32_t aLength,
+                                                 PRUint32 aLength,
                                                  bool& aLastCharCR);
 
-  static uint32_t CopyNewlineNormalizedUnicodeTo(nsReadingIterator<PRUnichar>& aSrcStart, const nsReadingIterator<PRUnichar>& aSrcEnd, nsAString& aDest);
+  static PRUint32 CopyNewlineNormalizedUnicodeTo(nsReadingIterator<PRUnichar>& aSrcStart, const nsReadingIterator<PRUnichar>& aSrcEnd, nsAString& aDest);
 
   static const nsDependentSubstring TrimCharsInSet(const char* aSet,
                                                    const nsAString& aValue);
@@ -362,14 +370,14 @@ public:
   /**
    * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe.
    */
-  static bool IsFirstLetterPunctuation(uint32_t aChar);
-  static bool IsFirstLetterPunctuationAt(const nsTextFragment* aFrag, uint32_t aOffset);
+  static bool IsFirstLetterPunctuation(PRUint32 aChar);
+  static bool IsFirstLetterPunctuationAt(const nsTextFragment* aFrag, PRUint32 aOffset);
  
   /**
    * Returns true if aChar is of class Lu, Ll, Lt, Lm, Lo, Nd, Nl or No
    */
-  static bool IsAlphanumeric(uint32_t aChar);
-  static bool IsAlphanumericAt(const nsTextFragment* aFrag, uint32_t aOffset);
+  static bool IsAlphanumeric(PRUint32 aChar);
+  static bool IsAlphanumericAt(const nsTextFragment* aFrag, PRUint32 aOffset);
 
   /*
    * Is the character an HTML whitespace character?
@@ -408,7 +416,7 @@ public:
    * @param aValue the value to parse
    * @return 1 to 7, or 0 if the value couldn't be parsed
    */
-  static int32_t ParseLegacyFontSize(const nsAString& aValue);
+  static PRInt32 ParseLegacyFontSize(const nsAString& aValue);
 
   static void Shutdown();
 
@@ -539,10 +547,10 @@ public:
    * @param aCharset empty if not found
    * @return boolean indicating whether a BOM was detected.
    */
-  static bool CheckForBOM(const unsigned char* aBuffer, uint32_t aLength,
+  static bool CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
                           nsACString& aCharset, bool *bigEndian = nullptr);
 
-  static nsresult GuessCharset(const char *aData, uint32_t aDataLen,
+  static nsresult GuessCharset(const char *aData, PRUint32 aDataLen,
                                nsACString &aCharset);
 
   /**
@@ -562,16 +570,16 @@ public:
 
   static nsresult SplitQName(const nsIContent* aNamespaceResolver,
                              const nsAFlatString& aQName,
-                             int32_t *aNamespace, nsIAtom **aLocalName);
+                             PRInt32 *aNamespace, nsIAtom **aLocalName);
 
   static nsresult GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                        const nsAString& aQualifiedName,
                                        nsNodeInfoManager* aNodeInfoManager,
-                                       uint16_t aNodeType,
+                                       PRUint16 aNodeType,
                                        nsINodeInfo** aNodeInfo);
 
   static void SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
-                             nsIAtom **aTagName, int32_t *aNameSpaceID);
+                             nsIAtom **aTagName, PRInt32 *aNameSpaceID);
 
   // Get a permission-manager setting for the given principal and type.
   // If the pref doesn't exist or if it isn't ALLOW_ACTION, false is
@@ -609,7 +617,7 @@ public:
    * @return true if aContent has an attribute aName in namespace aNameSpaceID,
    * and the attribute value is non-empty.
    */
-  static bool HasNonEmptyAttr(const nsIContent* aContent, int32_t aNameSpaceID,
+  static bool HasNonEmptyAttr(const nsIContent* aContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aName);
 
   /**
@@ -641,7 +649,7 @@ public:
                              nsISupports* aContext,
                              nsIDocument* aLoadingDocument,
                              nsIPrincipal* aLoadingPrincipal,
-                             int16_t* aImageBlockingStatus = nullptr);
+                             PRInt16* aImageBlockingStatus = nullptr);
   /**
    * Method to start an image load.  This does not do any security checks.
    * This method will attempt to make aURI immutable; a caller that wants to
@@ -660,7 +668,7 @@ public:
                             nsIPrincipal* aLoadingPrincipal,
                             nsIURI* aReferrer,
                             imgIDecoderObserver* aObserver,
-                            int32_t aLoadFlags,
+                            PRInt32 aLoadFlags,
                             imgIRequest** aRequest);
 
   /**
@@ -728,8 +736,8 @@ public:
    * SVG's "evt" and the rest of the world's "event", and because onerror
    * takes 3 args.
    */
-  static void GetEventArgNames(int32_t aNameSpaceID, nsIAtom *aEventName,
-                               uint32_t *aArgCount, const char*** aArgNames);
+  static void GetEventArgNames(PRInt32 aNameSpaceID, nsIAtom *aEventName,
+                               PRUint32 *aArgCount, const char*** aArgNames);
 
   /**
    * If aNode is not an element, return true exactly when aContent's binding
@@ -788,18 +796,18 @@ public:
     eCOMMON_DIALOG_PROPERTIES,
     PropertiesFile_COUNT
   };
-  static nsresult ReportToConsole(uint32_t aErrorFlags,
+  static nsresult ReportToConsole(PRUint32 aErrorFlags,
                                   const char *aCategory,
                                   nsIDocument* aDocument,
                                   PropertiesFile aFile,
                                   const char *aMessageName,
                                   const PRUnichar **aParams = nullptr,
-                                  uint32_t aParamsLength = 0,
+                                  PRUint32 aParamsLength = 0,
                                   nsIURI* aURI = nullptr,
                                   const nsAFlatString& aSourceLine
                                     = EmptyString(),
-                                  uint32_t aLineNumber = 0,
-                                  uint32_t aColumnNumber = 0);
+                                  PRUint32 aLineNumber = 0,
+                                  PRUint32 aColumnNumber = 0);
 
   /**
    * Get the localized string named |aKey| in properties file |aFile|.
@@ -815,7 +823,7 @@ public:
    * @param aAttribute 	the value of the sandbox attribute
    * @return 			the set of flags
    */
-  static uint32_t ParseSandboxAttributeToFlags(const nsAString& aSandboxAttr);
+  static PRUint32 ParseSandboxAttributeToFlags(const nsAString& aSandboxAttr);
 
 
   /**
@@ -826,11 +834,11 @@ private:
   static nsresult FormatLocalizedString(PropertiesFile aFile,
                                         const char* aKey,
                                         const PRUnichar** aParams,
-                                        uint32_t aParamsLength,
+                                        PRUint32 aParamsLength,
                                         nsXPIDLString& aResult);
   
 public:
-  template<uint32_t N>
+  template<PRUint32 N>
   static nsresult FormatLocalizedString(PropertiesFile aFile,
                                         const char* aKey,
                                         const PRUnichar* (&aParams)[N],
@@ -889,7 +897,7 @@ public:
    * @return true if there are mutation listeners of the specified type
    */
   static bool HasMutationListeners(nsINode* aNode,
-                                     uint32_t aType,
+                                     PRUint32 aType,
                                      nsINode* aTargetForSubtreeModified);
 
   /**
@@ -904,7 +912,7 @@ public:
    * @return true if there are mutation listeners of the specified type
    */
   static bool HasMutationListeners(nsIDocument* aDocument,
-                                     uint32_t aType);
+                                     PRUint32 aType);
   /**
    * Synchronously fire DOMNodeRemoved on aChild. Only fires the event if
    * there really are listeners by checking using the HasMutationListeners
@@ -990,7 +998,7 @@ public:
    * @param aName the event name to look up
    * @param aType the type of content
    */
-  static bool IsEventAttributeName(nsIAtom* aName, int32_t aType);
+  static bool IsEventAttributeName(nsIAtom* aName, PRInt32 aType);
 
   /**
    * Return the event id for the event with the given name. The name is the
@@ -999,7 +1007,7 @@ public:
    *
    * @param aName the event name to look up
    */
-  static uint32_t GetEventId(nsIAtom* aName);
+  static PRUint32 GetEventId(nsIAtom* aName);
 
   /**
    * Return the category for the event with the given name. The name is the
@@ -1008,7 +1016,7 @@ public:
    *
    * @param aName the event name to look up
    */
-  static uint32_t GetEventCategory(const nsAString& aName);
+  static PRUint32 GetEventCategory(const nsAString& aName);
 
   /**
    * Return the event id and atom for the event with the given name.
@@ -1020,8 +1028,8 @@ public:
    * @param aEventStruct only return event id in aEventStruct category
    */
   static nsIAtom* GetEventIdAndAtom(const nsAString& aName,
-                                    uint32_t aEventStruct,
-                                    uint32_t* aEventID);
+                                    PRUint32 aEventStruct,
+                                    PRUint32* aEventID);
 
   /**
    * Used only during traversal of the XPCOM graph by the cycle
@@ -1048,7 +1056,7 @@ public:
   static nsEventListenerManager* GetListenerManager(nsINode* aNode,
                                                     bool aCreateIfNotFound);
 
-  static void UnmarkGrayJSListenersInCCGenerationDocuments(uint32_t aGeneration);
+  static void UnmarkGrayJSListenersInCCGenerationDocuments(PRUint32 aGeneration);
 
   /**
    * Remove the eventlistener manager for aNode.
@@ -1072,7 +1080,7 @@ public:
    * @param aNamespaceID namespace of the node
    */
   static bool IsValidNodeName(nsIAtom *aLocalName, nsIAtom *aPrefix,
-                                int32_t aNamespaceID);
+                                PRInt32 aNamespaceID);
 
   /**
    * Creates a DocumentFragment from text using a context node to resolve
@@ -1111,7 +1119,7 @@ public:
   static nsresult ParseFragmentHTML(const nsAString& aSourceBuffer,
                                     nsIContent* aTargetNode,
                                     nsIAtom* aContextLocalName,
-                                    int32_t aContextNamespace,
+                                    PRInt32 aContextNamespace,
                                     bool aQuirks,
                                     bool aPreventScriptExecution);
 
@@ -1165,8 +1173,8 @@ public:
    */
   static nsresult ConvertToPlainText(const nsAString& aSourceBuffer,
                                      nsAString& aResultBuffer,
-                                     uint32_t aFlags,
-                                     uint32_t aWrapCol);
+                                     PRUint32 aFlags,
+                                     PRUint32 aWrapCol);
 
   /**
    * Creates a new XML document, which is marked to be loaded as data.
@@ -1341,9 +1349,9 @@ public:
    */
   static nsresult CheckSecurityBeforeLoad(nsIURI* aURIToLoad,
                                           nsIPrincipal* aLoadingPrincipal,
-                                          uint32_t aCheckLoadFlags,
+                                          PRUint32 aCheckLoadFlags,
                                           bool aAllowData,
-                                          uint32_t aContentPolicyType,
+                                          PRUint32 aContentPolicyType,
                                           nsISupports* aContext,
                                           const nsACString& aMimeGuess = EmptyCString(),
                                           nsISupports* aExtra = nullptr);
@@ -1436,7 +1444,7 @@ public:
    *                          the first item is most preferred.
    */
   static void GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
-                                     nsTArray<uint32_t>& aCandidates);
+                                     nsTArray<PRUint32>& aCandidates);
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
@@ -1456,7 +1464,7 @@ public:
 
   // filters the drag and drop action to fit within the effects allowed and
   // returns it.
-  static uint32_t FilterDropEffect(uint32_t aAction, uint32_t aEffectAllowed);
+  static PRUint32 FilterDropEffect(PRUint32 aAction, PRUint32 aEffectAllowed);
 
   /*
    * Return true if the target of a drop event is a content document that is
@@ -1556,8 +1564,8 @@ public:
   static void LeaveMicroTask();
 
   static bool IsInMicroTask() { return sMicroTaskLevel != 0; }
-  static uint32_t MicroTaskLevel() { return sMicroTaskLevel; }
-  static void SetMicroTaskLevel(uint32_t aLevel) { sMicroTaskLevel = aLevel; }
+  static PRUint32 MicroTaskLevel() { return sMicroTaskLevel; }
+  static void SetMicroTaskLevel(PRUint32 aLevel) { sMicroTaskLevel = aLevel; }
 
   /* Process viewport META data. This gives us information for the scale
    * and zoom of a page on mobile devices. We stick the information in
@@ -1590,13 +1598,13 @@ public:
    */
   static bool EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
                                            const char* aStr2,
-                                           const uint32_t len);
+                                           const PRUint32 len);
 #ifdef NS_DISABLE_LITERAL_TEMPLATE
   static inline bool
   EqualsLiteralIgnoreASCIICase(const nsAString& aStr1,
                                const char* aStr2)
   {
-    uint32_t len = strlen(aStr2);
+    PRUint32 len = strlen(aStr2);
     return EqualsLiteralIgnoreASCIICase(aStr1, aStr2, len);
   }
 #else
@@ -2021,7 +2029,7 @@ public:
    * Returns true if the language name is a version of JavaScript and
    * false otherwise
    */
-  static bool IsJavaScriptLanguage(const nsString& aName, uint32_t *aVerFlags);
+  static bool IsJavaScriptLanguage(const nsString& aName, PRUint32 *aVerFlags);
 
   /**
    * Returns the JSVersion for a string of the form '1.n', n = 0, ..., 8, and
@@ -2052,7 +2060,7 @@ public:
       nullptr
     };
 
-    for (uint32_t i = 0; jsTypes[i]; ++i) {
+    for (PRUint32 i = 0; jsTypes[i]; ++i) {
       if (aMIMEType.LowerCaseEqualsASCII(jsTypes[i])) {
         return true;
       }
@@ -2075,7 +2083,7 @@ public:
    *                                  NS_ERROR_FAILURE returned if the the requested
    *                                  idle service or the current idle were not obtained.
    */
-  static nsresult IsUserIdle(uint32_t aRequestedIdleTimeInMS, bool* aUserIsIdle);
+  static nsresult IsUserIdle(PRUint32 aRequestedIdleTimeInMS, bool* aUserIsIdle);
 
   /** 
    * Takes a window and a string to check prefs against. Assumes that
@@ -2108,8 +2116,8 @@ public:
    */
   static void GetSelectionInTextControl(mozilla::Selection* aSelection,
                                         Element* aRoot,
-                                        int32_t& aOutStartOffset,
-                                        int32_t& aOutEndOffset);
+                                        PRInt32& aOutStartOffset,
+                                        PRInt32& aOutEndOffset);
 
   static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext);
 
@@ -2179,22 +2187,22 @@ private:
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
 
-  static uint32_t sJSGCThingRootCount;
+  static PRUint32 sJSGCThingRootCount;
 
 #ifdef IBMBIDI
   static nsIBidiKeyboard* sBidiKeyboard;
 #endif
 
   static bool sInitialized;
-  static uint32_t sScriptBlockerCount;
+  static PRUint32 sScriptBlockerCount;
 #ifdef DEBUG
-  static uint32_t sDOMNodeRemovedSuppressCount;
+  static PRUint32 sDOMNodeRemovedSuppressCount;
 #endif
-  static uint32_t sMicroTaskLevel;
+  static PRUint32 sMicroTaskLevel;
   // Not an nsCOMArray because removing elements from those is slower
   static nsTArray< nsCOMPtr<nsIRunnable> >* sBlockedScriptRunners;
-  static uint32_t sRunnersCountAtFirstBlocker;
-  static uint32_t sScriptBlockerCountWhereRunnersPrevented;
+  static PRUint32 sRunnersCountAtFirstBlocker;
+  static PRUint32 sScriptBlockerCountWhereRunnersPrevented;
 
   static nsIInterfaceRequestor* sSameOriginChecker;
 
@@ -2202,7 +2210,7 @@ private:
   static bool sAllowXULXBL_for_file;
   static bool sIsFullScreenApiEnabled;
   static bool sTrustedFullScreenOnly;
-  static uint32_t sHandlingInputTimeout;
+  static PRUint32 sHandlingInputTimeout;
   static bool sIsIdleObserverAPIEnabled;
 
   static nsHtml5StringParser* sHTMLFragmentParser;

@@ -15,7 +15,7 @@ public:
     nsManifestLineReader() : mBase(nullptr) {} 
     ~nsManifestLineReader() {}
 
-    void Init(char* base, uint32_t flen) 
+    void Init(char* base, PRUint32 flen) 
     {
         mBase = mCur = mNext = base; 
         mLength = 0;
@@ -75,12 +75,12 @@ public:
     }
 
     char*       LinePtr() {return mCur;}    
-    uint32_t    LineLength() {return mLength;}    
+    PRUint32    LineLength() {return mLength;}    
 
     bool        IsEOL(char c) {return c == '\n' || c == '\r';}
 private:
     char*       mCur;
-    uint32_t    mLength;
+    PRUint32    mLength;
     char*       mNext;
     char*       mBase;
     char*       mLimit;

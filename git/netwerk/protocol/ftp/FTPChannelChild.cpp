@@ -16,9 +16,6 @@
 #include "nsILoadContext.h"
 #include "nsCDefaultURIFixup.h"
 #include "base/compiler_specific.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-
-using namespace mozilla::ipc;
 
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -92,7 +89,7 @@ FTPChannelChild::SetLastModifiedTime(PRTime lastModifiedTime)
 }
 
 NS_IMETHODIMP
-FTPChannelChild::ResumeAt(uint64_t aStartPos, const nsACString& aEntityID)
+FTPChannelChild::ResumeAt(PRUint64 aStartPos, const nsACString& aEntityID)
 {
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   mStartPos = aStartPos;
@@ -116,7 +113,7 @@ FTPChannelChild::GetProxyInfo(nsIProxyInfo** aProxyInfo)
 NS_IMETHODIMP
 FTPChannelChild::SetUploadStream(nsIInputStream* stream,
                                  const nsACString& contentType,
-                                 int32_t contentLength)
+                                 PRInt32 contentLength)
 {
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   mUploadStream = stream;
@@ -163,11 +160,8 @@ FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nullptr);
 
-  OptionalInputStreamParams uploadStream;
-  SerializeInputStream(mUploadStream, uploadStream);
-
-  SendAsyncOpen(nsBaseChannel::URI(), mStartPos, mEntityID, uploadStream,
-                IPC::SerializedLoadContext(this));
+  SendAsyncOpen(nsBaseChannel::URI(), mStartPos, mEntityID,
+                IPC::InputStream(mUploadStream), IPC::SerializedLoadContext(this));
 
   // The socket transport layer in the chrome process now has a logical ref to
   // us until OnStopRequest is called.
@@ -202,7 +196,7 @@ FTPChannelChild::OpenContentStream(bool async,
 class FTPStartRequestEvent : public ChannelEvent
 {
  public:
-  FTPStartRequestEvent(FTPChannelChild* aChild, const int32_t& aContentLength,
+  FTPStartRequestEvent(FTPChannelChild* aChild, const PRInt32& aContentLength,
                        const nsCString& aContentType, const PRTime& aLastModified,
                        const nsCString& aEntityID, const IPC::URI& aURI)
   : mChild(aChild), mContentLength(aContentLength), mContentType(aContentType),
@@ -211,7 +205,7 @@ class FTPStartRequestEvent : public ChannelEvent
                                        mLastModified, mEntityID, mURI); }
  private:
   FTPChannelChild* mChild;
-  int32_t mContentLength;
+  PRInt32 mContentLength;
   nsCString mContentType;
   PRTime mLastModified;
   nsCString mEntityID;
@@ -219,7 +213,7 @@ class FTPStartRequestEvent : public ChannelEvent
 };
 
 bool
-FTPChannelChild::RecvOnStartRequest(const int32_t& aContentLength,
+FTPChannelChild::RecvOnStartRequest(const PRInt32& aContentLength,
                                     const nsCString& aContentType,
                                     const PRTime& aLastModified,
                                     const nsCString& aEntityID,
@@ -236,7 +230,7 @@ FTPChannelChild::RecvOnStartRequest(const int32_t& aContentLength,
 }
 
 void
-FTPChannelChild::DoOnStartRequest(const int32_t& aContentLength,
+FTPChannelChild::DoOnStartRequest(const PRInt32& aContentLength,
                                   const nsCString& aContentType,
                                   const PRTime& aLastModified,
                                   const nsCString& aEntityID,
@@ -264,19 +258,19 @@ class FTPDataAvailableEvent : public ChannelEvent
 {
  public:
   FTPDataAvailableEvent(FTPChannelChild* aChild, const nsCString& aData,
-                        const uint32_t& aOffset, const uint32_t& aCount)
+                        const PRUint32& aOffset, const PRUint32& aCount)
   : mChild(aChild), mData(aData), mOffset(aOffset), mCount(aCount) {}
   void Run() { mChild->DoOnDataAvailable(mData, mOffset, mCount); }
  private:
   FTPChannelChild* mChild;
   nsCString mData;
-  uint32_t mOffset, mCount;
+  PRUint32 mOffset, mCount;
 };
 
 bool
 FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
-                                     const uint32_t& offset,
-                                     const uint32_t& count)
+                                     const PRUint32& offset,
+                                     const PRUint32& count)
 {
   if (mEventQ.ShouldEnqueue()) {
     mEventQ.Enqueue(new FTPDataAvailableEvent(this, data, offset, count));
@@ -288,8 +282,8 @@ FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
 
 void
 FTPChannelChild::DoOnDataAvailable(const nsCString& data,
-                                   const uint32_t& offset,
-                                   const uint32_t& count)
+                                   const PRUint32& offset,
+                                   const PRUint32& count)
 {
   LOG(("FTPChannelChild::RecvOnDataAvailable [this=%x]\n", this));
 
@@ -502,7 +496,7 @@ FTPChannelChild::Resume()
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-FTPChannelChild::ConnectParent(uint32_t id)
+FTPChannelChild::ConnectParent(PRUint32 id)
 {
   // The socket transport in the chrome process now holds a logical ref to us
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.

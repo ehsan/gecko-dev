@@ -112,7 +112,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsDragService, nsBaseDragService, nsIDragSessionOS2
 NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                             nsISupportsArray *aTransferables, 
                                             nsIScriptableRegion *aRegion,
-                                            uint32_t aActionType)
+                                            PRUint32 aActionType)
 {
   if (mDoingDrag)
     return NS_ERROR_UNEXPECTED;
@@ -153,7 +153,7 @@ NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     nsCOMPtr<nsITransferable> transItem (do_QueryInterface(genericItem));
 
     nsCOMPtr<nsISupports> genericData;
-    uint32_t len = 0;
+    PRUint32 len = 0;
 
       // see if we have a URL or text;  if so, the title method
       // will save the data and mimetype for use with a native drop
@@ -353,7 +353,7 @@ NS_IMETHODIMP nsDragService::EndDragSession(bool aDragDone)
 
 // --------------------------------------------------------------------------
 
-NS_IMETHODIMP nsDragService::GetNumDropItems(uint32_t *aNumDropItems)
+NS_IMETHODIMP nsDragService::GetNumDropItems(PRUint32 *aNumDropItems)
 {
   if (mSourceDataItems)
     mSourceDataItems->Count(aNumDropItems);
@@ -366,7 +366,7 @@ NS_IMETHODIMP nsDragService::GetNumDropItems(uint32_t *aNumDropItems)
 // --------------------------------------------------------------------------
 
 NS_IMETHODIMP nsDragService::GetData(nsITransferable *aTransferable,
-                                     uint32_t aItemIndex)
+                                     PRUint32 aItemIndex)
 {
     // make sure that we have a transferable
   if (!aTransferable)
@@ -382,7 +382,7 @@ NS_IMETHODIMP nsDragService::GetData(nsITransferable *aTransferable,
     return rv;
 
     // count the number of flavors
-  uint32_t cnt;
+  PRUint32 cnt;
   flavorList->Count (&cnt);
 
   for (unsigned int i= 0; i < cnt; ++i ) {
@@ -400,7 +400,7 @@ NS_IMETHODIMP nsDragService::GetData(nsITransferable *aTransferable,
       nsCOMPtr<nsITransferable> item (do_QueryInterface(genericItem));
       if (item) {
         nsCOMPtr<nsISupports> data;
-        uint32_t tmpDataLen = 0;
+        PRUint32 tmpDataLen = 0;
         rv = item->GetTransferData(flavorStr, getter_AddRefs(data),
                                    &tmpDataLen);
         if (NS_SUCCEEDED(rv)) {
@@ -430,19 +430,19 @@ NS_IMETHODIMP nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
 
   *_retval = false;
 
-  uint32_t numDragItems = 0;
+  PRUint32 numDragItems = 0;
   if (mSourceDataItems)
     mSourceDataItems->Count(&numDragItems);
   if (!numDragItems)
     return NS_OK;
 
 // return true if all items support this flavor
-//  for (uint32_t itemIndex = 0, *_retval = true;
+//  for (PRUint32 itemIndex = 0, *_retval = true;
 //       itemIndex < numDragItems && *_retval; ++itemIndex) {
 //    *_retval = false;
 
 // return true if any item supports this flavor
-  for (uint32_t itemIndex = 0;
+  for (PRUint32 itemIndex = 0;
        itemIndex < numDragItems && !(*_retval); ++itemIndex) {
 
     nsCOMPtr<nsISupports> genericItem;
@@ -454,10 +454,10 @@ NS_IMETHODIMP nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
       currItem->FlavorsTransferableCanExport(getter_AddRefs(flavorList));
 
       if (flavorList) {
-        uint32_t numFlavors;
+        PRUint32 numFlavors;
         flavorList->Count( &numFlavors );
 
-        for (uint32_t flavorIndex=0; flavorIndex < numFlavors; ++flavorIndex) {
+        for (PRUint32 flavorIndex=0; flavorIndex < numFlavors; ++flavorIndex) {
           nsCOMPtr<nsISupports> genericWrapper;
           flavorList->GetElementAt(flavorIndex, getter_AddRefs(genericWrapper));
           nsCOMPtr<nsISupportsCString> currentFlavor;
@@ -597,7 +597,7 @@ nsresult  nsDragService::GetUrlAndTitle(nsISupports *aGenericData,
 
     // split string into URL and Title - 
     // if there's a title but no URL, there's no reason to continue
-  int32_t lineIndex = strData.FindChar ('\n');
+  PRInt32 lineIndex = strData.FindChar ('\n');
   if (lineIndex == 0)
     return NS_ERROR_FAILURE;
 
@@ -619,7 +619,7 @@ nsresult  nsDragService::GetUrlAndTitle(nsISupports *aGenericData,
 
   if (++lineIndex && lineIndex != (int)strData.Length() &&
       !strUrl.Equals(Substring(strData, lineIndex, strData.Length()))) {
-    uint32_t strLth = NS_MIN((int)strData.Length()-lineIndex, MAXTITLELTH);
+    PRUint32 strLth = NS_MIN((int)strData.Length()-lineIndex, MAXTITLELTH);
     nsAutoString strTitle;
     strData.Mid(strTitle, lineIndex, strLth);
     if (!UnicodeToCodepage(strTitle, aTargetName))
@@ -662,7 +662,7 @@ nsresult  nsDragService::GetUrlAndTitle(nsISupports *aGenericData,
   }
   else {
     saveURI->GetSpec(strTitle);
-    int32_t index = strTitle.FindChar (':');
+    PRInt32 index = strTitle.FindChar (':');
     if (index != -1) {
       if ((strTitle.get())[++index] == '/')
         if ((strTitle.get())[++index] == '/')
@@ -764,7 +764,7 @@ nsresult  nsDragService::GetUniTextTitle(nsISupports *aGenericData,
 // entered the window and calls NativeDragEnter() to start a session.
 
 NS_IMETHODIMP nsDragService::DragOverMsg(PDRAGINFO pdinfo, MRESULT &mr,
-                                         uint32_t* dragFlags)
+                                         PRUint32* dragFlags)
 {
   nsresult  rv = NS_ERROR_FAILURE;
 
@@ -921,7 +921,7 @@ NS_IMETHODIMP nsDragService::GetDragoverResult(MRESULT& mr)
     else
       usDrop = DOR_NODROP;
 
-    uint32_t action;
+    PRUint32 action;
     USHORT   usOp;
     GetDragAction(&action);
     if (action & DRAGDROP_ACTION_COPY)
@@ -951,7 +951,7 @@ NS_IMETHODIMP nsDragService::GetDragoverResult(MRESULT& mr)
 
 // have the client dispatch the event, then call ExitSession()
 
-NS_IMETHODIMP nsDragService::DragLeaveMsg(PDRAGINFO pdinfo, uint32_t* dragFlags)
+NS_IMETHODIMP nsDragService::DragLeaveMsg(PDRAGINFO pdinfo, PRUint32* dragFlags)
 {
   if (!mDoingDrag || !dragFlags)
     return NS_ERROR_FAILURE;
@@ -969,7 +969,7 @@ NS_IMETHODIMP nsDragService::DragLeaveMsg(PDRAGINFO pdinfo, uint32_t* dragFlags)
 // DropHelp occurs when you press F1 during a drag;  apparently,
 // it's like a regular drop in that the target has to do clean up
 
-NS_IMETHODIMP nsDragService::DropHelpMsg(PDRAGINFO pdinfo, uint32_t* dragFlags)
+NS_IMETHODIMP nsDragService::DropHelpMsg(PDRAGINFO pdinfo, PRUint32* dragFlags)
 {
   if (!mDoingDrag)
     return NS_ERROR_FAILURE;
@@ -995,7 +995,7 @@ NS_IMETHODIMP nsDragService::DropHelpMsg(PDRAGINFO pdinfo, uint32_t* dragFlags)
 // for native drags, clean up;
 // for all drags, signal that Moz is no longer in d&d mode
 
-NS_IMETHODIMP nsDragService::ExitSession(uint32_t* dragFlags)
+NS_IMETHODIMP nsDragService::ExitSession(PRUint32* dragFlags)
 {
   if (!mDoingDrag)
     return NS_ERROR_FAILURE;
@@ -1027,7 +1027,7 @@ NS_IMETHODIMP nsDragService::ExitSession(uint32_t* dragFlags)
 // has received a render-complete msg.
 
 NS_IMETHODIMP nsDragService::DropMsg(PDRAGINFO pdinfo, HWND hwnd,
-                                     uint32_t* dragFlags)
+                                     PRUint32* dragFlags)
 {
   if (!mDoingDrag || !dragFlags || !pdinfo || !DrgAccessDraginfo(pdinfo))
     return NS_ERROR_FAILURE;
@@ -1186,7 +1186,7 @@ NS_IMETHODIMP nsDragService::NativeDrop(PDRAGINFO pdinfo, HWND hwnd,
 // nsIDataFlavorProvider which expects data to be rendered synchronously
 
 NS_IMETHODIMP nsDragService::RenderCompleteMsg(PDRAGTRANSFER pdxfer,
-                                        USHORT usResult, uint32_t* dragFlags)
+                                        USHORT usResult, PRUint32* dragFlags)
 {
   nsresult rv = NS_ERROR_FAILURE;
   if (!mDoingDrag || !pdxfer)
@@ -1316,7 +1316,7 @@ NS_IMETHODIMP nsDragService::NativeDataToTransferable( PCSZ pszText,
         return rv;
     }
     else {
-      uint32_t len;
+      PRUint32 len;
       nsCOMPtr<nsISupports> genericData;
       if (NS_SUCCEEDED(trans->GetTransferData(kURLDescriptionMime,
                                    getter_AddRefs(genericData), &len))) {
@@ -1736,7 +1736,7 @@ void SaveTypeAndSource(nsIFile *file, nsIDOMDocument *domDoc,
 int UnicodeToCodepage(const nsAString& aString, char **aResult)
 {
   nsAutoCharBuffer buffer;
-  int32_t bufLength;
+  PRInt32 bufLength;
   WideCharToMultiByte(0, PromiseFlatString(aString).get(), aString.Length(),
                       buffer, bufLength);
   *aResult = ToNewCString(nsDependentCString(buffer.Elements()));
@@ -1748,7 +1748,7 @@ int UnicodeToCodepage(const nsAString& aString, char **aResult)
 int CodepageToUnicode(const nsACString& aString, PRUnichar **aResult)
 {
   nsAutoChar16Buffer buffer;
-  int32_t bufLength;
+  PRInt32 bufLength;
   MultiByteToWideChar(0, PromiseFlatCString(aString).get(),
                       aString.Length(), buffer, bufLength);
   *aResult = ToNewUnicode(nsDependentString(buffer.Elements()));

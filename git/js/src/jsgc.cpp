@@ -2842,9 +2842,8 @@ SweepBackgroundThings(JSRuntime* rt, bool onBackgroundThread)
     }
 }
 
-#ifdef JS_THREADSAFE
 static void
-AssertBackgroundSweepingFinished(JSRuntime *rt)
+AssertBackgroundSweepingFinshed(JSRuntime *rt)
 {
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         JS_ASSERT(!c->gcNextCompartment);
@@ -2855,6 +2854,7 @@ AssertBackgroundSweepingFinished(JSRuntime *rt)
     }
 }
 
+#ifdef JS_THREADSAFE
 static unsigned
 GetCPUCount()
 {
@@ -3040,7 +3040,7 @@ GCHelperThread::waitBackgroundSweepEnd()
     while (state == SWEEPING)
         PR_WaitCondVar(done, PR_INTERVAL_NO_TIMEOUT);
     if (rt->gcIncrementalState == NO_INCREMENTAL)
-        AssertBackgroundSweepingFinished(rt);
+        AssertBackgroundSweepingFinshed(rt);
 #else
     JS_ASSERT(state == IDLE);
 #endif /* JS_THREADSAFE */
@@ -3056,7 +3056,7 @@ GCHelperThread::waitBackgroundSweepOrAllocEnd()
     while (state == SWEEPING || state == CANCEL_ALLOCATION)
         PR_WaitCondVar(done, PR_INTERVAL_NO_TIMEOUT);
     if (rt->gcIncrementalState == NO_INCREMENTAL)
-        AssertBackgroundSweepingFinished(rt);
+        AssertBackgroundSweepingFinshed(rt);
 #else
     JS_ASSERT(state == IDLE);
 #endif /* JS_THREADSAFE */
@@ -3241,8 +3241,8 @@ BeginMarkPhase(JSRuntime *rt)
         /* Set up which compartments will be collected. */
         if (c->isGCScheduled()) {
             any = true;
-            if (c != rt->atomsCompartment)
-                c->setGCState(JSCompartment::Mark);
+            if (c.get() != rt->atomsCompartment)
+                c->setCollecting(true);
         } else {
             rt->gcIsFull = false;
         }
@@ -3260,7 +3260,7 @@ BeginMarkPhase(JSRuntime *rt)
      * to atoms that we would miss.
      */
     if (rt->atomsCompartment->isGCScheduled() && rt->gcIsFull && !rt->gcKeepAtoms)
-        rt->atomsCompartment->setGCState(JSCompartment::Mark);
+        rt->atomsCompartment->setCollecting(true);
 
     /*
      * At the end of each incremental slice, we call prepareForIncrementalGC,
@@ -3282,7 +3282,7 @@ BeginMarkPhase(JSRuntime *rt)
     if (rt->gcIsIncremental) {
         for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
             gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_DISCARD_CODE);
-            c->discardJitCode(rt->defaultFreeOp(), false);
+            c->discardJitCode(rt->defaultFreeOp());
         }
     }
 
@@ -3417,6 +3417,8 @@ EndMarkPhase(JSRuntime *rt)
                 c->arenas.unmarkAll();
         }
     }
+
+    rt->gcMarker.stop();
 
     /* We do not discard JIT here code as the following sweeping does that. */
 }
@@ -3676,12 +3678,8 @@ BeginSweepPhase(JSRuntime *rt)
      */
     bool isFull = true;
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isCollecting()) {
-            if (c != rt->atomsCompartment)
-                c->setGCState(JSCompartment::Sweep);
-        } else {
+        if (!c->isCollecting())
             isFull = false;
-        }
     }
     JS_ASSERT_IF(isFull, rt->gcIsFull);
 
@@ -3690,10 +3688,8 @@ BeginSweepPhase(JSRuntime *rt)
 #endif
 
     /* Purge the ArenaLists before sweeping. */
-    for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCSweeping())
-            c->arenas.purge();
-    }
+    for (GCCompartmentsIter c(rt); !c.done(); c.next())
+        c->arenas.purge();
 
     FreeOp fop(rt, rt->gcSweepOnBackgroundThread);
 
@@ -3706,6 +3702,11 @@ BeginSweepPhase(JSRuntime *rt)
     /* Finalize unreachable (key,value) pairs in all weak maps. */
     WeakMapBase::sweepAll(&rt->gcMarker);
     rt->debugScopes->sweep();
+
+    if (rt->atomsCompartment->wasGCStarted()) {
+        gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_ATOMS);
+        SweepAtomState(rt);
+    }
 
     /* Collect watch points associated with unreachable objects. */
     WatchpointMap::sweepAll(rt);
@@ -3745,28 +3746,20 @@ BeginSweepPhase(JSRuntime *rt)
      * Objects are finalized immediately but this may change in the future.
      */
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCSweeping()) {
-            gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
-            c->arenas.queueObjectsForSweep(&fop);
-        }
+        gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
+        c->arenas.queueObjectsForSweep(&fop);
     }
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCSweeping()) {
-            gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
-            c->arenas.queueStringsForSweep(&fop);
-        }
+        gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
+        c->arenas.queueStringsForSweep(&fop);
     }
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCSweeping()) {
-            gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
-            c->arenas.queueScriptsForSweep(&fop);
-        }
+        gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
+        c->arenas.queueScriptsForSweep(&fop);
     }
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCSweeping()) {
-            gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
-            c->arenas.queueShapesForSweep(&fop);
-        }
+        gcstats::AutoSCC scc(rt->gcStats, partition.getSCC(c));
+        c->arenas.queueShapesForSweep(&fop);
     }
 
     rt->gcSweepPhase = 0;
@@ -3821,35 +3814,10 @@ SweepPhase(JSRuntime *rt, SliceBudget &sliceBudget)
 }
 
 static void
-SweepAtomsCompartment(JSRuntime *rt)
-{
-    JSCompartment *c = rt->atomsCompartment;
-
-    JS_ASSERT(rt->gcMarker.isDrained());
-
-    JS_ASSERT(c->isGCMarking());
-    c->setGCState(JSCompartment::Sweep);
-
-    c->arenas.purge();
-
-    {
-        gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_ATOMS);
-        SweepAtomState(rt);
-    }
-
-    FreeOp fop(rt, rt->gcSweepOnBackgroundThread);
-
-    c->arenas.queueStringsForSweep(&fop);
-}
-
-static void
 EndSweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, gcreason::Reason gcReason)
 {
     gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP);
     FreeOp fop(rt, rt->gcSweepOnBackgroundThread);
-
-    JS_ASSERT(rt->gcMarker.isDrained());
-    rt->gcMarker.stop();
 
 #ifdef DEBUG
     PropertyTree::dumpShapes(rt);
@@ -3908,7 +3876,7 @@ EndSweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, gcreason::Reason gcReaso
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         c->setGCLastBytes(c->gcBytes, c->gcMallocAndFreeBytes, gckind);
         if (c->wasGCStarted())
-            c->setGCState(JSCompartment::NoGC);
+            c->setCollecting(false);
 
         JS_ASSERT(!c->isCollecting());
         JS_ASSERT(!c->wasGCStarted());
@@ -4005,44 +3973,32 @@ ResetIncrementalGC(JSRuntime *rt, const char *reason)
     if (rt->gcIncrementalState == NO_INCREMENTAL)
         return;
 
-    /* Cancel and ongoing marking. */
-    bool wasMarking = false;
-    for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        if (c->isGCMarking()) {
-            c->setNeedsBarrier(false);
-            c->setGCState(JSCompartment::NoGC);
-            wasMarking = true;
-        }
-    }
-
-    if (wasMarking)
-        rt->gcMarker.reset();
-
-    if (rt->gcIncrementalState >= SWEEP) {
-        /* If we had started sweeping then sweep to completion here. */
+    if (rt->gcIncrementalState == SWEEP) {
+        /* If we've finished marking then sweep to completion here. */
         IncrementalCollectSlice(rt, SliceBudget::Unlimited, gcreason::RESET, GC_NORMAL);
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_WAIT_BACKGROUND_THREAD);
         rt->gcHelperThread.waitBackgroundSweepOrAllocEnd();
-    } else {
-        JS_ASSERT(rt->gcIncrementalState == MARK);
-        rt->gcIncrementalState = NO_INCREMENTAL;
-
-        rt->gcMarker.stop();
-
-        JS_ASSERT(!rt->gcStrictCompartmentChecking);
-
-        rt->gcStats.reset(reason);
+        return;
     }
 
-#ifdef DEBUG
-    for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-        JS_ASSERT(c->isCollecting());
-        JS_ASSERT(!c->needsBarrier());
+    JS_ASSERT(rt->gcIncrementalState == MARK);
+
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        c->setNeedsBarrier(false);
+        c->setCollecting(false);
         JS_ASSERT(!c->gcNextCompartment);
         for (unsigned i = 0 ; i < FINALIZE_LIMIT ; ++i)
             JS_ASSERT(!c->arenas.arenaListsToSweep[i]);
     }
-#endif
+
+    rt->gcMarker.reset();
+    rt->gcMarker.stop();
+
+    rt->gcIncrementalState = NO_INCREMENTAL;
+
+    JS_ASSERT(!rt->gcStrictCompartmentChecking);
+
+    rt->gcStats.reset(reason);
 }
 
 class AutoGCSlice {
@@ -4067,7 +4023,7 @@ AutoGCSlice::AutoGCSlice(JSRuntime *rt)
 
     for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
         /* Clear this early so we don't do any write barriers during GC. */
-        if (c->isGCMarking()) {
+        if (rt->gcIncrementalState == MARK) {
             JS_ASSERT(c->needsBarrier());
             c->setNeedsBarrier(false);
         } else {
@@ -4079,11 +4035,12 @@ AutoGCSlice::AutoGCSlice(JSRuntime *rt)
 AutoGCSlice::~AutoGCSlice()
 {
     for (GCCompartmentsIter c(runtime); !c.done(); c.next()) {
-        if (c->isGCMarking()) {
+        if (runtime->gcIncrementalState == MARK) {
             c->setNeedsBarrier(true);
             c->arenas.prepareForIncrementalGC(runtime);
         } else {
-            JS_ASSERT(c->isGCSweeping());
+            JS_ASSERT(runtime->gcIncrementalState == NO_INCREMENTAL ||
+                      runtime->gcIncrementalState == SWEEP);
             c->setNeedsBarrier(false);
         }
     }
@@ -4150,7 +4107,8 @@ IncrementalCollectSlice(JSRuntime *rt,
     }
 #endif
 
-    rt->gcIsIncremental = budget != SliceBudget::Unlimited;
+    rt->gcIsIncremental = rt->gcIncrementalState != NO_INCREMENTAL ||
+                          budget != SliceBudget::Unlimited;
 
     if (zeal == ZealIncrementalRootsThenFinish || zeal == ZealIncrementalMarkAllThenFinish) {
         /*
@@ -4226,25 +4184,14 @@ IncrementalCollectSlice(JSRuntime *rt,
       }
 
       case SWEEP: {
+#ifdef DEBUG
+        for (CompartmentsIter c(rt); !c.done(); c.next())
+            JS_ASSERT(!c->needsBarrier());
+#endif
+
         bool finished = SweepPhase(rt, sliceBudget);
         if (!finished)
             break;
-        rt->gcIncrementalState = SWEEP_END;
-
-        if (rt->gcIsIncremental)
-            break;
-      }
-
-      case SWEEP_END:
-        if (rt->atomsCompartment->isGCMarking()) {
-            bool finished = DrainMarkStack(rt, sliceBudget);
-            if (!finished)
-                break;
-
-            SweepAtomsCompartment(rt);
-            if (rt->gcIsIncremental)
-                break;
-        }
 
         EndSweepPhase(rt, gckind, reason);
 
@@ -4253,6 +4200,7 @@ IncrementalCollectSlice(JSRuntime *rt,
 
         rt->gcIncrementalState = NO_INCREMENTAL;
         break;
+      }
 
       default:
         JS_ASSERT(false);
@@ -4793,9 +4741,6 @@ RunDebugGC(JSContext *cx)
         {
             rt->gcIncrementalLimit = rt->gcZealFrequency / 2;
         }
-    } else if (type == ZealPurgeAnalysisValue) {
-        if (!cx->compartment->activeAnalysis)
-            cx->compartment->types.maybePurgeAnalysis(cx, /* force = */ true);
     } else {
         Collect(rt, false, SliceBudget::Unlimited, GC_NORMAL, gcreason::DEBUG_GC);
     }

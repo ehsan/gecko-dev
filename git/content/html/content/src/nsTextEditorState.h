@@ -162,13 +162,13 @@ public:
   bool IsPasswordTextControl() const {
     return mTextCtrlElement->IsPasswordTextControl();
   }
-  int32_t GetCols() {
+  PRInt32 GetCols() {
     return mTextCtrlElement->GetCols();
   }
-  int32_t GetWrapCols() {
+  PRInt32 GetWrapCols() {
     return mTextCtrlElement->GetWrapCols();
   }
-  int32_t GetRows() {
+  PRInt32 GetRows() {
     return mTextCtrlElement->GetRows();
   }
 
@@ -181,7 +181,7 @@ public:
    * @param aMaxLength the value of the max length attr
    * @returns false if attr not defined
    */
-  bool GetMaxLength(int32_t* aMaxLength);
+  bool GetMaxLength(PRInt32* aMaxLength);
 
   /* called to free up native keybinding services */
   static NS_HIDDEN_(void) ShutDown();
@@ -197,7 +197,7 @@ public:
       return mStart == 0 && mEnd == 0 &&
              mDirection == nsITextControlFrame::eForward;
     }
-    int32_t mStart, mEnd;
+    PRInt32 mStart, mEnd;
     nsITextControlFrame::SelectionDirection mDirection;
   };
 

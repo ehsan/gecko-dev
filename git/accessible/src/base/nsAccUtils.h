@@ -57,24 +57,24 @@ public:
    * Set group attributes ('level', 'setsize', 'posinset').
    */
   static void SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
-                               int32_t aLevel, int32_t aSetSize,
-                               int32_t aPosInSet);
+                               PRInt32 aLevel, PRInt32 aSetSize,
+                               PRInt32 aPosInSet);
 
   /**
    * Get default value of the level for the given accessible.
    */
-  static int32_t GetDefaultLevel(Accessible* aAcc);
+  static PRInt32 GetDefaultLevel(Accessible* aAcc);
 
   /**
    * Return ARIA level value or the default one if ARIA is missed for the
    * given accessible.
    */
-  static int32_t GetARIAOrDefaultLevel(Accessible* aAccessible);
+  static PRInt32 GetARIAOrDefaultLevel(Accessible* aAccessible);
 
   /**
    * Compute group level for nsIDOMXULContainerItemElement node.
    */
-  static int32_t GetLevelForXULContainerItem(nsIContent *aContent);
+  static PRInt32 GetLevelForXULContainerItem(nsIContent *aContent);
 
   /**
    * Set container-foo live region attributes for the given node.
@@ -130,7 +130,7 @@ public:
     *                       nullptr if no match is found
     */
    static Accessible* GetAncestorWithRole(Accessible* aDescendant,
-                                          uint32_t aRole);
+                                          PRUint32 aRole);
 
   /**
    * Return single or multi selectable container for the given item.
@@ -139,7 +139,7 @@ public:
    * @param  aState       [in] the state of the item accessible
    */
   static Accessible* GetSelectableContainer(Accessible* aAccessible,
-                                            uint64_t aState);
+                                            PRUint64 aState);
 
   /**
    * Return true if the DOM node of given accessible has aria-selected="true"
@@ -168,8 +168,8 @@ public:
    *                         relative it.
    * @param aCoords          [out] converted coordinates
    */
-  static nsresult ConvertToScreenCoords(int32_t aX, int32_t aY,
-                                        uint32_t aCoordinateType,
+  static nsresult ConvertToScreenCoords(PRInt32 aX, PRInt32 aY,
+                                        PRUint32 aCoordinateType,
                                         nsAccessNode *aAccessNode,
                                         nsIntPoint *aCoords);
 
@@ -184,8 +184,8 @@ public:
    * @param aAccessNode      [in] the accessible if coordinates are given
    *                         relative it
    */
-  static nsresult ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
-                                        uint32_t aCoordinateType,
+  static nsresult ConvertScreenCoordsTo(PRInt32 *aX, PRInt32 *aY,
+                                        PRUint32 aCoordinateType,
                                         nsAccessNode *aAccessNode);
 
   /**
@@ -205,9 +205,9 @@ public:
   /**
    * Return the role of the given accessible.
    */
-  static uint32_t Role(nsIAccessible *aAcc)
+  static PRUint32 Role(nsIAccessible *aAcc)
   {
-    uint32_t role = nsIAccessibleRole::ROLE_NOTHING;
+    PRUint32 role = nsIAccessibleRole::ROLE_NOTHING;
     if (aAcc)
       aAcc->GetRole(&role);
 
@@ -221,7 +221,7 @@ public:
    * @return       A bitflag representing the attribute characteristics
    *               (see nsARIAMap.h for possible bit masks, prefixed "ARIA_")
    */
-  static uint8_t GetAttributeCharacteristics(nsIAtom* aAtom);
+  static PRUint8 GetAttributeCharacteristics(nsIAtom* aAtom);
 
   /**
    * Get the 'live' or 'container-live' object attribute value from the given
@@ -232,7 +232,7 @@ public:
    *
    * @return         true if object attribute should be exposed
    */
-  static bool GetLiveAttrValue(uint32_t aRule, nsAString& aValue);
+  static bool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
 
 #ifdef DEBUG
   /**
@@ -247,7 +247,7 @@ public:
    */
   static bool IsText(nsIAccessible *aAcc)
   {
-    uint32_t role = Role(aAcc);
+    PRUint32 role = Role(aAcc);
     return role == nsIAccessibleRole::ROLE_TEXT_LEAF ||
            role == nsIAccessibleRole::ROLE_STATICTEXT;
   }
@@ -255,14 +255,14 @@ public:
   /**
    * Return text length of the given accessible, return 0 on failure.
    */
-  static uint32_t TextLength(Accessible* aAccessible);
+  static PRUint32 TextLength(Accessible* aAccessible);
 
   /**
    * Return true if the given accessible is embedded object.
    */
   static bool IsEmbeddedObject(nsIAccessible *aAcc)
   {
-    uint32_t role = Role(aAcc);
+    PRUint32 role = Role(aAcc);
     return role != nsIAccessibleRole::ROLE_TEXT_LEAF &&
            role != nsIAccessibleRole::ROLE_WHITESPACE &&
            role != nsIAccessibleRole::ROLE_STATICTEXT;
@@ -271,21 +271,21 @@ public:
   /**
    * Transform nsIAccessibleStates constants to internal state constant.
    */
-  static inline uint64_t To64State(uint32_t aState1, uint32_t aState2)
+  static inline PRUint64 To64State(PRUint32 aState1, PRUint32 aState2)
   {
-    return static_cast<uint64_t>(aState1) +
-        (static_cast<uint64_t>(aState2) << 31);
+    return static_cast<PRUint64>(aState1) +
+        (static_cast<PRUint64>(aState2) << 31);
   }
 
   /**
    * Transform internal state constant to nsIAccessibleStates constants.
    */
-  static inline void To32States(uint64_t aState64,
-                                uint32_t* aState1, uint32_t* aState2)
+  static inline void To32States(PRUint64 aState64,
+                                PRUint32* aState1, PRUint32* aState2)
   {
     *aState1 = aState64 & 0x7fffffff;
     if (aState2)
-      *aState2 = static_cast<uint32_t>(aState64 >> 31);
+      *aState2 = static_cast<PRUint32>(aState64 >> 31);
   }
 
   /**
@@ -317,7 +317,7 @@ public:
    */
   static nsresult GetHeaderCellsFor(nsIAccessibleTable *aTable,
                                     nsIAccessibleTableCell *aCell,
-                                    int32_t aRowOrColHeaderCells,
+                                    PRInt32 aRowOrColHeaderCells,
                                     nsIArray **aCells);
 };
 

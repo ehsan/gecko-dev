@@ -363,7 +363,7 @@ GeckoChildProcessHost::InitializeChannel()
   lock.Notify();
 }
 
-int32_t GeckoChildProcessHost::mChildCounter = 0;
+PRInt32 GeckoChildProcessHost::mChildCounter = 0;
 
 //
 // Wrapper function for handling GECKO_SEPARATE_NSPR_LOGS
@@ -534,12 +534,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     newEnvVars["ANDROID_PROPERTY_WORKSPACE"] = buf;
   }
 #endif  // ANDROID
-
-#ifdef MOZ_WIDGET_GONK
-  if (const char *ldPreloadPath = getenv("LD_PRELOAD")) {
-    newEnvVars["LD_PRELOAD"] = ldPreloadPath;
-  }
-#endif // MOZ_WIDGET_GONK
 
   // remap the IPC socket fd to a well-known int, as the OS does for
   // STDOUT_FILENO, for example

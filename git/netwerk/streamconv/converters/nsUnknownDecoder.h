@@ -86,7 +86,7 @@ protected:
     typedef bool (nsUnknownDecoder::*TypeSniffFunc)(nsIRequest* aRequest);
     
     const char* mBytes;
-    uint32_t mByteLen;
+    PRUint32 mByteLen;
     
     // Exactly one of mMimeType and mContentTypeSniffer should be set non-null
     const char* mMimeType;
@@ -100,10 +100,10 @@ protected:
   { _bytes, sizeof(_bytes) - 1, nullptr, _func }
 
   static nsSnifferEntry sSnifferEntries[];
-  static uint32_t sSnifferEntryNum;
+  static PRUint32 sSnifferEntryNum;
   
   char *mBuffer;
-  uint32_t mBufferLen;
+  PRUint32 mBufferLen;
   bool mRequireHTMLsuffix;
 
   nsCString mContentType;

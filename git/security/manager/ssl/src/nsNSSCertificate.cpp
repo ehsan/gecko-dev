@@ -66,7 +66,7 @@ NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 NSSCleanupAutoPtrClass(NSSCMSSignedData, NSS_CMSSignedData_Destroy)
 NSSCleanupAutoPtrClass(PK11SlotList, PK11_FreeSlotList)
 
-// This is being stored in an uint32_t that can otherwise
+// This is being stored in an PRUint32 that can otherwise
 // only take values from nsIX509Cert's list of cert types.
 // As nsIX509Cert is frozen, we choose a value not contained
 // in the list to mean not yet initialized.
@@ -204,7 +204,7 @@ void nsNSSCertificate::destructorSafeDestroyNSSReference()
 }
 
 nsresult
-nsNSSCertificate::GetCertType(uint32_t *aCertType)
+nsNSSCertificate::GetCertType(PRUint32 *aCertType)
 {
   if (mCertType == CERT_TYPE_NOT_YET_INITIALIZED) {
      // only determine cert type once and cache it
@@ -598,7 +598,7 @@ nsNSSCertificate::GetEmailAddress(nsAString &aEmailAddress)
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetEmailAddresses(uint32_t *aLength, PRUnichar*** aAddresses)
+nsNSSCertificate::GetEmailAddresses(PRUint32 *aLength, PRUnichar*** aAddresses)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -623,7 +623,7 @@ nsNSSCertificate::GetEmailAddresses(uint32_t *aLength, PRUnichar*** aAddresses)
   if (!*aAddresses)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  uint32_t iAddr;
+  PRUint32 iAddr;
   for (aAddr = CERT_GetFirstEmailAddress(mCert), iAddr = 0
        ;
        aAddr
@@ -851,7 +851,7 @@ done:
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetAllTokenNames(uint32_t *aLength, PRUnichar*** aTokenNames)
+nsNSSCertificate::GetAllTokenNames(PRUint32 *aLength, PRUnichar*** aTokenNames)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -887,7 +887,7 @@ nsNSSCertificate::GetAllTokenNames(uint32_t *aLength, PRUnichar*** aTokenNames)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  uint32_t iToken;
+  PRUint32 iToken;
   for (le = slots->head, iToken = 0; le; le = le->next, ++iToken) {
     char *token = PK11_GetTokenName(le->slot);
     (*aTokenNames)[iToken] = ToNewUnicode(NS_ConvertUTF8toUTF16(token));
@@ -1033,14 +1033,14 @@ nsNSSCertificate::GetTokenName(nsAString &aTokenName)
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetRawDER(uint32_t *aLength, uint8_t **aArray)
+nsNSSCertificate::GetRawDER(PRUint32 *aLength, PRUint8 **aArray)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
     return NS_ERROR_NOT_AVAILABLE;
 
   if (mCert) {
-    *aArray = (uint8_t*)nsMemory::Alloc(mCert->derCert.len);
+    *aArray = (PRUint8*)nsMemory::Alloc(mCert->derCert.len);
     if (*aArray) {
       memcpy(*aArray, mCert->derCert.data, mCert->derCert.len);
       *aLength = mCert->derCert.len;
@@ -1052,8 +1052,8 @@ nsNSSCertificate::GetRawDER(uint32_t *aLength, uint8_t **aArray)
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::ExportAsCMS(uint32_t chainMode,
-                              uint32_t *aLength, uint8_t **aArray)
+nsNSSCertificate::ExportAsCMS(PRUint32 chainMode,
+                              PRUint32 *aLength, PRUint8 **aArray)
 {
   NS_ENSURE_ARG(aLength);
   NS_ENSURE_ARG(aArray);
@@ -1173,7 +1173,7 @@ nsNSSCertificate::ExportAsCMS(uint32_t chainMode,
     return NS_ERROR_FAILURE;
   }
 
-  *aArray = (uint8_t*)nsMemory::Alloc(certP7.len);
+  *aArray = (PRUint8*)nsMemory::Alloc(certP7.len);
   if (!*aArray)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1210,7 +1210,7 @@ nsNSSCertificate::GetValidity(nsIX509CertValidity **aValidity)
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
+nsNSSCertificate::VerifyForUsage(PRUint32 usage, PRUint32 *verificationResult)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -1355,8 +1355,8 @@ nsNSSCertificate::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
 
 NS_IMETHODIMP
 nsNSSCertificate::GetUsagesArray(bool localOnly,
-                                 uint32_t *_verified,
-                                 uint32_t *_count,
+                                 PRUint32 *_verified,
+                                 PRUint32 *_count,
                                  PRUnichar ***_usages)
 {
   nsNSSShutDownPreventionLock locker;
@@ -1367,7 +1367,7 @@ nsNSSCertificate::GetUsagesArray(bool localOnly,
   const int max_usages = 13;
   PRUnichar *tmpUsages[max_usages];
   const char *suffix = "";
-  uint32_t tmpCount;
+  PRUint32 tmpCount;
   nsUsageArrayHelper uah(mCert);
   rv = uah.GetUsagesArray(suffix, localOnly, max_usages, _verified, &tmpCount, tmpUsages);
   NS_ENSURE_SUCCESS(rv,rv);
@@ -1375,7 +1375,7 @@ nsNSSCertificate::GetUsagesArray(bool localOnly,
     *_usages = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * tmpCount);
     if (!*_usages)
       return NS_ERROR_OUT_OF_MEMORY;
-    for (uint32_t i=0; i<tmpCount; i++) {
+    for (PRUint32 i=0; i<tmpCount; i++) {
       (*_usages)[i] = tmpUsages[i];
     }
     *_count = tmpCount;
@@ -1410,7 +1410,7 @@ nsNSSCertificate::RequestUsagesArrayAsync(nsICertVerificationListener *aResultLi
 
 NS_IMETHODIMP
 nsNSSCertificate::GetUsagesString(bool localOnly,
-                                  uint32_t   *_verified,
+                                  PRUint32   *_verified,
                                   nsAString &_usages)
 {
   nsNSSShutDownPreventionLock locker;
@@ -1421,12 +1421,12 @@ nsNSSCertificate::GetUsagesString(bool localOnly,
   const int max_usages = 13;
   PRUnichar *tmpUsages[max_usages];
   const char *suffix = "_p";
-  uint32_t tmpCount;
+  PRUint32 tmpCount;
   nsUsageArrayHelper uah(mCert);
   rv = uah.GetUsagesArray(suffix, localOnly, max_usages, _verified, &tmpCount, tmpUsages);
   NS_ENSURE_SUCCESS(rv,rv);
   _usages.Truncate();
-  for (uint32_t i=0; i<tmpCount; i++) {
+  for (PRUint32 i=0; i<tmpCount; i++) {
     if (i>0) _usages.AppendLiteral(",");
     _usages.Append(tmpUsages[i]);
     nsMemory::Free(tmpUsages[i]);
@@ -1444,7 +1444,7 @@ DumpASN1Object(nsIASN1Object *object, unsigned int level)
   nsCOMPtr<nsISupports> isupports;
   nsCOMPtr<nsIASN1Object> currObject;
   bool processObjects;
-  uint32_t numObjects;
+  PRUint32 numObjects;
 
   for (i=0; i<level; i++)
     printf ("  ");
@@ -1770,7 +1770,7 @@ nsNSSCertificate::Read(nsIObjectInputStream* aStream)
 {
   NS_ENSURE_STATE(!mCert);
   
-  uint32_t len;
+  PRUint32 len;
   nsresult rv = aStream->Read32(&len);
   if (NS_FAILED(rv)) {
     return rv;
@@ -1790,7 +1790,7 @@ nsNSSCertificate::Read(nsIObjectInputStream* aStream)
 }
 
 NS_IMETHODIMP 
-nsNSSCertificate::GetInterfaces(uint32_t *count, nsIID * **array)
+nsNSSCertificate::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
   *count = 0;
   *array = nullptr;
@@ -1798,7 +1798,7 @@ nsNSSCertificate::GetInterfaces(uint32_t *count, nsIID * **array)
 }
 
 NS_IMETHODIMP 
-nsNSSCertificate::GetHelperForLanguage(uint32_t language, nsISupports **_retval)
+nsNSSCertificate::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
   *_retval = nullptr;
   return NS_OK;
@@ -1828,14 +1828,14 @@ nsNSSCertificate::GetClassID(nsCID * *aClassID)
 }
 
 NS_IMETHODIMP 
-nsNSSCertificate::GetImplementationLanguage(uint32_t *aImplementationLanguage)
+nsNSSCertificate::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
 {
   *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsNSSCertificate::GetFlags(uint32_t *aFlags)
+nsNSSCertificate::GetFlags(PRUint32 *aFlags)
 {
   *aFlags = nsIClassInfo::THREADSAFE;
   return NS_OK;

@@ -344,7 +344,7 @@ nsParser::SetCommand(eParserCommands aParserCommand)
  *  @param   aCharsetSource- the source of the charset
  */
 NS_IMETHODIMP_(void)
-nsParser::SetDocumentCharset(const nsACString& aCharset, int32_t aCharsetSource)
+nsParser::SetDocumentCharset(const nsACString& aCharset, PRInt32 aCharsetSource)
 {
   mCharset = aCharset;
   mCharsetSource = aCharsetSource;
@@ -405,8 +405,8 @@ nsParser::GetContentSink()
 // Parse the PS production in the SGML spec (excluding the part dealing
 // with entity references) starting at theIndex into theBuffer, and
 // return the first index after the end of the production.
-static int32_t
-ParsePS(const nsString& aBuffer, int32_t aIndex)
+static PRInt32
+ParsePS(const nsString& aBuffer, PRInt32 aIndex)
 {
   for (;;) {
     PRUnichar ch = aBuffer.CharAt(aIndex);
@@ -414,7 +414,7 @@ ParsePS(const nsString& aBuffer, int32_t aIndex)
         (ch == PRUnichar('\n')) || (ch == PRUnichar('\r'))) {
       ++aIndex;
     } else if (ch == PRUnichar('-')) {
-      int32_t tmpIndex;
+      PRInt32 tmpIndex;
       if (aBuffer.CharAt(aIndex+1) == PRUnichar('-') &&
           kNotFound != (tmpIndex=aBuffer.Find("--",false,aIndex+2,-1))) {
         aIndex = tmpIndex + 2;
@@ -435,7 +435,7 @@ ParsePS(const nsString& aBuffer, int32_t aIndex)
 // return true on success (includes not present), false on failure
 static bool
 ParseDocTypeDecl(const nsString &aBuffer,
-                 int32_t *aResultFlags,
+                 PRInt32 *aResultFlags,
                  nsString &aPublicID,
                  nsString &aSystemID)
 {
@@ -444,13 +444,13 @@ ParseDocTypeDecl(const nsString &aBuffer,
 
   // Skip through any comments and processing instructions
   // The PI-skipping is a bit of a hack.
-  int32_t theIndex = 0;
+  PRInt32 theIndex = 0;
   do {
     theIndex = aBuffer.FindChar('<', theIndex);
     if (theIndex == kNotFound) break;
     PRUnichar nextChar = aBuffer.CharAt(theIndex+1);
     if (nextChar == PRUnichar('!')) {
-      int32_t tmpIndex = theIndex + 2;
+      PRInt32 tmpIndex = theIndex + 2;
       if (kNotFound !=
           (theIndex=aBuffer.Find("DOCTYPE", true, tmpIndex, 0))) {
         haveDoctype = true;
@@ -475,7 +475,7 @@ ParseDocTypeDecl(const nsString &aBuffer,
   if (kNotFound == theIndex)
     return false;
   theIndex = ParsePS(aBuffer, theIndex+4);
-  int32_t tmpIndex = aBuffer.Find("PUBLIC", true, theIndex, 0);
+  PRInt32 tmpIndex = aBuffer.Find("PUBLIC", true, theIndex, 0);
 
   if (kNotFound != tmpIndex) {
     theIndex = ParsePS(aBuffer, tmpIndex+6);
@@ -493,8 +493,8 @@ ParseDocTypeDecl(const nsString &aBuffer,
     // Start is the first character, excluding the quote, and End is
     // the final quote, so there are (end-start) characters.
 
-    int32_t PublicIDStart = theIndex + 1;
-    int32_t PublicIDEnd = aBuffer.FindChar(lit, PublicIDStart);
+    PRInt32 PublicIDStart = theIndex + 1;
+    PRInt32 PublicIDEnd = aBuffer.FindChar(lit, PublicIDStart);
     if (kNotFound == PublicIDEnd)
       return false;
     theIndex = ParsePS(aBuffer, PublicIDEnd + 1);
@@ -509,8 +509,8 @@ ParseDocTypeDecl(const nsString &aBuffer,
                (next == PRUnichar('\''))) {
       // We found a system identifier.
       *aResultFlags |= PARSE_DTD_HAVE_SYSTEM_ID;
-      int32_t SystemIDStart = theIndex + 1;
-      int32_t SystemIDEnd = aBuffer.FindChar(next, SystemIDStart);
+      PRInt32 SystemIDStart = theIndex + 1;
+      PRInt32 SystemIDEnd = aBuffer.FindChar(next, SystemIDStart);
       if (kNotFound == SystemIDEnd)
         return false;
       aSystemID =
@@ -539,8 +539,8 @@ ParseDocTypeDecl(const nsString &aBuffer,
       if (next != PRUnichar('\"') && next != PRUnichar('\''))
         return false;
 
-      int32_t SystemIDStart = theIndex + 1;
-      int32_t SystemIDEnd = aBuffer.FindChar(next, SystemIDStart);
+      PRInt32 SystemIDStart = theIndex + 1;
+      PRInt32 SystemIDEnd = aBuffer.FindChar(next, SystemIDStart);
 
       if (kNotFound == SystemIDEnd)
         return false;
@@ -673,7 +673,7 @@ VerifyPublicIDs()
   static bool gVerified = false;
   if (!gVerified) {
     gVerified = true;
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < ELEMENTS_OF(kPublicIDs) - 1; ++i) {
       if (nsCRT::strcmp(kPublicIDs[i].name, kPublicIDs[i+1].name) >= 0) {
         NS_NOTREACHED("doctypes out of order");
@@ -701,7 +701,7 @@ DetermineHTMLParseMode(const nsString& aBuffer,
 #ifdef DEBUG
   VerifyPublicIDs();
 #endif
-  int32_t resultFlags;
+  PRInt32 resultFlags;
   nsAutoString publicIDUCS2, sysIDUCS2;
   if (ParseDocTypeDecl(aBuffer, &resultFlags, publicIDUCS2, sysIDUCS2)) {
     if (!(resultFlags & PARSE_DTD_HAVE_DOCTYPE)) {
@@ -736,12 +736,12 @@ DetermineHTMLParseMode(const nsString& aBuffer,
       // Binary search to see if we can find the correct public ID
       // These must be signed since maximum can go below zero and we'll
       // crash if it's unsigned.
-      int32_t minimum = 0;
-      int32_t maximum = ELEMENTS_OF(kPublicIDs) - 1;
-      int32_t index;
+      PRInt32 minimum = 0;
+      PRInt32 maximum = ELEMENTS_OF(kPublicIDs) - 1;
+      PRInt32 index;
       for (;;) {
         index = (minimum + maximum) / 2;
-        int32_t comparison =
+        PRInt32 comparison =
             nsCRT::strcmp(publicID.get(), kPublicIDs[index].name);
         if (comparison == 0)
           break;
@@ -1390,8 +1390,8 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
 {
   nsresult result = NS_OK;
   nsAutoString  theContext;
-  uint32_t theCount = aTagStack.Length();
-  uint32_t theIndex = 0;
+  PRUint32 theCount = aTagStack.Length();
+  PRUint32 theIndex = 0;
 
   // Disable observers for fragments
   mFlags &= ~NS_PARSER_FLAG_OBSERVERS_ENABLED;
@@ -1454,7 +1454,7 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
 
         nsString& thisTag = aTagStack[theIndex];
         // was there an xmlns=?
-        int32_t endOfTag = thisTag.FindChar(PRUnichar(' '));
+        PRInt32 endOfTag = thisTag.FindChar(PRUnichar(' '));
         if (endOfTag == -1) {
           endContext.Append(thisTag);
         } else {
@@ -1693,8 +1693,8 @@ static inline bool IsSecondMarker(unsigned char aChar)
 }
 
 static bool
-DetectByteOrderMark(const unsigned char* aBytes, int32_t aLen,
-                    nsCString& oCharset, int32_t& oCharsetSource)
+DetectByteOrderMark(const unsigned char* aBytes, PRInt32 aLen,
+                    nsCString& oCharset, PRInt32& oCharsetSource)
 {
  oCharsetSource= kCharsetFromAutoDetection;
  oCharset.Truncate();
@@ -1733,7 +1733,7 @@ DetectByteOrderMark(const unsigned char* aBytes, int32_t aLen,
        // deal with the XML declaration in the old C way
        // The shortest string so far (strlen==5):
        // <?xml
-       int32_t i;
+       PRInt32 i;
        bool versionFound = false, encodingFound = false;
        for (i=6; i < aLen && !encodingFound; ++i) {
          // end of XML declaration?
@@ -1778,13 +1778,13 @@ DetectByteOrderMark(const unsigned char* aBytes, int32_t aLen,
            if ((((char*)aBytes)[i] == 'g') &&
              (i >= 25) && 
              (0 == PL_strncmp("encodin", (char*)(aBytes+i-7), 7 ))) {
-             int32_t encStart = 0;
+             PRInt32 encStart = 0;
              char q = 0;
              for (++i; i < aLen; ++i) {
                char qi = ((char*)aBytes)[i];
                if (qi == '\'' || qi == '"') {
                  if (q && q == qi) {
-                   int32_t count = i - encStart;
+                   PRInt32 count = i - encStart;
                    // encoding value is invalid if it is UTF-16
                    if (count > 0 && 
                      (0 != PL_strcmp("UTF-16", (char*)(aBytes+encStart)))) {
@@ -1845,9 +1845,9 @@ GetNextChar(nsACString::const_iterator& aStart,
 
 bool
 nsParser::DetectMetaTag(const char* aBytes,
-                        int32_t aLen,
+                        PRInt32 aLen,
                         nsCString& aCharset,
-                        int32_t& aCharsetSource)
+                        PRInt32& aCharsetSource)
 {
   aCharsetSource= kCharsetFromMetaTag;
   aCharset.SetLength(0);
@@ -1972,9 +1972,9 @@ static NS_METHOD
 NoOpParserWriteFunc(nsIInputStream* in,
                 void* closure,
                 const char* fromRawSegment,
-                uint32_t toOffset,
-                uint32_t count,
-                uint32_t *writeCount)
+                PRUint32 toOffset,
+                PRUint32 count,
+                PRUint32 *writeCount)
 {
   *writeCount = count;
   return NS_OK;
@@ -1997,21 +1997,21 @@ static NS_METHOD
 ParserWriteFunc(nsIInputStream* in,
                 void* closure,
                 const char* fromRawSegment,
-                uint32_t toOffset,
-                uint32_t count,
-                uint32_t *writeCount)
+                PRUint32 toOffset,
+                PRUint32 count,
+                PRUint32 *writeCount)
 {
   nsresult result;
   ParserWriteStruct* pws = static_cast<ParserWriteStruct*>(closure);
   const char* buf = fromRawSegment;
-  uint32_t theNumRead = count;
+  PRUint32 theNumRead = count;
 
   if (!pws) {
     return NS_ERROR_FAILURE;
   }
 
   if (pws->mNeedCharsetCheck) {
-    int32_t guessSource;
+    PRInt32 guessSource;
     nsCAutoString guess;
     nsCAutoString preferred;
 
@@ -2061,8 +2061,8 @@ ParserWriteFunc(nsIInputStream* in,
 
 nsresult
 nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
-                          nsIInputStream *pIStream, uint32_t sourceOffset,
-                          uint32_t aLength)
+                          nsIInputStream *pIStream, PRUint32 sourceOffset,
+                          PRUint32 aLength)
 {
   NS_PRECONDITION((eOnStart == mParserContext->mStreamListenerState ||
                    eOnDataAvail == mParserContext->mStreamListenerState),
@@ -2076,7 +2076,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
     MOZ_ASSERT(false, "Must not get OnDataAvailable for about:blank");
     // ... but if an extension tries to feed us data for about:blank in a
     // release build, silently ignore the data.
-    uint32_t totalRead;
+    PRUint32 totalRead;
     rv = pIStream->ReadSegments(NoOpParserWriteFunc,
                                 nullptr,
                                 aLength,
@@ -2101,7 +2101,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
       }
     }
 
-    uint32_t totalRead;
+    PRUint32 totalRead;
     ParserWriteStruct pws;
     pws.mNeedCharsetCheck =
       (0 == sourceOffset) && (mCharsetSource < kCharsetFromMetaTag);

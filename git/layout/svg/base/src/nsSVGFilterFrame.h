@@ -48,9 +48,9 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType);
+                              PRInt32         aModType);
 
   /**
    * Paint the given filtered frame.
@@ -116,18 +116,18 @@ private:
   nsSVGFilterFrame* GetReferencedFilterIfNotInUse();
 
   // Accessors to lookup filter attributes
-  uint16_t GetEnumValue(uint32_t aIndex, nsIContent *aDefault);
-  uint16_t GetEnumValue(uint32_t aIndex)
+  PRUint16 GetEnumValue(PRUint32 aIndex, nsIContent *aDefault);
+  PRUint16 GetEnumValue(PRUint32 aIndex)
   {
     return GetEnumValue(aIndex, mContent);
   }
-  const nsSVGIntegerPair *GetIntegerPairValue(uint32_t aIndex, nsIContent *aDefault);
-  const nsSVGIntegerPair *GetIntegerPairValue(uint32_t aIndex)
+  const nsSVGIntegerPair *GetIntegerPairValue(PRUint32 aIndex, nsIContent *aDefault);
+  const nsSVGIntegerPair *GetIntegerPairValue(PRUint32 aIndex)
   {
     return GetIntegerPairValue(aIndex, mContent);
   }
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex, nsIContent *aDefault);
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex)
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex, nsIContent *aDefault);
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex)
   {
     return GetLengthValue(aIndex, mContent);
   }

@@ -26,7 +26,7 @@ using namespace mozilla;
 #include <sys/resource.h>
 
 #define HAVE_PAGE_FAULT_REPORTERS 1
-static nsresult GetHardPageFaults(int64_t *n)
+static nsresult GetHardPageFaults(PRInt64 *n)
 {
     struct rusage usage;
     int err = getrusage(RUSAGE_SELF, &usage);
@@ -37,7 +37,7 @@ static nsresult GetHardPageFaults(int64_t *n)
     return NS_OK;
 }
 
-static nsresult GetSoftPageFaults(int64_t *n)
+static nsresult GetSoftPageFaults(PRInt64 *n)
 {
     struct rusage usage;
     int err = getrusage(RUSAGE_SELF, &usage);
@@ -53,7 +53,7 @@ static nsresult GetSoftPageFaults(int64_t *n)
 #if defined(XP_LINUX)
 
 #include <unistd.h>
-static nsresult GetProcSelfStatmField(int field, int64_t *n)
+static nsresult GetProcSelfStatmField(int field, PRInt64 *n)
 {
     // There are more than two fields, but we're only interested in the first
     // two.
@@ -73,12 +73,12 @@ static nsresult GetProcSelfStatmField(int field, int64_t *n)
 }
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult GetVsize(PRInt64 *n)
 {
     return GetProcSelfStatmField(0, n);
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult GetResident(PRInt64 *n)
 {
     return GetProcSelfStatmField(1, n);
 }
@@ -89,7 +89,7 @@ static nsresult GetResident(int64_t *n)
 #include <fcntl.h>
 #include <unistd.h>
 
-static void XMappingIter(int64_t& vsize, int64_t& resident)
+static void XMappingIter(PRInt64& vsize, PRInt64& resident)
 {
     vsize = -1;
     resident = -1;
@@ -131,9 +131,9 @@ static void XMappingIter(int64_t& vsize, int64_t& resident)
 }
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult GetVsize(PRInt64 *n)
 {
-    int64_t vsize, resident;
+    PRInt64 vsize, resident;
     XMappingIter(vsize, resident);
     if (vsize == -1) {
         return NS_ERROR_FAILURE;
@@ -142,9 +142,9 @@ static nsresult GetVsize(int64_t *n)
     return NS_OK;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult GetResident(PRInt64 *n)
 {
-    int64_t vsize, resident;
+    PRInt64 vsize, resident;
     XMappingIter(vsize, resident);
     if (resident == -1) {
         return NS_ERROR_FAILURE;
@@ -170,7 +170,7 @@ static bool GetTaskBasicInfo(struct task_basic_info *ti)
 // absurdly high, eg. 2GB+ even at start-up.  But both 'top' and 'ps' report
 // it, so we might as well too.
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult GetVsize(PRInt64 *n)
 {
     task_basic_info ti;
     if (!GetTaskBasicInfo(&ti))
@@ -180,7 +180,7 @@ static nsresult GetVsize(int64_t *n)
     return NS_OK;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult GetResident(PRInt64 *n)
 {
 #ifdef HAVE_JEMALLOC_STATS
     // If we're using jemalloc on Mac, we need to instruct jemalloc to purge
@@ -210,7 +210,7 @@ static nsresult GetResident(int64_t *n)
 #include <psapi.h>
 
 #define HAVE_VSIZE_AND_RESIDENT_REPORTERS 1
-static nsresult GetVsize(int64_t *n)
+static nsresult GetVsize(PRInt64 *n)
 {
     MEMORYSTATUSEX s;
     s.dwLength = sizeof(s);
@@ -223,7 +223,7 @@ static nsresult GetVsize(int64_t *n)
     return NS_OK;
 }
 
-static nsresult GetResident(int64_t *n)
+static nsresult GetResident(PRInt64 *n)
 {
     PROCESS_MEMORY_COUNTERS pmc;
     pmc.cb = sizeof(PROCESS_MEMORY_COUNTERS);
@@ -237,7 +237,7 @@ static nsresult GetResident(int64_t *n)
 }
 
 #define HAVE_PRIVATE_REPORTER
-static nsresult GetPrivate(int64_t *n)
+static nsresult GetPrivate(PRInt64 *n)
 {
     PROCESS_MEMORY_COUNTERS_EX pmcex;
     pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
@@ -333,47 +333,47 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(PageFaultsHard,
 
 #define HAVE_HEAP_ALLOCATED_REPORTERS 1
 
-static int64_t GetHeapUnused()
+static PRInt64 GetHeapUnused()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (int64_t) (stats.mapped - stats.allocated);
+    return (PRInt64) (stats.mapped - stats.allocated);
 }
 
-static int64_t GetHeapAllocated()
+static PRInt64 GetHeapAllocated()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (int64_t) stats.allocated;
+    return (PRInt64) stats.allocated;
 }
 
-static int64_t GetHeapCommitted()
+static PRInt64 GetHeapCommitted()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (int64_t) stats.committed;
+    return (PRInt64) stats.committed;
 }
 
-static int64_t GetHeapCommittedUnused()
+static PRInt64 GetHeapCommittedUnused()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
     return stats.committed - stats.allocated;
 }
 
-static int64_t GetHeapCommittedUnusedRatio()
+static PRInt64 GetHeapCommittedUnusedRatio()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (int64_t) 10000 * (stats.committed - stats.allocated) /
+    return (PRInt64) 10000 * (stats.committed - stats.allocated) /
                               ((double)stats.allocated);
 }
 
-static int64_t GetHeapDirty()
+static PRInt64 GetHeapDirty()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (int64_t) stats.dirty;
+    return (PRInt64) stats.dirty;
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapCommitted,
@@ -422,13 +422,13 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
 
 #define HAVE_HEAP_ALLOCATED_REPORTERS 1
 
-static int64_t GetHeapUnused()
+static PRInt64 GetHeapUnused()
 {
     struct mstats stats = mstats();
     return stats.bytes_total - stats.bytes_used;
 }
 
-static int64_t GetHeapAllocated()
+static PRInt64 GetHeapAllocated()
 {
     struct mstats stats = mstats();
     return stats.bytes_used;
@@ -439,14 +439,14 @@ static int64_t GetHeapAllocated()
 // to get it.
 #ifndef MOZ_DMD
 #define HAVE_HEAP_ZONE0_REPORTERS 1
-static int64_t GetHeapZone0Committed()
+static PRInt64 GetHeapZone0Committed()
 {
     malloc_statistics_t stats;
     malloc_zone_statistics(malloc_default_zone(), &stats);
     return stats.size_in_use;
 }
 
-static int64_t GetHeapZone0Used()
+static PRInt64 GetHeapZone0Used()
 {
     malloc_statistics_t stats;
     malloc_zone_statistics(malloc_default_zone(), &stats);
@@ -495,7 +495,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapAllocated,
 // The computation of "explicit" fails if "heap-allocated" isn't available,
 // which is why this is depends on HAVE_HEAP_ALLOCATED_AND_EXPLICIT_REPORTERS.
 #define HAVE_EXPLICIT_REPORTER 1
-static nsresult GetExplicit(int64_t *n)
+static nsresult GetExplicit(PRInt64 *n)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
     if (mgr == nullptr)
@@ -516,7 +516,7 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(Explicit,
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf, "atom-table")
 
-static int64_t GetAtomTableSize() {
+static PRInt64 GetAtomTableSize() {
   return NS_SizeOfAtomTablesIncludingThis(AtomTableMallocSizeOf);
 }
 
@@ -656,7 +656,7 @@ nsMemoryReporterManager::UnregisterMultiReporter(nsIMemoryMultiReporter *reporte
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::GetResident(int64_t *aResident)
+nsMemoryReporterManager::GetResident(PRInt64 *aResident)
 {
 #if HAVE_VSIZE_AND_RESIDENT_REPORTERS
     return ::GetResident(aResident);
@@ -667,7 +667,7 @@ nsMemoryReporterManager::GetResident(int64_t *aResident)
 }
 
 struct MemoryReport {
-    MemoryReport(const nsACString &path, int64_t amount) 
+    MemoryReport(const nsACString &path, PRInt64 amount) 
     : path(path), amount(amount)
     {
         MOZ_COUNT_CTOR(MemoryReport);
@@ -682,17 +682,17 @@ struct MemoryReport {
         MOZ_COUNT_DTOR(MemoryReport);
     }
     const nsCString path;
-    int64_t amount;
+    PRInt64 amount;
 };
 
 #ifdef DEBUG
-// This is just a wrapper for int64_t that implements nsISupports, so it can be
+// This is just a wrapper for PRInt64 that implements nsISupports, so it can be
 // passed to nsIMemoryMultiReporter::CollectReports.
 class PRInt64Wrapper MOZ_FINAL : public nsISupports {
 public:
     NS_DECL_ISUPPORTS
     PRInt64Wrapper() : mValue(0) { }
-    int64_t mValue;
+    PRInt64 mValue;
 };
 NS_IMPL_ISUPPORTS0(PRInt64Wrapper)
 
@@ -702,13 +702,13 @@ public:
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
-                        int32_t aKind, int32_t aUnits, int64_t aAmount,
+                        PRInt32 aKind, PRInt32 aUnits, PRInt64 aAmount,
                         const nsACString &aDescription,
                         nsISupports *aWrappedExplicitNonHeap)
     {
         if (aKind == nsIMemoryReporter::KIND_NONHEAP &&
             PromiseFlatCString(aPath).Find("explicit") == 0 &&
-            aAmount != int64_t(-1))
+            aAmount != PRInt64(-1))
         {
             PRInt64Wrapper *wrappedPRInt64 =
                 static_cast<PRInt64Wrapper *>(aWrappedExplicitNonHeap);
@@ -724,7 +724,7 @@ NS_IMPL_ISUPPORTS1(
 #endif
 
 NS_IMETHODIMP
-nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
+nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
 {
     NS_ENSURE_ARG_POINTER(aExplicit);
     *aExplicit = 0;
@@ -736,15 +736,15 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
 
     // Get "heap-allocated" and all the KIND_NONHEAP measurements from normal
     // (i.e. non-multi) "explicit" reporters.
-    int64_t heapAllocated = int64_t(-1);
-    int64_t explicitNonHeapNormalSize = 0;
+    PRInt64 heapAllocated = PRInt64(-1);
+    PRInt64 explicitNonHeapNormalSize = 0;
     nsCOMPtr<nsISimpleEnumerator> e;
     EnumerateReporters(getter_AddRefs(e));
     while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
 
-        int32_t kind;
+        PRInt32 kind;
         rv = r->GetKind(&kind);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -759,7 +759,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
         {
             // Just skip any NONHEAP reporters that fail, because
             // "heap-allocated" is the most important one.
-            int64_t amount;
+            PRInt64 amount;
             rv = r->GetAmount(&amount);
             if (NS_SUCCEEDED(rv)) {
                 explicitNonHeapNormalSize += amount;
@@ -782,13 +782,13 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
     // guarantees the two measurement paths are equivalent.  This is wise
     // because it's easy for memory reporters to have bugs.)
 
-    int64_t explicitNonHeapMultiSize = 0;
+    PRInt64 explicitNonHeapMultiSize = 0;
     nsCOMPtr<nsISimpleEnumerator> e2;
     EnumerateMultiReporters(getter_AddRefs(e2));
     while (NS_SUCCEEDED(e2->HasMoreElements(&more)) && more) {
       nsCOMPtr<nsIMemoryMultiReporter> r;
       e2->GetNext(getter_AddRefs(r));
-      int64_t n;
+      PRInt64 n;
       rv = r->GetExplicitNonHeap(&n);
       NS_ENSURE_SUCCESS(rv, rv);
       explicitNonHeapMultiSize += n;
@@ -806,7 +806,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
       e3->GetNext(getter_AddRefs(r));
       r->CollectReports(cb, wrappedExplicitNonHeapMultiSize2);
     }
-    int64_t explicitNonHeapMultiSize2 = wrappedExplicitNonHeapMultiSize2->mValue;
+    PRInt64 explicitNonHeapMultiSize2 = wrappedExplicitNonHeapMultiSize2->mValue;
 
     // Check the two measurements give the same result.  This was an
     // NS_ASSERTION but they occasionally don't match due to races (bug
@@ -843,9 +843,9 @@ NS_IMPL_ISUPPORTS1(nsMemoryReporter, nsIMemoryReporter)
 
 nsMemoryReporter::nsMemoryReporter(nsACString& process,
                                    nsACString& path,
-                                   int32_t kind,
-                                   int32_t units,
-                                   int64_t amount,
+                                   PRInt32 kind,
+                                   PRInt32 units,
+                                   PRInt64 amount,
                                    nsACString& desc)
 : mProcess(process)
 , mPath(path)
@@ -872,19 +872,19 @@ NS_IMETHODIMP nsMemoryReporter::GetPath(nsACString &aPath)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsMemoryReporter::GetKind(int32_t *aKind)
+NS_IMETHODIMP nsMemoryReporter::GetKind(PRInt32 *aKind)
 {
     *aKind = mKind;
     return NS_OK;
 }
 
-NS_IMETHODIMP nsMemoryReporter::GetUnits(int32_t *aUnits)
+NS_IMETHODIMP nsMemoryReporter::GetUnits(PRInt32 *aUnits)
 {
   *aUnits = mUnits;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsMemoryReporter::GetAmount(int64_t *aAmount)
+NS_IMETHODIMP nsMemoryReporter::GetAmount(PRInt64 *aAmount)
 {
     *aAmount = mAmount;
     return NS_OK;
@@ -942,7 +942,7 @@ public:
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
-                        int32_t aKind, int32_t aUnits, int64_t aAmount,
+                        PRInt32 aKind, PRInt32 aUnits, PRInt64 aAmount,
                         const nsACString &aDescription,
                         nsISupports *aData)
     {
@@ -970,7 +970,7 @@ DMDCheckAndDump()
         e->GetNext(getter_AddRefs(r));
 
         // Just getting the amount is enough for the reporter to report to DMD.
-        int64_t amount;
+        PRInt64 amount;
         (void)r->GetAmount(&amount);
     }
 

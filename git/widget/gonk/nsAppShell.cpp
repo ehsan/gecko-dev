@@ -121,7 +121,7 @@ struct UserInputData {
 };
 
 static void
-sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
+sendMouseEvent(PRUint32 msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
 {
     nsMouseEvent event(true, msg, NULL,
                        nsMouseEvent::eReal, nsMouseEvent::eNormal);
@@ -156,7 +156,7 @@ addDOMTouch(UserInputData& data, nsTouchEvent& event, int i)
 static nsEventStatus
 sendTouchEvent(UserInputData& data)
 {
-    uint32_t msg;
+    PRUint32 msg;
     int32_t action = data.action & AMOTION_EVENT_ACTION_MASK;
     switch (action) {
     case AMOTION_EVENT_ACTION_DOWN:
@@ -194,10 +194,10 @@ sendTouchEvent(UserInputData& data)
 }
 
 static nsEventStatus
-sendKeyEventWithMsg(uint32_t keyCode,
-                    uint32_t msg,
+sendKeyEventWithMsg(PRUint32 keyCode,
+                    PRUint32 msg,
                     uint64_t timeMs,
-                    uint32_t flags)
+                    PRUint32 flags)
 {
     nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
@@ -208,7 +208,7 @@ sendKeyEventWithMsg(uint32_t keyCode,
 }
 
 static void
-sendKeyEvent(uint32_t keyCode, bool down, uint64_t timeMs)
+sendKeyEvent(PRUint32 keyCode, bool down, uint64_t timeMs)
 {
     nsEventStatus status =
         sendKeyEventWithMsg(keyCode, down ? NS_KEY_DOWN : NS_KEY_UP, timeMs, 0);
@@ -349,7 +349,7 @@ GeckoInputDispatcher::dispatchOnce()
     case UserInputData::MOTION_DATA: {
         nsEventStatus status = sendTouchEvent(data);
 
-        uint32_t msg;
+        PRUint32 msg;
         switch (data.action & AMOTION_EVENT_ACTION_MASK) {
         case AMOTION_EVENT_ACTION_DOWN:
             msg = NS_MOUSE_BUTTON_DOWN;

@@ -129,7 +129,7 @@ public:
    */
   bool DeviceWasRemoved() { return mDeviceWasRemoved; }
 
-  uint32_t GetDeviceResetCount() { return mDeviceResetCount; }
+  PRUint32 GetDeviceResetCount() { return mDeviceResetCount; }
 
   /**
    * We keep a list of all layers here that may have hardware resource allocated
@@ -137,7 +137,7 @@ public:
    */
   nsTArray<LayerD3D9*> mLayersWithResources;
 
-  int32_t GetMaxTextureSize() { return mMaxTextureSize; }
+  PRInt32 GetMaxTextureSize() { return mMaxTextureSize; }
 
 private:
   friend class SwapChainD3D9;
@@ -218,9 +218,9 @@ private:
   /* we use this to help track if our device temporarily or permanently lost */
   HMONITOR mDeviceMonitor;
 
-  uint32_t mDeviceResetCount;
+  PRUint32 mDeviceResetCount;
 
-  uint32_t mMaxTextureSize;
+  PRUint32 mMaxTextureSize;
 
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;

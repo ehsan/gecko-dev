@@ -31,8 +31,8 @@ public:
 
 protected:
   virtual nsresult GetModifiedText(bool aGetInsertedText, nsAString& aText,
-                                   uint32_t *aStartOffset,
-                                   uint32_t *aEndOffset);
+                                   PRUint32 *aStartOffset,
+                                   PRUint32 *aEndOffset);
 };
 
 #endif

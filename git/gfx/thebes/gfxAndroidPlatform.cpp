@@ -3,14 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "gfxAndroidPlatform.h"
 #include "mozilla/gfx/2D.h"
 
 #include "gfxFT2FontList.h"
 #include "gfxImageSurface.h"
-#include "mozilla/dom/ContentChild.h"
 #include "nsXULAppAPI.h"
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
@@ -20,7 +17,6 @@
 #include "ft2build.h"
 #include FT_FREETYPE_H
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::gfx;
 
 static FT_Library gPlatformFTLibrary = NULL;
@@ -119,7 +115,7 @@ gfxAndroidPlatform::CreatePlatformFontList()
 }
 
 bool
-gfxAndroidPlatform::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
+gfxAndroidPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
     // check for strange format flags
     NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
@@ -157,7 +153,7 @@ gfxAndroidPlatform::GetFTLibrary()
 
 gfxFontEntry* 
 gfxAndroidPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                     const uint8_t *aFontData, uint32_t aLength)
+                                     const PRUint8 *aFontData, PRUint32 aLength)
 {
     return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
                                                                      aFontData,
@@ -194,11 +190,15 @@ gfxAndroidPlatform::FontHintingEnabled()
     // want to re-enable hinting.
     return false;
 #else
-    // Otherwise, enable hinting unless we're in a content process
-    // that might be used for non-reflowing zoom.
-    return (XRE_GetProcessType() != GeckoProcessType_Content ||
-            (ContentChild::GetSingleton()->IsForApp() &&
-             !ContentChild::GetSingleton()->IsForBrowser()));
+    // Otherwise, if we're in a content process, assume we don't want
+    // hinting.
+    //
+    // XXX when we use content processes to load "apps", we'll want to
+    // configure this dynamically based on whether we're an "app
+    // content process" or a "browser content process".  The former
+    // wants hinting, the latter doesn't since it might be
+    // non-reflow-zoomed.
+    return (XRE_GetProcessType() != GeckoProcessType_Content);
 #endif //  MOZ_USING_ANDROID_JAVA_WIDGETS
 }
 

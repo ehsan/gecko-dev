@@ -11,9 +11,6 @@
 #include "nsITabChild.h"
 #include "nsILoadContext.h"
 #include "nsNetUtil.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -232,7 +229,7 @@ class AcknowledgeEvent : public ChannelEvent
 {
  public:
   AcknowledgeEvent(WebSocketChannelChild* aChild,
-                   const uint32_t& aSize)
+                   const PRUint32& aSize)
   : mChild(aChild)
   , mSize(aSize)
   {}
@@ -243,11 +240,11 @@ class AcknowledgeEvent : public ChannelEvent
   }
  private:
   WebSocketChannelChild* mChild;
-  uint32_t mSize;
+  PRUint32 mSize;
 };
 
 bool
-WebSocketChannelChild::RecvOnAcknowledge(const uint32_t& aSize)
+WebSocketChannelChild::RecvOnAcknowledge(const PRUint32& aSize)
 {
   if (mEventQ.ShouldEnqueue()) {
     mEventQ.Enqueue(new AcknowledgeEvent(this, aSize));
@@ -258,7 +255,7 @@ WebSocketChannelChild::RecvOnAcknowledge(const uint32_t& aSize)
 }
 
 void
-WebSocketChannelChild::OnAcknowledge(const uint32_t& aSize)
+WebSocketChannelChild::OnAcknowledge(const PRUint32& aSize)
 {
   LOG(("WebSocketChannelChild::RecvOnAcknowledge() %p\n", this));
   if (mListener) {
@@ -271,7 +268,7 @@ class ServerCloseEvent : public ChannelEvent
 {
  public:
   ServerCloseEvent(WebSocketChannelChild* aChild,
-                   const uint16_t aCode,
+                   const PRUint16 aCode,
                    const nsCString &aReason)
   : mChild(aChild)
   , mCode(aCode)
@@ -284,12 +281,12 @@ class ServerCloseEvent : public ChannelEvent
   }
  private:
   WebSocketChannelChild* mChild;
-  uint16_t               mCode;
+  PRUint16               mCode;
   nsCString              mReason;
 };
 
 bool
-WebSocketChannelChild::RecvOnServerClose(const uint16_t& aCode,
+WebSocketChannelChild::RecvOnServerClose(const PRUint16& aCode,
                                          const nsCString& aReason)
 {
   if (mEventQ.ShouldEnqueue()) {
@@ -301,7 +298,7 @@ WebSocketChannelChild::RecvOnServerClose(const uint16_t& aCode,
 }
 
 void
-WebSocketChannelChild::OnServerClose(const uint16_t& aCode,
+WebSocketChannelChild::OnServerClose(const PRUint16& aCode,
                                      const nsCString& aReason)
 {
   LOG(("WebSocketChannelChild::RecvOnServerClose() %p\n", this));
@@ -349,7 +346,7 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
 }
 
 NS_IMETHODIMP
-WebSocketChannelChild::Close(uint16_t code, const nsACString & reason)
+WebSocketChannelChild::Close(PRUint16 code, const nsACString & reason)
 {
   LOG(("WebSocketChannelChild::Close() %p\n", this));
 
@@ -380,14 +377,11 @@ WebSocketChannelChild::SendBinaryMsg(const nsACString &aMsg)
 
 NS_IMETHODIMP
 WebSocketChannelChild::SendBinaryStream(nsIInputStream *aStream,
-                                        uint32_t aLength)
+                                        PRUint32 aLength)
 {
   LOG(("WebSocketChannelChild::SendBinaryStream() %p\n", this));
 
-  OptionalInputStreamParams stream;
-  SerializeInputStream(aStream, stream);
-
-  if (!mIPCOpen || !SendSendBinaryStream(stream, aLength))
+  if (!mIPCOpen || !SendSendBinaryStream(IPC::InputStream(aStream), aLength))
     return NS_ERROR_UNEXPECTED;
   return NS_OK;
 }

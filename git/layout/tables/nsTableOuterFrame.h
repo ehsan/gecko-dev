@@ -132,18 +132,18 @@ public:
   /*---------------- nsITableLayout methods ------------------------*/
 
   /** @see nsITableFrame::GetCellDataAt */
-  NS_IMETHOD GetCellDataAt(int32_t aRowIndex, int32_t aColIndex, 
+  NS_IMETHOD GetCellDataAt(PRInt32 aRowIndex, PRInt32 aColIndex, 
                            nsIDOMElement* &aCell,   //out params
-                           int32_t& aStartRowIndex, int32_t& aStartColIndex, 
-                           int32_t& aRowSpan, int32_t& aColSpan,
-                           int32_t& aActualRowSpan, int32_t& aActualColSpan,
+                           PRInt32& aStartRowIndex, PRInt32& aStartColIndex, 
+                           PRInt32& aRowSpan, PRInt32& aColSpan,
+                           PRInt32& aActualRowSpan, PRInt32& aActualColSpan,
                            bool& aIsSelected);
 
   /** @see nsITableFrame::GetTableSize */
-  NS_IMETHOD GetTableSize(int32_t& aRowCount, int32_t& aColCount);
+  NS_IMETHOD GetTableSize(PRInt32& aRowCount, PRInt32& aColCount);
 
-  NS_IMETHOD GetIndexByRowAndColumn(int32_t aRow, int32_t aColumn, int32_t *aIndex);
-  NS_IMETHOD GetRowAndColumnByIndex(int32_t aIndex, int32_t *aRow, int32_t *aColumn);
+  NS_IMETHOD GetIndexByRowAndColumn(PRInt32 aRow, PRInt32 aColumn, PRInt32 *aIndex);
+  NS_IMETHOD GetRowAndColumnByIndex(PRInt32 aIndex, PRInt32 *aRow, PRInt32 *aColumn);
 
 protected:
 
@@ -159,23 +159,23 @@ protected:
     * @see nsContainerFrame::GetSkipSides */
   virtual int GetSkipSides() const;
 
-  uint8_t GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
+  PRUint8 GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
   bool HasSideCaption() {
-    uint8_t captionSide = GetCaptionSide();
+    PRUint8 captionSide = GetCaptionSide();
     return captionSide == NS_STYLE_CAPTION_SIDE_LEFT ||
            captionSide == NS_STYLE_CAPTION_SIDE_RIGHT;
   }
   
-  uint8_t GetCaptionVerticalAlign();
+  PRUint8 GetCaptionVerticalAlign();
 
-  void SetDesiredSize(uint8_t         aCaptionSide,
+  void SetDesiredSize(PRUint8         aCaptionSide,
                       const nsMargin& aInnerMargin,
                       const nsMargin& aCaptionMargin,
                       nscoord&        aWidth,
                       nscoord&        aHeight);
 
-  nsresult   GetCaptionOrigin(uint32_t         aCaptionSide,
+  nsresult   GetCaptionOrigin(PRUint32         aCaptionSide,
                               const nsSize&    aContainBlockSize,
                               const nsSize&    aInnerSize, 
                               const nsMargin&  aInnerMargin,
@@ -183,7 +183,7 @@ protected:
                               nsMargin&        aCaptionMargin,
                               nsPoint&         aOrigin);
 
-  nsresult   GetInnerOrigin(uint32_t         aCaptionSide,
+  nsresult   GetInnerOrigin(PRUint32         aCaptionSide,
                             const nsSize&    aContainBlockSize,
                             const nsSize&    aCaptionSize, 
                             const nsMargin&  aCaptionMargin,
@@ -205,7 +205,7 @@ protected:
                               nsReflowStatus&          aStatus);
 
   // Set the reflow metrics
-  void UpdateReflowMetrics(uint8_t              aCaptionSide,
+  void UpdateReflowMetrics(PRUint8              aCaptionSide,
                            nsHTMLReflowMetrics& aMet,
                            const nsMargin&      aInnerMargin,
                            const nsMargin&      aCaptionMargin);

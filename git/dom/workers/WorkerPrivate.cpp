@@ -909,16 +909,16 @@ class ReportErrorRunnable : public WorkerRunnable
   nsString mMessage;
   nsString mFilename;
   nsString mLine;
-  uint32_t mLineNumber;
-  uint32_t mColumnNumber;
-  uint32_t mFlags;
-  uint32_t mErrorNumber;
+  PRUint32 mLineNumber;
+  PRUint32 mColumnNumber;
+  PRUint32 mFlags;
+  PRUint32 mErrorNumber;
 
 public:
   ReportErrorRunnable(WorkerPrivate* aWorkerPrivate, const nsString& aMessage,
                       const nsString& aFilename, const nsString& aLine,
-                      uint32_t aLineNumber, uint32_t aColumnNumber,
-                      uint32_t aFlags, uint32_t aErrorNumber)
+                      PRUint32 aLineNumber, PRUint32 aColumnNumber,
+                      PRUint32 aFlags, PRUint32 aErrorNumber)
   : WorkerRunnable(aWorkerPrivate, ParentThread, UnchangedBusyCount,
                    SkipWhenClearing),
     mMessage(aMessage), mFilename(aFilename), mLine(aLine),
@@ -943,7 +943,7 @@ public:
                        aWorkerPrivate->GetJSObject() :
                        nullptr;
 
-    uint64_t innerWindowId;
+    PRUint64 innerWindowId;
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
@@ -979,8 +979,8 @@ public:
   ReportError(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
               bool aFireAtScope, JSObject* aTarget, const nsString& aMessage,
               const nsString& aFilename, const nsString& aLine,
-              uint32_t aLineNumber, uint32_t aColumnNumber, uint32_t aFlags,
-              uint32_t aErrorNumber, uint64_t aInnerWindowId)
+              PRUint32 aLineNumber, PRUint32 aColumnNumber, PRUint32 aFlags,
+              PRUint32 aErrorNumber, PRUint64 aInnerWindowId)
   {
     if (aWorkerPrivate) {
       aWorkerPrivate->AssertIsOnWorkerThread();
@@ -1173,7 +1173,7 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD
-  Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
+  Dispatch(nsIRunnable* aRunnable, PRUint32 aFlags)
   {
     NS_ASSERTION(aFlags == nsIEventTarget::DISPATCH_NORMAL, "Don't call me!");
 
@@ -1255,7 +1255,7 @@ public:
   }
 
   bool
-  SetTimeout(JSContext* aCx, uint32_t aDelayMS)
+  SetTimeout(JSContext* aCx, PRUint32 aDelayMS)
   {
     nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
     if (!timer) {
@@ -1298,11 +1298,11 @@ public:
 
 class UpdateJSContextOptionsRunnable : public WorkerControlRunnable
 {
-  uint32_t mOptions;
+  PRUint32 mOptions;
 
 public:
   UpdateJSContextOptionsRunnable(WorkerPrivate* aWorkerPrivate,
-                                 uint32_t aOptions)
+                                 PRUint32 aOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mOptions(aOptions)
   { }
@@ -1317,11 +1317,11 @@ public:
 
 class UpdateJSRuntimeHeapSizeRunnable : public WorkerControlRunnable
 {
-  uint32_t mJSRuntimeHeapSize;
+  PRUint32 mJSRuntimeHeapSize;
 
 public:
   UpdateJSRuntimeHeapSizeRunnable(WorkerPrivate* aWorkerPrivate,
-                                  uint32_t aJSRuntimeHeapSize)
+                                  PRUint32 aJSRuntimeHeapSize)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mJSRuntimeHeapSize(aJSRuntimeHeapSize)
   { }
@@ -1337,11 +1337,11 @@ public:
 #ifdef JS_GC_ZEAL
 class UpdateGCZealRunnable : public WorkerControlRunnable
 {
-  uint8_t mGCZeal;
+  PRUint8 mGCZeal;
 
 public:
   UpdateGCZealRunnable(WorkerPrivate* aWorkerPrivate,
-                       uint8_t aGCZeal)
+                       PRUint8 aGCZeal)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mGCZeal(aGCZeal)
   { }
@@ -1598,7 +1598,7 @@ public:
   }
 
   NS_IMETHOD
-  GetExplicitNonHeap(int64_t *aAmount)
+  GetExplicitNonHeap(PRInt64 *aAmount)
   {
     AssertIsOnMainThread();
 
@@ -1880,8 +1880,8 @@ struct WorkerPrivate::TimeoutInfo
   mozilla::TimeStamp mTargetTime;
   mozilla::TimeDuration mInterval;
   nsCString mFilename;
-  uint32_t mLineNumber;
-  uint32_t mId;
+  PRUint32 mLineNumber;
+  PRUint32 mId;
   bool mIsInterval;
   bool mCanceled;
 };
@@ -2066,7 +2066,7 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
     nsTArray<nsRefPtr<WorkerRunnable> > runnables;
     mQueuedRunnables.SwapElements(runnables);
 
-    for (uint32_t index = 0; index < runnables.Length(); index++) {
+    for (PRUint32 index = 0; index < runnables.Length(); index++) {
       nsRefPtr<WorkerRunnable>& runnable = runnables[index];
       if (NS_FAILED(NS_DispatchToCurrentThread(runnable))) {
         NS_WARNING("Failed to dispatch queued runnable!");
@@ -2279,7 +2279,7 @@ WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage)
 }
 
 template <class Derived>
-uint64_t
+PRUint64
 WorkerPrivateParent<Derived>::GetInnerWindowId()
 {
   AssertIsOnMainThread();
@@ -2289,7 +2289,7 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
-                                                     uint32_t aOptions)
+                                                     PRUint32 aOptions)
 {
   AssertIsOnParentThread();
 
@@ -2306,7 +2306,7 @@ WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSRuntimeHeapSize(JSContext* aCx,
-                                                      uint32_t aMaxBytes)
+                                                      PRUint32 aMaxBytes)
 {
   AssertIsOnParentThread();
 
@@ -2323,7 +2323,7 @@ WorkerPrivateParent<Derived>::UpdateJSRuntimeHeapSize(JSContext* aCx,
 #ifdef JS_GC_ZEAL
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal)
+WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal)
 {
   AssertIsOnParentThread();
 
@@ -2405,7 +2405,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
     mLocationInfo.mProtocol.Truncate();
   }
 
-  int32_t port;
+  PRInt32 port;
   if (NS_SUCCEEDED(aBaseURI->GetPort(&port)) && port != -1) {
     mLocationInfo.mPort.AppendInt(port);
 
@@ -3078,7 +3078,7 @@ WorkerPrivate::ClearQueue(EventQueue* aQueue)
   }
 }
 
-uint32_t
+PRUint32
 WorkerPrivate::RemainingRunTimeMS() const
 {
   if (mKillTime.IsNull()) {
@@ -3086,7 +3086,7 @@ WorkerPrivate::RemainingRunTimeMS() const
   }
   TimeDuration runtime = mKillTime - TimeStamp::Now();
   double ms = runtime > TimeDuration(0) ? runtime.ToMilliseconds() : 0;
-  return ms > double(PR_UINT32_MAX) ? PR_UINT32_MAX : uint32_t(ms);
+  return ms > double(PR_UINT32_MAX) ? PR_UINT32_MAX : PRUint32(ms);
 }
 
 bool
@@ -3116,11 +3116,11 @@ WorkerPrivate::TraceInternal(JSTracer* aTrc)
 {
   AssertIsOnWorkerThread();
 
-  for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
+  for (PRUint32 index = 0; index < mTimeouts.Length(); index++) {
     TimeoutInfo* info = mTimeouts[index];
     JS_CALL_VALUE_TRACER(aTrc, info->mTimeoutVal,
                          "WorkerPrivate timeout value");
-    for (uint32_t index2 = 0; index2 < info->mExtraArgVals.Length(); index2++) {
+    for (PRUint32 index2 = 0; index2 < info->mExtraArgVals.Length(); index2++) {
       JS_CALL_VALUE_TRACER(aTrc, info->mExtraArgVals[index2],
                            "WorkerPrivate timeout extra argument value");
     }
@@ -3234,7 +3234,7 @@ WorkerPrivate::NotifyFeatures(JSContext* aCx, Status aStatus)
   nsAutoTArray<WorkerFeature*, 30> features;
   features.AppendElements(mFeatures);
 
-  for (uint32_t index = 0; index < features.Length(); index++) {
+  for (PRUint32 index = 0; index < features.Length(); index++) {
     if (!features[index]->Notify(aCx, aStatus)) {
       NS_WARNING("Failed to notify feature!");
     }
@@ -3243,7 +3243,7 @@ WorkerPrivate::NotifyFeatures(JSContext* aCx, Status aStatus)
   nsAutoTArray<ParentType*, 10> children;
   children.AppendElements(mChildWorkers);
 
-  for (uint32_t index = 0; index < children.Length(); index++) {
+  for (PRUint32 index = 0; index < children.Length(); index++) {
     if (!children[index]->Notify(aCx, aStatus)) {
       NS_WARNING("Failed to notify child worker!");
     }
@@ -3263,7 +3263,7 @@ WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
       NS_WARNING("Failed to cancel timer!");
     }
 
-    for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
+    for (PRUint32 index = 0; index < mTimeouts.Length(); index++) {
       mTimeouts[index]->mCanceled = true;
     }
 
@@ -3282,7 +3282,7 @@ WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
   mTimer = nullptr;
 }
 
-uint32_t
+PRUint32
 WorkerPrivate::CreateNewSyncLoop()
 {
   AssertIsOnWorkerThread();
@@ -3295,7 +3295,7 @@ WorkerPrivate::CreateNewSyncLoop()
 }
 
 bool
-WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
+WorkerPrivate::RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey)
 {
   AssertIsOnWorkerThread();
 
@@ -3352,7 +3352,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey)
 }
 
 void
-WorkerPrivate::StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult)
+WorkerPrivate::StopSyncLoop(PRUint32 aSyncLoopKey, bool aSyncResult)
 {
   AssertIsOnWorkerThread();
 
@@ -3486,7 +3486,7 @@ WorkerPrivate::NotifyInternal(JSContext* aCx, Status aStatus)
                  previousStatus == Terminating,
                  "Bad previous status!");
 
-    uint32_t killSeconds = RuntimeService::GetCloseHandlerTimeoutSeconds();
+    PRUint32 killSeconds = RuntimeService::GetCloseHandlerTimeoutSeconds();
     if (killSeconds) {
       mKillTime = TimeStamp::Now() + TimeDuration::FromSeconds(killSeconds);
 
@@ -3554,7 +3554,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
   JS_ClearPendingException(aCx);
 
   nsString message, filename, line;
-  uint32_t lineNumber, columnNumber, flags, errorNumber;
+  PRUint32 lineNumber, columnNumber, flags, errorNumber;
 
   if (aReport) {
     if (aReport->ucmessage) {
@@ -3600,7 +3600,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
   AssertIsOnWorkerThread();
   NS_ASSERTION(aArgc, "Huh?!");
 
-  const uint32_t timerId = mNextTimeoutId++;
+  const PRUint32 timerId = mNextTimeoutId++;
 
   Status currentStatus;
   {
@@ -3674,7 +3674,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
 
   if (newInfo->mTimeoutVal.isString()) {
     const char* filenameChars;
-    uint32_t lineNumber;
+    PRUint32 lineNumber;
     if (nsJSUtils::GetCallingLocation(aCx, &filenameChars, &lineNumber)) {
       newInfo->mFilename = filenameChars;
       newInfo->mLineNumber = lineNumber;
@@ -3735,7 +3735,7 @@ WorkerPrivate::ClearTimeout(JSContext* aCx, uint32 aId)
   if (!mTimeouts.IsEmpty()) {
     NS_ASSERTION(mTimerRunning, "Huh?!");
 
-    for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
+    for (PRUint32 index = 0; index < mTimeouts.Length(); index++) {
       nsAutoPtr<TimeoutInfo>& info = mTimeouts[index];
       if (info->mId == aId) {
         info->mCanceled = true;
@@ -3773,7 +3773,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   const TimeStamp now = NS_MAX(TimeStamp::Now(), mTimeouts[0]->mTargetTime);
 
   nsAutoTArray<TimeoutInfo*, 10> expiredTimeouts;
-  for (uint32_t index = 0; index < mTimeouts.Length(); index++) {
+  for (PRUint32 index = 0; index < mTimeouts.Length(); index++) {
     nsAutoPtr<TimeoutInfo>& info = mTimeouts[index];
     if (info->mTargetTime > now) {
       break;
@@ -3785,7 +3785,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   mRunningExpiredTimeouts = true;
 
   // Run expired timeouts.
-  for (uint32_t index = 0; index < expiredTimeouts.Length(); index++) {
+  for (PRUint32 index = 0; index < expiredTimeouts.Length(); index++) {
     TimeoutInfo*& info = expiredTimeouts[index];
 
     if (info->mCanceled) {
@@ -3836,7 +3836,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   // expiredTimeouts with extra elements inserted.  There may be unexpired
   // timeouts that have been inserted between the expired timeouts if the
   // timeout event handler called setTimeout/setInterval.
-  for (uint32_t index = 0, expiredTimeoutIndex = 0,
+  for (PRUint32 index = 0, expiredTimeoutIndex = 0,
        expiredTimeoutLength = expiredTimeouts.Length();
        index < mTimeouts.Length(); ) {
     nsAutoPtr<TimeoutInfo>& info = mTimeouts[index];
@@ -3889,7 +3889,7 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 
   double delta =
     (mTimeouts[0]->mTargetTime - TimeStamp::Now()).ToMilliseconds();
-  uint32_t delay = delta > 0 ? NS_MIN(delta, double(PR_UINT32_MAX)) : 0;
+  PRUint32 delay = delta > 0 ? NS_MIN(delta, double(PR_UINT32_MAX)) : 0;
 
   nsresult rv = mTimer->InitWithFuncCallback(DummyCallback, nullptr, delay,
                                              nsITimer::TYPE_ONE_SHOT);
@@ -3902,40 +3902,40 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 }
 
 void
-WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions)
+WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx, PRUint32 aOptions)
 {
   AssertIsOnWorkerThread();
 
   JS_SetOptions(aCx, aOptions);
 
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
+  for (PRUint32 index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSContextOptions(aCx, aOptions);
   }
 }
 
 void
 WorkerPrivate::UpdateJSRuntimeHeapSizeInternal(JSContext* aCx,
-                                               uint32_t aMaxBytes)
+                                               PRUint32 aMaxBytes)
 {
   AssertIsOnWorkerThread();
 
   JS_SetGCParameter(JS_GetRuntime(aCx), JSGC_MAX_BYTES, aMaxBytes);
 
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
+  for (PRUint32 index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSRuntimeHeapSize(aCx, aMaxBytes);
   }
 }
 
 #ifdef JS_GC_ZEAL
 void
-WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal)
+WorkerPrivate::UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal)
 {
   AssertIsOnWorkerThread();
 
-  uint32_t frequency = aGCZeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
+  PRUint32 frequency = aGCZeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
   JS_SetGCZeal(aCx, aGCZeal, frequency);
 
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
+  for (PRUint32 index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateGCZeal(aCx, aGCZeal);
   }
 }
@@ -3957,7 +3957,7 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
   }
 
   if (aCollectChildren) {
-    for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
+    for (PRUint32 index = 0; index < mChildWorkers.Length(); index++) {
       mChildWorkers[index]->GarbageCollect(aCx, aShrinking);
     }
   }

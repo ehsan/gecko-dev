@@ -210,7 +210,7 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
       return false;
 
     // Failed to get the data off the window or it was the wrong type?
-    if (!data || !TO_LITTLE_ENDIAN32(*reinterpret_cast<int32_t*>(data)))
+    if (!data || !TO_LITTLE_ENDIAN32(*reinterpret_cast<PRInt32*>(data)))
       return false;
 
     // cool, we got the property data.
@@ -245,7 +245,7 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
 
 const char*
 nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
-                                uint32_t aTimestamp)
+                                PRUint32 aTimestamp)
 {
   nsresult rv;
 
@@ -258,7 +258,7 @@ nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
   // 2) Treat ping() immediately and specially
 
   nsCAutoString command(aCommand);
-  int32_t p1, p2;
+  PRInt32 p1, p2;
   p1 = command.FindChar('(');
   p2 = command.FindChar(')');
 
@@ -300,7 +300,7 @@ nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
 
 const char*
 nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
-                                    uint32_t aTimestamp)
+                                    PRUint32 aTimestamp)
 {
   nsresult rv;
 
@@ -309,14 +309,14 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
   if (NS_FAILED(rv))
     return "509 internal error";
 
-  // the commandline property is constructed as an array of int32_t
+  // the commandline property is constructed as an array of PRInt32
   // followed by a series of null-terminated strings:
   //
   // [argc][offsetargv0][offsetargv1...]<workingdir>\0<argv[0]>\0argv[1]...\0
   // (offset is from the beginning of the buffer)
 
-  int32_t argc = TO_LITTLE_ENDIAN32(*reinterpret_cast<int32_t*>(aBuffer));
-  char *wd   = aBuffer + ((argc + 1) * sizeof(int32_t));
+  PRInt32 argc = TO_LITTLE_ENDIAN32(*reinterpret_cast<PRInt32*>(aBuffer));
+  char *wd   = aBuffer + ((argc + 1) * sizeof(PRInt32));
 
   nsCOMPtr<nsIFile> lf;
   rv = NS_NewNativeLocalFile(nsDependentCString(wd), true,
@@ -329,7 +329,7 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
   char **argv = (char**) malloc(sizeof(char*) * argc);
   if (!argv) return "509 internal error";
 
-  int32_t  *offset = reinterpret_cast<int32_t*>(aBuffer) + 1;
+  PRInt32  *offset = reinterpret_cast<PRInt32*>(aBuffer) + 1;
 
   for (int i = 0; i < argc; ++i) {
     argv[i] = aBuffer + TO_LITTLE_ENDIAN32(offset[i]);

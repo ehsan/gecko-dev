@@ -51,7 +51,7 @@ public:
     // It's possible that some widget implementations require GUI operations
     // to be on the main thread, so that's why we're not dispatching to another
     // thread and calling back to the main after it's done.
-    int16_t result;
+    PRInt16 result;
     nsresult rv = mFilePicker->Show(&result);
     if (NS_FAILED(rv)) {
       NS_ERROR("FilePicker's Show() implementation failed!");
@@ -80,7 +80,7 @@ nsBaseFilePicker::~nsBaseFilePicker()
 
 NS_IMETHODIMP nsBaseFilePicker::Init(nsIDOMWindow *aParent,
                                      const nsAString& aTitle,
-                                     int16_t aMode)
+                                     PRInt16 aMode)
 {
   NS_PRECONDITION(aParent, "Null parent passed to filepicker, no file "
                   "picker for you!");
@@ -101,7 +101,7 @@ nsBaseFilePicker::Open(nsIFilePickerShownCallback *aCallback)
 }
 
 NS_IMETHODIMP
-nsBaseFilePicker::AppendFilters(int32_t aFilterMask)
+nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
 {
   nsCOMPtr<nsIStringBundleService> stringService =
     mozilla::services::GetStringBundleService();
@@ -172,13 +172,13 @@ nsBaseFilePicker::AppendFilters(int32_t aFilterMask)
 }
 
 // Set the filter index
-NS_IMETHODIMP nsBaseFilePicker::GetFilterIndex(int32_t *aFilterIndex)
+NS_IMETHODIMP nsBaseFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
 {
   *aFilterIndex = 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsBaseFilePicker::SetFilterIndex(int32_t aFilterIndex)
+NS_IMETHODIMP nsBaseFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 {
   return NS_OK;
 }

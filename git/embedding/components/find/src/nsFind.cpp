@@ -98,8 +98,8 @@ public:
     return NS_ERROR_NOT_IMPLEMENTED;
   }
   // Not a range because one of the endpoints may be anonymous.
-  nsresult Init(nsIDOMNode* aStartNode, int32_t aStartOffset,
-                nsIDOMNode* aEndNode, int32_t aEndOffset);
+  nsresult Init(nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                nsIDOMNode* aEndNode, PRInt32 aEndOffset);
   virtual void First();
   virtual void Last();
   virtual void Next();
@@ -114,9 +114,9 @@ private:
   // Can't use a range here, since we want to represent part of the
   // flattened tree, including native anonymous content.
   nsCOMPtr<nsIDOMNode> mStartNode;
-  int32_t mStartOffset;
+  PRInt32 mStartOffset;
   nsCOMPtr<nsIDOMNode> mEndNode;
-  int32_t mEndOffset;
+  PRInt32 mEndOffset;
   
   nsCOMPtr<nsIContent> mStartOuterContent;
   nsCOMPtr<nsIContent> mEndOuterContent;
@@ -130,8 +130,8 @@ private:
 NS_IMPL_ISUPPORTS1(nsFindContentIterator, nsIContentIterator)
 
 nsresult
-nsFindContentIterator::Init(nsIDOMNode* aStartNode, int32_t aStartOffset,
-                            nsIDOMNode* aEndNode, int32_t aEndOffset)
+nsFindContentIterator::Init(nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                            nsIDOMNode* aEndNode, PRInt32 aEndOffset)
 {
   if (!mOuterIterator) {
     if (mFindBackward) {
@@ -345,7 +345,7 @@ nsFindContentIterator::SetupInnerIterator(nsIContent* aContent)
     return;
 
   // don't mess with disabled input fields
-  uint32_t editorFlags = 0;
+  PRUint32 editorFlags = 0;
   editor->GetFlags(&editorFlags);
   if (editorFlags & nsIPlaintextEditor::eEditorDisabledMask)
     return;
@@ -460,8 +460,8 @@ static void DumpNode(nsIDOMNode* aNode)
 #endif
 
 nsresult
-nsFind::InitIterator(nsIDOMNode* aStartNode, int32_t aStartOffset,
-                     nsIDOMNode* aEndNode, int32_t aEndOffset)
+nsFind::InitIterator(nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                     nsIDOMNode* aEndNode, PRInt32 aEndOffset)
 {
   if (!mIterator)
   {
@@ -572,7 +572,7 @@ nsFind::NextNode(nsIDOMRange* aSearchRange,
     // (where we are now) to the beginning/end of the search range.
     nsCOMPtr<nsIDOMNode> startNode;
     nsCOMPtr<nsIDOMNode> endNode;
-    int32_t startOffset, endOffset;
+    PRInt32 startOffset, endOffset;
     if (aContinueOk)
     {
 #ifdef DEBUG_FIND
@@ -720,7 +720,7 @@ bool nsFind::IsBlockNode(nsIContent* aContent)
 
 bool nsFind::IsTextNode(nsIDOMNode* aNode)
 {
-  uint16_t nodeType;
+  PRUint16 nodeType;
   aNode->GetNodeType(&nodeType);
 
   return nodeType == nsIDOMNode::TEXT_NODE ||
@@ -864,20 +864,20 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
   patAutoStr.StripChars(kShy);
 
   const PRUnichar* patStr = patAutoStr.get();
-  int32_t patLen = patAutoStr.Length() - 1;
+  PRInt32 patLen = patAutoStr.Length() - 1;
 
   // current offset into the pattern -- reset to beginning/end:
-  int32_t pindex = (mFindBackward ? patLen : 0);
+  PRInt32 pindex = (mFindBackward ? patLen : 0);
 
   // Current offset into the fragment
-  int32_t findex = 0;
+  PRInt32 findex = 0;
 
   // Direction to move pindex and ptr*
   int incr = (mFindBackward ? -1 : 1);
 
   nsCOMPtr<nsIContent> tc;
   const nsTextFragment *frag = nullptr;
-  int32_t fragLen = 0;
+  PRInt32 fragLen = 0;
 
   // Pointers into the current fragment:
   const PRUnichar *t2b = nullptr;
@@ -889,11 +889,11 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
 
   // Place to save the range start point in case we find a match:
   nsCOMPtr<nsIDOMNode> matchAnchorNode;
-  int32_t matchAnchorOffset = 0;
+  PRInt32 matchAnchorOffset = 0;
 
   // Get the end point, so we know when to end searches:
   nsCOMPtr<nsIDOMNode> endNode;
-  int32_t endOffset;
+  PRInt32 endOffset;
   aEndPoint->GetEndContainer(getter_AddRefs(endNode));
   aEndPoint->GetEndOffset(&endOffset);
 
@@ -1083,7 +1083,7 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
     // a '\n' between CJ characters is ignored
     if (pindex != (mFindBackward ? patLen : 0) && c != patc && !inWhitespace) {
       if (c == '\n' && t2b && IS_CJ_CHAR(prevChar)) {
-        int32_t nindex = findex + incr;
+        PRInt32 nindex = findex + incr;
         if (mFindBackward ? (nindex >= 0) : (nindex < fragLen)) {
           if (IS_CJ_CHAR(t2b[nindex]))
             continue;
@@ -1122,9 +1122,9 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
         nsCOMPtr<nsIDOMRange> range = CreateRange();
         if (range)
         {
-          int32_t matchStartOffset, matchEndOffset;
+          PRInt32 matchStartOffset, matchEndOffset;
           // convert char index to range point:
-          int32_t mao = matchAnchorOffset + (mFindBackward ? 1 : 0);
+          PRInt32 mao = matchAnchorOffset + (mFindBackward ? 1 : 0);
           if (mFindBackward)
           {
             startParent = do_QueryInterface(tc);

@@ -66,7 +66,7 @@ class NS_COM_GLUE nsDeque {
    *
    * @return  number of elements currently in the deque
    */
-  inline int32_t GetSize() const {return mSize;}
+  inline PRInt32 GetSize() const {return mSize;}
 
   /**
    * Appends new member at the end of the deque.
@@ -185,9 +185,9 @@ class NS_COM_GLUE nsDeque {
   void SetDeallocator(nsDequeFunctor* aDeallocator);
 
 protected:
-  int32_t         mSize;
-  int32_t         mCapacity;
-  int32_t         mOrigin;
+  PRInt32         mSize;
+  PRInt32         mCapacity;
+  PRInt32         mOrigin;
   nsDequeFunctor* mDeallocator;
   void*           mBuffer[8];
   void**          mData;
@@ -370,7 +370,7 @@ public:
 
   protected:
 
-  int32_t         mIndex;
+  PRInt32         mIndex;
   const nsDeque&  mDeque;
 };
 #endif

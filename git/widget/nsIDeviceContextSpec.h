@@ -36,8 +36,8 @@ public:
 
    NS_IMETHOD BeginDocument(PRUnichar*  aTitle,
                             PRUnichar*  aPrintToFileName,
-                            int32_t     aStartPage,
-                            int32_t     aEndPage) = 0;
+                            PRInt32     aStartPage,
+                            PRInt32     aEndPage) = 0;
 
    NS_IMETHOD EndDocument() = 0;
    NS_IMETHOD BeginPage() = 0;

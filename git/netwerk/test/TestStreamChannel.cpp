@@ -56,7 +56,7 @@ public:
 
     NS_IMETHOD OnDataAvailable(nsIRequest *req, nsISupports *ctx,
                                nsIInputStream *stream,
-                               uint32_t offset, uint32_t count)
+                               PRUint32 offset, PRUint32 count)
     {
         LOG(("MyListener::OnDataAvailable [offset=%u count=%u]\n", offset, count));
 
@@ -64,7 +64,7 @@ public:
         nsresult rv;
 
         while (count) {
-            uint32_t n, amt = NS_MIN<uint32_t>(count, sizeof(buf));
+            PRUint32 n, amt = NS_MIN<PRUint32>(count, sizeof(buf));
 
             rv = stream->Read(buf, amt, &n);
             if (NS_FAILED(rv)) {
@@ -115,7 +115,7 @@ public:
     }
 
     NS_IMETHOD OnProgress(nsIRequest *req, nsISupports *ctx,
-                          uint64_t progress, uint64_t progressMax)
+                          PRUint64 progress, PRUint64 progressMax)
     {
         LOG(("MyCallbacks::OnProgress [progress=%llu/%llu]\n", progress, progressMax));
         return NS_OK;

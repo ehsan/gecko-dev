@@ -110,13 +110,13 @@ private:
 class WorkerSyncRunnable : public WorkerRunnable
 {
 protected:
-  uint32_t mSyncQueueKey;
+  PRUint32 mSyncQueueKey;
   bool mBypassSyncQueue;
 
 protected:
   friend class WorkerPrivate;
 
-  WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate, uint32_t aSyncQueueKey,
+  WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate, PRUint32 aSyncQueueKey,
                      bool aBypassSyncQueue = false,
                      ClearingBehavior aClearingBehavior = SkipWhenClearing)
   : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
@@ -186,11 +186,11 @@ private:
   // Only used for top level workers.
   nsTArray<nsRefPtr<WorkerRunnable> > mQueuedRunnables;
 
-  uint64_t mBusyCount;
+  PRUint64 mBusyCount;
   Status mParentStatus;
-  uint32_t mJSContextOptions;
-  uint32_t mJSRuntimeHeapSize;
-  uint8_t mGCZeal;
+  PRUint32 mJSContextOptions;
+  PRUint32 mJSRuntimeHeapSize;
+  PRUint8 mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
   bool mIsChromeWorker;
@@ -292,18 +292,18 @@ public:
   bool
   PostMessage(JSContext* aCx, jsval aMessage);
 
-  uint64_t
+  PRUint64
   GetInnerWindowId();
 
   void
-  UpdateJSContextOptions(JSContext* aCx, uint32_t aOptions);
+  UpdateJSContextOptions(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSize(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
+  UpdateJSRuntimeHeapSize(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal);
+  UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
 
   void
@@ -449,20 +449,20 @@ public:
     return mLocationInfo;
   }
 
-  uint32_t
+  PRUint32
   GetJSContextOptions() const
   {
     return mJSContextOptions;
   }
 
-  uint32_t
+  PRUint32
   GetJSRuntimeHeapSize() const
   {
     return mJSRuntimeHeapSize;
   }
 
 #ifdef JS_GC_ZEAL
-  uint8_t
+  PRUint8
   GetGCZeal() const
   {
     return mGCZeal;
@@ -538,8 +538,8 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsRefPtr<WorkerMemoryReporter> mMemoryReporter;
 
   mozilla::TimeStamp mKillTime;
-  uint32_t mErrorHandlerRecursionCount;
-  uint32_t mNextTimeoutId;
+  PRUint32 mErrorHandlerRecursionCount;
+  PRUint32 mNextTimeoutId;
   Status mStatus;
   bool mSuspended;
   bool mTimerRunning;
@@ -628,14 +628,14 @@ public:
              mFeatures.IsEmpty());
   }
 
-  uint32_t
+  PRUint32
   CreateNewSyncLoop();
 
   bool
-  RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey);
+  RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey);
 
   void
-  StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult);
+  StopSyncLoop(PRUint32 aSyncLoopKey, bool aSyncResult);
 
   bool
   PostMessageToParent(JSContext* aCx, jsval aMessage);
@@ -673,10 +673,10 @@ public:
   }
 
   void
-  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions);
+  UpdateJSContextOptionsInternal(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
+  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
 
   void
   ScheduleDeletion(bool aWasPending);
@@ -689,7 +689,7 @@ public:
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal);
+  UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
 
   void
@@ -759,7 +759,7 @@ private:
     return true;
   }
 
-  uint32_t
+  PRUint32
   RemainingRunTimeMS() const;
 
   void

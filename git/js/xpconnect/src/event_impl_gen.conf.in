@@ -22,10 +22,8 @@ simple_events = [
     'DeviceLightEvent',
     'MozApplicationEvent',
 #ifdef MOZ_B2G_BT
-    'BluetoothAuthorizeEvent',
-    'BluetoothDeviceEvent',
     'BluetoothDeviceAddressEvent',
-    'BluetoothPairingEvent',
+    'BluetoothDeviceEvent',
 #endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent'

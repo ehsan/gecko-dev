@@ -50,7 +50,7 @@ public:
   PRStatus CloseSocketAndDestroy(
                 const nsNSSShutDownPreventionLock & proofOfLock);
   
-  void SetNegotiatedNPN(const char *value, uint32_t length);
+  void SetNegotiatedNPN(const char *value, PRUint32 length);
   void SetHandshakeCompleted() { mHandshakeCompleted = true; }
 
   bool GetJoined() { return mJoined; }
@@ -119,13 +119,13 @@ public:
 
   static nsTHashtable<nsCStringHashKey> *mRenegoUnrestrictedSites;
   static bool mTreatUnsafeNegotiationAsBroken;
-  static int32_t mWarnLevelMissingRFC5746;
+  static PRInt32 mWarnLevelMissingRFC5746;
 
   static void setTreatUnsafeNegotiationAsBroken(bool broken);
   static bool treatUnsafeNegotiationAsBroken();
 
-  static void setWarnLevelMissingRFC5746(int32_t level);
-  static int32_t getWarnLevelMissingRFC5746();
+  static void setWarnLevelMissingRFC5746(PRInt32 level);
+  static PRInt32 getWarnLevelMissingRFC5746();
 
   static void getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key);
   static bool rememberPossibleTLSProblemSite(nsNSSSocketInfo *socketInfo);
@@ -139,21 +139,21 @@ public:
   static bool isRenegoUnrestrictedSite(const nsCString &str);
 };
 
-nsresult nsSSLIOLayerNewSocket(int32_t family,
+nsresult nsSSLIOLayerNewSocket(PRInt32 family,
                                const char *host,
-                               int32_t port,
+                               PRInt32 port,
                                const char *proxyHost,
-                               int32_t proxyPort,
+                               PRInt32 proxyPort,
                                PRFileDesc **fd,
                                nsISupports **securityInfo,
                                bool forSTARTTLS,
                                bool anonymousLoad);
 
-nsresult nsSSLIOLayerAddToSocket(int32_t family,
+nsresult nsSSLIOLayerAddToSocket(PRInt32 family,
                                  const char *host,
-                                 int32_t port,
+                                 PRInt32 port,
                                  const char *proxyHost,
-                                 int32_t proxyPort,
+                                 PRInt32 proxyPort,
                                  PRFileDesc *fd,
                                  nsISupports **securityInfo,
                                  bool forSTARTTLS,

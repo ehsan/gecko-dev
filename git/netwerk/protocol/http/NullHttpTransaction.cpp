@@ -17,7 +17,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(NullHttpTransaction)
 NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
                                          nsIInterfaceRequestor *callbacks,
                                          nsIEventTarget *target,
-                                         uint8_t caps)
+                                         PRUint8 caps)
   : mStatus(NS_OK)
   , mCaps(caps | NS_HTTP_ALLOW_KEEPALIVE)
   , mCallbacks(callbacks)
@@ -67,7 +67,7 @@ NullHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **outCB,
 
 void
 NullHttpTransaction::OnTransportStatus(nsITransport* transport,
-                                       nsresult status, uint64_t progress)
+                                       nsresult status, PRUint64 progress)
 {
 }
 
@@ -83,13 +83,13 @@ NullHttpTransaction::Status()
   return mStatus;
 }
 
-uint8_t
+PRUint8
 NullHttpTransaction::Caps()
 {
   return mCaps;
 }
 
-uint64_t
+PRUint64
 NullHttpTransaction::Available()
 {
   return 0;
@@ -97,7 +97,7 @@ NullHttpTransaction::Available()
 
 nsresult
 NullHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
-                                  uint32_t count, uint32_t *countRead)
+                                  PRUint32 count, PRUint32 *countRead)
 {
   *countRead = 0;
   mIsDone = true;
@@ -106,13 +106,13 @@ NullHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
 
 nsresult
 NullHttpTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
-                                   uint32_t count, uint32_t *countWritten)
+                                   PRUint32 count, PRUint32 *countWritten)
 {
   *countWritten = 0;
   return NS_BASE_STREAM_CLOSED;
 }
 
-uint32_t
+PRUint32
 NullHttpTransaction::Http1xTransactionCount()
 {
   return 0;
@@ -170,19 +170,19 @@ NullHttpTransaction::AddTransaction(nsAHttpTransaction *trans)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-uint32_t
+PRUint32
 NullHttpTransaction::PipelineDepth()
 {
   return 0;
 }
 
 nsresult
-NullHttpTransaction::SetPipelinePosition(int32_t position)
+NullHttpTransaction::SetPipelinePosition(PRInt32 position)
 {
     return NS_OK;
 }
  
-int32_t
+PRInt32
 NullHttpTransaction::PipelinePosition()
 {
   return 1;

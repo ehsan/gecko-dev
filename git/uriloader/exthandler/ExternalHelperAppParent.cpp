@@ -27,7 +27,7 @@ NS_IMPL_ISUPPORTS_INHERITED4(ExternalHelperAppParent,
 
 ExternalHelperAppParent::ExternalHelperAppParent(
     const IPC::URI& uri,
-    const int64_t& aContentLength)
+    const PRInt64& aContentLength)
   : mURI(uri)
   , mPending(false)
   , mLoadFlags(0)
@@ -70,8 +70,8 @@ ExternalHelperAppParent::RecvOnStartRequest(const nsCString& entityID)
 
 bool
 ExternalHelperAppParent::RecvOnDataAvailable(const nsCString& data,
-                                             const uint32_t& offset,
-                                             const uint32_t& count)
+                                             const PRUint32& offset,
+                                             const PRUint32& count)
 {
   if (NS_FAILED(mStatus))
     return true;
@@ -269,7 +269,7 @@ ExternalHelperAppParent::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDisposition(uint32_t *aContentDisposition)
+ExternalHelperAppParent::GetContentDisposition(PRUint32 *aContentDisposition)
 {
   if (mContentDispositionHeader.IsEmpty())
     return NS_ERROR_NOT_AVAILABLE;
@@ -299,17 +299,17 @@ ExternalHelperAppParent::GetContentDispositionHeader(nsACString& aContentDisposi
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetContentLength(int32_t *aContentLength)
+ExternalHelperAppParent::GetContentLength(PRInt32 *aContentLength)
 {
   if (mContentLength > PR_INT32_MAX || mContentLength < 0)
     *aContentLength = -1;
   else
-    *aContentLength = (int32_t)mContentLength;
+    *aContentLength = (PRInt32)mContentLength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::SetContentLength(int32_t aContentLength)
+ExternalHelperAppParent::SetContentLength(PRInt32 aContentLength)
 {
   mContentLength = aContentLength;
   return NS_OK;
@@ -320,7 +320,7 @@ ExternalHelperAppParent::SetContentLength(int32_t aContentLength)
 //
 
 NS_IMETHODIMP
-ExternalHelperAppParent::ResumeAt(uint64_t startPos, const nsACString& entityID)
+ExternalHelperAppParent::ResumeAt(PRUint64 startPos, const nsACString& entityID)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -343,7 +343,7 @@ ExternalHelperAppParent::GetBaseChannel(nsIChannel* *aChannel)
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetPartID(uint32_t* aPartID)
+ExternalHelperAppParent::GetPartID(PRUint32* aPartID)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

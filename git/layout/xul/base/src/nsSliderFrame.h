@@ -78,9 +78,9 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
  
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType);
+                              PRInt32 aModType);
 
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
@@ -98,12 +98,12 @@ public:
 
   nsresult StartDrag(nsIDOMEvent* aEvent);
 
-  static int32_t GetCurrentPosition(nsIContent* content);
-  static int32_t GetMinPosition(nsIContent* content);
-  static int32_t GetMaxPosition(nsIContent* content);
-  static int32_t GetIncrement(nsIContent* content);
-  static int32_t GetPageIncrement(nsIContent* content);
-  static int32_t GetIntegerAttribute(nsIContent* content, nsIAtom* atom, int32_t defaultValue);
+  static PRInt32 GetCurrentPosition(nsIContent* content);
+  static PRInt32 GetMinPosition(nsIContent* content);
+  static PRInt32 GetMaxPosition(nsIContent* content);
+  static PRInt32 GetIncrement(nsIContent* content);
+  static PRInt32 GetPageIncrement(nsIContent* content);
+  static PRInt32 GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 defaultValue);
   void EnsureOrient();
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
@@ -131,9 +131,9 @@ private:
   void PageUpDown(nscoord change);
   void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,
                                bool aImmediateRedraw, bool aMaySnap);
-  void SetCurrentPosition(nsIContent* aScrollbar, int32_t aNewPos, bool aIsSmooth,
+  void SetCurrentPosition(nsIContent* aScrollbar, PRInt32 aNewPos, bool aIsSmooth,
                           bool aImmediateRedraw);
-  void SetCurrentPositionInternal(nsIContent* aScrollbar, int32_t pos,
+  void SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 pos,
                                   bool aIsSmooth, bool aImmediateRedraw);
   nsresult CurrentPositionChanged(nsPresContext* aPresContext,
                                   bool aImmediateRedraw);
@@ -162,7 +162,7 @@ private:
   nscoord mDragStart;
   nscoord mThumbStart;
 
-  int32_t mCurPos;
+  PRInt32 mCurPos;
 
   nscoord mChange;
 
@@ -172,7 +172,7 @@ private:
   bool mUserChanged;
 
   static bool gMiddlePref;
-  static int32_t gSnapMultiplier;
+  static PRInt32 gSnapMultiplier;
 }; // class nsSliderFrame
 
 #endif

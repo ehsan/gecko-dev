@@ -69,7 +69,7 @@ JumpListBuilder::~JumpListBuilder()
 }
 
 /* readonly attribute short available; */
-NS_IMETHODIMP JumpListBuilder::GetAvailable(int16_t *aAvailable)
+NS_IMETHODIMP JumpListBuilder::GetAvailable(PRInt16 *aAvailable)
 {
   *aAvailable = false;
 
@@ -88,7 +88,7 @@ NS_IMETHODIMP JumpListBuilder::GetIsListCommitted(bool *aCommit)
 }
 
 /* readonly attribute short maxItems; */
-NS_IMETHODIMP JumpListBuilder::GetMaxListItems(int16_t *aMaxItems)
+NS_IMETHODIMP JumpListBuilder::GetMaxListItems(PRInt16 *aMaxItems)
 {
   if (!mJumpListMgr)
     return NS_ERROR_NOT_AVAILABLE;
@@ -151,16 +151,16 @@ nsresult JumpListBuilder::RemoveIconCacheForItems(nsIMutableArray *items)
   NS_ENSURE_ARG_POINTER(items);
   
   nsresult rv;
-  uint32_t length;
+  PRUint32 length;
   items->GetLength(&length);
-  for (uint32_t i = 0; i < length; ++i) {
+  for (PRUint32 i = 0; i < length; ++i) {
 
     //Obtain an IJumpListItem and get the type
     nsCOMPtr<nsIJumpListItem> item = do_QueryElementAt(items, i);
     if (!item) {
       continue;
     }
-    int16_t type;
+    PRInt16 type;
     if (NS_FAILED(item->GetType(&type))) {
       continue;
     }
@@ -227,7 +227,7 @@ nsresult JumpListBuilder::RemoveIconCacheForAllItems()
     if (NS_FAILED(currFile->GetPath(path)))
       continue;
 
-    int32_t len = path.Length();
+    PRInt32 len = path.Length();
     if (StringTail(path, 4).LowerCaseEqualsASCII(".ico")) {
       // Check if the cached ICO file exists
       bool exists;
@@ -243,7 +243,7 @@ nsresult JumpListBuilder::RemoveIconCacheForAllItems()
 }
 
 /* boolean addListToBuild(in short aCatType, [optional] in nsIArray items, [optional] in AString catName); */
-NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items, const nsAString &catName, bool *_retval)
+NS_IMETHODIMP JumpListBuilder::AddListToBuild(PRInt16 aCatType, nsIArray *items, const nsAString &catName, bool *_retval)
 {
   nsresult rv;
 
@@ -265,9 +265,9 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
         return NS_ERROR_UNEXPECTED;
 
       // Build the list
-      uint32_t length;
+      PRUint32 length;
       items->GetLength(&length);
-      for (uint32_t i = 0; i < length; ++i) {
+      for (PRUint32 i = 0; i < length; ++i) {
         nsCOMPtr<nsIJumpListItem> item = do_QueryElementAt(items, i);
         if (!item)
           continue;
@@ -329,13 +329,13 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
-      uint32_t length;
+      PRUint32 length;
       items->GetLength(&length);
-      for (uint32_t i = 0; i < length; ++i) {
+      for (PRUint32 i = 0; i < length; ++i) {
         nsCOMPtr<nsIJumpListItem> item = do_QueryElementAt(items, i);
         if (!item)
           continue;
-        int16_t type;
+        PRInt16 type;
         if (NS_FAILED(item->GetType(&type)))
           continue;
         switch(type) {
@@ -443,7 +443,7 @@ NS_IMETHODIMP JumpListBuilder::DeleteActiveList(bool *_retval)
 
 bool JumpListBuilder::IsSeparator(nsCOMPtr<nsIJumpListItem>& item)
 {
-  int16_t type;
+  PRInt16 type;
   item->GetType(&type);
   if (NS_FAILED(item->GetType(&type)))
     return false;
@@ -462,12 +462,12 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
 
   nsresult rv;
 
-  uint32_t count = 0;
+  PRUint32 count = 0;
   objArray->GetCount(&count);
 
   nsCOMPtr<nsIJumpListItem> item;
 
-  for (uint32_t idx = 0; idx < count; idx++) {
+  for (PRUint32 idx = 0; idx < count; idx++) {
     IShellLinkW * pLink = nullptr;
     IShellItem * pItem = nullptr;
 

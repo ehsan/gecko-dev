@@ -82,8 +82,8 @@ class WyciwygStartRequestEvent : public ChannelEvent
 public:
   WyciwygStartRequestEvent(WyciwygChannelChild* child,
                            const nsresult& statusCode,
-                           const int32_t& contentLength,
-                           const int32_t& source,
+                           const PRInt32& contentLength,
+                           const PRInt32& source,
                            const nsCString& charset,
                            const nsCString& securityInfo)
   : mChild(child), mStatusCode(statusCode), mContentLength(contentLength),
@@ -93,16 +93,16 @@ public:
 private:
   WyciwygChannelChild* mChild;
   nsresult mStatusCode;
-  int32_t mContentLength;
-  int32_t mSource;
+  PRInt32 mContentLength;
+  PRInt32 mSource;
   nsCString mCharset;
   nsCString mSecurityInfo;
 };
 
 bool
 WyciwygChannelChild::RecvOnStartRequest(const nsresult& statusCode,
-                                        const int32_t& contentLength,
-                                        const int32_t& source,
+                                        const PRInt32& contentLength,
+                                        const PRInt32& source,
                                         const nsCString& charset,
                                         const nsCString& securityInfo)
 {
@@ -118,8 +118,8 @@ WyciwygChannelChild::RecvOnStartRequest(const nsresult& statusCode,
 
 void
 WyciwygChannelChild::OnStartRequest(const nsresult& statusCode,
-                                    const int32_t& contentLength,
-                                    const int32_t& source,
+                                    const PRInt32& contentLength,
+                                    const PRInt32& source,
                                     const nsCString& charset,
                                     const nsCString& securityInfo)
 {
@@ -148,18 +148,18 @@ class WyciwygDataAvailableEvent : public ChannelEvent
 public:
   WyciwygDataAvailableEvent(WyciwygChannelChild* child,
                             const nsCString& data,
-                            const uint32_t& offset)
+                            const PRUint32& offset)
   : mChild(child), mData(data), mOffset(offset) {}
   void Run() { mChild->OnDataAvailable(mData, mOffset); }
 private:
   WyciwygChannelChild* mChild;
   nsCString mData;
-  uint32_t mOffset;
+  PRUint32 mOffset;
 };
 
 bool
 WyciwygChannelChild::RecvOnDataAvailable(const nsCString& data,
-                                         const uint32_t& offset)
+                                         const PRUint32& offset)
 {
   if (mEventQ.ShouldEnqueue()) {
     mEventQ.Enqueue(new WyciwygDataAvailableEvent(this, data, offset));
@@ -171,7 +171,7 @@ WyciwygChannelChild::RecvOnDataAvailable(const nsCString& data,
 
 void
 WyciwygChannelChild::OnDataAvailable(const nsCString& data,
-                                     const uint32_t& offset)
+                                     const PRUint32& offset)
 {
   LOG(("WyciwygChannelChild::RecvOnDataAvailable [this=%x]\n", this));
 
@@ -203,8 +203,8 @@ WyciwygChannelChild::OnDataAvailable(const nsCString& data,
     Cancel(rv);
 
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nullptr, uint64_t(offset + data.Length()),
-                              uint64_t(mContentLength));
+    mProgressSink->OnProgress(this, nullptr, PRUint64(offset + data.Length()),
+                              PRUint64(mContentLength));
 }
 
 class WyciwygStopRequestEvent : public ChannelEvent
@@ -504,7 +504,7 @@ WyciwygChannelChild::SetContentCharset(const nsACString & aContentCharset)
 }
 
 NS_IMETHODIMP
-WyciwygChannelChild::GetContentDisposition(uint32_t *aContentDisposition)
+WyciwygChannelChild::GetContentDisposition(PRUint32 *aContentDisposition)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -523,12 +523,12 @@ WyciwygChannelChild::GetContentDispositionHeader(nsACString &aContentDisposition
 
 /* attribute long contentLength; */
 NS_IMETHODIMP
-WyciwygChannelChild::GetContentLength(int32_t *aContentLength)
+WyciwygChannelChild::GetContentLength(PRInt32 *aContentLength)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 NS_IMETHODIMP
-WyciwygChannelChild::SetContentLength(int32_t aContentLength)
+WyciwygChannelChild::SetContentLength(PRInt32 aContentLength)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -625,7 +625,7 @@ WyciwygChannelChild::SetSecurityInfo(nsISupports *aSecurityInfo)
 
 /* void setCharsetAndSource (in long aSource, in ACString aCharset); */
 NS_IMETHODIMP
-WyciwygChannelChild::SetCharsetAndSource(int32_t aSource, const nsACString & aCharset)
+WyciwygChannelChild::SetCharsetAndSource(PRInt32 aSource, const nsACString & aCharset)
 {
   // mState == WCC_ONSTART when reading from the channel
   // mState == WCC_INIT when writing to the cache
@@ -642,7 +642,7 @@ WyciwygChannelChild::SetCharsetAndSource(int32_t aSource, const nsACString & aCh
 
 /* ACString getCharsetAndSource (out long aSource); */
 NS_IMETHODIMP
-WyciwygChannelChild::GetCharsetAndSource(int32_t *aSource, nsACString & _retval)
+WyciwygChannelChild::GetCharsetAndSource(PRInt32 *aSource, nsACString & _retval)
 {
   NS_ENSURE_TRUE((mState == WCC_ONSTART) ||
                  (mState == WCC_ONDATA) ||

@@ -26,10 +26,10 @@ class nsImageToPixbuf MOZ_FINAL : public nsIImageToPixbuf {
          */
         static GdkPixbuf* ImageToPixbuf(imgIContainer * aImage);
         static GdkPixbuf* SurfaceToPixbuf(gfxASurface* aSurface,
-                                          int32_t aWidth, int32_t aHeight);
+                                          PRInt32 aWidth, PRInt32 aHeight);
     private:
         static GdkPixbuf* ImgSurfaceToPixbuf(gfxImageSurface* aImgSurface,
-                                             int32_t aWidth, int32_t aHeight);
+                                             PRInt32 aWidth, PRInt32 aHeight);
         ~nsImageToPixbuf() {}
 };
 

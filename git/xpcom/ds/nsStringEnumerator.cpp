@@ -64,11 +64,11 @@ private:
         const nsTArray<nsCString>* mCArray;
     };
 
-    inline uint32_t Count() {
+    inline PRUint32 Count() {
         return mIsUnicode ? mArray->Length() : mCArray->Length();
     }
     
-    uint32_t mIndex;
+    PRUint32 mIndex;
 
     // the owner allows us to hold a strong reference to the object
     // that owns the array. Having a non-null value in mOwner implies

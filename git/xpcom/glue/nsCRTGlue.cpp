@@ -65,7 +65,7 @@ NS_strtok(const char *delims, char **str)
   return ret;
 }
 
-uint32_t
+PRUint32
 NS_strlen(const PRUnichar *aString)
 {
   const PRUnichar *end;
@@ -95,12 +95,12 @@ NS_strcmp(const PRUnichar *a, const PRUnichar *b)
 PRUnichar*
 NS_strdup(const PRUnichar *aString)
 {
-  uint32_t len = NS_strlen(aString);
+  PRUint32 len = NS_strlen(aString);
   return NS_strndup(aString, len);
 }
 
 PRUnichar*
-NS_strndup(const PRUnichar *aString, uint32_t aLen)
+NS_strndup(const PRUnichar *aString, PRUint32 aLen)
 {
   PRUnichar *newBuf = (PRUnichar*) NS_Alloc((aLen + 1) * sizeof(PRUnichar));
   if (newBuf) {
@@ -113,7 +113,7 @@ NS_strndup(const PRUnichar *aString, uint32_t aLen)
 char*
 NS_strdup(const char *aString)
 {
-  uint32_t len = strlen(aString);
+  PRUint32 len = strlen(aString);
   char *str = (char*) NS_Alloc(len + 1);
   if (str) {
     memcpy(str, aString, len);
@@ -207,7 +207,7 @@ bool NS_IsAscii(const char *aString)
   return true;
 }
 
-bool NS_IsAscii(const char* aString, uint32_t aLength)
+bool NS_IsAscii(const char* aString, PRUint32 aLength)
 {
   const char* end = aString + aLength;
   while (aString < end) {
@@ -247,7 +247,7 @@ static const char table[] = {
   '4','5','6','7','8','9'
 };
 
-void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
+void NS_MakeRandomString(char *aBuf, PRInt32 aBufLen)
 {
   // turn PR_Now() into milliseconds since epoch
   // and salt rand with that.
@@ -255,7 +255,7 @@ void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
   LL_L2D(fpTime, PR_Now());
   srand((uint)(fpTime * 1e-6 + 0.5));   // use 1e-6, granularity of PR_Now() on the mac is seconds
 
-  int32_t i;
+  PRInt32 i;
   for (i=0;i<aBufLen;i++) {
     *aBuf++ = table[rand()%TABLE_SIZE];
   }

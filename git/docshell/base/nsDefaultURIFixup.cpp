@@ -66,7 +66,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
         nsresult rv = aURI->GetPath(path);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        uint32_t pathLength = path.Length();
+        PRUint32 pathLength = path.Length();
         if (pathLength <= 2)
         {
             return NS_ERROR_FAILURE;
@@ -75,7 +75,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
         // Path is of the form "//123/http://foo/bar", with a variable number of digits.
         // To figure out where the "real" URL starts, search path for a '/', starting at 
         // the third character.
-        int32_t slashIndex = path.FindChar('/', 2);
+        PRInt32 slashIndex = path.FindChar('/', 2);
         if (slashIndex == kNotFound)
         {
             return NS_ERROR_FAILURE;
@@ -111,7 +111,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
 
 /* nsIURI createFixupURI (in nsAUTF8String aURIText, in unsigned long aFixupFlags); */
 NS_IMETHODIMP
-nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupFlags, nsIURI **aURI)
+nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, PRUint32 aFixupFlags, nsIURI **aURI)
 {
     NS_ENSURE_ARG(!aStringURI.IsEmpty());
     NS_ENSURE_ARG_POINTER(aURI);
@@ -139,7 +139,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
     if (scheme.LowerCaseEqualsLiteral("view-source"))
     {
         nsCOMPtr<nsIURI> uri;
-        uint32_t newFixupFlags = aFixupFlags & ~FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP;
+        PRUint32 newFixupFlags = aFixupFlags & ~FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP;
 
         rv =  CreateFixupURI(Substring(uriString,
                                        sizeof("view-source:") - 1,
@@ -270,12 +270,12 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
     //   ftp4.no-scheme.com
     //   no-scheme.com/query?foo=http://www.foo.com
     //
-    int32_t schemeDelim = uriString.Find("://",0);
-    int32_t firstDelim = uriString.FindCharInSet("/:");
+    PRInt32 schemeDelim = uriString.Find("://",0);
+    PRInt32 firstDelim = uriString.FindCharInSet("/:");
     if (schemeDelim <= 0 ||
         (firstDelim != -1 && schemeDelim > firstDelim)) {
         // find host name
-        int32_t hostPos = uriString.FindCharInSet("/:?#");
+        PRInt32 hostPos = uriString.FindCharInSet("/:?#");
         if (hostPos == -1) 
             hostPos = uriString.Length();
 
@@ -421,7 +421,7 @@ bool nsDefaultURIFixup::MakeAlternateURI(nsIURI *aURI)
     aURI->GetHost(oldHost);
 
     // Count the dots
-    int32_t numDots = 0;
+    PRInt32 numDots = 0;
     nsReadingIterator<char> iter;
     nsReadingIterator<char> iterEnd;
     oldHost.BeginReading(iter);
@@ -658,7 +658,7 @@ bool nsDefaultURIFixup::PossiblyHostPortUrl(const nsACString &aUrl)
 
     while (iter != iterEnd)
     {
-        uint32_t chunkSize = 0;
+        PRUint32 chunkSize = 0;
         // Parse a chunk of the address
         while (iter != iterEnd &&
                (*iter == '-' ||
@@ -694,7 +694,7 @@ bool nsDefaultURIFixup::PossiblyHostPortUrl(const nsACString &aUrl)
     // Count the number of digits after the colon and before the
     // next forward slash (or end of string)
 
-    uint32_t digitCount = 0;
+    PRUint32 digitCount = 0;
     while (iter != iterEnd && digitCount <= 5)
     {
         if (nsCRT::IsAsciiDigit(*iter))
@@ -788,20 +788,20 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
     // "nonQualifiedHost?args"
     // "nonQualifiedHost?some args"
 
-    // Note: uint32_t(kNotFound) is greater than any actual location
-    // in practice.  So if we cast all locations to uint32_t, then a <
+    // Note: PRUint32(kNotFound) is greater than any actual location
+    // in practice.  So if we cast all locations to PRUint32, then a <
     // b guarantees that either b is kNotFound and a is found, or both
     // are found and a found before b.
-    uint32_t dotLoc   = uint32_t(aURIString.FindChar('.'));
-    uint32_t colonLoc = uint32_t(aURIString.FindChar(':'));
-    uint32_t spaceLoc = uint32_t(aURIString.FindChar(' '));
+    PRUint32 dotLoc   = PRUint32(aURIString.FindChar('.'));
+    PRUint32 colonLoc = PRUint32(aURIString.FindChar(':'));
+    PRUint32 spaceLoc = PRUint32(aURIString.FindChar(' '));
     if (spaceLoc == 0) {
         // Treat this as not found
-        spaceLoc = uint32_t(kNotFound);
+        spaceLoc = PRUint32(kNotFound);
     }
-    uint32_t qMarkLoc = uint32_t(aURIString.FindChar('?'));
-    uint32_t quoteLoc = NS_MIN(uint32_t(aURIString.FindChar('"')),
-                               uint32_t(aURIString.FindChar('\'')));
+    PRUint32 qMarkLoc = PRUint32(aURIString.FindChar('?'));
+    PRUint32 quoteLoc = NS_MIN(PRUint32(aURIString.FindChar('"')),
+                               PRUint32(aURIString.FindChar('\'')));
 
     if (((spaceLoc < dotLoc || quoteLoc < dotLoc) &&
          (spaceLoc < colonLoc || quoteLoc < colonLoc) &&

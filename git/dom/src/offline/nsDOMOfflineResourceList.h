@@ -79,11 +79,11 @@ private:
   nsCOMPtr<nsIApplicationCache> mAvailableApplicationCache;
   nsCOMPtr<nsIOfflineCacheUpdate> mCacheUpdate;
   bool mExposeCacheUpdateStatus;
-  uint16_t mStatus;
+  PRUint16 mStatus;
 
   // The set of dynamic keys for this application cache object.
   char **mCachedKeys;
-  uint32_t mCachedKeysCount;
+  PRUint32 mCachedKeysCount;
 
   nsRefPtr<nsDOMEventListenerWrapper> mOnCheckingListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;

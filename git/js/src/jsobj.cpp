@@ -4509,6 +4509,8 @@ JSBool
 js_NativeSet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> receiver,
              Shape *shape, bool added, bool strict, Value *vp)
 {
+    AddTypePropertyId(cx, obj, shape->propid(), *vp);
+
     JS_ASSERT(obj->isNative());
 
     if (shape->hasSlot()) {
@@ -4516,7 +4518,6 @@ js_NativeSet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> receiver,
 
         /* If shape has a stub setter, just store *vp. */
         if (shape->hasDefaultSetter()) {
-            AddTypePropertyId(cx, obj, shape->propid(), *vp);
             obj->nativeSetSlot(slot, *vp);
             return true;
         }
@@ -4545,7 +4546,6 @@ js_NativeSet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> receiver,
     if (shapeRoot->hasSlot() &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
          obj->nativeContains(cx, shapeRoot))) {
-        AddTypePropertyId(cx, obj, shape->propid(), *vp);
         obj->setSlot(shapeRoot->slot(), nvp);
     }
 
@@ -5563,9 +5563,9 @@ dumpValue(const Value &v)
         v.toString()->dump();
     else if (v.isObject() && v.toObject().isFunction()) {
         JSFunction *fun = v.toObject().toFunction();
-        if (fun->displayAtom()) {
+        if (fun->atom) {
             fputs("<function ", stderr);
-            FileEscapedString(stderr, fun->displayAtom(), 0);
+            FileEscapedString(stderr, fun->atom, 0);
         } else {
             fputs("<unnamed function", stderr);
         }

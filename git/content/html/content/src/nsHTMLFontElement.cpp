@@ -41,7 +41,7 @@ public:
   // nsIDOMHTMLFontElement
   NS_DECL_NSIDOMHTMLFONTELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -87,14 +87,14 @@ NS_IMPL_STRING_ATTR(nsHTMLFontElement, Size, size)
 
 
 bool
-nsHTMLFontElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::size) {
-      int32_t size = nsContentUtils::ParseLegacyFontSize(aValue);
+      PRInt32 size = nsContentUtils::ParseLegacyFontSize(aValue);
       if (size) {
         aResult.SetTo(size, &aValue);
         return true;
@@ -155,7 +155,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     nscolor color;
     if (value && value->GetColorValue(color)) {
       nsCSSValue* decoration = aData->ValueForTextDecorationLine();
-      int32_t newValue = NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL;
+      PRInt32 newValue = NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL;
       if (decoration->GetUnit() == eCSSUnit_Enumerated) {
         newValue |= decoration->GetIntValue();
       }

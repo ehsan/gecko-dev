@@ -111,7 +111,7 @@ public:
   /**
    * GetMonitorCount() returns count of monitors on the environment.
    */
-  static int32_t GetMonitorCount();
+  static PRInt32 GetMonitorCount();
 
   /**
    * IsOurProcessWindow() returns TRUE if aWnd belongs our process.
@@ -180,7 +180,7 @@ public:
    * one of nsIDOMMouseEvent::MOZ_SOURCE_*.  This method MUST be called during
    * mouse message handling.
    */
-  static uint16_t GetMouseInputSource();
+  static PRUint16 GetMouseInputSource();
 
   /**
    * SHCreateItemFromParsingName() calls native SHCreateItemFromParsingName()
@@ -245,16 +245,16 @@ public:
   // Warning: AsyncWriteIconToDisk assumes ownership of the aData buffer passed in
   AsyncWriteIconToDisk(const nsAString &aIconPath,
                        const nsACString &aMimeTypeOfInputData,
-                       uint8_t *aData, 
-                       uint32_t aDataLen,
+                       PRUint8 *aData, 
+                       PRUint32 aDataLen,
                        const bool aURLShortcut);
   virtual ~AsyncWriteIconToDisk();
 
 private:
   nsAutoString mIconPath;
   nsCAutoString mMimeTypeOfInputData;
-  nsAutoArrayPtr<uint8_t> mBuffer;
-  uint32_t mBufferLength;
+  nsAutoArrayPtr<PRUint8> mBuffer;
+  PRUint32 mBufferLength;
 };
 
 class AsyncDeleteIconFromDisk : public nsIRunnable
@@ -304,7 +304,7 @@ public:
                                    nsCOMPtr<nsIThread> &aIOThread,
                                    bool aURLShortcut);
 
-  static int32_t GetICOCacheSecondsTimeout();
+  static PRInt32 GetICOCacheSecondsTimeout();
 };
 
 

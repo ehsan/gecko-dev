@@ -54,7 +54,7 @@ nsFileStreamBase::~nsFileStreamBase()
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsFileStreamBase, nsISeekableStream)
 
 NS_IMETHODIMP
-nsFileStreamBase::Seek(int32_t whence, int64_t offset)
+nsFileStreamBase::Seek(PRInt32 whence, PRInt64 offset)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -62,15 +62,15 @@ nsFileStreamBase::Seek(int32_t whence, int64_t offset)
     if (mFD == nullptr)
         return NS_BASE_STREAM_CLOSED;
 
-    int64_t cnt = PR_Seek64(mFD, offset, (PRSeekWhence)whence);
-    if (cnt == int64_t(-1)) {
+    PRInt64 cnt = PR_Seek64(mFD, offset, (PRSeekWhence)whence);
+    if (cnt == PRInt64(-1)) {
         return NS_ErrorAccordingToNSPR();
     }
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileStreamBase::Tell(int64_t *result)
+nsFileStreamBase::Tell(PRInt64 *result)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -78,8 +78,8 @@ nsFileStreamBase::Tell(int64_t *result)
     if (mFD == nullptr)
         return NS_BASE_STREAM_CLOSED;
 
-    int64_t cnt = PR_Seek64(mFD, 0, PR_SEEK_CUR);
-    if (cnt == int64_t(-1)) {
+    PRInt64 cnt = PR_Seek64(mFD, 0, PR_SEEK_CUR);
+    if (cnt == PRInt64(-1)) {
         return NS_ErrorAccordingToNSPR();
     }
     *result = cnt;
@@ -97,7 +97,7 @@ nsFileStreamBase::SetEOF()
 
 #if defined(XP_UNIX) || defined(XP_OS2) || defined(XP_BEOS)
     // Some system calls require an EOF offset.
-    int64_t offset;
+    PRInt64 offset;
     rv = Tell(&offset);
     if (NS_FAILED(rv)) return rv;
 #endif
@@ -139,7 +139,7 @@ nsFileStreamBase::Close()
 }
 
 nsresult
-nsFileStreamBase::Available(uint64_t* aResult)
+nsFileStreamBase::Available(PRUint64* aResult)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -150,18 +150,18 @@ nsFileStreamBase::Available(uint64_t* aResult)
 
     // PR_Available with files over 4GB returns an error, so we have to
     // use the 64-bit version of PR_Available.
-    int64_t avail = PR_Available64(mFD);
+    PRInt64 avail = PR_Available64(mFD);
     if (avail == -1) {
         return NS_ErrorAccordingToNSPR();
     }
 
     // If available is greater than 4GB, return 4GB
-    *aResult = (uint64_t)avail;
+    *aResult = (PRUint64)avail;
     return NS_OK;
 }
 
 nsresult
-nsFileStreamBase::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
+nsFileStreamBase::Read(char* aBuf, PRUint32 aCount, PRUint32* aResult)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -171,7 +171,7 @@ nsFileStreamBase::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
         return NS_OK;
     }
 
-    int32_t bytesRead = PR_Read(mFD, aBuf, aCount);
+    PRInt32 bytesRead = PR_Read(mFD, aBuf, aCount);
     if (bytesRead == -1) {
         return NS_ErrorAccordingToNSPR();
     }
@@ -182,7 +182,7 @@ nsFileStreamBase::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
 
 nsresult
 nsFileStreamBase::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
-                               uint32_t aCount, uint32_t* aResult)
+                               PRUint32 aCount, PRUint32* aResult)
 {
     // ReadSegments is not implemented because it would be inefficient when
     // the writer does not consume all data.  If you want to call ReadSegments,
@@ -211,7 +211,7 @@ nsFileStreamBase::Flush(void)
     if (mFD == nullptr)
         return NS_BASE_STREAM_CLOSED;
 
-    int32_t cnt = PR_Sync(mFD);
+    PRInt32 cnt = PR_Sync(mFD);
     if (cnt == -1) {
         return NS_ErrorAccordingToNSPR();
     }
@@ -219,7 +219,7 @@ nsFileStreamBase::Flush(void)
 }
 
 nsresult
-nsFileStreamBase::Write(const char *buf, uint32_t count, uint32_t *result)
+nsFileStreamBase::Write(const char *buf, PRUint32 count, PRUint32 *result)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -227,7 +227,7 @@ nsFileStreamBase::Write(const char *buf, uint32_t count, uint32_t *result)
     if (mFD == nullptr)
         return NS_BASE_STREAM_CLOSED;
 
-    int32_t cnt = PR_Write(mFD, buf, count);
+    PRInt32 cnt = PR_Write(mFD, buf, count);
     if (cnt == -1) {
         return NS_ErrorAccordingToNSPR();
     }
@@ -236,7 +236,7 @@ nsFileStreamBase::Write(const char *buf, uint32_t count, uint32_t *result)
 }
     
 nsresult
-nsFileStreamBase::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+nsFileStreamBase::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
     NS_NOTREACHED("WriteFrom (see source comment)");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -246,7 +246,7 @@ nsFileStreamBase::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_re
 }
 
 nsresult
-nsFileStreamBase::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+nsFileStreamBase::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
     // File streams intentionally do not support this method.
@@ -255,8 +255,8 @@ nsFileStreamBase::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_
 }
 
 nsresult
-nsFileStreamBase::MaybeOpen(nsIFile* aFile, int32_t aIoFlags,
-                            int32_t aPerm, bool aDeferred)
+nsFileStreamBase::MaybeOpen(nsIFile* aFile, PRInt32 aIoFlags,
+                            PRInt32 aPerm, bool aDeferred)
 {
     NS_ENSURE_STATE(aFile);
 
@@ -355,7 +355,7 @@ nsFileInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 }
 
 nsresult
-nsFileInputStream::Open(nsIFile* aFile, int32_t aIOFlags, int32_t aPerm)
+nsFileInputStream::Open(nsIFile* aFile, PRInt32 aIOFlags, PRInt32 aPerm)
 {   
     nsresult rv = NS_OK;
 
@@ -392,8 +392,8 @@ nsFileInputStream::Open(nsIFile* aFile, int32_t aIOFlags, int32_t aPerm)
 }
 
 NS_IMETHODIMP
-nsFileInputStream::Init(nsIFile* aFile, int32_t aIOFlags, int32_t aPerm,
-                        int32_t aBehaviorFlags)
+nsFileInputStream::Init(nsIFile* aFile, PRInt32 aIOFlags, PRInt32 aPerm,
+                        PRInt32 aBehaviorFlags)
 {
     NS_ENSURE_TRUE(!mFD, NS_ERROR_ALREADY_INITIALIZED);
     NS_ENSURE_TRUE(!mDeferredOpen, NS_ERROR_ALREADY_INITIALIZED);
@@ -410,14 +410,6 @@ nsFileInputStream::Init(nsIFile* aFile, int32_t aIOFlags, int32_t aPerm,
 NS_IMETHODIMP
 nsFileInputStream::Close()
 {
-    // Get the cache position at the time the file was close. This allows
-    // NS_SEEK_CUR on a closed file that has been opened with
-    // REOPEN_ON_REWIND.
-    if (mBehaviorFlags & REOPEN_ON_REWIND) {
-        // Get actual position. Not one modified by subclasses
-        nsFileStreamBase::Tell(&mCachedPosition);
-    }
-
     // null out mLineBuffer in case Close() is called again after failing
     PR_FREEIF(mLineBuffer);
     nsresult rv = nsFileStreamBase::Close();
@@ -434,7 +426,7 @@ nsFileInputStream::Close()
 }
 
 NS_IMETHODIMP
-nsFileInputStream::Read(char* aBuf, uint32_t aCount, uint32_t* _retval)
+nsFileInputStream::Read(char* aBuf, PRUint32 aCount, PRUint32* _retval)
 {
     nsresult rv = nsFileStreamBase::Read(aBuf, aCount, _retval);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -461,7 +453,7 @@ nsFileInputStream::ReadLine(nsACString& aLine, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
+nsFileInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -469,15 +461,9 @@ nsFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
     PR_FREEIF(mLineBuffer); // this invalidates the line buffer
     if (!mFD) {
         if (mBehaviorFlags & REOPEN_ON_REWIND) {
-            rv = Open(mFile, mIOFlags, mPerm);
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            // If the file was closed, and we do a relative seek, use the
-            // position we cached when we closed the file to seek to the right
-            // location.
-            if (aWhence == NS_SEEK_CUR) {
-                aWhence = NS_SEEK_SET;
-                aOffset += mCachedPosition;
+            nsresult rv = Reopen();
+            if (NS_FAILED(rv)) {
+                return rv;
             }
         } else {
             return NS_BASE_STREAM_CLOSED;
@@ -487,18 +473,6 @@ nsFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
     return nsFileStreamBase::Seek(aWhence, aOffset);
 }
 
-NS_IMETHODIMP
-nsFileInputStream::Tell(int64_t *aResult)
-{
-    return nsFileStreamBase::Tell(aResult);
-}
-
-NS_IMETHODIMP
-nsFileInputStream::Available(uint64_t *aResult)
-{
-    return nsFileStreamBase::Available(aResult);
-}
-
 bool
 nsFileInputStream::Read(const IPC::Message *aMsg, void **aIter)
 {
@@ -506,7 +480,7 @@ nsFileInputStream::Read(const IPC::Message *aMsg, void **aIter)
 
     nsCString path;
     bool followLinks;
-    int32_t flags;
+    PRInt32 flags;
     if (!ReadParam(aMsg, aIter, &path) ||
         !ReadParam(aMsg, aIter, &followLinks) ||
         !ReadParam(aMsg, aIter, &flags))
@@ -557,7 +531,7 @@ nsFileInputStream::Serialize(InputStreamParams& aParams)
                    "Sending an invalid file descriptor to the other process!");
     }
 
-    int32_t behaviorFlags = mBehaviorFlags;
+    PRInt32 behaviorFlags = mBehaviorFlags;
 
     // The other process shouldn't close when it reads the end because it will
     // not be able to reopen the file later.
@@ -651,9 +625,9 @@ nsPartialFileInputStream::Create(nsISupports *aOuter, REFNSIID aIID,
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Init(nsIFile* aFile, uint64_t aStart,
-                               uint64_t aLength, int32_t aIOFlags,
-                               int32_t aPerm, int32_t aBehaviorFlags)
+nsPartialFileInputStream::Init(nsIFile* aFile, PRUint64 aStart,
+                               PRUint64 aLength, PRInt32 aIOFlags,
+                               PRInt32 aPerm, PRInt32 aBehaviorFlags)
 {
     mStart = aStart;
     mLength = aLength;
@@ -667,9 +641,9 @@ nsPartialFileInputStream::Init(nsIFile* aFile, uint64_t aStart,
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Tell(int64_t *aResult)
+nsPartialFileInputStream::Tell(PRInt64 *aResult)
 {
-    int64_t tell;
+    PRInt64 tell;
     nsresult rv = nsFileInputStream::Tell(&tell);
     if (NS_SUCCEEDED(rv)) {
         *aResult = tell - mStart;
@@ -678,9 +652,9 @@ nsPartialFileInputStream::Tell(int64_t *aResult)
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Available(uint64_t* aResult)
+nsPartialFileInputStream::Available(PRUint64* aResult)
 {
-    uint64_t available;
+    PRUint64 available;
     nsresult rv = nsFileInputStream::Available(&available);
     if (NS_SUCCEEDED(rv)) {
         *aResult = TruncateSize(available);
@@ -689,9 +663,9 @@ nsPartialFileInputStream::Available(uint64_t* aResult)
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
+nsPartialFileInputStream::Read(char* aBuf, PRUint32 aCount, PRUint32* aResult)
 {
-    uint32_t readsize = (uint32_t) TruncateSize(aCount);
+    PRUint32 readsize = (PRUint32) TruncateSize(aCount);
     if (readsize == 0 && mBehaviorFlags & CLOSE_ON_EOF) {
         Close();
         *aResult = 0;
@@ -706,9 +680,9 @@ nsPartialFileInputStream::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
 }
 
 NS_IMETHODIMP
-nsPartialFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
+nsPartialFileInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
-    int64_t offset;
+    PRInt64 offset;
     switch (aWhence) {
         case NS_SEEK_SET:
             offset = mStart + aOffset;
@@ -723,7 +697,7 @@ nsPartialFileInputStream::Seek(int32_t aWhence, int64_t aOffset)
             return NS_ERROR_ILLEGAL_VALUE;
     }
 
-    if (offset < (int64_t)mStart || offset > (int64_t)(mStart + mLength)) {
+    if (offset < (PRInt64)mStart || offset > (PRInt64)(mStart + mLength)) {
         return NS_ERROR_INVALID_ARG;
     }
 
@@ -740,8 +714,8 @@ nsPartialFileInputStream::Read(const IPC::Message *aMsg, void **aIter)
     using IPC::ReadParam;
 
     // Grab our members first.
-    uint64_t start;
-    uint64_t length;
+    PRUint64 start;
+    PRUint64 length;
     if (!ReadParam(aMsg, aIter, &start) ||
         !ReadParam(aMsg, aIter, &length))
         return false;
@@ -866,8 +840,8 @@ nsFileOutputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 }
 
 NS_IMETHODIMP
-nsFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
-                         int32_t behaviorFlags)
+nsFileOutputStream::Init(nsIFile* file, PRInt32 ioFlags, PRInt32 perm,
+                         PRInt32 behaviorFlags)
 {
     NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
     NS_ENSURE_TRUE(!mDeferredOpen, NS_ERROR_ALREADY_INITIALIZED);
@@ -893,8 +867,8 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsSafeFileOutputStream,
                              nsIFileOutputStream)
 
 NS_IMETHODIMP
-nsSafeFileOutputStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
-                             int32_t behaviorFlags)
+nsSafeFileOutputStream::Init(nsIFile* file, PRInt32 ioFlags, PRInt32 perm,
+                             PRInt32 behaviorFlags)
 {
     return nsFileOutputStream::Init(file, ioFlags, perm, behaviorFlags);
 }
@@ -927,7 +901,7 @@ nsSafeFileOutputStream::DoOpen()
     }
 
     if (NS_SUCCEEDED(rv) && mTargetFileExists) {
-        uint32_t origPerm;
+        PRUint32 origPerm;
         if (NS_FAILED(file->GetPermissions(&origPerm))) {
             NS_ERROR("Can't get permissions of target file");
             origPerm = mOpenParams.perm;
@@ -1011,7 +985,7 @@ nsSafeFileOutputStream::Finish()
 }
 
 NS_IMETHODIMP
-nsSafeFileOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
+nsSafeFileOutputStream::Write(const char *buf, PRUint32 count, PRUint32 *result)
 {
     nsresult rv = nsFileOutputStream::Write(buf, count, result);
     if (NS_SUCCEEDED(mWriteResult)) {
@@ -1037,8 +1011,8 @@ NS_IMPL_ISUPPORTS_INHERITED4(nsFileStream,
                              nsIFileMetadata)
  
 NS_IMETHODIMP
-nsFileStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
-                   int32_t behaviorFlags)
+nsFileStream::Init(nsIFile* file, PRInt32 ioFlags, PRInt32 perm,
+                   PRInt32 behaviorFlags)
 {
     NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
     NS_ENSURE_TRUE(!mDeferredOpen, NS_ERROR_ALREADY_INITIALIZED);
@@ -1055,7 +1029,7 @@ nsFileStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
 }
 
 NS_IMETHODIMP
-nsFileStream::GetSize(int64_t* _retval)
+nsFileStream::GetSize(PRInt64* _retval)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1069,13 +1043,13 @@ nsFileStream::GetSize(int64_t* _retval)
         return NS_BASE_STREAM_OSERROR;
     }
 
-    *_retval = int64_t(info.size);
+    *_retval = PRInt64(info.size);
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileStream::GetLastModified(int64_t* _retval)
+nsFileStream::GetLastModified(PRInt64* _retval)
 {
     nsresult rv = DoPendingOpen();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1089,12 +1063,12 @@ nsFileStream::GetLastModified(int64_t* _retval)
         return NS_BASE_STREAM_OSERROR;
     }
 
-    int64_t modTime = int64_t(info.modifyTime);
+    PRInt64 modTime = PRInt64(info.modifyTime);
     if (modTime == 0) {
         *_retval = 0;
     }
     else {
-        *_retval = modTime / int64_t(PR_USEC_PER_MSEC);
+        *_retval = modTime / PRInt64(PR_USEC_PER_MSEC);
     }
 
     return NS_OK;

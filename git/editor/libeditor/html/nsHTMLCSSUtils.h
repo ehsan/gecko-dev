@@ -9,7 +9,7 @@
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsTArray.h"                   // for nsTArray
 #include "nscore.h"                     // for nsAString, nsresult, nullptr
-#include "prtypes.h"                    // for uint8_t, int32_t, uint32_t
+#include "prtypes.h"                    // for PRUint8, PRInt32, PRUint32
 
 class ChangeCSSInlineStyleTxn;
 class nsComputedDOMStyle;
@@ -108,7 +108,7 @@ public:
                              const nsAString & aValue,
                              bool aSuppressTransaction);
   nsresult    SetCSSPropertyPixels(nsIDOMElement *aElement, nsIAtom *aProperty,
-                                   int32_t aIntValue, bool aSuppressTxn);
+                                   PRInt32 aIntValue, bool aSuppressTxn);
   nsresult    RemoveCSSProperty(nsIDOMElement * aElement, nsIAtom * aProperty,
                                 const nsAString & aPropertyValue, bool aSuppressTransaction);
 
@@ -124,7 +124,7 @@ public:
                              const nsAString & aValue);
   nsresult    SetCSSPropertyPixels(nsIDOMElement * aElement,
                                    const nsAString & aProperty,
-                                   int32_t aIntValue);
+                                   PRInt32 aIntValue);
 
   /** gets the specified/computed style value of a CSS property for a given node (or its element
     * ancestor if it is not an element)
@@ -223,7 +223,7 @@ public:
     * aCount is returned by the dom::Element variant instead of being an out
     * parameter.
     */
-  int32_t     SetCSSEquivalentToHTMLStyle(mozilla::dom::Element* aElement,
+  PRInt32     SetCSSEquivalentToHTMLStyle(mozilla::dom::Element* aElement,
                                           nsIAtom* aProperty,
                                           const nsAString* aAttribute,
                                           const nsAString* aValue,
@@ -232,7 +232,7 @@ public:
                                           nsIAtom * aHTMLProperty,
                                           const nsAString * aAttribute,
                                           const nsAString * aValue,
-                                          int32_t * aCount,
+                                          PRInt32 * aCount,
                                           bool aSuppressTransaction);
 
   /** removes from the node the CSS inline styles equivalent to the HTML style
@@ -293,7 +293,7 @@ public:
     * @param aLength         [OUT] the number of declarations in aCssDecl
     */
   nsresult GetInlineStyles(nsIDOMElement * aElement, nsIDOMCSSStyleDeclaration ** aCssDecl,
-                           uint32_t * aLength);
+                           PRUint32 * aLength);
 
   /** returns aNode itself if it is an element node, or the first ancestors being an element
     * node if aNode is not one itself

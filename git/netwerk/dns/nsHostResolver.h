@@ -32,8 +32,8 @@ class nsResolveHostCallback;
 struct nsHostKey
 {
     const char *host;
-    uint16_t    flags;
-    uint16_t    af;
+    PRUint16    flags;
+    PRUint16    af;
 };
 
 /**
@@ -75,7 +75,7 @@ public:
                                 (though never for more than 60 seconds), but a use
                                 of that negative entry forces an asynchronous refresh. */
 
-    uint32_t     expiration; /* measured in minutes since epoch */
+    PRUint32     expiration; /* measured in minutes since epoch */
 
     bool HasResult() const { return addr_info || addr || negative; }
 
@@ -165,9 +165,9 @@ public:
     /**
      * creates an addref'd instance of a nsHostResolver object.
      */
-    static nsresult Create(uint32_t         maxCacheEntries,  // zero disables cache
-                           uint32_t         maxCacheLifetime, // minutes
-                           uint32_t         lifetimeGracePeriod, // minutes
+    static nsresult Create(PRUint32         maxCacheEntries,  // zero disables cache
+                           PRUint32         maxCacheLifetime, // minutes
+                           PRUint32         lifetimeGracePeriod, // minutes
                            nsHostResolver **resolver);
     
     /**
@@ -184,8 +184,8 @@ public:
      * by having the callback implementation return without doing anything).
      */
     nsresult ResolveHost(const char            *hostname,
-                         uint16_t               flags,
-                         uint16_t               af,
+                         PRUint16               flags,
+                         PRUint16               af,
                          nsResolveHostCallback *callback);
 
     /**
@@ -195,8 +195,8 @@ public:
      * callback if the callback is still pending with the given status.
      */
     void DetachCallback(const char            *hostname,
-                        uint16_t               flags,
-                        uint16_t               af,
+                        PRUint16               flags,
+                        PRUint16               af,
                         nsResolveHostCallback *callback,
                         nsresult               status);
 
@@ -208,8 +208,8 @@ public:
      * host record, it is removed from any request queues it might be on. 
      */
     void CancelAsyncRequest(const char            *host,
-                            uint16_t               flags,
-                            uint16_t               af,
+                            PRUint16               flags,
+                            PRUint16               af,
                             nsIDNSListener        *aListener,
                             nsresult               status);
     /**
@@ -228,8 +228,8 @@ public:
     };
 
 private:
-    nsHostResolver(uint32_t maxCacheEntries = 50, uint32_t maxCacheLifetime = 1,
-                   uint32_t lifetimeGracePeriod = 0);
+    nsHostResolver(PRUint32 maxCacheEntries = 50, PRUint32 maxCacheLifetime = 1,
+                   PRUint32 lifetimeGracePeriod = 0);
    ~nsHostResolver();
 
     nsresult Init();
@@ -254,21 +254,21 @@ private:
         METHOD_NETWORK_SHARED = 7
     };
 
-    uint32_t      mMaxCacheEntries;
-    uint32_t      mMaxCacheLifetime;
-    uint32_t      mGracePeriod;
+    PRUint32      mMaxCacheEntries;
+    PRUint32      mMaxCacheLifetime;
+    PRUint32      mGracePeriod;
     Mutex         mLock;
     CondVar       mIdleThreadCV;
-    uint32_t      mNumIdleThreads;
-    uint32_t      mThreadCount;
-    uint32_t      mActiveAnyThreadCount;
+    PRUint32      mNumIdleThreads;
+    PRUint32      mThreadCount;
+    PRUint32      mActiveAnyThreadCount;
     PLDHashTable  mDB;
     PRCList       mHighQ;
     PRCList       mMediumQ;
     PRCList       mLowQ;
     PRCList       mEvictionQ;
-    uint32_t      mEvictionQSize;
-    uint32_t      mPendingCount;
+    PRUint32      mEvictionQSize;
+    PRUint32      mPendingCount;
     PRTime        mCreationTime;
     bool          mShutdown;
     PRIntervalTime mLongIdleTimeout;

@@ -120,7 +120,7 @@ public:
     return mgr->SetCurrentWindowInternal(aWindow);
   }
 
-  static uint32_t
+  static PRUint32
   GetIndexedDBQuotaMB();
 
   nsresult EnsureOriginIsInitialized(const nsACString& aOrigin,
@@ -174,7 +174,7 @@ public:
                              const nsAString& aDatabaseName);
 
   nsresult AsyncDeleteFile(FileManager* aFileManager,
-                           int64_t aFileId);
+                           PRInt64 aFileId);
 
   const nsString&
   GetBaseDirectory() const
@@ -345,15 +345,15 @@ private:
     inline nsresult RunInternal();
 
     nsresult GetUsageForDirectory(nsIFile* aDirectory,
-                                  uint64_t* aUsage);
+                                  PRUint64* aUsage);
 
     nsCOMPtr<nsIURI> mURI;
     nsCString mOrigin;
 
     nsCOMPtr<nsIIndexedDatabaseUsageCallback> mCallback;
-    uint64_t mUsage;
-    uint64_t mFileUsage;
-    int32_t mCanceled;
+    PRUint64 mUsage;
+    PRUint64 mFileUsage;
+    PRInt32 mCanceled;
     CallbackState mCallbackState;
   };
 
@@ -388,7 +388,7 @@ private:
   {
   public:
     WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp,
-                                        uint32_t aCountdown)
+                                        PRUint32 aCountdown)
     : mOp(aOp), mCountdown(aCountdown)
     {
       NS_ASSERTION(mOp, "Why don't we have a runnable?");
@@ -404,7 +404,7 @@ private:
   private:
     // The IndexedDatabaseManager holds this alive.
     SynchronizedOp* mOp;
-    uint32_t mCountdown;
+    PRUint32 mCountdown;
   };
 
   class WaitForLockedFilesToFinishRunnable MOZ_FINAL : public nsIRunnable
@@ -445,7 +445,7 @@ private:
   SynchronizedOp* FindSynchronizedOp(const nsACString& aOrigin,
                                      nsIAtom* aId)
   {
-    for (uint32_t index = 0; index < mSynchronizedOps.Length(); index++) {
+    for (PRUint32 index = 0; index < mSynchronizedOps.Length(); index++) {
       const nsAutoPtr<SynchronizedOp>& currentOp = mSynchronizedOps[index];
       if (currentOp->mOrigin == aOrigin &&
           (!currentOp->mId || currentOp->mId == aId)) {
@@ -464,7 +464,7 @@ private:
   nsClassHashtable<nsCStringHashKey, nsTArray<IDBDatabase*> > mLiveDatabases;
 
   // TLS storage index for the current thread's window
-  unsigned mCurrentWindowIndex;
+  PRUintn mCurrentWindowIndex;
 
   // Lock protecting mQuotaHelperHash
   mozilla::Mutex mQuotaHelperMutex;

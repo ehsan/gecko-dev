@@ -14,7 +14,7 @@
 #include "nsString.h"                   // for nsString
 #include "nsTArray.h"                   // for nsTArray
 #include "nscore.h"                     // for nsresult
-#include "prtypes.h"                    // for int32_t
+#include "prtypes.h"                    // for PRInt32
 
 class nsIEditor;
 class nsISpellChecker;
@@ -48,12 +48,12 @@ protected:
   nsCOMPtr<nsISpellChecker> mSpellChecker;
 
   nsTArray<nsString>  mSuggestedWordList;
-  int32_t        mSuggestedWordIndex;
+  PRInt32        mSuggestedWordIndex;
 
   // these are the words in the current personal dictionary,
   // GetPersonalDictionary must be called to load them.
   nsTArray<nsString>  mDictionaryList;
-  int32_t        mDictionaryIndex;
+  PRInt32        mDictionaryIndex;
 
   nsresult       DeleteSuggestedWordList();
 

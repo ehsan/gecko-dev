@@ -23,7 +23,7 @@ namespace layers {
 struct THEBES_API FrameMetrics {
 public:
   // We use IDs to identify frames across processes.
-  typedef uint64_t ViewID;
+  typedef PRUint64 ViewID;
   static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
   static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
   static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
@@ -36,7 +36,6 @@ public:
     , mScrollId(NULL_SCROLL_ID)
     , mCSSContentRect(0, 0, 0, 0)
     , mResolution(1, 1)
-    , mMayHaveTouchListeners(false)
   {}
 
   // Default copy ctor and operator= are fine
@@ -71,7 +70,7 @@ public:
   // These are all in layer coordinate space.
   nsIntRect mViewport;
   nsIntRect mContentRect;
-  gfx::Point mViewportScrollOffset;
+  nsIntPoint mViewportScrollOffset;
   nsIntRect mDisplayPort;
   ViewID mScrollId;
 
@@ -82,9 +81,6 @@ public:
   // This represents the resolution at which the associated layer
   // will been rendered.
   gfxSize mResolution;
-
-  // Whether or not this frame may have touch listeners.
-  bool mMayHaveTouchListeners;
 };
 
 }

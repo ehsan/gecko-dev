@@ -58,7 +58,7 @@ BindingDependenciesTraverser(nsISupports* key,
     nsCycleCollectionTraversalCallback *cb = 
         static_cast<nsCycleCollectionTraversalCallback*>(userArg);
 
-    int32_t i, count = array->Length();
+    PRInt32 i, count = array->Length();
     for (i = 0; i < count; ++i) {
         cb->NoteXPCOMChild(array->ElementAt(i));
     }
@@ -67,14 +67,14 @@ BindingDependenciesTraverser(nsISupports* key,
 }
 
 static PLDHashOperator
-MemoryElementTraverser(const uint32_t& key,
+MemoryElementTraverser(const PRUint32& key,
                        nsCOMArray<nsXULTemplateResultRDF>* array,
                        void* userArg)
 {
     nsCycleCollectionTraversalCallback *cb = 
         static_cast<nsCycleCollectionTraversalCallback*>(userArg);
 
-    int32_t i, count = array->Count();
+    PRInt32 i, count = array->Count();
     for (i = 0; i < count; ++i) {
         cb->NoteXPCOMChild(array->ObjectAt(i));
     }
@@ -233,7 +233,7 @@ nsXULTemplateQueryProcessorRDF::GetDatasource(nsIArray* aDataSources,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    uint32_t length, index;
+    PRUint32 length, index;
     rv = aDataSources->GetLength(&length);
     NS_ENSURE_SUCCESS(rv,rv);
 
@@ -470,8 +470,8 @@ nsXULTemplateQueryProcessorRDF::GenerateResults(nsISupports* aDatasource,
         }
         else {
             // clear the cached results
-            int32_t count = mQueries.Length();
-            for (int32_t r = 0; r < count; r++) {
+            PRInt32 count = mQueries.Length();
+            for (PRInt32 r = 0; r < count; r++) {
                 mQueries[r]->ClearCachedResults();
             }
         }
@@ -608,8 +608,8 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
                                                nsIXULTemplateResult* aRight,
                                                nsIAtom* aVar,
-                                               uint32_t aSortHints,
-                                               int32_t* aResult)
+                                               PRUint32 aSortHints,
+                                               PRInt32* aResult)
 {
     NS_ENSURE_ARG_POINTER(aLeft);
     NS_ENSURE_ARG_POINTER(aRight);
@@ -620,8 +620,8 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
     // order. If there is no container, just sort them arbitrarily.
     if (!aVar) {
         // if a result has a negative index, just sort it first
-        int32_t leftindex = GetContainerIndexOf(aLeft);
-        int32_t rightindex = GetContainerIndexOf(aRight);
+        PRInt32 leftindex = GetContainerIndexOf(aLeft);
+        PRInt32 rightindex = GetContainerIndexOf(aRight);
         *aResult = leftindex == rightindex ? 0 :
                    leftindex > rightindex ? 1 :
                    -1;
@@ -691,7 +691,7 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
                 l->GetValue(&ldate);
                 r->GetValue(&rdate);
 
-                int64_t delta;
+                PRInt64 delta;
                 LL_SUB(delta, ldate, rdate);
 
                 if (LL_IS_ZERO(delta))
@@ -712,7 +712,7 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
         if (l) {
             nsCOMPtr<nsIRDFInt> r = do_QueryInterface(rightNode);
             if (r) {
-                int32_t lval, rval;
+                PRInt32 lval, rval;
                 l->GetValue(&lval);
                 r->GetValue(&rval);
 
@@ -731,8 +731,8 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
         if (l) {
             nsCOMPtr<nsIRDFBlob> r = do_QueryInterface(rightNode);
             if (r) {
-                const uint8_t *lval, *rval;
-                int32_t llen, rlen;
+                const PRUint8 *lval, *rval;
+                PRInt32 llen, rlen;
                 l->GetValue(&lval);
                 l->GetLength(&llen);
                 r->GetValue(&rval);
@@ -1015,9 +1015,9 @@ nsXULTemplateQueryProcessorRDF::SynchronizeAll(nsIRDFResource* aSource,
     if (!mBindingDependencies.Get(aSource, &results) || !mBuilder)
         return NS_OK;
 
-    uint32_t length = results->Length();
+    PRUint32 length = results->Length();
 
-    for (uint32_t r = 0; r < length; r++) {
+    for (PRUint32 r = 0; r < length; r++) {
         nsXULTemplateResultRDF* result = (*results)[r];
         if (result) {
             // synchronize the result's bindings and then update the builder
@@ -1166,8 +1166,8 @@ nsXULTemplateQueryProcessorRDF::ComputeContainmentProperties(nsIDOMNode* aRootNo
     nsAutoString containment;
     content->GetAttr(kNameSpaceID_None, nsGkAtoms::containment, containment);
 
-    uint32_t len = containment.Length();
-    uint32_t offset = 0;
+    PRUint32 len = containment.Length();
+    PRUint32 offset = 0;
     while (offset < len) {
         while (offset < len && nsCRT::IsAsciiSpace(containment[offset]))
             ++offset;
@@ -1175,7 +1175,7 @@ nsXULTemplateQueryProcessorRDF::ComputeContainmentProperties(nsIDOMNode* aRootNo
         if (offset >= len)
             break;
 
-        uint32_t end = offset;
+        PRUint32 end = offset;
         while (end < len && !nsCRT::IsAsciiSpace(containment[end]))
             ++end;
 
@@ -1320,7 +1320,7 @@ nsXULTemplateQueryProcessorRDF::ParseLiteral(const nsString& aParseType,
     if (aParseType.EqualsLiteral(PARSE_TYPE_INTEGER)) {
         nsCOMPtr<nsIRDFInt> intLiteral;
         nsresult errorCode;
-        int32_t intValue = aValue.ToInteger(&errorCode);
+        PRInt32 intValue = aValue.ToInteger(&errorCode);
         if (NS_FAILED(errorCode))
             return NS_ERROR_FAILURE;
         rv = gRDFService->GetIntLiteral(intValue, getter_AddRefs(intLiteral));
@@ -1574,7 +1574,7 @@ nsXULTemplateQueryProcessorRDF::CompileSimpleQuery(nsRDFQuery* aQuery,
 
     // Add constraints for the LHS
     const nsAttrName* name;
-    for (uint32_t i = 0; (name = aQueryElement->GetAttrNameAt(i)); ++i) {
+    for (PRUint32 i = 0; (name = aQueryElement->GetAttrNameAt(i)); ++i) {
         // Note: some attributes must be skipped on XUL template query subtree
 
         // never compare against rdf:property, rdf:instanceOf, {}:id or {}:parsetype attribute
@@ -1585,7 +1585,7 @@ nsXULTemplateQueryProcessorRDF::CompileSimpleQuery(nsRDFQuery* aQuery,
             continue;
         }
 
-        int32_t attrNameSpaceID = name->NamespaceID();
+        PRInt32 attrNameSpaceID = name->NamespaceID();
         if (attrNameSpaceID == kNameSpaceID_XMLNS)
           continue;
         nsIAtom* attr = name->LocalName();
@@ -1721,7 +1721,7 @@ nsXULTemplateQueryProcessorRDF::AddBindingDependency(nsXULTemplateResultRDF* aRe
         mBindingDependencies.Put(aResource, arr);
     }
 
-    int32_t index = arr->IndexOf(aResult);
+    PRInt32 index = arr->IndexOf(aResult);
     if (index == -1)
         arr->AppendElement(aResult);
 }
@@ -1732,7 +1732,7 @@ nsXULTemplateQueryProcessorRDF::RemoveBindingDependency(nsXULTemplateResultRDF* 
 {
     ResultArray* arr;
     if (mBindingDependencies.Get(aResource, &arr)) {
-        int32_t index = arr->IndexOf(aResult);
+        PRInt32 index = arr->IndexOf(aResult);
         if (index >= 0)
             arr->RemoveElementAt(index);
     }
@@ -1779,11 +1779,11 @@ nsXULTemplateQueryProcessorRDF::RemoveMemoryElements(const Instantiation& aInst,
 
         nsCOMArray<nsXULTemplateResultRDF>* arr;
         if (mMemoryElementToResultMap.Get(hash, &arr)) {
-            int32_t index = arr->IndexOf(aResult);
+            PRInt32 index = arr->IndexOf(aResult);
             if (index >= 0)
                 arr->RemoveObjectAt(index);
 
-            uint32_t length = arr->Count();
+            PRUint32 length = arr->Count();
             if (! length)
                 mMemoryElementToResultMap.Remove(hash);
         }
@@ -1805,9 +1805,9 @@ nsXULTemplateQueryProcessorRDF::RetractElement(const MemoryElement& aMemoryEleme
 
     nsCOMArray<nsXULTemplateResultRDF>* arr;
     if (mMemoryElementToResultMap.Get(hash, &arr)) {
-        uint32_t length = arr->Count();
+        PRUint32 length = arr->Count();
 
-        for (int32_t r = length - 1; r >= 0; r--) {
+        for (PRInt32 r = length - 1; r >= 0; r--) {
             nsXULTemplateResultRDF* result = (*arr)[r];
             if (result) {
                 // because the memory elements are hashed by an integer,
@@ -1829,8 +1829,8 @@ nsXULTemplateQueryProcessorRDF::RetractElement(const MemoryElement& aMemoryEleme
 
                     // the array should have been reduced by one, but check
                     // just to make sure
-                    uint32_t newlength = arr->Count();
-                    if (r > (int32_t)newlength)
+                    PRUint32 newlength = arr->Count();
+                    if (r > (PRInt32)newlength)
                         r = newlength;
                 }
             }
@@ -1842,7 +1842,7 @@ nsXULTemplateQueryProcessorRDF::RetractElement(const MemoryElement& aMemoryEleme
     }
 }
 
-int32_t
+PRInt32
 nsXULTemplateQueryProcessorRDF::GetContainerIndexOf(nsIXULTemplateResult* aResult)
 {
     // get the reference variable and look up the container in the result
@@ -1862,7 +1862,7 @@ nsXULTemplateQueryProcessorRDF::GetContainerIndexOf(nsIXULTemplateResult* aResul
             nsCOMPtr<nsIRDFResource> resource;
             aResult->GetResource(getter_AddRefs(resource));
             if (resource) {
-                int32_t index;
+                PRInt32 index;
                 gRDFContainerUtils->IndexOf(mDB, container, resource, &index);
                 return index;
             }

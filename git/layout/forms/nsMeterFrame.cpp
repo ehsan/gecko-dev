@@ -84,7 +84,7 @@ nsMeterFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
 void
 nsMeterFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                       uint32_t aFilter)
+                                       PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mBarDiv);
 }
@@ -196,9 +196,9 @@ nsMeterFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
 }
 
 NS_IMETHODIMP
-nsMeterFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsMeterFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                nsIAtom* aAttribute,
-                               int32_t  aModType)
+                               PRInt32  aModType)
 {
   NS_ASSERTION(mBarDiv, "Meter bar div must exist!");
 

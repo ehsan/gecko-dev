@@ -850,9 +850,6 @@ struct ParseNode {
 
     void initList(ParseNode *pn) {
         JS_ASSERT(pn_arity == PN_LIST);
-        if (pn->pn_pos.begin < pn_pos.begin)
-            pn_pos.begin = pn->pn_pos.begin;
-        pn_pos.end = pn->pn_pos.end;
         pn_head = pn;
         pn_tail = &pn->pn_next;
         pn_count = 1;
@@ -862,8 +859,6 @@ struct ParseNode {
 
     void append(ParseNode *pn) {
         JS_ASSERT(pn_arity == PN_LIST);
-        JS_ASSERT(pn->pn_pos.begin >= pn_pos.begin);
-        pn_pos.end = pn->pn_pos.end;
         *pn_tail = pn;
         pn_tail = &pn->pn_next;
         pn_count++;

@@ -22,9 +22,9 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGGenericContainerFrame)
 // nsIFrame methods
 
 NS_IMETHODIMP
-nsSVGGenericContainerFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsSVGGenericContainerFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                              nsIAtom*        aAttribute,
-                                             int32_t         aModType)
+                                             PRInt32         aModType)
 {
 #ifdef DEBUG
     nsAutoString str;
@@ -46,7 +46,7 @@ nsSVGGenericContainerFrame::GetType() const
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGGenericContainerFrame::GetCanvasTM(uint32_t aFor)
+nsSVGGenericContainerFrame::GetCanvasTM(PRUint32 aFor)
 {
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||

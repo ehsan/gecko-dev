@@ -274,9 +274,9 @@ nsSVGClipPathFrame::IsValid()
 }
 
 NS_IMETHODIMP
-nsSVGClipPathFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsSVGClipPathFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
-                                     int32_t         aModType)
+                                     PRInt32         aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::transform) {
@@ -314,7 +314,7 @@ nsSVGClipPathFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGClipPathFrame::GetCanvasTM(uint32_t aFor)
+nsSVGClipPathFrame::GetCanvasTM(PRUint32 aFor)
 {
   nsSVGClipPathElement *content = static_cast<nsSVGClipPathElement*>(mContent);
 

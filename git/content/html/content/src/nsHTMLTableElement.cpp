@@ -56,7 +56,7 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope, this,
+    return mozilla::dom::binding::HTMLCollection::create(cx, scope, this,
                                                          triedToWrap);
   }
 
@@ -132,7 +132,7 @@ NS_INTERFACE_MAP_END
       /* TBodies */                                                  \
       nsContentList *_tbodies = mParent->TBodies();                  \
       nsINode * _node;                                               \
-      uint32_t _tbodyIndex = 0;                                      \
+      PRUint32 _tbodyIndex = 0;                                      \
       _node = _tbodies->GetNodeAt(_tbodyIndex);                      \
       while (_node) {                                                \
         rowGroup = do_QueryInterface(_node);                         \
@@ -161,10 +161,10 @@ NS_INTERFACE_MAP_END
     }                                                                \
   } while (0)
 
-static uint32_t
+static PRUint32
 CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
 {
-  uint32_t length = 0;
+  PRUint32 length = 0;
   
   if (rows) {
     rows->GetLength(&length);
@@ -177,7 +177,7 @@ CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
 // ourselves up as an observer of contentAppended, contentInserted,
 // and contentDeleted
 NS_IMETHODIMP 
-TableRowsCollection::GetLength(uint32_t* aLength)
+TableRowsCollection::GetLength(PRUint32* aLength)
 {
   *aLength=0;
 
@@ -193,7 +193,7 @@ TableRowsCollection::GetLength(uint32_t* aLength)
 // Otherwise, the value of aCount is undefined.
 static nsIContent*
 GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
-                         uint32_t aIndex, uint32_t* aCount)
+                         PRUint32 aIndex, PRUint32* aCount)
 {
   *aCount = 0;
 
@@ -209,10 +209,10 @@ GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
 }
 
 nsIContent*
-TableRowsCollection::GetNodeAt(uint32_t aIndex)
+TableRowsCollection::GetNodeAt(PRUint32 aIndex)
 {
   DO_FOR_EACH_ROWGROUP(
-    uint32_t count;
+    PRUint32 count;
     nsIContent* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
     if (node) {
       return node; 
@@ -226,7 +226,7 @@ TableRowsCollection::GetNodeAt(uint32_t aIndex)
 }
 
 NS_IMETHODIMP 
-TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
+TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
   nsISupports* node = GetNodeAt(aIndex);
   if (!node) {
@@ -643,7 +643,7 @@ nsHTMLTableElement::DeleteCaption()
 }
 
 NS_IMETHODIMP
-nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
+nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
 {
   /* get the ref row at aIndex
      if there is one, 
@@ -662,15 +662,15 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   GetRows(getter_AddRefs(rows));
 
-  uint32_t rowCount;
+  PRUint32 rowCount;
   rows->GetLength(&rowCount);
 
-  if ((uint32_t)aIndex > rowCount && aIndex != -1) {
+  if ((PRUint32)aIndex > rowCount && aIndex != -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   // use local variable refIndex so we can remember original aIndex
-  uint32_t refIndex = (uint32_t)aIndex;
+  PRUint32 refIndex = (PRUint32)aIndex;
 
   nsresult rv;
   if (rowCount > 0) {
@@ -700,7 +700,7 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
 
       // If index is -1 or equal to the number of rows, the new row
       // is appended.
-      if (aIndex == -1 || uint32_t(aIndex) == rowCount) {
+      if (aIndex == -1 || PRUint32(aIndex) == rowCount) {
         rv = parent->AppendChild(newRowNode, getter_AddRefs(retChild));
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -787,7 +787,7 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
 }
 
 NS_IMETHODIMP
-nsHTMLTableElement::DeleteRow(int32_t aValue)
+nsHTMLTableElement::DeleteRow(PRInt32 aValue)
 {
   if (aValue < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -797,7 +797,7 @@ nsHTMLTableElement::DeleteRow(int32_t aValue)
   GetRows(getter_AddRefs(rows));
 
   nsresult rv;
-  uint32_t refIndex;
+  PRUint32 refIndex;
   if (aValue == -1) {
     rv = rows->GetLength(&refIndex);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -809,7 +809,7 @@ nsHTMLTableElement::DeleteRow(int32_t aValue)
     --refIndex;
   }
   else {
-    refIndex = (uint32_t)aValue;
+    refIndex = (PRUint32)aValue;
   }
 
   nsCOMPtr<nsIDOMNode> row;
@@ -858,7 +858,7 @@ static const nsAttrValue::EnumTable kLayoutTable[] = {
 
 
 bool
-nsHTMLTableElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -1051,7 +1051,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     const nsAttrValue* borderValue = aAttributes->GetAttr(nsGkAtoms::border);
     if (borderValue) {
       // border = 1 pixel default
-      int32_t borderThickness = 1;
+      PRInt32 borderThickness = 1;
 
       if (borderValue->Type() == nsAttrValue::eInteger)
         borderThickness = borderValue->GetIntegerValue();
@@ -1211,7 +1211,7 @@ nsHTMLTableElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsHTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLTableElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAttrValueOrString* aValue,
                                   bool aNotify)
 {
@@ -1223,7 +1223,7 @@ nsHTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLTableElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLTableElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAttrValue* aValue,
                                  bool aNotify)
 {

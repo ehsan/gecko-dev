@@ -12,11 +12,11 @@
 #include <wchar.h>
 
 struct Chunk {
-  Chunk(uint32_t l, const char* c)
+  Chunk(PRUint32 l, const char* c)
     : mLength(l), mData(c)
   {}
 
-  uint32_t mLength;
+  PRUint32 mLength;
   const char* mData;
 };
 
@@ -161,7 +161,7 @@ public:
   bool CheckTest(nsACString& aResult);
   bool CheckTest(nsAString& aResult);
 private:
-  uint32_t mTestNumber;
+  PRUint32 mTestNumber;
   const Test* mTest;
   const Chunk* mChunk;
   bool mClosed;
@@ -177,7 +177,7 @@ FakeInputStream::Close()
 }
 
 NS_IMETHODIMP
-FakeInputStream::Available(uint64_t* aAvailable)
+FakeInputStream::Available(PRUint64* aAvailable)
 {
   *aAvailable = 0;
 
@@ -194,7 +194,7 @@ FakeInputStream::Available(uint64_t* aAvailable)
 }
 
 NS_IMETHODIMP
-FakeInputStream::Read(char* aBuffer, uint32_t aCount, uint32_t* aOut)
+FakeInputStream::Read(char* aBuffer, PRUint32 aCount, PRUint32* aOut)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -202,8 +202,8 @@ FakeInputStream::Read(char* aBuffer, uint32_t aCount, uint32_t* aOut)
 NS_IMETHODIMP
 FakeInputStream::ReadSegments(nsWriteSegmentFun aWriter,
                               void* aClosure,
-                              uint32_t aCount,
-                              uint32_t* aRead)
+                              PRUint32 aCount,
+                              PRUint32* aRead)
 {
   *aRead = 0;
 
@@ -211,7 +211,7 @@ FakeInputStream::ReadSegments(nsWriteSegmentFun aWriter,
     return NS_BASE_STREAM_CLOSED;
 
   while (mChunk->mLength) {
-    uint32_t written = 0;
+    PRUint32 written = 0;
 
     nsresult rv = (*aWriter)(this, aClosure, mChunk->mData,
                              *aRead, mChunk->mLength, &written);

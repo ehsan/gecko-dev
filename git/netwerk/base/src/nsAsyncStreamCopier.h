@@ -48,7 +48,7 @@ private:
     mozilla::Mutex                 mLock;
 
     nsAsyncCopyMode                mMode;
-    uint32_t                       mChunkSize;
+    PRUint32                       mChunkSize;
     nsresult                       mStatus;
     bool                           mIsPending;
     bool                           mCloseSource;

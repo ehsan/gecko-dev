@@ -9,7 +9,7 @@
 nsresult
 NS_GetNameAndMessageForDOMNSResult(nsresult aNSResult, const char** aName,
                                    const char** aMessage,
-                                   uint16_t* aCode = nullptr);
+                                   PRUint16* aCode = nullptr);
 
 nsresult
 NS_NewDOMException(nsresult aNSResult, nsIException* aDefaultException,

@@ -7,7 +7,6 @@
 #include <QApplication>
 
 #include <string.h>
-#include <unistd.h>
 
 #include "nscore.h"
 #include "plstr.h"
@@ -128,8 +127,8 @@ NS_METHOD nsSound::Beep()
 NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
                                         nsISupports *context,
                                         nsresult aStatus,
-                                        uint32_t dataLen,
-                                        const uint8_t *data)
+                                        PRUint32 dataLen,
+                                        const PRUint8 *data)
 {
 
 #define GET_WORD(s, i) (s[i+1] << 8) | s[i]
@@ -159,9 +158,9 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
     }
 
     int fd, mask = 0;
-    uint32_t samples_per_sec = 0, avg_bytes_per_sec = 0, chunk_len = 0;
-    uint16_t format, channels = 1, bits_per_sample = 0;
-    const uint8_t *audio = nullptr;
+    PRUint32 samples_per_sec = 0, avg_bytes_per_sec = 0, chunk_len = 0;
+    PRUint16 format, channels = 1, bits_per_sample = 0;
+    const PRUint8 *audio = nullptr;
     size_t audio_len = 0;
 
     if (dataLen < 4) {
@@ -181,7 +180,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
         return NS_ERROR_FAILURE;
     }
 
-    uint32_t i = 12;
+    PRUint32 i = 12;
     while (i + 7 < dataLen) {
         if (!memcmp(data + i, "fmt ", 4) && !chunk_len) {
             i += 4;
@@ -274,16 +273,16 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
     else 
         mask |= ESD_STEREO;
 
-    nsAutoArrayPtr<uint8_t> buf;
+    nsAutoArrayPtr<PRUint8> buf;
 
     // ESD only handle little-endian data. 
     // Swap the byte order if we're on a big-endian architecture.
 #ifdef IS_BIG_ENDIAN
     if (bits_per_sample != 8) {
-        buf = new uint8_t[audio_len];
+        buf = new PRUint8[audio_len];
         if (!buf)
             return NS_ERROR_OUT_OF_MEMORY;
-        for (uint32_t j = 0; j + 2 < audio_len; j += 2) {
+        for (PRUint32 j = 0; j + 2 < audio_len; j += 2) {
             buf[j]     = audio[j + 1];
             buf[j + 1] = audio[j];
         }
@@ -373,7 +372,7 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 
 }
 
-NS_IMETHODIMP nsSound::PlayEventSound(uint32_t aEventId)
+NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
 {
     return aEventId == EVENT_NEW_MAIL_RECEIVED ? Beep() : NS_OK;
 }

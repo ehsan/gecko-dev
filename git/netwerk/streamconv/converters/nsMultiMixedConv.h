@@ -36,14 +36,14 @@ class nsPartChannel MOZ_FINAL : public nsIChannel,
                                 public nsIMultiPartChannel
 {
 public:
-  nsPartChannel(nsIChannel *aMultipartChannel, uint32_t aPartID,
+  nsPartChannel(nsIChannel *aMultipartChannel, PRUint32 aPartID,
                 nsIStreamListener* aListener);
 
-  void InitializeByteRange(int64_t aStart, int64_t aEnd);
+  void InitializeByteRange(PRInt64 aStart, PRInt64 aEnd);
   void SetIsLastPart() { mIsLastPart = true; }
   nsresult SendOnStartRequest(nsISupports* aContext);
   nsresult SendOnDataAvailable(nsISupports* aContext, nsIInputStream* aStream,
-                               uint32_t aOffset, uint32_t aLen);
+                               PRUint32 aOffset, PRUint32 aLen);
   nsresult SendOnStopRequest(nsISupports* aContext, nsresult aStatus);
   /* SetContentDisposition expects the full value of the Content-Disposition
    * header */
@@ -69,16 +69,16 @@ protected:
 
   nsCString               mContentType;
   nsCString               mContentCharset;
-  uint32_t                mContentDisposition;
+  PRUint32                mContentDisposition;
   nsString                mContentDispositionFilename;
   nsCString               mContentDispositionHeader;
-  uint64_t                mContentLength;
+  PRUint64                mContentLength;
 
   bool                    mIsByteRangeRequest;
-  int64_t                 mByteRangeStart;
-  int64_t                 mByteRangeEnd;
+  PRInt64                 mByteRangeStart;
+  PRInt64                 mByteRangeEnd;
 
-  uint32_t                mPartID; // unique ID that can be used to identify
+  PRUint32                mPartID; // unique ID that can be used to identify
                                    // this part of the multipart document
   bool                    mIsLastPart;
 };
@@ -133,12 +133,12 @@ public:
 protected:
     nsresult SendStart(nsIChannel *aChannel);
     nsresult SendStop(nsresult aStatus);
-    nsresult SendData(char *aBuffer, uint32_t aLen);
+    nsresult SendData(char *aBuffer, PRUint32 aLen);
     nsresult ParseHeaders(nsIChannel *aChannel, char *&aPtr,
-                          uint32_t &aLen, bool *_retval);
-    int32_t  PushOverLine(char *&aPtr, uint32_t &aLen);
-    char *FindToken(char *aCursor, uint32_t aLen);
-    nsresult BufferData(char *aData, uint32_t aLen);
+                          PRUint32 &aLen, bool *_retval);
+    PRInt32  PushOverLine(char *&aPtr, PRUint32 &aLen);
+    char *FindToken(char *aCursor, PRUint32 aLen);
+    nsresult BufferData(char *aData, PRUint32 aLen);
 
     // member data
     bool                mNewPart;        // Are we processing the beginning of a part?
@@ -146,28 +146,28 @@ protected:
     nsCOMPtr<nsIStreamListener> mFinalListener; // this guy gets the converted data via his OnDataAvailable()
 
     nsCString           mToken;
-    uint32_t            mTokenLen;
+    PRUint32            mTokenLen;
 
     nsRefPtr<nsPartChannel> mPartChannel;   // the channel for the given part we're processing.
                                         // one channel per part.
     nsCOMPtr<nsISupports> mContext;
     nsCString           mContentType;
     nsCString           mContentDisposition;
-    uint64_t            mContentLength;
+    PRUint64            mContentLength;
     
     char                *mBuffer;
-    uint32_t            mBufLen;
-    uint64_t            mTotalSent;
+    PRUint32            mBufLen;
+    PRUint64            mTotalSent;
     bool                mFirstOnData;   // used to determine if we're in our first OnData callback.
 
     // The following members are for tracking the byte ranges in
     // multipart/mixed content which specified the 'Content-Range:'
     // header...
-    int64_t             mByteRangeStart;
-    int64_t             mByteRangeEnd;
+    PRInt64             mByteRangeStart;
+    PRInt64             mByteRangeEnd;
     bool                mIsByteRangeRequest;
 
-    uint32_t            mCurrentPartID;
+    PRUint32            mCurrentPartID;
 };
 
 #endif /* __nsmultimixedconv__h__ */

@@ -20,10 +20,10 @@ public:
   friend nsIFrame* NS_NewMathMLmrootFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual void
-  SetAdditionalStyleContext(int32_t          aIndex, 
+  SetAdditionalStyleContext(PRInt32          aIndex, 
                             nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const;
+  GetAdditionalStyleContext(PRInt32 aIndex) const;
 
   NS_IMETHOD
   Init(nsIContent*      aContent,

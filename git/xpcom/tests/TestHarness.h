@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-static uint32_t gFailCount = 0;
+static PRUint32 gFailCount = 0;
 
 /**
  * Prints the given failure message and arguments using printf, prepending

@@ -15,16 +15,16 @@ using namespace mozilla;
 class nsFallbackCameraControl : public nsCameraControl
 {
 public:
-  nsFallbackCameraControl(uint32_t aCameraId, nsIThread* aCameraThread);
+  nsFallbackCameraControl(PRUint32 aCameraId, nsIThread* aCameraThread);
 
   const char* GetParameter(const char* aKey);
-  const char* GetParameterConstChar(uint32_t aKey);
-  double GetParameterDouble(uint32_t aKey);
-  void GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions);
+  const char* GetParameterConstChar(PRUint32 aKey);
+  double GetParameterDouble(PRUint32 aKey);
+  void GetParameter(PRUint32 aKey, nsTArray<dom::CameraRegion>& aRegions);
   void SetParameter(const char* aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, double aValue);
-  void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
+  void SetParameter(PRUint32 aKey, const char* aValue);
+  void SetParameter(PRUint32 aKey, double aValue);
+  void SetParameter(PRUint32 aKey, const nsTArray<dom::CameraRegion>& aRegions);
   void PushParameters();
 
 protected:
@@ -49,7 +49,7 @@ private:
  * None of these should ever get called--they exist to keep the linker happy,
  * and may be used as templates for new camera support classes.
  */
-nsFallbackCameraControl::nsFallbackCameraControl(uint32_t aCameraId, nsIThread* aCameraThread)
+nsFallbackCameraControl::nsFallbackCameraControl(PRUint32 aCameraId, nsIThread* aCameraThread)
   : nsCameraControl(aCameraId, aCameraThread)
 { }
 
@@ -63,19 +63,19 @@ nsFallbackCameraControl::GetParameter(const char* aKey)
 }
 
 const char*
-nsFallbackCameraControl::GetParameterConstChar(uint32_t aKey)
+nsFallbackCameraControl::GetParameterConstChar(PRUint32 aKey)
 {
   return nullptr;
 }
 
 double
-nsFallbackCameraControl::GetParameterDouble(uint32_t aKey)
+nsFallbackCameraControl::GetParameterDouble(PRUint32 aKey)
 {
   return NAN;
 }
 
 void
-nsFallbackCameraControl::GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions)
+nsFallbackCameraControl::GetParameter(PRUint32 aKey, nsTArray<dom::CameraRegion>& aRegions)
 {
 }
 
@@ -85,17 +85,17 @@ nsFallbackCameraControl::SetParameter(const char* aKey, const char* aValue)
 }
 
 void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, const char* aValue)
+nsFallbackCameraControl::SetParameter(PRUint32 aKey, const char* aValue)
 {
 }
 
 void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, double aValue)
+nsFallbackCameraControl::SetParameter(PRUint32 aKey, double aValue)
 {
 }
 
 void
-nsFallbackCameraControl::SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions)
+nsFallbackCameraControl::SetParameter(PRUint32 aKey, const nsTArray<dom::CameraRegion>& aRegions)
 {
 }
 

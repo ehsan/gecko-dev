@@ -118,7 +118,7 @@ XPCJSContextStack::Push(JSContext *cx)
 bool
 XPCJSContextStack::DEBUG_StackHasJSContext(JSContext *cx)
 {
-    for (uint32_t i = 0; i < mStack.Length(); i++)
+    for (PRUint32 i = 0; i < mStack.Length(); i++)
         if (cx == mStack[i].cx)
             return true;
     return false;

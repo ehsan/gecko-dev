@@ -346,13 +346,13 @@ static void darken_gdk_color(GdkColor *src, GdkColor *dest)
     dest->blue = blue * 65535.0;
 }
 
-static int32_t CheckWidgetStyle(GtkWidget* aWidget, const char* aStyle, int32_t aResult) {
+static PRInt32 CheckWidgetStyle(GtkWidget* aWidget, const char* aStyle, PRInt32 aResult) {
     gboolean value = FALSE;
     gtk_widget_style_get(aWidget, aStyle, &value, NULL);
     return value ? aResult : 0;
 }
 
-static int32_t ConvertGTKStepperStyleToMozillaScrollArrowStyle(GtkWidget* aWidget)
+static PRInt32 ConvertGTKStepperStyleToMozillaScrollArrowStyle(GtkWidget* aWidget)
 {
     if (!aWidget)
         return mozilla::LookAndFeel::eScrollArrowStyle_Single;
@@ -369,7 +369,7 @@ static int32_t ConvertGTKStepperStyleToMozillaScrollArrowStyle(GtkWidget* aWidge
 }
 
 nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
+nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
 {
     nsresult res = NS_OK;
 
@@ -407,7 +407,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
                           NULL);
  
             if (blink)
-                aResult = (int32_t) blink_time;
+                aResult = (PRInt32) blink_time;
             else
                 aResult = 0;
             break;
@@ -448,7 +448,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
             settings = gtk_settings_get_default ();
             g_object_get (settings, "gtk-menu-popup-delay", &delay, NULL);
-            aResult = (int32_t) delay;
+            aResult = (PRInt32) delay;
             break;
         }
     case eIntID_TooltipDelay:

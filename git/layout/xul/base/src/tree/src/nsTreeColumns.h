@@ -64,7 +64,7 @@ protected:
   const nsAString& GetId() { return mId; }
   nsIAtom* GetAtom() { return mAtom; }
 
-  int32_t GetIndex() { return mIndex; }
+  PRInt32 GetIndex() { return mIndex; }
 
   bool IsPrimary() { return mIsPrimary; }
   bool IsCycler() { return mIsCycler; }
@@ -72,10 +72,10 @@ protected:
   bool IsSelectable() { return mIsSelectable; }
   bool Overflow() { return mOverflow; }
 
-  int16_t GetType() { return mType; }
+  PRInt16 GetType() { return mType; }
 
-  int8_t GetCropStyle() { return mCropStyle; }
-  int32_t GetTextAlignment() { return mTextAlignment; }
+  PRInt8 GetCropStyle() { return mCropStyle; }
+  PRInt32 GetTextAlignment() { return mTextAlignment; }
 
   nsTreeColumn* GetNext() { return mNext; }
   nsTreeColumn* GetPrevious() { return mPrevious; }
@@ -96,7 +96,7 @@ private:
   nsString mId;
   nsCOMPtr<nsIAtom> mAtom;
 
-  int32_t mIndex;
+  PRInt32 mIndex;
 
   bool mIsPrimary;
   bool mIsCycler;
@@ -104,10 +104,10 @@ private:
   bool mIsSelectable;
   bool mOverflow;
 
-  int16_t mType;
+  PRInt16 mType;
 
-  int8_t mCropStyle;
-  int8_t mTextAlignment;
+  PRInt8 mCropStyle;
+  PRInt8 mTextAlignment;
 
   nsRefPtr<nsTreeColumn> mNext;
   nsTreeColumn* mPrevious;
@@ -123,7 +123,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSITREECOLUMNS
 
-  nsITreeColumn* GetColumnAt(int32_t aIndex);
+  nsITreeColumn* GetColumnAt(PRInt32 aIndex);
   nsITreeColumn* GetNamedColumn(const nsAString& aId);
 
   static nsTreeColumns* FromSupports(nsISupports* aSupports)

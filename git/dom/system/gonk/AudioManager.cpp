@@ -132,14 +132,14 @@ AudioManager::SetMasterMuted(bool aMasterMuted)
 }
 
 NS_IMETHODIMP
-AudioManager::GetPhoneState(int32_t* aState)
+AudioManager::GetPhoneState(PRInt32* aState)
 {
   *aState = mPhoneState;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-AudioManager::SetPhoneState(int32_t aState)
+AudioManager::SetPhoneState(PRInt32 aState)
 {
   if (AudioSystem::setPhoneState(aState)) {
     return NS_ERROR_FAILURE;
@@ -158,7 +158,7 @@ AudioManager::SetPhoneState(int32_t aState)
 // whichever symbol resolves at dynamic link time (if any).
 //
 NS_IMETHODIMP
-AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
+AudioManager::SetForceForUse(PRInt32 aUsage, PRInt32 aForce)
 {
   status_t status = 0;
   if (static_cast<
@@ -179,7 +179,7 @@ AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
 }
 
 NS_IMETHODIMP
-AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
+AudioManager::GetForceForUse(PRInt32 aUsage, PRInt32* aForce) {
   if (static_cast<
       AudioSystem::forced_config (*)(AudioSystem::force_use)
       >(AudioSystem::getForceUse)) {

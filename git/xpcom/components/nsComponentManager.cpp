@@ -192,7 +192,7 @@ nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) con
 // Arena helper functions
 ////////////////////////////////////////////////////////////////////////////////
 char *
-ArenaStrndup(const char *s, uint32_t len, PLArenaPool *arena)
+ArenaStrndup(const char *s, PRUint32 len, PLArenaPool *arena)
 {
     void *mem;
     // Include trailing null in the len
@@ -346,7 +346,7 @@ nsresult nsComponentManagerImpl::Init()
 
     RegisterModule(&kXPCOMModule, NULL);
 
-    for (uint32_t i = 0; i < sStaticModules->Length(); ++i)
+    for (PRUint32 i = 0; i < sStaticModules->Length(); ++i)
         RegisterModule((*sStaticModules)[i], NULL);
 
     nsRefPtr<nsZipArchive> appOmnijar = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
@@ -469,7 +469,7 @@ nsComponentManagerImpl::RegisterContractID(const mozilla::Module::ContractIDEntr
 static void
 CutExtension(nsCString& path)
 {
-    int32_t dotPos = path.RFindChar('.');
+    PRInt32 dotPos = path.RFindChar('.');
     if (kNotFound == dotPos)
         path.Truncate();
     else
@@ -481,7 +481,7 @@ nsComponentManagerImpl::RegisterManifest(NSLocationType aType,
                                          FileLocation &aFile,
                                          bool aChromeOnly)
 {
-    uint32_t len;
+    PRUint32 len;
     FileLocation::Data data;
     nsAutoArrayPtr<char> buf;
     nsresult rv = aFile.GetData(data);
@@ -543,7 +543,7 @@ void
 nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, char *const * argv)
 {
     FileLocation f(cx.mFile, argv[0]);
-    uint32_t len;
+    PRUint32 len;
     FileLocation::Data data;
     nsAutoArrayPtr<char> buf;
     nsresult rv = f.GetData(data);
@@ -660,7 +660,7 @@ nsComponentManagerImpl::ManifestCategory(ManifestProcessingContext& cx, int line
 void
 nsComponentManagerImpl::RereadChromeManifests(bool aChromeOnly)
 {
-    for (uint32_t i = 0; i < sModuleLocations->Length(); ++i) {
+    for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
         ComponentLocation& l = sModuleLocations->ElementAt(i);
         RegisterManifest(l.type, l.location, aChromeOnly);
     }
@@ -783,7 +783,7 @@ nsComponentManagerImpl::GetInterface(const nsIID & uuid, void **result)
 
 nsFactoryEntry *
 nsComponentManagerImpl::GetFactoryEntry(const char *aContractID,
-                                        uint32_t aContractIDLen)
+                                        PRUint32 aContractIDLen)
 {
     ReentrantMonitorAutoEnter mon(mMon);
     return mContractIDs.Get(nsDependentCString(aContractID, aContractIDLen));
@@ -809,7 +809,7 @@ nsComponentManagerImpl::FindFactory(const nsCID& aClass)
 
 already_AddRefed<nsIFactory>
 nsComponentManagerImpl::FindFactory(const char *contractID,
-                                    uint32_t aContractIDLen)
+                                    PRUint32 aContractIDLen)
 {
     nsFactoryEntry *entry = GetFactoryEntry(contractID, aContractIDLen);
     if (!entry)
@@ -1085,8 +1085,8 @@ nsComponentManagerImpl::AddPendingService(const nsCID& aServiceCID,
 void
 nsComponentManagerImpl::RemovePendingService(const nsCID& aServiceCID)
 {
-  uint32_t pendingCount = mPendingServices.Length();
-  for (uint32_t index = 0; index < pendingCount; ++index) {
+  PRUint32 pendingCount = mPendingServices.Length();
+  for (PRUint32 index = 0; index < pendingCount; ++index) {
     const PendingServiceInfo& info = mPendingServices.ElementAt(index);
     if (info.cid->Equals(aServiceCID)) {
       mPendingServices.RemoveElementAt(index);
@@ -1099,8 +1099,8 @@ nsComponentManagerImpl::RemovePendingService(const nsCID& aServiceCID)
 PRThread*
 nsComponentManagerImpl::GetPendingServiceThread(const nsCID& aServiceCID) const
 {
-  uint32_t pendingCount = mPendingServices.Length();
-  for (uint32_t index = 0; index < pendingCount; ++index) {
+  PRUint32 pendingCount = mPendingServices.Length();
+  for (PRUint32 index = 0; index < pendingCount; ++index) {
     const PendingServiceInfo& info = mPendingServices.ElementAt(index);
     if (info.cid->Equals(aServiceCID)) {
       return info.thread;
@@ -1147,7 +1147,7 @@ struct NS_STACK_CLASS AutoReentrantMonitor
     }
 
     ReentrantMonitor* mReentrantMonitor;
-    int32_t mEnterCount;
+    PRInt32 mEnterCount;
 };
 
 NS_IMETHODIMP

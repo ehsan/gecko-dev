@@ -36,24 +36,24 @@
 */
 typedef struct ap_header 
 {
-	int32_t 	magic;
-	int32_t   version;
-	int32_t 	fill[4];
-	int16_t 	entriesCount;
+	PRInt32 	magic;
+	PRInt32   version;
+	PRInt32 	fill[4];
+	PRInt16 	entriesCount;
 
 } ap_header;
 
 typedef struct ap_entry 
 {
-	int32_t   id;
-	int32_t	  offset;
-	int32_t	  length;
+	PRInt32   id;
+	PRInt32	  offset;
+	PRInt32	  length;
 	
 } ap_entry;
 
 typedef struct ap_dates 
 {
-	int32_t create, modify, backup, access;
+	PRInt32 create, modify, backup, access;
 
 } ap_dates;
 
@@ -91,19 +91,19 @@ private:
   SInt16            m_rfRefNum;
   
   unsigned char *   m_dataBuffer;
-  int32_t           m_dataBufferLength;
+  PRInt32           m_dataBufferLength;
   ParserState       m_state;
   ap_header         m_headers;
   ap_entry *        m_entries;
-  int32_t           m_offset;
-  int32_t           m_dataForkOffset;
-  int32_t           m_totalDataForkWritten;
-  int32_t           m_totalResourceForkWritten;
+  PRInt32           m_offset;
+  PRInt32           m_dataForkOffset;
+  PRInt32           m_totalDataForkWritten;
+  PRInt32           m_totalResourceForkWritten;
   bool              m_headerOk;
   
-  int32_t           m_currentPartID;
-  int32_t           m_currentPartLength;
-  int32_t           m_currentPartCount;
+  PRInt32           m_currentPartID;
+  PRInt32           m_currentPartLength;
+  PRInt32           m_currentPartCount;
   
   Str255            m_comment;
   ap_dates          m_dates;

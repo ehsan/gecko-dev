@@ -70,9 +70,9 @@ nsSVGTSpanFrame::Init(nsIContent* aContent,
 #endif /* DEBUG */
 
 NS_IMETHODIMP
-nsSVGTSpanFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsSVGTSpanFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                   nsIAtom*        aAttribute,
-                                  int32_t         aModType)
+                                  PRInt32         aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::x ||
@@ -91,7 +91,7 @@ nsSVGTSpanFrame::AttributeChanged(int32_t         aNameSpaceID,
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGTSpanFrame::GetCanvasTM(uint32_t aFor)
+nsSVGTSpanFrame::GetCanvasTM(PRUint32 aFor)
 {
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
@@ -106,7 +106,7 @@ nsSVGTSpanFrame::GetCanvasTM(uint32_t aFor)
 //----------------------------------------------------------------------
 // nsISVGGlyphFragmentNode methods:
 
-uint32_t
+PRUint32
 nsSVGTSpanFrame::GetNumberOfChars()
 {
   return nsSVGTSpanFrameBase::GetNumberOfChars();
@@ -119,12 +119,12 @@ nsSVGTSpanFrame::GetComputedTextLength()
 }
 
 float
-nsSVGTSpanFrame::GetSubStringLength(uint32_t charnum, uint32_t nchars)
+nsSVGTSpanFrame::GetSubStringLength(PRUint32 charnum, PRUint32 nchars)
 {
   return nsSVGTSpanFrameBase::GetSubStringLength(charnum, nchars);
 }
 
-int32_t
+PRInt32
 nsSVGTSpanFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
   return nsSVGTSpanFrameBase::GetCharNumAtPosition(point);

@@ -48,41 +48,41 @@ public:
     return nullptr;
   }
 
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify)
   {
     return NS_OK;
   }
-  virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName, 
+  virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const
   {
     return false;
   }
-  virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const
+  virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const
   {
     return false;
   }
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute, 
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute, 
                              bool aNotify)
   {
     return NS_OK;
   }
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const
+  virtual const nsAttrName* GetAttrNameAt(PRUint32 aIndex) const
   {
     return nullptr;
   }
-  virtual uint32_t GetAttrCount() const
+  virtual PRUint32 GetAttrCount() const
   {
     return 0;
   }
 
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual bool IsNodeOfType(PRUint32 aFlags) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
 
@@ -111,8 +111,8 @@ public:
   }
 
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const;
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
+  virtual void List(FILE* out, PRInt32 aIndent) const;
+  virtual void DumpContent(FILE* out, PRInt32 aIndent, bool aDumpAll) const;
 #endif
 
 protected:
@@ -152,7 +152,7 @@ nsDocumentFragment::nsDocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
 }
 
 bool
-nsDocumentFragment::IsNodeOfType(uint32_t aFlags) const
+nsDocumentFragment::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDOCUMENT_FRAGMENT));
 }
@@ -171,9 +171,9 @@ nsDocumentFragment::GetIDAttributeName() const
 
 #ifdef DEBUG
 void
-nsDocumentFragment::List(FILE* out, int32_t aIndent) const
+nsDocumentFragment::List(FILE* out, PRInt32 aIndent) const
 {
-  int32_t indent;
+  PRInt32 indent;
   for (indent = aIndent; --indent >= 0; ) {
     fputs("  ", out);
   }
@@ -200,10 +200,10 @@ nsDocumentFragment::List(FILE* out, int32_t aIndent) const
 }
 
 void
-nsDocumentFragment::DumpContent(FILE* out, int32_t aIndent,
+nsDocumentFragment::DumpContent(FILE* out, PRInt32 aIndent,
                                 bool aDumpAll) const
 {
-  int32_t indent;
+  PRInt32 indent;
   for (indent = aIndent; --indent >= 0; ) {
     fputs("  ", out);
   }
@@ -217,7 +217,7 @@ nsDocumentFragment::DumpContent(FILE* out, int32_t aIndent,
   for (nsIContent* child = GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    int32_t indent = aIndent ? aIndent + 1 : 0;
+    PRInt32 indent = aIndent ? aIndent + 1 : 0;
     child->DumpContent(out, indent, aDumpAll);
   }
   for (indent = aIndent; --indent >= 0; ) {

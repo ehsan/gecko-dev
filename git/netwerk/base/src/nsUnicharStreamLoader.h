@@ -34,7 +34,7 @@ protected:
    * callback method used for ReadSegments
    */
   static NS_METHOD WriteSegmentFun(nsIInputStream *, void *, const char *,
-                                   uint32_t, uint32_t, uint32_t *);
+                                   PRUint32, PRUint32, PRUint32 *);
 
   nsCOMPtr<nsIUnicharStreamLoaderObserver> mObserver;
   nsCOMPtr<nsIUnicodeDecoder>              mDecoder;

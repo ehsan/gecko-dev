@@ -72,12 +72,12 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
   if (!aTransferableArray)
     return NS_ERROR_FAILURE;
 
-  uint32_t count = 0;
+  PRUint32 count = 0;
   aTransferableArray->Count(&count);
 
   NSPasteboard* dragPBoard = [NSPasteboard pasteboardWithName:NSDragPboard];
 
-  for (uint32_t i = 0; i < count; i++) {
+  for (PRUint32 i = 0; i < count; i++) {
     nsCOMPtr<nsISupports> currentTransferableSupports;
     aTransferableArray->GetElementAt(i, getter_AddRefs(currentTransferableSupports));
     if (!currentTransferableSupports)
@@ -152,8 +152,8 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   if (NS_FAILED(rv) || !surface)
     return nil;
 
-  uint32_t width = aDragRect->width;
-  uint32_t height = aDragRect->height;
+  PRUint32 width = aDragRect->width;
+  PRUint32 height = aDragRect->height;
 
   nsRefPtr<gfxImageSurface> imgSurface = new gfxImageSurface(
     gfxIntSize(width, height), gfxImageSurface::ImageFormatARGB32);
@@ -168,8 +168,8 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   context->SetSource(surface);
   context->Paint();
 
-  uint32_t* imageData = (uint32_t*)imgSurface->Data();
-  int32_t stride = imgSurface->Stride();
+  PRUint32* imageData = (PRUint32*)imgSurface->Data();
+  PRInt32 stride = imgSurface->Stride();
 
   NSBitmapImageRep* imageRep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
                                                                        pixelsWide:width
@@ -182,22 +182,22 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
                                                                       bytesPerRow:width * 4
                                                                      bitsPerPixel:32];
 
-  uint8_t* dest = [imageRep bitmapData];
-  for (uint32_t i = 0; i < height; ++i) {
-    uint8_t* src = (uint8_t *)imageData + i * stride;
-    for (uint32_t j = 0; j < width; ++j) {
+  PRUint8* dest = [imageRep bitmapData];
+  for (PRUint32 i = 0; i < height; ++i) {
+    PRUint8* src = (PRUint8 *)imageData + i * stride;
+    for (PRUint32 j = 0; j < width; ++j) {
       // Reduce transparency overall by multipying by a factor. Remember, Alpha
       // is premultipled here. Also, Quartz likes RGBA, so do that translation as well.
 #ifdef IS_BIG_ENDIAN
-      dest[0] = uint8_t(src[1] * DRAG_TRANSLUCENCY);
-      dest[1] = uint8_t(src[2] * DRAG_TRANSLUCENCY);
-      dest[2] = uint8_t(src[3] * DRAG_TRANSLUCENCY);
-      dest[3] = uint8_t(src[0] * DRAG_TRANSLUCENCY);
+      dest[0] = PRUint8(src[1] * DRAG_TRANSLUCENCY);
+      dest[1] = PRUint8(src[2] * DRAG_TRANSLUCENCY);
+      dest[2] = PRUint8(src[3] * DRAG_TRANSLUCENCY);
+      dest[3] = PRUint8(src[0] * DRAG_TRANSLUCENCY);
 #else
-      dest[0] = uint8_t(src[2] * DRAG_TRANSLUCENCY);
-      dest[1] = uint8_t(src[1] * DRAG_TRANSLUCENCY);
-      dest[2] = uint8_t(src[0] * DRAG_TRANSLUCENCY);
-      dest[3] = uint8_t(src[3] * DRAG_TRANSLUCENCY);
+      dest[0] = PRUint8(src[2] * DRAG_TRANSLUCENCY);
+      dest[1] = PRUint8(src[1] * DRAG_TRANSLUCENCY);
+      dest[2] = PRUint8(src[0] * DRAG_TRANSLUCENCY);
+      dest[3] = PRUint8(src[3] * DRAG_TRANSLUCENCY);
 #endif
       src += 4;
       dest += 4;
@@ -218,7 +218,7 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
 // stack when InvokeDragSession gets called.
 NS_IMETHODIMP
 nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransferableArray,
-                                 nsIScriptableRegion* aDragRgn, uint32_t aActionType)
+                                 nsIScriptableRegion* aDragRgn, PRUint32 aActionType)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -293,7 +293,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
 }
 
 NS_IMETHODIMP
-nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
+nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -306,7 +306,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
   if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 
-  uint32_t acceptableFlavorCount;
+  PRUint32 acceptableFlavorCount;
   flavorList->Count(&acceptableFlavorCount);
 
   // if this drag originated within Mozilla we should just use the cached data from
@@ -317,7 +317,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
     if (currentTransferableSupports) {
       nsCOMPtr<nsITransferable> currentTransferable(do_QueryInterface(currentTransferableSupports));
       if (currentTransferable) {
-        for (uint32_t i = 0; i < acceptableFlavorCount; i++) {
+        for (PRUint32 i = 0; i < acceptableFlavorCount; i++) {
           nsCOMPtr<nsISupports> genericFlavor;
           flavorList->GetElementAt(i, getter_AddRefs(genericFlavor));
           nsCOMPtr<nsISupportsCString> currentFlavor(do_QueryInterface(genericFlavor));
@@ -327,7 +327,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
           currentFlavor->ToString(getter_Copies(flavorStr));
 
           nsCOMPtr<nsISupports> dataSupports;
-          uint32_t dataSize = 0;
+          PRUint32 dataSize = 0;
           rv = currentTransferable->GetTransferData(flavorStr, getter_AddRefs(dataSupports), &dataSize);
           if (NS_SUCCEEDED(rv)) {
             aTransferable->SetTransferData(flavorStr, dataSupports, dataSize);
@@ -339,7 +339,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
   }
 
   // now check the actual clipboard for data
-  for (uint32_t i = 0; i < acceptableFlavorCount; i++) {
+  for (PRUint32 i = 0; i < acceptableFlavorCount; i++) {
     nsCOMPtr<nsISupports> genericFlavor;
     flavorList->GetElementAt(i, getter_AddRefs(genericFlavor));
     nsCOMPtr<nsISupportsCString> currentFlavor(do_QueryInterface(genericFlavor));
@@ -400,7 +400,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
       [stringData getBytes:clipboardDataPtr];
 
       // The DOM only wants LF, so convert from MacOS line endings to DOM line endings.
-      int32_t signedDataLength = dataLength;
+      PRInt32 signedDataLength = dataLength;
       nsLinebreakHelpers::ConvertPlatformToDOMLinebreaks(flavorStr, &clipboardDataPtr, &signedDataLength);
       dataLength = signedDataLength;
 
@@ -449,7 +449,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, bool *_retval)
 
   // first see if we have data for this in our cached transferable
   if (mDataItems) {
-    uint32_t dataItemsCount;
+    PRUint32 dataItemsCount;
     mDataItems->Count(&dataItemsCount);
     for (unsigned int i = 0; i < dataItemsCount; i++) {
       nsCOMPtr<nsISupports> currentTransferableSupports;
@@ -466,9 +466,9 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, bool *_retval)
       if (NS_FAILED(rv))
         continue;
 
-      uint32_t flavorCount;
+      PRUint32 flavorCount;
       flavorList->Count(&flavorCount);
-      for (uint32_t j = 0; j < flavorCount; j++) {
+      for (PRUint32 j = 0; j < flavorCount; j++) {
         nsCOMPtr<nsISupports> genericFlavor;
         flavorList->GetElementAt(j, getter_AddRefs(genericFlavor));
         nsCOMPtr<nsISupportsCString> currentFlavor(do_QueryInterface(genericFlavor));
@@ -508,7 +508,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, bool *_retval)
 }
 
 NS_IMETHODIMP
-nsDragService::GetNumDropItems(uint32_t* aNumItems)
+nsDragService::GetNumDropItems(PRUint32* aNumItems)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 

@@ -36,19 +36,19 @@ struct nsStaticAtom {
 /**
  * This is a struct with the same binary layout as a nsStringBuffer.
  */
-template <uint32_t size>
+template <PRUint32 size>
 struct nsFakeStringBuffer {
-    int32_t mRefCnt;
-    uint32_t mSize;
+    PRInt32 mRefCnt;
+    PRUint32 mSize;
     nsStaticAtomStringType mStringData[size];
 };
 
 // Register an array of static atoms with the atom table
-template<uint32_t N>
+template<PRUint32 N>
 nsresult
 NS_RegisterStaticAtoms(const nsStaticAtom (&atoms)[N])
 {
-    extern nsresult RegisterStaticAtoms(const nsStaticAtom*, uint32_t aAtomCount);
+    extern nsresult RegisterStaticAtoms(const nsStaticAtom*, PRUint32 aAtomCount);
     return RegisterStaticAtoms(atoms, N);
 }
 

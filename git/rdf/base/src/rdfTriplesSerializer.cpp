@@ -38,7 +38,7 @@ nsresult
 TriplesVisitor::writeResource(nsIRDFResource *aResource)
 {
     nsCString res;
-    uint32_t writeCount, wroteCount;
+    PRUint32 writeCount, wroteCount;
     mOut->Write("<", 1, &wroteCount);
     NS_ENSURE_TRUE(wroteCount == 1, NS_ERROR_FAILURE);
     nsresult rv = aResource->GetValueUTF8(res);
@@ -70,7 +70,7 @@ TriplesVisitor::Visit(nsIRDFNode *aSubject, nsIRDFResource *aPredicate,
     nsCOMPtr<nsIRDFResource> res = do_QueryInterface(aObject);
     nsCOMPtr<nsIRDFLiteral> lit;
     nsCOMPtr<nsIRDFInt> intLit;
-    uint32_t wroteCount;
+    PRUint32 wroteCount;
     if (res) {
         rv = writeResource(res);
     } else if ((lit = do_QueryInterface(aObject)) != nullptr) {
@@ -80,16 +80,16 @@ TriplesVisitor::Visit(nsIRDFNode *aSubject, nsIRDFResource *aPredicate,
         object.AppendLiteral("\"");
         AppendUTF16toUTF8(value, object);
         object.AppendLiteral("\" ");
-        uint32_t writeCount = object.Length();
+        PRUint32 writeCount = object.Length();
         rv = mOut->Write(object.get(), writeCount, &wroteCount);
         NS_ENSURE_TRUE(writeCount == wroteCount, NS_ERROR_FAILURE);
     } else if ((intLit = do_QueryInterface(aObject)) != nullptr) {
-        int32_t value;
+        PRInt32 value;
         intLit->GetValue(&value);
         nsPrintfCString
             object("\"%i\"^^<http://www.w3.org/2001/XMLSchema#integer> ",
                    value);
-        uint32_t writeCount = object.Length();
+        PRUint32 writeCount = object.Length();
         rv = mOut->Write(object.get(), writeCount, &wroteCount);
         NS_ENSURE_TRUE(writeCount == wroteCount, NS_ERROR_FAILURE);
     }

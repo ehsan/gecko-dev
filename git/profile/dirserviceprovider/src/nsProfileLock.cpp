@@ -426,7 +426,7 @@ PR_BEGIN_MACRO                                                          \
 }
 #endif /* XP_UNIX */
 
-nsresult nsProfileLock::GetReplacedLockTime(int64_t *aResult) {
+nsresult nsProfileLock::GetReplacedLockTime(PRInt64 *aResult) {
     *aResult = mReplacedLockTime;
     return NS_OK;
 }
@@ -491,7 +491,7 @@ nsresult nsProfileLock::Lock(nsIFile* aProfileDir,
         };
 
         PRFileDesc *fd = nullptr;
-        int32_t ioBytes;
+        PRInt32 ioBytes;
         ProcessInfoRec processInfo;
         LockProcessInfo lockProcessInfo;
 

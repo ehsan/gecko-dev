@@ -34,7 +34,7 @@ public:
     nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
                             PRFileDesc *          fileDesc,
                             const char *          buffer,
-                            uint32_t              endOfStream);
+                            PRUint32              endOfStream);
 
     virtual ~nsDiskCacheInputStream();
     
@@ -45,8 +45,8 @@ private:
     nsDiskCacheStreamIO *           mStreamIO;  // backpointer to parent
     PRFileDesc *                    mFD;
     const char *                    mBuffer;
-    uint32_t                        mStreamEnd;
-    uint32_t                        mPos;       // stream position
+    PRUint32                        mStreamEnd;
+    PRUint32                        mPos;       // stream position
     bool                            mClosed;
 };
 
@@ -57,7 +57,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsDiskCacheInputStream, nsIInputStream)
 nsDiskCacheInputStream::nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
                                                 PRFileDesc *          fileDesc,
                                                 const char *          buffer,
-                                                uint32_t              endOfStream)
+                                                PRUint32              endOfStream)
     : mStreamIO(parent)
     , mFD(fileDesc)
     , mBuffer(buffer)
@@ -93,7 +93,7 @@ nsDiskCacheInputStream::Close()
 
 
 NS_IMETHODIMP
-nsDiskCacheInputStream::Available(uint64_t * bytesAvailable)
+nsDiskCacheInputStream::Available(PRUint64 * bytesAvailable)
 {
     if (mClosed)  return NS_BASE_STREAM_CLOSED;
     if (mStreamEnd < mPos)  return NS_ERROR_UNEXPECTED;
@@ -104,7 +104,7 @@ nsDiskCacheInputStream::Available(uint64_t * bytesAvailable)
 
 
 NS_IMETHODIMP
-nsDiskCacheInputStream::Read(char * buffer, uint32_t count, uint32_t * bytesRead)
+nsDiskCacheInputStream::Read(char * buffer, PRUint32 count, PRUint32 * bytesRead)
 {
     *bytesRead = 0;
 
@@ -133,7 +133,7 @@ nsDiskCacheInputStream::Read(char * buffer, uint32_t count, uint32_t * bytesRead
 
     if (mFD) {
         // just read from file
-        int32_t  result = PR_Read(mFD, buffer, count);
+        PRInt32  result = PR_Read(mFD, buffer, count);
         if (result < 0) {
             PRErrorCode error = PR_GetError();
             nsresult rv = NS_ErrorAccordingToNSPR();
@@ -143,8 +143,8 @@ nsDiskCacheInputStream::Read(char * buffer, uint32_t count, uint32_t * bytesRead
             return rv;
         }
         
-        mPos += (uint32_t)result;
-        *bytesRead = (uint32_t)result;
+        mPos += (PRUint32)result;
+        *bytesRead = (PRUint32)result;
         
     } else if (mBuffer) {
         // read data from mBuffer
@@ -157,7 +157,7 @@ nsDiskCacheInputStream::Read(char * buffer, uint32_t count, uint32_t * bytesRead
 
     CACHE_LOG_DEBUG(("CACHE: nsDiskCacheInputStream::Read "
                      "[stream=%p, count=%ud, byteRead=%ud] ",
-                     this, unsigned(count), unsigned(*bytesRead)));
+                     this, PRUintn(count), PRUintn(*bytesRead)));
     return NS_OK;
 }
 
@@ -165,8 +165,8 @@ nsDiskCacheInputStream::Read(char * buffer, uint32_t count, uint32_t * bytesRead
 NS_IMETHODIMP
 nsDiskCacheInputStream::ReadSegments(nsWriteSegmentFun writer,
                                      void *            closure,
-                                     uint32_t          count,
-                                     uint32_t *        bytesRead)
+                                     PRUint32          count,
+                                     PRUint32 *        bytesRead)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -277,7 +277,7 @@ nsDiskCacheOutputStream::Flush()
 
 
 NS_IMETHODIMP
-nsDiskCacheOutputStream::Write(const char *buf, uint32_t count, uint32_t *bytesWritten)
+nsDiskCacheOutputStream::Write(const char *buf, PRUint32 count, PRUint32 *bytesWritten)
 {
     if (mClosed)  return NS_BASE_STREAM_CLOSED;
     return mStreamIO->Write(buf, count, bytesWritten);
@@ -285,7 +285,7 @@ nsDiskCacheOutputStream::Write(const char *buf, uint32_t count, uint32_t *bytesW
 
 
 NS_IMETHODIMP
-nsDiskCacheOutputStream::WriteFrom(nsIInputStream *inStream, uint32_t count, uint32_t *bytesWritten)
+nsDiskCacheOutputStream::WriteFrom(nsIInputStream *inStream, PRUint32 count, PRUint32 *bytesWritten)
 {
     NS_NOTREACHED("WriteFrom");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -295,8 +295,8 @@ nsDiskCacheOutputStream::WriteFrom(nsIInputStream *inStream, uint32_t count, uin
 NS_IMETHODIMP
 nsDiskCacheOutputStream::WriteSegments( nsReadSegmentFun reader,
                                         void *           closure,
-                                        uint32_t         count,
-                                        uint32_t *       bytesWritten)
+                                        PRUint32         count,
+                                        PRUint32 *       bytesWritten)
 {
     NS_NOTREACHED("WriteSegments");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -370,7 +370,7 @@ nsDiskCacheStreamIO::Close()
 
 // NOTE: called with service lock held
 nsresult
-nsDiskCacheStreamIO::GetInputStream(uint32_t offset, nsIInputStream ** inputStream)
+nsDiskCacheStreamIO::GetInputStream(PRUint32 offset, nsIInputStream ** inputStream)
 {
     NS_ENSURE_ARG_POINTER(inputStream);
     NS_ENSURE_TRUE(offset == 0, NS_ERROR_NOT_IMPLEMENTED);
@@ -418,7 +418,7 @@ nsDiskCacheStreamIO::GetInputStream(uint32_t offset, nsIInputStream ** inputStre
 
 // NOTE: called with service lock held
 nsresult
-nsDiskCacheStreamIO::GetOutputStream(uint32_t offset, nsIOutputStream ** outputStream)
+nsDiskCacheStreamIO::GetOutputStream(PRUint32 offset, nsIOutputStream ** outputStream)
 {
     NS_ENSURE_ARG_POINTER(outputStream);
     *outputStream = nullptr;
@@ -592,8 +592,8 @@ nsDiskCacheStreamIO::Flush()
 
 nsresult
 nsDiskCacheStreamIO::Write( const char * buffer,
-                            uint32_t     count,
-                            uint32_t *   bytesWritten)
+                            PRUint32     count,
+                            PRUint32 *   bytesWritten)
 {
     nsresult    rv = NS_OK;
     nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_WRITE)); // grab service lock
@@ -609,7 +609,7 @@ nsDiskCacheStreamIO::Write( const char * buffer,
     NS_ASSERTION(count, "Write called with count of zero");
     NS_ASSERTION(mBufPos <= mBufEnd, "streamIO buffer corrupted");
 
-    uint32_t bytesLeft = count;
+    PRUint32 bytesLeft = count;
     bool     flushed = false;
     
     while (bytesLeft) {
@@ -631,7 +631,7 @@ nsDiskCacheStreamIO::Write( const char * buffer,
             }
         }
         
-        uint32_t chunkSize = bytesLeft;
+        PRUint32 chunkSize = bytesLeft;
         if (chunkSize > (mBufSize - mBufPos))
             chunkSize =  mBufSize - mBufPos;
         
@@ -672,8 +672,8 @@ nsDiskCacheStreamIO::UpdateFileSize()
     NS_ASSERTION(mFD, "nsDiskCacheStreamIO::UpdateFileSize should not have been called");
     
     nsDiskCacheRecord * record = &mBinding->mRecord;
-    const uint32_t      oldSizeK  = record->DataFileSize();
-    uint32_t            newSizeK  = (mStreamEnd + 0x03FF) >> 10;
+    const PRUint32      oldSizeK  = record->DataFileSize();
+    PRUint32            newSizeK  = (mStreamEnd + 0x03FF) >> 10;
 
     // make sure the size won't overflow (bug #651100)
     if (newSizeK > kMaxDataSizeK)
@@ -774,14 +774,14 @@ nsDiskCacheStreamIO::FlushBufferToFile()
         rv = OpenCacheFile(PR_RDWR | PR_CREATE_FILE, &mFD);
         if (NS_FAILED(rv))  return rv;
 
-        int64_t dataSize = mBinding->mCacheEntry->PredictedDataSize();
+        PRInt64 dataSize = mBinding->mCacheEntry->PredictedDataSize();
         if (dataSize != -1)
-            mozilla::fallocate(mFD, NS_MIN<int64_t>(dataSize, kPreallocateLimit));
+            mozilla::fallocate(mFD, NS_MIN<PRInt64>(dataSize, kPreallocateLimit));
     }
     
     // write buffer
-    int32_t bytesWritten = PR_Write(mFD, mBuffer, mBufEnd);
-    if (uint32_t(bytesWritten) != mBufEnd) {
+    PRInt32 bytesWritten = PR_Write(mFD, mBuffer, mBufEnd);
+    if (PRUint32(bytesWritten) != mBufEnd) {
         NS_WARNING("failed to flush all data");
         return NS_ERROR_UNEXPECTED;     // NS_ErrorAccordingToNSPR()
     }
@@ -811,12 +811,12 @@ nsDiskCacheStreamIO::DeleteBuffer()
 
 // NOTE: called with service lock held
 nsresult
-nsDiskCacheStreamIO::Seek(int32_t whence, int32_t offset)
+nsDiskCacheStreamIO::Seek(PRInt32 whence, PRInt32 offset)
 {
-    int32_t  newPos;
+    PRInt32  newPos;
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
 
-    if (uint32_t(offset) > mStreamEnd)  return NS_ERROR_FAILURE;
+    if (PRUint32(offset) > mStreamEnd)  return NS_ERROR_FAILURE;
  
     if (mBinding->mRecord.DataLocationInitialized()) {
         if (mBinding->mRecord.DataFile() == 0) {
@@ -840,7 +840,7 @@ nsDiskCacheStreamIO::Seek(int32_t whence, int32_t offset)
         if (newPos == -1)
             return NS_ErrorAccordingToNSPR();
         
-        mStreamPos = (uint32_t) newPos;
+        mStreamPos = (PRUint32) newPos;
         mBufPos = 0;
         mBufEnd = 0;
         return NS_OK;
@@ -854,11 +854,11 @@ nsDiskCacheStreamIO::Seek(int32_t whence, int32_t offset)
             break;
         
         case PR_SEEK_CUR:   // relative from current posistion
-            newPos = offset + (uint32_t)mStreamPos;
+            newPos = offset + (PRUint32)mStreamPos;
             break;
             
         case PR_SEEK_END:   // relative from end
-            newPos = offset + (uint32_t)mBufEnd;
+            newPos = offset + (PRUint32)mBufEnd;
             break;
         
         default:
@@ -879,7 +879,7 @@ nsDiskCacheStreamIO::Seek(int32_t whence, int32_t offset)
     NS_ASSERTION(mStreamPos == mBufPos,  "bad stream");
     NS_ASSERTION(mStreamEnd == mBufEnd,  "bad stream");
     
-    if ((newPos < 0) || (uint32_t(newPos) > mBufEnd)) {
+    if ((newPos < 0) || (PRUint32(newPos) > mBufEnd)) {
         NS_WARNING("seek offset out of range");
         return NS_ERROR_INVALID_ARG;
     }
@@ -892,7 +892,7 @@ nsDiskCacheStreamIO::Seek(int32_t whence, int32_t offset)
 
 // called only from nsDiskCacheOutputStream::Tell
 nsresult
-nsDiskCacheStreamIO::Tell(uint32_t * result)
+nsDiskCacheStreamIO::Tell(PRUint32 * result)
 {
     NS_ENSURE_ARG_POINTER(result);
     *result = mStreamPos;
@@ -936,7 +936,7 @@ nsDiskCacheStreamIO::SetEOF()
     if (mFD) {
         rv = nsDiskCache::Truncate(mFD, mStreamPos);
 #ifdef DEBUG
-        uint32_t oldSizeK = (mStreamEnd + 0x03FF) >> 10;
+        PRUint32 oldSizeK = (mStreamEnd + 0x03FF) >> 10;
         NS_ASSERTION(mBinding->mRecord.DataFileSize() == oldSizeK, "bad disk cache entry size");
     } else {
         // data stored in buffer.

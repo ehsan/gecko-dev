@@ -336,7 +336,7 @@ nsSVGSVGElement::GetCurrentTranslate(nsIDOMSVGPoint * *aCurrentTranslate)
 
 /* unsigned long suspendRedraw (in unsigned long max_wait_milliseconds); */
 NS_IMETHODIMP
-nsSVGSVGElement::SuspendRedraw(uint32_t max_wait_milliseconds, uint32_t *_retval)
+nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval)
 {
   // suspendRedraw is a no-op in Mozilla, so it doesn't matter what
   // we set the ID out-param to:
@@ -346,7 +346,7 @@ nsSVGSVGElement::SuspendRedraw(uint32_t max_wait_milliseconds, uint32_t *_retval
 
 /* void unsuspendRedraw (in unsigned long suspend_handle_id); */
 NS_IMETHODIMP
-nsSVGSVGElement::UnsuspendRedraw(uint32_t suspend_handle_id)
+nsSVGSVGElement::UnsuspendRedraw(PRUint32 suspend_handle_id)
 {
   // no-op
   return NS_OK;
@@ -445,7 +445,7 @@ nsSVGSVGElement::SetCurrentTime(float seconds)
       double fMilliseconds = double(seconds) * PR_MSEC_PER_SEC;
       // Round to nearest whole number before converting, to avoid precision
       // errors
-      nsSMILTime lMilliseconds = int64_t(NS_round(fMilliseconds));
+      nsSMILTime lMilliseconds = PRInt64(NS_round(fMilliseconds));
       mTimedDocumentRoot->SetCurrentTime(lMilliseconds);
       AnimationNeedsResample();
       // Trigger synchronous sample now, to:
@@ -717,14 +717,14 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
 
 /* attribute unsigned short zoomAndPan; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetZoomAndPan(uint16_t *aZoomAndPan)
+nsSVGSVGElement::GetZoomAndPan(PRUint16 *aZoomAndPan)
 {
   *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSVGSVGElement::SetZoomAndPan(uint16_t aZoomAndPan)
+nsSVGSVGElement::SetZoomAndPan(PRUint16 aZoomAndPan)
 {
   if (aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE ||
       aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY) {
@@ -1110,7 +1110,7 @@ nsSVGSVGElement::GetPreserveAspectRatioWithOverride() const
 // nsSVGSVGElement
 
 float
-nsSVGSVGElement::GetLength(uint8_t aCtxType)
+nsSVGSVGElement::GetLength(PRUint8 aCtxType)
 {
   float h, w;
 
@@ -1236,7 +1236,7 @@ nsSVGSVGElement::ShouldSynthesizeViewBox() const
 }
 
 
-// Callback function, for freeing uint64_t values stored in property table
+// Callback function, for freeing PRUint64 values stored in property table
 static void
 ReleasePreserveAspectRatioPropertyValue(void*    aObject,       /* unused */
                                         nsIAtom* aPropertyName, /* unused */
@@ -1350,7 +1350,7 @@ nsSVGSVGElement::FlushImageTransformInvalidation()
   }
 }
 
-// Callback function, for freeing uint64_t values stored in property table
+// Callback function, for freeing PRUint64 values stored in property table
 static void
 ReleaseViewBoxPropertyValue(void*    aObject,       /* unused */
                             nsIAtom* aPropertyName, /* unused */
@@ -1400,7 +1400,7 @@ nsSVGSVGElement::ClearViewBoxProperty()
 }
 
 bool
-nsSVGSVGElement::SetZoomAndPanProperty(uint16_t aValue)
+nsSVGSVGElement::SetZoomAndPanProperty(PRUint16 aValue)
 {
   nsresult rv = SetProperty(nsGkAtoms::zoomAndPan,
                             reinterpret_cast<void*>(aValue),
@@ -1411,7 +1411,7 @@ nsSVGSVGElement::SetZoomAndPanProperty(uint16_t aValue)
   return NS_SUCCEEDED(rv);
 }
 
-uint16_t
+PRUint16
 nsSVGSVGElement::GetZoomAndPanProperty() const
 {
   void* valPtr = GetProperty(nsGkAtoms::zoomAndPan);

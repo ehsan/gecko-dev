@@ -274,10 +274,8 @@ class SetPropCompiler : public PICStubCompiler
 
         pic.setPropLabels().setStubShapeJump(masm, start, stubShapeJumpLabel);
 
-        if (pic.typeMonitored || adding) {
+        if (pic.typeMonitored) {
             /*
-             * There are now two reasons we would want a type barrier. The
-             * first, if we are Type Monitored:
              * Inference does not know the type of the object being updated,
              * and we need to make sure that the updateMonitoredTypes() call
              * covers this stub, i.e. we will be writing to an object with the
@@ -286,10 +284,6 @@ class SetPropCompiler : public PICStubCompiler
              * object has a lazy type, but in such cases no analyzed scripts
              * depend on the object and we will reconstruct its type from the
              * value being written here.
-             * We could also want to add a type monitor if we are simulating
-             * adding the property to the object. This is to ensure that for
-             * objects of different type, but the same shape, we ensure that the
-             * property gets marked as 'own' on the other type objects.
              */
             Jump typeGuard = masm.branchPtr(Assembler::NotEqual,
                                             Address(pic.objReg, JSObject::offsetOfType()),
@@ -416,17 +410,7 @@ class SetPropCompiler : public PICStubCompiler
             types::TypeSet *types = type->getProperty(cx, types::MakeTypeId(cx, id), true);
             if (!types)
                 return false;
-
-            jsbytecode *pc;
-            JSScript *script = cx->stack.currentScript(&pc);
-
-            if (!script->ensureRanInference(cx) || monitor.recompiled())
-                return false;
-
-            JS_ASSERT(*pc == JSOP_SETPROP || *pc == JSOP_SETNAME);
-
-            types::StackTypeSet *rhsTypes = script->analysis()->poppedTypes(pc, 0);
-            rhsTypes->addSubset(cx, types);
+            pic.rhsTypes->addSubset(cx, types);
         }
 
         return !monitor.recompiled();

@@ -28,8 +28,8 @@
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
 
-typedef int16_t DownloadState;
-typedef int16_t DownloadType;
+typedef PRInt16 DownloadState;
+typedef PRInt16 DownloadType;
 
 class nsDownload;
 
@@ -91,7 +91,7 @@ protected:
    */
   nsresult RestoreActiveDownloads();
 
-  nsresult GetDownloadFromDB(uint32_t aID, nsDownload **retVal);
+  nsresult GetDownloadFromDB(PRUint32 aID, nsDownload **retVal);
 
   /**
    * Specially track the active downloads so that we don't need to check
@@ -106,32 +106,32 @@ protected:
    *
    * @return The id of the download, or 0 if there was an error.
    */
-  int64_t AddDownloadToDB(const nsAString &aName,
+  PRInt64 AddDownloadToDB(const nsAString &aName,
                           const nsACString &aSource,
                           const nsACString &aTarget,
                           const nsAString &aTempPath,
-                          int64_t aStartTime,
-                          int64_t aEndTime,
+                          PRInt64 aStartTime,
+                          PRInt64 aEndTime,
                           const nsACString &aMimeType,
                           const nsACString &aPreferredApp,
                           nsHandlerInfoAction aPreferredAction);
 
-  void NotifyListenersOnDownloadStateChange(int16_t aOldState,
+  void NotifyListenersOnDownloadStateChange(PRInt16 aOldState,
                                             nsIDownload *aDownload);
   void NotifyListenersOnProgressChange(nsIWebProgress *aProgress,
                                        nsIRequest *aRequest,
-                                       int64_t aCurSelfProgress,
-                                       int64_t aMaxSelfProgress,
-                                       int64_t aCurTotalProgress,
-                                       int64_t aMaxTotalProgress,
+                                       PRInt64 aCurSelfProgress,
+                                       PRInt64 aMaxSelfProgress,
+                                       PRInt64 aCurTotalProgress,
+                                       PRInt64 aMaxTotalProgress,
                                        nsIDownload *aDownload);
   void NotifyListenersOnStateChange(nsIWebProgress *aProgress,
                                     nsIRequest *aRequest,
-                                    uint32_t aStateFlags,
+                                    PRUint32 aStateFlags,
                                     nsresult aStatus,
                                     nsIDownload *aDownload);
 
-  nsDownload *FindDownload(uint32_t aID);
+  nsDownload *FindDownload(PRUint32 aID);
 
   /**
    * First try to resume the download, and if that fails, retry it.
@@ -185,14 +185,14 @@ protected:
   static void ResumeOnWakeCallback(nsITimer *aTimer, void *aClosure);
   nsCOMPtr<nsITimer> mResumeOnWakeTimer;
 
-  void ConfirmCancelDownloads(int32_t aCount,
+  void ConfirmCancelDownloads(PRInt32 aCount,
                               nsISupportsPRBool *aCancelDownloads,
                               const PRUnichar *aTitle,
                               const PRUnichar *aCancelMessageMultiple,
                               const PRUnichar *aCancelMessageSingle,
                               const PRUnichar *aDontCancelButton);
 
-  int32_t GetRetentionBehavior();
+  PRInt32 GetRetentionBehavior();
 
   /**
    * Type to indicate possible behaviors for active downloads across sessions.
@@ -287,13 +287,13 @@ protected:
   /**
    * Update the start time which also implies the last update time is the same.
    */
-  void SetStartTime(int64_t aStartTime);
+  void SetStartTime(PRInt64 aStartTime);
 
   /**
    * Update the amount of bytes transferred and max bytes; and recalculate the
    * download percent.
    */
-  void SetProgressBytes(int64_t aCurrBytes, int64_t aMaxBytes);
+  void SetProgressBytes(PRInt64 aCurrBytes, PRInt64 aMaxBytes);
 
   /**
    * Pause the download, but in certain cases it might get fake-paused instead
@@ -384,20 +384,20 @@ private:
   DownloadState mDownloadState;
   DownloadType mDownloadType;
 
-  uint32_t mID;
-  int32_t mPercentComplete;
+  PRUint32 mID;
+  PRInt32 mPercentComplete;
 
   /**
    * These bytes are based on the position of where the request started, so 0
    * doesn't necessarily mean we have nothing. Use GetAmountTransferred and
    * GetSize for the real transferred amount and size.
    */
-  int64_t mCurrBytes;
-  int64_t mMaxBytes;
+  PRInt64 mCurrBytes;
+  PRInt64 mMaxBytes;
 
   PRTime mStartTime;
   PRTime mLastUpdate;
-  int64_t mResumedAt;
+  PRInt64 mResumedAt;
   double mSpeed;
 
   bool mHasMultipleFiles;

@@ -80,7 +80,7 @@ using namespace mozilla;
 static bool sIsMultiprocess = false;
 static const char *sMultiprocessDescription = NULL;
 
-static int32_t gAssertionCount = 0;
+static PRInt32 gAssertionCount = 0;
 
 NS_IMPL_QUERY_INTERFACE2(nsDebugImpl, nsIDebug, nsIDebug2)
 
@@ -98,28 +98,28 @@ nsDebugImpl::Release()
 
 NS_IMETHODIMP
 nsDebugImpl::Assertion(const char *aStr, const char *aExpr,
-                       const char *aFile, int32_t aLine)
+                       const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_ASSERTION, aStr, aExpr, aFile, aLine);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDebugImpl::Warning(const char *aStr, const char *aFile, int32_t aLine)
+nsDebugImpl::Warning(const char *aStr, const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_WARNING, aStr, nullptr, aFile, aLine);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDebugImpl::Break(const char *aFile, int32_t aLine)
+nsDebugImpl::Break(const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_BREAK, nullptr, nullptr, aFile, aLine);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDebugImpl::Abort(const char *aFile, int32_t aLine)
+nsDebugImpl::Abort(const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_ABORT, nullptr, nullptr, aFile, aLine);
   return NS_OK;
@@ -137,7 +137,7 @@ nsDebugImpl::GetIsDebugBuild(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsDebugImpl::GetAssertionCount(int32_t* aResult)
+nsDebugImpl::GetAssertionCount(PRInt32* aResult)
 {
   *aResult = gAssertionCount;
   return NS_OK;
@@ -252,11 +252,11 @@ struct FixedBuffer
   FixedBuffer() : curlen(0) { buffer[0] = '\0'; }
 
   char buffer[1000];
-  uint32_t curlen;
+  PRUint32 curlen;
 };
 
 static int
-StuffFixedBuffer(void *closure, const char *buf, uint32_t len)
+StuffFixedBuffer(void *closure, const char *buf, PRUint32 len)
 {
   if (!len)
     return 0;
@@ -280,8 +280,8 @@ StuffFixedBuffer(void *closure, const char *buf, uint32_t len)
 }
 
 EXPORT_XPCOM_API(void)
-NS_DebugBreak(uint32_t aSeverity, const char *aStr, const char *aExpr,
-              const char *aFile, int32_t aLine)
+NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
+              const char *aFile, PRInt32 aLine)
 {
    InitLog();
 

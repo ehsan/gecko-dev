@@ -47,17 +47,17 @@ public:
               const char* const* aMimeTypes,
               const char* const* aMimeDescriptions,
               const char* const* aExtensions,
-              int32_t aVariants,
-              int64_t aLastModifiedTime = 0,
+              PRInt32 aVariants,
+              PRInt64 aLastModifiedTime = 0,
               bool aArgsAreUTF8 = false);
   virtual ~nsPluginTag();
   
   void SetHost(nsPluginHost * aHost);
   void TryUnloadPlugin(bool inShutdown);
-  void Mark(uint32_t mask);
-  void UnMark(uint32_t mask);
-  bool HasFlag(uint32_t flag);
-  uint32_t Flags();
+  void Mark(PRUint32 mask);
+  void UnMark(PRUint32 mask);
+  bool HasFlag(PRUint32 flag);
+  PRUint32 Flags();
   bool HasSameNameAndMimes(const nsPluginTag *aPluginTag) const;
   bool IsEnabled();
   
@@ -75,15 +75,15 @@ public:
   nsCString     mFileName; // UTF-8
   nsCString     mFullPath; // UTF-8
   nsCString     mVersion;  // UTF-8
-  int64_t       mLastModifiedTime;
+  PRInt64       mLastModifiedTime;
   nsCOMPtr<nsITimer> mUnloadTimer;
 private:
-  uint32_t      mFlags;
+  PRUint32      mFlags;
 
   void InitMime(const char* const* aMimeTypes,
                 const char* const* aMimeDescriptions,
                 const char* const* aExtensions,
-                uint32_t aVariantCount);
+                PRUint32 aVariantCount);
   nsresult EnsureMembersAreUTF8();
 };
 

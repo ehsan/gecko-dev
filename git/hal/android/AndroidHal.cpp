@@ -163,7 +163,7 @@ GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
   }
 
   nsIntRect rect;
-  int32_t colorDepth, pixelDepth;
+  PRInt32 colorDepth, pixelDepth;
   ScreenOrientation orientation;
   nsCOMPtr<nsIScreen> screen;
 

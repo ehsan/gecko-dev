@@ -524,6 +524,7 @@ DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
 DOMCI_CLASS(BluetoothPropertyEvent)
+DOMCI_CLASS(BluetoothPairingEvent)
 #endif
 
 DOMCI_CLASS(CameraManager)

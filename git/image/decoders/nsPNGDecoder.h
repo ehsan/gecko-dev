@@ -29,11 +29,11 @@ public:
   virtual ~nsPNGDecoder();
 
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
+  virtual void WriteInternal(const char* aBuffer, PRUint32 aCount);
   virtual Telemetry::ID SpeedHistogram();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
-                   int32_t width, int32_t height,
+                   PRInt32 width, PRInt32 height,
                    gfxASurface::gfxImageFormat format);
   void SetAnimFrameInfo();
 
@@ -73,24 +73,24 @@ public:
   png_structp mPNG;
   png_infop mInfo;
   nsIntRect mFrameRect;
-  uint8_t *mCMSLine;
-  uint8_t *interlacebuf;
-  uint8_t *mImageData;
+  PRUint8 *mCMSLine;
+  PRUint8 *interlacebuf;
+  PRUint8 *mImageData;
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
   gfxASurface::gfxImageFormat format;
 
   // For size decodes
-  uint8_t *mHeaderBuf;
-  uint32_t mHeaderBytesRead;
+  PRUint8 *mHeaderBuf;
+  PRUint32 mHeaderBytesRead;
 
-  uint8_t mChannels;
+  PRUint8 mChannels;
   bool mFrameHasNoAlpha;
   bool mFrameIsHidden;
 
   // whether CMS or premultiplied alpha are forced off
-  uint32_t mCMSMode;
+  PRUint32 mCMSMode;
   bool mDisablePremultipliedAlpha;
   
   /*
@@ -113,7 +113,7 @@ public:
 
   // This is defined in the PNG spec as an invariant. We use it to
   // do manual validation without libpng.
-  static const uint8_t pngSignatureBytes[];
+  static const PRUint8 pngSignatureBytes[];
 };
 
 } // namespace image

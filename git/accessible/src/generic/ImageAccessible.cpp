@@ -40,13 +40,13 @@ NS_IMPL_ISUPPORTS_INHERITED1(ImageAccessible, Accessible,
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible public
 
-uint64_t
+PRUint64
 ImageAccessible::NativeState()
 {
   // The state is a bitfield, get our inherited state, then logically OR it with
   // states::ANIMATED if this is an animated image.
 
-  uint64_t state = LinkableAccessible::NativeState();
+  PRUint64 state = LinkableAccessible::NativeState();
 
   nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mContent));
   nsCOMPtr<imgIRequest> imageRequest;
@@ -100,15 +100,15 @@ ImageAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-uint8_t
+PRUint8
 ImageAccessible::ActionCount()
 {
-  uint8_t actionCount = LinkableAccessible::ActionCount();
+  PRUint8 actionCount = LinkableAccessible::ActionCount();
   return HasLongDesc() ? actionCount + 1 : actionCount;
 }
 
 NS_IMETHODIMP
-ImageAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+ImageAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   aName.Truncate();
 
@@ -123,7 +123,7 @@ ImageAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-ImageAccessible::DoAction(uint8_t aIndex)
+ImageAccessible::DoAction(PRUint8 aIndex)
 {
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -154,9 +154,9 @@ ImageAccessible::DoAction(uint8_t aIndex)
 // nsIAccessibleImage
 
 NS_IMETHODIMP
-ImageAccessible::GetImagePosition(uint32_t aCoordType, int32_t* aX, int32_t* aY)
+ImageAccessible::GetImagePosition(PRUint32 aCoordType, PRInt32* aX, PRInt32* aY)
 {
-  int32_t width, height;
+  PRInt32 width, height;
   nsresult rv = GetBounds(aX, aY, &width, &height);
   if (NS_FAILED(rv))
     return rv;
@@ -165,9 +165,9 @@ ImageAccessible::GetImagePosition(uint32_t aCoordType, int32_t* aX, int32_t* aY)
 }
 
 NS_IMETHODIMP
-ImageAccessible::GetImageSize(int32_t* aWidth, int32_t* aHeight)
+ImageAccessible::GetImageSize(PRInt32* aWidth, PRInt32* aHeight)
 {
-  int32_t x, y;
+  PRInt32 x, y;
   return GetBounds(&x, &y, aWidth, aHeight);
 }
 
@@ -225,7 +225,7 @@ ImageAccessible::GetLongDescURI() const
 }
 
 bool
-ImageAccessible::IsLongDescIndex(uint8_t aIndex)
+ImageAccessible::IsLongDescIndex(PRUint8 aIndex)
 {
   return aIndex == LinkableAccessible::ActionCount();
 }

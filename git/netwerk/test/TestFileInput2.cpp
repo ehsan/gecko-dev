@@ -37,7 +37,7 @@ protected:
     PRIntervalTime      mStartTime;
     double              mSquares;
     double              mTotalTime;
-    uint32_t            mCount;
+    PRUint32            mCount;
     PRIntervalTime      mLastInterval;
 };
 
@@ -87,8 +87,8 @@ nsTimeSampler::PrintStats()
     double mean = mTotalTime / mCount;
     double variance = fabs(mSquares / mCount - mean * mean);
     double stddev = sqrt(variance);
-    uint32_t imean = (uint32_t)mean;
-    uint32_t istddev = (uint32_t)stddev;
+    PRUint32 imean = (PRUint32)mean;
+    PRUint32 istddev = (PRUint32)stddev;
     return PR_smprintf("%d +/- %d ms", 
                        PR_IntervalToMilliseconds(imean),
                        PR_IntervalToMilliseconds(istddev));
@@ -101,22 +101,22 @@ nsTimeSampler gTimeSampler;
 typedef nsresult (*CreateFun)(nsIRunnable* *result,
                               nsIFile* inPath, 
                               nsIFile* outPath, 
-                              uint32_t bufferSize);
+                              PRUint32 bufferSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 nsresult
 Copy(nsIInputStream* inStr, nsIOutputStream* outStr, 
-     char* buf, uint32_t bufSize, uint32_t *copyCount)
+     char* buf, PRUint32 bufSize, PRUint32 *copyCount)
 {
     nsresult rv;
     while (true) {
-        uint32_t count;
+        PRUint32 count;
         rv = inStr->Read(buf, bufSize, &count);
         if (NS_FAILED(rv)) return rv;
         if (count == 0) break;
 
-        uint32_t writeCount;
+        PRUint32 writeCount;
         rv = outStr->Write(buf, count, &writeCount);
         if (NS_FAILED(rv)) return rv;
         NS_ASSERTION(writeCount == count, "didn't write all the data");
@@ -138,7 +138,7 @@ public:
         PRIntervalTime endTime;
         nsCOMPtr<nsIInputStream> inStr;
         nsCOMPtr<nsIOutputStream> outStr;
-        uint32_t copyCount = 0;
+        PRUint32 copyCount = 0;
 
         // Open the input stream:
         nsCOMPtr<nsIInputStream> fileIn;
@@ -178,7 +178,7 @@ public:
     }
 
     nsresult Init(nsIFile* inPath, nsIFile* outPath,
-                  uint32_t bufferSize)
+                  PRUint32 bufferSize)
     {
         mInPath = inPath;
         mOutPath = outPath;
@@ -191,7 +191,7 @@ public:
     static nsresult Create(nsIRunnable* *result,
                            nsIFile* inPath, 
                            nsIFile* outPath, 
-                           uint32_t bufferSize)
+                           PRUint32 bufferSize)
     {
         FileSpecWorker* worker = new FileSpecWorker();
         if (worker == nullptr)
@@ -215,7 +215,7 @@ protected:
     nsCOMPtr<nsIFile>   mInPath;
     nsCOMPtr<nsIFile>   mOutPath;
     char*               mBuffer;
-    uint32_t            mBufferSize;
+    PRUint32            mBufferSize;
 };
 
 NS_IMPL_ISUPPORTS1(FileSpecWorker, nsIRunnable)
@@ -233,7 +233,7 @@ public:
 
         PRIntervalTime startTime = PR_IntervalNow();
         PRIntervalTime endTime;
-        uint32_t copyCount = 0;
+        PRUint32 copyCount = 0;
         nsCOMPtr<nsIFileChannel> inCh;
         nsCOMPtr<nsIFileChannel> outCh;
         nsCOMPtr<nsIInputStream> inStr;
@@ -270,7 +270,7 @@ public:
     }
 
     nsresult Init(nsIFile* inPath, nsIFile* outPath,
-                  uint32_t bufferSize)
+                  PRUint32 bufferSize)
     {
         mInPath = inPath;
         mOutPath = outPath;
@@ -283,7 +283,7 @@ public:
     static nsresult Create(nsIRunnable* *result,
                            nsIFile* inPath, 
                            nsIFile* outPath, 
-                           uint32_t bufferSize)
+                           PRUint32 bufferSize)
     {
         FileChannelWorker* worker = new FileChannelWorker();
         if (worker == nullptr)
@@ -307,7 +307,7 @@ protected:
     nsCOMPtr<nsIFile>   mInPath;
     nsCOMPtr<nsIFile>   mOutPath;
     char*               mBuffer;
-    uint32_t            mBufferSize;
+    PRUint32            mBufferSize;
 };
 
 NS_IMPL_ISUPPORTS1(FileChannelWorker, nsIRunnable)
@@ -315,11 +315,11 @@ NS_IMPL_ISUPPORTS1(FileChannelWorker, nsIRunnable)
 ////////////////////////////////////////////////////////////////////////////////
 
 void
-Test(CreateFun create, uint32_t count,
-     nsIFile* inDirSpec, nsIFile* outDirSpec, uint32_t bufSize)
+Test(CreateFun create, PRUint32 count,
+     nsIFile* inDirSpec, nsIFile* outDirSpec, PRUint32 bufSize)
 {
     nsresult rv;
-    uint32_t i;
+    PRUint32 i;
 
     nsCAutoString inDir;
     nsCAutoString outDir;
@@ -384,7 +384,7 @@ Test(CreateFun create, uint32_t count,
         i++;
     }
 
-    uint32_t j;
+    PRUint32 j;
     for (j = 0; j < i; j++) {
         nsIThread* thread = threads.ObjectAt(j);
         thread->Join();

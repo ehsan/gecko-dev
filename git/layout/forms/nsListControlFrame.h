@@ -85,7 +85,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsHTMLScrollFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -93,7 +93,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
@@ -117,7 +117,7 @@ public:
 
     // nsIListControlFrame
   virtual void SetComboboxFrame(nsIFrame* aComboboxFrame);
-  virtual int32_t GetSelectedIndex();
+  virtual PRInt32 GetSelectedIndex();
   virtual already_AddRefed<nsIContent> GetCurrentOption();
 
   /**
@@ -125,11 +125,11 @@ public:
    * If the there are zero items then an empty string is returned
    * If there is nothing selected, then the 0th item's text is returned.
    */
-  virtual void GetOptionText(int32_t aIndex, nsAString & aStr);
+  virtual void GetOptionText(PRInt32 aIndex, nsAString & aStr);
 
   virtual void CaptureMouseEvents(bool aGrabMouseEvents);
   virtual nscoord GetHeightOfARow();
-  virtual int32_t GetNumberOfOptions();  
+  virtual PRInt32 GetNumberOfOptions();  
   virtual void AboutToDropDown();
 
   /**
@@ -147,20 +147,20 @@ public:
    * Makes aIndex the selected option of a combobox list.
    * @note This method might destroy |this|.
    */
-  virtual void ComboboxFinish(int32_t aIndex);
+  virtual void ComboboxFinish(PRInt32 aIndex);
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(int32_t index);
-  NS_IMETHOD RemoveOption(int32_t index);
+  NS_IMETHOD AddOption(PRInt32 index);
+  NS_IMETHOD RemoveOption(PRInt32 index);
   NS_IMETHOD DoneAddingChildren(bool aIsDone);
 
   /**
    * Gets the content (an option) by index and then set it as
    * being selected or not selected.
    */
-  NS_IMETHOD OnOptionSelected(int32_t aIndex, bool aSelected);
-  NS_IMETHOD OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex);
+  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, bool aSelected);
+  NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   // mouse event listeners (both )
   nsresult MouseDown(nsIDOMEvent* aMouseEvent); // might destroy |this|
@@ -180,14 +180,14 @@ public:
    * in the select's collection.
    */
   static already_AddRefed<nsIDOMHTMLOptionElement>
-    GetOption(nsIDOMHTMLOptionsCollection* aOptions, int32_t aIndex);
+    GetOption(nsIDOMHTMLOptionsCollection* aOptions, PRInt32 aIndex);
 
   /**
    * Returns the nsIContent object in the collection 
    * for a given index.
    */
   static already_AddRefed<nsIContent>
-    GetOptionAsContent(nsIDOMHTMLOptionsCollection* aCollection,int32_t aIndex);
+    GetOptionAsContent(nsIDOMHTMLOptionsCollection* aCollection,PRInt32 aIndex);
 
   static void ComboboxFocusSet();
 
@@ -234,7 +234,7 @@ public:
   /**
    * Return the number of displayed rows in the list.
    */
-  uint32_t GetNumDisplayRows() const { return mNumDisplayRows; }
+  PRUint32 GetNumDisplayRows() const { return mNumDisplayRows; }
 
   /**
    * Return true if the drop-down list can display more rows.
@@ -282,9 +282,9 @@ protected:
    */
   void       DropDownToggleKey(nsIDOMEvent* aKeyEvent);
 
-  nsresult   IsOptionDisabled(int32_t anIndex, bool &aIsDisabled);
+  nsresult   IsOptionDisabled(PRInt32 anIndex, bool &aIsDisabled);
   nsresult   ScrollToFrame(nsIContent * aOptElement);
-  nsresult   ScrollToIndex(int32_t anIndex);
+  nsresult   ScrollToIndex(PRInt32 anIndex);
 
   /**
    * When the user clicks on the comboboxframe to show the dropdown
@@ -303,8 +303,8 @@ protected:
    * border-inner-edge, then set mItemSelectionStarted.
    */
   void       UpdateInListState(nsIDOMEvent* aEvent);
-  void       AdjustIndexForDisabledOpt(int32_t aStartIndex, int32_t &anNewIndex,
-                                       int32_t aNumOptions, int32_t aDoAdjustInc, int32_t aDoAdjustIncNext);
+  void       AdjustIndexForDisabledOpt(PRInt32 aStartIndex, PRInt32 &anNewIndex,
+                                       PRInt32 aNumOptions, PRInt32 aDoAdjustInc, PRInt32 aDoAdjustIncNext);
 
   /**
    * Resets the select back to it's original default values;
@@ -316,7 +316,7 @@ protected:
   virtual ~nsListControlFrame();
 
   // Utility methods
-  nsresult GetSizeAttribute(uint32_t *aSize);
+  nsresult GetSizeAttribute(PRUint32 *aSize);
   nsIContent* GetOptionFromContent(nsIContent *aContent);
 
   /**
@@ -325,13 +325,13 @@ protected:
    * @param aPoint the event point, in listcontrolframe coordinates
    * @return NS_OK if it successfully found the selection
    */
-  nsresult GetIndexFromDOMEvent(nsIDOMEvent* aMouseEvent, int32_t& aCurIndex);
+  nsresult GetIndexFromDOMEvent(nsIDOMEvent* aMouseEvent, PRInt32& aCurIndex);
 
   /**
    * For a given index it returns the nsIContent object 
    * from the select.
    */
-  already_AddRefed<nsIContent> GetOptionContent(int32_t aIndex) const;
+  already_AddRefed<nsIContent> GetOptionContent(PRInt32 aIndex) const;
 
   /** 
    * For a given piece of content, it determines whether the 
@@ -343,10 +343,10 @@ protected:
   /**
    * For a given index is return whether the content is selected.
    */
-  bool     IsContentSelectedByIndex(int32_t aIndex) const;
+  bool     IsContentSelectedByIndex(PRInt32 aIndex) const;
 
   bool     CheckIfAllFramesHere();
-  int32_t  GetIndexFromContent(nsIContent *aContent);
+  PRInt32  GetIndexFromContent(nsIContent *aContent);
   bool     IsLeftButton(nsIDOMEvent* aMouseEvent);
 
   // guess at a row height based on our own style.
@@ -354,10 +354,10 @@ protected:
 
   // CalcIntrinsicHeight computes our intrinsic height (taking the "size"
   // attribute into account).  This should only be called in non-dropdown mode.
-  nscoord CalcIntrinsicHeight(nscoord aHeightOfARow, int32_t aNumberOfOptions);
+  nscoord CalcIntrinsicHeight(nscoord aHeightOfARow, PRInt32 aNumberOfOptions);
 
   // Dropped down stuff
-  void     SetComboboxItem(int32_t aIndex);
+  void     SetComboboxItem(PRInt32 aIndex);
 
   /**
    * Method to reflow ourselves as a dropdown list.  This differs from
@@ -370,18 +370,18 @@ protected:
                             nsReflowStatus&          aStatus);
 
   // Selection
-  bool     SetOptionsSelectedFromFrame(int32_t aStartIndex,
-                                       int32_t aEndIndex,
+  bool     SetOptionsSelectedFromFrame(PRInt32 aStartIndex,
+                                       PRInt32 aEndIndex,
                                        bool aValue,
                                        bool aClearAll);
-  bool     ToggleOptionSelectedFromFrame(int32_t aIndex);
-  bool     SingleSelection(int32_t aClickedIndex, bool aDoToggle);
-  bool     ExtendedSelection(int32_t aStartIndex, int32_t aEndIndex,
+  bool     ToggleOptionSelectedFromFrame(PRInt32 aIndex);
+  bool     SingleSelection(PRInt32 aClickedIndex, bool aDoToggle);
+  bool     ExtendedSelection(PRInt32 aStartIndex, PRInt32 aEndIndex,
                              bool aClearAll);
-  bool     PerformSelection(int32_t aClickedIndex, bool aIsShift,
+  bool     PerformSelection(PRInt32 aClickedIndex, bool aIsShift,
                             bool aIsControl);
-  bool     HandleListSelection(nsIDOMEvent * aDOMEvent, int32_t selectedIndex);
-  void     InitSelectionRange(int32_t aClickedIndex);
+  bool     HandleListSelection(nsIDOMEvent * aDOMEvent, PRInt32 selectedIndex);
+  void     InitSelectionRange(PRInt32 aClickedIndex);
 
 public:
   nsSelectsAreaFrame* GetOptionsContainer() const {
@@ -394,11 +394,11 @@ protected:
   }
   
   // Data Members
-  int32_t      mStartSelectionIndex;
-  int32_t      mEndSelectionIndex;
+  PRInt32      mStartSelectionIndex;
+  PRInt32      mEndSelectionIndex;
 
   nsIComboboxControlFrame *mComboboxFrame;
-  uint32_t     mNumDisplayRows;
+  PRUint32     mNumDisplayRows;
   bool mChangesSinceDragStart:1;
   bool mButtonDown:1;
   // Has the user selected a visible item since we showed the
@@ -443,7 +443,7 @@ protected:
   static nsString * sIncrementalString;
 
 #ifdef DO_REFLOW_COUNTER
-  int32_t mReflowId;
+  PRInt32 mReflowId;
 #endif
 
 private:

@@ -57,13 +57,13 @@ public:
     return mObservers.RemoveElement(aObserver);
   }
 
-  uint32_t Length() {
+  PRUint32 Length() {
     return mObservers.Length();
   }
 
   void Broadcast(const T& aParam) {
-    uint32_t size = mObservers.Length();
-    for (uint32_t i=0; i<size; ++i) {
+    PRUint32 size = mObservers.Length();
+    for (PRUint32 i=0; i<size; ++i) {
       mObservers[i]->Notify(aParam);
     }
   }

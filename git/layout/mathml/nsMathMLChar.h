@@ -37,9 +37,9 @@ enum {
 // glyph belongs.
 struct nsGlyphCode {
   PRUnichar code[2]; 
-  int32_t   font;
+  PRInt32   font;
 
-  int32_t Length() { return (code[1] == PRUnichar('\0') ? 1 : 2); }
+  PRInt32 Length() { return (code[1] == PRUnichar('\0') ? 1 : 2); }
   bool Exists() const
   {
     return (code[0] != 0);
@@ -80,7 +80,7 @@ public:
   Display(nsDisplayListBuilder*   aBuilder,
           nsIFrame*               aForFrame,
           const nsDisplayListSet& aLists,
-          uint32_t                aIndex,
+          PRUint32                aIndex,
           const nsRect*           aSelectedRect = nullptr);
           
   void PaintForeground(nsPresContext* aPresContext,
@@ -97,7 +97,7 @@ public:
           nsStretchDirection       aStretchDirection,
           const nsBoundingMetrics& aContainerSize,
           nsBoundingMetrics&       aDesiredStretchSize,
-          uint32_t                 aStretchHint,
+          PRUint32                 aStretchHint,
           bool                     aRTL);
 
   void
@@ -109,7 +109,7 @@ public:
     aData = mData;
   }
 
-  int32_t
+  PRInt32
   Length() {
     return mData.Length();
   }
@@ -147,7 +147,7 @@ public:
   nscoord
   GetMaxWidth(nsPresContext* aPresContext,
               nsRenderingContext& aRenderingContext,
-              uint32_t aStretchHint = NS_STRETCH_NORMAL,
+              PRUint32 aStretchHint = NS_STRETCH_NORMAL,
               float aMaxSize = NS_MATHML_OPERATOR_SIZE_INFINITY,
               // Perhaps just nsOperatorFlags aFlags.
               // But need DisplayStyle for largeOp,
@@ -210,7 +210,7 @@ private:
                   nsStretchDirection&      aStretchDirection,
                   const nsBoundingMetrics& aContainerSize,
                   nsBoundingMetrics&       aDesiredStretchSize,
-                  uint32_t                 aStretchHint,
+                  PRUint32                 aStretchHint,
                   float           aMaxSize = NS_MATHML_OPERATOR_SIZE_INFINITY,
                   bool            aMaxSizeIsAbsolute = false);
 

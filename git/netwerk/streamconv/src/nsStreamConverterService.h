@@ -51,7 +51,7 @@ enum BFScolors {white, gray, black};
 
 struct BFSState {
     BFScolors   color;
-    int32_t     distance;
+    PRInt32     distance;
     nsCStringKey  *predecessor;
     ~BFSState() {
         delete predecessor;

@@ -8,9 +8,6 @@
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -84,7 +81,7 @@ fail:
 }
 
 bool
-WebSocketChannelParent::RecvClose(const uint16_t& code, const nsCString& reason)
+WebSocketChannelParent::RecvClose(const PRUint16& code, const nsCString& reason)
 {
   LOG(("WebSocketChannelParent::RecvClose() %p\n", this));
   if (mChannel) {
@@ -117,16 +114,12 @@ WebSocketChannelParent::RecvSendBinaryMsg(const nsCString& aMsg)
 }
 
 bool
-WebSocketChannelParent::RecvSendBinaryStream(const InputStreamParams& aStream,
-                                             const uint32_t& aLength)
+WebSocketChannelParent::RecvSendBinaryStream(const InputStream& aStream,
+                                             const PRUint32& aLength)
 {
   LOG(("WebSocketChannelParent::RecvSendBinaryStream() %p\n", this));
   if (mChannel) {
-    nsCOMPtr<nsIInputStream> stream = DeserializeInputStream(aStream);
-    if (!stream) {
-      return false;
-    }
-    nsresult rv = mChannel->SendBinaryStream(stream, aLength);
+    nsresult rv = mChannel->SendBinaryStream(aStream, aLength);
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;
@@ -182,7 +175,7 @@ WebSocketChannelParent::OnBinaryMessageAvailable(nsISupports *aContext, const ns
 }
 
 NS_IMETHODIMP
-WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
+WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, PRUint32 aSize)
 {
   LOG(("WebSocketChannelParent::OnAcknowledge() %p\n", this));
   if (!mIPCOpen || !SendOnAcknowledge(aSize)) {
@@ -193,7 +186,7 @@ WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
 
 NS_IMETHODIMP
 WebSocketChannelParent::OnServerClose(nsISupports *aContext,
-                                      uint16_t code, const nsACString & reason)
+                                      PRUint16 code, const nsACString & reason)
 {
   LOG(("WebSocketChannelParent::OnServerClose() %p\n", this));
   if (!mIPCOpen || !SendOnServerClose(code, nsCString(reason))) {

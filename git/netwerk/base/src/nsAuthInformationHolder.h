@@ -12,7 +12,7 @@
 class nsAuthInformationHolder : public nsIAuthInformation {
 public:
     // aAuthType must be ASCII
-    nsAuthInformationHolder(uint32_t aFlags, const nsString& aRealm,
+    nsAuthInformationHolder(PRUint32 aFlags, const nsString& aRealm,
                             const nsCString& aAuthType)
         : mFlags(aFlags), mRealm(aRealm), mAuthType(aAuthType) {}
 
@@ -37,7 +37,7 @@ private:
     nsString mPassword;
     nsString mDomain;
 
-    uint32_t mFlags;
+    PRUint32 mFlags;
     nsString mRealm;
     nsCString mAuthType;
 };

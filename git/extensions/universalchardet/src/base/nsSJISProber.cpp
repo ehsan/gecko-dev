@@ -19,12 +19,12 @@ void  nsSJISProber::Reset(void)
   mDistributionAnalyser.Reset(mIsPreferredLanguage);
 }
 
-nsProbingState nsSJISProber::HandleData(const char* aBuf, uint32_t aLen)
+nsProbingState nsSJISProber::HandleData(const char* aBuf, PRUint32 aLen)
 {
   NS_ASSERTION(aLen, "HandleData called with empty buffer");
   nsSMState codingState;
 
-  for (uint32_t i = 0; i < aLen; i++)
+  for (PRUint32 i = 0; i < aLen; i++)
   {
     codingState = mCodingSM->NextState(aBuf[i]);
     if (codingState == eItsMe)
@@ -34,7 +34,7 @@ nsProbingState nsSJISProber::HandleData(const char* aBuf, uint32_t aLen)
     }
     if (codingState == eStart)
     {
-      uint32_t charLen = mCodingSM->GetCurrentCharLen();
+      PRUint32 charLen = mCodingSM->GetCurrentCharLen();
       if (i == 0)
       {
         mLastChar[1] = aBuf[0];

@@ -37,7 +37,7 @@ GetOffsetsFromSlimWrapper(JSObject *obj)
 }
 
 static const xpc_qsHashEntry *
-LookupEntry(uint32_t tableSize, const xpc_qsHashEntry *table, const nsID &iid)
+LookupEntry(PRUint32 tableSize, const xpc_qsHashEntry *table, const nsID &iid)
 {
     size_t i;
     const xpc_qsHashEntry *p;
@@ -54,7 +54,7 @@ LookupEntry(uint32_t tableSize, const xpc_qsHashEntry *table, const nsID &iid)
 }
 
 static const xpc_qsHashEntry *
-LookupInterfaceOrAncestor(uint32_t tableSize, const xpc_qsHashEntry *table,
+LookupInterfaceOrAncestor(PRUint32 tableSize, const xpc_qsHashEntry *table,
                           const nsID &iid)
 {
     const xpc_qsHashEntry *entry = LookupEntry(tableSize, table, iid);
@@ -276,8 +276,8 @@ SharedDefineSetter(JSContext *cx, unsigned argc, jsval *vp)
 
 JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned flags,
-                       uint32_t ifacec, const nsIID **interfaces,
-                       uint32_t tableSize, const xpc_qsHashEntry *table,
+                       PRUint32 ifacec, const nsIID **interfaces,
+                       PRUint32 tableSize, const xpc_qsHashEntry *table,
                        const xpc_qsPropertySpec *propspecs,
                        const xpc_qsFunctionSpec *funcspecs,
                        const char *stringTable)
@@ -697,7 +697,9 @@ getWrapper(JSContext *cx,
     *cur = nullptr;
     *tearoff = nullptr;
 
-    if (dom::IsDOMObject(obj)) {
+    js::Class* clasp = js::GetObjectClass(obj);
+    if (dom::IsDOMClass(clasp) ||
+        dom::binding::instanceIsProxy(obj)) {
         *cur = obj;
 
         return NS_OK;
@@ -709,7 +711,6 @@ getWrapper(JSContext *cx,
     // object reflection of a particular interface (ie, |foo.nsIBar|). These
     // JS objects are parented to their wrapper, so we snag the tearoff object
     // along the way (if desired), and then set |obj| to its parent.
-    js::Class* clasp = js::GetObjectClass(obj);
     if (clasp == &XPC_WN_Tearoff_JSClass) {
         *tearoff = (XPCWrappedNativeTearOff*) js::GetObjectPrivate(obj);
         obj = js::GetObjectParent(obj);
@@ -750,14 +751,23 @@ castNative(JSContext *cx,
     } else if (cur) {
         nsISupports *native;
         QITableEntry *entries;
-        if (mozilla::dom::UnwrapDOMObjectToISupports(cur, native)) {
+        js::Class* clasp = js::GetObjectClass(cur);
+        if (dom::IsDOMClass(clasp)) {
+            dom::DOMJSClass* domClass = dom::DOMJSClass::FromJSClass(clasp);
+            if (!domClass->mDOMObjectIsISupports) {
+                *pThisRef = nullptr;
+                return NS_ERROR_ILLEGAL_VALUE;
+            }
+            native = dom::UnwrapDOMObject<nsISupports>(cur);
             entries = nullptr;
-        } else if (IS_SLIM_WRAPPER(cur)) {
+        } else if (dom::binding::instanceIsProxy(cur)) {
+            native = static_cast<nsISupports*>(js::GetProxyPrivate(cur).toPrivate());
+            entries = nullptr;
+        } else if (IS_WRAPPER_CLASS(clasp) && IS_SLIM_WRAPPER_OBJECT(cur)) {
             native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
             entries = GetOffsetsFromSlimWrapper(cur);
         } else {
-            *pThisRef = nullptr;
-            return NS_ERROR_ILLEGAL_VALUE;
+            MOZ_NOT_REACHED("what kind of wrapper is this?");
         }
 
         if (NS_SUCCEEDED(getNative(native, entries, cur, iid, ppThis, pThisRef, vp))) {

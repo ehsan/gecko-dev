@@ -6,7 +6,7 @@
 #include "nsDOMStorageBaseDB.h"
 #include "nsDOMStorage.h"
 
-uint64_t nsDOMStorageBaseDB::sGlobalVersion = 1;
+PRUint64 nsDOMStorageBaseDB::sGlobalVersion = 1;
 
 nsDOMStorageBaseDB::nsDOMStorageBaseDB()
 {
@@ -31,7 +31,7 @@ nsDOMStorageBaseDB::IsScopeDirty(DOMStorageImpl* aStorage)
 // protected
 
 // static
-uint64_t
+PRUint64
 nsDOMStorageBaseDB::NextGlobalVersion()
 {
   sGlobalVersion++;
@@ -40,10 +40,10 @@ nsDOMStorageBaseDB::NextGlobalVersion()
   return sGlobalVersion;
 }
 
-uint64_t
+PRUint64
 nsDOMStorageBaseDB::CachedScopeVersion(DOMStorageImpl* aStorage)
 {
-  uint64_t currentVersion;
+  PRUint64 currentVersion;
   if (mScopesVersion.Get(aStorage->GetScopeDBKey(), &currentVersion))
     return currentVersion;
 
@@ -54,7 +54,7 @@ nsDOMStorageBaseDB::CachedScopeVersion(DOMStorageImpl* aStorage)
 void
 nsDOMStorageBaseDB::MarkScopeDirty(DOMStorageImpl* aStorage)
 {
-  uint64_t nextVersion = NextGlobalVersion();
+  PRUint64 nextVersion = NextGlobalVersion();
   mScopesVersion.Put(aStorage->GetScopeDBKey(), nextVersion);
 
   // We may do this because the storage updates its cache along with

@@ -26,9 +26,9 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGMarkerFrame)
 // nsIFrame methods:
 
 NS_IMETHODIMP
-nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsSVGMarkerFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                    nsIAtom* aAttribute,
-                                   int32_t  aModType)
+                                   PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::markerUnits ||
@@ -69,7 +69,7 @@ nsSVGMarkerFrame::GetType() const
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor)
+nsSVGMarkerFrame::GetCanvasTM(PRUint32 aFor)
 {
   NS_ASSERTION(mMarkedFrame, "null nsSVGPathGeometry frame");
 
@@ -147,7 +147,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
 
 SVGBBox
 nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                          uint32_t aFlags,
+                                          PRUint32 aFlags,
                                           nsSVGPathGeometryFrame *aMarkedFrame,
                                           const nsSVGMark *aMark,
                                           float aStrokeWidth)

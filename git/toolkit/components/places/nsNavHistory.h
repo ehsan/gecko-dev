@@ -48,7 +48,7 @@
 
 // Microsecond timeout for "recent" events such as typed and bookmark following.
 // If you typed it more than this time ago, it's not recent.
-#define RECENT_EVENT_THRESHOLD PRTime((int64_t)15 * 60 * PR_USEC_PER_SEC)
+#define RECENT_EVENT_THRESHOLD PRTime((PRInt64)15 * 60 * PR_USEC_PER_SEC)
 
 #ifdef MOZ_XUL
 // Fired after autocomplete feedback has been updated.
@@ -143,7 +143,7 @@ public:
    * @note This DOES NOT check for bad URLs other than that they're nonempty.
    */
   nsresult GetIdForPage(nsIURI* aURI,
-                        int64_t* _pageId, nsCString& _GUID);
+                        PRInt64* _pageId, nsCString& _GUID);
 
   /**
    * Fetches the database id and the GUID associated to the given URI, creating
@@ -158,7 +158,7 @@ public:
    * @note This DOES NOT check for bad URLs other than that they're nonempty.
    */
   nsresult GetOrCreateIdForPage(nsIURI* aURI,
-                                int64_t* _pageId, nsCString& _GUID);
+                                PRInt64* _pageId, nsCString& _GUID);
 
   /**
    * Asynchronously recalculates frecency for a given page.
@@ -168,7 +168,7 @@ public:
    * @note If the new frecency is a non-zero value it will also unhide the page,
    *       otherwise will reuse the old hidden value.
    */
-  nsresult UpdateFrecency(int64_t aPlaceId);
+  nsresult UpdateFrecency(PRInt64 aPlaceId);
 
   /**
    * Recalculates frecency for all pages requesting that (frecency < 0). Those
@@ -197,10 +197,10 @@ public:
   nsIStringBundle* GetDateFormatBundle();
   nsICollation* GetCollation();
   void GetStringFromName(const PRUnichar* aName, nsACString& aResult);
-  void GetAgeInDaysString(int32_t aInt, const PRUnichar *aName,
+  void GetAgeInDaysString(PRInt32 aInt, const PRUnichar *aName,
                           nsACString& aResult);
-  void GetMonthName(int32_t aIndex, nsACString& aResult);
-  void GetMonthYear(int32_t aMonth, int32_t aYear, nsACString& aResult);
+  void GetMonthName(PRInt32 aIndex, nsACString& aResult);
+  void GetMonthYear(PRInt32 aMonth, PRInt32 aYear, nsACString& aResult);
 
   // Returns whether history is enabled or not.
   bool IsHistoryDisabled() {
@@ -208,22 +208,22 @@ public:
   }
 
   // Constants for the columns returned by the above statement.
-  static const int32_t kGetInfoIndex_PageID;
-  static const int32_t kGetInfoIndex_URL;
-  static const int32_t kGetInfoIndex_Title;
-  static const int32_t kGetInfoIndex_RevHost;
-  static const int32_t kGetInfoIndex_VisitCount;
-  static const int32_t kGetInfoIndex_VisitDate;
-  static const int32_t kGetInfoIndex_FaviconURL;
-  static const int32_t kGetInfoIndex_SessionId;
-  static const int32_t kGetInfoIndex_ItemId;
-  static const int32_t kGetInfoIndex_ItemDateAdded;
-  static const int32_t kGetInfoIndex_ItemLastModified;
-  static const int32_t kGetInfoIndex_ItemParentId;
-  static const int32_t kGetInfoIndex_ItemTags;
-  static const int32_t kGetInfoIndex_Frecency;
+  static const PRInt32 kGetInfoIndex_PageID;
+  static const PRInt32 kGetInfoIndex_URL;
+  static const PRInt32 kGetInfoIndex_Title;
+  static const PRInt32 kGetInfoIndex_RevHost;
+  static const PRInt32 kGetInfoIndex_VisitCount;
+  static const PRInt32 kGetInfoIndex_VisitDate;
+  static const PRInt32 kGetInfoIndex_FaviconURL;
+  static const PRInt32 kGetInfoIndex_SessionId;
+  static const PRInt32 kGetInfoIndex_ItemId;
+  static const PRInt32 kGetInfoIndex_ItemDateAdded;
+  static const PRInt32 kGetInfoIndex_ItemLastModified;
+  static const PRInt32 kGetInfoIndex_ItemParentId;
+  static const PRInt32 kGetInfoIndex_ItemTags;
+  static const PRInt32 kGetInfoIndex_Frecency;
 
-  int64_t GetTagsFolder();
+  PRInt64 GetTagsFolder();
 
   // this actually executes a query and gives you results, it is used by
   // nsNavHistoryQueryResultNode
@@ -237,17 +237,17 @@ public:
   nsresult RowToResult(mozIStorageValueArray* aRow,
                        nsNavHistoryQueryOptions* aOptions,
                        nsNavHistoryResultNode** aResult);
-  nsresult QueryRowToResult(int64_t aItemId, const nsACString& aURI,
+  nsresult QueryRowToResult(PRInt64 aItemId, const nsACString& aURI,
                             const nsACString& aTitle,
-                            uint32_t aAccessCount, PRTime aTime,
+                            PRUint32 aAccessCount, PRTime aTime,
                             const nsACString& aFavicon,
                             nsNavHistoryResultNode** aNode);
 
-  nsresult VisitIdToResultNode(int64_t visitId,
+  nsresult VisitIdToResultNode(PRInt64 visitId,
                                nsNavHistoryQueryOptions* aOptions,
                                nsNavHistoryResultNode** aResult);
 
-  nsresult BookmarkIdToResultNode(int64_t aBookmarkId,
+  nsresult BookmarkIdToResultNode(PRInt64 aBookmarkId,
                                   nsNavHistoryQueryOptions* aOptions,
                                   nsNavHistoryResultNode** aResult);
   nsresult URIToResultNode(nsIURI* aURI,
@@ -256,17 +256,17 @@ public:
 
   // used by other places components to send history notifications (for example,
   // when the favicon has changed)
-  void SendPageChangedNotification(nsIURI* aURI, uint32_t aChangedAttribute,
+  void SendPageChangedNotification(nsIURI* aURI, PRUint32 aChangedAttribute,
                                    const nsAString& aValue,
                                    const nsACString& aGUID);
 
   /**
    * Returns current number of days stored in history.
    */
-  int32_t GetDaysOfHistory();
+  PRInt32 GetDaysOfHistory();
 
   // used by query result nodes to update: see comment on body of CanLiveUpdateQuery
-  static uint32_t GetUpdateRequirements(const nsCOMArray<nsNavHistoryQuery>& aQueries,
+  static PRUint32 GetUpdateRequirements(const nsCOMArray<nsNavHistoryQuery>& aQueries,
                                         nsNavHistoryQueryOptions* aOptions,
                                         bool* aHasSearchTerms);
   bool EvaluateQueryForNode(const nsCOMArray<nsNavHistoryQuery>& aQueries,
@@ -277,7 +277,7 @@ public:
                                               nsACString& aAscii);
   void DomainNameFromURI(nsIURI* aURI,
                          nsACString& aDomainName);
-  static PRTime NormalizeTime(uint32_t aRelative, PRTime aOffset);
+  static PRTime NormalizeTime(PRUint32 aRelative, PRTime aOffset);
 
   // Don't use these directly, inside nsNavHistory use UpdateBatchScoper,
   // else use nsINavHistoryService::RunInBatchMode
@@ -285,7 +285,7 @@ public:
   nsresult EndUpdateBatch();
 
   // The level of batches' nesting, 0 when no batches are open.
-  int32_t mBatchLevel;
+  PRInt32 mBatchLevel;
   // Current active transaction for a batch.
   mozStorageTransaction* mBatchDBTransaction;
 
@@ -329,7 +329,7 @@ public:
    * @return Any recent events associated with this URI.  Each bit is set
    *         according to RecentEventFlags enum values.
    */
-  uint32_t GetRecentFlags(nsIURI *aURI);
+  PRUint32 GetRecentFlags(nsIURI *aURI);
 
   /**
    * Registers a TRANSITION_EMBED visit for the session.
@@ -339,7 +339,7 @@ public:
    * @param aTime
    *        Visit time.  Only the last registered visit time is retained.
    */
-  void registerEmbedVisit(nsIURI* aURI, int64_t aTime);
+  void registerEmbedVisit(nsIURI* aURI, PRInt64 aTime);
 
   /**
    * Returns whether the specified url has a embed visit.
@@ -355,7 +355,7 @@ public:
    */
   void clearEmbedVisits();
 
-  int32_t GetFrecencyAgedWeight(int32_t aAgeInDays) const
+  PRInt32 GetFrecencyAgedWeight(PRInt32 aAgeInDays) const
   {
     if (aAgeInDays <= mFirstBucketCutoffInDays) {
       return mFirstBucketWeight;
@@ -372,7 +372,7 @@ public:
     return mDefaultWeight;
   }
 
-  int32_t GetFrecencyBucketWeight(int32_t aBucketIndex) const
+  PRInt32 GetFrecencyBucketWeight(PRInt32 aBucketIndex) const
   {
     switch(aBucketIndex) {
       case 1:
@@ -388,7 +388,7 @@ public:
     }
   }
 
-  int32_t GetFrecencyTransitionBonus(int32_t aTransitionType,
+  PRInt32 GetFrecencyTransitionBonus(PRInt32 aTransitionType,
                                      bool aVisited) const
   {
     switch (aTransitionType) {
@@ -415,22 +415,22 @@ public:
     }
   }
 
-  int32_t GetNumVisitsForFrecency() const
+  PRInt32 GetNumVisitsForFrecency() const
   {
     return mNumVisitsForFrecency;
   }
 
-  int64_t GetNewSessionID();
+  PRInt64 GetNewSessionID();
 
   /**
    * Fires onVisit event to nsINavHistoryService observers
    */
   void NotifyOnVisit(nsIURI* aURI,
-                     int64_t aVisitID,
+                     PRInt64 aVisitID,
                      PRTime aTime,
-                     int64_t aSessionID,
-                     int64_t referringVisitID,
-                     int32_t aTransitionType,
+                     PRInt64 aSessionID,
+                     PRInt64 referringVisitID,
+                     PRInt32 aTransitionType,
                      const nsACString& aGUID);
 
   /**
@@ -460,8 +460,8 @@ protected:
    */
   nsresult DecayFrecency();
 
-  nsresult CalculateFrecency(int64_t aPageID, int32_t aTyped, int32_t aVisitCount, nsCAutoString &aURL, int32_t *aFrecency);
-  nsresult CalculateFrecencyInternal(int64_t aPageID, int32_t aTyped, int32_t aVisitCount, bool aIsBookmarked, int32_t *aFrecency);
+  nsresult CalculateFrecency(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, nsCAutoString &aURL, PRInt32 *aFrecency);
+  nsresult CalculateFrecencyInternal(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, bool aIsBookmarked, PRInt32 *aFrecency);
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
   nsresult CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString);
@@ -471,19 +471,19 @@ protected:
 
   nsresult AddVisitChain(nsIURI* aURI, PRTime aTime,
                          bool aToplevel, bool aRedirect,
-                         nsIURI* aReferrer, int64_t* aVisitID,
-                         int64_t* aSessionID);
+                         nsIURI* aReferrer, PRInt64* aVisitID,
+                         PRInt64* aSessionID);
   nsresult InternalAddNewPage(nsIURI* aURI, const nsAString& aTitle,
                               bool aHidden, bool aTyped,
-                              int32_t aVisitCount, bool aCalculateFrecency,
-                              int64_t* aPageID, nsACString& guid);
-  nsresult InternalAddVisit(int64_t aPageID, int64_t aReferringVisit,
-                            int64_t aSessionID, PRTime aTime,
-                            int32_t aTransitionType, int64_t* aVisitID);
+                              PRInt32 aVisitCount, bool aCalculateFrecency,
+                              PRInt64* aPageID, nsACString& guid);
+  nsresult InternalAddVisit(PRInt64 aPageID, PRInt64 aReferringVisit,
+                            PRInt64 aSessionID, PRTime aTime,
+                            PRInt32 aTransitionType, PRInt64* aVisitID);
   bool FindLastVisit(nsIURI* aURI,
-                       int64_t* aVisitID,
+                       PRInt64* aVisitID,
                        PRTime* aTime,
-                       int64_t* aSessionID);
+                       PRInt64* aSessionID);
   bool IsURIStringVisited(const nsACString& url);
 
   /**
@@ -515,10 +515,10 @@ protected:
 
   nsresult QueryToSelectClause(nsNavHistoryQuery* aQuery,
                                nsNavHistoryQueryOptions* aOptions,
-                               int32_t aQueryIndex,
+                               PRInt32 aQueryIndex,
                                nsCString* aClause);
   nsresult BindQueryClauseParameters(mozIStorageBaseStatement* statement,
-                                     int32_t aQueryIndex,
+                                     PRInt32 aQueryIndex,
                                      nsNavHistoryQuery* aQuery,
                                      nsNavHistoryQueryOptions* aOptions);
 
@@ -549,7 +549,7 @@ protected:
   nsCOMPtr<nsICollation> mCollation;
 
   // recent events
-  typedef nsDataHashtable<nsCStringHashKey, int64_t> RecentEventHash;
+  typedef nsDataHashtable<nsCStringHashKey, PRInt64> RecentEventHash;
   RecentEventHash mRecentTyped;
   RecentEventHash mRecentLink;
   RecentEventHash mRecentBookmark;
@@ -577,10 +577,10 @@ protected:
   void ExpireNonrecentEvents(RecentEventHash* hashTable);
 
   // Sessions tracking.
-  int64_t mLastSessionID;
+  PRInt64 mLastSessionID;
 
 #ifdef MOZ_XUL
-  nsresult AutoCompleteFeedback(int32_t aIndex,
+  nsresult AutoCompleteFeedback(PRInt32 aIndex,
                                 nsIAutoCompleteController *aController);
 #endif
 
@@ -589,38 +589,38 @@ protected:
   bool mHistoryEnabled;
 
   // Frecency preferences.
-  int32_t mNumVisitsForFrecency;
-  int32_t mFirstBucketCutoffInDays;
-  int32_t mSecondBucketCutoffInDays;
-  int32_t mThirdBucketCutoffInDays;
-  int32_t mFourthBucketCutoffInDays;
-  int32_t mFirstBucketWeight;
-  int32_t mSecondBucketWeight;
-  int32_t mThirdBucketWeight;
-  int32_t mFourthBucketWeight;
-  int32_t mDefaultWeight;
-  int32_t mEmbedVisitBonus;
-  int32_t mFramedLinkVisitBonus;
-  int32_t mLinkVisitBonus;
-  int32_t mTypedVisitBonus;
-  int32_t mBookmarkVisitBonus;
-  int32_t mDownloadVisitBonus;
-  int32_t mPermRedirectVisitBonus;
-  int32_t mTempRedirectVisitBonus;
-  int32_t mDefaultVisitBonus;
-  int32_t mUnvisitedBookmarkBonus;
-  int32_t mUnvisitedTypedBonus;
+  PRInt32 mNumVisitsForFrecency;
+  PRInt32 mFirstBucketCutoffInDays;
+  PRInt32 mSecondBucketCutoffInDays;
+  PRInt32 mThirdBucketCutoffInDays;
+  PRInt32 mFourthBucketCutoffInDays;
+  PRInt32 mFirstBucketWeight;
+  PRInt32 mSecondBucketWeight;
+  PRInt32 mThirdBucketWeight;
+  PRInt32 mFourthBucketWeight;
+  PRInt32 mDefaultWeight;
+  PRInt32 mEmbedVisitBonus;
+  PRInt32 mFramedLinkVisitBonus;
+  PRInt32 mLinkVisitBonus;
+  PRInt32 mTypedVisitBonus;
+  PRInt32 mBookmarkVisitBonus;
+  PRInt32 mDownloadVisitBonus;
+  PRInt32 mPermRedirectVisitBonus;
+  PRInt32 mTempRedirectVisitBonus;
+  PRInt32 mDefaultVisitBonus;
+  PRInt32 mUnvisitedBookmarkBonus;
+  PRInt32 mUnvisitedTypedBonus;
 
   // in nsNavHistoryQuery.cpp
   nsresult TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
                            nsCOMArray<nsNavHistoryQuery>* aQueries,
                            nsNavHistoryQueryOptions* aOptions);
 
-  int64_t mTagsFolder;
+  PRInt64 mTagsFolder;
 
   bool mInPrivateBrowsing;
 
-  int8_t mHasHistoryEntries;
+  PRInt8 mHasHistoryEntries;
 
   // Used to enable and disable the observer notifications
   bool mCanNotify;

@@ -108,7 +108,7 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             uint32_t argc,
+             PRUint32 argc,
              jsval* argv,
              jsval* vp,
              bool* _retval)

@@ -18,7 +18,7 @@ namespace mozilla {
 namespace scache {
 
 NS_EXPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, uint32_t len, 
+NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
                                nsIObjectInputStream** stream)
 {
   nsCOMPtr<nsIStringInputStream> stringStream
@@ -72,21 +72,21 @@ NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
 
 NS_EXPORT nsresult
 NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, uint32_t* len) 
+                           char** buffer, PRUint32* len) 
 {
   nsresult rv;
   nsCOMPtr<nsIInputStream> inputStream;
   rv = storageStream->NewInputStream(0, getter_AddRefs(inputStream));
   NS_ENSURE_SUCCESS(rv, rv);
   
-  uint64_t avail64;
+  PRUint64 avail64;
   rv = inputStream->Available(&avail64);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(avail64 <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
-  uint32_t avail = (uint32_t)avail64;
+  PRUint32 avail = (PRUint32)avail64;
   nsAutoArrayPtr<char> temp (new char[avail]);
-  uint32_t read;
+  PRUint32 read;
   rv = inputStream->Read(temp, avail, &read);
   if (NS_SUCCEEDED(rv) && avail != read)
     rv = NS_ERROR_UNEXPECTED;

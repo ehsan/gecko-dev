@@ -77,8 +77,8 @@ struct GfxDriverInfo
   // If |ownDevices| is true, you are transferring ownership of the devices
   // array, and it will be deleted when this GfxDriverInfo is destroyed.
   GfxDriverInfo(OperatingSystem os, nsAString& vendor, GfxDeviceFamily* devices,
-                int32_t feature, int32_t featureStatus, VersionComparisonOp op,
-                uint64_t driverVersion, const char *suggestedVersion = nullptr,
+                PRInt32 feature, PRInt32 featureStatus, VersionComparisonOp op,
+                PRUint64 driverVersion, const char *suggestedVersion = nullptr,
                 bool ownDevices = false);
 
   GfxDriverInfo();
@@ -97,18 +97,18 @@ struct GfxDriverInfo
   bool mDeleteDevices;
 
   /* A feature from nsIGfxInfo, or all features */
-  int32_t mFeature;
-  static int32_t allFeatures;
+  PRInt32 mFeature;
+  static PRInt32 allFeatures;
 
   /* A feature status from nsIGfxInfo */
-  int32_t mFeatureStatus;
+  PRInt32 mFeatureStatus;
 
   VersionComparisonOp mComparisonOp;
 
   /* versions are assumed to be A.B.C.D packed as 0xAAAABBBBCCCCDDDD */
-  uint64_t mDriverVersion;
-  uint64_t mDriverVersionMax;
-  static uint64_t allDriverVersions;
+  PRUint64 mDriverVersion;
+  PRUint64 mDriverVersionMax;
+  static PRUint64 allDriverVersions;
 
   const char *mSuggestedVersion;
 
@@ -120,10 +120,10 @@ struct GfxDriverInfo
 };
 
 #define GFX_DRIVER_VERSION(a,b,c,d) \
-  ((uint64_t(a)<<48) | (uint64_t(b)<<32) | (uint64_t(c)<<16) | uint64_t(d))
+  ((PRUint64(a)<<48) | (PRUint64(b)<<32) | (PRUint64(c)<<16) | PRUint64(d))
 
 inline bool
-ParseDriverVersion(nsAString& aVersion, uint64_t *aNumericVersion)
+ParseDriverVersion(nsAString& aVersion, PRUint64 *aNumericVersion)
 {
 #if defined(XP_WIN)
   int a, b, c, d;

@@ -66,7 +66,7 @@ public:
     PCompositorChild* AllocPCompositor(mozilla::ipc::Transport* aTransport,
                                        base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
-    virtual PBrowserChild* AllocPBrowser(const uint32_t& aChromeFlags,
+    virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
                                          const bool& aIsBrowserElement,
                                          const AppId& aAppId);
     virtual bool DeallocPBrowser(PBrowserChild*);
@@ -79,7 +79,7 @@ public:
 
     virtual PCrashReporterChild*
     AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                        const uint32_t& processType);
+                        const PRUint32& processType);
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild*);
 
@@ -102,9 +102,9 @@ public:
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
 
-    virtual PAudioChild* AllocPAudio(const int32_t&,
-                                     const int32_t&,
-                                     const int32_t&);
+    virtual PAudioChild* AllocPAudio(const PRInt32&,
+                                     const PRInt32&,
+                                     const PRInt32&);
     virtual bool DeallocPAudio(PAudioChild*);
 
     virtual PNeckoChild* AllocPNecko();
@@ -115,7 +115,7 @@ public:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const int64_t& aContentLength,
+            const PRInt64& aContentLength,
             const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
@@ -136,7 +136,8 @@ public:
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
-    virtual bool RecvPreferenceUpdate(const PrefSetting& aPref);
+    virtual bool RecvPreferenceUpdate(const PrefTuple& aPref);
+    virtual bool RecvClearUserPreference(const nsCString& aPrefName);
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
 
@@ -157,14 +158,12 @@ public:
     virtual bool RecvCycleCollect();
 
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
-    virtual bool RecvSetProcessAttributes(const uint64_t& id,
-                                          const bool& aIsForApp,
-                                          const bool& aIsForBrowser);
+    virtual bool RecvSetID(const PRUint64 &id);
 
     virtual bool RecvLastPrivateDocShellDestroyed();
 
     virtual bool RecvFilePathUpdate(const nsString& path, const nsCString& reason);
-    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const int32_t& aState);
+    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const PRInt32& aState);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
@@ -174,10 +173,7 @@ public:
     // cache the value
     nsString &GetIndexedDBPath();
 
-    uint64_t GetID() { return mID; }
-
-    bool IsForApp() { return mIsForApp; }
-    bool IsForBrowser() { return mIsForBrowser; }
+    PRUint64 GetID() { return mID; }
 
     BlobChild* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
 
@@ -202,16 +198,13 @@ private:
      * We expect our content parent to set this ID immediately after opening a
      * channel to us.
      */
-    uint64_t mID;
+    PRUint64 mID;
 
     AppInfo mAppInfo;
 
 #ifdef ANDROID
     gfxIntSize mScreenSize;
 #endif
-
-    bool mIsForApp;
-    bool mIsForBrowser;
 
     static ContentChild* sSingleton;
 

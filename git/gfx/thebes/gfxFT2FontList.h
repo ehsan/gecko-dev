@@ -42,7 +42,7 @@ public:
     // create a font entry for a downloaded font
     static FT2FontEntry* 
     CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
-                    const uint8_t *aFontData, uint32_t aLength);
+                    const PRUint8 *aFontData, PRUint32 aLength);
 
     // create a font entry representing an installed font, identified by
     // a FontListEntry; the freetype and cairo faces will not be instantiated
@@ -55,9 +55,9 @@ public:
     // aFontData (if non-NULL) is NS_Malloc'ed data that aFace depends on,
     // to be freed after the face is destroyed
     static FT2FontEntry* 
-    CreateFontEntry(FT_Face aFace, const char *aFilename, uint8_t aIndex,
+    CreateFontEntry(FT_Face aFace, const char *aFilename, PRUint8 aIndex,
                     const nsAString& aName,
-                    const uint8_t *aFontData = nullptr);
+                    const PRUint8 *aFontData = nullptr);
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle,
                                         bool aNeedsBold);
@@ -66,7 +66,7 @@ public:
     cairo_scaled_font_t *CreateScaledFont(const gfxFontStyle *aStyle);
 
     nsresult ReadCMAP();
-    nsresult GetFontTable(uint32_t aTableTag, FallibleTArray<uint8_t>& aBuffer);
+    nsresult GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer);
 
     // Check for various kinds of brokenness, and set flags on the entry
     // accordingly so that we avoid using bad font tables
@@ -81,7 +81,7 @@ public:
     cairo_font_face_t *mFontFace;
 
     nsCString mFilename;
-    uint8_t mFTFontIndex;
+    PRUint8 mFTFontIndex;
 };
 
 class FT2FontFamily : public gfxFontFamily
@@ -106,8 +106,8 @@ public:
                                           const nsAString& aFontName);
 
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
-                                           uint32_t aLength);
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
 
     void GetFontList(InfallibleTArray<FontListEntry>* retValue);
 

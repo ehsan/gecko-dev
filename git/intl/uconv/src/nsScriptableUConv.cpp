@@ -14,7 +14,7 @@
 #include "nsCRT.h"
 #include "nsComponentManagerUtils.h"
 
-static int32_t          gInstanceCount = 0;
+static PRInt32          gInstanceCount = 0;
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
@@ -32,14 +32,14 @@ nsScriptableUnicodeConverter::~nsScriptableUnicodeConverter()
 
 nsresult
 nsScriptableUnicodeConverter::ConvertFromUnicodeWithLength(const nsAString& aSrc,
-                                                           int32_t* aOutLen,
+                                                           PRInt32* aOutLen,
                                                            char **_retval)
 {
   if (!mEncoder)
     return NS_ERROR_FAILURE;
 
   nsresult rv = NS_OK;
-  int32_t inLength = aSrc.Length();
+  PRInt32 inLength = aSrc.Length();
   const nsAFlatString& flatSrc = PromiseFlatString(aSrc);
   rv = mEncoder->GetMaxLength(flatSrc.get(), inLength, aOutLen);
   if (NS_SUCCEEDED(rv)) {
@@ -64,7 +64,7 @@ NS_IMETHODIMP
 nsScriptableUnicodeConverter::ConvertFromUnicode(const nsAString& aSrc,
                                                  nsACString& _retval)
 {
-  int32_t len;
+  PRInt32 len;
   char* str;
   nsresult rv = ConvertFromUnicodeWithLength(aSrc, &len, &str);
   if (NS_SUCCEEDED(rv)) {
@@ -76,12 +76,12 @@ nsScriptableUnicodeConverter::ConvertFromUnicode(const nsAString& aSrc,
 }
 
 nsresult
-nsScriptableUnicodeConverter::FinishWithLength(char **_retval, int32_t* aLength)
+nsScriptableUnicodeConverter::FinishWithLength(char **_retval, PRInt32* aLength)
 {
   if (!mEncoder)
     return NS_ERROR_FAILURE;
 
-  int32_t finLength = 32;
+  PRInt32 finLength = 32;
 
   *_retval = (char *)moz_malloc(finLength);
   if (!*_retval)
@@ -101,7 +101,7 @@ nsScriptableUnicodeConverter::FinishWithLength(char **_retval, int32_t* aLength)
 NS_IMETHODIMP
 nsScriptableUnicodeConverter::Finish(nsACString& _retval)
 {
-  int32_t len;
+  PRInt32 len;
   char* str;
   nsresult rv = FinishWithLength(&str, &len);
   if (NS_SUCCEEDED(rv)) {
@@ -118,7 +118,7 @@ nsScriptableUnicodeConverter::ConvertToUnicode(const nsACString& aSrc, nsAString
 {
   nsACString::const_iterator i;
   aSrc.BeginReading(i);
-  return ConvertFromByteArray(reinterpret_cast<const uint8_t*>(i.get()),
+  return ConvertFromByteArray(reinterpret_cast<const PRUint8*>(i.get()),
                               aSrc.Length(),
                               _retval);
 }
@@ -127,16 +127,16 @@ nsScriptableUnicodeConverter::ConvertToUnicode(const nsACString& aSrc, nsAString
                                 in unsigned long aCount);
  */
 NS_IMETHODIMP
-nsScriptableUnicodeConverter::ConvertFromByteArray(const uint8_t* aData,
-                                                   uint32_t aCount,
+nsScriptableUnicodeConverter::ConvertFromByteArray(const PRUint8* aData,
+                                                   PRUint32 aCount,
                                                    nsAString& _retval)
 {
   if (!mDecoder)
     return NS_ERROR_FAILURE;
 
   nsresult rv = NS_OK;
-  int32_t inLength = aCount;
-  int32_t outLength;
+  PRInt32 inLength = aCount;
+  PRInt32 outLength;
   rv = mDecoder->GetMaxLength(reinterpret_cast<const char*>(aData),
                               inLength, &outLength);
   if (NS_SUCCEEDED(rv))
@@ -165,11 +165,11 @@ nsScriptableUnicodeConverter::ConvertFromByteArray(const uint8_t* aData,
  */
 NS_IMETHODIMP
 nsScriptableUnicodeConverter::ConvertToByteArray(const nsAString& aString,
-                                                 uint32_t* aLen,
-                                                 uint8_t** _aData)
+                                                 PRUint32* aLen,
+                                                 PRUint8** _aData)
 {
   char* data;
-  int32_t len;
+  PRInt32 len;
   nsresult rv = ConvertFromUnicodeWithLength(aString, &len, &data);
   if (NS_FAILED(rv))
     return rv;
@@ -183,7 +183,7 @@ nsScriptableUnicodeConverter::ConvertToByteArray(const nsAString& aString,
   str.Append(data, len);
   moz_free(data);
   // NOTE: this being a byte array, it needs no null termination
-  *_aData = reinterpret_cast<uint8_t*>(moz_malloc(str.Length()));
+  *_aData = reinterpret_cast<PRUint8*>(moz_malloc(str.Length()));
   if (!*_aData)
     return NS_ERROR_OUT_OF_MEMORY;
   memcpy(*_aData, str.get(), str.Length());
@@ -202,8 +202,8 @@ nsScriptableUnicodeConverter::ConvertToInputStream(const nsAString& aString,
   if (NS_FAILED(rv))
     return rv;
 
-  uint8_t* data;
-  uint32_t dataLen;
+  PRUint8* data;
+  PRUint32 dataLen;
   rv = ConvertToByteArray(aString, &dataLen, &data);
   if (NS_FAILED(rv))
     return rv;

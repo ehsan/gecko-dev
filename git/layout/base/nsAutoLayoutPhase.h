@@ -70,7 +70,7 @@ struct nsAutoLayoutPhase {
 private:
   nsPresContext* mPresContext;
   nsLayoutPhase mPhase;
-  uint32_t mCount;
+  PRUint32 mCount;
 };
 
 #define AUTO_LAYOUT_PHASE_ENTRY_POINT(pc_, phase_) \

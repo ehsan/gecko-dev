@@ -84,7 +84,7 @@ private:
   nsCOMPtr<nsIRequestObserver> mParserObserver;
   bool mIsAsyncParse;
   static bool TryChannelCharset(nsIChannel *aChannel,
-                                  int32_t& aCharsetSource,
+                                  PRInt32& aCharsetSource,
                                   nsACString& aCharset);
   nsresult EnsureBaseURI();
   nsresult InitParser(nsIRequestObserver *aListener, nsIChannel *aChannel);

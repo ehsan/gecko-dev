@@ -46,14 +46,14 @@ public:
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsSVGGeometryFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGGeometry));
   }
 
   // nsSVGGeometryFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor) = 0;
-  uint16_t GetClipRule();
+  virtual gfxMatrix GetCanvasTM(PRUint32 aFor) = 0;
+  PRUint16 GetClipRule();
 
 protected:
   /**
@@ -62,7 +62,7 @@ protected:
    * into account the type of element and the value of the 'pointer-events'
    * property on the element.
    */
-  virtual uint16_t GetHitTestFlags();
+  virtual PRUint16 GetHitTestFlags();
 };
 
 #endif // __NS_SVGGEOMETRYFRAME_H__

@@ -53,7 +53,7 @@ nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
     case NS_SCROLLPORT_EVENT:
     {
       nsScrollPortEvent* scrollEvent = static_cast<nsScrollPortEvent*>(mEvent);
-      mDetail = (int32_t)scrollEvent->orient;
+      mDetail = (PRInt32)scrollEvent->orient;
       break;
     }
 
@@ -146,7 +146,7 @@ nsDOMUIEvent::GetView(nsIDOMWindow** aView)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetDetail(int32_t* aDetail)
+nsDOMUIEvent::GetDetail(PRInt32* aDetail)
 {
   *aDetail = mDetail;
   return NS_OK;
@@ -157,7 +157,7 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
                           bool canBubbleArg,
                           bool cancelableArg,
                           nsIDOMWindow* viewArg,
-                          int32_t detailArg)
+                          PRInt32 detailArg)
 {
   nsresult rv = nsDOMEvent::InitEvent(typeArg, canBubbleArg, cancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -203,7 +203,7 @@ nsDOMUIEvent::GetPagePoint()
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetPageX(int32_t* aPageX)
+nsDOMUIEvent::GetPageX(PRInt32* aPageX)
 {
   NS_ENSURE_ARG_POINTER(aPageX);
   if (mPrivateDataDuplicated) {
@@ -218,7 +218,7 @@ nsDOMUIEvent::GetPageX(int32_t* aPageX)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetPageY(int32_t* aPageY)
+nsDOMUIEvent::GetPageY(PRInt32* aPageY)
 {
   NS_ENSURE_ARG_POINTER(aPageY);
   if (mPrivateDataDuplicated) {
@@ -233,7 +233,7 @@ nsDOMUIEvent::GetPageY(int32_t* aPageY)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetWhich(uint32_t* aWhich)
+nsDOMUIEvent::GetWhich(PRUint32* aWhich)
 {
   return Which(aWhich);
 }
@@ -267,7 +267,7 @@ nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetRangeOffset(int32_t* aRangeOffset)
+nsDOMUIEvent::GetRangeOffset(PRInt32* aRangeOffset)
 {
   NS_ENSURE_ARG_POINTER(aRangeOffset);
   nsIFrame* targetFrame = nullptr;
@@ -333,7 +333,7 @@ nsDOMUIEvent::GetLayerPoint()
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetLayerX(int32_t* aLayerX)
+nsDOMUIEvent::GetLayerX(PRInt32* aLayerX)
 {
   NS_ENSURE_ARG_POINTER(aLayerX);
   *aLayerX = GetLayerPoint().x;
@@ -341,7 +341,7 @@ nsDOMUIEvent::GetLayerX(int32_t* aLayerX)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetLayerY(int32_t* aLayerY)
+nsDOMUIEvent::GetLayerY(PRInt32* aLayerY)
 {
   NS_ENSURE_ARG_POINTER(aLayerY);
   *aLayerY = GetLayerPoint().y;
@@ -398,7 +398,7 @@ nsDOMUIEvent::Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType)
 
   nsDOMEvent::Serialize(aMsg, false);
 
-  int32_t detail = 0;
+  PRInt32 detail = 0;
   GetDetail(&detail);
   IPC::WriteParam(aMsg, detail);
 }
@@ -451,7 +451,7 @@ nsDOMUIEvent::ComputeModifierState(const nsAString& aModifiersList)
   aModifiersList.BeginReading(listStart);
   aModifiersList.EndReading(listEnd);
 
-  for (uint32_t i = 0; i < mozilla::ArrayLength(kPairs); i++) {
+  for (PRUint32 i = 0; i < mozilla::ArrayLength(kPairs); i++) {
     nsAString::const_iterator start(listStart), end(listEnd);
     if (!FindInReadable(NS_ConvertASCIItoUTF16(kPairs[i].name), start, end)) {
       continue;

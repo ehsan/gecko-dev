@@ -59,11 +59,11 @@ nsEntityConverter::LoadVersionPropertyFile()
     mVersionList = new nsEntityVersionList[mVersionListLength];
     if (!mVersionList) return NS_ERROR_OUT_OF_MEMORY;
 
-    for (uint32_t i = 0; i < mVersionListLength && NS_SUCCEEDED(rv); i++) {
+    for (PRUint32 i = 0; i < mVersionListLength && NS_SUCCEEDED(rv); i++) {
         key.SetLength(0);
         key.AppendInt(i+1, 10);
         rv = entities->GetStringFromName(key.get(), getter_Copies(value));
-        uint32_t len = value.Length();
+        PRUint32 len = value.Length();
         if (kVERSION_STRING_LEN < len) return NS_ERROR_UNEXPECTED;
         
         memcpy(mVersionList[i].mEntityListName, value.get(), len*sizeof(PRUnichar));
@@ -75,7 +75,7 @@ nsEntityConverter::LoadVersionPropertyFile()
 }
 
 already_AddRefed<nsIStringBundle>
-nsEntityConverter::LoadEntityBundle(uint32_t version)
+nsEntityConverter::LoadEntityBundle(PRUint32 version)
 {
   nsCAutoString url(NS_LITERAL_CSTRING("resource://gre/res/entityTables/"));
   const PRUnichar *versionName = NULL;
@@ -101,9 +101,9 @@ nsEntityConverter::LoadEntityBundle(uint32_t version)
 }
 
 const PRUnichar*
-nsEntityConverter:: GetVersionName(uint32_t versionNumber)
+nsEntityConverter:: GetVersionName(PRUint32 versionNumber)
 {
-  for (uint32_t i = 0; i < mVersionListLength; i++) {
+  for (PRUint32 i = 0; i < mVersionListLength; i++) {
     if (versionNumber == mVersionList[i].mVersion)
       return mVersionList[i].mEntityListName;
   }
@@ -112,7 +112,7 @@ nsEntityConverter:: GetVersionName(uint32_t versionNumber)
 }
 
 nsIStringBundle*
-nsEntityConverter:: GetVersionBundleInstance(uint32_t versionNumber)
+nsEntityConverter:: GetVersionBundleInstance(PRUint32 versionNumber)
 {
   if (NULL == mVersionList) {
     // load the property file which contains available version names
@@ -121,7 +121,7 @@ nsEntityConverter:: GetVersionBundleInstance(uint32_t versionNumber)
     if (NS_FAILED(rv)) return NULL;
   }
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < mVersionListLength; i++) {
     if (versionNumber == mVersionList[i].mVersion) {
       if (!mVersionList[i].mEntities)
@@ -148,20 +148,20 @@ NS_IMPL_ISUPPORTS1(nsEntityConverter,nsIEntityConverter)
 // nsIEntityConverter
 //
 NS_IMETHODIMP
-nsEntityConverter::ConvertToEntity(PRUnichar character, uint32_t entityVersion, char **_retval)
+nsEntityConverter::ConvertToEntity(PRUnichar character, PRUint32 entityVersion, char **_retval)
 { 
-  return ConvertUTF32ToEntity((uint32_t)character, entityVersion, _retval);
+  return ConvertUTF32ToEntity((PRUint32)character, entityVersion, _retval);
 }
 
 NS_IMETHODIMP
-nsEntityConverter::ConvertUTF32ToEntity(uint32_t character, uint32_t entityVersion, char **_retval)
+nsEntityConverter::ConvertUTF32ToEntity(PRUint32 character, PRUint32 entityVersion, char **_retval)
 {
   NS_ASSERTION(_retval, "null ptr- _retval");
   if(nullptr == _retval)
     return NS_ERROR_NULL_POINTER;
   *_retval = NULL;
 
-  for (uint32_t mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
+  for (PRUint32 mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
     if (0 == (entityVersion & mask)) 
       continue;
     nsIStringBundle* entities = GetVersionBundleInstance(entityVersion & mask);
@@ -187,7 +187,7 @@ nsEntityConverter::ConvertUTF32ToEntity(uint32_t character, uint32_t entityVersi
 }
 
 NS_IMETHODIMP
-nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityVersion, PRUnichar **_retval)
+nsEntityConverter::ConvertToEntities(const PRUnichar *inString, PRUint32 entityVersion, PRUnichar **_retval)
 {
   NS_ASSERTION(inString, "null ptr- inString");
   NS_ASSERTION(_retval, "null ptr- _retval");
@@ -199,8 +199,8 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityV
   nsString outString;
 
   // per character look for the entity
-  uint32_t len = NS_strlen(inString);
-  for (uint32_t i = 0; i < len; i++) {
+  PRUint32 len = NS_strlen(inString);
+  for (PRUint32 i = 0; i < len; i++) {
     nsAutoString key(NS_LITERAL_STRING("entity."));
     if (NS_IS_HIGH_SURROGATE(inString[i]) &&
         i + 2 < len &&
@@ -215,7 +215,7 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityV
     nsXPIDLString value;
     
     entity = NULL;
-    for (uint32_t mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
+    for (PRUint32 mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
       if (0 == (entityVersion & mask)) 
          continue;
       nsIStringBundle* entities = GetVersionBundleInstance(entityVersion & mask);

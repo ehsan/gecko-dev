@@ -51,14 +51,14 @@ public:
    * Methods for creating nodeinfo's from atoms and/or strings.
    */
   already_AddRefed<nsINodeInfo> GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                                            int32_t aNamespaceID,
-                                            uint16_t aNodeType,
+                                            PRInt32 aNamespaceID,
+                                            PRUint16 aNodeType,
                                             nsIAtom* aExtraName = nullptr);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                       int32_t aNamespaceID, uint16_t aNodeType,
+                       PRInt32 aNamespaceID, PRUint16 aNodeType,
                        nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                       const nsAString& aNamespaceURI, uint16_t aNodeType,
+                       const nsAString& aNamespaceURI, PRUint16 aNodeType,
                        nsINodeInfo** aNodeInfo);
 
   /**
@@ -123,7 +123,7 @@ private:
 
   PLHashTable *mNodeInfoHash;
   nsIDocument *mDocument; // WEAK
-  uint32_t mNonDocumentNodeInfos;
+  PRUint32 mNonDocumentNodeInfos;
   nsIPrincipal *mPrincipal; // STRONG, but not nsCOMPtr to avoid include hell
                             // while inlining DocumentPrincipal().  Never null
                             // after Init() succeeds.

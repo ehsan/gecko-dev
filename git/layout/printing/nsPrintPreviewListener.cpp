@@ -98,7 +98,7 @@ enum eEventAction {
 static eEventAction
 GetActionForEvent(nsIDOMEvent* aEvent)
 {
-  static const uint32_t kOKKeyCodes[] = {
+  static const PRUint32 kOKKeyCodes[] = {
     nsIDOMKeyEvent::DOM_VK_PAGE_UP, nsIDOMKeyEvent::DOM_VK_PAGE_DOWN,
     nsIDOMKeyEvent::DOM_VK_UP,      nsIDOMKeyEvent::DOM_VK_DOWN, 
     nsIDOMKeyEvent::DOM_VK_HOME,    nsIDOMKeyEvent::DOM_VK_END 
@@ -114,19 +114,19 @@ GetActionForEvent(nsIDOMEvent* aEvent)
 
     keyEvent->GetShiftKey(&b);
 
-    uint32_t keyCode;
+    PRUint32 keyCode;
     keyEvent->GetKeyCode(&keyCode);
     if (keyCode == nsIDOMKeyEvent::DOM_VK_TAB)
       return b ? eEventAction_ShiftTab : eEventAction_Tab;
 
-    uint32_t charCode;
+    PRUint32 charCode;
     keyEvent->GetCharCode(&charCode);
     if (charCode == ' ' || keyCode == nsIDOMKeyEvent::DOM_VK_SPACE)
       return eEventAction_Propagate;
 
     if (b) return eEventAction_Suppress;
 
-    for (uint32_t i = 0; i < sizeof(kOKKeyCodes)/sizeof(kOKKeyCodes[0]); ++i) {
+    for (PRUint32 i = 0; i < sizeof(kOKKeyCodes)/sizeof(kOKKeyCodes[0]); ++i) {
       if (keyCode == kOKKeyCodes[i]) {
         return eEventAction_Propagate;
       }

@@ -47,7 +47,7 @@ nsSecretDecoderRing::~nsSecretDecoderRing()
 
 /* [noscript] long encrypt (in buffer data, in long dataLen, out buffer result); */
 NS_IMETHODIMP nsSecretDecoderRing::
-Encrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t *_retval)
+Encrypt(unsigned char * data, PRInt32 dataLen, unsigned char * *result, PRInt32 *_retval)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
@@ -91,7 +91,7 @@ loser:
 
 /* [noscript] long decrypt (in buffer data, in long dataLen, out buffer result); */
 NS_IMETHODIMP nsSecretDecoderRing::
-Decrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t *_retval)
+Decrypt(unsigned char * data, PRInt32 dataLen, unsigned char * *result, PRInt32 *_retval)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
@@ -138,7 +138,7 @@ EncryptString(const char *text, char **_retval)
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   unsigned char *encrypted = 0;
-  int32_t eLen;
+  PRInt32 eLen;
 
   if (text == nullptr || _retval == nullptr) {
     rv = NS_ERROR_INVALID_POINTER;
@@ -164,9 +164,9 @@ DecryptString(const char *crypt, char **_retval)
   nsresult rv = NS_OK;
   char *r = 0;
   unsigned char *decoded = 0;
-  int32_t decodedLen;
+  PRInt32 decodedLen;
   unsigned char *decrypted = 0;
-  int32_t decryptedLen;
+  PRInt32 decryptedLen;
 
   if (crypt == nullptr || _retval == nullptr) {
     rv = NS_ERROR_INVALID_POINTER;
@@ -293,7 +293,7 @@ SetWindow(nsISupports *w)
 // Support routines
 
 nsresult nsSecretDecoderRing::
-encode(const unsigned char *data, int32_t dataLen, char **_retval)
+encode(const unsigned char *data, PRInt32 dataLen, char **_retval)
 {
   nsresult rv = NS_OK;
 
@@ -309,10 +309,10 @@ loser:
 }
 
 nsresult nsSecretDecoderRing::
-decode(const char *data, unsigned char **result, int32_t * _retval)
+decode(const char *data, unsigned char **result, PRInt32 * _retval)
 {
   nsresult rv = NS_OK;
-  uint32_t len = PL_strlen(data);
+  PRUint32 len = PL_strlen(data);
   int adjust = 0;
 
   /* Compute length adjustment */

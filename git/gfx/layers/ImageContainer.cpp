@@ -39,11 +39,9 @@ using mozilla::gfx::SourceSurface;
 namespace mozilla {
 namespace layers {
 
-int32_t Image::sSerialCounter = 0;
-
 already_AddRefed<Image>
 ImageFactory::CreateImage(const ImageFormat *aFormats,
-                          uint32_t aNumFormats,
+                          PRUint32 aNumFormats,
                           const gfxIntSize &,
                           BufferRecycleBin *aRecycleBin)
 {
@@ -90,7 +88,7 @@ BufferRecycleBin::BufferRecycleBin()
 }
 
 void
-BufferRecycleBin::RecycleBuffer(uint8_t* aBuffer, uint32_t aSize)
+BufferRecycleBin::RecycleBuffer(PRUint8* aBuffer, PRUint32 aSize)
 {
   MutexAutoLock lock(mLock);
 
@@ -101,16 +99,16 @@ BufferRecycleBin::RecycleBuffer(uint8_t* aBuffer, uint32_t aSize)
   mRecycledBuffers.AppendElement(aBuffer);
 }
 
-uint8_t*
-BufferRecycleBin::GetBuffer(uint32_t aSize)
+PRUint8*
+BufferRecycleBin::GetBuffer(PRUint32 aSize)
 {
   MutexAutoLock lock(mLock);
 
   if (mRecycledBuffers.IsEmpty() || mRecycledBufferSize != aSize)
-    return new uint8_t[aSize];
+    return new PRUint8[aSize];
 
-  uint32_t last = mRecycledBuffers.Length() - 1;
-  uint8_t* result = mRecycledBuffers[last].forget();
+  PRUint32 last = mRecycledBuffers.Length() - 1;
+  PRUint8* result = mRecycledBuffers[last].forget();
   mRecycledBuffers.RemoveElementAt(last);
   return result;
 }
@@ -141,7 +139,7 @@ ImageContainer::~ImageContainer()
 
 already_AddRefed<Image>
 ImageContainer::CreateImage(const ImageFormat *aFormats,
-                            uint32_t aNumFormats)
+                            PRUint32 aNumFormats)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   return mImageFactory->CreateImage(aFormats, aNumFormats, mScaleHint, mRecycleBin);
@@ -196,7 +194,7 @@ bool ImageContainer::IsAsync() const {
   return mImageContainerChild != nullptr;
 }
 
-uint64_t ImageContainer::GetAsyncContainerID() const
+PRUint64 ImageContainer::GetAsyncContainerID() const
 {
   NS_ASSERTION(IsAsync(),"Shared image ID is only relevant to async ImageContainers");
   if (IsAsync()) {
@@ -405,26 +403,26 @@ PlanarYCbCrImage::~PlanarYCbCrImage()
   }
 }
 
-uint8_t* 
-PlanarYCbCrImage::AllocateBuffer(uint32_t aSize)
+PRUint8* 
+PlanarYCbCrImage::AllocateBuffer(PRUint32 aSize)
 {
   return mRecycleBin->GetBuffer(aSize); 
 }
 
 static void
-CopyPlane(uint8_t *aDst, uint8_t *aSrc,
-          const gfxIntSize &aSize, int32_t aStride,
-          int32_t aOffset, int32_t aSkip)
+CopyPlane(PRUint8 *aDst, PRUint8 *aSrc,
+          const gfxIntSize &aSize, PRInt32 aStride,
+          PRInt32 aOffset, PRInt32 aSkip)
 {
   if (!aOffset && !aSkip) {
     // Fast path: planar input.
     memcpy(aDst, aSrc, aSize.height * aStride);
   } else {
-    int32_t height = aSize.height;
-    int32_t width = aSize.width;
+    PRInt32 height = aSize.height;
+    PRInt32 width = aSize.width;
     for (int y = 0; y < height; ++y) {
-      uint8_t *src = aSrc + aOffset;
-      uint8_t *dst = aDst;
+      PRUint8 *src = aSrc + aOffset;
+      PRUint8 *dst = aDst;
       if (!aSkip) {
         // Fast path: offset only, no per-pixel skip.
         memcpy(dst, src, width);

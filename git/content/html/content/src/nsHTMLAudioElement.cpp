@@ -78,7 +78,7 @@ nsHTMLAudioElement::SetItemValueText(const nsAString& aValue)
 
 NS_IMETHODIMP
 nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
-                               JSObject *aObj, uint32_t argc, jsval *argv)
+                               JSObject *aObj, PRUint32 argc, jsval *argv)
 {
   // Audio elements created using "new Audio(...)" should have
   // 'preload' set to 'auto' (since the script must intend to
@@ -99,7 +99,7 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
 }
 
 NS_IMETHODIMP
-nsHTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate)
+nsHTMLAudioElement::MozSetup(PRUint32 aChannels, PRUint32 aRate)
 {
   // If there is already a src provided, don't setup another stream
   if (mDecoder) {
@@ -129,7 +129,7 @@ nsHTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate)
 }
 
 NS_IMETHODIMP
-nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32_t* aRetVal)
+nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, PRUint32* aRetVal)
 {
   if (!mAudioStream) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -157,7 +157,7 @@ nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32
   }
   tvr.setObject(tsrc);
 
-  uint32_t dataLength = JS_GetTypedArrayLength(tsrc, aCx);
+  PRUint32 dataLength = JS_GetTypedArrayLength(tsrc, aCx);
 
   // Make sure that we are going to write the correct amount of data based
   // on number of channels.
@@ -166,7 +166,7 @@ nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32
   }
 
   // Don't write more than can be written without blocking.
-  uint32_t writeLen = NS_MIN(mAudioStream->Available(), dataLength / mChannels);
+  PRUint32 writeLen = NS_MIN(mAudioStream->Available(), dataLength / mChannels);
 
   float* frames = JS_GetFloat32ArrayData(tsrc, aCx);
 #ifdef MOZ_SAMPLE_TYPE_S16LE
@@ -174,7 +174,7 @@ nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32
   // the nsAudioStream.
   nsAutoArrayPtr<short> shortsArray(new short[writeLen * mChannels]);
   // Hard clip the samples.
-  for (uint32_t i = 0; i <  writeLen * mChannels; ++i) {
+  for (PRUint32 i = 0; i <  writeLen * mChannels; ++i) {
     float scaled_value = floorf(0.5 + 32768 * frames[i]);
     if (frames[i] < 0.0) {
       shortsArray[i] = (scaled_value < -32768.0) ?
@@ -202,13 +202,13 @@ nsHTMLAudioElement::MozWriteAudio(const JS::Value& aData, JSContext* aCx, uint32
 }
 
 NS_IMETHODIMP
-nsHTMLAudioElement::MozCurrentSampleOffset(uint64_t *aRetVal)
+nsHTMLAudioElement::MozCurrentSampleOffset(PRUint64 *aRetVal)
 {
   if (!mAudioStream) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  int64_t position = mAudioStream->GetPositionInFrames();
+  PRInt64 position = mAudioStream->GetPositionInFrames();
   if (position < 0) {
     *aRetVal = 0;
   } else {

@@ -95,7 +95,7 @@ nsHttpConnection::~nsHttpConnection()
     }
 
     if (mTotalBytesRead) {
-        uint32_t totalKBRead = static_cast<uint32_t>(mTotalBytesRead >> 10);
+        PRUint32 totalKBRead = static_cast<PRUint32>(mTotalBytesRead >> 10);
         LOG(("nsHttpConnection %p read %dkb on connection spdy=%d\n",
              this, totalKBRead, mEverUsedSpdy));
         mozilla::Telemetry::Accumulate(
@@ -108,7 +108,7 @@ nsHttpConnection::~nsHttpConnection()
 
 nsresult
 nsHttpConnection::Init(nsHttpConnectionInfo *info,
-                       uint16_t maxHangTime,
+                       PRUint16 maxHangTime,
                        nsISocketTransport *transport,
                        nsIAsyncInputStream *instream,
                        nsIAsyncOutputStream *outstream,
@@ -148,7 +148,7 @@ nsHttpConnection::Init(nsHttpConnectionInfo *info,
 }
 
 void
-nsHttpConnection::StartSpdy(uint8_t spdyVersion)
+nsHttpConnection::StartSpdy(PRUint8 spdyVersion)
 {
     LOG(("nsHttpConnection::StartSpdy [this=%p]\n", this));
 
@@ -204,7 +204,7 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
              "into SpdySession %p\n", mTransaction.get(), mSpdySession.get()));
     }
     else {
-        int32_t count = list.Length();
+        PRInt32 count = list.Length();
 
         LOG(("nsHttpConnection::StartSpdy moving transaction list len=%d "
              "into SpdySession %p\n", count, mSpdySession.get()));
@@ -214,7 +214,7 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
             return;
         }
 
-        for (int32_t index = 0; index < count; ++index) {
+        for (PRInt32 index = 0; index < count; ++index) {
             if (!mSpdySession) {
                 mSpdySession = ASpdySession::NewSpdySession(spdyVersion,
                                                             list[index], mSocketTransport, 
@@ -275,7 +275,7 @@ nsHttpConnection::EnsureNPNComplete()
     
         // By writing 0 bytes to the socket the SSL handshake machine is
         // pushed forward.
-        uint32_t count = 0;
+        PRUint32 count = 0;
         rv = mSocketOut->Write("", 0, &count);
 
         if (NS_FAILED(rv) && rv != NS_BASE_STREAM_WOULD_BLOCK)
@@ -289,7 +289,7 @@ nsHttpConnection::EnsureNPNComplete()
     LOG(("nsHttpConnection::EnsureNPNComplete %p negotiated to '%s'",
          this, negotiatedNPN.get()));
 
-    uint8_t spdyVersion;
+    PRUint8 spdyVersion;
     rv = gHttpHandler->SpdyInfo()->GetNPNVersionIndex(negotiatedNPN,
                                                       &spdyVersion);
     if (NS_SUCCEEDED(rv))
@@ -306,7 +306,7 @@ npnComplete:
 
 // called on the socket thread
 nsresult
-nsHttpConnection::Activate(nsAHttpTransaction *trans, uint8_t caps, int32_t pri)
+nsHttpConnection::Activate(nsAHttpTransaction *trans, PRUint8 caps, PRInt32 pri)
 {
     nsresult rv;
 
@@ -374,7 +374,7 @@ failed_activation:
 }
 
 void
-nsHttpConnection::SetupNPN(uint8_t caps)
+nsHttpConnection::SetupNPN(PRUint8 caps)
 {
     if (mSetupNPNCalled)                                /* do only once */
         return;
@@ -440,7 +440,7 @@ nsHttpConnection::HandleAlternateProtocol(nsHttpResponseHead *responseHead)
     //
     // Alternate-Protocol: 5678:somethingelse, 443:npn-spdy/2
 
-    uint8_t alternateProtocolVersion;
+    PRUint8 alternateProtocolVersion;
     if (NS_SUCCEEDED(gHttpHandler->SpdyInfo()->
                      GetAlternateProtocolVersionIndex(val,
                                                       &alternateProtocolVersion))) {
@@ -452,7 +452,7 @@ nsHttpConnection::HandleAlternateProtocol(nsHttpResponseHead *responseHead)
 
 nsresult
 nsHttpConnection::AddTransaction(nsAHttpTransaction *httpTransaction,
-                                 int32_t priority)
+                                 PRInt32 priority)
 {
     LOG(("nsHttpConnection::AddTransaction for SPDY"));
 
@@ -562,7 +562,7 @@ nsHttpConnection::CanReuse()
     // which we would deal with later on through the restart logic, but that
     // path is more expensive than just closing the socket now.
 
-    uint64_t dataSize;
+    PRUint64 dataSize;
     if (canReuse && mSocketIn && !mUsingSpdyVersion && mHttp1xTransactionCount &&
         NS_SUCCEEDED(mSocketIn->Available(&dataSize)) && dataSize) {
         LOG(("nsHttpConnection::CanReuse %p %s"
@@ -593,12 +593,12 @@ nsHttpConnection::IdleTime()
 
 // returns the number of seconds left before the allowable idle period
 // expires, or 0 if the period has already expied.
-uint32_t
+PRUint32
 nsHttpConnection::TimeToLive()
 {
     if (IdleTime() >= mIdleTimeout)
         return 0;
-    uint32_t timeToLive = PR_IntervalToSeconds(mIdleTimeout - IdleTime());
+    PRUint32 timeToLive = PR_IntervalToSeconds(mIdleTimeout - IdleTime());
 
     // a positive amount of time can be rounded to 0. Because 0 is used
     // as the expiration signal, round all values from 0 to 1 up to 1.
@@ -806,7 +806,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
         if (!mUsingSpdyVersion) {
             const char *cp = PL_strcasestr(val, "timeout=");
             if (cp)
-                mIdleTimeout = PR_SecondsToInterval((uint32_t) atoi(cp + 8));
+                mIdleTimeout = PR_SecondsToInterval((PRUint32) atoi(cp + 8));
             else
                 mIdleTimeout = gHttpHandler->IdleTimeout();
 
@@ -815,7 +815,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
                 int val = atoi(cp + 4);
                 if (val > 0) {
                     foundKeepAliveMax = true;
-                    mRemainingConnectionUses = static_cast<uint32_t>(val);
+                    mRemainingConnectionUses = static_cast<PRUint32>(val);
                 }
             }
         }
@@ -902,7 +902,7 @@ nsHttpConnection::IsReused()
 }
 
 void
-nsHttpConnection::SetIsReusedAfter(uint32_t afterMilliseconds)
+nsHttpConnection::SetIsReusedAfter(PRUint32 afterMilliseconds)
 {
     mConsiderReusedAfterEpoch = PR_IntervalNow();
     mConsiderReusedAfterInterval = PR_MillisecondsToInterval(afterMilliseconds);
@@ -965,7 +965,7 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     // Right now we only take action if pipelining is involved, but this would
     // be the place to add general read timeout handling if it is desired.
 
-    uint32_t pipelineDepth = mTransaction->PipelineDepth();
+    PRUint32 pipelineDepth = mTransaction->PipelineDepth();
 
     if (delta >= gHttpHandler->GetPipelineRescheduleTimeout() &&
         pipelineDepth > 1) {
@@ -1020,7 +1020,7 @@ nsHttpConnection::GetSecurityInfo(nsISupports **secinfo)
 }
 
 nsresult
-nsHttpConnection::PushBack(const char *data, uint32_t length)
+nsHttpConnection::PushBack(const char *data, PRUint32 length)
 {
     LOG(("nsHttpConnection::PushBack [this=%p, length=%d]\n", this, length));
 
@@ -1150,9 +1150,9 @@ NS_METHOD
 nsHttpConnection::ReadFromStream(nsIInputStream *input,
                                  void *closure,
                                  const char *buf,
-                                 uint32_t offset,
-                                 uint32_t count,
-                                 uint32_t *countRead)
+                                 PRUint32 offset,
+                                 PRUint32 count,
+                                 PRUint32 *countRead)
 {
     // thunk for nsIInputStream instance
     nsHttpConnection *conn = (nsHttpConnection *) closure;
@@ -1161,8 +1161,8 @@ nsHttpConnection::ReadFromStream(nsIInputStream *input,
 
 nsresult
 nsHttpConnection::OnReadSegment(const char *buf,
-                                uint32_t count,
-                                uint32_t *countRead)
+                                PRUint32 count,
+                                PRUint32 *countRead)
 {
     if (count == 0) {
         // some ReadSegments implementations will erroneously call the writer
@@ -1193,7 +1193,7 @@ nsHttpConnection::OnSocketWritable()
          this, mConnInfo->Host()));
 
     nsresult rv;
-    uint32_t n;
+    PRUint32 n;
     bool again = true;
 
     do {
@@ -1281,8 +1281,8 @@ nsHttpConnection::OnSocketWritable()
 
 nsresult
 nsHttpConnection::OnWriteSegment(char *buf,
-                                 uint32_t count,
-                                 uint32_t *countWritten)
+                                 PRUint32 count,
+                                 PRUint32 *countWritten)
 {
     if (count == 0) {
         // some WriteSegments implementations will erroneously call the reader
@@ -1365,7 +1365,7 @@ nsHttpConnection::OnSocketReadable()
     mLastReadTime = now;
 
     nsresult rv;
-    uint32_t n;
+    PRUint32 n;
     bool again = true;
 
     do {
@@ -1540,8 +1540,8 @@ nsHttpConnection::OnOutputStreamReady(nsIAsyncOutputStream *out)
 NS_IMETHODIMP
 nsHttpConnection::OnTransportStatus(nsITransport *trans,
                                     nsresult status,
-                                    uint64_t progress,
-                                    uint64_t progressMax)
+                                    PRUint64 progress,
+                                    PRUint64 progressMax)
 {
     if (mTransaction)
         mTransaction->OnTransportStatus(trans, status, progress);

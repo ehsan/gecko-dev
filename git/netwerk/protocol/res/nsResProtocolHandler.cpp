@@ -217,14 +217,14 @@ nsResProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::GetDefaultPort(int32_t *result)
+nsResProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = -1;        // no port for res: URLs
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsResProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     // XXXbz Is this really true for all resource: URIs?  Could we
     // somehow give different flags to some of them?
@@ -301,7 +301,7 @@ nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 }
 
 NS_IMETHODIMP 
-nsResProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsResProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
     // don't override anything.  
     *_retval = false;

@@ -65,7 +65,7 @@ DOMSVGTests::HasExtension(const nsAString & extension, bool *_retval)
 bool
 DOMSVGTests::IsConditionalProcessingAttribute(const nsIAtom* aAttribute) const
 {
-  for (uint32_t i = 0; i < ArrayLength(sStringListNames); i++) {
+  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
     if (aAttribute == *sStringListNames[i]) {
       return true;
     }
@@ -73,20 +73,20 @@ DOMSVGTests::IsConditionalProcessingAttribute(const nsIAtom* aAttribute) const
   return false;
 }
 
-int32_t
+PRInt32
 DOMSVGTests::GetBestLanguagePreferenceRank(const nsSubstring& aAcceptLangs) const
 {
   const nsDefaultStringComparator defaultComparator;
 
-  int32_t lowestRank = -1;
+  PRInt32 lowestRank = -1;
 
   const SVGStringList *languageStringList = GetStringListAttribute(LANGUAGE);
   if (!languageStringList) {
     return lowestRank;
   }
-  for (uint32_t i = 0; i < languageStringList->Length(); i++) {
+  for (PRUint32 i = 0; i < languageStringList->Length(); i++) {
     nsCharSeparatedTokenizer languageTokenizer(aAcceptLangs, ',');
-    int32_t index = 0;
+    PRInt32 index = 0;
     while (languageTokenizer.hasMoreTokens()) {
       const nsSubstring &languageToken = languageTokenizer.nextToken();
       bool exactMatch = (languageToken == (*languageStringList)[i]);
@@ -123,7 +123,7 @@ DOMSVGTests::PassesConditionalProcessingTests(const nsString *aAcceptLangs) cons
     nsCOMPtr<nsIContent> content(
       do_QueryInterface(const_cast<DOMSVGTests*>(this)));
 
-    for (uint32_t i = 0; i < featuresStringList->Length(); i++) {
+    for (PRUint32 i = 0; i < featuresStringList->Length(); i++) {
       if (!nsSVGFeatures::HasFeature(content, (*featuresStringList)[i])) {
         return false;
       }
@@ -142,7 +142,7 @@ DOMSVGTests::PassesConditionalProcessingTests(const nsString *aAcceptLangs) cons
     if (extensionsStringList->IsEmpty()) {
       return false;
     }
-    for (uint32_t i = 0; i < extensionsStringList->Length(); i++) {
+    for (PRUint32 i = 0; i < extensionsStringList->Length(); i++) {
       if (!nsSVGFeatures::HasExtension((*extensionsStringList)[i])) {
         return false;
       }
@@ -177,7 +177,7 @@ DOMSVGTests::PassesConditionalProcessingTests(const nsString *aAcceptLangs) cons
 
     const nsDefaultStringComparator defaultComparator;
 
-    for (uint32_t i = 0; i < languageStringList->Length(); i++) {
+    for (PRUint32 i = 0; i < languageStringList->Length(); i++) {
       nsCharSeparatedTokenizer languageTokenizer(acceptLangs, ',');
       while (languageTokenizer.hasMoreTokens()) {
         if (nsStyleUtil::DashMatchCompare((*languageStringList)[i],
@@ -198,7 +198,7 @@ DOMSVGTests::ParseConditionalProcessingAttribute(nsIAtom* aAttribute,
                                                  const nsAString& aValue,
                                                  nsAttrValue& aResult)
 {
-  for (uint32_t i = 0; i < ArrayLength(sStringListNames); i++) {
+  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
     if (aAttribute == *sStringListNames[i]) {
       SVGStringList *stringList = GetOrCreateStringListAttribute(i);
       if (stringList) {
@@ -217,7 +217,7 @@ DOMSVGTests::ParseConditionalProcessingAttribute(nsIAtom* aAttribute,
 void
 DOMSVGTests::UnsetAttr(const nsIAtom* aAttribute)
 {
-  for (uint32_t i = 0; i < ArrayLength(sStringListNames); i++) {
+  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
     if (aAttribute == *sStringListNames[i]) {
       SVGStringList *stringList = GetStringListAttribute(i);
       if (stringList) {
@@ -231,7 +231,7 @@ DOMSVGTests::UnsetAttr(const nsIAtom* aAttribute)
   }
 }
 
-// Callback function, for freeing uint64_t values stored in property table
+// Callback function, for freeing PRUint64 values stored in property table
 // when the element goes away
 static void
 ReleaseStringListPropertyValue(void*    aObject,       /* unused */
@@ -245,7 +245,7 @@ ReleaseStringListPropertyValue(void*    aObject,       /* unused */
 }
 
 SVGStringList*
-DOMSVGTests::GetStringListAttribute(uint8_t aAttrEnum) const
+DOMSVGTests::GetStringListAttribute(PRUint8 aAttrEnum) const
 {
   nsIAtom *attrName = GetAttrName(aAttrEnum);
   const nsCOMPtr<nsSVGElement> element =
@@ -255,7 +255,7 @@ DOMSVGTests::GetStringListAttribute(uint8_t aAttrEnum) const
 }
 
 SVGStringList*
-DOMSVGTests::GetOrCreateStringListAttribute(uint8_t aAttrEnum) const
+DOMSVGTests::GetOrCreateStringListAttribute(PRUint8 aAttrEnum) const
 {
   SVGStringList* stringListPtr = GetStringListAttribute(aAttrEnum);
   if (stringListPtr) {
@@ -283,13 +283,13 @@ DOMSVGTests::GetOrCreateStringListAttribute(uint8_t aAttrEnum) const
 }
 
 nsIAtom*
-DOMSVGTests::GetAttrName(uint8_t aAttrEnum) const
+DOMSVGTests::GetAttrName(PRUint8 aAttrEnum) const
 {
   return *sStringListNames[aAttrEnum];
 }
 
 void
-DOMSVGTests::GetAttrValue(uint8_t aAttrEnum, nsAttrValue& aValue) const
+DOMSVGTests::GetAttrValue(PRUint8 aAttrEnum, nsAttrValue& aValue) const
 {
   MOZ_ASSERT(aAttrEnum < ArrayLength(sStringListNames),
              "aAttrEnum out of range");

@@ -73,9 +73,9 @@ public:
   nsresult SetWindow(NPWindow* window);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
-  nsresult HandleEvent(void* event, int16_t* result);
+  nsresult HandleEvent(void* event, PRInt16* result);
   nsresult GetValueFromPlugin(NPPVariable variable, void* value);
-  nsresult GetDrawingModel(int32_t* aModel);
+  nsresult GetDrawingModel(PRInt32* aModel);
   nsresult IsRemoteDrawingCoreAnimation(bool* aDrawing);
   nsresult GetJSObject(JSContext *cx, JSObject** outObject);
   bool ShouldCache();
@@ -92,7 +92,7 @@ public:
   nsresult GetFormValue(nsAString& aValue);
   nsresult PushPopupsEnabledState(bool aEnabled);
   nsresult PopPopupsEnabledState();
-  nsresult GetPluginAPIVersion(uint16_t* version);
+  nsresult GetPluginAPIVersion(PRUint16* version);
   nsresult InvalidateRect(NPRect *invalidRect);
   nsresult InvalidateRegion(NPRegion invalidRegion);
   nsresult GetMIMEType(const char* *result);
@@ -135,8 +135,8 @@ public:
     return mOnScreen;
   }
 
-  uint32_t GetANPDrawingModel() { return mANPDrawingModel; }
-  void SetANPDrawingModel(uint32_t aModel);
+  PRUint32 GetANPDrawingModel() { return mANPDrawingModel; }
+  void SetANPDrawingModel(PRUint32 aModel);
 
   void* GetJavaSurface();
 
@@ -144,8 +144,8 @@ public:
 
   // These are really mozilla::dom::ScreenOrientation, but it's
   // difficult to include that here
-  uint32_t FullScreenOrientation() { return mFullScreenOrientation; }
-  void SetFullScreenOrientation(uint32_t orientation);
+  PRUint32 FullScreenOrientation() { return mFullScreenOrientation; }
+  void SetFullScreenOrientation(PRUint32 orientation);
 
   void SetWakeLock(bool aLock);
 
@@ -159,14 +159,14 @@ public:
     {
     }
 
-    TextureInfo(GLuint aTexture, int32_t aWidth, int32_t aHeight, GLuint aInternalFormat) :
+    TextureInfo(GLuint aTexture, PRInt32 aWidth, PRInt32 aHeight, GLuint aInternalFormat) :
       mTexture(aTexture), mWidth(aWidth), mHeight(aHeight), mInternalFormat(aInternalFormat)
     {
     }
 
     GLuint mTexture;
-    int32_t mWidth;
-    int32_t mHeight;
+    PRInt32 mWidth;
+    PRInt32 mHeight;
     GLuint mInternalFormat;
   };
 
@@ -240,7 +240,7 @@ public:
 
   nsresult GetDOMElement(nsIDOMElement* *result);
 
-  nsNPAPITimer* TimerWithID(uint32_t id, uint32_t* index);
+  nsNPAPITimer* TimerWithID(uint32_t id, PRUint32* index);
   uint32_t      ScheduleTimer(uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
   void          UnscheduleTimer(uint32_t timerID);
   NPError       PopUpContextMenu(NPMenu* menu);
@@ -267,11 +267,11 @@ public:
 protected:
 
   nsresult GetTagType(nsPluginTagType *result);
-  nsresult GetAttributes(uint16_t& n, const char*const*& names,
+  nsresult GetAttributes(PRUint16& n, const char*const*& names,
                          const char*const*& values);
-  nsresult GetParameters(uint16_t& n, const char*const*& names,
+  nsresult GetParameters(PRUint16& n, const char*const*& names,
                          const char*const*& values);
-  nsresult GetMode(int32_t *result);
+  nsresult GetMode(PRInt32 *result);
 
   // The structure used to communicate between the plugin instance and
   // the browser.
@@ -280,7 +280,7 @@ protected:
   NPDrawingModel mDrawingModel;
 
 #ifdef MOZ_WIDGET_ANDROID
-  uint32_t mANPDrawingModel;
+  PRUint32 mANPDrawingModel;
 
   friend class PluginEventRunnable;
 
@@ -288,7 +288,7 @@ protected:
   void PopPostedEvent(PluginEventRunnable* r);
   void OnSurfaceTextureFrameAvailable();
 
-  uint32_t mFullScreenOrientation;
+  PRUint32 mFullScreenOrientation;
   bool mWakeLocked;
   bool mFullScreen;
   bool mInverted;

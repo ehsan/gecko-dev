@@ -202,7 +202,7 @@ ImageLayerD3D10::RenderLayer()
       return;
     }
 
-    uint8_t shaderFlags = SHADER_PREMUL;
+    PRUint8 shaderFlags = SHADER_PREMUL;
     shaderFlags |= LoadMaskTexture();
     shaderFlags |= hasAlpha
                   ? SHADER_RGBA : SHADER_RGB;
