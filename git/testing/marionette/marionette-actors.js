@@ -472,16 +472,8 @@ MarionetteDriverActor.prototype = {
    *        function body
    */
   execute: function MDA_execute(aRequest, directInject) {
-    logger.info("newSandbox: " + aRequest.newSandbox);
-    if (aRequest.newSandbox == undefined) {
-      //if client does not send a value in newSandbox, 
-      //then they expect the same behaviour as webdriver
-      aRequest.newSandbox = true;
-    }
     if (this.context == "content") {
-      this.sendAsync("executeScript", {value: aRequest.value,
-                                       args: aRequest.args,
-                                       newSandbox:aRequest.newSandbox});
+      this.sendAsync("executeScript", {value: aRequest.value, args: aRequest.args});
       return;
     }
 
@@ -541,11 +533,6 @@ MarionetteDriverActor.prototype = {
    */
   executeJSScript: function MDA_executeJSScript(aRequest) {
     //all pure JS scripts will need to call Marionette.finish() to complete the test.
-    if (aRequest.newSandbox == undefined) {
-      //if client does not send a value in newSandbox, 
-      //then they expect the same behaviour as webdriver
-      aRequest.newSandbox = true;
-    }
     if (this.context == "chrome") {
       if (aRequest.timeout) {
         this.executeWithCallback(aRequest, aRequest.timeout);
@@ -575,18 +562,12 @@ MarionetteDriverActor.prototype = {
    *        function body
    */
   executeWithCallback: function MDA_executeWithCallback(aRequest, directInject) {
-    if (aRequest.newSandbox == undefined) {
-      //if client does not send a value in newSandbox, 
-      //then they expect the same behaviour as webdriver
-      aRequest.newSandbox = true;
-    }
     this.command_id = this.uuidGen.generateUUID().toString();
 
     if (this.context == "content") {
       this.sendAsync("executeAsyncScript", {value: aRequest.value,
                                             args: aRequest.args,
-                                            id: this.command_id,
-                                            newSandbox: aRequest.newSandbox});
+                                            id: this.command_id});
       return;
     }
 

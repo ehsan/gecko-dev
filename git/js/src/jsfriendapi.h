@@ -619,8 +619,7 @@ SizeOfJSContext();
     D(DOM_IPC)                                  \
     D(DOM_WORKER)                               \
     D(INTER_SLICE_GC)                           \
-    D(REFRESH_FRAME)                            \
-    D(FULL_GC_TIMER)
+    D(REFRESH_FRAME)
 
 namespace gcreason {
 
@@ -643,9 +642,6 @@ PrepareForFullGC(JSRuntime *rt);
 
 extern JS_FRIEND_API(bool)
 IsGCScheduled(JSRuntime *rt);
-
-extern JS_FRIEND_API(void)
-SkipCompartmentForGC(JSCompartment *comp);
 
 /*
  * When triggering a GC using one of the functions below, it is first necessary

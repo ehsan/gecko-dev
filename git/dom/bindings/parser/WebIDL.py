@@ -2810,8 +2810,7 @@ class Parser(Tokenizer):
 
     def p_ExtendedAttributeIdent(self, p):
         """
-            ExtendedAttributeIdent : IDENTIFIER EQUALS STRING
-                                   | IDENTIFIER EQUALS IDENTIFIER
+            ExtendedAttributeIdent : IDENTIFIER EQUALS IDENTIFIER
         """
         p[0] = (p[1], p[3])
 

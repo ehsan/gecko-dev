@@ -172,12 +172,6 @@ struct JSCompartment
         gcState = GCScheduled;
     }
 
-    void unscheduleGC() {
-        JS_ASSERT(!rt->gcRunning);
-        JS_ASSERT(gcState != GCRunning);
-        gcState = NoGCScheduled;
-    }
-
     bool isGCScheduled() const {
         return gcState == GCScheduled;
     }

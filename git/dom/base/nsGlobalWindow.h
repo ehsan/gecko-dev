@@ -568,13 +568,6 @@ protected:
   void ClearControllers();
   nsresult FinalClose();
 
-  inline void MaybeClearInnerWindow(nsGlobalWindow* aExpectedInner)
-  {
-    if(mInnerWindow == aExpectedInner) {
-      mInnerWindow = nsnull;
-    }
-  }
-
   void FreeInnerObjects();
   JSObject *CallerGlobal();
   nsGlobalWindow *CallerInnerWindow();

@@ -308,8 +308,9 @@ MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
             nsCOMPtr<nsIPresShell> shell;
             nsCOMPtr<nsIContentViewer> cv = do_QueryInterface(array[i]);
             cv->GetPresShell(getter_AddRefs(shell));
-            if (shell) {
-              nsIFrame *rootFrame = shell->GetRootFrame();
+            nsFrameManager *fm = shell->FrameManager();
+            if (fm) {
+              nsIFrame *rootFrame = fm->GetRootFrame();
               if (rootFrame) {
                 shell->FrameNeedsReflow(rootFrame, nsIPresShell::eResize,
                                         NS_FRAME_IS_DIRTY);
@@ -1011,7 +1012,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS, nsGCNormal, true);
+  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
   nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
 
   return NS_OK;
