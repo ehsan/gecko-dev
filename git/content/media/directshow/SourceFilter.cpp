@@ -10,7 +10,6 @@
 #include "DirectShowUtils.h"
 #include "MP3FrameParser.h"
 #include "prlog.h"
-#include <algorithm>
 
 using namespace mozilla::media;
 
