@@ -12,13 +12,7 @@ function observeOneRestore(callback) {
 
 function test() {
   waitForExplicitFinish();
-
-  // Disable Panorama, since it conflicts with this test.
-  let tabview = document.getElementById("tab-view");
-  if (tabview) {
-    document.getElementById("tab-view").contentWindow.UI.uninit();
-    TabView.uninit();
-  }
+  ignoreAllUncaughtExceptions();
 
   // There should be one tab when we start the test
   let [origTab] = gBrowser.visibleTabs;
@@ -52,12 +46,6 @@ function test() {
     // Restore the original state and clean up now that we're done
     gBrowser.removeTab(hiddenTab);
     gBrowser.removeTab(extraTab);
-
-    // Re-enable Panorama.
-    if (tabview) {
-      TabView.init();
-    }
-
     finish();
   });
   ss.setBrowserState(JSON.stringify(stateObj));
