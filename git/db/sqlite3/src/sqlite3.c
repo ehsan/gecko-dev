@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.7.16.  By combining all the individual C code files into this 
+** version 3.7.16.1.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -678,9 +678,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.7.16"
+#define SQLITE_VERSION        "3.7.16.1"
 #define SQLITE_VERSION_NUMBER 3007016
-#define SQLITE_SOURCE_ID      "2013-03-18 11:39:23 66d5f2b76750f3520eb7a495f6247206758f5b90"
+#define SQLITE_SOURCE_ID      "2013-03-29 13:44:34 527231bc67285f01fb18d4451b28f61da3c4e39d"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -3251,7 +3251,7 @@ SQLITE_API void sqlite3_progress_handler(sqlite3*, int, int(*)(void*), void*);
 **     sqlite3_open_v2(). ^Setting the cache parameter to "private" is 
 **     equivalent to setting the SQLITE_OPEN_PRIVATECACHE bit.
 **     ^If sqlite3_open_v2() is used and the "cache" parameter is present in
-**     a URI filename, its value overrides any behaviour requested by setting
+**     a URI filename, its value overrides any behavior requested by setting
 **     SQLITE_OPEN_PRIVATECACHE or SQLITE_OPEN_SHAREDCACHE flag.
 ** </ul>
 **
@@ -4569,7 +4569,8 @@ SQLITE_API SQLITE_DEPRECATED int sqlite3_expired(sqlite3_stmt*);
 SQLITE_API SQLITE_DEPRECATED int sqlite3_transfer_bindings(sqlite3_stmt*, sqlite3_stmt*);
 SQLITE_API SQLITE_DEPRECATED int sqlite3_global_recover(void);
 SQLITE_API SQLITE_DEPRECATED void sqlite3_thread_cleanup(void);
-SQLITE_API SQLITE_DEPRECATED int sqlite3_memory_alarm(void(*)(void*,sqlite3_int64,int),void*,sqlite3_int64);
+SQLITE_API SQLITE_DEPRECATED int sqlite3_memory_alarm(void(*)(void*,sqlite3_int64,int),
+                      void*,sqlite3_int64);
 #endif
 
 /*
@@ -4649,14 +4650,17 @@ SQLITE_API int sqlite3_value_numeric_type(sqlite3_value*);
 ** In those cases, sqlite3_aggregate_context() might be called for the
 ** first time from within xFinal().)^
 **
-** ^The sqlite3_aggregate_context(C,N) routine returns a NULL pointer if N is
-** less than or equal to zero or if a memory allocate error occurs.
+** ^The sqlite3_aggregate_context(C,N) routine returns a NULL pointer 
+** when first called if N is less than or equal to zero or if a memory
+** allocate error occurs.
 **
 ** ^(The amount of space allocated by sqlite3_aggregate_context(C,N) is
 ** determined by the N parameter on first successful call.  Changing the
 ** value of N in subsequent call to sqlite3_aggregate_context() within
 ** the same aggregate function instance will not resize the memory
-** allocation.)^
+** allocation.)^  Within the xFinal callback, it is customary to set
+** N=0 in calls to sqlite3_aggregate_context(C,N) so that no 
+** pointless memory allocations occur.
 **
 ** ^SQLite automatically frees the memory allocated by 
 ** sqlite3_aggregate_context() when the aggregate query concludes.
@@ -6950,7 +6954,7 @@ struct sqlite3_pcache_page {
 ** parameter to help it determined what action to take:
 **
 ** <table border=1 width=85% align=center>
-** <tr><th> createFlag <th> Behaviour when page is not already in cache
+** <tr><th> createFlag <th> Behavior when page is not already in cache
 ** <tr><td> 0 <td> Do not allocate a new page.  Return NULL.
 ** <tr><td> 1 <td> Allocate a new page if it easy and convenient to do so.
 **                 Otherwise return NULL.
@@ -7755,7 +7759,7 @@ struct sqlite3_rtree_geometry {
 **    May you share freely, never taking more than you give.
 **
 *************************************************************************
-** This is the header file for the generic hash-table implemenation
+** This is the header file for the generic hash-table implementation
 ** used in SQLite.
 */
 #ifndef _SQLITE_HASH_H_
@@ -12945,9 +12949,6 @@ static const char * const azCompileOpt[] = {
 #ifdef SQLITE_OMIT_MEMORYDB
   "OMIT_MEMORYDB",
 #endif
-#ifdef SQLITE_OMIT_MERGE_SORT
-  "OMIT_MERGE_SORT",
-#endif
 #ifdef SQLITE_OMIT_OR_OPTIMIZATION
   "OMIT_OR_OPTIMIZATION",
 #endif
@@ -13536,15 +13537,6 @@ SQLITE_PRIVATE int sqlite3VdbeFrameRestore(VdbeFrame *);
 SQLITE_PRIVATE void sqlite3VdbeMemStoreType(Mem *pMem);
 SQLITE_PRIVATE int sqlite3VdbeTransferError(Vdbe *p);
 
-#ifdef SQLITE_OMIT_MERGE_SORT
-# define sqlite3VdbeSorterInit(Y,Z)      SQLITE_OK
-# define sqlite3VdbeSorterWrite(X,Y,Z)   SQLITE_OK
-# define sqlite3VdbeSorterClose(Y,Z)
-# define sqlite3VdbeSorterRowkey(Y,Z)    SQLITE_OK
-# define sqlite3VdbeSorterRewind(X,Y,Z)  SQLITE_OK
-# define sqlite3VdbeSorterNext(X,Y,Z)    SQLITE_OK
-# define sqlite3VdbeSorterCompare(X,Y,Z) SQLITE_OK
-#else
 SQLITE_PRIVATE int sqlite3VdbeSorterInit(sqlite3 *, VdbeCursor *);
 SQLITE_PRIVATE void sqlite3VdbeSorterClose(sqlite3 *, VdbeCursor *);
 SQLITE_PRIVATE int sqlite3VdbeSorterRowkey(const VdbeCursor *, Mem *);
@@ -13552,7 +13544,6 @@ SQLITE_PRIVATE int sqlite3VdbeSorterNext(sqlite3 *, const VdbeCursor *, int *);
 SQLITE_PRIVATE int sqlite3VdbeSorterRewind(sqlite3 *, const VdbeCursor *, int *);
 SQLITE_PRIVATE int sqlite3VdbeSorterWrite(sqlite3 *, const VdbeCursor *, Mem *);
 SQLITE_PRIVATE int sqlite3VdbeSorterCompare(const VdbeCursor *, Mem *, int *);
-#endif
 
 #if !defined(SQLITE_OMIT_SHARED_CACHE) && SQLITE_THREADSAFE>0
 SQLITE_PRIVATE   void sqlite3VdbeEnter(Vdbe*);
@@ -21336,7 +21327,7 @@ SQLITE_API int sqlite3_strnicmp(const char *zLeft, const char *zRight, int N){
 */
 SQLITE_PRIVATE int sqlite3AtoF(const char *z, double *pResult, int length, u8 enc){
 #ifndef SQLITE_OMIT_FLOATING_POINT
-  int incr = (enc==SQLITE_UTF8?1:2);
+  int incr;
   const char *zEnd = z + length;
   /* sign * significand * (10 ^ (esign * exponent)) */
   int sign = 1;    /* sign of significand */
@@ -21347,10 +21338,22 @@ SQLITE_PRIVATE int sqlite3AtoF(const char *z, double *pResult, int length, u8 en
   int eValid = 1;  /* True exponent is either not used or is well-formed */
   double result;
   int nDigits = 0;
+  int nonNum = 0;
 
+  assert( enc==SQLITE_UTF8 || enc==SQLITE_UTF16LE || enc==SQLITE_UTF16BE );
   *pResult = 0.0;   /* Default return value, in case of an error */
 
-  if( enc==SQLITE_UTF16BE ) z++;
+  if( enc==SQLITE_UTF8 ){
+    incr = 1;
+  }else{
+    int i;
+    incr = 2;
+    assert( SQLITE_UTF16LE==2 && SQLITE_UTF16BE==3 );
+    for(i=3-enc; i<length && z[i]==0; i+=2){}
+    nonNum = i<length;
+    zEnd = z+i+enc-3;
+    z += (enc&1);
+  }
 
   /* skip leading spaces */
   while( z<zEnd && sqlite3Isspace(*z) ) z+=incr;
@@ -21483,7 +21486,7 @@ do_atof_calc:
   *pResult = result;
 
   /* return true if number and no extra non-whitespace chracters after */
-  return z>=zEnd && nDigits>0 && eValid;
+  return z>=zEnd && nDigits>0 && eValid && nonNum==0;
 #else
   return !sqlite3Atoi64(z, pResult, length, enc);
 #endif /* SQLITE_OMIT_FLOATING_POINT */
@@ -21532,21 +21535,33 @@ static int compare2pow63(const char *zNum, int incr){
 ** signed 64-bit integer, its negative -9223372036854665808 can be.
 **
 ** If zNum is too big for a 64-bit integer and is not
-** 9223372036854665808 then return 1.
+** 9223372036854665808  or if zNum contains any non-numeric text,
+** then return 1.
 **
 ** length is the number of bytes in the string (bytes, not characters).
 ** The string is not necessarily zero-terminated.  The encoding is
 ** given by enc.
 */
 SQLITE_PRIVATE int sqlite3Atoi64(const char *zNum, i64 *pNum, int length, u8 enc){
-  int incr = (enc==SQLITE_UTF8?1:2);
+  int incr;
   u64 u = 0;
   int neg = 0; /* assume positive */
   int i;
   int c = 0;
+  int nonNum = 0;
   const char *zStart;
   const char *zEnd = zNum + length;
-  if( enc==SQLITE_UTF16BE ) zNum++;
+  assert( enc==SQLITE_UTF8 || enc==SQLITE_UTF16LE || enc==SQLITE_UTF16BE );
+  if( enc==SQLITE_UTF8 ){
+    incr = 1;
+  }else{
+    incr = 2;
+    assert( SQLITE_UTF16LE==2 && SQLITE_UTF16BE==3 );
+    for(i=3-enc; i<length && zNum[i]==0; i+=2){}
+    nonNum = i<length;
+    zEnd = zNum+i+enc-3;
+    zNum += (enc&1);
+  }
   while( zNum<zEnd && sqlite3Isspace(*zNum) ) zNum+=incr;
   if( zNum<zEnd ){
     if( *zNum=='-' ){
@@ -21571,7 +21586,7 @@ SQLITE_PRIVATE int sqlite3Atoi64(const char *zNum, i64 *pNum, int length, u8 enc
   testcase( i==18 );
   testcase( i==19 );
   testcase( i==20 );
-  if( (c!=0 && &zNum[i]<zEnd) || (i==0 && zStart==zNum) || i>19*incr ){
+  if( (c!=0 && &zNum[i]<zEnd) || (i==0 && zStart==zNum) || i>19*incr || nonNum ){
     /* zNum is empty or contains non-numeric text or is longer
     ** than 19 digits (thus guaranteeing that it is too large) */
     return 1;
@@ -23252,7 +23267,7 @@ static int openDirectory(const char*, int*);
 ** to all overrideable system calls.
 */
 static struct unix_syscall {
-  const char *zName;            /* Name of the sytem call */
+  const char *zName;            /* Name of the system call */
   sqlite3_syscall_ptr pCurrent; /* Current value of the system call */
   sqlite3_syscall_ptr pDefault; /* Default value */
 } aSyscall[] = {
@@ -24824,7 +24839,7 @@ static int nolockClose(sqlite3_file *id) {
 /******************************************************************************
 ************************* Begin dot-file Locking ******************************
 **
-** The dotfile locking implementation uses the existance of separate lock
+** The dotfile locking implementation uses the existence of separate lock
 ** files (really a directory) to control access to the database.  This works
 ** on just about every filesystem imaginable.  But there are serious downsides:
 **
@@ -24839,7 +24854,7 @@ static int nolockClose(sqlite3_file *id) {
 **
 ** Dotfile locking works by creating a subdirectory in the same directory as
 ** the database and with the same name but with a ".lock" extension added.
-** The existance of a lock directory implies an EXCLUSIVE lock.  All other
+** The existence of a lock directory implies an EXCLUSIVE lock.  All other
 ** lock types (SHARED, RESERVED, PENDING) are mapped into EXCLUSIVE.
 */
 
@@ -26328,7 +26343,7 @@ static int unixSync(sqlite3_file *id, int flags){
   }
 
   /* Also fsync the directory containing the file if the DIRSYNC flag
-  ** is set.  This is a one-time occurrance.  Many systems (examples: AIX)
+  ** is set.  This is a one-time occurrence.  Many systems (examples: AIX)
   ** are unable to fsync a directory, so ignore errors on the fsync.
   */
   if( pFile->ctrlFlags & UNIXFILE_DIRSYNC ){
@@ -27702,7 +27717,7 @@ static int fillInUnixFile(
     unixEnterMutex();
     rc = findInodeInfo(pNew, &pNew->pInode);
     if( rc!=SQLITE_OK ){
-      /* If an error occured in findInodeInfo(), close the file descriptor
+      /* If an error occurred in findInodeInfo(), close the file descriptor
       ** immediately, before releasing the mutex. findInodeInfo() may fail
       ** in two scenarios:
       **
@@ -28340,7 +28355,7 @@ static int unixDelete(
 }
 
 /*
-** Test the existance of or access permissions of file zPath. The
+** Test the existence of or access permissions of file zPath. The
 ** test performed depends on the value of flags:
 **
 **     SQLITE_ACCESS_EXISTS: Return 1 if the file exists
@@ -30444,7 +30459,7 @@ static int sqlite3_os_type = 0;
 ** to all overrideable system calls.
 */
 static struct win_syscall {
-  const char *zName;            /* Name of the sytem call */
+  const char *zName;            /* Name of the system call */
   sqlite3_syscall_ptr pCurrent; /* Current value of the system call */
   sqlite3_syscall_ptr pDefault; /* Default value */
 } aSyscall[] = {
@@ -32161,7 +32176,7 @@ static int seekWinFile(winFile *pFile, sqlite3_int64 iOffset){
   ** containing the lower 32-bits of the new file-offset. Or, if it fails,
   ** it returns INVALID_SET_FILE_POINTER. However according to MSDN, 
   ** INVALID_SET_FILE_POINTER may also be a valid new offset. So to determine 
-  ** whether an error has actually occured, it is also necessary to call 
+  ** whether an error has actually occurred, it is also necessary to call 
   ** GetLastError().
   */
   dwRet = osSetFilePointer(pFile->h, lowerBits, &upperBits, FILE_BEGIN);
@@ -32307,7 +32322,7 @@ static int winWrite(
   int amt,                        /* Number of bytes to write */
   sqlite3_int64 offset            /* Offset into the file to begin writing at */
 ){
-  int rc = 0;                     /* True if error has occured, else false */
+  int rc = 0;                     /* True if error has occurred, else false */
   winFile *pFile = (winFile*)id;  /* File handle */
   int nRetry = 0;                 /* Number of retries */
 
@@ -34129,7 +34144,7 @@ static int winDelete(
 }
 
 /*
-** Check the existance and status of a file.
+** Check the existence and status of a file.
 */
 static int winAccess(
   sqlite3_vfs *pVfs,         /* Not used on win32 */
@@ -34738,7 +34753,7 @@ SQLITE_API int sqlite3_os_end(void){
 /*
 ** A bitmap is an instance of the following structure.
 **
-** This bitmap records the existance of zero or more bits
+** This bitmap records the existence of zero or more bits
 ** with values between 1 and iSize, inclusive.
 **
 ** There are three possible representations of the bitmap.
@@ -37640,7 +37655,7 @@ int sqlite3PagerTrace=1;  /* True to enable tracing */
 **    * A write transaction is active.
 **    * An EXCLUSIVE or greater lock is held on the database file.
 **    * All writing and syncing of journal and database data has finished.
-**      If no error occured, all that remains is to finalize the journal to
+**      If no error occurred, all that remains is to finalize the journal to
 **      commit the transaction. If an error did occur, the caller will need
 **      to rollback the transaction. 
 **
@@ -37888,7 +37903,7 @@ struct PagerSavepoint {
 **
 ** doNotSpill, doNotSyncSpill
 **
-**   These two boolean variables control the behaviour of cache-spills
+**   These two boolean variables control the behavior of cache-spills
 **   (calls made by the pcache module to the pagerStress() routine to
 **   write cached data to the file-system in order to free up memory).
 **
@@ -38766,7 +38781,7 @@ static int writeJournalHdr(Pager *pPager){
     memset(zHeader, 0, sizeof(aJournalMagic)+4);
   }
 
-  /* The random check-hash initialiser */ 
+  /* The random check-hash initializer */ 
   sqlite3_randomness(sizeof(pPager->cksumInit), &pPager->cksumInit);
   put32bits(&zHeader[sizeof(aJournalMagic)+4], pPager->cksumInit);
   /* The initial database size */
@@ -41098,7 +41113,7 @@ static int pager_wait_on_lock(Pager *pPager, int locktype){
 ** dirty page were to be discarded from the cache via the pagerStress()
 ** routine, pagerStress() would not write the current page content to
 ** the database file. If a savepoint transaction were rolled back after
-** this happened, the correct behaviour would be to restore the current
+** this happened, the correct behavior would be to restore the current
 ** content of the page. However, since this content is not present in either
 ** the database file or the portion of the rollback journal and 
 ** sub-journal rolled back the content could not be restored and the
@@ -48942,6 +48957,19 @@ static void btreeClearHasContent(BtShared *pBt){
 }
 
 /*
+** Release all of the apPage[] pages for a cursor.
+*/
+static void btreeReleaseAllCursorPages(BtCursor *pCur){
+  int i;
+  for(i=0; i<=pCur->iPage; i++){
+    releasePage(pCur->apPage[i]);
+    pCur->apPage[i] = 0;
+  }
+  pCur->iPage = -1;
+}
+
+
+/*
 ** Save the current cursor position in the variables BtCursor.nKey 
 ** and BtCursor.pKey. The cursor's state is set to CURSOR_REQUIRESEEK.
 **
@@ -48980,12 +49008,7 @@ static int saveCursorPosition(BtCursor *pCur){
   assert( !pCur->apPage[0]->intKey || !pCur->pKey );
 
   if( rc==SQLITE_OK ){
-    int i;
-    for(i=0; i<=pCur->iPage; i++){
-      releasePage(pCur->apPage[i]);
-      pCur->apPage[i] = 0;
-    }
-    pCur->iPage = -1;
+    btreeReleaseAllCursorPages(pCur);
     pCur->eState = CURSOR_REQUIRESEEK;
   }
 
@@ -49003,11 +49026,15 @@ static int saveAllCursors(BtShared *pBt, Pgno iRoot, BtCursor *pExcept){
   assert( sqlite3_mutex_held(pBt->mutex) );
   assert( pExcept==0 || pExcept->pBt==pBt );
   for(p=pBt->pCursor; p; p=p->pNext){
-    if( p!=pExcept && (0==iRoot || p->pgnoRoot==iRoot) && 
-        p->eState==CURSOR_VALID ){
-      int rc = saveCursorPosition(p);
-      if( SQLITE_OK!=rc ){
-        return rc;
+    if( p!=pExcept && (0==iRoot || p->pgnoRoot==iRoot) ){
+      if( p->eState==CURSOR_VALID ){
+        int rc = saveCursorPosition(p);
+        if( SQLITE_OK!=rc ){
+          return rc;
+        }
+      }else{
+        testcase( p->iPage>0 );
+        btreeReleaseAllCursorPages(p);
       }
     }
   }
@@ -50595,7 +50622,7 @@ SQLITE_PRIVATE int sqlite3BtreeGetPageSize(Btree *p){
 ** known that the shared b-tree mutex is held, but the mutex on the 
 ** database handle that owns *p is not. In this case if sqlite3BtreeEnter()
 ** were to be called, it might collide with some other operation on the
-** database handle that owns *p, causing undefined behaviour.
+** database handle that owns *p, causing undefined behavior.
 */
 SQLITE_PRIVATE int sqlite3BtreeGetReserveNoMutex(Btree *p){
   assert( sqlite3_mutex_held(p->pBt->mutex) );
@@ -53875,7 +53902,7 @@ static int fillInCell(
       ** If this is the first overflow page, then write a partial entry 
       ** to the pointer-map. If we write nothing to this pointer-map slot,
       ** then the optimistic overflow chain processing in clearCell()
-      ** may misinterpret the uninitialised values and delete the
+      ** may misinterpret the uninitialized values and delete the
       ** wrong pages from the database.
       */
       if( pBt->autoVacuum && rc==SQLITE_OK ){
@@ -55348,7 +55375,7 @@ SQLITE_PRIVATE int sqlite3BtreeInsert(
   insertCell(pPage, idx, newCell, szNew, 0, 0, &rc);
   assert( rc!=SQLITE_OK || pPage->nCell>0 || pPage->nOverflow>0 );
 
-  /* If no error has occured and pPage has an overflow cell, call balance() 
+  /* If no error has occurred and pPage has an overflow cell, call balance() 
   ** to redistribute the cells within the tree. Since balance() may move
   ** the cursor, zero the BtCursor.info.nSize and BtCursor.validNKey
   ** variables.
@@ -59082,7 +59109,7 @@ SQLITE_PRIVATE int sqlite3VdbeAssertMayAbort(Vdbe *v, int mayAbort){
   }
   sqlite3DbFree(v->db, sIter.apSub);
 
-  /* Return true if hasAbort==mayAbort. Or if a malloc failure occured.
+  /* Return true if hasAbort==mayAbort. Or if a malloc failure occurred.
   ** If malloc failed, then the while() loop above may not have iterated
   ** through all opcodes and hasAbort may be set incorrectly. Return
   ** true for this case to prevent the assert() in the callers frame
@@ -60714,7 +60741,7 @@ SQLITE_PRIVATE int sqlite3VdbeCloseStatement(Vdbe *p, int eOp){
 
   /* If p->iStatement is greater than zero, then this Vdbe opened a 
   ** statement transaction that should be closed here. The only exception
-  ** is that an IO error may have occured, causing an emergency rollback.
+  ** is that an IO error may have occurred, causing an emergency rollback.
   ** In this case (db->nStatement==0), and there is nothing to do.
   */
   if( db->nStatement && p->iStatement ){
@@ -60850,7 +60877,7 @@ SQLITE_PRIVATE int sqlite3VdbeHalt(Vdbe *p){
       **
       ** Even if the statement is read-only, it is important to perform
       ** a statement or transaction rollback operation. If the error 
-      ** occured while writing to the journal, sub-journal or database
+      ** occurred while writing to the journal, sub-journal or database
       ** file as part of an effort to free up cache space (see function
       ** pagerStress() in pager.c), the rollback is required to restore 
       ** the pager to a consistent state.
@@ -61264,7 +61291,7 @@ SQLITE_PRIVATE int sqlite3VdbeCursorMoveto(VdbeCursor *p){
 ** the blob of data that it corresponds to. In a table record, all serial
 ** types are stored at the start of the record, and the blobs of data at
 ** the end. Hence these functions allow the caller to handle the
-** serial-type and data blob seperately.
+** serial-type and data blob separately.
 **
 ** The following table describes the various storage classes for data:
 **
@@ -62404,7 +62431,7 @@ end_of_step:
   assert( p->rc!=SQLITE_ROW && p->rc!=SQLITE_DONE );
   if( p->isPrepareV2 && rc!=SQLITE_ROW && rc!=SQLITE_DONE ){
     /* If this statement was prepared using sqlite3_prepare_v2(), and an
-    ** error has occured, then return the error code in p->rc to the
+    ** error has occurred, then return the error code in p->rc to the
     ** caller. Set the error code in the database handle to the same value.
     */ 
     rc = sqlite3VdbeTransferError(p);
@@ -63694,11 +63721,7 @@ SQLITE_API int sqlite3_found_count = 0;
        && sqlite3VdbeMemMakeWriteable(P) ){ goto no_mem;}
 
 /* Return true if the cursor was opened using the OP_OpenSorter opcode. */
-#ifdef SQLITE_OMIT_MERGE_SORT
-# define isSorter(x) 0
-#else
 # define isSorter(x) ((x)->pSorter!=0)
-#endif
 
 /*
 ** Argument pMem points at a register that will be passed to a
@@ -67435,17 +67458,12 @@ case OP_SorterOpen: {
   VdbeCursor *pCx;
 #endif /* local variables moved into u.ba */
 
-#ifndef SQLITE_OMIT_MERGE_SORT
   u.ba.pCx = allocateCursor(p, pOp->p1, pOp->p2, -1, 1);
   if( u.ba.pCx==0 ) goto no_mem;
   u.ba.pCx->pKeyInfo = pOp->p4.pKeyInfo;
   u.ba.pCx->pKeyInfo->enc = ENC(p->db);
   u.ba.pCx->isSorter = 1;
   rc = sqlite3VdbeSorterInit(db, u.ba.pCx);
-#else
-  pOp->opcode = OP_OpenEphemeral;
-  pc--;
-#endif
   break;
 }
 
@@ -68350,15 +68368,10 @@ case OP_SorterData: {
   VdbeCursor *pC;
 #endif /* local variables moved into u.bl */
 
-#ifndef SQLITE_OMIT_MERGE_SORT
   pOut = &aMem[pOp->p2];
   u.bl.pC = p->apCsr[pOp->p1];
   assert( u.bl.pC->isSorter );
   rc = sqlite3VdbeSorterRowkey(u.bl.pC, pOut);
-#else
-  pOp->opcode = OP_RowKey;
-  pc--;
-#endif
   break;
 }
 
@@ -68565,9 +68578,6 @@ case OP_Last: {        /* jump */
 ** correctly optimizing out sorts.
 */
 case OP_SorterSort:    /* jump */
-#ifdef SQLITE_OMIT_MERGE_SORT
-  pOp->opcode = OP_Sort;
-#endif
 case OP_Sort: {        /* jump */
 #ifdef SQLITE_TEST
   sqlite3_sort_count++;
@@ -68648,9 +68658,6 @@ case OP_Rewind: {        /* jump */
 ** number P5-1 in the prepared statement is incremented.
 */
 case OP_SorterNext:    /* jump */
-#ifdef SQLITE_OMIT_MERGE_SORT
-  pOp->opcode = OP_Next;
-#endif
 case OP_Prev:          /* jump */
 case OP_Next: {        /* jump */
 #if 0  /* local variables moved into u.br */
@@ -68703,9 +68710,6 @@ case OP_Next: {        /* jump */
 ** for tables is OP_Insert.
 */
 case OP_SorterInsert:       /* in2 */
-#ifdef SQLITE_OMIT_MERGE_SORT
-  pOp->opcode = OP_IdxInsert;
-#endif
 case OP_IdxInsert: {        /* in2 */
 #if 0  /* local variables moved into u.bs */
   VdbeCursor *pC;
@@ -69974,7 +69978,7 @@ case OP_VOpen: {
     /* Initialize sqlite3_vtab_cursor base class */
     u.cm.pVtabCursor->pVtab = u.cm.pVtab;
 
-    /* Initialise vdbe cursor object */
+    /* Initialize vdbe cursor object */
     u.cm.pCur = allocateCursor(p, pOp->p1, 0, -1, 0);
     if( u.cm.pCur ){
       u.cm.pCur->pVtabCursor = u.cm.pVtabCursor;
@@ -70956,7 +70960,6 @@ SQLITE_API int sqlite3_blob_reopen(sqlite3_blob *pBlob, sqlite3_int64 iRow){
 */
 
 
-#ifndef SQLITE_OMIT_MERGE_SORT
 
 typedef struct VdbeSorterIter VdbeSorterIter;
 typedef struct SorterRecord SorterRecord;
@@ -71975,8 +71978,6 @@ SQLITE_PRIVATE int sqlite3VdbeSorterCompare(
   vdbeSorterCompare(pCsr, 1, pVal->z, pVal->n, pKey, nKey, pRes);
   return SQLITE_OK;
 }
-
-#endif /* #ifndef SQLITE_OMIT_MERGE_SORT */
 
 /************** End of vdbesort.c ********************************************/
 /************** Begin file journal.c *****************************************/
@@ -77515,7 +77516,7 @@ SQLITE_PRIVATE void sqlite3ExprIfTrue(Parse *pParse, Expr *pExpr, int dest, int 
   int r1, r2;
 
   assert( jumpIfNull==SQLITE_JUMPIFNULL || jumpIfNull==0 );
-  if( NEVER(v==0) )     return;  /* Existance of VDBE checked by caller */
+  if( NEVER(v==0) )     return;  /* Existence of VDBE checked by caller */
   if( NEVER(pExpr==0) ) return;  /* No way this can happen */
   op = pExpr->op;
   switch( op ){
@@ -77635,7 +77636,7 @@ SQLITE_PRIVATE void sqlite3ExprIfFalse(Parse *pParse, Expr *pExpr, int dest, int
   int r1, r2;
 
   assert( jumpIfNull==SQLITE_JUMPIFNULL || jumpIfNull==0 );
-  if( NEVER(v==0) ) return; /* Existance of VDBE checked by caller */
+  if( NEVER(v==0) ) return; /* Existence of VDBE checked by caller */
   if( pExpr==0 )    return;
 
   /* The value of pExpr->op and op are related as follows:
@@ -80232,7 +80233,7 @@ static void attachFunc(
     }
   }
 
-  /* Allocate the new entry in the db->aDb[] array and initialise the schema
+  /* Allocate the new entry in the db->aDb[] array and initialize the schema
   ** hash tables.
   */
   if( db->aDb==db->aDbStatic ){
@@ -80249,7 +80250,7 @@ static void attachFunc(
 
   /* Open the database file. If the btree is successfully opened, use
   ** it to obtain the database schema. At this point the schema may
-  ** or may not be initialised.
+  ** or may not be initialized.
   */
   flags = db->openFlags;
   rc = sqlite3ParseUri(db->pVfs->zName, zFile, &flags, &pVfs, &zPath, &zErr);
@@ -83035,7 +83036,7 @@ SQLITE_PRIVATE void sqlite3CodeDropTable(Parse *pParse, Table *pTab, int iDb, in
   /* Drop all SQLITE_MASTER table and index entries that refer to the
   ** table. The program name loops through the master table and deletes
   ** every row that refers to a table of the same name as the one being
-  ** dropped. Triggers are handled seperately because a trigger can be
+  ** dropped. Triggers are handled separately because a trigger can be
   ** created in the temp database that refers to a table in another
   ** database.
   */
@@ -83327,9 +83328,6 @@ static void sqlite3RefillIndex(Parse *pParse, Index *pIndex, int memRootPage){
   int tnum;                      /* Root page of index */
   Vdbe *v;                       /* Generate code into this virtual machine */
   KeyInfo *pKey;                 /* KeyInfo for index */
-#ifdef SQLITE_OMIT_MERGE_SORT
-  int regIdxKey;                 /* Registers containing the index key */
-#endif
   int regRecord;                 /* Register holding assemblied index record */
   sqlite3 *db = pParse->db;      /* The database connection */
   int iDb = sqlite3SchemaToIndex(db, pIndex->pSchema);
@@ -83357,13 +83355,9 @@ static void sqlite3RefillIndex(Parse *pParse, Index *pIndex, int memRootPage){
                     (char *)pKey, P4_KEYINFO_HANDOFF);
   sqlite3VdbeChangeP5(v, OPFLAG_BULKCSR|((memRootPage>=0)?OPFLAG_P2ISREG:0));
 
-#ifndef SQLITE_OMIT_MERGE_SORT
   /* Open the sorter cursor if we are to use one. */
   iSorter = pParse->nTab++;
   sqlite3VdbeAddOp4(v, OP_SorterOpen, iSorter, 0, 0, (char*)pKey, P4_KEYINFO);
-#else
-  iSorter = iTab;
-#endif
 
   /* Open the table. Loop through all rows of the table, inserting index
   ** records into the sorter. */
@@ -83371,7 +83365,6 @@ static void sqlite3RefillIndex(Parse *pParse, Index *pIndex, int memRootPage){
   addr1 = sqlite3VdbeAddOp2(v, OP_Rewind, iTab, 0);
   regRecord = sqlite3GetTempReg(pParse);
 
-#ifndef SQLITE_OMIT_MERGE_SORT
   sqlite3GenerateIndexKey(pParse, pIndex, iTab, regRecord, 1);
   sqlite3VdbeAddOp2(v, OP_SorterInsert, iSorter, regRecord);
   sqlite3VdbeAddOp2(v, OP_Next, iTab, addr1+1);
@@ -83391,30 +83384,6 @@ static void sqlite3RefillIndex(Parse *pParse, Index *pIndex, int memRootPage){
   sqlite3VdbeAddOp2(v, OP_SorterData, iSorter, regRecord);
   sqlite3VdbeAddOp3(v, OP_IdxInsert, iIdx, regRecord, 1);
   sqlite3VdbeChangeP5(v, OPFLAG_USESEEKRESULT);
-#else
-  regIdxKey = sqlite3GenerateIndexKey(pParse, pIndex, iTab, regRecord, 1);
-  addr2 = addr1 + 1;
-  if( pIndex->onError!=OE_None ){
-    const int regRowid = regIdxKey + pIndex->nColumn;
-    const int j2 = sqlite3VdbeCurrentAddr(v) + 2;
-    void * const pRegKey = SQLITE_INT_TO_PTR(regIdxKey);
-
-    /* The registers accessed by the OP_IsUnique opcode were allocated
-    ** using sqlite3GetTempRange() inside of the sqlite3GenerateIndexKey()
-    ** call above. Just before that function was freed they were released
-    ** (made available to the compiler for reuse) using 
-    ** sqlite3ReleaseTempRange(). So in some ways having the OP_IsUnique
-    ** opcode use the values stored within seems dangerous. However, since
-    ** we can be sure that no other temp registers have been allocated
-    ** since sqlite3ReleaseTempRange() was called, it is safe to do so.
-    */
-    sqlite3VdbeAddOp4(v, OP_IsUnique, iIdx, j2, regRowid, pRegKey, P4_INT32);
-    sqlite3HaltConstraint(pParse, SQLITE_CONSTRAINT_UNIQUE,
-        "indexed columns are not unique", P4_STATIC);
-  }
-  sqlite3VdbeAddOp3(v, OP_IdxInsert, iIdx, regRecord, 0);
-  sqlite3VdbeChangeP5(v, OPFLAG_USESEEKRESULT);
-#endif
   sqlite3ReleaseTempReg(pParse, regRecord);
   sqlite3VdbeAddOp2(v, OP_SorterNext, iSorter, addr2);
   sqlite3VdbeJumpHere(v, addr1);
@@ -83774,7 +83743,7 @@ SQLITE_PRIVATE Index *sqlite3CreateIndex(
           ** However the ON CONFLICT clauses are different. If both this 
           ** constraint and the previous equivalent constraint have explicit
           ** ON CONFLICT clauses this is an error. Otherwise, use the
-          ** explicitly specified behaviour for the index.
+          ** explicitly specified behavior for the index.
           */
           if( !(pIdx->onError==OE_Default || pIndex->onError==OE_Default) ){
             sqlite3ErrorMsg(pParse, 
@@ -94056,7 +94025,7 @@ static int sqlite3InitOne(sqlite3 *db, int iDb, char **pzErrMsg){
 
   /* zMasterSchema and zInitScript are set to point at the master schema
   ** and initialisation script appropriate for the database being
-  ** initialised. zMasterName is the name of the master table.
+  ** initialized. zMasterName is the name of the master table.
   */
   if( !OMIT_TEMPDB && iDb==1 ){
     zMasterSchema = temp_master_schema;
@@ -94281,7 +94250,7 @@ SQLITE_PRIVATE int sqlite3Init(sqlite3 *db, char **pzErrMsg){
     }
   }
 
-  /* Once all the other databases have been initialised, load the schema
+  /* Once all the other databases have been initialized, load the schema
   ** for the TEMP database. This is loaded last, as the TEMP database
   ** schema may contain references to objects in other databases.
   */
@@ -94304,7 +94273,7 @@ SQLITE_PRIVATE int sqlite3Init(sqlite3 *db, char **pzErrMsg){
 }
 
 /*
-** This routine is a no-op if the database schema is already initialised.
+** This routine is a no-op if the database schema is already initialized.
 ** Otherwise, the schema is loaded. An error code is returned.
 */
 SQLITE_PRIVATE int sqlite3ReadSchema(Parse *pParse){
@@ -99317,7 +99286,7 @@ SQLITE_PRIVATE int sqlite3Select(
         ** value of x, the only row required).
         **
         ** A special flag must be passed to sqlite3WhereBegin() to slightly
-        ** modify behaviour as follows:
+        ** modify behavior as follows:
         **
         **   + If the query is a "SELECT min(x)", then the loop coded by
         **     where.c should not iterate over any values with a NULL value
@@ -101310,7 +101279,7 @@ SQLITE_PRIVATE void sqlite3Update(
 
     /* The row-trigger may have deleted the row being updated. In this
     ** case, jump to the next row. No updates or AFTER triggers are 
-    ** required. This behaviour - what happens when the row being updated
+    ** required. This behavior - what happens when the row being updated
     ** is deleted or renamed by a BEFORE trigger - is left undefined in the
     ** documentation.
     */
@@ -103239,6 +103208,8 @@ struct WhereCost {
 #define WHERE_REVERSE      0x01000000  /* Scan in reverse order */
 #define WHERE_UNIQUE       0x02000000  /* Selects no more than one row */
 #define WHERE_ALL_UNIQUE   0x04000000  /* This and all prior have one row */
+#define WHERE_OB_UNIQUE    0x00004000  /* Values in ORDER BY columns are 
+                                       ** different for every output row */
 #define WHERE_VIRTUALTABLE 0x08000000  /* Use virtual-table processing */
 #define WHERE_MULTI_OR     0x10000000  /* OR using multiple indices */
 #define WHERE_TEMP_INDEX   0x20000000  /* Uses an ephemeral index */
@@ -103539,7 +103510,7 @@ static int allowedOp(int op){
 ** Commute a comparison operator.  Expressions of the form "X op Y"
 ** are converted into "Y op X".
 **
-** If left/right precendence rules come into play when determining the
+** If left/right precedence rules come into play when determining the
 ** collating
 ** side of the comparison, it remains associated with the same side after
 ** the commutation. So "Y collate NOCASE op X" becomes 
@@ -105880,7 +105851,8 @@ static int isSortingIndex(
   WhereBestIdx *p,    /* Best index search context */
   Index *pIdx,        /* The index we are testing */
   int base,           /* Cursor number for the table to be sorted */
-  int *pbRev          /* Set to 1 for reverse-order scan of pIdx */
+  int *pbRev,         /* Set to 1 for reverse-order scan of pIdx */
+  int *pbObUnique     /* ORDER BY column values will different in every row */
 ){
   int i;                        /* Number of pIdx terms used */
   int j;                        /* Number of ORDER BY terms satisfied */
@@ -105894,12 +105866,16 @@ static int isSortingIndex(
   int nPriorSat;                /* ORDER BY terms satisfied by outer loops */
   int seenRowid = 0;            /* True if an ORDER BY rowid term is seen */
   int uniqueNotNull;            /* pIdx is UNIQUE with all terms are NOT NULL */
+  int outerObUnique;            /* Outer loops generate different values in
+                                ** every row for the ORDER BY columns */
 
   if( p->i==0 ){
     nPriorSat = 0;
+    outerObUnique = 1;
   }else{
+    u32 wsFlags = p->aLevel[p->i-1].plan.wsFlags;
     nPriorSat = p->aLevel[p->i-1].plan.nOBSat;
-    if( (p->aLevel[p->i-1].plan.wsFlags & WHERE_ORDERED)==0 ){
+    if( (wsFlags & WHERE_ORDERED)==0 ){
       /* This loop cannot be ordered unless the next outer loop is
       ** also ordered */
       return nPriorSat;
@@ -105909,6 +105885,9 @@ static int isSortingIndex(
       ** optimization is disabled */
       return nPriorSat;
     }
+    testcase( wsFlags & WHERE_OB_UNIQUE );
+    testcase( wsFlags & WHERE_ALL_UNIQUE );
+    outerObUnique = (wsFlags & (WHERE_OB_UNIQUE|WHERE_ALL_UNIQUE))!=0;
   }
   pOrderBy = p->pOrderBy;
   assert( pOrderBy!=0 );
@@ -106050,10 +106029,25 @@ static int isSortingIndex(
       uniqueNotNull = 0;
     }
   }
+  if( seenRowid ){
+    uniqueNotNull = 1;
+  }else if( uniqueNotNull==0 || i<pIdx->nColumn ){
+    uniqueNotNull = 0;
+  }
 
   /* If we have not found at least one ORDER BY term that matches the
   ** index, then show no progress. */
   if( pOBItem==&pOrderBy->a[nPriorSat] ) return nPriorSat;
+
+  /* Either the outer queries must generate rows where there are no two
+  ** rows with the same values in all ORDER BY columns, or else this
+  ** loop must generate just a single row of output.  Example:  Suppose
+  ** the outer loops generate A=1 and A=1, and this loop generates B=3
+  ** and B=4.  Then without the following test, ORDER BY A,B would 
+  ** generate the wrong order output: 1,3 1,4 1,3 1,4
+  */
+  if( outerObUnique==0 && uniqueNotNull==0 ) return nPriorSat;
+  *pbObUnique = uniqueNotNull;
 
   /* Return the necessary scan order back to the caller */
   *pbRev = sortOrder & 1;
@@ -106062,7 +106056,7 @@ static int isSortingIndex(
   ** possible for a single row from this table to match, then skip over
   ** any additional ORDER BY terms dealing with this table.
   */
-  if( seenRowid || (uniqueNotNull && i>=pIdx->nColumn) ){
+  if( uniqueNotNull ){
     /* Advance j over additional ORDER BY terms associated with base */
     WhereMaskSet *pMS = p->pWC->pMaskSet;
     Bitmask m = ~getMask(pMS, base);
@@ -106346,12 +106340,14 @@ static void bestBtreeIndex(WhereBestIdx *p){
     ** variable.  */
     if( bSort && (pSrc->jointype & JT_LEFT)==0 ){
       int bRev = 2;
-      WHERETRACE(("      --> before isSortingIndex: nPriorSat=%d\n",nPriorSat));
-      pc.plan.nOBSat = isSortingIndex(p, pProbe, iCur, &bRev);
-      WHERETRACE(("      --> after  isSortingIndex: bRev=%d nOBSat=%d\n",
-                  bRev, pc.plan.nOBSat));
+      int bObUnique = 0;
+      WHERETRACE(("      --> before isSortIndex: nPriorSat=%d\n",nPriorSat));
+      pc.plan.nOBSat = isSortingIndex(p, pProbe, iCur, &bRev, &bObUnique);
+      WHERETRACE(("      --> after  isSortIndex: bRev=%d bObU=%d nOBSat=%d\n",
+                  bRev, bObUnique, pc.plan.nOBSat));
       if( nPriorSat<pc.plan.nOBSat || (pc.plan.wsFlags & WHERE_ALL_UNIQUE)!=0 ){
         pc.plan.wsFlags |= WHERE_ORDERED;
+        if( bObUnique ) pc.plan.wsFlags |= WHERE_OB_UNIQUE;
       }
       if( nOrderBy==pc.plan.nOBSat ){
         bSort = 0;
@@ -106445,7 +106441,8 @@ static void bestBtreeIndex(WhereBestIdx *p){
     ** So this computation assumes table records are about twice as big
     ** as index records
     */
-    if( (pc.plan.wsFlags&~(WHERE_REVERSE|WHERE_ORDERED))==WHERE_IDX_ONLY
+    if( (pc.plan.wsFlags&~(WHERE_REVERSE|WHERE_ORDERED|WHERE_OB_UNIQUE))
+                                                              ==WHERE_IDX_ONLY
      && (pWC->wctrlFlags & WHERE_ONEPASS_DESIRED)==0
      && sqlite3GlobalConfig.bUseCis
      && OptimizationEnabled(pParse->db, SQLITE_CoverIdxScan)
@@ -106605,7 +106602,7 @@ static void bestBtreeIndex(WhereBestIdx *p){
   /* If there is no ORDER BY clause and the SQLITE_ReverseOrder flag
   ** is set, then reverse the order that the index will be scanned
   ** in. This is used for application testing, to help find cases
-  ** where application behaviour depends on the (undefined) order that
+  ** where application behavior depends on the (undefined) order that
   ** SQLite outputs rows in in the absence of an ORDER BY clause.  */
   if( !p->pOrderBy && pParse->db->flags & SQLITE_ReverseOrder ){
     p->cost.plan.wsFlags |= WHERE_REVERSE;
@@ -114200,7 +114197,7 @@ SQLITE_PRIVATE void sqlite3LeaveMutexAndCloseZombie(sqlite3 *db){
 
   /* If we reach this point, it means that the database connection has
   ** closed all sqlite3_stmt and sqlite3_backup objects and has been
-  ** pased to sqlite3_close (meaning that it is a zombie).  Therefore,
+  ** passed to sqlite3_close (meaning that it is a zombie).  Therefore,
   ** go ahead and free all resources.
   */
 
@@ -117252,7 +117249,7 @@ struct sqlite3_tokenizer_module {
   ** This method should return either SQLITE_OK (0), or an SQLite error 
   ** code. If SQLITE_OK is returned, then *ppTokenizer should be set
   ** to point at the newly created tokenizer structure. The generic
-  ** sqlite3_tokenizer.pModule variable should not be initialised by
+  ** sqlite3_tokenizer.pModule variable should not be initialized by
   ** this callback. The caller will do so.
   */
   int (*xCreate)(
@@ -117357,7 +117354,7 @@ int fts3_term_cnt(int iTerm, int iCol);
 **    May you share freely, never taking more than you give.
 **
 *************************************************************************
-** This is the header file for the generic hash-table implemenation
+** This is the header file for the generic hash-table implementation
 ** used in SQLite.  We've modified it slightly to serve as a standalone
 ** hash table implementation for the full-text indexing module.
 **
@@ -119264,7 +119261,7 @@ static int fts3CursorSeek(sqlite3_context *pContext, Fts3Cursor *pCsr){
       }else{
         rc = sqlite3_reset(pCsr->pStmt);
         if( rc==SQLITE_OK && ((Fts3Table *)pCsr->base.pVtab)->zContentTbl==0 ){
-          /* If no row was found and no error has occured, then the %_content
+          /* If no row was found and no error has occurred, then the %_content
           ** table is missing a row that is present in the full-text index.
           ** The data structures are corrupt.  */
           rc = FTS_CORRUPT_VTAB;
@@ -120504,7 +120501,7 @@ static void fts3SegReaderCursorFree(Fts3MultiSegReader *pSegcsr){
 }
 
 /*
-** This function retreives the doclist for the specified term (or term
+** This function retrieves the doclist for the specified term (or term
 ** prefix) from the database.
 */
 static int fts3TermSelect(
@@ -121255,7 +121252,7 @@ SQLITE_PRIVATE void sqlite3Fts3IcuTokenizerModule(sqlite3_tokenizer_module const
 #endif
 
 /*
-** Initialise the fts3 extension. If this extension is built as part
+** Initialize the fts3 extension. If this extension is built as part
 ** of the sqlite library, then this function is called directly by
 ** SQLite. If fts3 is built as a dynamically loadable extension, this
 ** function is called by the sqlite3_extension_init() entry point.
@@ -121289,7 +121286,7 @@ SQLITE_PRIVATE int sqlite3Fts3Init(sqlite3 *db){
   sqlite3Fts3SimpleTokenizerModule(&pSimple);
   sqlite3Fts3PorterTokenizerModule(&pPorter);
 
-  /* Allocate and initialise the hash-table used to store tokenizers. */
+  /* Allocate and initialize the hash-table used to store tokenizers. */
   pHash = sqlite3_malloc(sizeof(Fts3Hash));
   if( !pHash ){
     rc = SQLITE_NOMEM;
@@ -122888,7 +122885,7 @@ SQLITE_PRIVATE int sqlite3Fts3EvalPhraseStats(
 ** of the current row. 
 **
 ** More specifically, the returned buffer contains 1 varint for each 
-** occurence of the phrase in the column, stored using the normal (delta+2) 
+** occurrence of the phrase in the column, stored using the normal (delta+2) 
 ** compression and is terminated by either an 0x01 or 0x00 byte. For example,
 ** if the requested column contains "a b X c d X X" and the position-list
 ** for 'X' is requested, the buffer returned may contain:
@@ -123627,7 +123624,7 @@ struct ParseContext {
 ** This function is equivalent to the standard isspace() function. 
 **
 ** The standard isspace() can be awkward to use safely, because although it
-** is defined to accept an argument of type int, its behaviour when passed
+** is defined to accept an argument of type int, its behavior when passed
 ** an integer that falls outside of the range of the unsigned char type
 ** is undefined (and sometimes, "undefined" means segfault). This wrapper
 ** is defined to accept an argument of type char, and always returns 0 for
@@ -125995,7 +125992,7 @@ static void intTestFunc(
 /*
 ** Set up SQL objects in database db used to access the contents of
 ** the hash table pointed to by argument pHash. The hash table must
-** been initialised to use string keys, and to take a private copy 
+** been initialized to use string keys, and to take a private copy 
 ** of the key when a value is inserted. i.e. by a call similar to:
 **
 **    sqlite3Fts3HashInit(pHash, FTS3_HASH_STRING, 1);
@@ -127774,6 +127771,7 @@ static int fts3SegReaderNextDocid(
       *pnOffsetList = (int)(p - pReader->pOffsetList - 1);
     }
 
+    /* List may have been edited in place by fts3EvalNearTrim() */
     while( p<pEnd && *p==0 ) p++;
   
     /* If there are no more entries in the doclist, set pOffsetList to
@@ -128789,9 +128787,13 @@ static int fts3DeleteSegdir(
 **
 ** If there are no entries in the input position list for column iCol, then
 ** *pnList is set to zero before returning.
+**
+** If parameter bZero is non-zero, then any part of the input list following
+** the end of the output list is zeroed before returning.
 */
 static void fts3ColumnFilter(
   int iCol,                       /* Column to filter on */
+  int bZero,                      /* Zero out anything following *ppList */
   char **ppList,                  /* IN/OUT: Pointer to position list */
   int *pnList                     /* IN/OUT: Size of buffer *ppList in bytes */
 ){
@@ -128820,6 +128822,9 @@ static void fts3ColumnFilter(
     p += sqlite3Fts3GetVarint32(p, &iCurrent);
   }
 
+  if( bZero && &pList[nList]!=pEnd ){
+    memset(&pList[nList], 0, pEnd - &pList[nList]);
+  }
   *ppList = pList;
   *pnList = nList;
 }
@@ -128893,19 +128898,19 @@ SQLITE_PRIVATE int sqlite3Fts3MsrIncrNext(
       if( rc!=SQLITE_OK ) return rc;
       fts3SegReaderSort(pMsr->apSegment, nMerge, j, xCmp);
 
+      if( nList>0 && fts3SegReaderIsPending(apSegment[0]) ){
+        rc = fts3MsrBufferData(pMsr, pList, nList+1);
+        if( rc!=SQLITE_OK ) return rc;
+        assert( (pMsr->aBuffer[nList] & 0xFE)==0x00 );
+        pList = pMsr->aBuffer;
+      }
+
       if( pMsr->iColFilter>=0 ){
-        fts3ColumnFilter(pMsr->iColFilter, &pList, &nList);
+        fts3ColumnFilter(pMsr->iColFilter, 1, &pList, &nList);
       }
 
       if( nList>0 ){
-        if( fts3SegReaderIsPending(apSegment[0]) ){
-          rc = fts3MsrBufferData(pMsr, pList, nList+1);
-          if( rc!=SQLITE_OK ) return rc;
-          *paPoslist = pMsr->aBuffer;
-          assert( (pMsr->aBuffer[nList] & 0xFE)==0x00 );
-        }else{
-          *paPoslist = pList;
-        }
+        *paPoslist = pList;
         *piDocid = iDocid;
         *pnPoslist = nList;
         break;
@@ -129148,7 +129153,7 @@ SQLITE_PRIVATE int sqlite3Fts3SegReaderStep(
         }
 
         if( isColFilter ){
-          fts3ColumnFilter(pFilter->iCol, &pList, &nList);
+          fts3ColumnFilter(pFilter->iCol, 0, &pList, &nList);
         }
 
         if( !isIgnoreEmpty || nList>0 ){
@@ -132085,9 +132090,9 @@ static int fts3SnippetFindPositions(Fts3Expr *pExpr, int iPhrase, void *ctx){
 ** is the snippet with the highest score, where scores are calculated
 ** by adding:
 **
-**   (a) +1 point for each occurence of a matchable phrase in the snippet.
+**   (a) +1 point for each occurrence of a matchable phrase in the snippet.
 **
-**   (b) +1000 points for the first occurence of each matchable phrase in 
+**   (b) +1000 points for the first occurrence of each matchable phrase in 
 **       the snippet for which the corresponding mCovered bit is not set.
 **
 ** The selected snippet parameters are stored in structure *pFragment before
@@ -133342,7 +133347,7 @@ static int unicodeDestroy(sqlite3_tokenizer *pTokenizer){
 **
 ** If a standalone diacritic mark (one that sqlite3FtsUnicodeIsdiacritic()
 ** identifies as a diacritic) occurs in the zIn/nIn string it is ignored.
-** It is not possible to change the behaviour of the tokenizer with respect
+** It is not possible to change the behavior of the tokenizer with respect
 ** to these codepoints.
 */
 static int unicodeAddExceptions(
@@ -136645,7 +136650,7 @@ static int rtreeDeleteRowid(Rtree *pRtree, sqlite3_int64 iDelete){
   RtreeNode *pRoot;               /* Root node of rtree structure */
 
 
-  /* Obtain a reference to the root node to initialise Rtree.iDepth */
+  /* Obtain a reference to the root node to initialize Rtree.iDepth */
   rc = nodeAcquire(pRtree, 1, 0, &pRoot);
 
   /* Obtain a reference to the leaf node that contains the entry 
