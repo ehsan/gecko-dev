@@ -775,6 +775,7 @@ public:
         IDX_CONSTRUCTOR             = 0 ,
         IDX_TO_STRING               ,
         IDX_TO_SOURCE               ,
+        IDX_VALUE_OF                ,
         IDX_LAST_RESULT             ,
         IDX_RETURN_CODE             ,
         IDX_VALUE                   ,
@@ -913,11 +914,6 @@ public:
 
     static void ActivityCallback(void *arg, JSBool active);
 
-    bool NewDOMBindingsEnabled()
-    {
-        return gNewDOMBindingsEnabled;
-    }
-
     bool ExperimentalBindingsEnabled()
     {
         return gExperimentalBindingsEnabled;
@@ -938,7 +934,6 @@ private:
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
 
-    static bool gNewDOMBindingsEnabled;
     static bool gExperimentalBindingsEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
@@ -1747,11 +1742,6 @@ public:
     }
     void TraceDOMPrototypes(JSTracer *trc);
 
-    JSBool NewDOMBindingsEnabled()
-    {
-        return mNewDOMBindingsEnabled;
-    }
-
     JSBool ExperimentalBindingsEnabled()
     {
         return mExperimentalBindingsEnabled;
@@ -1797,7 +1787,6 @@ private:
 
     nsDataHashtable<nsDepCharHashKey, JSObject*> mCachedDOMPrototypes;
 
-    JSBool mNewDOMBindingsEnabled;
     JSBool mExperimentalBindingsEnabled;
 };
 
