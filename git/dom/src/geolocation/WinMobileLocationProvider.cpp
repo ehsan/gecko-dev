@@ -188,14 +188,8 @@ nsGeoPosition::GetAddress(nsIDOMGeoPositionAddress** aAddress)
 
 NS_IMPL_ISUPPORTS2(WinMobileLocationProvider, nsIGeolocationProvider, nsITimerCallback)
 
-WinMobileLocationProvider::WinMobileLocationProvider() :
-  mGPSDevice(nsnull), 
-  mOpenDevice(nsnull),
-  mCloseDevice(nsnull),
-  mGetPosition(nsnull),
-  mGetDeviceState(nsnull),
-  mHasSeenLocation(PR_FALSE),
-  mHasGPS(PR_TRUE) /* think positively */
+WinMobileLocationProvider::WinMobileLocationProvider():
+mGPSDevice(nsnull), mHasSeenLocation(PR_FALSE)
 {
 }
 
@@ -206,9 +200,6 @@ WinMobileLocationProvider::~WinMobileLocationProvider()
 NS_IMETHODIMP
 WinMobileLocationProvider::Notify(nsITimer* aTimer)
 {
-  if (!mGPSDevice || !mGetPosition)
-    return NS_ERROR_FAILURE;
-
   GPS_POSITION pos;
   memset(&pos, 0, sizeof(GPS_POSITION));
   pos.dwVersion = GPS_VERSION_1;
@@ -223,7 +214,7 @@ WinMobileLocationProvider::Notify(nsITimer* aTimer)
       pos.dwFlags == GPS_DATA_FLAGS_HARDWARE_OFF ||
       pos.FixQuality == GPS_FIX_QUALITY_UNKNOWN)
     return NS_OK;
-
+  
   nsRefPtr<nsGeoPosition> somewhere =
     new nsGeoPosition(pos.dblLatitude,
                       pos.dblLongitude,
@@ -239,11 +230,10 @@ WinMobileLocationProvider::Notify(nsITimer* aTimer)
 
 NS_IMETHODIMP WinMobileLocationProvider::Startup()
 {
-  if (mHasGPS && !mGPSInst) {
+  if (!mGPSDevice) {
     mGPSInst = LoadLibraryW(L"gpsapi.dll");
     
     if(!mGPSInst) {
-      mHasGPS = PR_FALSE;
       NS_ASSERTION(mGPSInst, "failed to load library gpsapi.dll");
       return NS_ERROR_FAILURE;
     }
@@ -252,27 +242,27 @@ NS_IMETHODIMP WinMobileLocationProvider::Startup()
     mCloseDevice = (CloseDeviceProc) GetProcAddress(mGPSInst,"GPSCloseDevice");
     mGetPosition = (GetPositionProc) GetProcAddress(mGPSInst,"GPSGetPosition");
     mGetDeviceState = (GetDeviceStateProc) GetProcAddress(mGPSInst,"GPSGetDeviceState");
-
+    
     if (!mOpenDevice || !mCloseDevice || !mGetPosition || !mGetDeviceState)
       return NS_ERROR_FAILURE;
-
+    
     mGPSDevice = mOpenDevice(NULL, NULL, NULL, 0);
-
+    
     if (!mGPSDevice) {
       NS_ASSERTION(mGPSDevice, "GPS Device not found");
       return NS_ERROR_FAILURE;
     }
     nsresult rv;
     mUpdateTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
-
+    
     if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
-
+    
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     PRInt32 update = 3000; //3 second default timer
     if (prefs)
       prefs->GetIntPref("geo.default.update", &update);
-
+    
     mUpdateTimer->InitWithCallback(this, update, nsITimer::TYPE_REPEATING_SLACK);
   }
   return NS_OK;
@@ -300,21 +290,12 @@ NS_IMETHODIMP WinMobileLocationProvider::Shutdown()
   
   if (mGPSDevice)
     mCloseDevice(mGPSDevice);
-
-  mGPSDevice = nsnull;
   
   mHasSeenLocation = PR_FALSE;
   
   mCallback = nsnull;
   
   FreeLibrary(mGPSInst);
-  mGPSInst = nsnull;
-
-  mOpenDevice  = nsnull;
-  mCloseDevice = nsnull;
-  mGetPosition = nsnull;
-  mGetDeviceState = nsnull;
- 
   return NS_OK;
 }
 
