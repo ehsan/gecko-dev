@@ -28,7 +28,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageErrorListener",
                                   "resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "prefBranch", function() {
-  let prefService = Components.classes["@mozilla.org/preferences-service;1"]
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
           .getService(Components.interfaces.nsIPrefService);
   return prefService.getBranch(null)
           .QueryInterface(Components.interfaces.nsIPrefBranch2);
@@ -51,16 +51,12 @@ this.CommandUtils = {
   /**
    * A toolbarSpec is an array of buttonSpecs. A buttonSpec is an array of
    * strings each of which is a GCLI command (including args if needed).
-   *
-   * Warning: this method uses the unload event of the window that owns the
-   * buttons that are of type checkbox. this means that we don't properly
-   * unregister event handlers until the window is destroyed.
    */
-  createButtons: function CU_createButtons(toolbarSpec, target, document, requisition) {
-    let reply = [];
+  createButtons: function CU_createButtons(toolbarSpec, document, requisition) {
+    var reply = [];
 
     toolbarSpec.forEach(function(buttonSpec) {
-      let button = document.createElement("toolbarbutton");
+      var button = document.createElement("toolbarbutton");
       reply.push(button);
 
       if (typeof buttonSpec == "string") {
@@ -70,7 +66,7 @@ this.CommandUtils = {
       requisition.update(buttonSpec.typed);
 
       // Ignore invalid commands
-      let command = requisition.commandAssignment.value;
+      var command = requisition.commandAssignment.value;
       if (command == null) {
         // TODO: Have a broken icon
         // button.icon = 'Broken';
@@ -105,24 +101,15 @@ this.CommandUtils = {
         }, false);
 
         // Allow the command button to be toggleable
-        if (command.state) {
-          button.setAttribute("autocheck", false);
-          let onChange = function(event, eventTab) {
-            if (eventTab == target.tab) {
-              if (command.state.isChecked(target)) {
-                button.setAttribute("checked", true);
-              }
-              else if (button.hasAttribute("checked")) {
-                button.removeAttribute("checked");
-              }
-            }
-          };
-          command.state.onChange(target, onChange);
-          onChange(null, target.tab);
-          document.defaultView.addEventListener("unload", function() {
-            command.state.offChange(target, onChange);
-          }, false);
+        /*
+        if (command.checkedState) {
+          button.setAttribute("type", "checkbox");
+          button.setAttribute("checked", command.checkedState.get() ? "true" : "false");
+          command.checkedState.on("change", function() {
+            button.checked = command.checkedState.get();
+          });
         }
+        */
       }
     });
 
@@ -205,7 +192,7 @@ Object.defineProperty(DeveloperToolbar.prototype, 'visible', {
   enumerable: true
 });
 
-let _gSequenceId = 0;
+var _gSequenceId = 0;
 
 /**
  * Getter for a unique ID.
@@ -252,8 +239,8 @@ DeveloperToolbar.prototype.focusToggle = function DT_focusToggle()
   if (this.visible) {
     // If we have focus then the active element is the HTML input contained
     // inside the xul input element
-    let active = this._chromeWindow.document.activeElement;
-    let position = this._input.compareDocumentPosition(active);
+    var active = this._chromeWindow.document.activeElement;
+    var position = this._input.compareDocumentPosition(active);
     if (position & Node.DOCUMENT_POSITION_CONTAINED_BY) {
       this.hide();
     }
@@ -456,12 +443,7 @@ DeveloperToolbar.prototype.hide = function DT_hide()
  */
 DeveloperToolbar.prototype.destroy = function DT_destroy()
 {
-  if (this._lastState == NOTIFICATIONS.HIDE) {
-    return;
-  }
-
   this._chromeWindow.getBrowser().tabContainer.removeEventListener("TabSelect", this, false);
-  this._chromeWindow.getBrowser().tabContainer.removeEventListener("TabClose", this, false);
   this._chromeWindow.getBrowser().removeEventListener("load", this, true); 
   this._chromeWindow.getBrowser().removeEventListener("beforeunload", this, true);
 
@@ -488,8 +470,6 @@ DeveloperToolbar.prototype.destroy = function DT_destroy()
   delete this.outputPanel;
   delete this.tooltipPanel;
   */
-
-  this._lastState = NOTIFICATIONS.HIDE;
 };
 
 /**

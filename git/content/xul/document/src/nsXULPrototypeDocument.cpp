@@ -688,9 +688,7 @@ nsXULPrototypeDocument::TraceProtos(JSTracer* aTrc, uint32_t aGCNumber)
   }
 
   mGCNumber = aGCNumber;
-  if (mRoot) {
-    mRoot->TraceAllScripts(aTrc);
-  }
+  mRoot->TraceAllScripts(aTrc);
 }
 
 //----------------------------------------------------------------------

@@ -17,7 +17,7 @@ this.EXPORTED_SYMBOLS = [ "Hosts" ];
  * sidebar or a separate window). Any host object should implement the
  * following functions:
  *
- * create() - create the UI and emit a 'ready' event when the UI is ready to use
+ * open() - create the UI and emit a 'ready' event when the UI is ready to use
  * destroy() - destroy the host's UI
  */
 
@@ -44,7 +44,7 @@ BottomHost.prototype = {
   /**
    * Create a box at the bottom of the host tab.
    */
-  create: function BH_create() {
+  open: function BH_open() {
     let deferred = Promise.defer();
 
     let gBrowser = this.hostTab.ownerDocument.defaultView.gBrowser;
@@ -54,7 +54,7 @@ BottomHost.prototype = {
     this._splitter.setAttribute("class", "devtools-horizontal-splitter");
 
     this.frame = ownerDocument.createElement("iframe");
-    this.frame.className = "devtools-toolbox-bottom-iframe";
+    this.frame.id = "devtools-toolbox-bottom-iframe";
     this.frame.height = Services.prefs.getIntPref(this.heightPref);
 
     this._nbox = gBrowser.getNotificationBox(this.hostTab.linkedBrowser);
@@ -112,7 +112,7 @@ SidebarHost.prototype = {
   /**
    * Create a box in the sidebar of the host tab.
    */
-  create: function SH_create() {
+  open: function RH_open() {
     let deferred = Promise.defer();
 
     let gBrowser = this.hostTab.ownerDocument.defaultView.gBrowser;
@@ -122,7 +122,7 @@ SidebarHost.prototype = {
     this._splitter.setAttribute("class", "devtools-side-splitter");
 
     this.frame = ownerDocument.createElement("iframe");
-    this.frame.className = "devtools-toolbox-side-iframe";
+    this.frame.id = "devtools-toolbox-side-iframe";
     this.frame.width = Services.prefs.getIntPref(this.widthPref);
 
     this._sidebar = gBrowser.getSidebarContainer(this.hostTab.linkedBrowser);
@@ -147,7 +147,7 @@ SidebarHost.prototype = {
   /**
    * Destroy the sidebar.
    */
-  destroy: function SH_destroy() {
+  destroy: function RH_destroy() {
     if (!this._destroyed) {
       this._destroyed = true;
 
@@ -177,7 +177,7 @@ WindowHost.prototype = {
   /**
    * Create a new xul window to contain the toolbox.
    */
-  create: function WH_create() {
+  open: function WH_open() {
     let deferred = Promise.defer();
 
     let flags = "chrome,centerscreen,resizable,dialog=no";
