@@ -32,14 +32,12 @@ class nsIDOMBlob;
 namespace mozilla {
 
 namespace ipc {
-class OptionalURIParams;
-class URIParams;
 class TestShellParent;
-} // namespace ipc
+}
 
 namespace layers {
 class PCompositorParent;
-} // namespace layers
+}
 
 namespace dom {
 
@@ -52,10 +50,10 @@ class ContentParent : public PContentParent
                     , public nsIThreadObserver
                     , public nsIDOMGeoPositionCallback
 {
+private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
-    typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
     typedef mozilla::ipc::TestShellParent TestShellParent;
-    typedef mozilla::ipc::URIParams URIParams;
+    typedef mozilla::layers::PCompositorParent PCompositorParent;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
@@ -67,7 +65,7 @@ public:
     /** Shut down the content-process machinery. */
     static void ShutDown();
 
-    static ContentParent* GetNewOrUsed(bool aForBrowserElement = false);
+    static ContentParent* GetNewOrUsed();
 
     /**
      * Get or create a content process for the given app descriptor,
@@ -117,8 +115,6 @@ protected:
     virtual void ActorDestroy(ActorDestroyReason why);
 
 private:
-    typedef base::ChildPrivileges ChildOSPrivileges;
-
     static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
     static nsTArray<ContentParent*>* gNonAppContentParents;
     static nsTArray<ContentParent*>* gPrivateContent;
@@ -133,8 +129,7 @@ private:
     using PContentParent::SendPBrowserConstructor;
     using PContentParent::SendPTestShellConstructor;
 
-    ContentParent(const nsAString& aAppManifestURL, bool aIsForBrowser,
-                  ChildOSPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
+    ContentParent(const nsAString& aAppManifestURL);
     virtual ~ContentParent();
 
     void Init();
@@ -157,12 +152,8 @@ private:
      */
     void ShutDownProcess();
 
-    PCompositorParent*
-    AllocPCompositor(mozilla::ipc::Transport* aTransport,
-                     base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeParent*
-    AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                      base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    PCompositorParent* AllocPCompositor(mozilla::ipc::Transport* aTransport,
+                                        base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual PBrowserParent* AllocPBrowser(const uint32_t& aChromeFlags,
                                           const bool& aIsBrowserElement,
@@ -207,12 +198,12 @@ private:
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
     virtual PExternalHelperAppParent* AllocPExternalHelperApp(
-            const OptionalURIParams& aUri,
+            const IPC::URI& uri,
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
             const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer);
+            const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
     virtual PSmsParent* AllocPSms();
@@ -221,7 +212,7 @@ private:
     virtual PStorageParent* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageParent* aActor);
 
-    virtual bool RecvReadPrefsArray(InfallibleTArray<PrefSetting>* aPrefs);
+    virtual bool RecvReadPrefsArray(InfallibleTArray<PrefTuple> *retValue);
     virtual bool RecvReadFontList(InfallibleTArray<FontListEntry>* retValue);
 
     virtual bool RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions);
@@ -235,13 +226,13 @@ private:
     virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const uint32_t& aIconSize, InfallibleTArray<uint8_t>* bits);
     virtual bool RecvGetShowPasswordSetting(bool* showPassword);
 
-    virtual bool RecvStartVisitedQuery(const URIParams& uri);
+    virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
-    virtual bool RecvVisitURI(const URIParams& uri,
-                              const OptionalURIParams& referrer,
+    virtual bool RecvVisitURI(const IPC::URI& uri,
+                              const IPC::URI& referrer,
                               const uint32_t& flags);
 
-    virtual bool RecvSetURITitle(const URIParams& uri,
+    virtual bool RecvSetURITitle(const IPC::URI& uri,
                                  const nsString& title);
     
     virtual bool RecvShowFilePicker(const int16_t& mode,
@@ -260,7 +251,7 @@ private:
                                            const nsString& aText, const bool& aTextClickable,
                                            const nsString& aCookie, const nsString& aName);
 
-    virtual bool RecvLoadURIExternal(const URIParams& uri);
+    virtual bool RecvLoadURIExternal(const IPC::URI& uri);
 
     virtual bool RecvSyncMessage(const nsString& aMsg,
                                  const ClonedMessageData& aData,
@@ -285,7 +276,6 @@ private:
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     GeckoChildProcessHost* mSubprocess;
-    ChildOSPrivileges mOSPrivileges;
 
     int32_t mGeolocationWatchID;
     int mRunToCompletionDepth;

@@ -33,7 +33,6 @@ function DebuggerUI(aWindow) {
 }
 
 DebuggerUI.prototype = {
-
   /**
    * Update the status of tool's menuitems and buttons when
    * the user switch tabs.

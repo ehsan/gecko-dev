@@ -539,7 +539,7 @@ NS_IMETHODIMP nsEncoderSupport::SetOutputErrorBehavior(
                                 nsIUnicharEncoder * aEncoder,
                                 PRUnichar aChar)
 {
-  if (aBehavior == kOnError_CallBack && !aEncoder)
+  if (aBehavior == kOnError_CallBack && aEncoder == nullptr)
     return NS_ERROR_NULL_POINTER;
 
   mErrEncoder = aEncoder;

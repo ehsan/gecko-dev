@@ -421,7 +421,8 @@ def write_cpp(iface, fd):
              "    NS_ENSURE_STATE(pusher.ref().Push(aCx, false));\n"
              "  }\n"
              "  JSAutoRequest ar(aCx);\n"
-             "  JSAutoCompartment ac(aCx, obj);\n")
+             "  JSAutoEnterCompartment ac;\n"
+             "  NS_ENSURE_STATE(ac.enter(aCx, obj));\n")
 
     fd.write("  return %s_InitInternal(*this, aCx, obj);\n}\n\n" %
                  iface.name)

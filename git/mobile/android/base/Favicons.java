@@ -269,7 +269,7 @@ public class Favicons {
                           " with favicon URL = " + mFaviconUrl);
 
             if (mFaviconUrl.startsWith("jar:jar:")) {
-                return GeckoJarReader.getBitmapDrawable(GeckoApp.mAppContext.getResources(), mFaviconUrl);
+                return GeckoJarReader.getBitmapDrawable(mFaviconUrl);
             }
 
             URI uri;

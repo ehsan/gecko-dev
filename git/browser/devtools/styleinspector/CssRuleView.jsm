@@ -33,7 +33,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 var EXPORTED_SYMBOLS = ["CssRuleView",
                         "_ElementStyle",
-                        "editableItem",
                         "_editableField",
                         "_getInplaceEditorForSpan"];
 
@@ -1394,7 +1393,7 @@ RuleEditor.prototype = {
     });
 
     // Create a property editor when the close brace is clicked.
-    editableItem({ element: this.closeBrace }, function(aElement) {
+    editableItem(this.closeBrace, function(aElement) {
       this.newProperty();
     }.bind(this));
   },
@@ -1839,9 +1838,6 @@ TextPropertyEditor.prototype = {
  *    Options for the editable field, including:
  *    {Element} element:
  *      (required) The span to be edited on focus.
- *    {function} canEdit:
- *       Will be called before creating the inplace editor.  Editor
- *       won't be created if canEdit returns false.
  *    {function} start:
  *       Will be called when the inplace editor is initialized.
  *    {function} change:
@@ -1857,16 +1853,11 @@ TextPropertyEditor.prototype = {
  *    {string} advanceChars:
  *       If any characters in advanceChars are typed, focus will advance
  *       to the next element.
- *    {boolean} stopOnReturn:
- *       If true, the return key will not advance the editor to the next
- *       focusable element.
- *    {string} trigger: The DOM event that should trigger editing,
- *      defaults to "click"
  */
 function editableField(aOptions)
 {
-  return editableItem(aOptions, function(aElement, aEvent) {
-    new InplaceEditor(aOptions, aEvent);
+  editableItem(aOptions.element, function(aElement) {
+    new InplaceEditor(aOptions);
   });
 }
 
@@ -1875,33 +1866,29 @@ function editableField(aOptions)
  * clicks and sit in the editing tab order, and call
  * a callback when it is activated.
  *
- * @param object aOptions
- *    The options for this editor, including:
- *    {Element} element: The DOM element.
- *    {string} trigger: The DOM event that should trigger editing,
- *      defaults to "click"
+ * @param DOMElement aElement
+ *        The DOM element.
  * @param function aCallback
  *        Called when the editor is activated.
  */
-function editableItem(aOptions, aCallback)
+
+function editableItem(aElement, aCallback)
 {
-  let trigger = aOptions.trigger || "click"
-  let element = aOptions.element;
-  element.addEventListener(trigger, function(evt) {
+  aElement.addEventListener("click", function(evt) {
     let win = this.ownerDocument.defaultView;
     let selection = win.getSelection();
-    if (trigger != "click" || selection.isCollapsed) {
-      aCallback(element, evt);
+    if (selection.isCollapsed) {
+      aCallback(aElement);
     }
     evt.stopPropagation();
   }, false);
 
   // If focused by means other than a click, start editing by
   // pressing enter or space.
-  element.addEventListener("keypress", function(evt) {
+  aElement.addEventListener("keypress", function(evt) {
     if (evt.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN ||
         evt.charCode === Ci.nsIDOMKeyEvent.DOM_VK_SPACE) {
-      aCallback(element);
+      aCallback(aElement);
     }
   }, true);
 
@@ -1909,25 +1896,25 @@ function editableItem(aOptions, aCallback)
   // the editor is activated on click/mouseup.  This leads
   // to an ugly flash of the focus ring before showing the editor.
   // So hide the focus ring while the mouse is down.
-  element.addEventListener("mousedown", function(evt) {
+  aElement.addEventListener("mousedown", function(evt) {
     let cleanup = function() {
-      element.style.removeProperty("outline-style");
-      element.removeEventListener("mouseup", cleanup, false);
-      element.removeEventListener("mouseout", cleanup, false);
+      aElement.style.removeProperty("outline-style");
+      aElement.removeEventListener("mouseup", cleanup, false);
+      aElement.removeEventListener("mouseout", cleanup, false);
     };
-    element.style.setProperty("outline-style", "none");
-    element.addEventListener("mouseup", cleanup, false);
-    element.addEventListener("mouseout", cleanup, false);
+    aElement.style.setProperty("outline-style", "none");
+    aElement.addEventListener("mouseup", cleanup, false);
+    aElement.addEventListener("mouseout", cleanup, false);
   }, false);
 
   // Mark the element editable field for tab
   // navigation while editing.
-  element._editable = true;
+  aElement._editable = true;
 }
 
 var _editableField = editableField;
 
-function InplaceEditor(aOptions, aEvent)
+function InplaceEditor(aOptions)
 {
   this.elt = aOptions.element;
   let doc = this.elt.ownerDocument;
@@ -1938,8 +1925,6 @@ function InplaceEditor(aOptions, aEvent)
   this.done = aOptions.done;
   this.destroy = aOptions.destroy;
   this.initial = aOptions.initial ? aOptions.initial : this.elt.textContent;
-  this.multiline = aOptions.multiline || false;
-  this.stopOnReturn = !!aOptions.stopOnReturn;
 
   this._onBlur = this._onBlur.bind(this);
   this._onKeyPress = this._onKeyPress.bind(this);
@@ -1961,25 +1946,22 @@ function InplaceEditor(aOptions, aEvent)
   this.elt.style.display = "none";
   this.elt.parentNode.insertBefore(this.input, this.elt);
 
-  if (typeof(aOptions.selectAll) == "undefined" || aOptions.selectAll) {
-    this.input.select();
-  }
+  this.input.select();
   this.input.focus();
 
   this.input.addEventListener("blur", this._onBlur, false);
   this.input.addEventListener("keypress", this._onKeyPress, false);
   this.input.addEventListener("input", this._onInput, false);
-  this.input.addEventListener("mousedown", function(aEvt) { aEvt.stopPropagation(); }, false);
 
   if (aOptions.start) {
-    aOptions.start(this, aEvent);
+    aOptions.start();
   }
 }
 
 InplaceEditor.prototype = {
   _createInput: function InplaceEditor_createEditor()
   {
-    this.input = this.doc.createElementNS(HTML_NS, this.multiline ? "textarea" : "input");
+    this.input = this.doc.createElementNS(HTML_NS, "input");
     this.input.inplaceEditor = this;
     this.input.classList.add("styleinspector-propertyeditor");
     this.input.value = this.initial;
@@ -2029,7 +2011,7 @@ InplaceEditor.prototype = {
     // change the underlying element's text ourselves (we leave that
     // up to the client), and b) without tweaking the style of the
     // original element, it might wrap differently or something.
-    this._measurement = this.doc.createElementNS(HTML_NS, this.multiline ? "pre" : "span");
+    this._measurement = this.doc.createElementNS(HTML_NS, "span");
     this._measurement.className = "autosizer";
     this.elt.parentNode.appendChild(this._measurement);
     let style = this._measurement.style;
@@ -2068,15 +2050,6 @@ InplaceEditor.prototype = {
     // we get a chance to resize.  Yuck.
     let width = this._measurement.offsetWidth + 10;
 
-    if (this.multiline) {
-      // Make sure there's some content in the current line.  This is a hack to account
-      // for the fact that after adding a newline the <pre> doesn't grow unless there's
-      // text content on the line.
-      width += 15;
-      this._measurement.textContent += "M";
-      this.input.style.height = this._measurement.offsetHeight + "px";
-    }
-
     this.input.style.width = width + "px";
   },
 
@@ -2110,11 +2083,7 @@ InplaceEditor.prototype = {
   _onKeyPress: function InplaceEditor_onKeyPress(aEvent)
   {
     let prevent = false;
-    if (this.multiline &&
-        aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN &&
-        aEvent.shiftKey) {
-      prevent = false;
-    } else if (aEvent.charCode in this._advanceCharCodes
+    if (aEvent.charCode in this._advanceCharCodes
        || aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN
        || aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB) {
       prevent = true;
@@ -2125,16 +2094,13 @@ InplaceEditor.prototype = {
         this.cancelled = true;
         direction = FOCUS_BACKWARD;
       }
-      if (this.stopOnReturn && aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
-        direction = null;
-      }
 
       let input = this.input;
 
       this._apply();
 
       let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-      if (direction !== null && fm.focusedElement === input) {
+      if (fm.focusedElement === input) {
         // If the focused element wasn't changed by the done callback,
         // move the focus as requested.
         let next = moveFocus(this.doc.defaultView, direction);

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxPlatform.h"
 #include "AnimationCommon.h"
 #include "nsRuleData.h"
 #include "nsCSSValue.h"
@@ -239,30 +238,17 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
                                                            bool aHasGeometricProperties)
 {
   bool shouldLog = nsLayoutUtils::IsAnimationLoggingEnabled();
-  if (shouldLog && !gfxPlatform::OffMainThreadCompositingEnabled()) {
-    nsCString message;
-    message.AppendLiteral("Performance warning: Compositor disabled");
-    LogAsyncAnimationFailure(message);
-    return false;
-  }
-
   nsIFrame* frame = aElement->GetPrimaryFrame();
   if (IsGeometricProperty(aProperty)) {
     if (shouldLog) {
-      nsCString message;
-      message.AppendLiteral("Performance warning: Async animation of geometric property '");
-      message.Append(aProperty);
-      message.AppendLiteral(" is disabled");
-      LogAsyncAnimationFailure(message, aElement);
+      printf_stderr("Performance warning: Async animation of geometric property '%s' is disabled\n", aProperty);
     }
     return false;
   }
   if (aProperty == eCSSProperty_opacity) {
     bool enabled = nsLayoutUtils::AreOpacityAnimationsEnabled();
     if (!enabled && shouldLog) {
-      nsCString message;
-      message.AppendLiteral("Performance warning: Async animation of 'opacity' is disabled");
-      LogAsyncAnimationFailure(message);
+      printf_stderr("Performance warning: Async animation of 'opacity' is disabled\n");
     }
     return enabled;
   }
@@ -270,57 +256,32 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     if (frame->Preserves3D() &&
         frame->Preserves3DChildren()) {
       if (shouldLog) {
-        nsCString message;
-        message.AppendLiteral("Gecko bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598");
-        LogAsyncAnimationFailure(message, aElement);
+        printf_stderr("Gecko bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598\n");
       }
       return false;
     }
     if (frame->IsSVGTransformed()) {
       if (shouldLog) {
-        nsCString message;
-        message.AppendLiteral("Gecko bug: Async 'transform' animations of frames with SVG transforms is not supported.  See bug 779599");
-        LogAsyncAnimationFailure(message, aElement);
+        printf_stderr("Gecko bug: Async 'transform' animations of frames with SVG transforms is not supported.  See bug 779599\n");
       }
       return false;
     }
     if (aHasGeometricProperties) {
       if (shouldLog) {
-        nsCString message;
-        message.AppendLiteral("Performance warning: Async animation of 'transform' not possible due to presence of geometric properties");
-        LogAsyncAnimationFailure(message, aElement);
+        printf_stderr("Performance warning: Async animation of 'transform' not possible due to presence of geometric properties\n");
       }
       return false;
     }
     bool enabled = nsLayoutUtils::AreTransformAnimationsEnabled();
     if (!enabled && shouldLog) {
-      nsCString message;
-      message.AppendLiteral("Performance warning: Async animation of 'transform' is disabled");
-      LogAsyncAnimationFailure(message);
+      printf_stderr("Performance warning: Async animation of 'transform' is disabled\n");
     }
     return enabled;
   }
   return true;
 }
 
-/* static */ void
-CommonElementAnimationData::LogAsyncAnimationFailure(nsCString& aMessage,
-                                                     const nsIContent* aContent)
-{
-  if (aContent) {
-    aMessage.AppendLiteral(" [");
-    aMessage.Append(nsAtomCString(aContent->Tag()));
 
-    nsIAtom* id = aContent->GetID();
-    if (id) {
-      aMessage.AppendLiteral(" with id '");
-      aMessage.Append(nsAtomCString(aContent->GetID()));
-      aMessage.AppendLiteral("'");
-    }
-    aMessage.AppendLiteral("]");
-  }
-  printf_stderr(aMessage.get());
-}
 
 }
 }

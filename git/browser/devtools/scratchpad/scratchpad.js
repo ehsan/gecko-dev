@@ -46,11 +46,8 @@ function SP_Pretty_Key(aElemKey) {
 
   if (elemMod.match("accel")) {
     if (navigator.platform.indexOf("Mac") !== -1) {
-      // XXX bug 779642 Use "Cmd-" literal vs cloverleaf meta-key until
-      // Orion adds variable height lines
-      // elemString += keysbundle.GetStringFromName("VK_META_CMD") +
-      //               keysbundle.GetStringFromName("MODIFIER_SEPARATOR");
-      elemString += "Cmd-";
+      elemString += keysbundle.GetStringFromName("VK_META") +
+                    keysbundle.GetStringFromName("MODIFIER_SEPARATOR");
     } else {
       elemString += keysbundle.GetStringFromName("VK_CONTROL") +
                     keysbundle.GetStringFromName("MODIFIER_SEPARATOR");

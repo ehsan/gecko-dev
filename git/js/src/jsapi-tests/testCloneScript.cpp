@@ -32,7 +32,10 @@ BEGIN_TEST(test_cloneScript)
 
     // compile for A
     {
-        JSAutoCompartment a(cx, A);
+        JSAutoEnterCompartment a;
+        if (!a.enter(cx, A))
+            return false;
+
         JSFunction *fun;
         CHECK(fun = JS_CompileFunction(cx, A, "f", 0, NULL, source, strlen(source), __FILE__, 1));
         CHECK(obj = JS_GetFunctionObject(fun));
@@ -40,7 +43,10 @@ BEGIN_TEST(test_cloneScript)
 
     // clone into B
     {
-        JSAutoCompartment b(cx, B);
+        JSAutoEnterCompartment b;
+        if (!b.enter(cx, B))
+            return false;
+
         CHECK(JS_CloneFunctionObject(cx, obj, B));
     }
 
@@ -103,7 +109,10 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
 
     // Compile in A
     {
-        JSAutoCompartment a(cx, A);
+        JSAutoEnterCompartment a;
+        if (!a.enter(cx, A))
+            return false;
+
         JSFunction *fun;
         CHECK(fun = JS_CompileFunctionForPrincipals(cx, A, principalsA, "f",
                                                     mozilla::ArrayLength(argnames), argnames,
@@ -118,7 +127,10 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
 
     // Clone into B
     {
-        JSAutoCompartment b(cx, B);
+        JSAutoEnterCompartment b;
+        if (!b.enter(cx, B))
+            return false;
+
         JS::RootedObject cloned(cx);
         CHECK(cloned = JS_CloneFunctionObject(cx, obj, B));
 

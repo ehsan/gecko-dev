@@ -54,7 +54,6 @@ enum State {
     MARK_ROOTS,
     MARK,
     SWEEP,
-    SWEEP_END,
     INVALID
 };
 
@@ -672,10 +671,10 @@ class GCHelperThread {
     /* Must be called with the GC lock taken. */
     void startBackgroundShrink();
 
-    /* Must be called without the GC lock taken. */
+    /* Must be called with the GC lock taken. */
     void waitBackgroundSweepEnd();
 
-    /* Must be called without the GC lock taken. */
+    /* Must be called with the GC lock taken. */
     void waitBackgroundSweepOrAllocEnd();
 
     /* Must be called with the GC lock taken. */
@@ -1177,7 +1176,6 @@ const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
 const int ZealVerifierPostValue = 11;
 const int ZealFrameVerifierPostValue = 12;
-const int ZealPurgeAnalysisValue = 13;
 
 enum VerifierType {
     PreBarrierVerifier,
@@ -1207,21 +1205,10 @@ MaybeVerifyBarriers(JSContext *cx, bool always = false)
 
 #endif
 
-
-static inline JSCompartment *
-GetGCThingCompartment(void *thing)
-{
-    JS_ASSERT(thing);
-    return reinterpret_cast<gc::Cell *>(thing)->compartment();
-}
-
-static inline JSCompartment *
-GetObjectCompartment(JSObject *obj)
-{
-    return GetGCThingCompartment(obj);
-}
-
 } /* namespace gc */
+
+static inline JSCompartment *
+GetObjectCompartment(JSObject *obj) { return reinterpret_cast<js::gc::Cell *>(obj)->compartment(); }
 
 void
 PurgeJITCaches(JSCompartment *c);

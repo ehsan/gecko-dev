@@ -6,7 +6,7 @@
 #ifndef mozilla_dom_permission_message_utils_h__
 #define mozilla_dom_permission_message_utils_h__
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsCOMPtr.h"
 #include "nsIPrincipal.h"
 

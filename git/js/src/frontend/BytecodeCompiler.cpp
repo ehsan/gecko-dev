@@ -11,7 +11,6 @@
 
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/FoldConstants.h"
-#include "frontend/NameFunctions.h"
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
@@ -128,7 +127,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         return NULL;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
-    if (callerFrame && callerFrame->script()->strictModeCode)
+    if (callerFrame && callerFrame->isScriptFrame() && callerFrame->script()->strictModeCode)
         sc.strictModeState = StrictMode::STRICT;
 
     if (options.compileAndGo) {
@@ -191,8 +190,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
             return NULL;
 
         if (!FoldConstants(cx, pn, &parser))
-            return NULL;
-        if (!NameFunctions(cx, pn))
             return NULL;
 
         pc.functionList = NULL;
@@ -332,9 +329,6 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
     BytecodeEmitter funbce(/* parent = */ NULL, &parser, &funsc, script, /* callerFrame = */ NULL,
                            /* hasGlobalScope = */ false, options.lineno);
     if (!funbce.init())
-        return false;
-
-    if (!NameFunctions(cx, pn))
         return false;
 
     if (fn->pn_body) {

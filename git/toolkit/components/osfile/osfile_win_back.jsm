@@ -124,9 +124,6 @@
        Types.zero_or_nothing =
          Types.int.withName("zero_or_nothing");
 
-       Types.SECURITY_ATTRIBUTES =
-         Types.void_t.withName("SECURITY_ATTRIBUTES");
-
        Types.FILETIME =
          new Type("FILETIME",
                   ctypes.StructType("FILETIME", [
@@ -177,7 +174,7 @@
 
        // Special case: these functions are used by the
        // finalizer
-       let _CloseHandle = WinFile._CloseHandle =
+       let _CloseHandle =
          libc.declare("CloseHandle", ctypes.winapi_abi,
                         /*return */ctypes.bool,
                         /*handle*/ ctypes.voidptr_t);
@@ -204,19 +201,13 @@
                     /*destPath*/   Types.path,
                     /*bailIfExist*/Types.bool);
 
-       WinFile.CreateDirectory =
-         declareFFI("CreateDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Types.zero_or_nothing,
-                    /*name*/   Types.jschar.in_ptr,
-                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr);
-
        WinFile.CreateFile =
          declareFFI("CreateFileW", ctypes.winapi_abi,
                     /*return*/  Types.maybe_HANDLE,
                     /*name*/    Types.path,
                     /*access*/  Types.DWORD,
                     /*share*/   Types.DWORD,
-                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr,
+                    /*security*/Types.void_t.in_ptr,// FIXME: Implement?
                     /*creation*/Types.DWORD,
                     /*flags*/   Types.DWORD,
                     /*template*/Types.HANDLE);
@@ -281,7 +272,7 @@
          declareFFI("ReadFile", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
                     /*file*/   Types.HANDLE,
-                    /*buffer*/ Types.voidptr_t,
+                    /*buffer*/ Types.char.out_ptr,
                     /*nbytes*/ Types.DWORD,
                     /*nbytes_read*/Types.DWORD.out_ptr,
                     /*overlapped*/Types.void_t.inout_ptr // FIXME: Implement?
@@ -315,7 +306,7 @@
          declareFFI("WriteFile", ctypes.winapi_abi,
                     /*return*/ Types.zero_or_nothing,
                     /*file*/   Types.HANDLE,
-                    /*buffer*/ Types.voidptr_t,
+                    /*buffer*/ Types.char.in_ptr,
                     /*nbytes*/ Types.DWORD,
                     /*nbytes_wr*/Types.DWORD.out_ptr,
                     /*overlapped*/Types.void_t.inout_ptr // FIXME: Implement?

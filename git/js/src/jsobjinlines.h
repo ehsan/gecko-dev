@@ -525,7 +525,7 @@ namespace js {
 static inline JSAtom *
 CallObjectLambdaName(JSFunction &fun)
 {
-    return fun.isNamedLambda() ? fun.atom() : NULL;
+    return (fun.flags & JSFUN_LAMBDA) ? fun.atom.get() : NULL;
 }
 
 } /* namespace js */
@@ -910,6 +910,14 @@ inline bool
 JSObject::isCallable()
 {
     return isFunction() || getClass()->call;
+}
+
+inline JSPrincipals *
+JSObject::principals(JSContext *cx)
+{
+    if (JSObjectPrincipalsFinder find = cx->runtime->securityCallbacks->findObjectPrincipals)
+        return find(this);
+    return cx->compartment ? cx->compartment->principals : NULL;
 }
 
 inline void
@@ -1418,12 +1426,12 @@ GetClassProtoKey(js::Class *clasp)
 }
 
 inline bool
-FindProto(JSContext *cx, js::Class *clasp, MutableHandleObject proto)
+FindProto(JSContext *cx, js::Class *clasp, HandleObject parent, MutableHandleObject proto)
 {
     JSProtoKey protoKey = GetClassProtoKey(clasp);
-    if (!js_GetClassPrototype(cx, protoKey, proto, clasp))
+    if (!js_GetClassPrototype(cx, parent, protoKey, proto, clasp))
         return false;
-    if (!proto && !js_GetClassPrototype(cx, JSProto_Object, proto))
+    if (!proto && !js_GetClassPrototype(cx, parent, JSProto_Object, proto))
         return false;
     return true;
 }
@@ -1471,6 +1479,13 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp)
 {
     gc::AllocKind kind = gc::GetGCObjectKind(clasp);
     return NewBuiltinClassInstance(cx, clasp, kind);
+}
+
+inline GlobalObject *
+GetCurrentGlobal(JSContext *cx)
+{
+    JSObject *scopeChain = (cx->hasfp()) ? cx->fp()->scopeChain() : cx->globalObject;
+    return scopeChain ? &scopeChain->global() : NULL;
 }
 
 bool

@@ -136,8 +136,8 @@ expect = '@';
 addThis();
 
 status = inSection(12);
-actual = stackFrames[1].substring(0,7);
-expect = 'myErr<@';
+actual = stackFrames[1].substring(0,1);
+expect = '@';
 addThis();
 
 status = inSection(13);

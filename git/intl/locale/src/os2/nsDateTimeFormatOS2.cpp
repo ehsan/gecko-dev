@@ -33,7 +33,7 @@ nsresult nsDateTimeFormatOS2::FormatTMTime(nsILocale* locale,
   nsresult rc = NS_ERROR_FAILURE;
   UniChar uFmtD[NSDATETIME_FORMAT_BUFFER_LEN] = { 0 };
   UniChar uFmtT[NSDATETIME_FORMAT_BUFFER_LEN] = { 0 };
-  UniChar *pString = nullptr;
+  UniChar *pString = NULL;
   LocaleObject locObj = NULL;
   int ret = UniCreateLocaleObject(UNI_UCS_STRING_POINTER, (UniChar *)L"", &locObj);
   if (ret != ULS_SUCCESS)

@@ -85,41 +85,38 @@ var TouchAdapter = {
 
   handleEvent: function TouchAdapter_handleEvent(aEvent) {
     let touches = aEvent.changedTouches;
-    // XXX: Until bug 77992 is resolved, on desktop we get microseconds
-    // instead of milliseconds.
-    let timeStamp = (Utils.OS == 'Android') ? aEvent.timeStamp : Date.now();
     switch (aEvent.type) {
       case 'touchstart':
         for (var i = 0; i < touches.length; i++) {
           let touch = touches[i];
-          let touchPoint = new TouchPoint(touch, timeStamp, this._dpi);
+          let touchPoint = new TouchPoint(touch, aEvent.timeStamp, this._dpi);
           this._touchPoints[touch.identifier] = touchPoint;
-          this._lastExploreTime = timeStamp + this.SWIPE_MAX_DURATION;
+          this._lastExploreTime = aEvent.timeStamp + this.SWIPE_MAX_DURATION;
         }
         this._dwellTimeout = this.chromeWin.setTimeout(
           (function () {
-             this.compileAndEmit(timeStamp + this.DWELL_THRESHOLD);
+             this.compileAndEmit(aEvent.timeStamp + this.DWELL_THRESHOLD);
            }).bind(this), this.DWELL_THRESHOLD);
         break;
       case 'touchmove':
         for (var i = 0; i < touches.length; i++) {
           let touch = touches[i];
           let touchPoint = this._touchPoints[touch.identifier];
-          touchPoint.update(touch, timeStamp);
+          touchPoint.update(touch, aEvent.timeStamp);
         }
-        if (timeStamp - this._lastExploreTime >= EXPLORE_THROTTLE) {
-          this.compileAndEmit(timeStamp);
-          this._lastExploreTime = timeStamp;
+        if (aEvent.timeStamp - this._lastExploreTime >= EXPLORE_THROTTLE) {
+          this.compileAndEmit(aEvent.timeStamp);
+          this._lastExploreTime = aEvent.timeStamp;
         }
         break;
       case 'touchend':
         for (var i = 0; i < touches.length; i++) {
           let touch = touches[i];
           let touchPoint = this._touchPoints[touch.identifier];
-          touchPoint.update(touch, timeStamp);
+          touchPoint.update(touch, aEvent.timeStamp);
           touchPoint.finish();
         }
-        this.compileAndEmit(timeStamp);
+        this.compileAndEmit(aEvent.timeStamp);
         break;
     }
   },

@@ -80,11 +80,16 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, global);
-
-  rv = aFileHelper->GetSuccessResult(cx, &result);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("GetSuccessResult failed!");
+  JSAutoEnterCompartment ac;
+  if (ac.enter(cx, global)) {
+    rv = aFileHelper->GetSuccessResult(cx, &result);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("GetSuccessResult failed!");
+    }
+  }
+  else {
+    NS_WARNING("Failed to enter correct compartment!");
+    rv = NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR;
   }
 
   if (NS_SUCCEEDED(rv)) {
@@ -159,4 +164,15 @@ FileRequest::FireProgressEvent(uint64_t aLoaded, uint64_t aTotal)
   if (NS_FAILED(rv)) {
     return;
   }
+}
+
+void
+FileRequest::RootResultVal()
+{
+  NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
+  nsXPCOMCycleCollectionParticipant *participant;
+  CallQueryInterface(this, &participant);
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
+                                participant);
+  mRooted = true;
 }

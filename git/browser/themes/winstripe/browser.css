@@ -1636,8 +1636,15 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 /* social recommending panel */
 
 #share-button {
-  width: 16px;
-  height: 16px;
+  list-style-image: url(chrome://browser/skin/share-button.png);
+}
+
+#share-button:not([shared]):not([disabled]):hover {
+  list-style-image: url(chrome://browser/skin/share-button-active.png);
+}
+
+#share-button[shared] {
+  list-style-image: url(chrome://browser/skin/share-button-shared.png);
 }
 
 #socialUserPortrait {
@@ -2645,15 +2652,19 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 /* Highlighter */
 
-#highlighter-outline {
-  box-shadow: 0 0 0 1px black;
-  outline: 1px dashed white;
+.highlighter-veil {
+  background-color: rgba(25, 25, 25, 0.5);
+}
+
+#highlighter-veil-transparentbox {
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+  outline: 1px dashed rgba(255,255,255,0.5);
   outline-offset: -1px;
 }
 
-#highlighter-outline[locked]  {
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
-  outline-color: rgba(255,255,255,0.7);
+#highlighter-veil-container[locked] > #highlighter-veil-middlebox > #highlighter-veil-transparentbox {
+  box-shadow: 0 0 0 1px black;
+  outline-color: white;
 }
 
 /* Highlighter toolbar */
@@ -2664,6 +2675,18 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 #inspector-inspect-toolbutton[checked=true] {
+  -moz-image-region: rect(0px 32px 16px 16px);
+}
+
+#inspector-option-toolbarbutton {
+  -moz-appearance: none;
+  -moz-margin-end: 6px;
+  list-style-image: url("chrome://browser/skin/devtools/inspector-option-icon.png");
+  -moz-image-region: rect(0px 16px 16px 0px);
+  border: none;
+}
+
+#inspector-option-toolbarbutton[open] {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
@@ -3222,6 +3245,10 @@ stack[anonid=browserStack][responsivemode] {
   transition: height 100ms;
 }
 
+.web-console-splitter {
+  border-top: none;
+}
+
 /* Developer Toolbar */
 
 .developer-toolbar-button {
@@ -3417,6 +3444,14 @@ stack[anonid=browserStack][responsivemode] {
   text-decoration: underline;
 }
 
+#social-notification-panel {
+  min-height: 100px;
+  min-width: 100px;
+  max-height: 600px;
+  max-width: 400px;
+}
+
+
 .chat-status-icon {
   max-height: 16px;
   max-width: 16px;
@@ -3518,6 +3553,7 @@ stack[anonid=browserStack][responsivemode] {
   box-shadow: inset 0 2px 5px rgba(0,0,0,0.6), 0 1px rgba(255,255,255,0.2);
 }
 
+/* toolbarbutton-icon */
 .chatbar-button > .toolbarbutton-text,
 .chatbar-button > .toolbarbutton-menu-dropmarker {
   display: none;
@@ -3525,24 +3561,25 @@ stack[anonid=browserStack][responsivemode] {
 
 .chatbar-innerbox {
   background: transparent;
-  margin: -285px -1px 0 -1px;
+  margin: -200px -1px 0 -1px;
   overflow: hidden;
 }
 
-chatbar {
-  -moz-margin-end: 20px;
-}
-
-chatbox {
-  height: 285px;
-  width: 260px;
-  -moz-margin-start: 4px;
+chatbar > chatbox {
+  height: 200px;
+  width: 200px;
   background-color: white;
   border: 1px solid gray;
   border-bottom: none;
 }
 
-chatbox[minimized="true"] {
-  width: 160px;
+chatbar > chatbox[minimized="true"] {
+  width: 100px;
   height: 20px;
+  border-bottom: none;
 }
+
+chatbar > chatbox + chatbox {
+  -moz-margin-start: -1px;
+}
+

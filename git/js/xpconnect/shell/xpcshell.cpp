@@ -1655,6 +1655,12 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
     return true;
 }
 
+static JSPrincipals *
+FindObjectPrincipals(JSObject *obj)
+{
+    return gJSPrincipals;
+}
+
 static JSSecurityCallbacks shellSecurityCallbacks;
 
 int
@@ -1833,6 +1839,7 @@ main(int argc, char **argv, char **envp)
         const JSSecurityCallbacks *scb = JS_GetSecurityCallbacks(rt);
         NS_ASSERTION(scb, "We are assuming that nsScriptSecurityManager::Init() has been run");
         shellSecurityCallbacks = *scb;
+        shellSecurityCallbacks.findObjectPrincipals = FindObjectPrincipals;
         JS_SetSecurityCallbacks(rt, &shellSecurityCallbacks);
 
 #ifdef TEST_TranslateThis
@@ -1877,7 +1884,11 @@ main(int argc, char **argv, char **envp)
 
         JS_BeginRequest(cx);
         {
-            JSAutoCompartment ac(cx, glob);
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(cx, glob)) {
+                JS_EndRequest(cx);
+                return 1;
+            }
 
             if (!JS_InitReflect(cx, glob)) {
                 JS_EndRequest(cx);
@@ -1920,7 +1931,7 @@ main(int argc, char **argv, char **envp)
                         (void**) getter_AddRefs(bogus));
 #endif
             JS_DropPrincipals(rt, gJSPrincipals);
-            JS_SetAllNonReservedSlotsToUndefined(cx, glob);
+            JS_ClearScope(cx, glob);
             JS_GC(rt);
             JSContext *oldcx;
             cxstack->Pop(&oldcx);

@@ -7,7 +7,6 @@
 #include "IndexedDBChild.h"
 
 #include "nsIAtom.h"
-#include "nsIInputStream.h"
 
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/ContentChild.h"

@@ -493,7 +493,7 @@ nsExtensibleStringBundle::FormatStringFromName(const PRUnichar *aName,
 nsresult nsExtensibleStringBundle::GetSimpleEnumeration(nsISimpleEnumerator ** aResult)
 {
   // XXX write me
-  *aResult = nullptr;
+  *aResult = NULL;
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -712,7 +712,7 @@ NS_IMETHODIMP
 nsStringBundleService::CreateExtensibleBundle(const char* aCategory,
                                               nsIStringBundle** aResult)
 {
-  NS_ENSURE_ARG_POINTER(aResult);
+  if (aResult == NULL) return NS_ERROR_NULL_POINTER;
 
   nsresult res;
 

@@ -31,13 +31,17 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=493251
   var keyUp = 0;
 
   function suppressEventHandling(aSuppress) {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     ok(true, "suppressEventHandling: aSuppress=" + aSuppress);
     utils.suppressEventHandling(aSuppress);
   }
 
   function dispatchKeyEvent(type) {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     ok(true, "Dipatching key event: type=" + type);
     utils.sendKeyEvent(type, 
                        Components.interfaces.nsIDOMKeyEvent.DOM_VK_A,
@@ -45,7 +49,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=493251
   }
 
   function dispatchMouseEvent(aType, aX, aY, aButton, aClickCount, aModifiers) {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     ok(true, "Dipatching mouse event: aType=" + aType + ", aX=" + aX + ", aY" +
                aY + ", aButton=" + aButton + ", aClickCount=" + aClickCount +
                ", aModifiers=" + aModifiers);
@@ -82,7 +88,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=493251
     }
     ok(true, aEvent.type + " event is handled: " + detail);
 
-    var fm = SpecialPowers.wrap(Components).classes["@mozilla.org/focus-manager;1"].
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var fm = Components.classes["@mozilla.org/focus-manager;1"].
                         getService(Components.interfaces.nsIFocusManager);
     ok(true, "focused element is \"" + fm.focusedElement +
              "\" and focused window is \"" + fm.focusedWindow +

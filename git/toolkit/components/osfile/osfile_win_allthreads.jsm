@@ -119,8 +119,7 @@ if (typeof Components != "undefined") {
    */
   Object.defineProperty(OSError.prototype, "becauseExists", {
     get: function becauseExists() {
-      return this.winLastError == exports.OS.Constants.Win.ERROR_FILE_EXISTS ||
-        this.winLastError == exports.OS.Constants.Win.ERROR_ALREADY_EXISTS;
+      return this.winLastError == exports.OS.Constants.Win.ERROR_FILE_EXISTS;
     }
   });
   /**
@@ -130,24 +129,6 @@ if (typeof Components != "undefined") {
   Object.defineProperty(OSError.prototype, "becauseNoSuchFile", {
     get: function becauseNoSuchFile() {
       return this.winLastError == exports.OS.Constants.Win.ERROR_FILE_NOT_FOUND;
-    }
-  });
-  /**
-   * |true| if the error was raised because a directory is not empty
-   * does not exist, |false| otherwise.
-   */
-  Object.defineProperty(OSError.prototype, "becauseNotEmpty", {
-    get: function becauseNotEmpty() {
-      return this.winLastError == OS.Constants.Win.ERROR_DIR_NOT_EMPTY;
-    }
-  });
-  /**
-   * |true| if the error was raised because a file or directory
-   * is closed, |false| otherwise.
-   */
-  Object.defineProperty(OSError.prototype, "becauseClosed", {
-    get: function becauseClosed() {
-      return this.winLastError == exports.OS.Constants.Win.INVALID_HANDLE_VALUE;
     }
   });
 
@@ -188,10 +169,4 @@ if (typeof Components != "undefined") {
    */
   Types.path = Types.wstring.withName("[in] path");
   Types.out_path = Types.out_wstring.withName("[out] path");
-
-  // Special constructors that need to be defined on all threads
-  OSError.closed = function closed(operation) {
-    return new OSError(operation, exports.OS.Constants.Win.INVALID_HANDLE_VALUE);
-  };
-
 })(this);

@@ -16,117 +16,79 @@ template<class Container>
 static void
 ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
 {
-  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(!aChild->GetParent(),
-               "aChild already in the tree");
-  NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
-               "aChild already has siblings?");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == aContainer->Manager() &&
-                aAfter->GetParent() == aContainer),
-               "aAfter is not our child");
-
   aChild->SetParent(aContainer);
-  if (aAfter == aContainer->mLastChild) {
-    aContainer->mLastChild = aChild;
-  }
   if (!aAfter) {
-    aChild->SetNextSibling(aContainer->mFirstChild);
-    if (aContainer->mFirstChild) {
-      aContainer->mFirstChild->SetPrevSibling(aChild);
-    }
+    Layer *oldFirstChild = aContainer->GetFirstChild();
     aContainer->mFirstChild = aChild;
+    aChild->SetNextSibling(oldFirstChild);
+    aChild->SetPrevSibling(nullptr);
+    if (oldFirstChild) {
+      oldFirstChild->SetPrevSibling(aChild);
+    } else {
+      aContainer->mLastChild = aChild;
+    }
     NS_ADDREF(aChild);
     aContainer->DidInsertChild(aChild);
     return;
   }
-
-  Layer* next = aAfter->GetNextSibling();
-  aChild->SetNextSibling(next);
-  aChild->SetPrevSibling(aAfter);
-  if (next) {
-    next->SetPrevSibling(aChild);
+  for (Layer *child = aContainer->GetFirstChild(); 
+       child; child = child->GetNextSibling()) {
+    if (aAfter == child) {
+      Layer *oldNextSibling = child->GetNextSibling();
+      child->SetNextSibling(aChild);
+      aChild->SetNextSibling(oldNextSibling);
+      if (oldNextSibling) {
+        oldNextSibling->SetPrevSibling(aChild);
+      } else {
+        aContainer->mLastChild = aChild;
+      }
+      aChild->SetPrevSibling(child);
+      NS_ADDREF(aChild);
+      aContainer->DidInsertChild(aChild);
+      return;
+    }
   }
-  aAfter->SetNextSibling(aChild);
-  NS_ADDREF(aChild);
-  aContainer->DidInsertChild(aChild);
+  NS_WARNING("Failed to find aAfter layer!");
 }
 
 template<class Container>
 static void
 ContainerRemoveChild(Container* aContainer, Layer* aChild)
 {
-  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == aContainer,
-               "aChild not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev) {
-    prev->SetNextSibling(next);
-  } else {
-    aContainer->mFirstChild = next;
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  } else {
-    aContainer->mLastChild = prev;
-  }
-
-  aChild->SetNextSibling(nullptr);
-  aChild->SetPrevSibling(nullptr);
-  aChild->SetParent(nullptr);
-
-  aContainer->DidRemoveChild(aChild);
-  NS_RELEASE(aChild);
-}
-
-template<class Container>
-static void
-ContainerRepositionChild(Container* aContainer, Layer* aChild, Layer* aAfter)
-{
-  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == aContainer,
-               "aChild not our child");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == aContainer->Manager() &&
-                aAfter->GetParent() == aContainer),
-               "aAfter is not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev == aAfter) {
-    // aChild is already in the correct position, nothing to do.
-    return;
-  }
-  if (prev) {
-    prev->SetNextSibling(next);
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  }
-  if (!aAfter) {
-    aChild->SetPrevSibling(nullptr);
-    aChild->SetNextSibling(aContainer->mFirstChild);
+  if (aContainer->GetFirstChild() == aChild) {
+    aContainer->mFirstChild = aContainer->GetFirstChild()->GetNextSibling();
     if (aContainer->mFirstChild) {
-      aContainer->mFirstChild->SetPrevSibling(aChild);
+      aContainer->mFirstChild->SetPrevSibling(nullptr);
+    } else {
+      aContainer->mLastChild = nullptr;
     }
-    aContainer->mFirstChild = aChild;
+    aChild->SetNextSibling(nullptr);
+    aChild->SetPrevSibling(nullptr);
+    aChild->SetParent(nullptr);
+    aContainer->DidRemoveChild(aChild);
+    NS_RELEASE(aChild);
     return;
   }
-
-  Layer* afterNext = aAfter->GetNextSibling();
-  if (afterNext) {
-    afterNext->SetPrevSibling(aChild);
-  } else {
-    aContainer->mLastChild = aChild;
+  Layer *lastChild = nullptr;
+  for (Layer *child = aContainer->GetFirstChild(); child; 
+       child = child->GetNextSibling()) {
+    if (child == aChild) {
+      // We're sure this is not our first child. So lastChild != NULL.
+      lastChild->SetNextSibling(child->GetNextSibling());
+      if (child->GetNextSibling()) {
+        child->GetNextSibling()->SetPrevSibling(lastChild);
+      } else {
+        aContainer->mLastChild = lastChild;
+      }
+      child->SetNextSibling(nullptr);
+      child->SetPrevSibling(nullptr);
+      child->SetParent(nullptr);
+      aContainer->DidRemoveChild(aChild);
+      NS_RELEASE(aChild);
+      return;
+    }
+    lastChild = child;
   }
-  aAfter->SetNextSibling(aChild);
-  aChild->SetPrevSibling(aAfter);
-  aChild->SetNextSibling(afterNext);
 }
 
 static inline LayerD3D9*
@@ -349,12 +311,6 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
   ContainerRemoveChild(this, aChild);
 }
 
-void
-ContainerLayerD3D9::RepositionChild(Layer* aChild, Layer* aAfter)
-{
-  ContainerRepositionChild(this, aChild, aAfter);
-}
-
 Layer*
 ContainerLayerD3D9::GetLayer()
 {
@@ -407,12 +363,6 @@ void
 ShadowContainerLayerD3D9::RemoveChild(Layer *aChild)
 {
   ContainerRemoveChild(this, aChild);
-}
-
-void
-ShadowContainerLayerD3D9::RepositionChild(Layer* aChild, Layer* aAfter)
-{
-  ContainerRepositionChild(this, aChild, aAfter);
 }
 
 void

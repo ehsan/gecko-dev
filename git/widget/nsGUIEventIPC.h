@@ -6,7 +6,7 @@
 #ifndef nsGUIEventIPC_h__
 #define nsGUIEventIPC_h__
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsDOMTouchEvent.h"
 #include "nsGUIEvent.h"
 

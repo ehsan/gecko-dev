@@ -267,10 +267,6 @@ struct TokenPos {
     bool operator >=(const TokenPos& bpos) const {
         return !(*this < bpos);
     }
-
-    bool encloses(const TokenPos& pos) const {
-        return begin <= pos.begin && pos.end <= end;
-    }
 };
 
 struct Token {

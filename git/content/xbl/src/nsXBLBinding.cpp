@@ -169,7 +169,10 @@ InstallXBLField(JSContext* cx,
   nsXBLPrototypeBinding* protoBinding;
   nsDependentJSString fieldName;
   {
-    JSAutoCompartment ac(cx, callee);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, callee)) {
+      return false;
+    }
 
     JS::Rooted<JSObject*> xblProto(cx);
     xblProto = &js::GetFunctionNativeReserved(callee, XBLPROTO_SLOT).toObject();
@@ -1214,7 +1217,10 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
               JSObject* base = scriptObject;
               JSObject* proto;
               JSAutoRequest ar(cx);
-              JSAutoCompartment ac(cx, scriptObject);
+              JSAutoEnterCompartment ac;
+              if (!ac.enter(cx, scriptObject)) {
+                return;
+              }
 
               for ( ; true; base = proto) { // Will break out on null proto
                 proto = ::JS_GetPrototype(base);
@@ -1342,7 +1348,10 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
   JSObject* parent_proto = nullptr;  // If we have an "obj" we can set this
   JSAutoRequest ar(cx);
 
-  JSAutoCompartment ac(cx, global);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, global)) {
+    return NS_ERROR_FAILURE;
+  }
 
   if (obj) {
     // Retrieve the current prototype of obj.

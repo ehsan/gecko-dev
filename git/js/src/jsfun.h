@@ -45,9 +45,6 @@
  */
 #define JSFUN_INTERPRETED   0x4000  /* use u.i if kind >= this value else u.native */
 
-#define JSFUN_HAS_GUESSED_ATOM  0x8000  /* function had no explicit name, but a
-                                           name was guessed for it anyway */
-
 namespace js { class FunctionExtended; }
 
 struct JSFunction : public JSObject
@@ -71,27 +68,20 @@ struct JSFunction : public JSObject
         } i;
         void            *nativeOrScript;
     } u;
-  private:
-    js::HeapPtrAtom  atom_;       /* name for diagnostics and decompiling */
-  public:
+    js::HeapPtrAtom  atom;        /* name for diagnostics and decompiling */
 
     bool hasDefaults()       const { return flags & JSFUN_HAS_DEFAULTS; }
     bool hasRest()           const { return flags & JSFUN_HAS_REST; }
-    bool hasGuessedAtom()    const { return flags & JSFUN_HAS_GUESSED_ATOM; }
     bool isInterpreted()     const { return flags & JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
-    bool isSelfHostedBuiltin() const { return flags & JSFUN_SELF_HOSTED; }
-    bool isSelfHostedConstructor() const { return flags & JSFUN_SELF_HOSTED_CTOR; }
+    bool isSelfHostedBuiltin()  const { return flags & JSFUN_SELF_HOSTED; }
     bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
     bool isFunctionPrototype() const { return flags & JSFUN_PROTOTYPE; }
     bool isInterpretedConstructor() const {
-        return isInterpreted() && !isFunctionPrototype() &&
-               (!isSelfHostedBuiltin() || isSelfHostedConstructor());
+        return isInterpreted() && !isFunctionPrototype() && !isSelfHostedBuiltin();
     }
-    bool isNamedLambda()     const {
-        return (flags & JSFUN_LAMBDA) && atom_ && !hasGuessedAtom();
-    }
+    bool isNamedLambda()     const { return (flags & JSFUN_LAMBDA) && atom; }
 
     /* Returns the strictness of this function, which must be interpreted. */
     inline bool inStrictMode() const;
@@ -111,18 +101,6 @@ struct JSFunction : public JSObject
         this->flags |= JSFUN_HAS_DEFAULTS;
     }
 
-    JSAtom *atom() const { return hasGuessedAtom() ? NULL : atom_.get(); }
-    void initAtom(JSAtom *atom) { atom_.init(atom); }
-    JSAtom *displayAtom() const { return atom_; }
-
-    void setGuessedAtom(JSAtom *atom) {
-        JS_ASSERT(this->atom_ == NULL);
-        JS_ASSERT(atom != NULL);
-        JS_ASSERT(!hasGuessedAtom());
-        this->atom_ = atom;
-        this->flags |= JSFUN_HAS_GUESSED_ATOM;
-    }
-
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };
 
@@ -135,7 +113,6 @@ struct JSFunction : public JSObject
     inline void initEnvironment(JSObject *obj);
 
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
-    static inline size_t offsetOfAtom() { return offsetof(JSFunction, atom_); }
 
     JSScript *script() const {
         JS_ASSERT(isInterpreted());

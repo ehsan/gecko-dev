@@ -7,28 +7,8 @@
 #include "base/basictypes.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
-#include "nsIDOMDOMRequest.h"
 
 USING_BLUETOOTH_NAMESPACE
-
-BluetoothReplyRunnable::BluetoothReplyRunnable(nsIDOMDOMRequest* aReq)
-  : mDOMRequest(aReq)
-{}
-
-void
-BluetoothReplyRunnable::SetReply(BluetoothReply* aReply)
-{
-  mReply = aReply;
-}
-
-void
-BluetoothReplyRunnable::ReleaseMembers()
-{
-  mDOMRequest = nullptr;
-}
-
-BluetoothReplyRunnable::~BluetoothReplyRunnable()
-{}
 
 nsresult
 BluetoothReplyRunnable::FireReply(const jsval& aVal)
@@ -92,11 +72,3 @@ BluetoothReplyRunnable::Run()
 
   return rv;
 }
-
-BluetoothVoidReplyRunnable::BluetoothVoidReplyRunnable(nsIDOMDOMRequest* aReq)
-  : BluetoothReplyRunnable(aReq)
-{}
-
-BluetoothVoidReplyRunnable::~BluetoothVoidReplyRunnable()
-{}
-

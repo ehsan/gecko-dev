@@ -157,6 +157,8 @@ public:
   virtual void Thaw();
   virtual void FireOrClearDelayedEvents(bool aFireEvents);
 
+  virtual nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt);
+
   virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, uint32_t aFlags,
                                               nscolor aBackgroundColor,
                                               gfxContext* aThebesContext);

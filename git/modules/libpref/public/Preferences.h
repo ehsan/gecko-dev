@@ -15,7 +15,6 @@
 #include "nsIPrefBranchInternal.h"
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 #include "nsWeakReference.h"
 
 class nsIFile;
@@ -31,18 +30,12 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 
 namespace mozilla {
 
-namespace dom {
-class PrefSetting;
-}
-
 class Preferences : public nsIPrefService,
                     public nsIObserver,
                     public nsIPrefBranchInternal,
                     public nsSupportsWeakReference
 {
 public:
-  typedef mozilla::dom::PrefSetting PrefSetting;
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
   NS_FORWARD_NSIPREFBRANCH(sRootBranch->)
@@ -327,9 +320,11 @@ public:
   static int32_t GetDefaultType(const char* aPref);
 
   // Used to synchronise preferences between chrome and content processes.
-  static void GetPreferences(InfallibleTArray<PrefSetting>* aPrefs);
-  static void GetPreference(PrefSetting* aPref);
-  static void SetPreference(const PrefSetting& aPref);
+  static void MirrorPreferences(nsTArray<PrefTuple,
+                                nsTArrayInfallibleAllocator> *aArray);
+  static bool MirrorPreference(const char *aPref, PrefTuple *aTuple);
+  static void ClearContentPref(const char *aPref);
+  static void SetPreference(const PrefTuple *aTuple);
 
 protected:
   nsresult NotifyServiceObservers(const char *aSubject);

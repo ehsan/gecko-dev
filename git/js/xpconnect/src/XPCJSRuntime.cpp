@@ -65,8 +65,7 @@ const char* XPCJSRuntime::mStrings[] = {
     "__scriptOnly__",       // IDX_SCRIPTONLY
     "baseURIObject",        // IDX_BASEURIOBJECT
     "nodePrincipal",        // IDX_NODEPRINCIPAL
-    "documentURIObject",    // IDX_DOCUMENTURIOBJECT
-    "mozMatchesSelector"    // IDX_MOZMATCHESSELECTOR
+    "documentURIObject"     // IDX_DOCUMENTURIOBJECT
 };
 
 /***************************************************************************/
@@ -448,14 +447,15 @@ SuspectDOMExpandos(nsPtrHashKey<JSObject> *key, void *arg)
     Closure *closure = static_cast<Closure*>(arg);
     JSObject* obj = key->GetKey();
     nsISupports* native = nullptr;
-    if (dom::oldproxybindings::instanceIsProxy(obj)) {
+    if (js::IsProxy(obj)) {
+        NS_ASSERTION(dom::binding::instanceIsProxy(obj),
+                     "Not a DOM proxy?");
         native = static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
     }
     else {
-        const dom::DOMClass* clasp;
-        dom::DOMObjectSlot slot = GetDOMClass(obj, clasp);
-        MOZ_ASSERT(slot != dom::eNonDOMObject && clasp->mDOMObjectIsISupports);
-        native = dom::UnwrapDOMObject<nsISupports>(obj, slot);
+        NS_ASSERTION(dom::DOMJSClass::FromJSClass(JS_GetClass(obj))->mDOMObjectIsISupports,
+                     "Someone added a wrapper for a non-nsISupports native to DOMExpandos!");
+        native = dom::UnwrapDOMObject<nsISupports>(obj);
     }
     closure->cb->NoteXPCOMRoot(native);
     return PL_DHASH_NEXT;
@@ -1859,22 +1859,27 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         if (JSObject *global = JS_GetGlobalForCompartmentOrNull(cx, c)) {
             // Need to enter the compartment, otherwise GetNativeOfWrapper()
             // might crash.
-            JSAutoCompartment ac(cx, global);
-            nsISupports *native = xpc->GetNativeOfWrapper(cx, global);
-            if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
-                // The global is a |window| object.  Use the path prefix that
-                // we should have already created for it.
-                if (mWindowPaths->Get(piwindow->WindowID(), &cJSPathPrefix)) {
-                    cDOMPathPrefix.Assign(cJSPathPrefix);
-                    cDOMPathPrefix.AppendLiteral("/dom/");
-                    cJSPathPrefix.AppendLiteral("/js/");
+            JSAutoEnterCompartment aec;
+            if (aec.enter(cx, global)) {
+                nsISupports *native = xpc->GetNativeOfWrapper(cx, global);
+                if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
+                    // The global is a |window| object.  Use the path prefix that
+                    // we should have already created for it.
+                    if (mWindowPaths->Get(piwindow->WindowID(), &cJSPathPrefix)) {
+                        cDOMPathPrefix.Assign(cJSPathPrefix);
+                        cDOMPathPrefix.AppendLiteral("/dom/");
+                        cJSPathPrefix.AppendLiteral("/js/");
+                    } else {
+                        cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unknown-window-global/");
+                        cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
+                    }
                 } else {
-                    cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unknown-window-global/");
+                    cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/non-window-global/");
                     cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
                 }
             } else {
-                cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/non-window-global/");
-                cDOMPathPrefix.AssignLiteral("explicit/dom/?!/");
+                cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/unentered/");
+                cDOMPathPrefix.AssignLiteral("explicit/dom/unentered/");
             }
         } else {
             cJSPathPrefix.AssignLiteral("explicit/js-non-window/compartments/no-global/");
@@ -2289,8 +2294,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
             }
         }
 
-        ok = mozilla::dom::DefineStaticJSVals(cx) &&
-             mozilla::dom::oldproxybindings::DefineStaticJSVals(cx);
+        ok = mozilla::dom::binding::DefineStaticJSVals(cx);
         if (!ok)
             return false;
 

@@ -98,7 +98,6 @@ public:
     virtual bool RecvSetInputContext(const int32_t& aIMEEnabled,
                                      const int32_t& aIMEOpen,
                                      const nsString& aType,
-                                     const nsString& aInputmode,
                                      const nsString& aActionHint,
                                      const int32_t& aCause,
                                      const int32_t& aFocusChange);
@@ -106,8 +105,8 @@ public:
     virtual bool RecvSetBackgroundColor(const nscolor& aValue);
     virtual bool RecvGetDPI(float* aValue);
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue);
+    virtual bool RecvNotifyDOMTouchListenerAdded();
     virtual bool RecvZoomToRect(const gfxRect& aRect);
-    virtual bool RecvContentReceivedTouch(const bool& aPreventDefault);
     virtual PContentDialogParent* AllocPContentDialog(const uint32_t& aType,
                                                       const nsCString& aName,
                                                       const nsCString& aFeatures,
@@ -160,8 +159,8 @@ public:
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
-            const URIParams& aManifestURI,
-            const URIParams& aDocumentURI,
+            const URI& aManifestURI,
+            const URI& aDocumentURI,
             const nsCString& aClientID,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);

@@ -131,7 +131,7 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
                      "Should never have a slim wrapper when IsDOMBinding()");
         if (wrapper &&
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
-            (IS_SLIM_WRAPPER(wrapper) || cache->IsDOMBinding() ||
+            (IS_SLIM_WRAPPER(wrapper) ||
              xpc_OkToHandOutWrapper(cache))) {
             *vp = OBJECT_TO_JSVAL(wrapper);
             return wrapper;
@@ -241,16 +241,8 @@ bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
  * Note, the ownership of the string buffer may be moved from str to rval.
  * If that happens, str will point to an empty string after this call.
  */
+bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
 bool NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval);
-inline bool StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
-{
-    // From the T_DOMSTRING case in XPCConvert::NativeData2JS.
-    if (str.IsVoid()) {
-        *rval = JSVAL_NULL;
-        return true;
-    }
-    return NonVoidStringToJsval(cx, str, rval);
-}
 
 nsIPrincipal *GetCompartmentPrincipal(JSCompartment *compartment);
 
@@ -314,32 +306,14 @@ xpc_JSCompartmentParticipant();
 
 namespace mozilla {
 namespace dom {
+namespace binding {
 
 extern int HandlerFamily;
 inline void* ProxyFamily() { return &HandlerFamily; }
-
-class DOMBaseProxyHandler : public js::BaseProxyHandler {
-protected:
-    DOMBaseProxyHandler(bool aNewDOMProxy) : js::BaseProxyHandler(ProxyFamily()),
-                                             mNewDOMProxy(aNewDOMProxy)
-    {
-    }
-
-public:
-    bool mNewDOMProxy;
-};
-
-inline bool IsNewProxyBinding(js::BaseProxyHandler* handler)
-{
-  MOZ_ASSERT(handler->family() == ProxyFamily());
-  return static_cast<DOMBaseProxyHandler*>(handler)->mNewDOMProxy;
-}
-
-inline bool IsDOMProxy(JSObject *obj)
+inline bool instanceIsProxy(JSObject *obj)
 {
     return js::IsProxy(obj) &&
-           js::GetProxyHandler(obj)->family() == ProxyFamily() &&
-           IsNewProxyBinding(js::GetProxyHandler(obj));
+           js::GetProxyHandler(obj)->family() == ProxyFamily();
 }
 
 typedef bool
@@ -353,21 +327,7 @@ extern bool
 DefineConstructor(JSContext *cx, JSObject *obj, DefineInterface aDefine,
                   nsresult *aResult);
 
-namespace oldproxybindings {
-
-inline bool instanceIsProxy(JSObject *obj)
-{
-    return js::IsProxy(obj) &&
-           js::GetProxyHandler(obj)->family() == ProxyFamily() &&
-           !IsNewProxyBinding(js::GetProxyHandler(obj));
-}
-extern bool
-DefineStaticJSVals(JSContext *cx);
-void
-Register(nsScriptNameSpaceManager* aNameSpaceManager);
-
-} // namespace oldproxybindings
-
+} // namespace binding
 } // namespace dom
 } // namespace mozilla
 

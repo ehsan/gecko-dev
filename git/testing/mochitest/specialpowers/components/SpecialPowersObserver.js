@@ -30,7 +30,7 @@ loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserverAPI.js
 function SpecialPowersObserver() {
   this._isFrameScriptLoaded = false;
   this._messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
-                         getService(Ci.nsIMessageBroadcaster);
+                         getService(Ci.nsIChromeFrameMessageManager);
 }
 
 
@@ -77,7 +77,7 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
 
   SpecialPowersObserver.prototype._sendAsyncMessage = function(msgname, msg)
   {
-    this._messageManager.broadcastAsyncMessage(msgname, msg);
+    this._messageManager.sendAsyncMessage(msgname, msg);
   };
 
   SpecialPowersObserver.prototype._receiveMessage = function(aMessage) {

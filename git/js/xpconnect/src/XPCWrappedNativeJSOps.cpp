@@ -144,7 +144,9 @@ GetDoubleWrappedJSObject(XPCCallContext& ccx, XPCWrappedNative* wrapper)
             jsid id = ccx.GetRuntime()->
                     GetStringID(XPCJSRuntime::IDX_WRAPPED_JSOBJECT);
 
-            JSAutoCompartment ac(ccx, mainObj);
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(ccx, mainObj))
+                return NULL;
 
             jsval val;
             if (JS_GetPropertyById(ccx, mainObj, id, &val) &&
@@ -838,6 +840,7 @@ XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
         XPC_WN_JSOp_Enumerate,
         XPC_WN_JSOp_TypeOf_Object,
         XPC_WN_JSOp_ThisObject,
+        XPC_WN_JSOp_Clear
     }
   },
   0 // interfacesBitmap
@@ -1235,6 +1238,12 @@ XPC_WN_JSOp_TypeOf_Function(JSContext *cx, JSHandleObject obj)
     return JSTYPE_FUNCTION;
 }
 
+void
+XPC_WN_JSOp_Clear(JSContext *cx, JSHandleObject obj)
+{
+    // XXX Clear XrayWrappers?
+}
+
 namespace {
 
 NS_STACK_CLASS class AutoPopJSContext
@@ -1397,6 +1406,7 @@ XPCNativeScriptableShared::PopulateJSClass()
     // JSObject represents a wrapper.
     js::ObjectOps *ops = &mJSClass.base.ops;
     ops->enumerate = XPC_WN_JSOp_Enumerate;
+    ops->clear = XPC_WN_JSOp_Clear;
     ops->thisObject = XPC_WN_JSOp_ThisObject;
 
     if (mFlags.WantCall() || mFlags.WantConstruct()) {

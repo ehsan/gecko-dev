@@ -34,14 +34,18 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=545268
   var keyUp = 0;
 
   function dispatchKeyEvent(type) {
-    var utils = SpecialPowers.getDOMWindowUtils(subwin);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = subwin.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     utils.sendKeyEvent(type, 
                        Components.interfaces.nsIDOMKeyEvent.DOM_VK_A,
                        0, 0);
   }
 
   function doTest() {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     var f = win.document.getElementById("f");
     subwin = f.contentWindow;
     subwin.document.getElementsByTagName("input")[0].focus();
@@ -77,7 +81,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=545268
     }
 
   function continueTest1() {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     dispatchKeyEvent("keydown");
     utils.suppressEventHandling(true);
     dispatchKeyEvent("keypress");
@@ -90,7 +96,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=545268
   }
 
   function continueTest2() {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     is(keyDown, 2, "Wrong number events (13)");
     is(keyPress, 2, "Wrong number events (14)");
     is(keyUp, 2, "Wrong number events (15)");
@@ -113,7 +121,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=545268
   }
 
   function continueTest3() {
-    var utils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                    getInterface(Components.interfaces.nsIDOMWindowUtils);
     utils.sendMouseEvent("mousedown", 5, 5, 0, 1, 0);
     utils.suppressEventHandling(true);
     utils.sendMouseEvent("mouseup", 5, 5, 0, 1, 0);

@@ -37,10 +37,6 @@ namespace mjit {
     struct JITScript;
 }
 
-namespace analyze {
-    struct ScriptLiveness;
-}
-
 struct VMFrame
 {
 #if defined(JS_CPU_SPARC)
@@ -306,9 +302,6 @@ enum RejoinState {
      * .prototype property has been fetched.
      */
     REJOIN_THIS_PROTOTYPE,
-
-    /* As above, after the 'this' object has been created. */
-    REJOIN_THIS_CREATED,
 
     /*
      * Type check on arguments failed during prologue, need stack check and
@@ -659,8 +652,6 @@ struct JITChunk
     uint32_t        nCallSites;
     uint32_t        nRootedTemplates;
     uint32_t        nRootedRegExps;
-    uint32_t        nMonitoredBytecodes;
-    uint32_t        nTypeBarrierBytecodes;
 #ifdef JS_MONOIC
     uint32_t        nGetGlobalNames;
     uint32_t        nSetGlobalNames;
@@ -689,15 +680,6 @@ struct JITChunk
     js::mjit::CallSite *callSites() const;
     JSObject **rootedTemplates() const;
     RegExpShared **rootedRegExps() const;
-
-    /*
-     * Offsets of bytecodes which were monitored or had type barriers at the
-     * point of compilation. Used to avoid unnecessary recompilation after
-     * analysis purges.
-     */
-    uint32_t *monitoredBytecodes() const;
-    uint32_t *typeBarrierBytecodes() const;
-
 #ifdef JS_MONOIC
     ic::GetGlobalNameIC *getGlobalNames() const;
     ic::SetGlobalNameIC *setGlobalNames() const;
@@ -806,12 +788,6 @@ struct JITScript
      * edges to chunks which do not have compiled code.
      */
     JSC::ExecutablePool *shimPool;
-
-    /*
-     * Optional liveness information attached to the JITScript if the analysis
-     * information is purged while retaining JIT info.
-     */
-    analyze::ScriptLiveness *liveness;
 
     /*
      * Number of calls made to IonMonkey functions, used to avoid slow

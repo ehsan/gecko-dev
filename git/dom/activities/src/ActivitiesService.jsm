@@ -12,9 +12,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
-                                   "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIMessageBroadcaster");
+XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"]
+           .getService(Ci.nsIFrameMessageManager);
+});
 
 const EXPORTED_SYMBOLS = [];
 
@@ -193,7 +194,7 @@ let Activities = {
 
       // We have no matching activity registered, let's fire an error.
       if (aResults.options.length === 0) {
-        ppmm.broadcastAsyncMessage("Activity:FireError", {
+        ppmm.sendAsyncMessage("Activity:FireError", {
           "id": aMsg.id,
           "error": "NO_PROVIDER"
         });
@@ -205,7 +206,7 @@ let Activities = {
 
         // The user has cancelled the choice, fire an error.
         if (aChoice === -1) {
-          ppmm.broadcastAsyncMessage("Activity:FireError", {
+          ppmm.sendAsyncMessage("Activity:FireError", {
             "id": aMsg.id,
             "error": "USER_ABORT"
           });
@@ -230,7 +231,7 @@ let Activities = {
           Services.io.newURI(result.manifest, null, null));
 
         if (!result.description.returnValue) {
-          ppmm.broadcastAsyncMessage("Activity:FireSuccess", {
+          ppmm.sendAsyncMessage("Activity:FireSuccess", {
             "id": aMsg.id,
             "result": null
           });
@@ -265,7 +266,7 @@ let Activities = {
   },
 
   receiveMessage: function activities_receiveMessage(aMessage) {
-    let mm = aMessage.target;
+    let mm = aMessage.target.QueryInterface(Ci.nsIFrameMessageManager);
     let msg = aMessage.json;
     switch(aMessage.name) {
       case "Activity:Start":
@@ -273,10 +274,10 @@ let Activities = {
         break;
 
       case "Activity:PostResult":
-        ppmm.broadcastAsyncMessage("Activity:FireSuccess", msg);
+        ppmm.sendAsyncMessage("Activity:FireSuccess", msg);
         break;
       case "Activity:PostError":
-        ppmm.broadcastAsyncMessage("Activity:FireError", msg);
+        ppmm.sendAsyncMessage("Activity:FireError", msg);
         break;
 
       case "Activities:Register":

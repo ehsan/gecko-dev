@@ -279,11 +279,11 @@ int main(int argc, char** argv) {
     return 1;
   }
   
-  normalizer = nullptr;
+  normalizer = NULL;
   nsresult res;
   res = CallGetService(kUnicodeNormalizerCID, &normalizer);
   
- if(NS_FAILED(res) || !normalizer) {
+ if(NS_FAILED(res) || ( normalizer == NULL ) ) {
     printf("GetService failed\n");
     return 1;
   }

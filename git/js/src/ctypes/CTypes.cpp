@@ -5876,7 +5876,10 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   JS_AbortIfWrongThread(JS_GetRuntime(cx));
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, jsfnObj);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, jsfnObj))
+    return;
 
   // Assert that our CIFs agree.
   FunctionInfo* fninfo = FunctionType::GetFunctionInfo(typeObj);

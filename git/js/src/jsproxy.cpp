@@ -1682,7 +1682,7 @@ proxy_TraceObject(JSTracer *trc, JSObject *obj)
              */
             Value key = ObjectValue(*referent);
             WrapperMap::Ptr p = obj->compartment()->crossCompartmentWrappers.lookup(key);
-            JS_ASSERT(*p->value.unsafeGet() == ObjectValue(*obj));
+            JS_ASSERT(p->value.get() == ObjectValue(*obj));
         }
     }
 #endif
@@ -1786,6 +1786,7 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
         NULL,                /* enumerate       */
         proxy_TypeOf,
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 
@@ -1843,6 +1844,7 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
         NULL,                /* enumerate       */
         NULL,                /* typeof          */
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 
@@ -1912,6 +1914,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
         NULL,                /* enumerate       */
         proxy_TypeOf,
         NULL,                /* thisObject      */
+        NULL,                /* clear           */
     }
 };
 
@@ -1943,12 +1946,12 @@ js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_,
     RootedObject obj(cx, NewObjectWithGivenProto(cx, clasp, proto, parent));
     if (!obj)
         return NULL;
-    obj->initSlot(JSSLOT_PROXY_HANDLER, PrivateValue(handler));
-    obj->initCrossCompartmentSlot(JSSLOT_PROXY_PRIVATE, priv);
+    obj->setSlot(JSSLOT_PROXY_HANDLER, PrivateValue(handler));
+    obj->setSlot(JSSLOT_PROXY_PRIVATE, priv);
     if (fun) {
-        obj->initCrossCompartmentSlot(JSSLOT_PROXY_CALL, call ? ObjectValue(*call) : UndefinedValue());
+        obj->setSlot(JSSLOT_PROXY_CALL, call ? ObjectValue(*call) : UndefinedValue());
         if (construct) {
-            obj->initSlot(JSSLOT_PROXY_CONSTRUCT, ObjectValue(*construct));
+            obj->setSlot(JSSLOT_PROXY_CONSTRUCT, ObjectValue(*construct));
         }
     }
 

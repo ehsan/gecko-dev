@@ -733,7 +733,7 @@ nsSVGUtils::ScheduleReflowSVG(nsIFrame *aFrame)
                "Do not call under nsISVGChildFrame::ReflowSVG!");
 
   // We don't call nsSVGEffects::InvalidateRenderingObservers here because
-  // we should only be called under InvalidateAndScheduleReflowSVG (which
+  // we should only be called under InvalidateAndScheduleBoundsUpdate (which
   // calls InvalidateBounds) or nsSVGDisplayContainerFrame::InsertFrames
   // (at which point the frame has no observers).
 
@@ -1083,13 +1083,10 @@ nsSVGUtils::NotifyChildrenOfSVGChange(nsIFrame *aFrame, uint32_t aFlags)
     if (SVGFrame) {
       SVGFrame->NotifySVGChanged(aFlags); 
     } else {
-      NS_ASSERTION(kid->IsFrameOfType(nsIFrame::eSVG) || kid->IsSVGText(),
-                   "SVG frame expected");
+      NS_ASSERTION(kid->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
       // recurse into the children of container frames e.g. <clipPath>, <mask>
       // in case they have child frames with transformation matrices
-      if (kid->IsFrameOfType(nsIFrame::eSVG)) {
-        NotifyChildrenOfSVGChange(kid, aFlags);
-      }
+      NotifyChildrenOfSVGChange(kid, aFlags);
     }
     kid = kid->GetNextSibling();
   }
@@ -1894,12 +1891,6 @@ nsSVGUtils::SetupCairoFillPaint(nsIFrame *aFrame, gfxContext* aContext)
   const nsStyleSVG* style = aFrame->GetStyleSVG();
   if (style->mFill.mType == eStyleSVGPaintType_None)
     return false;
-
-  if (style->mFillRule == NS_STYLE_FILL_RULE_EVENODD)
-    aContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
-  else
-    aContext->SetFillRule(gfxContext::FILL_RULE_WINDING);
-
   float opacity = MaybeOptimizeOpacity(aFrame, style->mFillOpacity);
   nsSVGPaintServerFrame *ps =
     nsSVGEffects::GetPaintServer(aFrame, &style->mFill, nsSVGEffects::FillProperty());

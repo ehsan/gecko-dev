@@ -12,7 +12,6 @@
 #define mozilla_ErrorResult_h
 
 #include "nscore.h"
-#include "mozilla/Assertions.h"
 
 namespace mozilla {
 

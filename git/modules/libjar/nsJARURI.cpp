@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "nsJARURI.h"
 #include "nsNetUtil.h"
 #include "nsIIOService.h"
@@ -20,9 +18,6 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIProgrammingLanguage.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 static NS_DEFINE_CID(kJARURICID, NS_JARURI_CID);
 
@@ -47,7 +42,6 @@ NS_INTERFACE_MAP_BEGIN(nsJARURI)
   NS_INTERFACE_MAP_ENTRY(nsISerializable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
   NS_INTERFACE_MAP_ENTRY(nsINestedURI)
-  NS_INTERFACE_MAP_ENTRY(nsIIPCSerializableURI)
   // see nsJARURI::Equals
   if (aIID.Equals(NS_GET_IID(nsJARURI)))
       foundInterface = reinterpret_cast<nsISupports*>(this);
@@ -822,52 +816,3 @@ nsJARURI::GetInnermostURI(nsIURI** uri)
     return NS_ImplGetInnermostURI(this, uri);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsIIPCSerializableURI methods:
-
-void
-nsJARURI::Serialize(URIParams& aParams)
-{
-    JARURIParams params;
-
-    SerializeURI(mJARFile, params.jarFile());
-    SerializeURI(mJAREntry, params.jarEntry());
-    params.charset() = mCharsetHint;
-
-    aParams = params;
-}
-
-bool
-nsJARURI::Deserialize(const URIParams& aParams)
-{
-    if (aParams.type() != URIParams::TJARURIParams) {
-        NS_ERROR("Received unknown parameters from the other process!");
-        return false;
-    }
-
-    const JARURIParams& params = aParams.get_JARURIParams();
-
-    nsCOMPtr<nsIURI> file = DeserializeURI(params.jarFile());
-    if (!file) {
-        NS_ERROR("Couldn't deserialize jar file URI!");
-        return false;
-    }
-
-    nsCOMPtr<nsIURI> entry = DeserializeURI(params.jarEntry());
-    if (!entry) {
-        NS_ERROR("Couldn't deserialize jar entry URI!");
-        return false;
-    }
-
-    nsCOMPtr<nsIURL> entryURL = do_QueryInterface(entry);
-    if (!entryURL) {
-        NS_ERROR("Couldn't QI jar entry URI to nsIURL!");
-        return false;
-    }
-
-    mJARFile.swap(file);
-    mJAREntry.swap(entryURL);
-    mCharsetHint = params.charset();
-
-    return true;
-}

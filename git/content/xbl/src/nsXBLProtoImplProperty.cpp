@@ -155,7 +155,10 @@ nsXBLProtoImplProperty::InstallMember(nsIScriptContext* aContext,
   if ((mJSGetterObject || mJSSetterObject) && aTargetClassObject) {
     JSObject * getter = nullptr;
     JSAutoRequest ar(cx);
-    JSAutoCompartment ac(cx, globalObject);
+    JSAutoEnterCompartment ac;
+
+    if (!ac.enter(cx, globalObject))
+      return NS_ERROR_UNEXPECTED;
 
     if (mJSGetterObject)
       if (!(getter = ::JS_CloneFunctionObject(cx, mJSGetterObject, globalObject)))

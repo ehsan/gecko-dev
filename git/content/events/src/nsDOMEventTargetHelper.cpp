@@ -50,7 +50,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDOMEventTargetHelper)
     }
     PR_snprintf(name, sizeof(name), "nsDOMEventTargetHelper %s",
                 NS_ConvertUTF16toUTF8(uri).get());
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsDOMEventTargetHelper),
+                              name);
   } else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsDOMEventTargetHelper, tmp->mRefCnt.get())
   }

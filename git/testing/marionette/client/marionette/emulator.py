@@ -17,6 +17,7 @@ import time
 
 from emulator_battery import EmulatorBattery
 
+
 class LogcatProc(ProcessHandlerMixin):
     """Process handler for logcat which saves all output to a logfile.
     """
@@ -65,7 +66,7 @@ class Emulator(object):
             raise Exception('Must define B2G_HOME or pass the homedir parameter')
         self._check_file(self.homedir)
 
-        oldstyle_homedir = os.path.join(self.homedir, 'glue','gonk-ics')
+        oldstyle_homedir = os.path.join(self.homedir, 'glue/gonk-ics')
         if os.access(oldstyle_homedir, os.F_OK):
             self.homedir = oldstyle_homedir
 
@@ -77,7 +78,7 @@ class Emulator(object):
         if platform.system() == "Darwin":
             host_dir = "darwin-x86"
 
-        host_bin_dir = os.path.join("out","host", host_dir, "bin")
+        host_bin_dir = os.path.join("out/host", host_dir, "bin")
 
         if self.arch == "x86":
             binary = os.path.join(host_bin_dir, "emulator-x86")
@@ -90,7 +91,9 @@ class Emulator(object):
             sysdir = "out/target/product/generic"
             self.tail_args = ["-cpu", "cortex-a8"]
 
-        self._check_for_adb()
+        self.adb = os.path.join(self.homedir, host_bin_dir, "adb")
+        if not os.access(self.adb, os.F_OK):
+            self.adb = os.path.join(self.homedir, 'bin/adb')
 
         if not self.binary:
             self.binary = os.path.join(self.homedir, binary)
@@ -142,24 +145,20 @@ class Emulator(object):
             return self.port is not None
 
     def _check_for_adb(self):
-        host_dir = "linux-x86"
-        if platform.system() == "Darwin":
-            host_dir = "darwin-x86"
-        adb = subprocess.Popen(['which', 'adb'],
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        if adb.wait() == 0:
-            self.adb = adb.stdout.read().strip() # remove trailing newline
-            return
-        adb_paths = [os.path.join(self.homedir,'glue','gonk','out','host',
-                      host_dir ,'bin','adb'),os.path.join(self.homedir, 'out',
-                      'host', host_dir,'bin', 'adb'),os.path.join(self.homedir,
-                      'bin','adb')]
-        for option in adb_paths:
-            if os.path.exists(option):
-                self.adb = option
-                return
-        raise Exception('adb not found!')
+        self.adb = os.path.join(self.homedir,
+                                'glue/gonk/out/host/linux-x86/bin/adb')
+        if not os.access(self.adb, os.F_OK):
+            self.adb = os.path.join(self.homedir, 'bin/adb')
+            if not os.access(self.adb, os.F_OK):
+                adb = subprocess.Popen(['which', 'adb'],
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+                retcode = adb.wait()
+                if retcode:
+                    raise Exception('adb not found!')
+                out = adb.stdout.read().strip()
+                if len(out) and out.find('/') > -1:
+                    self.adb = out
 
     def _run_adb(self, args):
         args.insert(0, self.adb)

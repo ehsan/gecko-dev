@@ -154,7 +154,8 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     CHECK(debuggee);
 
     {
-        JSAutoCompartment ae(cx, debuggee);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, debuggee));
         CHECK(JS_SetDebugMode(cx, true));
         CHECK(JS_InitStandardClasses(cx, debuggee));
     }
@@ -173,7 +174,8 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     CHECK_SAME(v, JSVAL_ONE);
 
     {
-        JSAutoCompartment ae(cx, debuggee);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, debuggee));
         CHECK(JS_SetDebugMode(cx, false));
     }
 
@@ -193,7 +195,8 @@ BEGIN_TEST(testDebugger_newScriptHook)
     JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(g);
     {
-        JSAutoCompartment ae(cx, g);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, g));
         CHECK(JS_InitStandardClasses(cx, g));
     }
 
@@ -222,7 +225,8 @@ bool testIndirectEval(JS::HandleObject scope, const char *code)
     EXEC("hits = 0;");
 
     {
-        JSAutoCompartment ae(cx, scope);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, scope));
         JSString *codestr = JS_NewStringCopyZ(cx, code);
         CHECK(codestr);
         jsval argv[1] = { STRING_TO_JSVAL(codestr) };

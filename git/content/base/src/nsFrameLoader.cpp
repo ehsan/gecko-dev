@@ -1142,10 +1142,27 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  if (ourDocshell->GetIsBrowserElement() !=
-      otherDocshell->GetIsBrowserElement() ||
-      ourDocshell->GetIsApp() != otherDocshell->GetIsApp()) {
+  bool ourContentBoundary, otherContentBoundary;
+  ourDocshell->GetIsContentBoundary(&ourContentBoundary);
+  otherDocshell->GetIsContentBoundary(&otherContentBoundary);
+  if (ourContentBoundary != otherContentBoundary) {
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
+
+  if (ourContentBoundary) {
+    bool ourIsBrowser, otherIsBrowser;
+    ourDocshell->GetIsBrowserElement(&ourIsBrowser);
+    otherDocshell->GetIsBrowserElement(&otherIsBrowser);
+    if (ourIsBrowser != otherIsBrowser) {
       return NS_ERROR_NOT_IMPLEMENTED;
+    }
+
+    bool ourIsApp, otherIsApp;
+    ourDocshell->GetIsApp(&ourIsApp);
+    otherDocshell->GetIsApp(&otherIsApp);
+    if (ourIsApp != otherIsApp) {
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
   }
 
   if (mInSwap || aOther->mInSwap) {
@@ -2244,7 +2261,7 @@ bool SendAsyncMessageToChild(void* aCallbackData,
 }
 
 NS_IMETHODIMP
-nsFrameLoader::GetMessageManager(nsIMessageSender** aManager)
+nsFrameLoader::GetMessageManager(nsIChromeFrameMessageManager** aManager)
 {
   EnsureMessageManager();
   if (mMessageManager) {
@@ -2336,13 +2353,13 @@ nsFrameLoader::EnsureMessageManager()
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =
     do_QueryInterface(GetOwnerDoc()->GetWindow());
-  nsCOMPtr<nsIMessageBroadcaster> parentManager;
+  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
   if (chromeWindow) {
     chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
   }
 
   if (ShouldUseRemoteProcess()) {
-    mMessageManager = new nsFrameMessageManager(true, /* aChrome */
+    mMessageManager = new nsFrameMessageManager(true,
                                                 nullptr,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,
@@ -2350,7 +2367,7 @@ nsFrameLoader::EnsureMessageManager()
                                                 static_cast<nsFrameMessageManager*>(parentManager.get()),
                                                 cx);
   } else {
-    mMessageManager = new nsFrameMessageManager(true, /* aChrome */
+    mMessageManager = new nsFrameMessageManager(true,
                                                 nullptr,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,

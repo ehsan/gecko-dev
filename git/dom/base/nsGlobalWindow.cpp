@@ -554,7 +554,7 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
-NS_IMPL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(nsTimeout)
+NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NATIVE_0(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTimeout)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWindow,
@@ -625,7 +625,11 @@ nsOuterWindowProxy::singleton;
 static JSObject*
 NewOuterWindowProxy(JSContext *cx, JSObject *parent)
 {
-  JSAutoCompartment ac(cx, parent);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, parent)) {
+    return nullptr;
+  }
+
   JSObject *obj = js::Wrapper::New(cx, parent, js::GetObjectProto(parent), parent,
                                    &nsOuterWindowProxy::singleton);
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
@@ -1242,13 +1246,11 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGlobalWindow)
   return tmp->IsBlackForCC();
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     PR_snprintf(name, sizeof(name), "nsGlobalWindow #%ld", tmp->mWindowID);
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
-  } else {
-    NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsGlobalWindow, tmp->mRefCnt.get())
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGlobalWindow), name);
   }
 
   if (!cb.WantAllTraces() && tmp->IsBlackForCC()) {
@@ -1991,7 +1993,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       SetWrapper(mJSObject);
 
       {
-        JSAutoCompartment ac(cx, mJSObject);
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, mJSObject)) {
+          NS_ERROR("unable to enter a compartment");
+          return NS_ERROR_FAILURE;
+        }
 
         JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
 
@@ -2009,7 +2015,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
 
     // Enter the new global's compartment.
-    JSAutoCompartment ac(cx, mJSObject);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, mJSObject)) {
+      NS_ERROR("unable to enter a compartment");
+      return NS_ERROR_FAILURE;
+    }
 
     // If we created a new inner window above, we need to do the last little bit
     // of initialization now that the dust has settled.
@@ -2035,7 +2045,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
   }
 
-  JSAutoCompartment ac(cx, mJSObject);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, mJSObject)) {
+    NS_ERROR("unable to enter a compartment");
+    return NS_ERROR_FAILURE;
+  }
 
   if (!aState && !reUseInnerWindow) {
     // Loading a new page and creating a new inner window, *not*
@@ -2959,7 +2973,9 @@ nsGlobalWindow::GetScriptableParent(nsIDOMWindow** aParent)
     return NS_OK;
   }
 
-  if (mDocShell->GetIsContentBoundary()) {
+  bool isContentBoundary = false;
+  mDocShell->GetIsContentBoundary(&isContentBoundary);
+  if (isContentBoundary) {
     nsCOMPtr<nsIDOMWindow> parent = static_cast<nsIDOMWindow*>(this);
     parent.swap(*aParent);
     return NS_OK;
@@ -3066,8 +3082,12 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 
   // If we're contained in <iframe mozbrowser>, then GetContent is the same as
   // window.top.
-  if (mDocShell && mDocShell->GetIsBelowContentBoundary()) {
-    return GetScriptableTop(aContent);
+  if (mDocShell) {
+    bool belowContentBoundary = false;
+    mDocShell->GetIsBelowContentBoundary(&belowContentBoundary);
+    if (belowContentBoundary) {
+      return GetScriptableTop(aContent);
+    }
   }
 
   nsCOMPtr<nsIDocShellTreeItem> primaryContent;
@@ -6001,7 +6021,10 @@ nsGlobalWindow::CallerInnerWindow()
   }
 
   JSObject *scope = CallerGlobal();
-  JSAutoCompartment ac(cx, scope);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, scope))
+    return nullptr;
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   nsContentUtils::XPConnect()->
@@ -6113,7 +6136,7 @@ PostMessageReadStructuredClone(JSContext* cx,
     return runtimeCallbacks->read(cx, reader, tag, data, nullptr);
   }
 
-  return nullptr;
+  return JS_FALSE;
 }
 
 static JSBool
@@ -6467,8 +6490,13 @@ nsGlobalWindow::Close()
 {
   FORWARD_TO_OUTER(Close, (), NS_ERROR_NOT_INITIALIZED);
 
-  if (!mDocShell || IsInModalState() ||
-      (IsFrame() && !mDocShell->GetIsContentBoundary())) {
+  bool isContentBoundary = false;
+  if (mDocShell) {
+    mDocShell->GetIsContentBoundary(&isContentBoundary);
+  }
+
+  if ((!isContentBoundary && IsFrame()) ||
+      !mDocShell || IsInModalState()) {
     // window.close() is called on a frame in a frameset, on a window
     // that's already closed, or on a window for which there's
     // currently a modal dialog open. Ignore such calls.
@@ -6993,7 +7021,13 @@ nsGlobalWindow::GetScriptableFrameElement(nsIDOMElement** aFrameElement)
   FORWARD_TO_OUTER(GetScriptableFrameElement, (aFrameElement), NS_ERROR_NOT_INITIALIZED);
   *aFrameElement = NULL;
 
-  if (!mDocShell || mDocShell->GetIsContentBoundary()) {
+  if (!mDocShell) {
+    return NS_OK;
+  }
+
+  bool isContentBoundary = false;
+  mDocShell->GetIsContentBoundary(&isContentBoundary);
+  if (isContentBoundary) {
     return NS_OK;
   }
 
@@ -10957,7 +10991,7 @@ nsGlobalChromeWindow::NotifyDefaultButtonLoaded(nsIDOMElement* aDefaultButton)
 }
 
 NS_IMETHODIMP
-nsGlobalChromeWindow::GetMessageManager(nsIMessageBroadcaster** aManager)
+nsGlobalChromeWindow::GetMessageManager(nsIChromeFrameMessageManager** aManager)
 {
   FORWARD_TO_INNER_CHROME(GetMessageManager, (aManager), NS_ERROR_FAILURE);
   if (!mMessageManager) {
@@ -10965,19 +10999,16 @@ nsGlobalChromeWindow::GetMessageManager(nsIMessageBroadcaster** aManager)
     NS_ENSURE_STATE(scx);
     JSContext* cx = scx->GetNativeContext();
     NS_ENSURE_STATE(cx);
-    nsCOMPtr<nsIMessageBroadcaster> globalMM =
+    nsCOMPtr<nsIChromeFrameMessageManager> globalMM =
       do_GetService("@mozilla.org/globalmessagemanager;1");
     mMessageManager =
-      new nsFrameMessageManager(true, /* aChrome */
+      new nsFrameMessageManager(true,
                                 nullptr,
                                 nullptr,
                                 nullptr,
                                 nullptr,
                                 static_cast<nsFrameMessageManager*>(globalMM.get()),
-                                cx,
-                                false, /* aGlobal */
-                                false, /* aProcessManager */
-                                true /* aBroadcaster */);
+                                cx);
     NS_ENSURE_TRUE(mMessageManager, NS_ERROR_OUT_OF_MEMORY);
   }
   CallQueryInterface(mMessageManager, aManager);

@@ -1206,7 +1206,7 @@ PresShell::CreatePreferenceStyleSheet()
   NS_TIME_FUNCTION_MIN(1.0);
 
   NS_ASSERTION(!mPrefStyleSheet, "prefStyleSheet already exists");
-  mPrefStyleSheet = new nsCSSStyleSheet(CORS_NONE);
+  mPrefStyleSheet = new nsCSSStyleSheet();
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), "about:PreferenceStyleSheet", nullptr);
   if (NS_FAILED(rv)) {
@@ -2366,6 +2366,12 @@ PresShell::GetPageSequenceFrame() const
 {
   nsIFrame* frame = mFrameConstructor->GetPageSequenceFrame();
   return do_QueryFrame(frame);
+}
+
+nsIFrame*
+PresShell::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt)
+{
+  return nsLayoutUtils::GetFrameForPoint(aFrame, aPt);
 }
 
 void
@@ -7341,12 +7347,7 @@ bool
 PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
 {
   NS_TIME_FUNCTION_WITH_DOCURL;
-
-  nsCAutoString docURL("N/A");
-  nsIURI *uri = mDocument->GetDocumentURI();
-  if (uri)
-    uri->GetSpec(docURL);
-  SAMPLE_LABEL_PRINTF("layout", "DoReflow", "(%s)", docURL.get());
+  SAMPLE_LABEL("layout", "DoReflow");
 
   if (mReflowContinueTimer) {
     mReflowContinueTimer->Cancel();

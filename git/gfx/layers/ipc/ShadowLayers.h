@@ -166,9 +166,6 @@ public:
                    ShadowableLayer* aAfter=NULL);
   void RemoveChild(ShadowableLayer* aContainer,
                    ShadowableLayer* aChild);
-  void RepositionChild(ShadowableLayer* aContainer,
-                       ShadowableLayer* aChild,
-                       ShadowableLayer* aAfter=NULL);
 
   /**
    * Set aMaskLayer as the mask on aLayer.
@@ -413,8 +410,6 @@ public:
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer() = 0;
   /** CONSTRUCTION PHASE ONLY */
   virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer() { return nullptr; }
-
-  virtual void NotifyShadowTreeTransaction() {}
 
   /**
    * Try to open |aDescriptor| for direct texturing.  If the

@@ -108,7 +108,7 @@ ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
 }
 
 void
-ImageLoader::MaybeRegisterCSSImage(ImageLoader::Image* aImage)
+ImageLoader::MaybeRegisterCSSImage(nsCSSValue::Image* aImage)
 {
   NS_ASSERTION(aImage, "This should never be null!");
 
@@ -139,7 +139,7 @@ ImageLoader::MaybeRegisterCSSImage(ImageLoader::Image* aImage)
 }
 
 void
-ImageLoader::DeregisterCSSImage(ImageLoader::Image* aImage)
+ImageLoader::DeregisterCSSImage(nsCSSValue::Image* aImage)
 {
   RemoveImage(aImage);
 }
@@ -219,10 +219,10 @@ ImageLoader::SetAnimationMode(uint16_t aMode)
 }
 
 static PLDHashOperator
-ClearImageHashSet(nsPtrHashKey<ImageLoader::Image>* aKey, void* aClosure)
+ClearImageHashSet(nsPtrHashKey<nsCSSValue::Image>* aKey, void* aClosure)
 {
   nsIDocument* doc = static_cast<nsIDocument*>(aClosure);
-  ImageLoader::Image* image = aKey->GetKey();
+  nsCSSValue::Image* image = aKey->GetKey();
 
   imgIRequest* request = image->mRequests.GetWeak(doc);
   if (request) {
@@ -244,7 +244,7 @@ ImageLoader::ClearAll()
 
 void
 ImageLoader::LoadImage(nsIURI* aURI, nsIPrincipal* aOriginPrincipal,
-                       nsIURI* aReferrer, ImageLoader::Image* aImage)
+                       nsIURI* aReferrer, nsCSSValue::Image* aImage)
 {
   NS_ASSERTION(aImage->mRequests.Count() == 0, "Huh?");
 
@@ -284,7 +284,7 @@ ImageLoader::LoadImage(nsIURI* aURI, nsIPrincipal* aOriginPrincipal,
 }
 
 void
-ImageLoader::AddImage(ImageLoader::Image* aImage)
+ImageLoader::AddImage(nsCSSValue::Image* aImage)
 {
   NS_ASSERTION(!mImages.Contains(aImage), "Huh?");
   if (!mImages.PutEntry(aImage)) {
@@ -293,7 +293,7 @@ ImageLoader::AddImage(ImageLoader::Image* aImage)
 }
 
 void
-ImageLoader::RemoveImage(ImageLoader::Image* aImage)
+ImageLoader::RemoveImage(nsCSSValue::Image* aImage)
 {
   NS_ASSERTION(mImages.Contains(aImage), "Huh?");
   mImages.RemoveEntry(aImage);

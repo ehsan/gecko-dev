@@ -4,12 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/CookieServiceParent.h"
-
-#include "mozilla/ipc/URIUtils.h"
 #include "nsCookieService.h"
 #include "nsNetUtil.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -31,7 +27,7 @@ CookieServiceParent::~CookieServiceParent()
 }
 
 bool
-CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
+CookieServiceParent::RecvGetCookieString(const IPC::URI& aHost,
                                          const bool& aIsForeign,
                                          const bool& aFromHttp,
                                          nsCString* aResult)
@@ -41,7 +37,7 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
 
   // Deserialize URI. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI = DeserializeURI(aHost);
+  nsCOMPtr<nsIURI> hostURI(aHost);
   if (!hostURI)
     return false;
 
@@ -51,7 +47,7 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
 }
 
 bool
-CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
+CookieServiceParent::RecvSetCookieString(const IPC::URI& aHost,
                                          const bool& aIsForeign,
                                          const nsCString& aCookieString,
                                          const nsCString& aServerTime,
@@ -62,7 +58,7 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
 
   // Deserialize URI. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI = DeserializeURI(aHost);
+  nsCOMPtr<nsIURI> hostURI(aHost);
   if (!hostURI)
     return false;
 

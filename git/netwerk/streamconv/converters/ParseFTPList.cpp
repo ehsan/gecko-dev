@@ -31,6 +31,11 @@ int ParseFTPList(const char *line, struct list_state *state,
     return 0;
 
   memset( result, 0, sizeof(*result) );
+  if (state->magic != ((void *)ParseFTPList))
+  {
+    memset( state, 0, sizeof(*state) );
+    state->magic = ((void *)ParseFTPList);
+  }
   state->numlines++;
 
   /* carry buffer is only valid from one line to the next */

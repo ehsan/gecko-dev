@@ -260,11 +260,12 @@ const DownloadsPanel = {
    */
   showDownloadsHistory: function DP_showDownloadsHistory()
   {
-    // Hide the panel before showing another window, otherwise focus will return
-    // to the browser window when the panel closes automatically.
+    // Hide the panel before invoking the Library window, otherwise focus will
+    // return to the browser window when the panel closes automatically.
     this.hidePanel();
 
-    BrowserDownloadsUI();
+    // Open the Library window and select the Downloads query.
+    PlacesCommandHook.showPlacesOrganizer("Downloads");
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -355,7 +356,7 @@ const DownloadsOverlayLoader = {
    * @param aOverlay
    *        String containing the URI of the overlay to load in the current
    *        window.  If this overlay has already been loaded using this
-   *        function, then the overlay is not loaded again.
+   *        function, then the overlay is not loaded again. 
    * @param aCallback
    *        Invoked when loading is completed.  If the overlay is already
    *        loaded, the function is called immediately.
@@ -424,27 +425,13 @@ const DownloadsView = {
   //// Functions handling download items in the list
 
   /**
-   * Maximum number of items shown by the list at any given time.
-   */
-  kItemCountLimit: 3,
-
-  /**
    * Indicates whether we are still loading downloads data asynchronously.
    */
   loading: false,
 
   /**
-   * Ordered array of all DownloadsDataItem objects.  We need to keep this array
-   * because only a limited number of items are shown at once, and if an item
-   * that is currently visible is removed from the list, we might need to take
-   * another item from the array and make it appear at the bottom.
-   */
-  _dataItems: [],
-
-  /**
-   * Object containing the available DownloadsViewItem objects, indexed by their
-   * numeric download identifier.  There is a limited number of view items in
-   * the panel at any given time.
+   * Object containing all the available DownloadsViewItem objects, indexed by
+   * their numeric download identifier.
    */
   _viewItems: {},
 
@@ -453,20 +440,11 @@ const DownloadsView = {
    */
   _itemCountChanged: function DV_itemCountChanged()
   {
-    let count = this._dataItems.length;
-    let hiddenCount = count - this.kItemCountLimit;
-
-    if (count > 0) {
+    if (Object.keys(this._viewItems).length > 0) {
       DownloadsPanel.panel.setAttribute("hasdownloads", "true");
     } else {
       DownloadsPanel.panel.removeAttribute("hasdownloads");
     }
-
-    let s = DownloadsCommon.strings;
-    this.downloadsHistory.label = (hiddenCount > 0)
-                                  ? s.showMoreDownloads(hiddenCount)
-                                  : s.showAllDownloads;
-    this.downloadsHistory.accessKey = s.showDownloadsAccessKey;
   },
 
   /**
@@ -476,15 +454,6 @@ const DownloadsView = {
   {
     delete this.richListBox;
     return this.richListBox = document.getElementById("downloadsListBox");
-  },
-
-  /**
-   * Element corresponding to the button for showing more downloads.
-   */
-  get downloadsHistory()
-  {
-    delete this.downloadsHistory;
-    return this.downloadsHistory = document.getElementById("downloadsHistory");
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -505,10 +474,6 @@ const DownloadsView = {
   {
     this.loading = false;
 
-    // We suppressed item count change notifications during the batch load, at
-    // this point we should just call the function once.
-    this._itemCountChanged();
-
     // Notify the panel that all the initially available downloads have been
     // loaded.  This ensures that the interface is visible, if still required.
     DownloadsPanel.onViewLoadCompleted();
@@ -528,7 +493,6 @@ const DownloadsView = {
     this.richListBox.parentNode.replaceChild(emptyView, this.richListBox);
     this.richListBox = emptyView;
     this._viewItems = {};
-    this._dataItems = [];
   },
 
   /**
@@ -546,30 +510,17 @@ const DownloadsView = {
    */
   onDataItemAdded: function DV_onDataItemAdded(aDataItem, aNewest)
   {
+    // Make the item and add it in the appropriate place in the list.
+    let element = document.createElement("richlistitem");
+    let viewItem = new DownloadsViewItem(aDataItem, element);
+    this._viewItems[aDataItem.downloadId] = viewItem;
     if (aNewest) {
-      this._dataItems.unshift(aDataItem);
+      this.richListBox.insertBefore(element, this.richListBox.firstChild);
     } else {
-      this._dataItems.push(aDataItem);
+      this.richListBox.appendChild(element);
     }
 
-    let itemsNowOverflow = this._dataItems.length > this.kItemCountLimit;
-    if (aNewest || !itemsNowOverflow) {
-      // The newly added item is visible in the panel and we must add the
-      // corresponding element.  This is either because it is the first item, or
-      // because it was added at the bottom but the list still doesn't overflow.
-      this._addViewItem(aDataItem, aNewest);
-    }
-    if (aNewest && itemsNowOverflow) {
-      // If the list overflows, remove the last item from the panel to make room
-      // for the new one that we just added at the top.
-      this._removeViewItem(this._dataItems[this.kItemCountLimit]);
-    }
-
-    // For better performance during batch loads, don't update the count for
-    // every item, because the interface won't be visible until load finishes.
-    if (!this.loading) {
-      this._itemCountChanged();
-    }
+    this._itemCountChanged();
   },
 
   /**
@@ -581,17 +532,12 @@ const DownloadsView = {
    */
   onDataItemRemoved: function DV_onDataItemRemoved(aDataItem)
   {
-    let itemIndex = this._dataItems.indexOf(aDataItem);
-    this._dataItems.splice(itemIndex, 1);
-
-    if (itemIndex < this.kItemCountLimit) {
-      // The item to remove is visible in the panel.
-      this._removeViewItem(aDataItem);
-      if (this._dataItems.length >= this.kItemCountLimit) {
-        // Reinsert the next item into the panel.
-        this._addViewItem(this._dataItems[this.kItemCountLimit - 1], false);
-      }
-    }
+    let element = this.getViewItem(aDataItem)._element;
+    let previousSelectedIndex = this.richListBox.selectedIndex;
+    this.richListBox.removeChild(element);
+    this.richListBox.selectedIndex = Math.min(previousSelectedIndex,
+                                              this.richListBox.itemCount - 1);
+    delete this._viewItems[aDataItem.downloadId];
 
     this._itemCountChanged();
   },
@@ -606,49 +552,7 @@ const DownloadsView = {
    */
   getViewItem: function DV_getViewItem(aDataItem)
   {
-    // If the item is visible, just return it, otherwise return a mock object
-    // that doesn't react to notifications.
-    if (aDataItem.downloadId in this._viewItems) {
-      return this._viewItems[aDataItem.downloadId];
-    }
-    return this._invisibleViewItem;
-  },
-
-  /**
-   * Mock DownloadsDataItem object that doesn't react to notifications.
-   */
-  _invisibleViewItem: Object.freeze({
-    onStateChange: function () { },
-    onProgressChange: function () { }
-  }),
-
-  /**
-   * Creates a new view item associated with the specified data item, and adds
-   * it to the top or the bottom of the list.
-   */
-  _addViewItem: function DV_addViewItem(aDataItem, aNewest)
-  {
-    let element = document.createElement("richlistitem");
-    let viewItem = new DownloadsViewItem(aDataItem, element);
-    this._viewItems[aDataItem.downloadId] = viewItem;
-    if (aNewest) {
-      this.richListBox.insertBefore(element, this.richListBox.firstChild);
-    } else {
-      this.richListBox.appendChild(element);
-    }
-  },
-
-  /**
-   * Removes the view item associated with the specified data item.
-   */
-  _removeViewItem: function DV_removeViewItem(aDataItem)
-  {
-    let element = this.getViewItem(aDataItem)._element;
-    let previousSelectedIndex = this.richListBox.selectedIndex;
-    this.richListBox.removeChild(element);
-    this.richListBox.selectedIndex = Math.min(previousSelectedIndex,
-                                              this.richListBox.itemCount - 1);
-    delete this._viewItems[aDataItem.downloadId];
+    return this._viewItems[aDataItem.downloadId];
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -675,9 +579,8 @@ const DownloadsView = {
 
   onDownloadClick: function DV_onDownloadClick(aEvent)
   {
-    // Handle primary clicks only, and exclude the action button.
-    if (aEvent.button == 0 &&
-        !aEvent.originalTarget.hasAttribute("oncommand")) {
+    // Handle primary clicks only.
+    if (aEvent.button == 0) {
       goDoCommand("downloadsCmd_open");
     }
   },

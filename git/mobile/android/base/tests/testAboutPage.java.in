@@ -5,7 +5,7 @@ import @ANDROID_PACKAGE_NAME@.*;
 import android.app.Activity;
 import android.util.Log;
 
-public class testAboutPage extends PixelTest {
+public class testAboutPage extends BaseTest {
     @Override
     protected int getTestType() {
         return TEST_MOCHITEST;
@@ -16,9 +16,9 @@ public class testAboutPage extends PixelTest {
 
         // Load the about: page
         String url = "about:";
-        loadAndPaint(url);
+        loadUrl(url);
 
-        Element awesomebar = mDriver.findElement(getActivity(), "awesome_bar_title");
+        Element awesomebar = mDriver.findElement(getActivity(), "awesome_bar");
         mAsserter.isnot(awesomebar, null, "Got the awesomebar");
         assertMatches(awesomebar.getText(), "About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)", "page title match");
 
@@ -50,7 +50,7 @@ public class testAboutPage extends PixelTest {
         contentEventExpecter.blockForEvent();
 
         // Grab the title to make sure the about: page was loaded
-        awesomebar = mDriver.findElement(getActivity(), "awesome_bar_title");
+        awesomebar = mDriver.findElement(getActivity(), "awesome_bar");
         mAsserter.isnot(awesomebar, null, "Got the awesomebar");
         assertMatches(awesomebar.getText(), "About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)", "page title match");
     }

@@ -6,11 +6,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PNecko;
-include InputStreamParams;
-include URIParams;
 
-include "SerializedLoadContext.h";
+include "mozilla/net/NeckoMessageUtils.h";
 
+using IPC::URI;
+using IPC::InputStream;
 using IPC::SerializedLoadContext;
 using PRTime;
 
@@ -24,10 +24,10 @@ async protocol PFTPChannel
 parent:
   __delete__();
 
-  AsyncOpen(URIParams uri,
+  AsyncOpen(URI uri,
             uint64_t startPos,
             nsCString entityID,
-            OptionalInputStreamParams uploadStream,
+            InputStream uploadStream,
             SerializedLoadContext loadContext);
 
   ConnectChannel(uint32_t channelId);
@@ -37,7 +37,7 @@ parent:
 
 child:
   OnStartRequest(int32_t aContentLength, nsCString aContentType,
-                 PRTime aLastModified, nsCString aEntityID, URIParams aURI);
+                 PRTime aLastModified, nsCString aEntityID, URI aURI);
   OnDataAvailable(nsCString data, uint32_t offset, uint32_t count);
   OnStopRequest(nsresult statusCode);
   FailedAsyncOpen(nsresult statusCode);

@@ -84,9 +84,6 @@ public:
    */
   static void StartUp();
 
-  static PImageBridgeChild*
-  StartUpInChildProcess(Transport* aTransport, ProcessId aOtherProcess);
-
   /**
    * Destroys the image bridge by calling DestroyBridge, and destroys the 
    * ImageBridge's thread.

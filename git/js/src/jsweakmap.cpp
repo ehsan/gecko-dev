@@ -91,7 +91,7 @@ WeakMapBase::restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector)
 
 } /* namespace js */
 
-typedef WeakMap<EncapsulatedPtrObject, RelocatableValue> ObjectValueMap;
+typedef WeakMap<HeapPtrObject, HeapValue> ObjectValueMap;
 
 static ObjectValueMap *
 GetObjectMap(JSObject *obj)
@@ -249,20 +249,18 @@ WeakMap_set_impl(JSContext *cx, CallArgs args)
         thisObj->setPrivate(map);
     }
 
-    // Preserve wrapped native keys to prevent wrapper optimization.
-    if (key->getClass()->ext.isWrappedNative) {
-        MOZ_ASSERT(cx->runtime->preserveWrapperCallback, "wrapped native weak map key needs preserveWrapperCallback");
-        if (!cx->runtime->preserveWrapperCallback(cx, key)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_WEAKMAP_KEY);
-            return false;
-        }
-    }
-
     if (!map->put(key, value)) {
         JS_ReportOutOfMemory(cx);
         return false;
     }
-    HashTableWriteBarrierPost(cx->compartment, map, key);
+
+    // Preserve wrapped native keys to prevent wrapper optimization.
+    if (key->getClass()->ext.isWrappedNative) {
+        if (!cx->runtime->preserveWrapperCallback ||
+            !cx->runtime->preserveWrapperCallback(cx, key)) {
+            JS_ReportWarning(cx, "Failed to preserve wrapper of wrapped native weak map key.");
+        }
+    }
 
     args.rval().setUndefined();
     return true;
@@ -287,7 +285,7 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret)
         return false;
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
-        for (ObjectValueMap::Base::Range r = map->all(); !r.empty(); r.popFront()) {
+        for (ObjectValueMap::Range r = map->nondeterministicAll(); !r.empty(); r.popFront()) {
             RootedObject key(cx, r.front().key);
             // Re-wrapping the key (see comment of GetKeyArg)
             if (!JS_WrapObject(cx, key.address()))

@@ -133,7 +133,9 @@ nsresult CentralizedAdminPrefManagerInit()
 
     autoconfig_glob = JS_NewGlobalObject(autoconfig_cx, &global_class, NULL);
     if (autoconfig_glob) {
-        JSAutoCompartment ac(autoconfig_cx, autoconfig_glob);
+        JSAutoEnterCompartment ac;
+        if(!ac.enter(autoconfig_cx, autoconfig_glob))
+            return NS_ERROR_FAILURE;
         if (JS_InitStandardClasses(autoconfig_cx, autoconfig_glob)) {
             // XPCONNECT enable this JS context
             rv = xpc->InitClasses(autoconfig_cx, autoconfig_glob);
@@ -195,11 +197,9 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
     JS_BeginRequest(autoconfig_cx);
     nsCOMPtr<nsIPrincipal> principal;
     nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(principal));
-    JS::CompileOptions options(autoconfig_cx);
-    options.setPrincipals(nsJSPrincipals::get(principal))
-           .setFileAndLine(filename, 1);
-    JS::RootedObject glob(autoconfig_cx, autoconfig_glob);
-    ok = JS::Evaluate(autoconfig_cx, glob, options, js_buffer, length, nullptr);
+    ok = JS_EvaluateScriptForPrincipals(autoconfig_cx, autoconfig_glob, 
+                                        nsJSPrincipals::get(principal),
+                                        js_buffer, length, filename, 0, nullptr);
     JS_EndRequest(autoconfig_cx);
 
     JS_MaybeGC(autoconfig_cx);

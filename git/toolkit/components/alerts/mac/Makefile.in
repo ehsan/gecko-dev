@@ -15,12 +15,10 @@ IS_COMPONENT = 1
 FORCE_SHARED_LIB = 1
 
 CMMSRCS = \
-  nsMacAlertsService.mm \
+  nsGrowlAlertsService.mm \
   mozGrowlDelegate.mm \
-  mozNotificationCenterDelegate.mm \
   nsAlertsImageLoadListener.mm \
   nsNotificationsList.mm \
-  ObserverPair.mm \
   $(NULL)
 
 CPPSRCS = \
@@ -33,7 +31,7 @@ LOCAL_INCLUDES += \
   $(NULL)
 
 EXPORTS = \
-  nsMacAlertsService.h \
+  nsGrowlAlertsService.h \
   $(NULL)
 
 SHARED_LIBRARY_LIBS = \

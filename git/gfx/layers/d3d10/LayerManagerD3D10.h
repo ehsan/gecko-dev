@@ -357,7 +357,6 @@ public:
   void ComputeEffectiveTransforms(const gfx3DMatrix&) {}
   void InsertAfter(Layer*, Layer*);
   void RemoveChild(Layer*);
-  void RepositionChild(Layer*, Layer*);
   Layer* AsLayer() { return this; }
 
   void SetShadow(PLayerChild* aChild) { mShadow = aChild; }

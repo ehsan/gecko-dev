@@ -209,6 +209,15 @@ public:
 
   bool IsDragPopup() { return mIsDragPopup; }
 
+  // returns the parent menupopup, if any
+  nsMenuFrame* GetParentMenu() {
+    nsIFrame* parent = GetParent();
+    if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
+      return static_cast<nsMenuFrame *>(parent);
+    }
+    return nullptr;
+  }
+
   static nsIContent* GetTriggerContent(nsMenuPopupFrame* aMenuPopupFrame);
   void ClearTriggerContent() { mTriggerContent = nullptr; }
 

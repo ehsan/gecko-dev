@@ -56,9 +56,7 @@ endif
 
 # -pedantic causes warnings that we don't care about
 # so turn it off
-ifdef GNU_CC
-OS_CFLAGS := $(filter-out -pedantic,$(OS_CFLAGS))
-endif
+CFLAGS := $(filter-out -pedantic,$(CFLAGS))
 
 FORCE_STATIC_LIB = 1
 

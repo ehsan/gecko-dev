@@ -35,7 +35,6 @@
 #include "nsCSSParser.h"
 #include "nsPrintfCString.h"
 #include "nsDOMClassInfoID.h"
-#include "mozilla/dom/CSSStyleDeclarationBinding.h"
 
 namespace css = mozilla::css;
 
@@ -1559,19 +1558,8 @@ nsCSSFontFaceStyleDecl::GetLength(uint32_t *aLength)
 
 // DOMString item (in unsigned long index);
 NS_IMETHODIMP
-nsCSSFontFaceStyleDecl::Item(uint32_t aIndex, nsAString& aReturn)
-{
-  bool found;
-  IndexedGetter(aIndex, found, aReturn);
-  if (!found) {
-    aReturn.Truncate();
-  }
-  return NS_OK;
-}
-
-void
-nsCSSFontFaceStyleDecl::IndexedGetter(uint32_t index, bool& aFound, nsAString & aResult)
-{
+nsCSSFontFaceStyleDecl::Item(uint32_t index, nsAString & aResult)
+ {
   int32_t nset = -1;
   for (nsCSSFontDesc id = nsCSSFontDesc(eCSSFontDesc_UNKNOWN + 1);
        id < eCSSFontDesc_COUNT;
@@ -1580,13 +1568,13 @@ nsCSSFontFaceStyleDecl::IndexedGetter(uint32_t index, bool& aFound, nsAString & 
         != eCSSUnit_Null) {
       nset++;
       if (nset == int32_t(index)) {
-        aFound = true;
         aResult.AssignASCII(nsCSSProps::GetStringValue(id).get());
-        return;
+        return NS_OK;
       }
     }
   }
-  aFound = false;
+  aResult.Truncate();
+  return NS_OK;
 }
 
 // readonly attribute nsIDOMCSSRule parentRule;
@@ -1618,14 +1606,6 @@ nsINode*
 nsCSSFontFaceStyleDecl::GetParentObject()
 {
   return ContainingRule()->GetDocument();
-}
-
-JSObject*
-nsCSSFontFaceStyleDecl::WrapObject(JSContext *cx, JSObject *scope,
-                                   bool *triedToWrap)
-{
-  return mozilla::dom::CSSStyleDeclarationBinding::Wrap(cx, scope, this,
-                                                        triedToWrap);
 }
 
 // -------------------------------------------

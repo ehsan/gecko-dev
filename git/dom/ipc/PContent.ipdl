@@ -12,21 +12,21 @@ include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
 include protocol PHal;
-include protocol PImageBridge;
 include protocol PIndexedDB;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
 include protocol PSms;
 include protocol PStorage;
 include protocol PTestShell;
-include DOMTypes;
-include URIParams;
 
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
 include "mozilla/dom/TabMessageUtils.h";
 
 include "nsGeoPositionIPCSerialiser.h";
+include "PPrefTuple.h";
+
+include DOMTypes;
 
 using GeoPosition;
 using PrefTuple;
@@ -34,6 +34,7 @@ using PrefTuple;
 using ChromePackage;
 using ResourceMapping;
 using OverrideMapping;
+using IPC::URI;
 using IPC::Permission;
 using mozilla::null_t;
 using mozilla::void_t;
@@ -134,27 +135,9 @@ union AppId {
   nullable PBrowser;
 };
 
-union PrefValue {
-  nsCString;
-  int32_t;
-  bool;
-};
-
-union MaybePrefValue {
-  PrefValue;
-  null_t;
-};
-
-struct PrefSetting {
-  nsCString name;
-  MaybePrefValue defaultValue;
-  MaybePrefValue userValue;
-};
-
 rpc protocol PContent
 {
     parent opens PCompositor;
-    parent opens PImageBridge;
 
     manages PAudio;
     manages PBlob;
@@ -193,25 +176,15 @@ child:
 
     PTestShell();
 
-    /**
-     * Tell the content process some attributes of itself.  This is
-     * the first message received by content processes after startup.
-     *
-     * |id| is a unique ID among all subprocesses.  When |isForApp &&
-     * isForBrowser|, we're loading <browser> for an app.  When
-     * |isForBrowser|, we're loading <browser>.  When |!isForApp &&
-     * !isForBrowser|, we're probably loading <xul:browser remote>.
-     */
-    SetProcessAttributes(uint64_t id, bool isForApp, bool isForBrowser);
-
     RegisterChrome(ChromePackage[] packages, ResourceMapping[] resources,
                    OverrideMapping[] overrides, nsCString locale);
 
     async SetOffline(bool offline);
 
-    async NotifyVisited(URIParams uri);
+    async NotifyVisited(URI uri);
 
-    PreferenceUpdate(PrefSetting pref);
+    PreferenceUpdate(PrefTuple pref);
+    ClearUserPreference(nsCString prefName);
 
     NotifyAlertsObserver(nsCString topic, nsString data);
 
@@ -233,6 +206,8 @@ child:
     ActivateA11y();
 
     AppInfo(nsCString version, nsCString buildID);
+
+    SetID(uint64_t id);
 
     // Notify child that last-pb-context-exited notification was observed
     LastPrivateDocShellDestroyed();
@@ -260,9 +235,9 @@ parent:
 
     // Services remoting
 
-    async StartVisitedQuery(URIParams uri);
-    async VisitURI(URIParams uri, OptionalURIParams referrer, uint32_t flags);
-    async SetURITitle(URIParams uri, nsString title);
+    async StartVisitedQuery(URI uri);
+    async VisitURI(URI uri, URI referrer, uint32_t flags);
+    async SetURITitle(URI uri, nsString title);
     
     // filepicker remoting
     sync ShowFilePicker(int16_t mode, int16_t selectedType, bool addToRecentDocs,
@@ -270,10 +245,10 @@ parent:
                         nsString[] filters, nsString[] filterNames)
         returns (nsString[] files, int16_t retValue, nsresult result);
 
-    async LoadURIExternal(URIParams uri);
+    async LoadURIExternal(URI uri);
 
     // PrefService message
-    sync ReadPrefsArray() returns (PrefSetting[] prefs);
+    sync ReadPrefsArray() returns (PrefTuple[] retValue);
 
     sync ReadFontList() returns (FontListEntry[] retValue);
 
@@ -287,10 +262,10 @@ parent:
                           nsString cookie,
                           nsString name);
 
-    PExternalHelperApp(OptionalURIParams uri, nsCString aMimeContentType,
+    PExternalHelperApp(URI uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
-                       int64_t aContentLength, OptionalURIParams aReferrer);
-
+                       int64_t aContentLength, URI aReferrer);
+    
     AddGeolocationListener();
     RemoveGeolocationListener();
 

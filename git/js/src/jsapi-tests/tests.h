@@ -57,9 +57,9 @@ class JSAPITest
     JSObject *global;
     bool knownFail;
     JSAPITestString msgs;
-    JSCompartment *oldCompartment;
+    JSCrossCompartmentCall *call;
 
-    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), oldCompartment(NULL) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), call(NULL) {
         next = list;
         list = this;
     }
@@ -69,9 +69,9 @@ class JSAPITest
     virtual bool init();
 
     virtual void uninit() {
-        if (oldCompartment) {
-            JS_LeaveCompartment(cx, oldCompartment);
-            oldCompartment = NULL;
+        if (call) {
+            JS_LeaveCrossCompartmentCall(call);
+            call = NULL;
         }
         if (cx) {
             JS_RemoveObjectRoot(cx, &global);

@@ -27,7 +27,9 @@ SimpleTest.waitForExplicitFinish();
 
 var selectionTest = false;
 var testNum = 0;
-var utils = SpecialPowers.DOMWindowUtils;
+var utils = SpecialPowers.wrap(window)
+                        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                        .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
 function hasTabModalPrompts() {
   var prefName = "prompts.tab_modal.enabled";

@@ -328,6 +328,12 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
     return NS_ERROR_INVALID_ARG;
   }
 
+  nsRect lastDisplayPort;
+  if (nsLayoutUtils::GetDisplayPort(content, &lastDisplayPort) &&
+      displayport.IsEqualInterior(lastDisplayPort)) {
+    return NS_OK;
+  }
+
   content->SetProperty(nsGkAtoms::DisplayPort, new nsRect(displayport),
                        DestroyNsRect);
 
@@ -476,8 +482,8 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
                                  unsigned short aInputSourceArg)
 {
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, aPressure,
-                              aInputSourceArg, false);
+                              aIgnoreRootScrollFrame, false, aPressure,
+                              aInputSourceArg);
 }
 
 NS_IMETHODIMP
@@ -493,8 +499,8 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
 {
   SAMPLE_LABEL("nsDOMWindowUtils", "SendMouseEventToWindow");
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, aPressure,
-                              aInputSourceArg, true);
+                              aIgnoreRootScrollFrame, true, aPressure,
+                              aInputSourceArg);
 }
 
 static nsIntPoint
@@ -2364,8 +2370,11 @@ nsDOMWindowUtils::GetBlob(const jsval& aBlobParts, const jsval& aParameters,
                           JSContext* aCx, uint8_t aOptionalArgCount,
                           nsIDOMBlob** aResult)
 {
+  nsAutoString name;
+  name.SetIsVoid(true);
+
   nsCOMPtr<nsISupports> blob;
-  nsresult rv = GetFileOrBlob(NullString(), aBlobParts, aParameters, aCx,
+  nsresult rv = GetFileOrBlob(name, aBlobParts, aParameters, aCx,
                               aOptionalArgCount, getter_AddRefs(blob));
   NS_ENSURE_SUCCESS(rv, rv);
 

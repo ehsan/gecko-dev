@@ -505,7 +505,9 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
         return NULL;
 
     JSCLContextHelper cx(this);
-    JSAutoCompartment ac(cx, entry->global);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, entry->global))
+        return NULL;
 
     JSObject* cm_jsobj;
     nsCOMPtr<nsIXPConnectJSObjectHolder> cm_holder;
@@ -654,7 +656,10 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
     rv = holder->GetJSObject(&global);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JSAutoCompartment ac(cx, global);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, global))
+        return NS_ERROR_FAILURE;
+
     if (!JS_DefineFunctions(cx, global, gGlobalFun) ||
         !JS_DefineProfilingFunctions(cx, global)) {
         return NS_ERROR_FAILURE;
@@ -1032,9 +1037,10 @@ mozJSComponentLoader::Import(const nsACString& registryLocation,
         targetObject = JS_GetGlobalForObject(cx, targetObject);
     }
 
-    Maybe<JSAutoCompartment> ac;
-    if (targetObject) {
-        ac.construct(cx, targetObject);
+    JSAutoEnterCompartment ac;
+    if (targetObject && !ac.enter(cx, targetObject)) {
+        NS_ERROR("can't enter compartment");
+        return NS_ERROR_FAILURE;
     }
 
     JSObject *globalObj = nullptr;
@@ -1166,7 +1172,10 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
     if (targetObj) {
         JSCLContextHelper cxhelper(this);
-        JSAutoCompartment ac(mContext, mod->global);
+
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(mContext, mod->global))
+            return NS_ERROR_FAILURE;
 
         JS::Value symbols;
         if (!JS_GetProperty(mContext, mod->global,
@@ -1215,9 +1224,10 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
                                       bytes.ptr());
             }
 
-            JSAutoCompartment target_ac(mContext, targetObj);
+            JSAutoEnterCompartment target_ac;
 
-            if (!JS_WrapValue(mContext, &val) ||
+            if (!target_ac.enter(mContext, targetObj) ||
+                !JS_WrapValue(mContext, &val) ||
                 !JS_SetPropertyById(mContext, targetObj, symbolId, &val)) {
                 JSAutoByteString bytes(mContext, JSID_TO_STRING(symbolId));
                 if (!bytes)

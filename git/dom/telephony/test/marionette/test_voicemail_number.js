@@ -3,7 +3,9 @@
 
 MARIONETTE_TIMEOUT = 10000;
 
-SpecialPowers.addPermission("voicemail", true, document);
+const WHITELIST_PREF = "dom.voicemail.whitelist";
+let uriPrePath = window.location.protocol + "//" + window.location.host;
+SpecialPowers.setCharPref(WHITELIST_PREF, uriPrePath);
 
 let voicemail = window.navigator.mozVoicemail;
 ok(voicemail instanceof MozVoicemail);
@@ -12,5 +14,5 @@ ok(voicemail instanceof MozVoicemail);
 is(voicemail.number, "+15552175049");
 is(voicemail.displayName, "Voicemail");
 
-SpecialPowers.removePermission("voicemail", document);
+SpecialPowers.clearUserPref(WHITELIST_PREF);
 finish();

@@ -10,7 +10,7 @@
 
 #include <string>
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
 
 namespace mozilla {

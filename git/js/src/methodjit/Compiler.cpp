@@ -59,7 +59,7 @@ mjit::Compiler::Compiler(JSContext *cx, JSScript *outerScript,
     isConstructing(isConstructing),
     outerChunk(outerJIT()->chunkDescriptor(chunkIndex)),
     ssa(cx, outerScript),
-    globalObj(cx, outerScript->compileAndGo ? &outerScript->global() : NULL),
+    globalObj(cx, outerScript->hasGlobal() ? &outerScript->global() : NULL),
     globalSlots(globalObj ? globalObj->getRawSlots() : NULL),
     sps(&cx->runtime->spsProfiler),
     masm(&sps, &PC),
@@ -83,8 +83,6 @@ mjit::Compiler::Compiler(JSContext *cx, JSScript *outerScript,
     doubleList(CompilerAllocPolicy(cx, *thisFromCtor())),
     rootedTemplates(CompilerAllocPolicy(cx, *thisFromCtor())),
     rootedRegExps(CompilerAllocPolicy(cx, *thisFromCtor())),
-    monitoredBytecodes(CompilerAllocPolicy(cx, *thisFromCtor())),
-    typeBarrierBytecodes(CompilerAllocPolicy(cx, *thisFromCtor())),
     fixedIntToDoubleEntries(CompilerAllocPolicy(cx, *thisFromCtor())),
     fixedDoubleToAnyEntries(CompilerAllocPolicy(cx, *thisFromCtor())),
     jumpTables(CompilerAllocPolicy(cx, *thisFromCtor())),
@@ -135,6 +133,11 @@ mjit::Compiler::compile()
 CompileStatus
 mjit::Compiler::checkAnalysis(HandleScript script)
 {
+    if (script->hasClearedGlobal()) {
+        JaegerSpew(JSpew_Abort, "script has a cleared global\n");
+        return Compile_Abort;
+    }
+
     if (!script->ensureRanAnalysis(cx))
         return Compile_Error;
 
@@ -189,7 +192,7 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
     ScriptAnalysis *analysis = script->analysis();
 
     /* Don't inline from functions which could have a non-global scope object. */
-    if (!script->compileAndGo ||
+    if (!script->hasGlobal() ||
         &script->global() != globalObj ||
         (script->function() && script->function()->getParent() != globalObj) ||
         (script->function() && script->function()->isHeavyweight()) ||
@@ -223,9 +226,9 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
             continue;
 
         uint32_t argc = GET_ARGC(pc);
-        types::StackTypeSet *calleeTypes = analysis->poppedTypes(pc, argc + 1);
+        types::TypeSet *calleeTypes = analysis->poppedTypes(pc, argc + 1);
 
-        if (calleeTypes->getKnownTypeTag() != JSVAL_TYPE_OBJECT)
+        if (calleeTypes->getKnownTypeTag(cx) != JSVAL_TYPE_OBJECT)
             continue;
 
         if (calleeTypes->getObjectCount() >= INLINE_SITE_LIMIT)
@@ -330,18 +333,11 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
                 break;
             }
 
-            if (types::HeapTypeSet::HasObjectFlags(cx, fun->getType(cx),
-                                                   types::OBJECT_FLAG_UNINLINEABLE)) {
+            if (types::TypeSet::HasObjectFlags(cx, fun->getType(cx),
+                                               types::OBJECT_FLAG_UNINLINEABLE)) {
                 okay = false;
                 break;
             }
-
-            /*
-             * Watch for a generic state change in the callee's type, so that
-             * the outer script will be recompiled if any type information
-             * changes in stack values within the callee.
-             */
-            types::HeapTypeSet::WatchObjectStateChange(cx, fun->getType(cx));
 
             /*
              * Don't inline scripts which use 'this' if it is possible they
@@ -350,13 +346,15 @@ mjit::Compiler::scanInlineCalls(uint32_t index, uint32_t depth)
              * caller.
              */
             if (script->analysis()->usesThisValue() &&
-                types::TypeScript::ThisTypes(script)->getKnownTypeTag() != JSVAL_TYPE_OBJECT) {
+                types::TypeScript::ThisTypes(script)->getKnownTypeTag(cx) != JSVAL_TYPE_OBJECT) {
                 okay = false;
                 break;
             }
         }
         if (!okay)
             continue;
+
+        calleeTypes->addFreeze(cx);
 
         /*
          * Add the inline frames to the cross script SSA. We will pick these
@@ -1071,13 +1069,6 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
         status = cc.compile();
     }
 
-    /*
-     * Check if we have hit the threshold for purging analysis data. This is
-     * done after compilation, rather than after another analysis stage, to
-     * ensure we don't throw away the work just performed.
-     */
-    cx->compartment->types.maybePurgeAnalysis(cx);
-
     if (status == Compile_Okay) {
         /*
          * Compiling a script can occasionally trigger its own recompilation,
@@ -1253,7 +1244,7 @@ mjit::Compiler::ensureDoubleArguments()
     /* Convert integer arguments which were inferred as (int|double) to doubles. */
     for (uint32_t i = 0; script->function() && i < script->function()->nargs; i++) {
         uint32_t slot = ArgSlot(i);
-        if (a->varTypes[slot].getTypeTag() == JSVAL_TYPE_DOUBLE && analysis->trackSlot(slot))
+        if (a->varTypes[slot].getTypeTag(cx) == JSVAL_TYPE_DOUBLE && analysis->trackSlot(slot))
             frame.ensureDouble(frame.getArg(i));
     }
 }
@@ -1401,8 +1392,6 @@ mjit::Compiler::finishThisUp()
                       sizeof(CallSite) * callSites.length() +
                       sizeof(JSObject*) * rootedTemplates.length() +
                       sizeof(RegExpShared*) * rootedRegExps.length() +
-                      sizeof(uint32_t) * monitoredBytecodes.length() +
-                      sizeof(uint32_t) * typeBarrierBytecodes.length() +
 #if defined JS_MONOIC
                       sizeof(ic::GetGlobalNameIC) * getGlobalNames.length() +
                       sizeof(ic::SetGlobalNameIC) * setGlobalNames.length() +
@@ -1545,18 +1534,6 @@ mjit::Compiler::finishThisUp()
         jitRootedRegExps[i] = rootedRegExps[i];
         jitRootedRegExps[i]->incRef();
     }
-
-    uint32_t *jitMonitoredBytecodes = (uint32_t *)cursor;
-    chunk->nMonitoredBytecodes = monitoredBytecodes.length();
-    cursor += sizeof(uint32_t) * chunk->nMonitoredBytecodes;
-    for (size_t i = 0; i < chunk->nMonitoredBytecodes; i++)
-        jitMonitoredBytecodes[i] = monitoredBytecodes[i];
-
-    uint32_t *jitTypeBarrierBytecodes = (uint32_t *)cursor;
-    chunk->nTypeBarrierBytecodes = typeBarrierBytecodes.length();
-    cursor += sizeof(uint32_t) * chunk->nTypeBarrierBytecodes;
-    for (size_t i = 0; i < chunk->nTypeBarrierBytecodes; i++)
-        jitTypeBarrierBytecodes[i] = typeBarrierBytecodes[i];
 
 #if defined JS_MONOIC
     if (chunkIndex == 0 && script->function()) {
@@ -2180,7 +2157,7 @@ mjit::Compiler::generateMethod()
                     if (newv->value.kind() == SSAValue::PHI &&
                         newv->value.phiOffset() == uint32_t(PC - script->code) &&
                         analysis->trackSlot(newv->slot) &&
-                        a->varTypes[newv->slot].getTypeTag() == JSVAL_TYPE_DOUBLE) {
+                        a->varTypes[newv->slot].getTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                         FrameEntry *fe = frame.getSlotEntry(newv->slot);
                         masm.ensureInMemoryDouble(frame.addressOf(fe));
                     }
@@ -2202,7 +2179,7 @@ mjit::Compiler::generateMethod()
             jsbytecode *backedge = script->code + analysis->getLoop(PC)->backedge;
             if (!bytecodeInChunk(backedge)){
                 for (uint32_t slot = ArgSlot(0); slot < TotalSlots(script); slot++) {
-                    if (a->varTypes[slot].getTypeTag() == JSVAL_TYPE_DOUBLE) {
+                    if (a->varTypes[slot].getTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                         FrameEntry *fe = frame.getSlotEntry(slot);
                         masm.ensureInMemoryDouble(frame.addressOf(fe));
                     }
@@ -3599,9 +3576,9 @@ mjit::Compiler::updateElemCounts(jsbytecode *pc, FrameEntry *obj, FrameEntry *id
     masm.bumpCount(&counts.get(count), reg);
 
     if (obj->mightBeType(JSVAL_TYPE_OBJECT)) {
-        types::StackTypeSet *types = frame.extra(obj).types;
+        types::TypeSet *types = frame.extra(obj).types;
         if (types && !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY) &&
-            types->getTypedArrayType() != TypedArray::TYPE_MAX) {
+            types->getTypedArrayType(cx) != TypedArray::TYPE_MAX) {
             count = PCCounts::ELEM_OBJECT_TYPED;
         } else if (types && !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY)) {
             if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED_ARRAY))
@@ -4392,13 +4369,6 @@ mjit::Compiler::inlineCallHelper(uint32_t argc, bool callingNew, FrameSize &call
 
     callIC.typeMonitored = monitored(PC) || hasTypeBarriers(PC);
 
-    if (script == outerScript) {
-        if (monitored(PC))
-            monitoredBytecodes.append(PC - script->code);
-        if (hasTypeBarriers(PC))
-            typeBarrierBytecodes.append(PC - script->code);
-    }
-
     /* Test the type if necessary. Failing this always takes a really slow path. */
     MaybeJump notObjectJump;
     if (icCalleeType.isSet())
@@ -5014,7 +4984,7 @@ mjit::Compiler::jsop_getprop(PropertyName *name, JSValueType knownType,
     /* Handle lenth accesses of optimize 'arguments'. */
     if (name == cx->runtime->atomState.lengthAtom &&
         cx->typeInferenceEnabled() &&
-        analysis->poppedTypes(PC, 0)->isMagicArguments() &&
+        analysis->poppedTypes(PC, 0)->isMagicArguments(cx) &&
         knownPushedType(0) == JSVAL_TYPE_INT32)
     {
         frame.pop();
@@ -5043,7 +5013,7 @@ mjit::Compiler::jsop_getprop(PropertyName *name, JSValueType knownType,
             }
         }
 
-        types::StackTypeSet *types = analysis->poppedTypes(PC, 0);
+        types::TypeSet *types = analysis->poppedTypes(PC, 0);
 
         /*
          * Check if we are accessing the 'length' property of a known dense array.
@@ -5173,11 +5143,12 @@ mjit::Compiler::jsop_getprop(PropertyName *name, JSValueType knownType,
         id == types::MakeTypeId(cx, id)) {
         JS_ASSERT(!forPrototype);
         types::TypeObject *object = types->getTypeObject(0);
-        types::HeapTypeSet *propertyTypes = object->getProperty(cx, id, false);
+        types::TypeSet *propertyTypes = object->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
-        if (propertyTypes->definiteProperty() &&
+        if (propertyTypes->isDefiniteProperty() &&
             !propertyTypes->isOwnProperty(cx, object, true)) {
+            types->addFreeze(cx);
             uint32_t slot = propertyTypes->definiteSlot();
             bool isObject = top->isTypeKnown();
             if (!isObject) {
@@ -5376,11 +5347,11 @@ mjit::Compiler::testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *t
 {
     *testObject = false;
 
-    types::StackTypeSet *types = frame.extra(top).types;
+    types::TypeSet *types = frame.extra(top).types;
     if (!types || types->unknownObject())
         return false;
 
-    RootedObject singleton(cx, types->getSingleton());
+    RootedObject singleton(cx, types->getSingleton(cx));
     if (singleton)
         return testSingletonProperty(singleton, id);
 
@@ -5388,7 +5359,7 @@ mjit::Compiler::testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *t
         return false;
 
     JSProtoKey key;
-    JSValueType type = types->getKnownTypeTag();
+    JSValueType type = types->getKnownTypeTag(cx);
     switch (type) {
       case JSVAL_TYPE_STRING:
         key = JSProto_String;
@@ -5412,6 +5383,7 @@ mjit::Compiler::testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *t
                 Rooted<JSObject*> proto(cx, object->proto);
                 if (!testSingletonProperty(proto, id))
                     return false;
+                types->addFreeze(cx);
 
                 /* If we don't know this is an object, we will need a test. */
                 *testObject = (type != JSVAL_TYPE_OBJECT) && !top->isTypeKnown();
@@ -5425,7 +5397,7 @@ mjit::Compiler::testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *t
     }
 
     RootedObject proto(cx);
-    if (!js_GetClassPrototype(cx, key, &proto, NULL))
+    if (!js_GetClassPrototype(cx, globalObj, key, &proto, NULL))
         return false;
 
     return testSingletonProperty(proto, id);
@@ -5462,6 +5434,8 @@ mjit::Compiler::jsop_getprop_dispatch(PropertyName *name)
     if (objTypes->unknownObject() || objTypes->getObjectCount() == 0)
         return false;
 
+    pushedTypes->addFreeze(cx);
+
     /* Map each type in the object to the resulting pushed value. */
     Vector<JSObject *> results(CompilerAllocPolicy(cx, *this));
 
@@ -5480,7 +5454,7 @@ mjit::Compiler::jsop_getprop_dispatch(PropertyName *name)
         }
         if (object->unknownProperties() || !object->proto)
             return false;
-        types::HeapTypeSet *ownTypes = object->getProperty(cx, id, false);
+        types::TypeSet *ownTypes = object->getProperty(cx, id, false);
         if (ownTypes->isOwnProperty(cx, object, false))
             return false;
 
@@ -5490,7 +5464,7 @@ mjit::Compiler::jsop_getprop_dispatch(PropertyName *name)
 
         if (proto->getType(cx)->unknownProperties())
             return false;
-        types::HeapTypeSet *protoTypes = proto->type()->getProperty(cx, id, false);
+        types::TypeSet *protoTypes = proto->type()->getProperty(cx, id, false);
         if (!protoTypes)
             return false;
         JSObject *singleton = protoTypes->getSingleton(cx);
@@ -5503,6 +5477,8 @@ mjit::Compiler::jsop_getprop_dispatch(PropertyName *name)
 
     if (oomInVector)
         return false;
+
+    objTypes->addFreeze(cx);
 
     /* Done filtering, now generate code which dispatches on the type. */
 
@@ -5594,7 +5570,7 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
      * always has the property in a particular inline slot.
      */
     jsid id = NameToId(name);
-    types::StackTypeSet *types = frame.extra(lhs).types;
+    types::TypeSet *types = frame.extra(lhs).types;
     if (JSOp(*PC) == JSOP_SETPROP && id == types::MakeTypeId(cx, id) &&
         types && !types->unknownObject() &&
         types->getObjectCount() == 1 &&
@@ -5602,11 +5578,12 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
         !types->getTypeObject(0)->unknownProperties())
     {
         types::TypeObject *object = types->getTypeObject(0);
-        types::HeapTypeSet *propertyTypes = object->getProperty(cx, id, false);
+        types::TypeSet *propertyTypes = object->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
-        if (propertyTypes->definiteProperty() &&
+        if (propertyTypes->isDefiniteProperty() &&
             !propertyTypes->isOwnProperty(cx, object, true)) {
+            types->addFreeze(cx);
             uint32_t slot = propertyTypes->definiteSlot();
             RegisterID reg = frame.tempRegForData(lhs);
             frame.pinReg(reg);
@@ -5660,11 +5637,19 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
     pic.name = name;
 
     if (monitored(PC)) {
-        if (script == outerScript)
-            monitoredBytecodes.append(PC - script->code);
         pic.typeMonitored = true;
+        types::TypeSet *types = frame.extra(rhs).types;
+        if (!types) {
+            /* Handle FORNAME and other compound opcodes. Yuck. */
+            types = types::TypeSet::make(cx, "unknownRHS");
+            if (!types)
+                return false;
+            types->addType(cx, types::Type::UnknownType());
+        }
+        pic.rhsTypes = types;
     } else {
         pic.typeMonitored = false;
+        pic.rhsTypes = NULL;
     }
 
     RESERVE_IC_SPACE(masm);
@@ -6100,7 +6085,7 @@ mjit::Compiler::jsop_this()
             }
 
             JSValueType type = cx->typeInferenceEnabled()
-                ? types::TypeScript::ThisTypes(script)->getKnownTypeTag()
+                ? types::TypeScript::ThisTypes(script)->getKnownTypeTag(cx)
                 : JSVAL_TYPE_UNKNOWN;
             if (type != JSVAL_TYPE_OBJECT) {
                 Jump notObj = frame.testObject(Assembler::NotEqual, thisFe);
@@ -6447,7 +6432,7 @@ mjit::Compiler::jsop_getgname(uint32_t index)
     JSValueType type = knownPushedType(0);
     if (cx->typeInferenceEnabled() && globalObj->isGlobal() && id == types::MakeTypeId(cx, id) &&
         !globalObj->getType(cx)->unknownProperties()) {
-        types::HeapTypeSet *propertyTypes = globalObj->getType(cx)->getProperty(cx, id, false);
+        types::TypeSet *propertyTypes = globalObj->getType(cx)->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
 
@@ -6562,9 +6547,6 @@ bool
 mjit::Compiler::jsop_setgname(PropertyName *name, bool popGuaranteed)
 {
     if (monitored(PC)) {
-        if (script == outerScript)
-            monitoredBytecodes.append(PC - script->code);
-
         /* Global accesses are monitored only for a few names like __proto__. */
         jsop_setgname_slow(name);
         return true;
@@ -6579,7 +6561,7 @@ mjit::Compiler::jsop_setgname(PropertyName *name, bool popGuaranteed)
          * can't get a function later and cause the global object to become
          * branded, requiring a shape change if it changes again.
          */
-        types::HeapTypeSet *types = globalObj->getType(cx)->getProperty(cx, id, false);
+        types::TypeSet *types = globalObj->getType(cx)->getProperty(cx, id, false);
         if (!types)
             return false;
         js::Shape *shape = globalObj->nativeLookup(cx, NameToId(name));
@@ -6935,8 +6917,8 @@ mjit::Compiler::jsop_regexp()
         &obj->global() != globalObj ||
         !cx->typeInferenceEnabled() ||
         analysis->localsAliasStack() ||
-        types::HeapTypeSet::HasObjectFlags(cx, globalObj->getType(cx),
-                                           types::OBJECT_FLAG_REGEXP_FLAGS_SET))
+        types::TypeSet::HasObjectFlags(cx, globalObj->getType(cx),
+                                       types::OBJECT_FLAG_REGEXP_FLAGS_SET))
     {
         prepareStubCall(Uses(0));
         masm.move(ImmPtr(obj), Registers::ArgReg1);
@@ -6966,7 +6948,7 @@ mjit::Compiler::jsop_regexp()
         jsbytecode *use = script->code + uses->offset;
         uint32_t which = uses->u.which;
         if (JSOp(*use) == JSOP_CALLPROP) {
-            JSObject *callee = analysis->pushedTypes(use, 0)->getSingleton();
+            JSObject *callee = analysis->pushedTypes(use, 0)->getSingleton(cx);
             if (callee && callee->isFunction()) {
                 Native native = callee->toFunction()->maybeNative();
                 if (native == js::regexp_exec || native == js::regexp_test) {
@@ -6976,7 +6958,7 @@ mjit::Compiler::jsop_regexp()
             }
         } else if (JSOp(*use) == JSOP_CALL && which == 0) {
             uint32_t argc = GET_ARGC(use);
-            JSObject *callee = analysis->poppedTypes(use, argc + 1)->getSingleton();
+            JSObject *callee = analysis->poppedTypes(use, argc + 1)->getSingleton(cx);
             if (callee && callee->isFunction() && argc >= 1 && which == argc - 1) {
                 Native native = callee->toFunction()->maybeNative();
                 if (native == js::str_match ||
@@ -7131,7 +7113,7 @@ mjit::Compiler::finishLoop(jsbytecode *head)
          * variables are coherent in such cases.
          */
         for (uint32_t slot = ArgSlot(0); slot < TotalSlots(script); slot++) {
-            if (a->varTypes[slot].getTypeTag() == JSVAL_TYPE_DOUBLE) {
+            if (a->varTypes[slot].getTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                 FrameEntry *fe = frame.getSlotEntry(slot);
                 stubcc.masm.ensureInMemoryDouble(frame.addressOf(fe));
             }
@@ -7149,8 +7131,8 @@ mjit::Compiler::finishLoop(jsbytecode *head)
                     analysis->trackSlot(newv->slot))
                 {
                     JS_ASSERT(newv->slot < TotalSlots(script));
-                    types::StackTypeSet *targetTypes = analysis->getValueTypes(newv->value);
-                    if (targetTypes->getKnownTypeTag() == JSVAL_TYPE_DOUBLE) {
+                    types::TypeSet *targetTypes = analysis->getValueTypes(newv->value);
+                    if (targetTypes->getKnownTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                         FrameEntry *fe = frame.getSlotEntry(newv->slot);
                         stubcc.masm.ensureInMemoryDouble(frame.addressOf(fe));
                     }
@@ -7235,7 +7217,7 @@ mjit::Compiler::jumpAndRun(Jump j, jsbytecode *target, Jump *slow, bool *trampol
     if (cx->typeInferenceEnabled()) {
         RegisterAllocation *&alloc = analysis->getAllocation(target);
         if (!alloc) {
-            alloc = cx->analysisLifoAlloc().new_<RegisterAllocation>(false);
+            alloc = cx->typeLifoAlloc().new_<RegisterAllocation>(false);
             if (!alloc) {
                 js_ReportOutOfMemory(cx);
                 return false;
@@ -7339,9 +7321,9 @@ mjit::Compiler::constructThis()
         }
 
         jsid id = NameToId(cx->runtime->atomState.classPrototypeAtom);
-        types::HeapTypeSet *protoTypes = fun->getType(cx)->getProperty(cx, id, false);
+        types::TypeSet *protoTypes = fun->getType(cx)->getProperty(cx, id, false);
 
-        JSObject *proto = protoTypes->getSingleton(cx);
+        JSObject *proto = protoTypes->getSingleton(cx, true);
         if (!proto)
             break;
 
@@ -7366,7 +7348,7 @@ mjit::Compiler::constructThis()
          * should this information change later.
          */
         if (templateObject->type()->newScript)
-            types::HeapTypeSet::WatchObjectStateChange(cx, templateObject->type());
+            types::TypeSet::WatchObjectStateChange(cx, templateObject->type());
 
         RegisterID result = frame.allocReg();
         Jump emptyFreeList = getNewObject(cx, result, templateObject);
@@ -7375,7 +7357,7 @@ mjit::Compiler::constructThis()
         stubcc.leave();
 
         stubcc.masm.move(ImmPtr(proto), Registers::ArgReg1);
-        OOL_STUBCALL(stubs::CreateThis, REJOIN_THIS_CREATED);
+        OOL_STUBCALL(stubs::CreateThis, REJOIN_RESUME);
 
         frame.setThis(result);
 
@@ -7409,7 +7391,7 @@ mjit::Compiler::constructThis()
     prepareStubCall(Uses(0));
     if (protoReg != Registers::ArgReg1)
         masm.move(protoReg, Registers::ArgReg1);
-    INLINE_STUBCALL(stubs::CreateThis, REJOIN_THIS_CREATED);
+    INLINE_STUBCALL(stubs::CreateThis, REJOIN_RESUME);
     frame.freeReg(protoReg);
     return true;
 }
@@ -7534,7 +7516,7 @@ mjit::Compiler::jsop_in()
     FrameEntry *id = frame.peek(-2);
 
     if (cx->typeInferenceEnabled() && id->isType(JSVAL_TYPE_INT32)) {
-        types::StackTypeSet *types = analysis->poppedTypes(PC, 0);
+        types::TypeSet *types = analysis->poppedTypes(PC, 0);
 
         if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
             !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY) &&
@@ -7636,11 +7618,11 @@ mjit::Compiler::fixDoubleTypes(jsbytecode *target)
                 continue;
             }
             JS_ASSERT(newv->slot < TotalSlots(script));
-            types::StackTypeSet *targetTypes = analysis->getValueTypes(newv->value);
+            types::TypeSet *targetTypes = analysis->getValueTypes(newv->value);
             FrameEntry *fe = frame.getSlotEntry(newv->slot);
             VarType &vt = a->varTypes[newv->slot];
-            JSValueType type = vt.getTypeTag();
-            if (targetTypes->getKnownTypeTag() == JSVAL_TYPE_DOUBLE) {
+            JSValueType type = vt.getTypeTag(cx);
+            if (targetTypes->getKnownTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                 if (type == JSVAL_TYPE_INT32) {
                     fixedIntToDoubleEntries.append(newv->slot);
                     frame.ensureDouble(fe);
@@ -7672,7 +7654,7 @@ mjit::Compiler::watchGlobalReallocation()
     JS_ASSERT(cx->typeInferenceEnabled());
     if (hasGlobalReallocation)
         return;
-    types::HeapTypeSet::WatchObjectStateChange(cx, globalObj->getType(cx));
+    types::TypeSet::WatchObjectStateChange(cx, globalObj->getType(cx));
     hasGlobalReallocation = true;
 }
 
@@ -7689,7 +7671,7 @@ mjit::Compiler::updateVarType()
      * (see prepareInferenceTypes).
      */
 
-    types::StackTypeSet *types = pushedTypeSet(0);
+    types::TypeSet *types = pushedTypeSet(0);
     uint32_t slot = GetBytecodeSlot(script, PC);
 
     if (analysis->trackSlot(slot)) {
@@ -7701,7 +7683,7 @@ mjit::Compiler::updateVarType()
          * maintained by the frame as a double. We might forget the exact
          * representation used by the next call to fixDoubleTypes, fix it now.
          */
-        if (vt.getTypeTag() == JSVAL_TYPE_DOUBLE)
+        if (vt.getTypeTag(cx) == JSVAL_TYPE_DOUBLE)
             frame.ensureDouble(frame.getSlotEntry(slot));
     }
 }
@@ -7718,9 +7700,9 @@ mjit::Compiler::updateJoinVarTypes()
         while (newv->slot) {
             if (newv->slot < TotalSlots(script)) {
                 VarType &vt = a->varTypes[newv->slot];
-                JSValueType type = vt.getTypeTag();
+                JSValueType type = vt.getTypeTag(cx);
                 vt.setTypes(analysis->getValueTypes(newv->value));
-                if (vt.getTypeTag() != type) {
+                if (vt.getTypeTag(cx) != type) {
                     /*
                      * If the known type of a variable changes (even if the
                      * variable itself has not been reassigned) then we can't
@@ -7751,7 +7733,7 @@ mjit::Compiler::restoreVarType()
      * of tracked variables match their inferred type (as tracked in varTypes),
      * but may have forgotten it due to a branch or syncAndForgetEverything.
      */
-    JSValueType type = a->varTypes[slot].getTypeTag();
+    JSValueType type = a->varTypes[slot].getTypeTag(cx);
     if (type != JSVAL_TYPE_UNKNOWN &&
         (type != JSVAL_TYPE_DOUBLE || analysis->trackSlot(slot))) {
         FrameEntry *fe = frame.getSlotEntry(slot);
@@ -7766,8 +7748,8 @@ mjit::Compiler::knownPushedType(uint32_t pushed)
 {
     if (!cx->typeInferenceEnabled())
         return JSVAL_TYPE_UNKNOWN;
-    types::StackTypeSet *types = analysis->pushedTypes(PC, pushed);
-    return types->getKnownTypeTag();
+    types::TypeSet *types = analysis->pushedTypes(PC, pushed);
+    return types->getKnownTypeTag(cx);
 }
 
 bool
@@ -7785,7 +7767,7 @@ mjit::Compiler::mayPushUndefined(uint32_t pushed)
     return types->hasType(types::Type::UndefinedType());
 }
 
-types::StackTypeSet *
+types::TypeSet *
 mjit::Compiler::pushedTypeSet(uint32_t pushed)
 {
     if (!cx->typeInferenceEnabled())
@@ -7822,8 +7804,8 @@ mjit::Compiler::pushedSingleton(unsigned pushed)
     if (!cx->typeInferenceEnabled())
         return NULL;
 
-    types::StackTypeSet *types = analysis->pushedTypes(PC, pushed);
-    return types->getSingleton();
+    types::TypeSet *types = analysis->pushedTypes(PC, pushed);
+    return types->getSingleton(cx);
 }
 
 /*
@@ -7877,7 +7859,7 @@ mjit::Compiler::pushAddressMaybeBarrier(Address address, JSValueType type, bool 
 }
 
 MaybeJump
-mjit::Compiler::trySingleTypeTest(types::StackTypeSet *types, RegisterID typeReg)
+mjit::Compiler::trySingleTypeTest(types::TypeSet *types, RegisterID typeReg)
 {
     /*
      * If a type set we have a barrier on is monomorphic, generate a single
@@ -7887,7 +7869,7 @@ mjit::Compiler::trySingleTypeTest(types::StackTypeSet *types, RegisterID typeReg
      */
     MaybeJump res;
 
-    switch (types->getKnownTypeTag()) {
+    switch (types->getKnownTypeTag(cx)) {
       case JSVAL_TYPE_INT32:
         res.setJump(masm.testInt32(Assembler::NotEqual, typeReg));
         return res;
@@ -7910,7 +7892,7 @@ mjit::Compiler::trySingleTypeTest(types::StackTypeSet *types, RegisterID typeReg
 }
 
 JSC::MacroAssembler::Jump
-mjit::Compiler::addTypeTest(types::StackTypeSet *types, RegisterID typeReg, RegisterID dataReg)
+mjit::Compiler::addTypeTest(types::TypeSet *types, RegisterID typeReg, RegisterID dataReg)
 {
     /*
      * :TODO: It would be good to merge this with GenerateTypeCheck, but the
@@ -7980,7 +7962,7 @@ mjit::Compiler::testBarrier(RegisterID typeReg, RegisterID dataReg,
     if (!cx->typeInferenceEnabled() || !(js_CodeSpec[*PC].format & JOF_TYPESET))
         return state;
 
-    types::StackTypeSet *types = analysis->bytecodeTypes(PC);
+    types::TypeSet *types = analysis->bytecodeTypes(PC);
     if (types->unknown()) {
         /*
          * If the result of this opcode is already unknown, there is no way for
@@ -7999,8 +7981,7 @@ mjit::Compiler::testBarrier(RegisterID typeReg, RegisterID dataReg,
         return state;
     }
 
-    if (hasTypeBarriers(PC))
-        typeBarrierBytecodes.append(PC - script->code);
+    types->addFreeze(cx);
 
     /* Cannot have type barriers when the result of the operation is already unknown. */
     JS_ASSERT(!types->unknown());

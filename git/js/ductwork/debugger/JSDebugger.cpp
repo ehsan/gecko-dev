@@ -51,7 +51,11 @@ JSDebugger::AddClass(const JS::Value &global, JSContext* cx)
     return NS_ERROR_FAILURE;
   }
 
-  JSAutoCompartment ac(cx, obj);
+  JSAutoEnterCompartment aec;
+  if (!aec.enter(cx, obj)) {
+    return NS_ERROR_FAILURE;
+  }
+
   if (JS_GetGlobalForObject(cx, obj) != obj) {
     return NS_ERROR_INVALID_ARG;
   }

@@ -624,7 +624,10 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   AutoJSExceptionReporter reporter(cx);
 
@@ -660,7 +663,10 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   AutoJSExceptionReporter reporter(cx);
 
@@ -772,7 +778,10 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -804,7 +813,10 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   jsval v;
   return (GetProperty(cx, npjsobj->mJSObj, id, &v) &&
@@ -836,7 +848,10 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   jsval v = NPVariantToJSVal(npp, cx, value);
   JS::AutoValueRooter tvr(cx, v);
@@ -875,7 +890,10 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   jsval deleted = JSVAL_FALSE;
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -927,7 +945,10 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   JS::AutoIdArray ida(cx, JS_Enumerate(cx, npjsobj->mJSObj));
   if (!ida) {
@@ -2044,9 +2065,11 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   JSObject *obj, *proto;
   holder->GetJSObject(&obj);
 
-  Maybe<JSAutoCompartment> ac;
-  if (obj) {
-    ac.construct(cx, obj);
+  JSAutoEnterCompartment ac;
+
+  if (obj && !ac.enter(cx, obj)) {
+    // Failure to enter compartment, nothing more we can do then.
+    return;
   }
 
   // Loop over the DOM element's JS object prototype chain and remove

@@ -2901,16 +2901,20 @@ RasterImage::DecodeWorker::RequestDecode(RasterImage* aImg)
 void
 RasterImage::DecodeWorker::DecodeABitOf(RasterImage* aImg)
 {
-  DecodeSomeOfImage(aImg);
+  TimeStamp eventStart = TimeStamp::Now();
 
-  // If we aren't yet finished decoding and we have more data in hand, add
-  // this request to the back of the priority list.
-  if (aImg->mDecoder &&
-      !aImg->mError &&
-      !aImg->IsDecodeFinished() &&
-      aImg->mSourceData.Length() > aImg->mBytesDecoded) {
-    RequestDecode(aImg);
-  }
+  do {
+    DecodeSomeOfImage(aImg);
+
+    // If we aren't yet finished decoding and we have more data in hand, add
+    // this request to the back of the priority list.
+    if (aImg->mDecoder &&
+        !aImg->mError &&
+        !aImg->IsDecodeFinished() &&
+        aImg->mSourceData.Length() > aImg->mBytesDecoded) {
+      RequestDecode(aImg);
+    }
+  } while ((TimeStamp::Now() - eventStart).ToMilliseconds() <= gMaxMSBeforeYield);
 }
 
 void

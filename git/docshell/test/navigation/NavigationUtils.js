@@ -58,7 +58,7 @@ function navigateByHyperlink(name) {
 function isNavigated(wnd, message) {
   var result = null;
   try {
-    result = SpecialPowers.wrap(wnd).document.body.innerHTML;
+    result = wnd.document.body.innerHTML;
   } catch(ex) {
     result = ex;
   }
@@ -109,7 +109,7 @@ function xpcEnumerateContentWindows(callback) {
 
   while (enumerator.hasMoreElements()) {
     var win = enumerator.getNext();
-    if (/ChromeWindow/.exec(win)) {
+    if (typeof ChromeWindow != "undefined" && SpecialPowers.call_Instanceof(win, ChromeWindow)) {
       var docshellTreeNode = win.QueryInterface(Ci.nsIInterfaceRequestor)
                                 .getInterface(Ci.nsIWebNavigation)
                                 .QueryInterface(Ci.nsIDocShellTreeNode);
@@ -118,7 +118,7 @@ function xpcEnumerateContentWindows(callback) {
         var childTreeNode = docshellTreeNode.getChildAt(i);
 
         // we're only interested in content docshells
-        if (SpecialPowers.unwrap(childTreeNode.itemType) != Ci.nsIDocShellTreeItem.typeContent)
+        if (childTreeNode.itemType != Ci.nsIDocShellTreeItem.typeContent)
           continue;
 
         var webNav = childTreeNode.QueryInterface(Ci.nsIWebNavigation);

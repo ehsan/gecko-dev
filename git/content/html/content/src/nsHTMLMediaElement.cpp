@@ -555,6 +555,12 @@ void nsHTMLMediaElement::ShutdownDecoder()
   NS_ASSERTION(mDecoder, "Must have decoder to shut down");
   mDecoder->Shutdown();
   mDecoder = nullptr;
+  // Discard all output streams. mDecoder->Shutdown() will have finished all
+  // its output streams.
+  // XXX For now we ignore mFinishWhenEnded. We'll fix this later. The
+  // immediate goal is to not crash when reloading a media element with
+  // output streams.
+  mOutputStreams.Clear();
 }
 
 void nsHTMLMediaElement::AbortExistingLoads()
@@ -1518,20 +1524,16 @@ already_AddRefed<nsDOMMediaStream>
 nsHTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
 {
   OutputMediaStream* out = mOutputStreams.AppendElement();
-  out->mStream = nsDOMMediaStream::CreateTrackUnionStream();
+  out->mStream = nsDOMMediaStream::CreateInputStream();
   nsRefPtr<nsIPrincipal> principal = GetCurrentPrincipal();
   out->mStream->CombineWithPrincipal(principal);
   out->mFinishWhenEnded = aFinishWhenEnded;
 
   mAudioCaptured = true;
-  // Block the output stream initially.
-  // Decoders are responsible for removing the block while they are playing
-  // back into the output stream.
-  out->mStream->GetStream()->ChangeExplicitBlockerCount(1);
   if (mDecoder) {
     mDecoder->SetAudioCaptured(true);
     mDecoder->AddOutputStream(
-        out->mStream->GetStream()->AsProcessedStream(), aFinishWhenEnded);
+        out->mStream->GetStream()->AsSourceStream(), aFinishWhenEnded);
   }
   nsRefPtr<nsDOMMediaStream> result = out->mStream;
   return result.forget();
@@ -2474,7 +2476,7 @@ nsresult nsHTMLMediaElement::FinishDecoderSetup(nsMediaDecoder* aDecoder,
   aDecoder->SetVolume(mMuted ? 0.0 : mVolume);
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
-    aDecoder->AddOutputStream(ms->mStream->GetStream()->AsProcessedStream(),
+    aDecoder->AddOutputStream(ms->mStream->GetStream()->AsSourceStream(),
         ms->mFinishWhenEnded);
   }
 
@@ -2601,6 +2603,7 @@ void nsHTMLMediaElement::SetupSrcMediaStreamPlayback()
   // XXX if we ever support capturing the output of a media element which is
   // playing a stream, we'll need to add a CombineWithPrincipal call here.
   mSrcStreamListener = new StreamListener(this);
+  NS_ADDREF(mSrcStreamListener);
   GetSrcMediaStream()->AddListener(mSrcStreamListener);
   if (mPaused) {
     GetSrcMediaStream()->ChangeExplicitBlockerCount(1);
@@ -2626,7 +2629,7 @@ void nsHTMLMediaElement::EndSrcMediaStreamPlayback()
   GetSrcMediaStream()->RemoveListener(mSrcStreamListener);
   // Kill its reference to this element
   mSrcStreamListener->Forget();
-  mSrcStreamListener = nullptr;
+  NS_RELEASE(mSrcStreamListener); // sets to null
   GetSrcMediaStream()->RemoveAudioOutput(this);
   VideoFrameContainer* container = GetVideoFrameContainer();
   if (container) {
@@ -2825,14 +2828,6 @@ void nsHTMLMediaElement::PlaybackEnded()
 
   NS_ASSERTION(!mDecoder || mDecoder->IsEnded(),
                "Decoder fired ended, but not in ended state");
-
-  // Discard all output streams that have finished now.
-  for (int32_t i = mOutputStreams.Length() - 1; i >= 0; --i) {
-    if (mOutputStreams[i].mFinishWhenEnded) {
-      mOutputStreams.RemoveElementAt(i);
-    }
-  }
-
   if (mSrcStream || (mDecoder && mDecoder->IsInfinite())) {
     LOG(PR_LOG_DEBUG, ("%p, got duration by reaching the end of the resource", this));
     DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
@@ -3429,7 +3424,7 @@ nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest)
 nsresult nsHTMLMediaElement::GetBuffered(nsIDOMTimeRanges** aBuffered)
 {
   nsRefPtr<nsTimeRanges> ranges = new nsTimeRanges();
-  if (mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING && mDecoder) {
+  if (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA && mDecoder) {
     // If GetBuffered fails we ignore the error result and just return the
     // time ranges we found up till the error.
     mDecoder->GetBuffered(ranges);

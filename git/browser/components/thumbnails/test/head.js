@@ -57,11 +57,10 @@ function next() {
 /**
  * Creates a new tab with the given URI.
  * @param aURI The URI that's loaded in the tab.
- * @param aCallback The function to call when the tab has loaded.
  */
-function addTab(aURI, aCallback) {
+function addTab(aURI) {
   let tab = gBrowser.selectedTab = gBrowser.addTab(aURI);
-  whenLoaded(tab.linkedBrowser, aCallback);
+  whenLoaded(tab.linkedBrowser);
 }
 
 /**

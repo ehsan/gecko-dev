@@ -934,11 +934,7 @@ class DeviceManagerSUT(DeviceManager):
       directives = [directive]
 
     for d in directives:
-      try:
-        data = self.runCmds([{ 'cmd': 'info ' + d }])
-      except AgentError:
-        return result
-
+      data = self.runCmds([{ 'cmd': 'info ' + d }])
       if (data is None):
         continue
       data = collapseSpaces.sub(' ', data)

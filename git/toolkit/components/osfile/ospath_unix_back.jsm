@@ -101,18 +101,13 @@ if (typeof Components != "undefined") {
                stack.push("..");
              }
            } else {
-             if (stack[stack.length - 1] == "..") {
-               stack.push("..");
-             } else {
-               stack.pop();
-             }
+             stack.pop();
            }
            break;
          default:
            stack.push(v);
          }
        });
-       exports.OS.Shared.LOG("normalize", "stack", stack.toSource());
        let string = stack.join("/");
        return absolute ? "/" + string : string;
      },
@@ -134,6 +129,4 @@ if (typeof Components != "undefined") {
        };
      }
    };
-
-   exports.OS.Path = exports.OS.Unix.Path;
 }(this));

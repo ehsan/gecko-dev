@@ -61,11 +61,6 @@ let modules = {
   },
   reader: {
     uri: "chrome://browser/content/aboutReader.html",
-    privileged: false,
-    hide: true
-  },
-  feedback: {
-    uri: "chrome://browser/content/aboutFeedback.xhtml",
     privileged: true
   }
 }

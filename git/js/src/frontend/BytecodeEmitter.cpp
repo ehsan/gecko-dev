@@ -121,10 +121,11 @@ BytecodeEmitter::BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, Shared
     constList(sc->context),
     typesetCount(0),
     hasSingletons(false),
-    emittingForInit(false),
+    inForInit(false),
     hasGlobalScope(hasGlobalScope),
     selfHostingMode(selfHostingMode)
 {
+    JS_ASSERT_IF(callerFrame, callerFrame->isScriptFrame());
     memset(&prolog, 0, sizeof prolog);
     memset(&main, 0, sizeof main);
     current = &main;
@@ -385,62 +386,41 @@ EmitBackPatchOp(JSContext *cx, BytecodeEmitter *bce, JSOp op, ptrdiff_t *lastp)
     return EmitJump(cx, bce, op, delta);
 }
 
-/* Updates line number notes, not column notes. */
-static inline bool
-UpdateLineNumberNotes(JSContext *cx, BytecodeEmitter *bce, unsigned line)
-{
-    unsigned delta = line - bce->currentLine();
-    if (delta != 0) {
-        /*
-         * Encode any change in the current source line number by using
-         * either several SRC_NEWLINE notes or just one SRC_SETLINE note,
-         * whichever consumes less space.
-         *
-         * NB: We handle backward line number deltas (possible with for
-         * loops where the update part is emitted after the body, but its
-         * line number is <= any line number in the body) here by letting
-         * unsigned delta_ wrap to a very large number, which triggers a
-         * SRC_SETLINE.
-         */
-        bce->current->currentLine = line;
-        bce->current->lastColumn  = 0;
-        if (delta >= (unsigned)(2 + ((line > SN_3BYTE_OFFSET_MASK)<<1))) {
-            if (NewSrcNote2(cx, bce, SRC_SETLINE, (ptrdiff_t)line) < 0)
-                return false;
-        } else {
-            do {
-                if (NewSrcNote(cx, bce, SRC_NEWLINE) < 0)
-                    return false;
-            } while (--delta != 0);
-        }
-    }
-    return true;
-}
+/* A macro for inlining at the top of EmitTree (whence it came). */
+#define UPDATE_LINE_NUMBER_NOTES(cx, bce, line)                               \
+    JS_BEGIN_MACRO                                                            \
+        unsigned line_ = (line);                                                 \
+        unsigned delta_ = line_ - bce->currentLine();                            \
+        if (delta_ != 0) {                                                    \
+            /*                                                                \
+             * Encode any change in the current source line number by using   \
+             * either several SRC_NEWLINE notes or just one SRC_SETLINE note, \
+             * whichever consumes less space.                                 \
+             *                                                                \
+             * NB: We handle backward line number deltas (possible with for   \
+             * loops where the update part is emitted after the body, but its \
+             * line number is <= any line number in the body) here by letting \
+             * unsigned delta_ wrap to a very large number, which triggers a  \
+             * SRC_SETLINE.                                                   \
+             */                                                               \
+            bce->current->currentLine = line_;                                \
+            if (delta_ >= (unsigned)(2 + ((line_ > SN_3BYTE_OFFSET_MASK)<<1))) { \
+                if (NewSrcNote2(cx, bce, SRC_SETLINE, (ptrdiff_t)line_) < 0)  \
+                    return false;                                             \
+            } else {                                                          \
+                do {                                                          \
+                    if (NewSrcNote(cx, bce, SRC_NEWLINE) < 0)                 \
+                        return false;                                         \
+                } while (--delta_ != 0);                                      \
+            }                                                                 \
+        }                                                                     \
+    JS_END_MACRO
 
 /* A function, so that we avoid macro-bloating all the other callsites. */
 static bool
-UpdateSourceCoordNotes(JSContext *cx, BytecodeEmitter *bce, TokenPtr pos)
+UpdateLineNumberNotes(JSContext *cx, BytecodeEmitter *bce, unsigned line)
 {
-    if (!UpdateLineNumberNotes(cx, bce, pos.lineno))
-        return false;
-
-    ptrdiff_t colspan = ptrdiff_t(pos.index) -
-                        ptrdiff_t(bce->current->lastColumn);
-    if (colspan != 0) {
-        if (colspan < 0) {
-            colspan += SN_COLSPAN_DOMAIN;
-        } else if (colspan >= SN_COLSPAN_DOMAIN / 2) {
-            // If the column span is so large that we can't store it, then just
-            // discard this information because column information would most
-            // likely be useless anyway once the column numbers are ~4000000.
-            // This has been known to happen with scripts that have been
-            // minimized and put into all one line.
-            return true;
-        }
-        if (NewSrcNote2(cx, bce, SRC_COLSPAN, colspan) < 0)
-            return false;
-        bce->current->lastColumn = pos.index;
-    }
+    UPDATE_LINE_NUMBER_NOTES(cx, bce, line);
     return true;
 }
 
@@ -456,7 +436,7 @@ EmitLoopHead(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
         JS_ASSERT_IF(nextpn->isKind(PNK_STATEMENTLIST), nextpn->isArity(PN_LIST));
         if (nextpn->isKind(PNK_STATEMENTLIST) && nextpn->pn_head)
             nextpn = nextpn->pn_head;
-        if (!UpdateSourceCoordNotes(cx, bce, nextpn->pn_pos.begin))
+        if (!UpdateLineNumberNotes(cx, bce, nextpn->pn_pos.begin.lineno))
             return -1;
     }
 
@@ -471,7 +451,7 @@ EmitLoopEntry(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
         JS_ASSERT_IF(nextpn->isKind(PNK_STATEMENTLIST), nextpn->isArity(PN_LIST));
         if (nextpn->isKind(PNK_STATEMENTLIST) && nextpn->pn_head)
             nextpn = nextpn->pn_head;
-        if (!UpdateSourceCoordNotes(cx, bce, nextpn->pn_pos.begin))
+        if (!UpdateLineNumberNotes(cx, bce, nextpn->pn_pos.begin.lineno))
             return false;
     }
 
@@ -1302,8 +1282,10 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * Don't generate upvars on the left side of a for loop. See
              * bug 470758.
              */
-            if (bce->emittingForInit)
+            if (bce->inForInit)
                 return true;
+
+            JS_ASSERT(caller->isScriptFrame());
 
             /*
              * If this is an eval in the global scope, then unbound variables
@@ -1397,7 +1379,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return true;
 
         JS_ASSERT(bce->sc->fun()->flags & JSFUN_LAMBDA);
-        JS_ASSERT(pn->pn_atom == bce->sc->fun()->atom());
+        JS_ASSERT(pn->pn_atom == bce->sc->fun()->atom);
 
         /*
          * Leave pn->isOp(JSOP_NAME) if bce->fun is heavyweight to
@@ -1686,8 +1668,10 @@ BytecodeEmitter::needsImplicitThis()
         return true;
 
     if (sc->inFunction()) {
-        if (sc->funbox()->inWith)
-            return true;
+        for (const FunctionBox *funbox = this->sc->funbox(); funbox; funbox = funbox->parent) {
+            if (funbox->inWith)
+                return true;
+        }
     } else {
         JSObject *scope = sc->scopeChain();
         while (scope) {
@@ -1819,11 +1803,11 @@ EmitXMLName(JSContext *cx, ParseNode *pn, JSOp op, BytecodeEmitter *bce)
     JS_ASSERT(op == JSOP_XMLNAME || op == JSOP_CALLXMLNAME);
 
     ParseNode *pn2 = pn->pn_kid;
-    bool oldEmittingForInit = bce->emittingForInit;
-    bce->emittingForInit = false;
+    bool oldInForInit = bce->inForInit;
+    bce->inForInit = false;
     if (!EmitTree(cx, bce, pn2))
         return false;
-    bce->emittingForInit = oldEmittingForInit;
+    bce->inForInit = oldInForInit;
     if (NewSrcNote2(cx, bce, SRC_PCBASE, bce->offset() - pn2->pn_offset) < 0)
         return false;
 
@@ -2668,11 +2652,7 @@ frontend::EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *bod
 
     if (!EmitTree(cx, bce, body))
         return false;
-
-    /*
-     * Always end the script with a JSOP_STOP. Some other parts of the codebase
-     * depend on this opcode, e.g. js_InternalInterpret.
-     */
+        
     if (Emit1(cx, bce, JSOP_STOP) < 0)
         return false;
 
@@ -2716,7 +2696,7 @@ MaybeEmitVarDecl(JSContext *cx, BytecodeEmitter *bce, JSOp prologOp, ParseNode *
         (!bce->sc->inFunction() || bce->sc->fun()->isHeavyweight()))
     {
         bce->switchToProlog();
-        if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
+        if (!UpdateLineNumberNotes(cx, bce, pn->pn_pos.begin.lineno))
             return false;
         if (!EmitIndexOp(cx, prologOp, atomIndex, bce))
             return false;
@@ -3417,11 +3397,11 @@ EmitVariables(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmitOption 
                 return false;
             }
 
-            bool oldEmittingForInit = bce->emittingForInit;
-            bce->emittingForInit = false;
+            bool oldInForInit = bce->inForInit;
+            bce->inForInit = false;
             if (!EmitTree(cx, bce, pn3))
                 return false;
-            bce->emittingForInit = oldEmittingForInit;
+            bce->inForInit = oldInForInit;
         } else if (letNotes) {
             /* JSOP_ENTERLETx expects at least 1 slot to have been pushed. */
             if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
@@ -4131,7 +4111,7 @@ EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
         /* Indicate that we're emitting a subroutine body. */
         stmtInfo.type = STMT_SUBROUTINE;
-        if (!UpdateSourceCoordNotes(cx, bce, pn->pn_kid3->pn_pos.begin))
+        if (!UpdateLineNumberNotes(cx, bce, pn->pn_kid3->pn_pos.begin.lineno))
             return false;
         if (Emit1(cx, bce, JSOP_FINALLY) < 0 ||
             !EmitTree(cx, bce, pn->pn_kid3) ||
@@ -4571,10 +4551,10 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (pn1) {
         ParseNode *decl = letDecl ? pn1->pn_expr : pn1;
         JS_ASSERT(decl->isKind(PNK_VAR) || decl->isKind(PNK_LET));
-        bce->emittingForInit = true;
+        bce->inForInit = true;
         if (!EmitVariables(cx, bce, decl, DefineVars))
             return false;
-        bce->emittingForInit = false;
+        bce->inForInit = false;
     }
 
     /* Compile the object expression to the right of 'in'. */
@@ -4716,7 +4696,7 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         /* No initializer: emit an annotated nop for the decompiler. */
         op = JSOP_NOP;
     } else {
-        bce->emittingForInit = true;
+        bce->inForInit = true;
 #if JS_HAS_DESTRUCTURING
         if (pn3->isKind(PNK_ASSIGN)) {
             JS_ASSERT(pn3->isOp(JSOP_NOP));
@@ -4725,8 +4705,6 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         }
 #endif
         if (op == JSOP_POP) {
-            if (!UpdateSourceCoordNotes(cx, bce, pn3->pn_pos.begin))
-                return false;
             if (!EmitTree(cx, bce, pn3))
                 return false;
             if (pn3->isKind(PNK_VAR) || pn3->isKind(PNK_CONST) || pn3->isKind(PNK_LET)) {
@@ -4741,7 +4719,7 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
                     op = JSOP_NOP;
             }
         }
-        bce->emittingForInit = false;
+        bce->inForInit = false;
     }
 
     /*
@@ -4790,8 +4768,6 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     /* Check for update code to do before the condition (if any). */
     pn3 = forHead->pn_kid3;
     if (pn3) {
-        if (!UpdateSourceCoordNotes(cx, bce, pn3->pn_pos.begin))
-            return false;
         op = JSOP_POP;
 #if JS_HAS_DESTRUCTURING
         if (pn3->isKind(PNK_ASSIGN)) {
@@ -4813,7 +4789,6 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
             if (NewSrcNote2(cx, bce, SRC_SETLINE, lineno) < 0)
                 return false;
             bce->current->currentLine = (unsigned) lineno;
-            bce->current->lastColumn = 0;
         }
     }
 
@@ -4941,7 +4916,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         bce->switchToProlog();
         if (!EmitIndex32(cx, JSOP_DEFFUN, index, bce))
             return false;
-        if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
+        if (!UpdateLineNumberNotes(cx, bce, pn->pn_pos.begin.lineno))
             return false;
         bce->switchToMain();
 
@@ -4951,7 +4926,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     } else {
 #ifdef DEBUG
         BindingIter bi(bce->script->bindings);
-        while (bi->name() != fun->atom())
+        while (bi->name() != fun->atom)
             bi++;
         JS_ASSERT(bi->kind() == VARIABLE || bi->kind() == CONSTANT || bi->kind() == ARGUMENT);
         JS_ASSERT(bi.frameIndex() < JS_BIT(20));
@@ -5133,9 +5108,6 @@ EmitContinue(JSContext *cx, BytecodeEmitter *bce, PropertyName *label)
 static bool
 EmitReturn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
-        return false;
-
     /* Push a return value */
     if (ParseNode *pn2 = pn->pn_kid) {
         if (!EmitTree(cx, bce, pn2))
@@ -5213,9 +5185,6 @@ EmitStatement(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (!pn2)
         return true;
 
-    if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
-        return false;
-
     /*
      * Top-level or called-from-a-native JS_Execute/EvaluateScript,
      * debugger, and eval frames may need the value of the ultimate
@@ -5272,7 +5241,6 @@ EmitStatement(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     } else if (!pn->isDirectivePrologueMember()) {
         /* Don't complain about directive prologue members; just don't emit their code. */
         bce->current->currentLine = pn2->pn_pos.begin.lineno;
-        bce->current->lastColumn = 0;
         if (!bce->reportStrictWarning(pn2, JSMSG_USELESS_EXPR))
             return false;
     }
@@ -5408,13 +5376,13 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
             ParseNode *receiver = pn2->pn_next;
             if (!EmitTree(cx, bce, receiver))
                 return false;
-            bool oldEmittingForInit = bce->emittingForInit;
-            bce->emittingForInit = false;
+            bool oldInForInit = bce->inForInit;
+            bce->inForInit = false;
             for (ParseNode *argpn = receiver->pn_next; argpn != funNode; argpn = argpn->pn_next) {
                 if (!EmitTree(cx, bce, argpn))
                     return false;
             }
-            bce->emittingForInit = oldEmittingForInit;
+            bce->inForInit = oldInForInit;
             argc -= 2;
             emitArgs = false;
             break;
@@ -5458,15 +5426,15 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
          * JSOP_NEW bytecode with a two-byte immediate telling how many args
          * were pushed on the operand stack.
          */
-        bool oldEmittingForInit = bce->emittingForInit;
-        bce->emittingForInit = false;
+        bool oldInForInit = bce->inForInit;
+        bce->inForInit = false;
         for (ParseNode *pn3 = pn2->pn_next; pn3; pn3 = pn3->pn_next) {
             if (!EmitTree(cx, bce, pn3))
                 return false;
             if (Emit1(cx, bce, JSOP_NOTEARG) < 0)
                 return false;
         }
-        bce->emittingForInit = oldEmittingForInit;
+        bce->inForInit = oldInForInit;
     }
     if (NewSrcNote2(cx, bce, SRC_PCBASE, bce->offset() - top) < 0)
         return false;
@@ -5971,8 +5939,6 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 static bool
 EmitUnary(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
-    if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
-        return false;
     /* Unary op, including unary +/-. */
     JSOp op = pn->getOp();
     ParseNode *pn2 = pn->pn_kid;
@@ -5981,12 +5947,12 @@ EmitUnary(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (op == JSOP_TYPEOF && !pn2->isKind(PNK_NAME))
         op = JSOP_TYPEOFEXPR;
 
-    bool oldEmittingForInit = bce->emittingForInit;
-    bce->emittingForInit = false;
+    bool oldInForInit = bce->inForInit;
+    bce->inForInit = false;
     if (!EmitTree(cx, bce, pn2))
         return false;
 
-    bce->emittingForInit = oldEmittingForInit;
+    bce->inForInit = oldInForInit;
     return Emit1(cx, bce, op) >= 0;
 }
 
@@ -6074,8 +6040,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     pn->pn_offset = top;
 
     /* Emit notes to tell the current bytecode's source line number. */
-    if (!UpdateLineNumberNotes(cx, bce, pn->pn_pos.begin.lineno))
-        return false;
+    UPDATE_LINE_NUMBER_NOTES(cx, bce, pn->pn_pos.begin.lineno);
 
     switch (pn->getKind()) {
       case PNK_FUNCTION:
@@ -6380,10 +6345,10 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             /*
              * Binary :: has a right operand that brackets arbitrary code,
              * possibly including a let (a = b) ... expression.  We must clear
-             * emittingForInit to avoid mis-compiling such beasts.
+             * inForInit to avoid mis-compiling such beasts.
              */
-            bool oldEmittingForInit = bce->emittingForInit;
-            bce->emittingForInit = false;
+            bool oldInForInit = bce->inForInit;
+            bce->inForInit = false;
 #endif
 
             /* Binary operators that evaluate both operands unconditionally. */
@@ -6392,7 +6357,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (!EmitTree(cx, bce, pn->pn_right))
                 return false;
 #if JS_HAS_XML_SUPPORT
-            bce->emittingForInit = oldEmittingForInit;
+            bce->inForInit = oldInForInit;
 #endif
             if (Emit1(cx, bce, pn->getOp()) < 0)
                 return false;
@@ -6407,11 +6372,11 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         } else {
             JSOp op = pn->getOp();
             JS_ASSERT(op == JSOP_BINDXMLNAME || op == JSOP_SETXMLNAME);
-            bool oldEmittingForInit = bce->emittingForInit;
-            bce->emittingForInit = false;
+            bool oldInForInit = bce->inForInit;
+            bce->inForInit = false;
             if (!EmitTree(cx, bce, pn->pn_kid))
                 return false;
-            bce->emittingForInit = oldEmittingForInit;
+            bce->inForInit = oldInForInit;
             if (Emit1(cx, bce, op) < 0)
                 return false;
         }
@@ -6674,7 +6639,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* bce->emitLevel == 1 means we're last on the stack, so finish up. */
     if (ok && bce->emitLevel == 1) {
-        if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.end))
+        if (!UpdateLineNumberNotes(cx, bce, pn->pn_pos.end.lineno))
             return false;
     }
 
@@ -7139,7 +7104,7 @@ JS_FRIEND_DATA(JSSrcNoteSpec) js_SrcNoteSpec[] = {
     {"switch",          2},
     {"funcdef",         1},
     {"catch",           1},
-    {"colspan",         1},
+    {"unused",         -1},
     {"newline",         0},
     {"setline",         1},
     {"xdelta",          0},

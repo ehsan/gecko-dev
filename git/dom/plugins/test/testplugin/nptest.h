@@ -150,7 +150,6 @@ typedef struct InstanceData {
   AsyncDrawing asyncDrawing;
   NPAsyncSurface *frontBuffer;
   NPAsyncSurface *backBuffer;
-  int32_t mouseUpEventCount;
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);

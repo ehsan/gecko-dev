@@ -82,8 +82,8 @@ static const XPCOMFunctions kFrozenFunctions = {
     &NS_GetXPTCallStub_P,
     &NS_DestroyXPTCallStub_P,
     &NS_InvokeByIndex_P,
-    nullptr,
-    nullptr,
+    &NS_CycleCollectorSuspect_P,
+    &NS_CycleCollectorForget_P,
     &NS_StringSetIsVoid_P,
     &NS_StringGetIsVoid_P,
     &NS_CStringSetIsVoid_P,
@@ -499,11 +499,25 @@ NS_UTF16ToCString(const nsAString &aSrc, nsCStringEncoding aDestEncoding, nsACSt
   return NS_UTF16ToCString_P(aSrc, aDestEncoding, aDest);
 }
 
+#undef NS_CycleCollectorSuspect
+EXPORT_XPCOM_API(bool)
+NS_CycleCollectorSuspect(nsISupports* obj)
+{
+  return NS_CycleCollectorSuspect_P(obj);
+}
+
+#undef NS_CycleCollectorForget
+EXPORT_XPCOM_API(bool)
+NS_CycleCollectorForget(nsISupports* obj)
+{
+  return NS_CycleCollectorForget_P(obj);
+}
+
 #undef NS_CycleCollectorSuspect2
 EXPORT_XPCOM_API(nsPurpleBufferEntry*)
-NS_CycleCollectorSuspect2(void *obj, nsCycleCollectionParticipant *p)
+NS_CycleCollectorSuspect2(nsISupports* obj)
 {
-  return NS_CycleCollectorSuspect2_P(obj, p);
+  return NS_CycleCollectorSuspect2_P(obj);
 }
 
 #undef NS_CycleCollectorForget2

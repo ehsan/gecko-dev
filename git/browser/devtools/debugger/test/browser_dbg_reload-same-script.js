@@ -16,8 +16,7 @@ let gView = null;
 function test()
 {
   let step = 0;
-  let expectedScript = "";
-  let expectedScriptShown = false;
+  let scriptShown = false;
   let scriptShownUrl = null;
   let resumed = false;
   let testStarted = false;
@@ -30,34 +29,27 @@ function test()
     gView = gDebugger.DebuggerView;
     resumed = true;
 
-    startTest();
+    executeSoon(startTest);
   });
 
   function onScriptShown(aEvent)
   {
-    expectedScriptShown = aEvent.detail.url.indexOf("-01.js") != -1;
+    scriptShown = aEvent.detail.url.indexOf("-01.js") != -1;
     scriptShownUrl = aEvent.detail.url;
-    startTest();
+    executeSoon(startTest);
   }
 
   function onUlteriorScriptShown(aEvent)
   {
-    ok(expectedScript,
-      "The expected script to show up should have been specified.");
-
-    info("The expected script for this ScriptShown event is: " + expectedScript);
-    info("The current script for this ScriptShown event is: " + aEvent.detail.url);
-
-    expectedScriptShown = aEvent.detail.url.indexOf(expectedScript) != -1;
     scriptShownUrl = aEvent.detail.url;
-    testScriptShown();
+    executeSoon(testScriptShown);
   }
 
   window.addEventListener("Debugger:ScriptShown", onScriptShown);
 
   function startTest()
   {
-    if (expectedScriptShown && resumed && !testStarted) {
+    if (scriptShown && resumed && !testStarted) {
       window.removeEventListener("Debugger:ScriptShown", onScriptShown);
       window.addEventListener("Debugger:ScriptShown", onUlteriorScriptShown);
       testStarted = true;
@@ -67,7 +59,7 @@ function test()
 
   function finishTest()
   {
-    if (expectedScriptShown && resumed && testStarted) {
+    if (scriptShown && resumed && testStarted) {
       window.removeEventListener("Debugger:ScriptShown", onUlteriorScriptShown);
       closeDebuggerAndFinish();
     }
@@ -76,79 +68,29 @@ function test()
   function performTest()
   {
     testCurrentScript("-01.js", step);
-    expectedScript = "-01.js";
+    step = 1;
     reloadPage();
   }
 
   function testScriptShown()
   {
-    if (!expectedScriptShown) {
-      return;
-    }
-    step++;
-
     if (step === 1) {
       testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
+      step = 2;
       reloadPage();
     }
     else if (step === 2) {
       testCurrentScript("-01.js", step);
-      expectedScript = "-02.js";
+      step = 3;
       gView.Scripts.selectScript(gView.Scripts.scriptLocations[1]);
     }
     else if (step === 3) {
       testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
+      step = 4;
       reloadPage();
     }
     else if (step === 4) {
       testCurrentScript("-02.js", step);
-      expectedScript = "-01.js";
-      gView.Scripts.selectScript(gView.Scripts.scriptLocations[0]);
-    }
-    else if (step === 5) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 6) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 7) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-01.js";
-      reloadPage();
-    }
-    else if (step === 8) {
-      testCurrentScript("-01.js", step);
-      expectedScript = "-02.js";
-      gView.Scripts.selectScript(gView.Scripts.scriptLocations[1]);
-    }
-    else if (step === 9) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 10) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 11) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-02.js";
-      reloadPage();
-    }
-    else if (step === 12) {
-      testCurrentScript("-02.js", step);
-      expectedScript = "-01.js";
-      gView.Scripts.selectScript(gView.Scripts.scriptLocations[0]);
-    }
-    else if (step === 13) {
-      testCurrentScript("-01.js", step);
       finishTest();
     }
   }
@@ -168,7 +110,9 @@ function test()
 
   function reloadPage()
   {
-    gDebuggee.location.reload();
+    executeSoon(function() {
+      gDebuggee.location.reload();
+    });
   }
 
   registerCleanupFunction(function() {

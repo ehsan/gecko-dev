@@ -3,7 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
+#include "IPCMessageUtils.h"
+#include "mozilla/net/NeckoMessageUtils.h"
 
 #include "nsSimpleNestedURI.h"
 #include "nsIObjectInputStream.h"
@@ -52,6 +53,32 @@ nsSimpleNestedURI::Write(nsIObjectOutputStream* aStream)
     rv = aStream->WriteCompoundObject(mInnerURI, NS_GET_IID(nsIURI),
                                       true);
     return rv;
+}
+
+// nsIIPCSerializableObsolete
+
+bool
+nsSimpleNestedURI::Read(const IPC::Message *aMsg, void **aIter)
+{
+    if (!nsSimpleURI::Read(aMsg, aIter))
+        return false;
+
+    IPC::URI uri;
+    if (!ReadParam(aMsg, aIter, &uri))
+        return false;
+
+    mInnerURI = uri;
+
+    return true;
+}
+
+void
+nsSimpleNestedURI::Write(IPC::Message *aMsg)
+{
+    nsSimpleURI::Write(aMsg);
+
+    IPC::URI uri(mInnerURI);
+    WriteParam(aMsg, uri);
 }
 
 // nsINestedURI

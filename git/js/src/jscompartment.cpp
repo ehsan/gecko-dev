@@ -57,8 +57,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     hold(false),
     isSystemCompartment(false),
     lastCodeRelease(0),
-    analysisLifoAlloc(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
-    typeLifoAlloc(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
+    typeLifoAlloc(TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
     active(false),
     lastAnimationTime(0),
@@ -219,7 +218,15 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
      */
-    HandleObject global = cx->global();
+    RootedObject global(cx);
+    if (cx->hasfp()) {
+        global = &cx->fp()->global();
+    } else {
+        global = cx->globalObject;
+        global = JS_ObjectToInnerObject(cx, global);
+        if (!global)
+            return false;
+    }
 
     /* Unwrap incoming objects. */
     if (vp->isObject()) {
@@ -231,7 +238,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         /* Translate StopIteration singleton. */
         if (obj->isStopIteration()) {
             RootedValue vvp(cx, *vp);
-            bool result = js_FindClassObject(cx, JSProto_StopIteration, &vvp);
+            bool result = js_FindClassObject(cx, NullPtr(), JSProto_StopIteration, &vvp);
             *vp = vvp;
             return result;
         }
@@ -484,7 +491,7 @@ JSCompartment::markTypes(JSTracer *trc)
 }
 
 void
-JSCompartment::discardJitCode(FreeOp *fop, bool discardConstraints)
+JSCompartment::discardJitCode(FreeOp *fop)
 {
 #ifdef JS_METHODJIT
 
@@ -520,7 +527,7 @@ JSCompartment::discardJitCode(FreeOp *fop, bool discardConstraints)
             script->resetUseCount();
         }
 
-        types.sweepCompilerOutputs(fop, discardConstraints);
+        types.sweepCompilerOutputs(fop);
     }
 
 #endif /* JS_METHODJIT */
@@ -540,7 +547,7 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 {
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_DISCARD_CODE);
-        discardJitCode(fop, !activeAnalysis && !gcPreserveCode);
+        discardJitCode(fop);
     }
 
     /* This function includes itself in PHASE_SWEEP_TABLES. */
@@ -574,7 +581,6 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
     }
 
     if (!activeAnalysis && !gcPreserveCode) {
-        JS_ASSERT(!types.constrainedOutputs);
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
 
         /*
@@ -622,13 +628,11 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
             for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 script->clearAnalysis();
-                script->clearPropertyReadTypes();
             }
         }
 
         {
             gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
-            rt->freeLifoAlloc.transferFrom(&analysisLifoAlloc);
             rt->freeLifoAlloc.transferFrom(&oldAlloc);
         }
     }
@@ -655,7 +659,7 @@ JSCompartment::sweepCrossCompartmentWrappers()
         JS_ASSERT_IF(!keyMarked && valMarked, key.kind == CrossCompartmentKey::StringWrapper);
         if (!keyMarked || !valMarked || !dbgMarked)
             e.removeFront();
-        else if (key.wrapped != e.front().key.wrapped || key.debugger != e.front().key.debugger)
+        else
             e.rekeyFront(key);
     }
 }
@@ -694,7 +698,8 @@ bool
 JSCompartment::hasScriptsOnStack()
 {
     for (AllFramesIter i(rt->stackSpace); !i.done(); ++i) {
-        if (i.fp()->script()->compartment() == this)
+        JSScript *script = i.fp()->maybeScript();
+        if (script && script->compartment() == this)
             return true;
     }
     return false;

@@ -5,7 +5,7 @@
 #ifndef mozilla_dom_indexeddb_serializationhelpers_h__
 #define mozilla_dom_indexeddb_serializationhelpers_h__
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 
 #include "mozilla/dom/indexedDB/DatabaseInfo.h"
 #include "mozilla/dom/indexedDB/Key.h"

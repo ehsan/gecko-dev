@@ -39,7 +39,7 @@ DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
                                 bool aIsConditionalProcessingAttribute,
                                 uint8_t aAttrEnum)
 {
-  nsRefPtr<DOMSVGStringList> wrapper =
+  DOMSVGStringList *wrapper =
     sSVGStringListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGStringList(aElement, 
@@ -47,7 +47,8 @@ DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
                                    aAttrEnum);
     sSVGStringListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 DOMSVGStringList::~DOMSVGStringList()

@@ -5,7 +5,7 @@
 const ContentPanning = {
   init: function cp_init() {
     ['mousedown', 'mouseup', 'mousemove'].forEach(function(type) {
-      addEventListener(type, ContentPanning, false);
+      addEventListener(type, ContentPanning, true);
     });
 
     addMessageListener("Viewport:Change", this._recvViewportChange.bind(this));
@@ -107,8 +107,6 @@ const ContentPanning = {
       this.panning = true;
       this._resetActive();
     }
-    evt.stopPropagation();
-    evt.preventDefault();
   },
 
 

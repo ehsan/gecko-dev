@@ -264,7 +264,7 @@ class IonBuilder : public MIRGenerator
     void rewriteParameters();
     bool initScopeChain();
     bool pushConstant(const Value &v);
-    bool pushTypeBarrier(MInstruction *ins, types::StackTypeSet *actual, types::StackTypeSet *observed);
+    bool pushTypeBarrier(MInstruction *ins, types::TypeSet *actual, types::TypeSet *observed);
     void monitorResult(MInstruction *ins, types::TypeSet *types);
 
     JSObject *getSingletonPrototype(JSFunction *target);
@@ -361,9 +361,9 @@ class IonBuilder : public MIRGenerator
     // Inlining helpers.
     bool discardCallArgs(uint32 argc, MDefinitionVector &argv, MBasicBlock *bb);
     bool discardCall(uint32 argc, MDefinitionVector &argv, MBasicBlock *bb);
-    types::StackTypeSet *getInlineReturnTypeSet();
+    types::TypeSet *getInlineReturnTypeSet();
     MIRType getInlineReturnType();
-    types::StackTypeSet *getInlineArgTypeSet(uint32 argc, uint32 arg);
+    types::TypeSet *getInlineArgTypeSet(uint32 argc, uint32 arg);
     MIRType getInlineArgType(uint32 argc, uint32 arg);
 
     // Array natives.
@@ -392,30 +392,30 @@ class IonBuilder : public MIRGenerator
                           MConstant *constFun, MBasicBlock *bottom,
                           Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
     bool inlineScriptedCall(AutoObjectVector &targets, uint32 argc, bool constructing,
-                            types::StackTypeSet *types, types::StackTypeSet *barrier);
+                            types::TypeSet *types, types::TypeSet *barrier);
     bool makeInliningDecision(AutoObjectVector &targets);
 
     bool jsop_call_fun_barrier(AutoObjectVector &targets, uint32_t numTargets,
                                uint32 argc,
                                bool constructing,
-                               types::StackTypeSet *types,
-                               types::StackTypeSet *barrier);
+                               types::TypeSet *types,
+                               types::TypeSet *barrier);
     bool makeCallBarrier(HandleFunction target, uint32 argc, bool constructing,
-                         types::StackTypeSet *types, types::StackTypeSet *barrier);
+                         types::TypeSet *types, types::TypeSet *barrier);
 
-    inline bool TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types,
+    inline bool TestCommonPropFunc(JSContext *cx, types::TypeSet *types,
                                    HandleId id, JSFunction **funcp,
                                    bool isGetter, bool *isDOM);
 
     bool annotateGetPropertyCache(JSContext *cx, MDefinition *obj, MGetPropertyCache *getPropCache,
-                                  types::StackTypeSet *objTypes, types::StackTypeSet *pushedTypes);
+                                  types::TypeSet *objTypes, types::TypeSet *pushedTypes);
 
     MGetPropertyCache *checkInlineableGetPropertyCache(uint32_t argc);
 
     MPolyInlineDispatch *
     makePolyInlineDispatch(JSContext *cx, AutoObjectVector &targets, int argc,
                            MGetPropertyCache *getPropCache,
-                           types::StackTypeSet *types, types::StackTypeSet *barrier,
+                           types::TypeSet *types, types::TypeSet *barrier,
                            MBasicBlock *bottom,
                            Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
 

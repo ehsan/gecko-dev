@@ -171,14 +171,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsNodeInfo)
       PR_snprintf(name, sizeof(name), "nsNodeInfo %s", localName.get());
     }
 
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsNodeInfo), name);
   }
   else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsNodeInfo, tmp->mRefCnt.get())
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mOwnerManager,
-                                                  nsNodeInfoManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mOwnerManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNodeInfo)

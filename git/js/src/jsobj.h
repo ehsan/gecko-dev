@@ -517,6 +517,9 @@ struct JSObject : public js::ObjectImpl
 
     inline js::GlobalObject &global() const;
 
+    /* N.B. Infallible: NULL means 'no principal', not an error. */
+    inline JSPrincipals *principals(JSContext *cx);
+
     /* Remove the type (and prototype) or parent from a new object. */
     static inline bool clearType(JSContext *cx, js::HandleObject obj);
     static bool clearParent(JSContext *cx, js::HandleObject obj);
@@ -1158,8 +1161,8 @@ js_IdentifyClassPrototype(JSObject *obj);
  * JSProto_Null, clasp must non-null.
  */
 bool
-js_FindClassObject(JSContext *cx, JSProtoKey protoKey, js::MutableHandleValue vp,
-                   js::Class *clasp = NULL);
+js_FindClassObject(JSContext *cx, js::HandleObject start, JSProtoKey protoKey,
+                   js::MutableHandleValue vp, js::Class *clasp = NULL);
 
 // Specialized call for constructing |this| with a known function callee,
 // and a known prototype.
@@ -1398,6 +1401,9 @@ ToObjectFromStack(JSContext *cx, HandleValue vp)
 extern void
 js_GetObjectSlotName(JSTracer *trc, char *buf, size_t bufsize);
 
+extern bool
+js_ClearNative(JSContext *cx, JSObject *obj);
+
 extern JSBool
 js_ReportGetterOnlyAssignment(JSContext *cx);
 
@@ -1416,8 +1422,8 @@ js_Object(JSContext *cx, unsigned argc, js::Value *vp);
  * methods instead.
  */
 extern JS_FRIEND_API(bool)
-js_GetClassPrototype(JSContext *cx, JSProtoKey protoKey, js::MutableHandleObject protop,
-                     js::Class *clasp = NULL);
+js_GetClassPrototype(JSContext *cx, js::HandleObject scopeobj, JSProtoKey protoKey,
+                     js::MutableHandleObject protop, js::Class *clasp = NULL);
 
 namespace js {
 

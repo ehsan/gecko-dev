@@ -75,7 +75,12 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
         *iface = (nsISupports*) xpc_GetJSPrivate(obj);
         return true;
     }
-    return UnwrapDOMObjectToISupports(obj, *iface);
+    if (jsclass && IsDOMClass(jsclass) &&
+        DOMJSClass::FromJSClass(jsclass)->mDOMObjectIsISupports) {
+        *iface = UnwrapDOMObject<nsISupports>(obj);
+        return true;
+    }
+    return false;
 }
 
 /***************************************************************************/
@@ -1015,7 +1020,14 @@ XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
     NS_ASSERTION(iid, "bad param");
 
     JSContext* cx = ccx.GetJSContext();
-    JSAutoCompartment ac(cx, src);
+
+    JSAutoEnterCompartment ac;
+
+    if (!ac.enter(cx, src)) {
+       if (pErr)
+           *pErr = NS_ERROR_UNEXPECTED;
+       return false;
+    }
 
     *dest = nullptr;
      if (pErr)

@@ -44,3 +44,5 @@
 <!ENTITY cmd.clearList.label              "Clear List">
 <!ENTITY cmd.clearList.accesskey          "a">
 
+<!ENTITY downloadshistory.label           "Show All Downloads">
+<!ENTITY downloadshistory.accesskey       "S">

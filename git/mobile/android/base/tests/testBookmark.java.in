@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.lang.reflect.Method;
 import android.content.ContentResolver;
 
-public class testBookmark extends PixelTest  {
+public class testBookmark extends BaseTest  {
     private static final int MAX_WAIT_MS = 3000; 
     private static final String ABOUT_HOME_URL = "about:firefox";
     private static String BOOKMARK_URL = "/robocop/robocop_blank_01.html";
@@ -72,8 +72,6 @@ public class testBookmark extends PixelTest  {
     }
 
     public void runAwesomeScreenTest() {
-        final long PAINT_CLEAR_DELAY = 1000;  // milliseconds
-
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // Open the bookmark list and check the root folder view
@@ -114,9 +112,9 @@ public class testBookmark extends PixelTest  {
             "bookmarks list has 5 children (the default bookmarks and the new one)");
  
         // Click on the bookmark we created and wait for the bookmarked page to load
-        Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
+        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         mSolo.clickInList(1);
-        paintExpecter.blockUntilClear(PAINT_CLEAR_DELAY);
+        contentEventExpecter.blockForEvent();
 
         // Clean up the bookmark we created
         deleteBookmark();
@@ -186,17 +184,17 @@ public class testBookmark extends PixelTest  {
 
     private void setUpBookmark() {
         // Bookmark a page for the test
-        loadAndPaint(BOOKMARK_URL);
+        loadUrl(BOOKMARK_URL);
         toggleBookmark();
         mAsserter.is(mSolo.waitForText("Bookmark added"), true, "bookmark added sucessfully");
 
         // Navigate back to about:home for the test
-        loadAndPaint(ABOUT_HOME_URL);
+        loadUrl(ABOUT_HOME_URL);
     }
 
     private void cleanUpBookmark() {
         // Go back to the page we bookmarked
-        loadAndPaint(BOOKMARK_URL);
+        loadUrl(BOOKMARK_URL);
         toggleBookmark();
         mAsserter.is(mSolo.waitForText("Bookmark removed"), true, "bookmark removed successfully");
     }

@@ -55,13 +55,14 @@ DOMSVGPathSegList::GetDOMWrapper(void *aList,
                                  nsSVGElement *aElement,
                                  bool aIsAnimValList)
 {
-  nsRefPtr<DOMSVGPathSegList> wrapper =
+  DOMSVGPathSegList *wrapper =
     sSVGPathSegListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGPathSegList(aElement, aIsAnimValList);
     sSVGPathSegListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGPathSegList*
@@ -83,7 +84,7 @@ DOMSVGPathSegList::~DOMSVGPathSegList()
 JSObject*
 DOMSVGPathSegList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::oldproxybindings::SVGPathSegList::create(cx, scope, this,
+  return mozilla::dom::binding::SVGPathSegList::create(cx, scope, this,
                                                        triedToWrap);
 }
 

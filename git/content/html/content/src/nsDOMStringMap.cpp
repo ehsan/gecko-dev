@@ -171,7 +171,10 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
                                            this, &val);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, JSVAL_TO_OBJECT(val))) {
+    return NS_ERROR_FAILURE;
+  }
 
   // Guard against infinite recursion. Prevents the stack from looking like
   // ...
