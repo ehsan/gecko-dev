@@ -50,7 +50,13 @@
       	</getter>
       </property>
 
-      <field name="_contentTitle">null</field>
+      <field name="_documentURI">null</field>
+
+      <property name="documentURI"
+                onget="return this._documentURI;"
+                readonly="true"/>
+
+      <field name="_contentTitle">""</field>
 
       <property name="contentTitle"
                 onget="return this._contentTitle"
@@ -62,9 +68,26 @@
                 onget="return this._characterSet"
                 readonly="true"/>
 
+      <field name="_contentWindow">null</field>
+
+      <property name="contentWindow"
+                onget="return this._contentWindow"
+                readonly="true"/>
+
+      <property name="contentDocument"
+                onget="return this.contentWindow ? this.contentWindow.document : null"
+                readonly="true"/>
+
+      <field name="_imageDocument">null</field>
+
+      <property name="imageDocument"
+                onget="return this._imageDocument"
+                readonly="true"/>
+
       <constructor>
         <![CDATA[
           this.messageManager.addMessageListener("DOMTitleChanged", this);
+          this.messageManager.addMessageListener("ImageDocumentLoaded", this);
           this.messageManager.loadFrameScript("chrome://global/content/browser-child.js", true);
           this.webProgress._init();
         ]]>
@@ -72,7 +95,6 @@
 
       <destructor>
         <![CDATA[
-          this.messageManager.removeMessageListener("DOMTitleChanged", this);
           this.webProgress._destroy();
         ]]>
       </destructor>
@@ -84,6 +106,12 @@
           switch (aMessage.name) {
             case "DOMTitleChanged":
               this._contentTitle = json.title;
+              break;
+            case "ImageDocumentLoaded":
+              this._imageDocument = {
+                width: json.width,
+                height: json.height
+              };
               break;
           }
         ]]></body>

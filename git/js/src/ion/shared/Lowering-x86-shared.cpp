@@ -4,12 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/MIR.h"
-#include "ion/Lowering.h"
 #include "ion/shared/Lowering-x86-shared.h"
+
+#include "mozilla/MathAlgorithms.h"
+
+#include "ion/Lowering.h"
+#include "ion/MIR.h"
+
 #include "ion/shared/Lowering-shared-inl.h"
+
 using namespace js;
 using namespace js::ion;
+
+using mozilla::FloorLog2;
 
 LTableSwitch *
 LIRGeneratorX86Shared::newLTableSwitch(const LAllocation &in, const LDefinition &inputCopy,
@@ -112,6 +119,15 @@ LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition
 }
 
 bool
+LIRGeneratorX86Shared::lowerForBitAndAndBranch(LBitAndAndBranch *baab, MInstruction *mir,
+                                               MDefinition *lhs, MDefinition *rhs)
+{
+    baab->setOperand(0, useRegister(lhs));
+    baab->setOperand(1, useRegisterOrConstant(rhs));
+    return add(baab, mir);
+}
+
+bool
 LIRGeneratorX86Shared::lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs)
 {
     // Note: lhs is used twice, so that we can restore the original value for the
@@ -138,8 +154,7 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
         // possible; division by negative powers of two can be optimized in a
         // similar manner as positive powers of two, and division by other
         // constants can be optimized by a reciprocal multiplication technique.
-        int32_t shift;
-        JS_FLOOR_LOG2(shift, rhs);
+        int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LDivPowTwoI *lir = new LDivPowTwoI(useRegisterAtStart(div->lhs()), useRegister(div->lhs()), shift);
             if (div->fallible() && !assignSnapshot(lir))
@@ -162,8 +177,7 @@ LIRGeneratorX86Shared::lowerModI(MMod *mod)
 
     if (mod->rhs()->isConstant()) {
         int32_t rhs = mod->rhs()->toConstant()->value().toInt32();
-        int32_t shift;
-        JS_FLOOR_LOG2(shift, rhs);
+        int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LModPowTwoI *lir = new LModPowTwoI(useRegisterAtStart(mod->lhs()), shift);
             if (mod->fallible() && !assignSnapshot(lir))

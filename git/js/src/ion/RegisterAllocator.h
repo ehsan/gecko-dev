@@ -9,12 +9,12 @@
 
 #include "mozilla/Attributes.h"
 
-#include "ion/Ion.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
 #include "ion/InlineList.h"
+#include "ion/Ion.h"
 #include "ion/LIR.h"
 #include "ion/Lowering.h"
+#include "ion/MIR.h"
+#include "ion/MIRGraph.h"
 
 // Generic structures and functions for use by register allocators.
 
@@ -65,9 +65,9 @@ struct AllocationIntegrityState
 
         InstructionInfo(const InstructionInfo &o)
         {
-            inputs.append(o.inputs);
-            temps.append(o.temps);
-            outputs.append(o.outputs);
+            inputs.appendAll(o.inputs);
+            temps.appendAll(o.temps);
+            outputs.appendAll(o.outputs);
         }
     };
     Vector<InstructionInfo, 0, SystemAllocPolicy> instructions;
@@ -76,7 +76,7 @@ struct AllocationIntegrityState
         Vector<InstructionInfo, 5, SystemAllocPolicy> phis;
         BlockInfo() {}
         BlockInfo(const BlockInfo &o) {
-            phis.append(o.phis);
+            phis.appendAll(o.phis);
         }
     };
     Vector<BlockInfo, 0, SystemAllocPolicy> blocks;

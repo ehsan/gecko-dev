@@ -7,31 +7,35 @@
 /*
  * JS object implementation.
  */
+
 #include "jsobjinlines.h"
+
+#include "mozilla/MathAlgorithms.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/TemplateLib.h"
+#include "mozilla/Util.h"
 
 #include <string.h>
 
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Util.h"
-
-#include "jstypes.h"
-#include "jsutil.h"
-#include "jsprf.h"
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsiter.h"
 #include "jsnum.h"
 #include "jsopcode.h"
+#include "jsprf.h"
 #include "jsproxy.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#include "jsdbgapi.h"
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jswatchpoint.h"
 #include "jswrapper.h"
+
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Marking.h"
 #include "ion/BaselineJIT.h"
@@ -60,6 +64,7 @@ using namespace js::types;
 using js::frontend::IsIdentifier;
 using mozilla::ArrayLength;
 using mozilla::DebugOnly;
+using mozilla::RoundUpPow2;
 
 JS_STATIC_ASSERT(int32_t((JSObject::NELEMENTS_LIMIT - 1) * sizeof(Value)) == int64_t((JSObject::NELEMENTS_LIMIT - 1) * sizeof(Value)));
 
@@ -322,7 +327,7 @@ js::GetFirstArgumentAsObject(JSContext *cx, const CallArgs &args, const char *me
         return false;
     }
 
-    HandleValue v = args.handleAt(0);
+    HandleValue v = args[0];
     if (!v.isObject()) {
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, v, NullPtr());
         if (!bytes)
@@ -1824,7 +1829,7 @@ CopySlots(JSContext *cx, HandleObject from, HandleObject to)
     JS_ASSERT(from->getClass() == to->getClass());
 
     size_t n = 0;
-    if (from->isWrapper() &&
+    if (from->is<WrapperObject>() &&
         (Wrapper::wrapperHandler(from)->flags() &
          Wrapper::CROSS_COMPARTMENT)) {
         to->setSlot(0, from->getSlot(0));
@@ -2068,7 +2073,7 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
          * whether they have dynamically allocated slots and instead just copy
          * them over wholesale.
          */
-        char tmp[tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::result];
+        char tmp[mozilla::tl::Max<sizeof(JSFunction), sizeof(JSObject_Slots16)>::value];
         JS_ASSERT(size <= sizeof(tmp));
 
         js_memcpy(tmp, a, size);
@@ -2081,8 +2086,8 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
          * below, in common with the other case.
          */
         for (size_t i = 0; i < a->numFixedSlots(); ++i) {
-            HeapSlot::writeBarrierPost(cx->runtime(), a, HeapSlot::Slot, i);
-            HeapSlot::writeBarrierPost(cx->runtime(), b, HeapSlot::Slot, i);
+            HeapSlot::writeBarrierPost(cx->runtime(), a, HeapSlot::Slot, i, a->getSlot(i));
+            HeapSlot::writeBarrierPost(cx->runtime(), b, HeapSlot::Slot, i, b->getSlot(i));
         }
 #endif
     } else {
@@ -3462,13 +3467,10 @@ CallAddPropertyHookDense(ExclusiveContext *cx, Class *clasp, HandleObject obj, u
 {
     /* Inline addProperty for array objects. */
     if (obj->is<ArrayObject>()) {
-        if (!cx->shouldBeJSContext())
-            return false;
-
         Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
         uint32_t length = arr->length();
         if (index >= length)
-            ArrayObject::setLength(cx->asJSContext(), arr, index + 1);
+            ArrayObject::setLength(cx, arr, index + 1);
         return true;
     }
 

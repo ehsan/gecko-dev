@@ -22,7 +22,7 @@
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
@@ -360,13 +360,20 @@ XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
     XPCNativeScriptableInfo* siProto = proto->GetScriptableInfo();
     if (siProto && siProto->GetCallback() == sciWrapper.GetCallback()) {
         wrapper->mScriptableInfo = siProto;
+        // XPCNativeScriptableShared instances live in a map, and are
+        // GCed, but XPCNativeScriptableInfo is per-instance and must be
+        // manually managed. If we're switching over to that of the proto, we
+        // need to destroy the one we've allocated, and also null out the
+        // AutoMarkingPtr, so that it doesn't try to mark garbage data.
         delete si;
+        si = nullptr;
     } else {
         wrapper->mScriptableInfo = si;
     }
 
     // Set the JS object to the global we already created.
     wrapper->mFlatJSObject = global;
+    wrapper->mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
     // Set the private to the XPCWrappedNative.
     JS_SetPrivate(global, wrapper);
@@ -757,11 +764,10 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                                    XPCWrappedNativeProto* aProto)
     : mMaybeProto(aProto),
       mSet(aProto->GetSet()),
-      mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
-      mScriptableInfo(nullptr),
-      mWrapperWord(0)
+      mScriptableInfo(nullptr)
 {
     mIdentity = aIdentity.get();
+    mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
     NS_ASSERTION(mMaybeProto, "bad ctor param");
     NS_ASSERTION(mSet, "bad ctor param");
@@ -776,11 +782,10 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
 
     : mMaybeScope(TagScope(aScope)),
       mSet(aSet),
-      mFlatJSObject(INVALID_OBJECT), // non-null to pass IsValid() test
-      mScriptableInfo(nullptr),
-      mWrapperWord(0)
+      mScriptableInfo(nullptr)
 {
     mIdentity = aIdentity.get();
+    mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
     NS_ASSERTION(aScope, "bad ctor param");
     NS_ASSERTION(aSet, "bad ctor param");
@@ -794,8 +799,6 @@ XPCWrappedNative::~XPCWrappedNative()
 
     Destroy();
 }
-
-static const intptr_t WRAPPER_WORD_POISON = 0xa8a8a8a8;
 
 void
 XPCWrappedNative::Destroy()
@@ -835,14 +838,14 @@ XPCWrappedNative::Destroy()
      * The only time GetRuntime() will be NULL is if Destroy is called a second
      * time on a wrapped native. Since we already unregistered the pointer the
      * first time, there's no need to unregister again. Unregistration is safe
-     * the first time because mWrapperWord isn't used afterwards.
+     * the first time because mWrapper isn't used afterwards.
      */
     if (XPCJSRuntime *rt = GetRuntime()) {
         if (IsIncrementalBarrierNeeded(rt->Runtime()))
             IncrementalObjectBarrier(GetWrapperPreserveColor());
-        mWrapperWord = WRAPPER_WORD_POISON;
+        mWrapper.setToCrashOnTouch();
     } else {
-        MOZ_ASSERT(mWrapperWord == WRAPPER_WORD_POISON);
+        MOZ_ASSERT(mWrapper.isSetToCrashOnTouch());
     }
 
     mMaybeScope = nullptr;
@@ -1033,9 +1036,12 @@ XPCWrappedNative::Init(HandleObject parent,
     }
 
     mFlatJSObject = JS_NewObject(cx, jsclazz, protoJSObject, parent);
-    if (!mFlatJSObject)
+    if (!mFlatJSObject) {
+        mFlatJSObject.unsetFlags(FLAT_JS_OBJECT_VALID);
         return false;
+    }
 
+    mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
     JS_SetPrivate(mFlatJSObject, this);
 
     return FinishInit();
@@ -1075,8 +1081,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(XPCWrappedNative)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPConnectWrappedNative)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-NS_IMPL_THREADSAFE_ADDREF(XPCWrappedNative)
-NS_IMPL_THREADSAFE_RELEASE(XPCWrappedNative)
+NS_IMPL_ADDREF(XPCWrappedNative)
+NS_IMPL_RELEASE(XPCWrappedNative)
 
 /*
  *  Wrapped Native lifetime management is messy!
@@ -1179,8 +1185,8 @@ XPCWrappedNative::FlatJSObjectFinalized()
     if (cache)
         cache->ClearWrapper();
 
-    // This makes IsValid return false from now on...
     mFlatJSObject = nullptr;
+    mFlatJSObject.unsetFlags(FLAT_JS_OBJECT_VALID);
 
     NS_ASSERTION(mIdentity, "bad pointer!");
 #ifdef XP_WIN
@@ -1227,7 +1233,8 @@ XPCWrappedNative::SystemIsBeingShutDown()
 
     // short circuit future finalization
     JS_SetPrivate(mFlatJSObject, nullptr);
-    mFlatJSObject = nullptr; // This makes 'IsValid()' return false.
+    mFlatJSObject = nullptr;
+    mFlatJSObject.unsetFlags(FLAT_JS_OBJECT_VALID);
 
     XPCWrappedNativeProto* proto = GetProto();
 
@@ -1472,7 +1479,10 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
                 MOZ_CRASH();
         }
 
+        MOZ_ASSERT(flat);
         wrapper->mFlatJSObject = flat;
+        wrapper->mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
+
         if (cache) {
             bool preserving = cache->PreservingWrapper();
             cache->SetPreservingWrapper(false);
@@ -1989,7 +1999,7 @@ class CallMethodHelper
                               nsID* result) const;
 
     JS_ALWAYS_INLINE JSBool
-    GetOutParamSource(uint8_t paramIndex, jsval* srcp) const;
+    GetOutParamSource(uint8_t paramIndex, MutableHandleValue srcp) const;
 
     JS_ALWAYS_INLINE JSBool
     GatherAndConvertResults();
@@ -2245,7 +2255,7 @@ CallMethodHelper::GetInterfaceTypeFromParam(uint8_t paramIndex,
 }
 
 JSBool
-CallMethodHelper::GetOutParamSource(uint8_t paramIndex, jsval* srcp) const
+CallMethodHelper::GetOutParamSource(uint8_t paramIndex, MutableHandleValue srcp) const
 {
     const nsXPTParamInfo& paramInfo = mMethodInfo->GetParam(paramIndex);
 
@@ -2344,7 +2354,7 @@ CallMethodHelper::GatherAndConvertResults()
             NS_ASSERTION(mArgv[i].isObject(), "out var is not object");
             if (!JS_SetPropertyById(mCallContext,
                                     &mArgv[i].toObject(),
-                                    mIdxValueId, v.address())) {
+                                    mIdxValueId, v)) {
                 ThrowBadParam(NS_ERROR_XPC_CANT_SET_OUT_VAL, i, mCallContext);
                 return false;
             }
@@ -2525,7 +2535,7 @@ CallMethodHelper::ConvertIndependentParam(uint8_t i)
     //
     // This is a no-op for 'in' params.
     RootedValue src(mCallContext);
-    if (!GetOutParamSource(i, src.address()))
+    if (!GetOutParamSource(i, &src))
         return false;
 
     // All that's left to do is value conversion. Bail early if we don't need
@@ -2630,7 +2640,7 @@ CallMethodHelper::ConvertDependentParam(uint8_t i)
     //
     // This is a no-op for 'in' params.
     RootedValue src(mCallContext);
-    if (!GetOutParamSource(i, src.address()))
+    if (!GetOutParamSource(i, &src))
         return false;
 
     // All that's left to do is value conversion. Bail early if we don't need
@@ -2934,7 +2944,7 @@ NS_IMETHODIMP XPCWrappedNative::DebugDump(int16_t depth)
         else
             XPC_LOG_ALWAYS(("mSet @ %x", mSet));
 
-        XPC_LOG_ALWAYS(("mFlatJSObject of %x", mFlatJSObject));
+        XPC_LOG_ALWAYS(("mFlatJSObject of %x", mFlatJSObject.getPtr()));
         XPC_LOG_ALWAYS(("mIdentity of %x", mIdentity));
         XPC_LOG_ALWAYS(("mScriptableInfo @ %x", mScriptableInfo));
 
@@ -3375,7 +3385,7 @@ void DEBUG_ReportShadowedMembers(XPCNativeSet* set,
 }
 #endif
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(XPCJSObjectHolder, nsIXPConnectJSObjectHolder)
+NS_IMPL_ISUPPORTS1(XPCJSObjectHolder, nsIXPConnectJSObjectHolder)
 
 JSObject*
 XPCJSObjectHolder::GetJSObject()
@@ -3399,7 +3409,7 @@ void
 XPCJSObjectHolder::TraceJS(JSTracer *trc)
 {
     JS_SET_TRACING_DETAILS(trc, GetTraceName, this, 0);
-    JS_CallObjectTracer(trc, &mJSObj, "XPCJSObjectHolder::mJSObj");
+    JS_CallHeapObjectTracer(trc, &mJSObj, "XPCJSObjectHolder::mJSObj");
 }
 
 // static

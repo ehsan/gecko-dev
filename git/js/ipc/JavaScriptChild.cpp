@@ -271,6 +271,8 @@ JavaScriptChild::AnswerDelete(const ObjectId &objId, const nsString &id, ReturnS
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
 
+    *success = false;
+
     RootedObject obj(cx, findObject(objId));
     if (!obj)
         return false;
@@ -299,6 +301,8 @@ JavaScriptChild::AnswerHas(const ObjectId &objId, const nsString &id, ReturnStat
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
 
+    *bp = false;
+
     RootedObject obj(cx, findObject(objId));
     if (!obj)
         return false;
@@ -322,6 +326,8 @@ JavaScriptChild::AnswerHasOwn(const ObjectId &objId, const nsString &id, ReturnS
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
+
+    *bp = false;
 
     RootedObject obj(cx, findObject(objId));
     if (!obj)
@@ -366,7 +372,7 @@ JavaScriptChild::AnswerGet(const ObjectId &objId, const ObjectId &receiverId, co
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    JS::Value val;
+    JS::Rooted<JS::Value> val(cx);
     if (!JS_ForwardGetPropertyTo(cx, obj, internedId, receiver, &val))
         return fail(cx, rs);
 
@@ -408,7 +414,7 @@ JavaScriptChild::AnswerSet(const ObjectId &objId, const ObjectId &receiverId, co
     if (!toValue(cx, value, &val))
         return fail(cx, rs);
 
-    if (!JS_SetPropertyById(cx, obj, internedId, val.address()))
+    if (!JS_SetPropertyById(cx, obj, internedId, val))
         return fail(cx, rs);
 
     if (!toVariant(cx, val, result))
@@ -434,7 +440,7 @@ JavaScriptChild::AnswerIsExtensible(const ObjectId &objId, ReturnStatus *rs, boo
         return fail(cx, rs);
 
     *result = !!extensible;
-    return true;
+    return ok(rs);
 }
 
 bool
@@ -488,7 +494,7 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
     uint32_t oldOpts =
         JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
-    jsval rval;
+    RootedValue rval(cx);
     bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
 
     JS_SetOptions(cx, oldOpts);
@@ -510,7 +516,7 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
     for (size_t i = 0; i < outobjects.length(); i++) {
         RootedObject obj(cx, &outobjects[i].toObject());
 
-        jsval v;
+        RootedValue v(cx);
         JSBool found;
         if (JS_HasProperty(cx, obj, "value", &found)) {
             if (!JS_GetProperty(cx, obj, "value", &v))
@@ -548,7 +554,6 @@ JavaScriptChild::AnswerObjectClassIs(const ObjectId &objId, const uint32_t &clas
     JSAutoCompartment comp(cx, obj);
 
     *result = js_ObjectClassIs(cx, obj, (js::ESClassValue)classValue);
-
     return true;
 }
 
@@ -588,7 +593,7 @@ JavaScriptChild::AnswerGetPropertyNames(const ObjectId &objId, const uint32_t &f
     for (size_t i = 0; i < props.length(); i++) {
         nsString name;
         if (!convertIdToGeckoString(cx, props.handleAt(i), &name))
-            return false;
+            return fail(cx, rs);
 
         names->AppendElement(name);
     }
@@ -602,6 +607,8 @@ JavaScriptChild::AnswerInstanceOf(const ObjectId &objId, const JSIID &iid, Retur
 {
     AutoSafeJSContext cx;
     JSAutoRequest request(cx);
+
+    *instanceof = false;
 
     RootedObject obj(cx, findObject(objId));
     if (!obj)

@@ -25,7 +25,6 @@
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
-
 #include "vm/ObjectImpl.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
@@ -1011,10 +1010,6 @@ class JSObject : public js::ObjectImpl
         return *static_cast<const T *>(this);
     }
 
-    /* Subtypes of Proxy. */
-    inline bool isWrapper()                 const;
-    inline bool isCrossCompartmentWrapper() const;
-
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_OBJECT; }
 
 #ifdef DEBUG
@@ -1023,12 +1018,12 @@ class JSObject : public js::ObjectImpl
 
   private:
     static void staticAsserts() {
-        MOZ_STATIC_ASSERT(sizeof(JSObject) == sizeof(js::shadow::Object),
-                          "shadow interface must match actual interface");
-        MOZ_STATIC_ASSERT(sizeof(JSObject) == sizeof(js::ObjectImpl),
-                          "JSObject itself must not have any fields");
-        MOZ_STATIC_ASSERT(sizeof(JSObject) % sizeof(js::Value) == 0,
-                          "fixed slots after an object must be aligned");
+        static_assert(sizeof(JSObject) == sizeof(js::shadow::Object),
+                      "shadow interface must match actual interface");
+        static_assert(sizeof(JSObject) == sizeof(js::ObjectImpl),
+                      "JSObject itself must not have any fields");
+        static_assert(sizeof(JSObject) % sizeof(js::Value) == 0,
+                      "fixed slots after an object must be aligned");
     }
 
     JSObject() MOZ_DELETE;

@@ -7,7 +7,6 @@
 #include "mozilla/layers/ImageBridgeChild.h"
 
 #include "ImageContainer.h"
-#include "GonkIOSurfaceImage.h"
 #include "GrallocImages.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/ipc/CrossProcessMutex.h"
@@ -54,7 +53,7 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
   nsRefPtr<Image> img;
 #ifdef MOZ_WIDGET_GONK
   if (FormatInList(aFormats, aNumFormats, GRALLOC_PLANAR_YCBCR)) {
-    img = new GrallocPlanarYCbCrImage();
+    img = new GrallocImage();
     return img.forget();
   }
 #endif
@@ -70,12 +69,6 @@ ImageFactory::CreateImage(const ImageFormat *aFormats,
     img = new SharedTextureImage();
     return img.forget();
   }
-#ifdef MOZ_WIDGET_GONK
-  if (FormatInList(aFormats, aNumFormats, GONK_IO_SURFACE)) {
-    img = new GonkIOSurfaceImage();
-    return img.forget();
-  }
-#endif
 #ifdef XP_WIN
   if (FormatInList(aFormats, aNumFormats, D3D9_RGB32_TEXTURE)) {
     img = new D3D9SurfaceImage();
@@ -130,7 +123,7 @@ ImageContainer::ImageContainer(int flag)
   if (flag == ENABLE_ASYNC && ImageBridgeChild::IsCreated()) {
     // the refcount of this ImageClient is 1. we don't use a RefPtr here because the refcount
     // of this class must be done on the ImageBridge thread.
-    mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_BUFFERED).drop();
+    mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_SINGLE).drop();
     MOZ_ASSERT(mImageClient);
   }
 }

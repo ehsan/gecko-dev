@@ -8,6 +8,7 @@
 
 #include "ContentHost.h"
 #include "ClientTiledThebesLayer.h" // for BasicTiledLayerBuffer
+#include "mozilla/layers/TextureHost.h"
 
 namespace mozilla {
 namespace layers {
@@ -202,7 +203,7 @@ public:
 
   virtual void Attach(Layer* aLayer, Compositor* aCompositor) MOZ_OVERRIDE;
 
-  virtual void Dump(FILE* aFile=NULL,
+  virtual void Dump(FILE* aFile=nullptr,
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 

@@ -5,7 +5,7 @@
 #ifndef mozilla_net_DashboardTypes_h_
 #define mozilla_net_DashboardTypes_h_
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
@@ -20,6 +20,11 @@ struct SocketInfo
     uint16_t  port;
     bool      active;
     bool      tcp;
+};
+
+struct HalfOpenSockets
+{
+    bool speculative;
 };
 
 struct DNSCacheEntries
@@ -45,6 +50,7 @@ struct HttpRetParams
     nsCString host;
     nsTArray<HttpConnInfo>   active;
     nsTArray<HttpConnInfo>   idle;
+    nsTArray<HalfOpenSockets> halfOpens;
     uint32_t  counter;
     uint16_t  port;
     bool      spdy;

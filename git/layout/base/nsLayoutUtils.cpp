@@ -384,6 +384,22 @@ nsLayoutUtils::AnimatedImageLayersEnabled()
   return sAnimatedImageLayersEnabled;
 }
 
+bool
+nsLayoutUtils::CSSFiltersEnabled()
+{
+  static bool sCSSFiltersEnabled;
+  static bool sCSSFiltersPrefCached = false;
+
+  if (!sCSSFiltersPrefCached) {
+    sCSSFiltersPrefCached = true;
+    Preferences::AddBoolVarCache(&sCSSFiltersEnabled,
+                                 "layout.css.filters.enabled",
+                                 false);
+  }
+
+  return sCSSFiltersEnabled;
+}
+
 void
 nsLayoutUtils::UnionChildOverflow(nsIFrame* aFrame,
                                   nsOverflowAreas& aOverflowAreas)
@@ -451,6 +467,23 @@ nsLayoutUtils::FindContentFor(ViewID aId)
   } else {
     return nullptr;
   }
+}
+
+nsIScrollableFrame*
+nsLayoutUtils::FindScrollableFrameFor(ViewID aId)
+{
+  nsIContent* content = FindContentFor(aId);
+  if (!content) {
+    return nullptr;
+  }
+
+  nsIFrame* scrolledFrame = content->GetPrimaryFrame();
+  if (scrolledFrame && content->OwnerDoc()->GetRootElement() == content) {
+    // The content is the root element of a subdocument, so return the root scrollable
+    // for the subdocument.
+    scrolledFrame = scrolledFrame->PresContext()->PresShell()->GetRootScrollFrame();
+  }
+  return scrolledFrame ? scrolledFrame->GetScrollTargetFrame() : nullptr;
 }
 
 bool
@@ -1580,9 +1613,15 @@ TransformGfxRectFromAncestor(nsIFrame *aFrame,
 static gfxRect
 TransformGfxRectToAncestor(nsIFrame *aFrame,
                            const gfxRect &aRect,
-                           const nsIFrame *aAncestor)
+                           const nsIFrame *aAncestor,
+                           bool* aPreservesAxisAlignedRectangles = nullptr)
 {
   gfx3DMatrix ctm = nsLayoutUtils::GetTransformToAncestor(aFrame, aAncestor);
+  if (aPreservesAxisAlignedRectangles) {
+    gfxMatrix matrix2d;
+    *aPreservesAxisAlignedRectangles =
+      ctm.Is2D(&matrix2d) && matrix2d.PreservesAxisAlignedRectangles();
+  }
   return ctm.TransformBounds(aRect);
 }
 
@@ -1650,7 +1689,8 @@ nsLayoutUtils::TransformAncestorRectToFrame(nsIFrame* aFrame,
 nsRect
 nsLayoutUtils::TransformFrameRectToAncestor(nsIFrame* aFrame,
                                             const nsRect& aRect,
-                                            const nsIFrame* aAncestor)
+                                            const nsIFrame* aAncestor,
+                                            bool* aPreservesAxisAlignedRectangles /* = nullptr */)
 {
   nsSVGTextFrame2* text = GetContainingSVGTextFrame(aFrame);
 
@@ -1660,12 +1700,16 @@ nsLayoutUtils::TransformFrameRectToAncestor(nsIFrame* aFrame,
   if (text) {
     result = text->TransformFrameRectFromTextChild(aRect, aFrame);
     result = TransformGfxRectToAncestor(text, result, aAncestor);
+    // TransformFrameRectFromTextChild could involve any kind of transform, we
+    // could drill down into it to get an answer out of it but we don't yet.
+    if (aPreservesAxisAlignedRectangles)
+      *aPreservesAxisAlignedRectangles = false;
   } else {
     result = gfxRect(NSAppUnitsToFloatPixels(aRect.x, srcAppUnitsPerDevPixel),
                      NSAppUnitsToFloatPixels(aRect.y, srcAppUnitsPerDevPixel),
                      NSAppUnitsToFloatPixels(aRect.width, srcAppUnitsPerDevPixel),
                      NSAppUnitsToFloatPixels(aRect.height, srcAppUnitsPerDevPixel));
-    result = TransformGfxRectToAncestor(aFrame, result, aAncestor);
+    result = TransformGfxRectToAncestor(aFrame, result, aAncestor, aPreservesAxisAlignedRectangles);
   }
 
   float destAppUnitsPerDevPixel = aAncestor->PresContext()->AppUnitsPerDevPixel();
@@ -1786,15 +1830,12 @@ nsLayoutUtils::GetRemoteContentIds(nsIFrame* aFrame,
 }
 
 nsIFrame*
-nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
-                                bool aShouldIgnoreSuppression,
-                                bool aIgnoreRootScrollFrame)
+nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt, uint32_t aFlags)
 {
   PROFILER_LABEL("nsLayoutUtils", "GetFrameForPoint");
   nsresult rv;
   nsAutoTArray<nsIFrame*,8> outFrames;
-  rv = GetFramesForArea(aFrame, nsRect(aPt, nsSize(1, 1)), outFrames,
-                        aShouldIgnoreSuppression, aIgnoreRootScrollFrame);
+  rv = GetFramesForArea(aFrame, nsRect(aPt, nsSize(1, 1)), outFrames, aFlags);
   NS_ENSURE_SUCCESS(rv, nullptr);
   return outFrames.Length() ? outFrames.ElementAt(0) : nullptr;
 }
@@ -1802,20 +1843,19 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
 nsresult
 nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
                                 nsTArray<nsIFrame*> &aOutFrames,
-                                bool aShouldIgnoreSuppression,
-                                bool aIgnoreRootScrollFrame)
+                                uint32_t aFlags)
 {
   PROFILER_LABEL("nsLayoutUtils","GetFramesForArea");
   nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::EVENT_DELIVERY,
-		                       false);
+                               false);
   nsDisplayList list;
   nsRect target(aRect);
 
-  if (aShouldIgnoreSuppression) {
+  if (aFlags & IGNORE_PAINT_SUPPRESSION) {
     builder.IgnorePaintSuppression();
   }
 
-  if (aIgnoreRootScrollFrame) {
+  if (aFlags & IGNORE_ROOT_SCROLL_FRAME) {
     nsIFrame* rootScrollFrame =
       aFrame->PresContext()->PresShell()->GetRootScrollFrame();
     if (rootScrollFrame) {
@@ -5076,7 +5116,7 @@ nsLayoutUtils::PostRestyleEvent(Element* aElement,
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
     if (presShell) {
-      presShell->FrameConstructor()->PostRestyleEvent(
+      presShell->GetPresContext()->RestyleManager()->PostRestyleEvent(
         aElement, aRestyleHint, aMinChangeHint);
     }
   }

@@ -8,6 +8,7 @@
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
+#include "gfx2DGlue.h"
 
 namespace mozilla {
 namespace gl {
@@ -20,6 +21,25 @@ TextureImage::Create(GLContext* gl,
                      TextureImage::Flags flags)
 {
     return gl->CreateTextureImage(size, contentType, wrapMode, flags);
+}
+
+bool
+TextureImage::UpdateFromDataSource(gfx::DataSourceSurface *aSurface,
+                                   const nsIntRegion* aDestRegion,
+                                   const gfx::IntPoint* aSrcPoint)
+{
+    nsIntRegion destRegion = aDestRegion ? *aDestRegion
+                                         : nsIntRect(0, 0,
+                                                     aSurface->GetSize().width,
+                                                     aSurface->GetSize().height);
+    nsIntPoint thebesSrcPoint = aSrcPoint ? nsIntPoint(aSrcPoint->x, aSrcPoint->y)
+                                          : nsIntPoint(0, 0);
+    RefPtr<gfxASurface> thebesSurf
+        = new gfxImageSurface(aSurface->GetData(),
+                              ThebesIntSize(aSurface->GetSize()),
+                              aSurface->Stride(),
+                              SurfaceFormatToImageFormat(aSurface->GetFormat()));
+    return DirectUpdate(thebesSurf, destRegion, thebesSrcPoint);
 }
 
 BasicTextureImage::~BasicTextureImage()
@@ -56,7 +76,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     nsIntRect rgnSize = mUpdateRegion.GetBounds();
     if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(rgnSize)) {
         NS_ERROR("update outside of image");
-        return NULL;
+        return nullptr;
     }
 
     ImageFormat format =
@@ -66,8 +86,8 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
         GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
 
     if (!mUpdateSurface || mUpdateSurface->CairoStatus()) {
-        mUpdateSurface = NULL;
-        return NULL;
+        mUpdateSurface = nullptr;
+        return nullptr;
     }
 
     mUpdateSurface->SetDeviceOffset(gfxPoint(-rgnSize.x, -rgnSize.y));
@@ -182,7 +202,7 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            NULL);
+                            nullptr);
 
     mTextureState = Allocated;
     mSize = aSize;

@@ -1277,6 +1277,15 @@ nsComputedDOMStyle::DoGetFontSizeAdjust()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetOSXFontSmoothing()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(nsCSSProps::ValueToKeywordEnum(StyleFont()->mFont.smoothing,
+                                               nsCSSProps::kFontSmoothingKTable));
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetFontStretch()
 {
   nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
@@ -1710,16 +1719,8 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(" ");
     }
-    tmpVal->SetNumber(aGradient->mAngle.GetAngleValue());
-    tmpVal->GetCssText(tokenString);
+    SetCssTextToCoord(tokenString, aGradient->mAngle);
     aString.Append(tokenString);
-    switch (aGradient->mAngle.GetUnit()) {
-    case eStyleUnit_Degree: aString.AppendLiteral("deg"); break;
-    case eStyleUnit_Grad: aString.AppendLiteral("grad"); break;
-    case eStyleUnit_Radian: aString.AppendLiteral("rad"); break;
-    case eStyleUnit_Turn: aString.AppendLiteral("turn"); break;
-    default: NS_NOTREACHED("unrecognized angle unit");
-    }
     needSep = true;
   }
 
@@ -2957,8 +2958,8 @@ nsComputedDOMStyle::DoGetDirection()
   return val;
 }
 
-MOZ_STATIC_ASSERT(NS_STYLE_UNICODE_BIDI_NORMAL == 0,
-                  "unicode-bidi style constants not as expected");
+static_assert(NS_STYLE_UNICODE_BIDI_NORMAL == 0,
+              "unicode-bidi style constants not as expected");
 
 CSSValue*
 nsComputedDOMStyle::DoGetUnicodeBidi()
@@ -3733,9 +3734,9 @@ nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide)
   return val;
 }
 
-MOZ_STATIC_ASSERT(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
-                  NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
-                  "box side constants not as expected for NS_OPPOSITE_SIDE");
+static_assert(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
+              NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
+              "box side constants not as expected for NS_OPPOSITE_SIDE");
 #define NS_OPPOSITE_SIDE(s_) mozilla::css::Side(((s_) + 2) & 3)
 
 CSSValue*
@@ -4007,6 +4008,23 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         SetValueToCalc(calc, aValue);
       }
       break;
+
+    case eStyleUnit_Degree:
+      aValue->SetDegree(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Grad:
+      aValue->SetGrad(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Radian:
+      aValue->SetRadian(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Turn:
+      aValue->SetTurn(aCoord.GetAngleValue());
+      break;
+
     default:
       NS_ERROR("Can't handle this unit");
       break;
@@ -4468,19 +4486,99 @@ nsComputedDOMStyle::DoGetClipPath()
   return val;
 }
 
+void
+nsComputedDOMStyle::SetCssTextToCoord(nsAString& aCssText,
+                                      const nsStyleCoord& aCoord)
+{
+  nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+  bool clampNegativeCalc = true;
+  SetValueToCoord(value, aCoord, clampNegativeCalc);
+  value->GetCssText(aCssText);
+  delete value;
+}
+
+static void
+GetFilterFunctionName(nsAString& aString, nsStyleFilter::Type mType)
+{
+  switch (mType) {
+    case nsStyleFilter::Type::eBlur:
+      aString.AssignLiteral("blur(");
+      break;
+    case nsStyleFilter::Type::eBrightness:
+      aString.AssignLiteral("brightness(");
+      break;
+    case nsStyleFilter::Type::eContrast:
+      aString.AssignLiteral("contrast(");
+      break;
+    case nsStyleFilter::Type::eGrayscale:
+      aString.AssignLiteral("grayscale(");
+      break;
+    case nsStyleFilter::Type::eHueRotate:
+      aString.AssignLiteral("hue-rotate(");
+      break;
+    case nsStyleFilter::Type::eInvert:
+      aString.AssignLiteral("invert(");
+      break;
+    case nsStyleFilter::Type::eOpacity:
+      aString.AssignLiteral("opacity(");
+      break;
+    case nsStyleFilter::Type::eSaturate:
+      aString.AssignLiteral("saturate(");
+      break;
+    case nsStyleFilter::Type::eSepia:
+      aString.AssignLiteral("sepia(");
+      break;
+    default:
+      NS_NOTREACHED("unrecognized filter type");
+  }
+}
+
+nsROCSSPrimitiveValue*
+nsComputedDOMStyle::CreatePrimitiveValueForStyleFilter(
+  const nsStyleFilter& aStyleFilter)
+{
+  nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+
+  // Handle url().
+  if (nsStyleFilter::Type::eURL == aStyleFilter.mType) {
+    value->SetURI(aStyleFilter.mURL);
+    return value;
+  }
+
+  // Filter function name and opening parenthesis.
+  nsAutoString filterFunctionString;
+  GetFilterFunctionName(filterFunctionString, aStyleFilter.mType);
+
+  // Filter function argument.
+  nsAutoString argumentString;
+  SetCssTextToCoord(argumentString, aStyleFilter.mFilterParameter);
+  filterFunctionString.Append(argumentString);
+
+  // Filter function closing parenthesis.
+  filterFunctionString.AppendLiteral(")");
+
+  value->SetString(filterFunctionString);
+  return value;
+}
+
 CSSValue*
 nsComputedDOMStyle::DoGetFilter()
 {
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  const nsTArray<nsStyleFilter>& filters = StyleSVGReset()->mFilters;
 
-  const nsStyleSVGReset* svg = StyleSVGReset();
+  if (filters.IsEmpty()) {
+    nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+    value->SetIdent(eCSSKeyword_none);
+    return value;
+  }
 
-  if (svg->mFilter)
-    val->SetURI(svg->mFilter);
-  else
-    val->SetIdent(eCSSKeyword_none);
-
-  return val;
+  nsDOMCSSValueList* valueList = GetROCSSValueList(false);
+  for(uint32_t i = 0; i < filters.Length(); i++) {
+    nsROCSSPrimitiveValue* value =
+      CreatePrimitiveValueForStyleFilter(filters[i]);
+    valueList->AppendCSSValue(value);
+  }
+  return valueList;
 }
 
 CSSValue*
@@ -5048,6 +5146,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(hyphens,                       Hyphens),
     COMPUTED_STYLE_MAP_ENTRY(image_region,                  ImageRegion),
     COMPUTED_STYLE_MAP_ENTRY(orient,                        Orient),
+    COMPUTED_STYLE_MAP_ENTRY(osx_font_smoothing,            OSXFontSmoothing),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_bottomLeft, OutlineRadiusBottomLeft),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_bottomRight,OutlineRadiusBottomRight),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topLeft,    OutlineRadiusTopLeft),

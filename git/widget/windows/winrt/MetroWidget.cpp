@@ -23,6 +23,8 @@
 #include "Layers.h"
 #include "ClientLayerManager.h"
 #include "BasicLayers.h"
+#include "FrameMetrics.h"
+#include "nsIObserver.h"
 #include "Windows.Graphics.Display.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -137,6 +139,9 @@ namespace {
 
 NS_IMPL_ISUPPORTS_INHERITED0(MetroWidget, nsBaseWidget)
 
+
+nsRefPtr<mozilla::layers::APZCTreeManager> MetroWidget::sAPZC;
+
 MetroWidget::MetroWidget() :
   mTransparencyMode(eTransparencyOpaque),
   mWnd(NULL),
@@ -161,6 +166,7 @@ MetroWidget::~MetroWidget()
 
   // Global shutdown
   if (!gInstanceCount) {
+    MetroWidget::sAPZC = nullptr;
     nsTextStore::Terminate();
   } // !gInstanceCount
 }
@@ -244,9 +250,29 @@ MetroWidget::Destroy()
     return NS_OK;
   Log("[%X] %s mWnd=%X type=%d", this, __FUNCTION__, mWnd, mWindowType);
   mOnDestroyCalled = true;
+
+  nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
+
   RemoveSubclass();
+  NotifyWindowDestroyed();
+
+  // Prevent the widget from sending additional events.
+  mWidgetListener = nullptr;
+  mAttachedWidgetListener = nullptr;
+
+  // Release references to children, device context, toolkit, and app shell.
+  nsBaseWidget::Destroy();
+  nsBaseWidget::OnDestroy();
+
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
+
+  mLayerManager = nullptr;
   mView = nullptr;
   mIdleService = nullptr;
+  mWnd = NULL;
+
   return NS_OK;
 }
 
@@ -761,6 +787,72 @@ MetroWidget::ShouldUseBasicManager()
   return (mWindowType != eWindowType_toplevel);
 }
 
+bool
+MetroWidget::ShouldUseAPZC()
+{
+  const char* kPrefName = "layers.async-pan-zoom.enabled";
+  return ShouldUseOffMainThreadCompositing() &&
+         Preferences::GetBool(kPrefName, false);
+}
+
+class MetroCompositorParent : public CompositorParent,
+                              public nsIObserver
+{
+public:
+  NS_DECL_ISUPPORTS
+  MetroCompositorParent(MetroWidget* aMetroWidget, bool aRenderToEGLSurface,
+                        int aSurfaceWidth, int aSurfaceHeight) :
+    CompositorParent(aMetroWidget, aRenderToEGLSurface,
+                     aSurfaceHeight, aSurfaceHeight),
+    mMetroWidget(aMetroWidget)
+  {
+    nsresult rv;
+    nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_SUCCEEDED(rv)) {
+      observerService->AddObserver(this, "viewport-needs-updating", false);
+    }
+
+    CompositorParent::SetControllerForLayerTree(RootLayerTreeId(), aMetroWidget);
+    MetroWidget::sAPZC = CompositorParent::GetAPZCTreeManager(RootLayerTreeId());
+  }
+
+  NS_IMETHODIMP Observe(nsISupports *subject, const char *topic, const PRUnichar *data)
+  {
+    LogFunction();
+
+    NS_ENSURE_ARG_POINTER(topic);
+    if (!strcmp(topic, "viewport-needs-updating")) {
+      Layer* targetLayer = GetLayerManager()->GetPrimaryScrollableLayer();
+      if (targetLayer && targetLayer->AsContainerLayer() && MetroWidget::sAPZC) {
+        FrameMetrics frameMetrics =
+          targetLayer->AsContainerLayer()->GetFrameMetrics();
+        frameMetrics.mDisplayPort =
+          AsyncPanZoomController::CalculatePendingDisplayPort(frameMetrics,
+                                                              mozilla::gfx::Point(0.0f, 0.0f),
+                                                              mozilla::gfx::Point(0.0f, 0.0f),
+                                                              0.0);
+        mMetroWidget->RequestContentRepaint(frameMetrics);
+      }
+    }
+    return NS_OK;
+  }
+
+protected:
+  nsCOMPtr<MetroWidget> mMetroWidget;
+};
+
+NS_IMPL_ISUPPORTS1(MetroCompositorParent, nsIObserver)
+
+
+CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
+{
+  if (ShouldUseAPZC()) {
+    return new MetroCompositorParent(this, true, aSurfaceWidth, aSurfaceHeight);
+  } else {
+    return nsBaseWidget::NewCompositorParent(aSurfaceWidth, aSurfaceHeight);
+  }
+}
+
 LayerManager*
 MetroWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
                              LayersBackend aBackendHint,
@@ -1245,4 +1337,128 @@ MetroWidget::HasPendingInputEvent()
   if (HIWORD(GetQueueStatus(QS_INPUT)))
     return true;
   return false;
+}
+
+// GeckoContentController interface impl
+
+#include "nsIBrowserDOMWindow.h"
+#include "nsIWebNavigation.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDOMWindow.h"
+#include "nsIDOMChromeWindow.h"
+#include "nsIWindowMediator.h"
+#include "nsIInterfaceRequestorUtils.h"
+
+class RequestContentRepaintEvent : public nsRunnable
+{
+public:
+    RequestContentRepaintEvent(const FrameMetrics& aFrameMetrics) : mFrameMetrics(aFrameMetrics)
+    {
+    }
+
+    NS_IMETHOD Run() {
+        // This event shuts down the worker thread and so must be main thread.
+        MOZ_ASSERT(NS_IsMainThread());
+
+        CSSToScreenScale resolution = mFrameMetrics.CalculateResolution();
+        CSSRect compositedRect = mFrameMetrics.CalculateCompositedRectInCssPixels();
+
+        NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ " \
+                                                    "  \"resolution\": %.2f, " \
+                                                    "  \"compositedRect\": { \"width\": %d, \"height\": %d }, " \
+                                                    "  \"displayPort\":    { \"x\": %d, \"y\": %d, \"width\": %d, \"height\": %d }, " \
+                                                    "  \"scrollTo\":       { \"x\": %d, \"y\": %d }" \
+                                                    "}",
+                                                    (float)(resolution.scale / mFrameMetrics.mDevPixelsPerCSSPixel.scale),
+                                                    (int)compositedRect.width,
+                                                    (int)compositedRect.height,
+                                                    (int)mFrameMetrics.mDisplayPort.x,
+                                                    (int)mFrameMetrics.mDisplayPort.y,
+                                                    (int)mFrameMetrics.mDisplayPort.width,
+                                                    (int)mFrameMetrics.mDisplayPort.height,
+                                                    (int)mFrameMetrics.mScrollOffset.x,
+                                                    (int)mFrameMetrics.mScrollOffset.y));
+
+        MetroUtils::FireObserver("apzc-request-content-repaint", data.get());
+        return NS_OK;
+    }
+protected:
+    const FrameMetrics mFrameMetrics;
+};
+
+void
+MetroWidget::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
+{
+  LogFunction();
+
+  // Send the result back to the main thread so that it can shutdown
+  nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics);
+  if (!NS_IsMainThread()) {
+    NS_DispatchToMainThread(r1);
+  } else {
+    r1->Run();
+  }
+}
+
+void
+MetroWidget::HandleDoubleTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleDoubleTap(aPoint);
+}
+
+void
+MetroWidget::HandleSingleTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleSingleTap(aPoint);
+}
+
+void
+MetroWidget::HandleLongTap(const CSSIntPoint& aPoint)
+{
+  LogFunction();
+
+  if (!mMetroInput) {
+    return;
+  }
+
+  mMetroInput->HandleLongTap(aPoint);
+}
+
+void
+MetroWidget::SendAsyncScrollDOMEvent(FrameMetrics::ViewID aScrollId, const CSSRect &aContentRect, const CSSSize &aScrollableSize)
+{
+  LogFunction();
+}
+
+void
+MetroWidget::PostDelayedTask(Task* aTask, int aDelayMs)
+{
+  LogFunction();
+  MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
+}
+
+void
+MetroWidget::HandlePanBegin()
+{
+  LogFunction();
+  MetroUtils::FireObserver("apzc-handle-pan-begin", L"");
+}
+
+void
+MetroWidget::HandlePanEnd()
+{
+  LogFunction();
+  MetroUtils::FireObserver("apzc-handle-pan-end", L"");
 }

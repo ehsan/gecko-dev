@@ -4,15 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ion/BaselineJIT.h"
+#include "ion/BaselineIC.h"
 
 #include "builtin/Eval.h"
 #include "ion/BaselineCompiler.h"
 #include "ion/BaselineHelpers.h"
-#include "ion/BaselineIC.h"
+#include "ion/BaselineJIT.h"
 #include "ion/IonLinker.h"
 #include "ion/IonSpewer.h"
 #include "ion/VMFunctions.h"
+
+#include "jsboolinlines.h"
 
 #include "vm/Interpreter-inl.h"
 
@@ -1662,7 +1664,7 @@ DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub,
     RootedValue rhsCopy(cx, rhs);
 
     // Perform the compare operation.
-    JSBool out;
+    bool out;
     switch(op) {
       case JSOP_LT:
         if (!LessThan(cx, &lhsCopy, &rhsCopy, &out))
@@ -2328,7 +2330,8 @@ ICToBool_Object::Compiler::generateStubCode(MacroAssembler &masm)
     masm.bind(&slowPath);
     masm.setupUnalignedABICall(1, scratch);
     masm.passABIArg(objReg);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, ObjectEmulatesUndefined));
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, js::EmulatesUndefined));
+    masm.convertBoolToInt32(ReturnReg, ReturnReg);
     masm.xor32(Imm32(1), ReturnReg);
     masm.tagValue(JSVAL_TYPE_BOOLEAN, ReturnReg, R0);
     EmitReturnFromIC(masm);
@@ -4743,7 +4746,7 @@ DoInFallback(JSContext *cx, ICIn_Fallback *stub, HandleValue key, HandleValue ob
 
     RootedObject obj(cx, &objValue.toObject());
 
-    JSBool cond = false;
+    bool cond = false;
     if (!OperatorIn(cx, key, obj, &cond))
         return false;
 
@@ -5509,7 +5512,36 @@ ICGetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     masm.push(BaselineStubReg);
     masm.pushBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
 
-    return tailCallVM(DoGetPropFallbackInfo, masm);
+    if (!tailCallVM(DoGetPropFallbackInfo, masm))
+        return false;
+
+    // What follows is bailout-only code for inlined scripted getters
+    // The return address pointed to by the baseline stack points here.
+    returnOffset_ = masm.currentOffset();
+
+    // Even though the fallback frame doesn't enter a stub frame, the CallScripted
+    // frame that we are emulating does. Again, we lie.
+    entersStubFrame_ = true;
+
+    leaveStubFrame(masm, true);
+
+    // When we get here, BaselineStubReg contains the ICGetProp_Fallback stub,
+    // which we can't use to enter the TypeMonitor IC, because it's a MonitoredFallbackStub
+    // instead of a MonitoredStub. So, we cheat.
+    masm.loadPtr(Address(BaselineStubReg, ICMonitoredFallbackStub::offsetOfFallbackMonitorStub()),
+                 BaselineStubReg);
+    EmitEnterTypeMonitorIC(masm, ICTypeMonitor_Fallback::offsetOfFirstMonitorStub());
+
+    return true;
+}
+
+bool
+ICGetProp_Fallback::Compiler::postGenerateStubCode(MacroAssembler &masm, Handle<IonCode *> code)
+{
+    CodeOffsetLabel offset(returnOffset_);
+    offset.fixup(&masm);
+    cx->compartment()->ionCompartment()->initBaselineGetPropReturnAddr(code->raw() + offset.offset());
+    return true;
 }
 
 bool
@@ -6348,7 +6380,33 @@ ICSetProp_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     masm.push(BaselineStubReg);
     masm.pushBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
 
-    return tailCallVM(DoSetPropFallbackInfo, masm);
+    if (!tailCallVM(DoSetPropFallbackInfo, masm))
+        return false;
+
+    // What follows is bailout-only code for inlined scripted getters
+    // The return address pointed to by the baseline stack points here.
+    returnOffset_ = masm.currentOffset();
+
+    // Even though the fallback frame doesn't enter a stub frame, the CallScripted
+    // frame that we are emulating does. Again, we lie.
+    entersStubFrame_ = true;
+
+    leaveStubFrame(masm, true);
+
+    // Retrieve the stashed initial argument from the caller's frame before returning
+    EmitUnstowICValues(masm, 1);
+    EmitReturnFromIC(masm);
+
+    return true;
+}
+
+bool
+ICSetProp_Fallback::Compiler::postGenerateStubCode(MacroAssembler &masm, Handle<IonCode *> code)
+{
+    CodeOffsetLabel offset(returnOffset_);
+    offset.fixup(&masm);
+    cx->compartment()->ionCompartment()->initBaselineSetPropReturnAddr(code->raw() + offset.offset());
+    return true;
 }
 
 bool
@@ -7672,7 +7730,7 @@ ICCall_ScriptedApplyArguments::Compiler::generateStubCode(MacroAssembler &masm)
     return true;
 }
 
-static JSBool
+static bool
 DoubleValueToInt32ForSwitch(Value *v)
 {
     double d = v->toDouble();
@@ -7728,7 +7786,7 @@ ICTableSwitch::Compiler::generateStubCode(MacroAssembler &masm)
         // int32.
         masm.mov(ReturnReg, scratch);
         masm.popValue(R0);
-        masm.branchTest32(Assembler::Zero, scratch, scratch, &outOfRange);
+        masm.branchIfFalseBool(scratch, &outOfRange);
         masm.unboxInt32(R0, key);
     }
     masm.jump(&isInt32);
@@ -8030,7 +8088,7 @@ DoInstanceOfFallback(JSContext *cx, ICInstanceOf_Fallback *stub,
 
     RootedObject obj(cx, &rhs.toObject());
 
-    JSBool cond = false;
+    bool cond = false;
     if (!HasInstance(cx, obj, lhs, &cond))
         return false;
 

@@ -16,8 +16,6 @@
 
 #include <string.h>
 
-#include "jstypes.h"
-#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -25,10 +23,12 @@
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
+#include "jstypes.h"
+#include "jsutil.h"
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "ion/AsmJS.h"
+#include "ion/AsmJSLink.h"
 #include "vm/Debugger.h"
 
 #include "jsatominlines.h"
@@ -3714,7 +3714,6 @@ MOZ_NEVER_INLINE static bool
 EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     StmtInfoBCE stmtInfo(cx);
-    ptrdiff_t catchJump = -1;
 
     /*
      * Push stmtInfo to track jumps-over-catches and gosubs-to-finally
@@ -3739,7 +3738,8 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     int depth = bce->stackDepth;
 
     /* Mark try location for decompilation, then emit try block. */
-    if (Emit1(cx, bce, JSOP_TRY) < 0)
+    ptrdiff_t noteIndex = NewSrcNote(cx, bce, SRC_TRY);
+    if (noteIndex < 0 || Emit1(cx, bce, JSOP_TRY) < 0)
         return false;
     ptrdiff_t tryStart = bce->offset();
     if (!EmitTree(cx, bce, pn->pn_kid1))
@@ -3754,9 +3754,14 @@ EmitTry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
     }
 
+    /* Source note points to the jump at the end of the try block. */
+    if (!SetSrcNoteOffset(cx, bce, noteIndex, 0, bce->offset() - tryStart + JSOP_TRY_LENGTH))
+        return false;
+
     /* Emit (hidden) jump over catch and/or finally. */
     if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
         return false;
+    ptrdiff_t catchJump = -1;
     if (EmitBackPatchOp(cx, bce, &catchJump) < 0)
         return false;
 
@@ -4461,12 +4466,10 @@ EmitFor(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top
 static JS_NEVER_INLINE bool
 EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
+    cx->maybePause();
+
     FunctionBox *funbox = pn->pn_funbox;
     RootedFunction fun(cx, funbox->function());
-    if (fun->isNative()) {
-        JS_ASSERT(IsAsmJSModuleNative(fun->native()));
-        return true;
-    }
     JS_ASSERT_IF(fun->isInterpretedLazy(), fun->lazyScript());
 
     /*
@@ -4489,71 +4492,44 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * case, if the lambda runs multiple times then CloneFunctionObject will
      * make a deep clone of its contents.
      */
-    bool singleton =
-        cx->isJSContext() &&
-        cx->asJSContext()->typeInferenceEnabled() &&
-        bce->script->compileAndGo &&
-        (bce->checkSingletonContext() ||
-         (!bce->isInLoop() &&
-          bce->parent &&
-          bce->parent->emittingRunOnceLambda));
-    if (!JSFunction::setTypeForScriptedFunction(cx, fun, singleton))
-        return false;
+    if (fun->isInterpreted()) {
+        bool singleton =
+            cx->isJSContext() &&
+            cx->asJSContext()->typeInferenceEnabled() &&
+            bce->script->compileAndGo &&
+            fun->isInterpreted() &&
+            (bce->checkSingletonContext() ||
+             (!bce->isInLoop() &&
+              bce->parent &&
+              bce->parent->emittingRunOnceLambda));
+        if (!JSFunction::setTypeForScriptedFunction(cx, fun, singleton))
+            return false;
 
-    if (fun->isInterpretedLazy()) {
-        if (!fun->lazyScript()->sourceObject()) {
-            JSObject *scope = bce->blockChain;
-            if (!scope && bce->sc->isFunctionBox())
-                scope = bce->sc->asFunctionBox()->function();
-            fun->lazyScript()->setParent(scope, bce->script->sourceObject(), bce->script->originPrincipals);
-        }
-    } else {
-        SharedContext *outersc = bce->sc;
-
-        if (outersc->isFunctionBox() && outersc->asFunctionBox()->mightAliasLocals())
-            funbox->setMightAliasLocals();      // inherit mightAliasLocals from parent
-        JS_ASSERT_IF(outersc->strict, funbox->strict);
-
-        // Inherit most things (principals, version, etc) from the parent.
-        Rooted<JSScript*> parent(cx, bce->script);
-        CompileOptions options(bce->parser->options());
-        options.setPrincipals(parent->principals())
-               .setOriginPrincipals(parent->originPrincipals)
-               .setCompileAndGo(parent->compileAndGo)
-               .setSelfHostingMode(parent->selfHosted)
-               .setNoScriptRval(false)
-               .setForEval(false)
-               .setVersion(parent->getVersion());
-
-        bool generateBytecode = true;
-#ifdef JS_ION
-        if (funbox->useAsm) {
-            if (!cx->shouldBeJSContext())
-                return false;
-
-            RootedFunction moduleFun(cx);
-
-            // In a function like this:
-            //
-            //   function f() { "use asm"; ... }
-            //
-            // funbox->asmStart points to the '"', and funbox->bufEnd points
-            // one past the final '}'.  We need to exclude that final '}',
-            // so we use |funbox->bufEnd - 1| below.
-            //
-            if (!CompileAsmJS(cx->asJSContext(), *bce->tokenStream(), pn, options,
-                              bce->script->scriptSource(), funbox->asmStart, funbox->bufEnd - 1,
-                              &moduleFun))
-                return false;
-
-            if (moduleFun) {
-                funbox->object = moduleFun;
-                generateBytecode = false;
+        if (fun->isInterpretedLazy()) {
+            if (!fun->lazyScript()->sourceObject()) {
+                JSObject *scope = bce->blockChain;
+                if (!scope && bce->sc->isFunctionBox())
+                    scope = bce->sc->asFunctionBox()->function();
+                fun->lazyScript()->setParent(scope, bce->script->sourceObject(), bce->script->originPrincipals);
             }
-        }
-#endif
+        } else {
+            SharedContext *outersc = bce->sc;
 
-        if (generateBytecode) {
+            if (outersc->isFunctionBox() && outersc->asFunctionBox()->mightAliasLocals())
+                funbox->setMightAliasLocals();      // inherit mightAliasLocals from parent
+            JS_ASSERT_IF(outersc->strict, funbox->strict);
+
+            // Inherit most things (principals, version, etc) from the parent.
+            Rooted<JSScript*> parent(cx, bce->script);
+            CompileOptions options(bce->parser->options());
+            options.setPrincipals(parent->principals())
+                   .setOriginPrincipals(parent->originPrincipals)
+                   .setCompileAndGo(parent->compileAndGo)
+                   .setSelfHostingMode(parent->selfHosted)
+                   .setNoScriptRval(false)
+                   .setForEval(false)
+                   .setVersion(parent->getVersion());
+
             Rooted<JSObject*> enclosingScope(cx, EnclosingStaticScope(bce));
             Rooted<ScriptSourceObject *> sourceObject(cx, bce->script->sourceObject());
             Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
@@ -4579,6 +4555,8 @@ EmitFunc(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (funbox->usesArguments && funbox->usesApply)
                 script->usesArgumentsAndApply = true;
         }
+    } else {
+        JS_ASSERT(IsAsmJSModuleNative(fun->native()));
     }
 
     /* Make the function object a literal in the outer script's pool. */
@@ -5480,8 +5458,8 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         if (!objbox)
             return false;
         unsigned index = bce->objectList.add(objbox);
-        MOZ_STATIC_ASSERT(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
-                          "newinit and newobject must have equal length to edit in-place");
+        static_assert(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
+                      "newinit and newobject must have equal length to edit in-place");
         EMIT_UINT32_IN_PLACE(offset, JSOP_NEWOBJECT, uint32_t(index));
     }
 
@@ -6433,11 +6411,12 @@ const JSSrcNoteSpec js_SrcNoteSpec[] = {
 
 /* 16 */ {"catch",          0},
 
-/* 17 */ {"colspan",        1},
-/* 18 */ {"newline",        0},
-/* 19 */ {"setline",        1},
+/* 17 */ {"try",            1},
 
-/* 20 */ {"unused20",       0},
+/* 18 */ {"colspan",        1},
+/* 19 */ {"newline",        0},
+/* 20 */ {"setline",        1},
+
 /* 21 */ {"unused21",       0},
 /* 22 */ {"unused22",       0},
 /* 23 */ {"unused23",       0},

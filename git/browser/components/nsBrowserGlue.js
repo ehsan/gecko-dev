@@ -20,9 +20,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "UserAgentOverrides",
-                                  "resource://gre/modules/UserAgentOverrides.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
 
@@ -67,6 +64,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
 
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
+                                  "resource:///modules/sessionstore/SessionStore.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -173,7 +173,7 @@ BrowserGlue.prototype = {
         this._finalUIStartup();
         break;
       case "browser-delayed-startup-finished":
-        this._onFirstWindowLoaded();
+        this._onFirstWindowLoaded(subject);
         Services.obs.removeObserver(this, "browser-delayed-startup-finished");
         break;
       case "sessionstore-windows-restored":
@@ -453,8 +453,6 @@ BrowserGlue.prototype = {
     // handle any UI migration
     this._migrateUI();
 
-    this._setUpUserAgentOverrides();
-
     this._syncSearchEngines();
 
     webappsUI.init();
@@ -466,22 +464,6 @@ BrowserGlue.prototype = {
     webrtcUI.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
-  },
-
-  _setUpUserAgentOverrides: function BG__setUpUserAgentOverrides() {
-    UserAgentOverrides.init();
-
-    if (Services.prefs.getBoolPref("general.useragent.complexOverride.moodle")) {
-      UserAgentOverrides.addComplexOverride(function (aHttpChannel, aOriginalUA) {
-        let cookies;
-        try {
-          cookies = aHttpChannel.getRequestHeader("Cookie");
-        } catch (e) { /* no cookie sent */ }
-        if (cookies && cookies.indexOf("MoodleSession") > -1)
-          return aOriginalUA.replace(/Gecko\/[^ ]*/, "Gecko/20100101");
-        return null;
-      });
-    }
   },
 
   _trackSlowStartup: function () {
@@ -579,7 +561,7 @@ BrowserGlue.prototype = {
   },
 
   // the first browser window has finished initializing
-  _onFirstWindowLoaded: function BG__onFirstWindowLoaded() {
+  _onFirstWindowLoaded: function BG__onFirstWindowLoaded(aWindow) {
 #ifdef XP_WIN
     // For windows seven, initialize the jump list module.
     const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
@@ -591,14 +573,14 @@ BrowserGlue.prototype = {
     }
 #endif
 
+    SessionStore.init(aWindow);
     this._trackSlowStartup();
 
     // Offer to reset a user's profile if it hasn't been used for 60 days.
     const OFFER_PROFILE_RESET_INTERVAL_MS = 60 * 24 * 60 * 60 * 1000;
-    let processStartupTime = Services.startup.getStartupInfo().process;
     let lastUse = Services.appinfo.replacedLockTime;
-    if (processStartupTime && lastUse &&
-        processStartupTime.getTime() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
+    if (lastUse &&
+        Date.now() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
       this._resetUnusedProfileNotification();
     }
   },
@@ -610,7 +592,6 @@ BrowserGlue.prototype = {
    */
   _onProfileShutdown: function BG__onProfileShutdown() {
     BrowserNewTabPreloader.uninit();
-    UserAgentOverrides.uninit();
     webappsUI.uninit();
     SignInToWebsiteUX.uninit();
     webrtcUI.uninit();

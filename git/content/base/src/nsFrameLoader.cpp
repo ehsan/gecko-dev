@@ -294,6 +294,15 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   ResetPermissionManagerStatus();
 }
 
+nsFrameLoader::~nsFrameLoader()
+{
+  mNeedsAsyncDestroy = true;
+  if (mMessageManager) {
+    mMessageManager->Disconnect();
+  }
+  nsFrameLoader::Destroy();
+}
+
 nsFrameLoader*
 nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
 {
@@ -1111,9 +1120,9 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   nsCOMPtr<nsPIDOMWindow> ourWindow = do_GetInterface(ourDocshell);
   nsCOMPtr<nsPIDOMWindow> otherWindow = do_GetInterface(otherDocshell);
 
-  nsCOMPtr<nsIDOMElement> ourFrameElement =
+  nsCOMPtr<Element> ourFrameElement =
     ourWindow->GetFrameElementInternal();
-  nsCOMPtr<nsIDOMElement> otherFrameElement =
+  nsCOMPtr<Element> otherFrameElement =
     otherWindow->GetFrameElementInternal();
 
   nsCOMPtr<EventTarget> ourChromeEventHandler =
@@ -1639,7 +1648,7 @@ nsFrameLoader::MaybeCreateDocShell()
   // the right chrome event handler.
 
   // Tell the window about the frame that hosts it.
-  nsCOMPtr<nsIDOMElement> frame_element(do_QueryInterface(mOwnerContent));
+  nsCOMPtr<Element> frame_element = mOwnerContent;
   NS_ASSERTION(frame_element, "frame loader owner element not a DOM element!");
 
   nsCOMPtr<nsPIDOMWindow> win_private(do_GetInterface(mDocShell));
@@ -2047,14 +2056,17 @@ nsFrameLoader::TryRemoteBrowser()
                                  eCaseMatters)) {
     scrollingBehavior = ASYNC_PAN_ZOOM;
   }
+
+  bool rv = true;
   if (ownApp) {
-    context.SetTabContextForAppFrame(ownApp, containingApp, scrollingBehavior);
+    rv = context.SetTabContextForAppFrame(ownApp, containingApp, scrollingBehavior);
   } else if (OwnerIsBrowserFrame()) {
     // The |else| above is unnecessary; OwnerIsBrowserFrame() implies !ownApp.
-    context.SetTabContextForBrowserFrame(containingApp, scrollingBehavior);
+    rv = context.SetTabContextForBrowserFrame(containingApp, scrollingBehavior);
   }
+  NS_ENSURE_TRUE(rv, false);
 
-  nsCOMPtr<nsIDOMElement> ownerElement = do_QueryInterface(mOwnerContent);
+  nsCOMPtr<Element> ownerElement = mOwnerContent;
   mRemoteBrowser = ContentParent::CreateBrowserOrApp(context, ownerElement);
   if (mRemoteBrowser) {
     nsCOMPtr<nsIDocShellTreeItem> rootItem;
@@ -2067,7 +2079,7 @@ nsFrameLoader::TryRemoteBrowser()
     rootChromeWin->GetBrowserDOMWindow(getter_AddRefs(browserDOMWin));
     mRemoteBrowser->SetBrowserDOMWindow(browserDOMWin);
 
-    mChildHost = mRemoteBrowser->Manager();
+    mContentParent = mRemoteBrowser->Manager();
   }
   return true;
 }

@@ -7,21 +7,23 @@
 /*
  * JS standard exception implementation.
  */
-#include "jsexn.h"
 
-#include <string.h>
+#include "jsexn.h"
 
 #include "mozilla/PodOperations.h"
 #include "mozilla/Util.h"
 
-#include "jstypes.h"
-#include "jsutil.h"
+#include <string.h>
+
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsscript.h"
+#include "jstypes.h"
+#include "jsutil.h"
+#include "jswrapper.h"
 
 #include "gc/Marking.h"
 #include "vm/ErrorObject.h"
@@ -67,8 +69,8 @@ Class ErrorObject::class_ = {
     exn_finalize,
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
-    NULL,                 /* construct   */
     NULL,                 /* hasInstance */
+    NULL,                 /* construct   */
     exn_trace
 };
 
@@ -552,7 +554,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     /* Set the 'message' property. */
     RootedString message(cx);
     if (args.hasDefined(0)) {
-        message = ToString<CanGC>(cx, args.handleAt(0));
+        message = ToString<CanGC>(cx, args[0]);
         if (!message)
             return false;
         args[0].setString(message);
@@ -567,7 +569,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     RootedScript script(cx, iter.done() ? NULL : iter.script());
     RootedString filename(cx);
     if (args.length() > 1) {
-        filename = ToString<CanGC>(cx, args.handleAt(1));
+        filename = ToString<CanGC>(cx, args[1]);
         if (!filename)
             return false;
         args[1].setString(filename);
@@ -1046,14 +1048,14 @@ js_ReportUncaughtException(JSContext *cx)
         (exnObject->is<ErrorObject>() || IsDuckTypedErrorObject(cx, exnObject, &filename_str)))
     {
         RootedString name(cx);
-        if (JS_GetProperty(cx, exnObject, js_name_str, &roots[2]) &&
+        if (JS_GetProperty(cx, exnObject, js_name_str, tvr.handleAt(2)) &&
             JSVAL_IS_STRING(roots[2]))
         {
             name = JSVAL_TO_STRING(roots[2]);
         }
 
         RootedString msg(cx);
-        if (JS_GetProperty(cx, exnObject, js_message_str, &roots[3]) &&
+        if (JS_GetProperty(cx, exnObject, js_message_str, tvr.handleAt(3)) &&
             JSVAL_IS_STRING(roots[3]))
         {
             msg = JSVAL_TO_STRING(roots[3]);
@@ -1075,21 +1077,21 @@ js_ReportUncaughtException(JSContext *cx)
             str = msg;
         }
 
-        if (JS_GetProperty(cx, exnObject, filename_str, &roots[4])) {
+        if (JS_GetProperty(cx, exnObject, filename_str, tvr.handleAt(4))) {
             JSString *tmp = ToString<CanGC>(cx, HandleValue::fromMarkedLocation(&roots[4]));
             if (tmp)
                 filename.encodeLatin1(cx, tmp);
         }
 
         uint32_t lineno;
-        if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, &roots[5]) ||
+        if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, tvr.handleAt(5)) ||
             !ToUint32(cx, roots[5], &lineno))
         {
             lineno = 0;
         }
 
         uint32_t column;
-        if (!JS_GetProperty(cx, exnObject, js_columnNumber_str, &roots[5]) ||
+        if (!JS_GetProperty(cx, exnObject, js_columnNumber_str, tvr.handleAt(5)) ||
             !ToUint32(cx, roots[5], &column))
         {
             column = 0;

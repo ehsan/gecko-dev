@@ -93,7 +93,7 @@ Base64UrlDecodeImpl(const nsACString & base64Input, nsACString & result)
 class KeyPair : public nsIIdentityKeyPair, public nsNSSShutDownObject
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIIDENTITYKEYPAIR
 
   KeyPair(SECKEYPrivateKey* aPrivateKey, SECKEYPublicKey* aPublicKey);
@@ -129,7 +129,7 @@ private:
   void operator=(const KeyPair &) MOZ_DELETE;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(KeyPair, nsIIdentityKeyPair)
+NS_IMPL_ISUPPORTS1(KeyPair, nsIIdentityKeyPair)
 
 class KeyGenRunnable : public nsRunnable, public nsNSSShutDownObject
 {
@@ -212,7 +212,7 @@ private:
 class IdentityCryptoService MOZ_FINAL : public nsIIdentityCryptoService
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIIDENTITYCRYPTOSERVICE
 
   IdentityCryptoService() { }
@@ -231,7 +231,7 @@ private:
   void operator=(const IdentityCryptoService &) MOZ_DELETE;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(IdentityCryptoService, nsIIdentityCryptoService)
+NS_IMPL_ISUPPORTS1(IdentityCryptoService, nsIIdentityCryptoService)
 
 NS_IMETHODIMP
 IdentityCryptoService::GenerateKeyPair(
@@ -455,9 +455,9 @@ GenerateDSAKeyPair(PK11SlotInfo * slot,
     0x72,0xDF,0xFA,0x89,0x62,0x33,0x39,0x7A
   };
 
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(P) == 1024 / CHAR_BIT, "bad DSA P");
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(Q) ==  160 / CHAR_BIT, "bad DSA Q");
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(G) == 1024 / CHAR_BIT, "bad DSA G");
+  static_assert(MOZ_ARRAY_LENGTH(P) == 1024 / CHAR_BIT, "bad DSA P");
+  static_assert(MOZ_ARRAY_LENGTH(Q) ==  160 / CHAR_BIT, "bad DSA Q");
+  static_assert(MOZ_ARRAY_LENGTH(G) == 1024 / CHAR_BIT, "bad DSA G");
 
   PQGParams pqgParams  = {
     NULL /*arena*/,

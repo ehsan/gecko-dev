@@ -58,6 +58,7 @@ namespace mozilla {
 namespace widget {
 class NativeKey;
 class ModifierKeyState;
+struct MSGResult;
 } // namespace widget
 } // namespacw mozilla;
 
@@ -72,6 +73,7 @@ class nsWindow : public nsWindowBase
   typedef mozilla::widget::WindowHook WindowHook;
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
   typedef mozilla::widget::NativeKey NativeKey;
+  typedef mozilla::widget::MSGResult MSGResult;
 public:
   nsWindow();
   virtual ~nsWindow();
@@ -328,8 +330,11 @@ protected:
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
   virtual bool            ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);
+  bool                    ExternalHandlerProcessMessage(
+                                         UINT aMessage, WPARAM& aWParam,
+                                         LPARAM& aLParam, MSGResult& aResult);
   bool                    ProcessMessageForPlugin(const MSG &aMsg,
-                                                  LRESULT *aRetValue, bool &aCallDefWndProc);
+                                                  MSGResult& aResult);
   LRESULT                 ProcessCharMessage(const MSG &aMsg,
                                              bool *aEventDispatched);
   LRESULT                 ProcessKeyUpMessage(const MSG &aMsg,
@@ -533,6 +538,11 @@ protected:
   // The point in time at which the last paint completed. We use this to avoid
   //  painting too rapidly in response to frequent input events.
   TimeStamp mLastPaintEndTime;
+
+  // Caching for hit test results
+  POINT mCachedHitTestPoint;
+  TimeStamp mCachedHitTestTime;
+  int32_t mCachedHitTestResult;
 
   static bool sNeedsToInitMouseWheelSettings;
   static void InitMouseWheelScrollData();

@@ -10,7 +10,7 @@ EXPORTS += [
     'CopyableCanvasLayer.h',
     'D3D9SurfaceImage.h',
     'FrameMetrics.h',
-    'GonkIOSurfaceImage.h',
+    'GrallocImages.h',
     'ImageContainer.h',
     'ImageLayers.h',
     'ImageTypes.h',
@@ -94,6 +94,7 @@ EXPORTS.mozilla.layers += [
     'CompositorTypes.h',
     'D3D9SurfaceImage.h',
     'Effects.h',
+    'ImageDataSerializer.h',
     'LayersTypes.h',
     'RenderTrace.h',
     'YCbCrImageDataSerializer.h',
@@ -104,6 +105,7 @@ EXPORTS.mozilla.layers += [
     'client/ImageClient.h',
     'client/TextureClient.h',
     'client/TiledContentClient.h',
+    'composite/APZCTreeManager.h',
     'composite/AsyncCompositionManager.h',
     'composite/CanvasLayerComposite.h',
     'composite/ColorLayerComposite.h',
@@ -166,10 +168,10 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     CPP_SOURCES += [
         'ShadowLayerUtilsGralloc.cpp',
         'GrallocImages.cpp',
-        'GonkIOSurfaceImage.cpp',
     ]
 
 CPP_SOURCES += [
+    'APZCTreeManager.cpp',
     'AsyncCompositionManager.cpp',
     'AsyncPanZoomController.cpp',
     'Axis.cpp',
@@ -214,6 +216,7 @@ CPP_SOURCES += [
     'ImageBridgeParent.cpp',
     'ImageClient.cpp',
     'ImageContainer.cpp',
+    'ImageDataSerializer.cpp',
     'ImageHost.cpp',
     'ImageLayerComposite.cpp',
     'ImageLayerOGL.cpp',

@@ -24,7 +24,7 @@
 
 #include "mozilla/GuardObjects.h"
 #include "mozilla/LinkedList.h"
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/DOMError.h"
@@ -180,7 +180,7 @@ public:
   : nsDOMFileBase(aContentType, aStart, aLength)
   { }
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 };
 
 class nsDOMFileCC : public nsDOMFileBase

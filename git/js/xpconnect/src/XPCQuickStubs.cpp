@@ -218,13 +218,13 @@ ThrowCallFailed(JSContext *cx, nsresult rv,
     const char* format;
     const char* name;
 
-    /*
-     *  If there is a pending exception when the native call returns and
-     *  it has the same error result as returned by the native call, then
-     *  the native call may be passing through an error from a previous JS
-     *  call. So we'll just throw that exception into our JS.
-     */
-    if (XPCThrower::CheckForPendingException(rv, cx))
+    // If the cx already has a pending exception, just throw that.
+    //
+    // We used to check here to make sure the exception matched rv (whatever
+    // that means). But this meant that we'd be calling into JSAPI below with
+    // a pending exception, which isn't really kosher. The first exception thrown
+    // should generally take precedence anyway.
+    if (JS_IsExceptionPending(cx))
         return false;
 
     // else...
@@ -884,13 +884,5 @@ xpc_qsAssertContextOK(JSContext *cx)
 
     // This is what we're actually trying to assert here.
     NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");
-}
-
-void
-xpcObjectHelper::AssertGetClassInfoResult()
-{
-    MOZ_ASSERT(mXPCClassInfo ||
-               static_cast<nsINode*>(GetCanonical())->IsDOMBinding(),
-               "GetClassInfo() should only return null for new DOM bindings!");
 }
 #endif

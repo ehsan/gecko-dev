@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,8 +13,8 @@
  * sent a copy of this header and the C++11 standard.
  */
 
-#ifndef mozilla_Atomics_h_
-#define mozilla_Atomics_h_
+#ifndef mozilla_Atomics_h
+#define mozilla_Atomics_h
 
 #include "mozilla/Assertions.h"
 #include "mozilla/TypeTraits.h"
@@ -178,6 +179,10 @@ enum MemoryOrdering {
 namespace mozilla {
 namespace detail {
 
+/*
+ * We provide CompareExchangeFailureOrder to work around a bug in some
+ * versions of GCC's <atomic> header.  See bug 898491.
+ */
 template<MemoryOrdering Order> struct AtomicOrderConstraints;
 
 template<>
@@ -186,6 +191,8 @@ struct AtomicOrderConstraints<Relaxed>
     static const std::memory_order AtomicRMWOrder = std::memory_order_relaxed;
     static const std::memory_order LoadOrder = std::memory_order_relaxed;
     static const std::memory_order StoreOrder = std::memory_order_relaxed;
+    static const std::memory_order CompareExchangeFailureOrder =
+      std::memory_order_relaxed;
 };
 
 template<>
@@ -194,6 +201,8 @@ struct AtomicOrderConstraints<ReleaseAcquire>
     static const std::memory_order AtomicRMWOrder = std::memory_order_acq_rel;
     static const std::memory_order LoadOrder = std::memory_order_acquire;
     static const std::memory_order StoreOrder = std::memory_order_release;
+    static const std::memory_order CompareExchangeFailureOrder =
+      std::memory_order_acquire;
 };
 
 template<>
@@ -202,6 +211,8 @@ struct AtomicOrderConstraints<SequentiallyConsistent>
     static const std::memory_order AtomicRMWOrder = std::memory_order_seq_cst;
     static const std::memory_order LoadOrder = std::memory_order_seq_cst;
     static const std::memory_order StoreOrder = std::memory_order_seq_cst;
+    static const std::memory_order CompareExchangeFailureOrder =
+      std::memory_order_seq_cst;
 };
 
 template<typename T, MemoryOrdering Order>
@@ -225,7 +236,9 @@ struct IntrinsicMemoryOps : public IntrinsicBase<T, Order>
       return ptr.exchange(val, Base::OrderedOp::AtomicRMWOrder);
     }
     static bool compareExchange(typename Base::ValueType& ptr, T oldVal, T newVal) {
-      return ptr.compare_exchange_strong(oldVal, newVal, Base::OrderedOp::AtomicRMWOrder);
+      return ptr.compare_exchange_strong(oldVal, newVal,
+                                         Base::OrderedOp::AtomicRMWOrder,
+                                         Base::OrderedOp::CompareExchangeFailureOrder);
     }
 };
 
@@ -693,8 +706,8 @@ struct IntrinsicBase
     typedef T ValueType;
     typedef PrimitiveIntrinsics<sizeof(T)> Primitives;
     typedef typename Primitives::Type PrimType;
-    MOZ_STATIC_ASSERT(sizeof(PrimType) == sizeof(T),
-                      "Selection of PrimitiveIntrinsics was wrong");
+    static_assert(sizeof(PrimType) == sizeof(T),
+                  "Selection of PrimitiveIntrinsics was wrong");
     typedef CastHelper<PrimType, T> Cast;
 };
 
@@ -885,10 +898,10 @@ class Atomic : public detail::AtomicBase<T, Order>
 {
     // We only support 32-bit types on 32-bit Windows, which constrains our
     // implementation elsewhere.  But we support pointer-sized types everywhere.
-    MOZ_STATIC_ASSERT(sizeof(T) == 4 || (sizeof(uintptr_t) == 8 && sizeof(T) == 8),
-                      "mozilla/Atomics.h only supports 32-bit and pointer-sized types");
+    static_assert(sizeof(T) == 4 || (sizeof(uintptr_t) == 8 && sizeof(T) == 8),
+                  "mozilla/Atomics.h only supports 32-bit and pointer-sized types");
     // Regardless of the OS, we only support integral types here.
-    MOZ_STATIC_ASSERT(IsIntegral<T>::value, "can only have integral atomic variables");
+    static_assert(IsIntegral<T>::value, "can only have integral atomic variables");
 
     typedef typename detail::AtomicBase<T, Order> Base;
 
@@ -957,4 +970,4 @@ class Atomic<T*, Order> : public detail::AtomicBase<T*, Order>
 
 } // namespace mozilla
 
-#endif /* mozilla_Atomics_h_ */
+#endif /* mozilla_Atomics_h */

@@ -8,14 +8,14 @@
 #define jsgcinlines_h
 
 #include "jsgc.h"
+
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jslock.h"
 
 #include "js/RootingAPI.h"
-#include "js/TemplateLib.h"
-#include "vm/Shape.h"
 #include "vm/ForkJoin.h"
+#include "vm/Shape.h"
 
 namespace js {
 

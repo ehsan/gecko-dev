@@ -125,7 +125,7 @@ nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
 
   uint64_t innerWindowID = 0;
 
-  JSObject *jsGlobal = JS_GetGlobalForScopeChain(aContext);
+  JSObject *jsGlobal = JS::CurrentGlobalOrNull(aContext);
   if (jsGlobal) {
     nsIScriptGlobalObject *scriptGlobal = GetStaticScriptGlobal(jsGlobal);
     if (scriptGlobal) {
@@ -143,7 +143,10 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
 {
   if (JS_IsExceptionPending(aContext)) {
     bool saved = JS_SaveFrameChain(aContext);
-    JS_ReportPendingException(aContext);
+    {
+      JSAutoCompartment ac(aContext, js::DefaultObjectForContextOrNull(aContext));
+      JS_ReportPendingException(aContext);
+    }
     if (saved) {
       JS_RestoreFrameChain(aContext);
     }

@@ -6,10 +6,10 @@
 #ifndef MOZILLA_GFX_TYPES_H_
 #define MOZILLA_GFX_TYPES_H_
 
-#include "mozilla/StandardInteger.h"
 #include "mozilla/NullPtr.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace mozilla {
 namespace gfx {
@@ -27,6 +27,7 @@ enum SurfaceType
   SURFACE_COREGRAPHICS_CGCONTEXT, /* Surface wrapping a CG context */
   SURFACE_SKIA, /* Surface wrapping a Skia bitmap */
   SURFACE_DUAL_DT, /* Snapshot of a dual drawtarget */
+  SURFACE_D2D1_1_IMAGE, /* A D2D 1.1 ID2D1Image SourceSurface */
   SURFACE_RECORDING /* Surface used for recording */
 };
 
@@ -50,7 +51,8 @@ enum BackendType
   BACKEND_COREGRAPHICS_ACCELERATED,
   BACKEND_CAIRO,
   BACKEND_SKIA,
-  BACKEND_RECORDING
+  BACKEND_RECORDING,
+  BACKEND_DIRECT2D1_1
 };
 
 enum FontType

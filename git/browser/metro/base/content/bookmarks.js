@@ -87,13 +87,14 @@ function BookmarksView(aSet, aLimit, aRoot, aFilterUnpinned) {
   this._changes = new BookmarkChangeListener(this);
   this._pinHelper = new ItemPinHelper("metro.bookmarks.unpinned");
   this._bookmarkService.addObserver(this._changes, false);
+  Services.obs.addObserver(this, "metro_viewstate_changed", false);
   window.addEventListener('MozAppbarDismissing', this, false);
   window.addEventListener('BookmarksNeedsRefresh', this, false);
 
   this.root = aRoot;
 }
 
-BookmarksView.prototype = {
+BookmarksView.prototype = Util.extend(Object.create(View.prototype), {
   _limit: null,
   _set: null,
   _changes: null,
@@ -216,33 +217,13 @@ BookmarksView.prototype = {
     let item = this._set.insertItemAt(aPos || index, title, uri.spec, this._inBatch);
     item.setAttribute("bookmarkId", aBookmarkId);
     this._setContextActions(item);
-    this._updateFavicon(aBookmarkId, item, uri);
+    this._updateFavicon(item, uri);
   },
 
   _setContextActions: function bv__setContextActions(aItem) {
     let itemId = this._getBookmarkIdForItem(aItem);
     aItem.setAttribute("data-contextactions", "delete," + (this._pinHelper.isPinned(itemId) ? "unpin" : "pin"));
     if (aItem.refresh) aItem.refresh();
-  },
-
-  _updateFavicon: function bv__updateFavicon(aBookmarkId, aItem, aUri) {
-    PlacesUtils.favicons.getFaviconURLForPage(aUri, this._gotIcon.bind(this, aBookmarkId, aItem));
-  },
-
-  _gotIcon: function bv__gotIcon(aBookmarkId, aItem, aIconUri) {
-    aItem.setAttribute("iconURI", aIconUri ? aIconUri.spec : "");
-    if (!aIconUri) {
-      return;
-    }
-    let successAction = function(foregroundColor, backgroundColor) {
-      aItem.style.color = foregroundColor; //color text
-      aItem.setAttribute("customColor", backgroundColor); //set background
-      if (aItem.refresh) {
-        aItem.refresh();
-      }
-    };
-    let failureAction = function() {};
-    ColorUtils.getForegroundAndBackgroundIconColors(aIconUri, successAction, failureAction);
   },
 
   _sendNeedsRefresh: function bv__sendNeedsRefresh(){
@@ -273,7 +254,7 @@ BookmarksView.prototype = {
     item.setAttribute("value", uri.spec);
     item.setAttribute("label", title);
 
-    this._updateFavicon(aBookmarkId, item, uri);
+    this._updateFavicon(item, uri);
   },
 
   removeBookmark: function bv_removeBookmark(aBookmarkId) {
@@ -284,6 +265,7 @@ BookmarksView.prototype = {
 
   destruct: function bv_destruct() {
     this._bookmarkService.removeObserver(this._changes);
+    Services.obs.removeObserver(this, "metro_viewstate_changed");
     window.removeEventListener('MozAppbarDismissing', this, false);
     window.removeEventListener('BookmarksNeedsRefresh', this, false);
   },
@@ -314,8 +296,6 @@ BookmarksView.prototype = {
           let event = document.createEvent("Events");
           // we need the restore button to show (the tile node will go away though)
           event.actions = ["restore"];
-          event.noun = tileGroup.contextNoun;
-          event.qty = selectedTiles.length;
           event.initEvent("MozContextActionsChange", true, false);
           tileGroup.dispatchEvent(event);
         }, 0);
@@ -353,6 +333,15 @@ BookmarksView.prototype = {
     this._sendNeedsRefresh();
   },
 
+  // nsIObservers
+  observe: function (aSubject, aTopic, aState) {
+    switch(aTopic) {
+      case "metro_viewstate_changed":
+        this.onViewStateChange(aState);
+        break;
+    }
+  },
+
   handleEvent: function bv_handleEvent(aEvent) {
     switch (aEvent.type){
       case "MozAppbarDismissing":
@@ -370,7 +359,7 @@ BookmarksView.prototype = {
         break;
     }
   }
-};
+});
 
 var BookmarksStartView = {
   _view: null,
@@ -387,26 +376,6 @@ var BookmarksStartView = {
 
   show: function show() {
     this._grid.arrangeItems();
-  }
-};
-
-var BookmarksPanelView = {
-  _view: null,
-
-  get _grid() { return document.getElementById("bookmarks-list"); },
-  get visible() { return PanelUI.isPaneVisible("bookmarks-container"); },
-
-  init: function init() {
-    this._view = new BookmarksView(this._grid, null, Bookmarks.metroRoot);
-  },
-
-  show: function show() {
-    this._view.getBookmarks(true);
-    this._grid.arrangeItems();
-  },
-
-  uninit: function uninit() {
-    this._view.destruct();
   }
 };
 

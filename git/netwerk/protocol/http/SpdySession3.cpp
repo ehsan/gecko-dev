@@ -32,8 +32,8 @@ namespace net {
 // SpdySession3 has multiple inheritance of things that implement
 // nsISupports, so this magic is taken from nsHttpPipeline that
 // implements some of the same abstract classes.
-NS_IMPL_THREADSAFE_ADDREF(SpdySession3)
-NS_IMPL_THREADSAFE_RELEASE(SpdySession3)
+NS_IMPL_ADDREF(SpdySession3)
+NS_IMPL_RELEASE(SpdySession3)
 NS_INTERFACE_MAP_BEGIN(SpdySession3)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsAHttpConnection)
 NS_INTERFACE_MAP_END
@@ -558,7 +558,7 @@ SpdySession3::EnsureBuffer(nsAutoArrayPtr<T> &buf,
 
   objSize = (newSize + 2048 + 4095) & ~4095;
 
-  MOZ_STATIC_ASSERT(sizeof(T) == 1, "sizeof(T) must be 1");
+  static_assert(sizeof(T) == 1, "sizeof(T) must be 1");
   nsAutoArrayPtr<T> tmp(new T[objSize]);
   memcpy(tmp, buf, preserve);
   buf = tmp;

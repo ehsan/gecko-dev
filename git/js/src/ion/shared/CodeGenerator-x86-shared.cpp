@@ -4,19 +4,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/shared/CodeGenerator-x86-shared.h"
+
 #include "mozilla/DebugOnly.h"
+#include "mozilla/MathAlgorithms.h"
 
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsmath.h"
-#include "ion/shared/CodeGenerator-x86-shared.h"
-#include "ion/shared/CodeGenerator-shared-inl.h"
-#include "ion/IonFrames.h"
+
 #include "ion/IonCompartment.h"
+#include "ion/IonFrames.h"
 #include "ion/ParallelFunctions.h"
+
+#include "ion/shared/CodeGenerator-shared-inl.h"
 
 using namespace js;
 using namespace js::ion;
+
+using mozilla::FloorLog2;
 
 namespace js {
 namespace ion {
@@ -45,6 +51,10 @@ bool
 CodeGeneratorX86Shared::generateEpilogue()
 {
     masm.bind(&returnLabel_);
+
+#if JS_TRACE_LOGGING
+    masm.tracelogStop();
+#endif
 
     // Pop the stack we allocated at the start of the function.
     masm.freeStack(frameSize());
@@ -118,6 +128,17 @@ CodeGeneratorX86Shared::visitTestDAndBranch(LTestDAndBranch *test)
     masm.xorpd(ScratchFloatReg, ScratchFloatReg);
     masm.ucomisd(ToFloatRegister(opd), ScratchFloatReg);
     emitBranch(Assembler::NotEqual, test->ifTrue(), test->ifFalse());
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitBitAndAndBranch(LBitAndAndBranch *baab)
+{
+    if (baab->right()->isConstant())
+        masm.testl(ToRegister(baab->left()), Imm32(ToInt32(baab->right())));
+    else
+        masm.testl(ToRegister(baab->left()), ToRegister(baab->right()));
+    emitBranch(Assembler::NonZero, baab->ifTrue(), baab->ifFalse());
     return true;
 }
 
@@ -278,9 +299,9 @@ CodeGeneratorX86Shared::bailout(const T &binder, LSnapshot *snapshot)
     switch (info.executionMode()) {
       case ParallelExecution: {
         // in parallel mode, make no attempt to recover, just signal an error.
-        OutOfLineParallelAbort *ool = oolParallelAbort(ParallelBailoutUnsupported,
-                                                       snapshot->mir()->block(),
-                                                       snapshot->mir()->pc());
+        OutOfLineAbortPar *ool = oolAbortPar(ParallelBailoutUnsupported,
+                                             snapshot->mir()->block(),
+                                             snapshot->mir()->pc());
         binder(masm, ool->entry());
         return true;
       }
@@ -596,8 +617,7 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
           default:
             if (!mul->canOverflow() && constant > 0) {
                 // Use shift if cannot overflow and constant is power of 2
-                int32_t shift;
-                JS_FLOOR_LOG2(shift, constant);
+                int32_t shift = FloorLog2(constant);
                 if ((1 << shift) == constant) {
                     masm.shll(Imm32(shift), ToRegister(lhs));
                     return true;
@@ -631,6 +651,31 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
     return true;
 }
 
+class ReturnZero : public OutOfLineCodeBase<CodeGeneratorX86Shared>
+{
+    Register reg_;
+
+  public:
+    explicit ReturnZero(Register reg)
+      : reg_(reg)
+    { }
+
+    virtual bool accept(CodeGeneratorX86Shared *codegen) {
+        return codegen->visitReturnZero(this);
+    }
+    Register reg() const {
+        return reg_;
+    }
+};
+
+bool
+CodeGeneratorX86Shared::visitReturnZero(ReturnZero *ool)
+{
+    masm.xorl(ool->reg(), ool->reg());
+    masm.jmp(ool->rejoin());
+    return true;
+}
+
 bool
 CodeGeneratorX86Shared::visitUDivOrMod(LUDivOrMod *ins)
 {
@@ -640,19 +685,17 @@ CodeGeneratorX86Shared::visitUDivOrMod(LUDivOrMod *ins)
 
     JS_ASSERT_IF(output == eax, ToRegister(ins->remainder()) == edx);
 
-    Label afterDiv;
-
     masm.testl(rhs, rhs);
-    Label notzero;
-    masm.j(Assembler::NonZero, &notzero);
-    masm.xorl(output, output);
-    masm.jmp(&afterDiv);
-    masm.bind(&notzero);
+
+    ReturnZero *ool = new ReturnZero(output);
+    masm.j(Assembler::Zero, ool->entry());
+    if (!addOutOfLineCode(ool))
+        return false;
 
     masm.xorl(edx, edx);
     masm.udiv(rhs);
 
-    masm.bind(&afterDiv);
+    masm.bind(ool->rejoin());
 
     return true;
 }
@@ -730,17 +773,16 @@ CodeGeneratorX86Shared::visitDivI(LDivI *ins)
     JS_ASSERT(output == eax);
 
     Label done;
+    ReturnZero *ool = NULL;
 
     // Handle divide by zero.
     if (mir->canBeDivideByZero()) {
         masm.testl(rhs, rhs);
         if (mir->isTruncated()) {
             // Truncated division by zero is zero (Infinity|0 == 0)
-            Label notzero;
-            masm.j(Assembler::NonZero, &notzero);
-            masm.xorl(output, output);
-            masm.jmp(&done);
-            masm.bind(&notzero);
+            if (!ool)
+                ool = new ReturnZero(output);
+            masm.j(Assembler::Zero, ool->entry());
         } else {
             JS_ASSERT(mir->fallible());
             if (!bailoutIf(Assembler::Zero, ins->snapshot()))
@@ -790,6 +832,12 @@ CodeGeneratorX86Shared::visitDivI(LDivI *ins)
 
     masm.bind(&done);
 
+    if (ool) {
+        if (!addOutOfLineCode(ool))
+            return false;
+        masm.bind(ool->rejoin());
+    }
+
     return true;
 }
 
@@ -823,6 +871,47 @@ CodeGeneratorX86Shared::visitModPowTwoI(LModPowTwoI *ins)
 
 }
 
+class ModOverflowCheck : public OutOfLineCodeBase<CodeGeneratorX86Shared>
+{
+    Label done_;
+    LModI *ins_;
+    Register rhs_;
+
+  public:
+    explicit ModOverflowCheck(LModI *ins, Register rhs)
+      : ins_(ins), rhs_(rhs)
+    { }
+
+    virtual bool accept(CodeGeneratorX86Shared *codegen) {
+        return codegen->visitModOverflowCheck(this);
+    }
+    Label *done() {
+        return &done_;
+    }
+    LModI *ins() const {
+        return ins_;
+    }
+    Register rhs() const {
+        return rhs_;
+    }
+};
+
+bool
+CodeGeneratorX86Shared::visitModOverflowCheck(ModOverflowCheck *ool)
+{
+    masm.cmpl(ool->rhs(), Imm32(-1));
+    if (ool->ins()->mir()->isTruncated()) {
+        masm.j(Assembler::NotEqual, ool->rejoin());
+        masm.xorl(edx, edx);
+        masm.jmp(ool->done());
+    } else {
+        if (!bailoutIf(Assembler::Equal, ool->ins()->snapshot()))
+            return false;
+       masm.jmp(ool->rejoin());
+    }
+    return true;
+}
+
 bool
 CodeGeneratorX86Shared::visitModI(LModI *ins)
 {
@@ -841,16 +930,16 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
     }
 
     Label done;
+    ReturnZero *ool = NULL;
+    ModOverflowCheck *overflow = NULL;
 
     // Prevent divide by zero.
     if (ins->mir()->canBeDivideByZero()) {
         masm.testl(rhs, rhs);
         if (ins->mir()->isTruncated()) {
-            Label notzero;
-            masm.j(Assembler::NonZero, &notzero);
-            masm.xorl(edx, edx);
-            masm.jmp(&done);
-            masm.bind(&notzero);
+            if (!ool)
+                ool = new ReturnZero(edx);
+            masm.j(Assembler::Zero, ool->entry());
         } else {
             if (!bailoutIf(Assembler::Zero, ins->snapshot()))
                 return false;
@@ -900,18 +989,9 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
         // Prevent an integer overflow exception from -2147483648 % -1
         Label notmin;
         masm.cmpl(lhs, Imm32(INT32_MIN));
-        masm.j(Assembler::NotEqual, &notmin);
-        masm.cmpl(rhs, Imm32(-1));
-        if (ins->mir()->isTruncated()) {
-            masm.j(Assembler::NotEqual, &notmin);
-            masm.xorl(edx, edx);
-            masm.jmp(&done);
-        } else {
-            if (!bailoutIf(Assembler::Equal, ins->snapshot()))
-                return false;
-        }
-        masm.bind(&notmin);
-
+        overflow = new ModOverflowCheck(ins, rhs);
+        masm.j(Assembler::Equal, overflow->entry());
+        masm.bind(overflow->rejoin());
         masm.cdq();
         masm.idiv(rhs);
 
@@ -924,6 +1004,19 @@ CodeGeneratorX86Shared::visitModI(LModI *ins)
     }
 
     masm.bind(&done);
+
+    if (overflow) {
+        if (!addOutOfLineCode(overflow))
+            return false;
+        masm.bind(overflow->done());
+    }
+
+    if (ool) {
+        if (!addOutOfLineCode(ool))
+            return false;
+        masm.bind(ool->rejoin());
+    }
+
     return true;
 }
 

@@ -20,6 +20,7 @@
 #include "nsIArray.h"
 #include "nsIURI.h"
 #include "jsapi.h"
+#include "jsfriendapi.h"
 #include "nsString.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
@@ -89,16 +90,11 @@ uint32_t nsXULPrototypeDocument::gRefCnt;
 void
 nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 {
-    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
-
-    nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
-
-    if (sgo) {
-        sgo->OnFinalize(obj);
-    }
+    nsXULPDGlobalObject* nativeThis = static_cast<nsXULPDGlobalObject*>(JS_GetPrivate(obj));
+    nativeThis->OnFinalize(obj);
 
     // The addref was part of JSObject construction
-    NS_RELEASE(nativeThis);
+    nsContentUtils::DeferredFinalize(nativeThis);
 }
 
 
@@ -770,7 +766,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
     if (!newGlob)
         return NS_OK;
 
-    ::JS_SetGlobalObject(cx, newGlob);
+    js::SetDefaultObjectForContext(cx, newGlob);
 
     // Add an owning reference from JS back to us. This'll be
     // released when the JSObject is finalized.

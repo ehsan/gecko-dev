@@ -87,7 +87,7 @@ try { // nsIXULRuntime is not available in some configurations.
           Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
           .getService(Components.interfaces.nsICrashReporter)) {
       crashReporter.enabled = true;
-      crashReporter.minidumpPath = do_get_cwd();
+      crashReporter.minidumpPath = do_get_tempdir();
     }
   }
 }
@@ -122,8 +122,8 @@ function _Timer(func, delay) {
 }
 _Timer.prototype = {
   QueryInterface: function(iid) {
-    if (iid.Equals(Components.interfaces.nsITimerCallback) ||
-        iid.Equals(Components.interfaces.nsISupports))
+    if (iid.equals(Components.interfaces.nsITimerCallback) ||
+        iid.equals(Components.interfaces.nsISupports))
       return this;
 
     throw Components.results.NS_ERROR_NO_INTERFACE;
@@ -200,7 +200,7 @@ function _dump_exception_stack(stack) {
  * @note Idle service is overridden by default.  If a test requires it, it will
  *       have to call do_get_idle() function at least once before use.
  */
-_fakeIdleService = {
+var _fakeIdleService = {
   get registrar() {
     delete this.registrar;
     return this.registrar =

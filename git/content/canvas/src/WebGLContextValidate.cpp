@@ -196,10 +196,19 @@ bool WebGLContext::ValidateBlendEquationEnum(WebGLenum mode, const char *info)
         case LOCAL_GL_FUNC_SUBTRACT:
         case LOCAL_GL_FUNC_REVERSE_SUBTRACT:
             return true;
+        case LOCAL_GL_MIN:
+        case LOCAL_GL_MAX:
+            if (IsWebGL2()) {
+                // http://www.opengl.org/registry/specs/EXT/blend_minmax.txt
+                return true;
+            }
+            break;
         default:
-            ErrorInvalidEnumInfo(info, mode);
-            return false;
+            break;
     }
+
+    ErrorInvalidEnumInfo(info, mode);
+    return false;
 }
 
 bool WebGLContext::ValidateBlendFuncDstEnum(WebGLenum factor, const char *info)
@@ -872,6 +881,18 @@ bool WebGLContext::ValidateStencilParamsForDrawCall()
   return true;
 }
 
+static inline int32_t floorPOT(int32_t x)
+{
+    MOZ_ASSERT(x > 0);
+    int32_t pot = 1;
+    while (pot < 0x40000000) {
+        if (x < pot*2)
+            break;
+        pot *= 2;
+    }
+    return pot;
+}
+
 bool
 WebGLContext::InitAndValidateGL()
 {
@@ -950,6 +971,9 @@ WebGLContext::InitAndValidateGL()
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
     }
+
+    mGLMaxTextureSize = floorPOT(mGLMaxTextureSize);
+    mGLMaxRenderbufferSize = floorPOT(mGLMaxRenderbufferSize);
 
     if (MinCapabilityMode()) {
         mGLMaxFragmentUniformVectors = MINVALUE_GL_MAX_FRAGMENT_UNIFORM_VECTORS;
@@ -1049,6 +1073,17 @@ WebGLContext::InitAndValidateGL()
         return false;
     }
 
+    if (IsWebGL2() &&
+        (!IsExtensionSupported(OES_vertex_array_object) ||
+         !IsExtensionSupported(WEBGL_draw_buffers) ||
+         !gl->IsExtensionSupported(gl::GLContext::EXT_gpu_shader4) ||
+         !gl->IsExtensionSupported(gl::GLContext::EXT_blend_minmax) ||
+         !gl->IsExtensionSupported(gl::GLContext::XXX_draw_instanced)
+        ))
+    {
+        return false;
+    }
+
     mMemoryPressureObserver
         = new WebGLMemoryPressureObserver(this);
     nsCOMPtr<nsIObserverService> observerService
@@ -1062,6 +1097,14 @@ WebGLContext::InitAndValidateGL()
     mDefaultVertexArray = new WebGLVertexArray(this);
     mDefaultVertexArray->mAttribBuffers.SetLength(mGLMaxVertexAttribs);
     mBoundVertexArray = mDefaultVertexArray;
+
+    if (IsWebGL2()) {
+        EnableExtension(OES_vertex_array_object);
+        EnableExtension(WEBGL_draw_buffers);
+
+        MOZ_ASSERT(IsExtensionEnabled(OES_vertex_array_object));
+        MOZ_ASSERT(IsExtensionEnabled(WEBGL_draw_buffers));
+    }
 
     return true;
 }

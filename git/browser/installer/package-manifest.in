@@ -183,7 +183,6 @@
 @BINPATH@/components/dom_icc.xpt
 @BINPATH@/components/dom_wappush.xpt
 #endif
-@BINPATH@/components/dom_battery.xpt
 #ifdef MOZ_B2G_BT
 @BINPATH@/components/dom_bluetooth.xpt
 #endif
@@ -528,6 +527,7 @@
 @BINPATH@/components/Push.manifest
 @BINPATH@/components/PushServiceLauncher.js
 @BINPATH@/components/TCPSocket.js
+@BINPATH@/components/TCPServerSocket.js
 @BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
 

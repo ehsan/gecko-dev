@@ -885,7 +885,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
     // We include the altFeedbackSize in our visual overflow, but not in our
     // scrollable overflow, since it doesn't really need to be scrolled to
     // outside the image.
-    MOZ_STATIC_ASSERT(eOverflowType_LENGTH == 2, "Unknown overflow types?");
+    static_assert(eOverflowType_LENGTH == 2, "Unknown overflow types?");
     nsRect& visualOverflow = aMetrics.VisualOverflow();
     visualOverflow.UnionRect(visualOverflow, altFeedbackSize);
   }
@@ -1771,7 +1771,7 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 #endif
 
 int
-nsImageFrame::GetSkipSides() const
+nsImageFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {

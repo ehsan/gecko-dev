@@ -1093,24 +1093,26 @@ function goUrl(msg) {
   let start = new Date().getTime();
   let end = null;
   function checkLoad(){
+    checkTimer.cancel();
     end = new Date().getTime();
     let errorRegex = /about:.+(error)|(blocked)\?/;
     let elapse = end - start;
     if (msg.json.pageTimeout == null || elapse <= msg.json.pageTimeout){
       if (curWindow.document.readyState == "complete"){
+        removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
         sendOk(command_id);
-        checkTimer.cancel();
       }
       else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)){
+        removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
         sendError("Error loading page", 13, null, command_id);
       }
       else{
-        checkTimer.cancel();
         checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
       }
     }
     else{
-      sendError("Error loading page, timed out", 21, null, command_id);
+      removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
+      sendError("Error loading page, timed out (checkLoad)", 21, null, command_id);
     }
   }
   // Prevent DOMContentLoaded events from frames from invoking this code,
@@ -1124,8 +1126,8 @@ function goUrl(msg) {
   };
 
   function timerFunc(){
-    sendError("Error loading page, timed out", 21, null, command_id);
     removeEventListener("DOMContentLoaded", onDOMContentLoaded, false);
+    sendError("Error loading page, timed out (onDOMContentLoaded)", 21, null, command_id);
   }
   if (msg.json.pageTimeout != null){
     checkTimer.initWithCallback(timerFunc, msg.json.pageTimeout, Ci.nsITimer.TYPE_ONE_SHOT);
@@ -1467,6 +1469,9 @@ function switchToFrame(msg) {
     msg.json.element = null;
   }
   if ((msg.json.value == null) && (msg.json.element == null)) {
+    // returning to root frame
+    sendSyncMessage("Marionette:switchedToFrame", { frameValue: null });
+
     curWindow = content;
     if(msg.json.focus == true) {
       curWindow.focus();
@@ -1529,9 +1534,14 @@ function switchToFrame(msg) {
 
   sandbox = null;
 
+  // send a synchronous message to let the server update the currently active
+  // frame element (for getActiveFrame)
+  let frameValue = elementManager.wrapValue(curWindow.wrappedJSObject)['ELEMENT'];
+  sendSyncMessage("Marionette:switchedToFrame", { frameValue: frameValue });
+
   if (curWindow.contentWindow == null) {
-    // The frame we want to switch to is a remote frame; notify our parent to handle
-    // the switch.
+    // The frame we want to switch to is a remote (out-of-process) frame;
+    // notify our parent to handle the switch.
     curWindow = content;
     sendToServer('Marionette:switchToFrame', {frame: foundFrame,
                                               win: parWindow,

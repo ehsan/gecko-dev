@@ -320,8 +320,8 @@ class IDLUnresolvedIdentifier(IDLObject):
                               [location])
         if name[0] == '_' and not allowDoubleUnderscore:
             name = name[1:]
-        # TODO: Bug 872377, Restore "toJSON" to below list.
-        if name in ["constructor", "iterator", "toString"] and not allowForbidden:
+        if (name in ["constructor", "iterator", "toString", "toJSON"] and
+            not allowForbidden):
             raise WebIDLError("Cannot use reserved identifier '%s'" % (name),
                               [location])
 
@@ -718,12 +718,15 @@ class IDLInterface(IDLObjectWithScope):
                 memberType = "deleters"
             elif member.isStringifier():
                 memberType = "stringifiers"
+            elif member.isJsonifier():
+                memberType = "jsonifiers"
             elif member.isLegacycaller():
                 memberType = "legacycallers"
             else:
                 continue
 
-            if memberType != "stringifiers" and memberType != "legacycallers":
+            if (memberType != "stringifiers" and memberType != "legacycallers" and
+                memberType != "jsonifiers"):
                 if member.isNamed():
                     memberType = "named " + memberType
                 else:
@@ -1254,6 +1257,12 @@ class IDLType(IDLObject):
     def isPrimitive(self):
         return False
 
+    def isBoolean(self):
+        return False
+
+    def isNumeric(self):
+        return False
+
     def isString(self):
         return False
 
@@ -1329,6 +1338,9 @@ class IDLType(IDLObject):
     def isUnrestricted(self):
         # Should only call this on float types
         assert self.isFloat()
+
+    def isSerializable(self):
+        return False
 
     def tag(self):
         assert False # Override me!
@@ -1408,6 +1420,12 @@ class IDLNullableType(IDLType):
     def isPrimitive(self):
         return self.inner.isPrimitive()
 
+    def isBoolean(self):
+        return self.inner.isBoolean()
+
+    def isNumeric(self):
+        return self.inner.isNumeric()
+
     def isString(self):
         return self.inner.isString()
 
@@ -1464,6 +1482,9 @@ class IDLNullableType(IDLType):
 
     def isUnion(self):
         return self.inner.isUnion()
+
+    def isSerializable(self):
+        return self.inner.isSerializable()
 
     def tag(self):
         return self.inner.tag()
@@ -1550,6 +1571,9 @@ class IDLSequenceType(IDLType):
     def isEnum(self):
         return False
 
+    def isSerializable(self):
+        return self.inner.isSerializable()
+
     def includesRestrictedFloat(self):
         return self.inner.includesRestrictedFloat()
 
@@ -1598,6 +1622,9 @@ class IDLUnionType(IDLType):
 
     def isUnion(self):
         return True
+
+    def isSerializable(self):
+        return all(m.isSerializable() for m in self.memberTypes)
 
     def includesRestrictedFloat(self):
         return any(t.includesRestrictedFloat() for t in self.memberTypes)
@@ -1802,6 +1829,12 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
     def isPrimitive(self):
         return self.inner.isPrimitive()
 
+    def isBoolean(self):
+        return self.inner.isBoolean()
+
+    def isNumeric(self):
+        return self.inner.isNumeric()
+
     def isString(self):
         return self.inner.isString()
 
@@ -1929,6 +1962,19 @@ class IDLWrapperType(IDLType):
     def isEnum(self):
         return isinstance(self.inner, IDLEnum)
 
+    def isSerializable(self):
+        if self.isInterface():
+            if self.inner.isExternal():
+                return False
+            return any(m.isMethod() and m.isJsonifier() for m in self.inner.members)
+        elif self.isEnum():
+            return True
+        elif self.isDictionary():
+            return all(m.isSerializable() for m in self.inner.members)
+        else:
+            raise WebIDLError("IDLWrapperType wraps type %s that we don't know if "
+                              "is serializable" % type(self.inner), [self.location])
+
     def resolveType(self, parentScope):
         assert isinstance(parentScope, IDLScope)
         self.inner.resolve(parentScope)
@@ -1952,7 +1998,7 @@ class IDLWrapperType(IDLType):
             return other.isDistinguishableFrom(self)
         assert self.isInterface() or self.isEnum() or self.isDictionary()
         if self.isEnum():
-            return (other.isInterface() or other.isObject() or
+            return (other.isPrimitive() or other.isInterface() or other.isObject() or
                     other.isCallback() or other.isDictionary() or
                     other.isSequence() or other.isArray() or
                     other.isDate())
@@ -2081,6 +2127,12 @@ class IDLBuiltinType(IDLType):
     def isPrimitive(self):
         return self._typeTag <= IDLBuiltinType.Types.double
 
+    def isBoolean(self):
+        return self._typeTag == IDLBuiltinType.Types.boolean
+
+    def isNumeric(self):
+        return self.isPrimitive() and not self.isBoolean()
+
     def isString(self):
         return self._typeTag == IDLBuiltinType.Types.domstring or \
                self._typeTag == IDLBuiltinType.Types.bytestring
@@ -2127,6 +2179,9 @@ class IDLBuiltinType(IDLType):
         return self._typeTag == IDLBuiltinType.Types.unrestricted_float or \
                self._typeTag == IDLBuiltinType.Types.unrestricted_double
 
+    def isSerializable(self):
+        return self.isPrimitive() or self.isDOMString() or self.isDate()
+
     def includesRestrictedFloat(self):
         return self.isFloat() and not self.isUnrestricted()
 
@@ -2137,8 +2192,21 @@ class IDLBuiltinType(IDLType):
         if other.isUnion():
             # Just forward to the union; it'll deal
             return other.isDistinguishableFrom(self)
-        if self.isPrimitive() or self.isString():
-            return (other.isInterface() or other.isObject() or
+        if self.isBoolean():
+            return (other.isNumeric() or other.isString() or other.isEnum() or
+                    other.isInterface() or other.isObject() or
+                    other.isCallback() or other.isDictionary() or
+                    other.isSequence() or other.isArray() or
+                    other.isDate())
+        if self.isNumeric():
+            return (other.isBoolean() or other.isString() or other.isEnum() or
+                    other.isInterface() or other.isObject() or
+                    other.isCallback() or other.isDictionary() or
+                    other.isSequence() or other.isArray() or
+                    other.isDate())
+        if self.isString():
+            return (other.isPrimitive() or other.isInterface() or
+                    other.isObject() or
                     other.isCallback() or other.isDictionary() or
                     other.isSequence() or other.isArray() or
                     other.isDate())
@@ -2501,7 +2569,7 @@ class IDLAttribute(IDLInterfaceMember):
             raise WebIDLError("An attribute cannot be of a sequence type",
                               [self.location])
         if self.type.isUnion():
-            for f in self.type.flatMemberTypes:
+            for f in self.type.unroll().flatMemberTypes:
                 if f.isDictionary():
                     raise WebIDLError("An attribute cannot be of a union "
                                       "type if one of its member types (or "
@@ -2812,7 +2880,7 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
     def __init__(self, location, identifier, returnType, arguments,
                  static=False, getter=False, setter=False, creator=False,
                  deleter=False, specialType=NamedOrIndexed.Neither,
-                 legacycaller=False, stringifier=False):
+                 legacycaller=False, stringifier=False, jsonifier=False):
         # REVIEW: specialType is NamedOrIndexed -- wow, this is messed up.
         IDLInterfaceMember.__init__(self, location, identifier,
                                     IDLInterfaceMember.Tags.Method)
@@ -2838,6 +2906,8 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         self._legacycaller = legacycaller
         assert isinstance(stringifier, bool)
         self._stringifier = stringifier
+        assert isinstance(jsonifier, bool)
+        self._jsonifier = jsonifier
         self._specialType = specialType
 
         if static and identifier.name == "prototype":
@@ -2875,6 +2945,12 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
             assert len(overload.arguments) == 0
             assert overload.returnType == BuiltinTypes[IDLBuiltinType.Types.domstring]
 
+        if self._jsonifier:
+            assert len(self._overloads) == 1
+            overload = self._overloads[0]
+            assert len(overload.arguments) == 0
+            assert overload.returnType == BuiltinTypes[IDLBuiltinType.Types.object]
+
     def isStatic(self):
         return self._static
 
@@ -2905,6 +2981,9 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
 
     def isStringifier(self):
         return self._stringifier
+
+    def isJsonifier(self):
+        return self._jsonifier
 
     def hasOverloads(self):
         return self._hasOverloads
@@ -2951,6 +3030,8 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         assert not method.isDeleter()
         assert not self.isStringifier()
         assert not method.isStringifier()
+        assert not self.isJsonifier()
+        assert not method.isJsonifier()
 
         return self
 
@@ -3284,6 +3365,7 @@ class Tokenizer(object):
         "false": "FALSE",
         "serializer": "SERIALIZER",
         "stringifier": "STRINGIFIER",
+        "jsonifier": "JSONIFIER",
         "unrestricted": "UNRESTRICTED",
         "attribute": "ATTRIBUTE",
         "readonly": "READONLY",
@@ -3914,6 +3996,19 @@ class Parser(Tokenizer):
                            stringifier=True)
         p[0] = method
 
+    def p_Jsonifier(self, p):
+        """
+            Operation : JSONIFIER SEMICOLON
+        """
+        identifier = IDLUnresolvedIdentifier(BuiltinLocation("<auto-generated-identifier>"),
+                                             "__jsonifier", allowDoubleUnderscore=True)
+        method = IDLMethod(self.getLocation(p, 1),
+                           identifier,
+                           returnType=BuiltinTypes[IDLBuiltinType.Types.object],
+                           arguments=[],
+                           jsonifier=True)
+        p[0] = method
+
     def p_QualifierStatic(self, p):
         """
             Qualifier : STATIC
@@ -4066,6 +4161,7 @@ class Parser(Tokenizer):
                          | SETTER
                          | STATIC
                          | STRINGIFIER
+                         | JSONIFIER
                          | TYPEDEF
                          | UNRESTRICTED
         """
@@ -4195,6 +4291,7 @@ class Parser(Tokenizer):
                   | SHORT
                   | STATIC
                   | STRINGIFIER
+                  | JSONIFIER
                   | TRUE
                   | TYPEDEF
                   | UNSIGNED

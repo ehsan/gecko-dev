@@ -11,7 +11,7 @@ interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
 interface nsIDOMMozMobileCFInfo;
 
-[scriptable, builtinclass, uuid(fd26e2e0-c910-11e2-8b8b-0800200c9a66)]
+[scriptable, builtinclass, uuid(ae82dac0-d1a0-11e2-8b8b-0800200c9a66)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
   const long ICC_SERVICE_CLASS_VOICE = (1 << 0);
@@ -40,19 +40,24 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   const long CALL_BARRING_PROGRAM_INCOMING_ROAMING                   = 4;
 
   /**
+   * Calling line identification restriction constants.
+   *
+   * @see 3GPP TS 27.007 7.7 Defined values
+   *
+   * (0) Uses subscription default value.
+   * (1) Restricts CLI presentation.
+   * (2) Allows CLI presentation.
+   */
+  const long CLIR_DEFAULT     = 0;
+  const long CLIR_INVOCATION  = 1;
+  const long CLIR_SUPPRESSION = 2;
+
+  /**
    * These two fields can be accessed by privileged applications with the
    * 'mobilenetwork' permission.
    */
   readonly attribute DOMString lastKnownNetwork;
   readonly attribute DOMString lastKnownHomeNetwork;
-
-  /**
-   * Indicates the number of retries remaining when cardState equals 'pinRequired'
-   * or 'pukRequired'.  0 denotes the retry count is unavailable.
-   *
-   * Value is undefined for other cardState values.
-   */
-  readonly attribute long retryCount;
 
   /**
    * Information about the voice connection.
@@ -109,6 +114,37 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * 'IllegalSIMorME', or 'GenericFailure'
    */
   nsIDOMDOMRequest selectNetworkAutomatically();
+
+  /**
+   * Set roaming preference
+   *
+   * @param mode
+   *        DOMString indicates the desired roaming preference.
+   *        Possible values: 'home', 'affiliated', or 'any'.
+   *
+   * If successful, the request's onsuccess will be called.
+   *
+   * Otherwise, the request's onerror will be called, and the request's error
+   * will be either 'RadioNotAvailable', 'RequestNotSupported',
+   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   *
+   * TODO: param "mode" should be a WebIDL enum when this interface is converted
+   *       to WebIDL
+   */
+  nsIDOMDOMRequest setRoamingPreference(in DOMString mode);
+
+  /**
+   * Query current roaming preference
+   *
+   * If successful, the request's onsuccess will be called. And the request's
+   * result will be a string indicating the current roaming preference.
+   * The value will be either 'home', 'affiliated', or 'any'.
+   *
+   * Otherwise, the request's onerror will be called, and the request's error
+   * will be either 'RadioNotAvailable', 'RequestNotSupported',
+   * 'IllegalSIMorME', or 'GenericFailure'
+   */
+  nsIDOMDOMRequest getRoamingPreference();
 
   /**
    * Send a MMI message.
@@ -227,6 +263,33 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   nsIDOMDOMRequest getCallWaitingOption();
 
   /**
+   * Enables or disables the presentation of the calling line identity (CLI) to
+   * the called party when originating a call.
+   *
+   * @param clirMode
+   *        Is one of the CLIR_* constants.
+   *        
+   * If successful, the request's onsuccess will be called.
+   *
+   * Otherwise, the request's onerror will be called, and the request's error
+   * will be either 'RadioNotAvailable', 'RequestNotSupported',
+   */
+  nsIDOMDOMRequest setCallingLineIdRestriction(in unsigned short clirMode);
+
+  /**
+   * Queries current CLIR status.
+   *
+   * If successful, the request's onsuccess will be called, and the request's
+   * result will be a DOMCLIRStatus dictionary containing CLIR 'n' and 'm'
+   * parameter.
+   *
+   * Otherwise, the request's onerror will be called, and the request's error
+   * will be either 'RadioNotAvailable', 'RequestNotSupported',
+   * or 'GenericFailure'.
+   */
+  nsIDOMDOMRequest getCallingLineIdRestriction();
+
+  /**
    * The 'voicechange' event is notified whenever the voice connection object
    * changes.
    */
@@ -257,7 +320,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   [implicit_jscontext] attribute jsval oncfstatechange;
 };
 
-[scriptable, uuid(c9d9ff61-a2f0-41cd-b478-9cefa7b31f31)]
+[scriptable, uuid(49706beb-a160-40b7-b745-50f62e389a2c)]
 interface nsIDOMMozMobileConnectionInfo : nsISupports
 {
   /**
@@ -291,11 +354,6 @@ interface nsIDOMMozMobileConnectionInfo : nsISupports
    * Network operator
    */
   readonly attribute nsIDOMMozMobileNetworkInfo network;
-
-  /**
-   * Mobile Country Code (MCC) of last known network operator.
-   */
-  readonly attribute DOMString lastKnownMcc;
 
   /**
    * Type of connection.
@@ -354,18 +412,68 @@ interface nsIDOMMozMobileNetworkInfo: nsISupports
   readonly attribute DOMString state;
 };
 
-[scriptable, uuid(aa546788-4f34-488b-8c3e-2786e02ab992)]
+[scriptable, uuid(9750b3a7-d913-436e-95d4-7ef2973ec6a1)]
 interface nsIDOMMozMobileCellInfo: nsISupports
 {
   /**
    * Mobile Location Area Code (LAC) for GSM/WCDMA networks.
+   *
+   * Possible ranges from 0x0000 to 0xffff.
+   * -1 if the LAC is unknown.
    */
-  readonly attribute unsigned short gsmLocationAreaCode;
+  readonly attribute long gsmLocationAreaCode;
 
   /**
    * Mobile Cell ID for GSM/WCDMA networks.
+   *
+   * Possible ranges from 0x00000000 to 0xffffffff.
+   * -1 if the cell id is unknown.
    */
-  readonly attribute unsigned long gsmCellId;
+  readonly attribute long long gsmCellId;
+
+  /**
+   * Base Station ID for CDMA networks.
+   *
+   * Possible ranges from 0 to 65535
+   * -1 if the base station id is unknown.
+   */
+  readonly attribute long cdmaBaseStationId;
+
+  /**
+   * Base Station Latitude for CDMA networks.
+   *
+   * Possible ranges from -1296000 to 1296000.
+   * -2147483648 if the latitude is unknown.
+   *
+   * @see 3GPP2 C.S0005-A v6.0.
+   */
+  readonly attribute long cdmaBaseStationLatitude;
+
+  /**
+   * Base Station Longitude for CDMA networks.
+   *
+   * Possible ranges from -2592000 to 2592000.
+   * -2147483648 if the longitude is unknown.
+   *
+   * @see 3GPP2 C.S0005-A v6.0.
+   */
+  readonly attribute long cdmaBaseStationLongitude;
+
+  /**
+   * System ID for CDMA networks.
+   *
+   * Possible ranges from 0 to 32767.
+   * -1 if the system id is unknown.
+   */
+  readonly attribute long cdmaSystemId;
+
+  /**
+   * Network ID for CDMA networks.
+   *
+   * Possible ranges from 0 to 65535.
+   * -1 if the network id is unknown.
+   */
+  readonly attribute long cdmaNetworkId;
 };
 
 [scriptable, uuid(d1b35ad8-99aa-47cc-ab49-2e72b00e39df)]
@@ -488,4 +596,29 @@ dictionary DOMMMIResult
    * information can be a number, a string key or an array of string keys.
    */
   jsval additionalInformation;
+};
+
+dictionary DOMCLIRStatus
+{
+  /**
+   * CLIR parameter 'n': parameter sets the adjustment for outgoing calls.
+   *
+   * 0 Presentation indicator is used according to the subscription of the
+   *   CLIR service (uses subscription default value).
+   * 1 CLIR invocation (restricts CLI presentation).
+   * 2 CLIR suppression (allows CLI presentation).
+   */
+  unsigned short n;
+
+  /**
+   * CLIR parameter 'm': parameter shows the subscriber CLIR service status in
+   *                     the network.
+   * 0 CLIR not provisioned.
+   * 1 CLIR provisioned in permanent mode.
+   * 2 unknown (e.g. no network, etc.).
+   * 3 CLIR temporary mode presentation restricted.
+   *
+   * @see 3GPP TS 27.007 7.7 Defined values
+   */
+  unsigned short m;
 };

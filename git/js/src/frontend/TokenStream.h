@@ -14,14 +14,15 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdarg.h>
+
 #include "jscntxt.h"
-#include "jsversion.h"
 #include "jsopcode.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jsversion.h"
 
 #include "js/Vector.h"
 
@@ -449,6 +450,7 @@ class MOZ_STACK_CLASS TokenStream
     const char *getFilename() const { return filename; }
     unsigned getLineno() const { return lineno; }
     unsigned getColumn() const { return userbuf.addressOfNextRawChar() - linebase - 1; }
+    JSPrincipals *getOriginPrincipals() const { return originPrincipals; }
     JSVersion versionNumber() const { return VersionNumber(options().version); }
     JSVersion versionWithFlags() const { return options().version; }
     bool hadError() const { return !!(flags & TSF_HAD_ERROR); }

@@ -9,8 +9,6 @@
 
 #include "jsobj.h"
 
-#include "jswrapper.h"
-
 #include "vm/ArrayObject.h"
 #include "vm/DateObject.h"
 #include "vm/NumberObject.h"
@@ -762,18 +760,6 @@ JSObject::getElementAttributes(JSContext *cx, js::HandleObject obj,
     return getGenericAttributes(cx, obj, id, attrsp);
 }
 
-inline bool
-JSObject::isCrossCompartmentWrapper() const
-{
-    return js::IsCrossCompartmentWrapper(const_cast<JSObject*>(this));
-}
-
-inline bool
-JSObject::isWrapper() const
-{
-    return js::IsWrapper(const_cast<JSObject*>(this));
-}
-
 inline js::GlobalObject &
 JSObject::global() const
 {
@@ -1207,11 +1193,12 @@ static JS_ALWAYS_INLINE bool
 NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
 {
     // The metadata callback is invoked before each created object, except when
-    // analysis is active as the callback may reenter JS.
+    // analysis/compilation/parsing is active as the callback may reenter JS.
     JS_ASSERT(!*pmetadata);
     if (JSContext *cx = cxArg->maybeJSContext()) {
         if (JS_UNLIKELY((size_t)cx->compartment()->objectMetadataCallback) &&
-            !cx->compartment()->activeAnalysis)
+            !cx->compartment()->activeAnalysis &&
+            !cx->runtime()->mainThread.activeCompilations)
         {
             gc::AutoSuppressGC suppress(cx);
             return cx->compartment()->objectMetadataCallback(cx, pmetadata);

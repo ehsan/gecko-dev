@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ion/TypePolicy.h"
+
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
 
@@ -324,6 +325,9 @@ IntPolicy<Op>::staticAdjustInputs(MInstruction *def)
     if (in->type() == MIRType_Int32)
         return true;
 
+    if (in->type() != MIRType_Value)
+        in = boxAt(def, in);
+
     MUnbox *replace = MUnbox::New(in, MIRType_Int32, MUnbox::Fallible);
     def->block()->insertBefore(def, replace);
     def->replaceOperand(Op, replace);
@@ -562,9 +566,9 @@ bool
 StoreTypedArrayElementStaticPolicy::adjustInputs(MInstruction *ins)
 {
     MStoreTypedArrayElementStatic *store = ins->toStoreTypedArrayElementStatic();
-    JS_ASSERT(store->ptr()->type() == MIRType_Int32);
 
-    return adjustValueInput(ins, store->viewType(), store->value(), 1);
+    return IntPolicy<0>::staticAdjustInputs(ins) &&
+        adjustValueInput(ins, store->viewType(), store->value(), 1);
 }
 
 bool

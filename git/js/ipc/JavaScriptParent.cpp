@@ -436,7 +436,7 @@ JavaScriptParent::call(JSContext *cx, HandleObject proxy, const CallArgs &args)
             return false;
 
         JSObject *obj = &outobjects[i].toObject();
-        if (!JS_SetProperty(cx, obj, "value", v.address()))
+        if (!JS_SetProperty(cx, obj, "value", v))
             return false;
     }
 
@@ -562,12 +562,14 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
 
     bool callable = !!(objId & OBJECT_IS_CALLABLE);
 
+    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+
     RootedValue v(cx, UndefinedValue());
     JSObject *obj = NewProxyObject(cx,
                                    &CPOWProxyHandler::singleton,
                                    v,
                                    NULL,
-                                   NULL,
+                                   global,
                                    callable ? ProxyIsCallable : ProxyNotCallable);
     if (!obj)
         return NULL;

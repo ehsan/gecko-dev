@@ -576,10 +576,13 @@ this.ICC_STATUS_ERROR_WRONG_PARAMETERS = 0x6a;
 this.ICC_CB_FACILITY_SIM = "SC";
 this.ICC_CB_FACILITY_FDN = "FD";
 this.ICC_CB_FACILITY_BAOC = "AO";
-this.ICC_CB_FACILITY_BOIC = "OI";
-this.ICC_CB_FACILITY_BOIC_EX_HC = "OX";
+this.ICC_CB_FACILITY_BAOIC = "OI";
+this.ICC_CB_FACILITY_BAOICxH = "OX";
 this.ICC_CB_FACILITY_BAIC = "AI";
-this.ICC_CB_FACILITY_BIC_ROAM = "IR";
+this.ICC_CB_FACILITY_BAICr = "IR";
+this.ICC_CB_FACILITY_BA_ALL = "AB";
+this.ICC_CB_FACILITY_BA_MO = "AG";
+this.ICC_CB_FACILITY_BA_MT = "AC";
 
 // ICC service class
 // TS 27.007, clause 7.4, +CLCK
@@ -2124,6 +2127,7 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
   "\u00c0": "\u0041", // "À" => "A"
   "\u00c1": "\u0041", // "Á" => "A"
   "\u00c2": "\u0041", // "Â" => "A"
+  "\u00c3": "\u0041", // "Ã" => "A"
 //"\u00c4": "\u00c4", // "Ä" => "Ä", already in default alphabet
 //"\u00c5": "\u00c5", // "Å" => "Å", already in default alphabet
 //"\u00c6": "\u00c6", // "Æ" => "Æ", already in default alphabet
@@ -2140,6 +2144,7 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
   "\u00d2": "\u004f", // "Ò" => "O"
   "\u00d3": "\u004f", // "Ó" => "O"
   "\u00d4": "\u004f", // "Ô" => "O"
+  "\u00d5": "\u004f", // "Õ" => "O"
 //"\u00d6": "\u00d6", // "Ö" => "Ö", already in default alphabet
   "\u00d9": "\u0055", // "Ù" => "U"
   "\u00da": "\u0055", // "Ú" => "U"
@@ -2149,6 +2154,7 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
 //"\u00e0": "\u00e0", // "à" => "à", already in default alphabet
   "\u00e1": "\u0061", // "á" => "a"
   "\u00e2": "\u0061", // "â" => "a"
+  "\u00e3": "\u0061", // "ã" => "a"
 //"\u00e4": "\u00e4", // "ä" => "ä", already in default alphabet
 //"\u00e5": "\u00e5", // "å" => "å", already in default alphabet
 //"\u00e6": "\u00e6", // "æ" => "æ", already in default alphabet
@@ -2165,6 +2171,7 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
 //"\u00f2": "\u00f2", // "ò" => "ò", already in default alphabet
   "\u00f3": "\u006f", // "ó" => "o"
   "\u00f4": "\u006f", // "ô" => "o"
+  "\u00f5": "\u006f", // "õ" => "o"
 //"\u00f6": "\u00f6", // "ö" => "ö", already in default alphabet
 //"\u00f8": "\u00f8", // "ø" => "ø", already in default alphabet
 //"\u00f9": "\u00f9", // "ù" => "ù", already in default alphabet
@@ -2185,6 +2192,8 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
   "\u0113": "\u0065", // "ē" => "e"
   "\u0118": "\u0045", // "Ę" => "E"
   "\u0119": "\u0065", // "ę" => "e"
+  "\u0128": "\u0049", // "Ĩ" => "I"
+  "\u0129": "\u0069", // "ĩ" => "i"
   "\u012a": "\u0049", // "Ī" => "I"
   "\u012b": "\u0069", // "ī" => "i"
   "\u012e": "\u0049", // "Į" => "I"
@@ -2204,6 +2213,8 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
   "\u0160": "\u0053", // "Š" => "S"
   "\u0161": "\u0073", // "š" => "s"
   "\u0165": "\u0074", // "ť" => "t"
+  "\u0168": "\u0055", // "Ū" => "U"
+  "\u0169": "\u0075", // "ū" => "u"
   "\u016a": "\u0055", // "Ū" => "U"
   "\u016b": "\u0075", // "ū" => "u"
   "\u0178": "\u0059", // "Ÿ" => "Y"
@@ -2215,6 +2226,12 @@ this.GSM_SMS_STRICT_7BIT_CHARMAP = {
   "\u017e": "\u007a", // "ž" => "z"
   "\u025b": "\u0045", // "ɛ" => "E"
 //"\u0398": "\u0398", // "Θ" => "Θ", already in default alphabet
+  "\u1e7c": "\u0056", // "Ṽ" => "V"
+  "\u1e7d": "\u0076", // "ṽ" => "v"
+  "\u1ebc": "\u0045", // "Ẽ" => "E"
+  "\u1ebd": "\u0065", // "ẽ" => "e"
+  "\u1ef8": "\u0059", // "Ỹ" => "Y"
+  "\u1ef9": "\u0079", // "ỹ" => "y"
   "\u20a4": "\u00a3", // "₤" => "£"
 //"\u20ac": "\u20ac", // "€" => "€", already in default alphabet
 };
@@ -2348,7 +2365,7 @@ this.GECKO_MOBILE_CONNECTION_STATE_DENIED = "denied";
 this.NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE = {};
 NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_NOT_SEARCHING] = GECKO_MOBILE_CONNECTION_STATE_NOTSEARCHING;
 NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_HOME] = GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
-NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING] = GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING] = GECKO_MOBILE_CONNECTION_STATE_SEARCHING;
 NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_DENIED] = GECKO_MOBILE_CONNECTION_STATE_DENIED;
 NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_UNKNOWN] = GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
 NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_ROAMING] = GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
@@ -2494,10 +2511,15 @@ this.CALL_BARRING_PROGRAM_INCOMING_ROAMING = 4;
 
 this.CALL_BARRING_PROGRAM_TO_FACILITY = {};
 CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_ALL_OUTGOING] = ICC_CB_FACILITY_BAOC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL] = ICC_CB_FACILITY_BOIC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME] = ICC_CB_FACILITY_BOIC_EX_HC;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL] = ICC_CB_FACILITY_BAOIC;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME] = ICC_CB_FACILITY_BAOICxH;
 CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_ALL_INCOMING] = ICC_CB_FACILITY_BAIC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_INCOMING_ROAMING] = ICC_CB_FACILITY_BIC_ROAM;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_INCOMING_ROAMING] = ICC_CB_FACILITY_BAICr;
+
+// CLIR constants. Must be in sync with nsIDOMMozMobileConnection interface
+this.CLIR_DEFAULT = 0;
+this.CLIR_INVOCATION  = 1;
+this.CLIR_SUPPRESSION = 2;
 
 // MMI procedure as defined in TS.22.030 6.5.2
 this.MMI_PROCEDURE_ACTIVATION = "*";
@@ -2556,6 +2578,17 @@ this.MMI_SC_BA_ALL = "330";
 this.MMI_SC_BA_MO = "333";
 this.MMI_SC_BA_MT = "353";
 
+this.MMI_SC_TO_CB_FACILITY = {};
+
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOC] = ICC_CB_FACILITY_BAOC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOIC] = ICC_CB_FACILITY_BAOIC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOICxH] = ICC_CB_FACILITY_BAOICxH;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAIC] = ICC_CB_FACILITY_BAIC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAICr] = ICC_CB_FACILITY_BAICr;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_ALL] = ICC_CB_FACILITY_BA_ALL;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_MO] = ICC_CB_FACILITY_BA_MO;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_MT] = ICC_CB_FACILITY_BA_MT;
+
 // MMI service code key strings.
 this.MMI_KS_SC_CALL_BARRING = "scCallBarring";
 this.MMI_KS_SC_CALL_FORWARDING = "scCallForwarding";
@@ -2587,11 +2620,37 @@ this.MMI_SM_KS_PIN2_CHANGED = "smPin2Changed";
 this.MMI_SM_KS_PIN_UNBLOCKED = "smPinUnblocked";
 this.MMI_SM_KS_PIN2_UNBLOCKED = "smPin2Unblocked";
 this.MMI_SM_KS_SERVICE_ENABLED = "smServiceEnabled";
+this.MMI_SM_KS_SERVICE_ENABLED_FOR = "smServiceEnabledFor";
 this.MMI_SM_KS_SERVICE_DISABLED = "smServiceDisabled";
 this.MMI_SM_KS_SERVICE_REGISTERED = "smServiceRegistered";
 this.MMI_SM_KS_SERVICE_ERASED = "smServiceErased";
 this.MMI_SM_KS_SERVICE_INTERROGATED = "smServiceInterrogated";
+this.MMI_SM_KS_SERVICE_NOT_PROVISIONED = "smServiceNotProvisioned";
+this.MMI_SM_KS_CLIR_PERMANENT = "smClirPermanent";
+this.MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_ON = "smClirDefaultOnNextCallOn";
+this.MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_OFF = "smClirDefaultOnNextCallOff";
+this.MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_ON = "smClirDefaultOffNextCallOn";
+this.MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_OFF = "smClirDefaultOffNextCallOff";
 
+// MMI Service class
+this.MMI_KS_SERVICE_CLASS_VOICE = "serviceClassVoice";
+this.MMI_KS_SERVICE_CLASS_DATA = "serviceClassData";
+this.MMI_KS_SERVICE_CLASS_FAX = "serviceClassFax";
+this.MMI_KS_SERVICE_CLASS_SMS = "serviceClassSms";
+this.MMI_KS_SERVICE_CLASS_DATA_SYNC = "serviceClassDataSync";
+this.MMI_KS_SERVICE_CLASS_DATA_ASYNC = "serviceClassDataAsync";
+this.MMI_KS_SERVICE_CLASS_PACKET = "serviceClassPacket";
+this.MMI_KS_SERVICE_CLASS_PAD = "serviceClassPad";
+
+this.MMI_KS_SERVICE_CLASS_MAPPING = {};
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_VOICE] = MMI_KS_SERVICE_CLASS_VOICE;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA] = MMI_KS_SERVICE_CLASS_DATA;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_FAX] = MMI_KS_SERVICE_CLASS_FAX;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_SMS] = MMI_KS_SERVICE_CLASS_SMS;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA_SYNC] = MMI_KS_SERVICE_CLASS_DATA_SYNC;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA_ASYNC] = MMI_KS_SERVICE_CLASS_DATA_ASYNC;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_PACKET] = MMI_KS_SERVICE_CLASS_PACKET;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_PAD] = MMI_KS_SERVICE_CLASS_PAD;
 /**
  * CDMA PDU constants
  */
@@ -2655,6 +2714,21 @@ this.PDU_CDMA_MSG_CODING_IS_91_TYPE_VOICEMAIL_STATUS = 0x82;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_SMS_FULL = 0x83;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_CLI = 0x84;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_SMS = 0x85;
+
+// CDMA roaming preference mode
+this.CDMA_ROAMING_PREFERENCE_HOME = 0;
+this.CDMA_ROAMING_PREFERENCE_AFFILIATED = 1;
+this.CDMA_ROAMING_PREFERENCE_ANY = 2;
+
+this.GECKO_CDMA_ROAMING_PREFERENCE_HOME = "home";
+this.GECKO_CDMA_ROAMING_PREFERENCE_AFFILIATED = "affiliated";
+this.GECKO_CDMA_ROAMING_PREFERENCE_ANY = "any";
+
+this.CDMA_ROAMING_PREFERENCE_TO_GECKO = [
+  GECKO_CDMA_ROAMING_PREFERENCE_HOME,       // CDMA_ROAMING_PREFERENCE_HOME
+  GECKO_CDMA_ROAMING_PREFERENCE_AFFILIATED, // CDMA_ROAMING_PREFERENCE_AFFILIATED
+  GECKO_CDMA_ROAMING_PREFERENCE_ANY         // CDMA_ROAMING_PREFERENCE_ANY
+];
 
 /**
  * The table for MCC which the length of MNC is 3

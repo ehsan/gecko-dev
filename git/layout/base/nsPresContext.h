@@ -76,6 +76,10 @@ class nsIDOMMediaQueryList;
 class nsRenderingContext;
 #endif
 
+namespace mozilla {
+  class RestyleManager;
+}
+
 // supported values for cached bool types
 enum nsPresContext_CachedBoolPrefType {
   kPresContext_UseDocumentColors = 1,
@@ -238,15 +242,20 @@ public:
   }
 
 #ifdef _IMPL_NS_LAYOUT
-  nsStyleSet* StyleSet() { return GetPresShell()->StyleSet(); }
+  nsStyleSet* StyleSet() { return PresShell()->StyleSet(); }
 
   nsFrameManager* FrameManager()
-    { return GetPresShell()->FrameManager(); }
+    { return PresShell()->FrameManager(); }
+
+  nsCSSFrameConstructor* FrameConstructor()
+    { return PresShell()->FrameConstructor(); }
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
   nsAnimationManager* AnimationManager() { return mAnimationManager; }
 
   nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
+
+  mozilla::RestyleManager* RestyleManager() { return mRestyleManager; }
 #endif
 
   /**
@@ -305,7 +314,22 @@ public:
   /** 
    * Get medium of presentation
    */
-  nsIAtom* Medium() { return mMedium; }
+  nsIAtom* Medium() {
+    if (!mIsEmulatingMedia)
+      return mMedium;
+    return mMediaEmulated;
+  }
+
+  /*
+   * Render the document as if being viewed on a device with the specified
+   * media type.
+   */
+  void EmulateMedium(const nsAString& aMediaType);
+
+  /*
+   * Restore the viewer's natural medium
+   */
+  void StopEmulatingMedium();
 
   void* AllocateFromShell(size_t aSize)
   {
@@ -835,6 +859,16 @@ public:
     return GetCachedBoolPref(kPresContext_UseDocumentColors) || IsChrome();
   }
 
+  // Explicitly enable and disable paint flashing.
+  void SetPaintFlashing(bool aPaintFlashing) {
+    mPaintFlashing = aPaintFlashing;
+    mPaintFlashingInitialized = true;
+  }
+
+  // This method should be used instead of directly accessing mPaintFlashing,
+  // as that value may be out of date when mPaintFlashingInitialized is false.
+  bool GetPaintFlashing() const;
+
   bool             SupressingResizeReflow() const { return mSupressResizeReflow; }
   
   virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
@@ -1149,8 +1183,10 @@ protected:
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
   nsRefPtr<nsAnimationManager> mAnimationManager;
+  nsRefPtr<mozilla::RestyleManager> mRestyleManager;
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
+  nsCOMPtr<nsIAtom> mMediaEmulated;
 
   nsILinkHandler*       mLinkHandler;   // [WEAK]
 
@@ -1260,6 +1296,7 @@ protected:
   unsigned              mPendingUIResolutionChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
+  unsigned              mIsEmulatingMedia : 1;
   // True if the requests in mInvalidateRequestsSinceLastPaint cover the
   // entire viewport
   unsigned              mAllInvalidated : 1;
@@ -1298,6 +1335,11 @@ protected:
   // value the slow way.
   mutable unsigned      mIsChromeIsCached : 1;
   mutable unsigned      mIsChrome : 1;
+
+  // Should we paint flash in this context? Do not use this variable directly.
+  // Use GetPaintFlashing() method instead.
+  mutable unsigned mPaintFlashing : 1;
+  mutable unsigned mPaintFlashingInitialized : 1;
 
 #ifdef DEBUG
   bool                  mInitialized;

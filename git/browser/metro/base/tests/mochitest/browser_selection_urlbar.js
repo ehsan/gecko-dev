@@ -63,15 +63,12 @@ gTests.push({
     yield waitForMs(100);
 
     ok(SelectionHelperUI.isSelectionUIVisible, "selection ui active");
-
-    // taps on the urlbar-edit leak a ClientRect property on the window
-    delete window.r;
   },
 });
 
 gTests.push({
   desc: "bug 887120 - tap & hold to paste into urlbar",
-  run: function bug887120_test() {
+  run: function() {
     gWindow = window;
 
     yield showNavBar();
@@ -88,7 +85,52 @@ gTests.push({
     sendElementTap(window, paste);
     ok(edit.popup.popupOpen, "bug: popup should be showing");
 
-    delete window.r;
+    clearSelection(edit);
+  }
+});
+
+gTests.push({
+  desc: "bug 895284 - tap selection",
+  run: function() {
+    gWindow = window;
+
+    yield showNavBar();
+    let edit = document.getElementById("urlbar-edit");
+    edit.value = "wikipedia.org";
+    edit.select();
+
+    let editCoords = logicalCoordsForElement(edit);
+    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x, editCoords.y);
+
+    ok(SelectionHelperUI.isSelectionUIVisible, "selection enabled");
+
+    let selection = edit.QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
+                        .editor.selection;
+    let rects = selection.getRangeAt(0).getClientRects();
+    let midX = Math.ceil(((rects[0].right - rects[0].left) * .5) + rects[0].left);
+    let midY = Math.ceil(((rects[0].bottom - rects[0].top) * .5) + rects[0].top);
+
+    sendTap(window, midX, midY);
+
+    ok(SelectionHelperUI.isCaretUIVisible, "caret browsing enabled");
+
+    clearSelection(edit);
+  }
+});
+
+gTests.push({
+  desc: "bug 894713 - blur shuts down selection handling",
+  run: function() {
+    gWindow = window;
+    yield showNavBar();
+    let edit = document.getElementById("urlbar-edit");
+    edit.value = "wikipedia.org";
+    edit.select();
+    let editCoords = logicalCoordsForElement(edit);
+    SelectionHelperUI.attachEditSession(ChromeSelectionHandler, editCoords.x, editCoords.y);
+    edit.blur();
+    ok(!SelectionHelperUI.isSelectionUIVisible, "selection no longer enabled");
+    clearSelection(edit);
   }
 });
 

@@ -8,6 +8,7 @@
 
 #include "ion/MIR.h"
 #include "ion/x64/Assembler-x64.h"
+
 #include "ion/shared/Lowering-shared-inl.h"
 
 using namespace js;

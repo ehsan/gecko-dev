@@ -55,6 +55,7 @@ extern bool gBluetoothDebugFlag;
  * When connection status of Bluetooth profiles change, we'll notify observers
  * of following topics.
  */
+#define BLUETOOTH_HFP_STATUS_CHANGED_ID      "bluetooth-hfp-status-changed"
 #define BLUETOOTH_SCO_STATUS_CHANGED_ID      "bluetooth-sco-status-changed"
 #define BLUETOOTH_A2DP_STATUS_CHANGED_ID     "bluetooth-a2dp-status-changed"
 
@@ -83,6 +84,16 @@ enum BluetoothObjectType {
   TYPE_DEVICE = 2,
 
   TYPE_INVALID
+};
+
+enum ControlPlayStatus {
+  PLAYSTATUS_STOPPED  = 0x00,
+  PLAYSTATUS_PLAYING  = 0x01,
+  PLAYSTATUS_PAUSED   = 0x02,
+  PLAYSTATUS_FWD_SEEK = 0x03,
+  PLAYSTATUS_REV_SEEK = 0x04,
+  PLAYSTATUS_UNKNOWN,
+  PLAYSTATUS_ERROR    = 0xFF,
 };
 
 END_BLUETOOTH_NAMESPACE

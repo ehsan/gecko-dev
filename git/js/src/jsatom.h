@@ -10,6 +10,7 @@
 #include "mozilla/HashFunctions.h"
 
 #include <stddef.h>
+
 #include "jsalloc.h"
 #include "jsapi.h"
 #include "jsprvtd.h"
@@ -51,16 +52,6 @@ struct JsidHasher
  */
 extern const char *
 AtomToPrintableString(ExclusiveContext *cx, JSAtom *atom, JSAutoByteString *bytes);
-
-/* Compute a hash function from chars/length. */
-inline uint32_t
-HashChars(const jschar *chars, size_t length)
-{
-    uint32_t h = 0;
-    for (; length; chars++, length--)
-        h = JS_ROTATE_LEFT32(h, 4) ^ *chars;
-    return h;
-}
 
 class AtomStateEntry
 {
@@ -104,7 +95,7 @@ struct AtomHasher
         inline Lookup(const JSAtom *atom);
     };
 
-    static HashNumber hash(const Lookup &l) { return HashChars(l.chars, l.length); }
+    static HashNumber hash(const Lookup &l) { return mozilla::HashString(l.chars, l.length); }
     static inline bool match(const AtomStateEntry &entry, const Lookup &lookup);
 };
 

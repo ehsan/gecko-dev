@@ -51,6 +51,7 @@ const nsITelephonyProvider = Ci.nsITelephonyProvider;
 
 const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
 const kSmsReceivedObserverTopic          = "sms-received";
+const kSilentSmsReceivedObserverTopic    = "silent-sms-received";
 const kSmsSendingObserverTopic           = "sms-sending";
 const kSmsSentObserverTopic              = "sms-sent";
 const kSmsFailedObserverTopic            = "sms-failed";
@@ -104,7 +105,11 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:SetCallBarringOption",
   "RIL:GetCallBarringOption",
   "RIL:SetCallWaitingOption",
-  "RIL:GetCallWaitingOption"
+  "RIL:GetCallWaitingOption",
+  "RIL:SetCallingLineIdRestriction",
+  "RIL:GetCallingLineIdRestriction",
+  "RIL:SetRoamingPreference",
+  "RIL:GetRoamingPreference"
 ];
 
 const RIL_IPC_ICCMANAGER_MSG_NAMES = [
@@ -140,6 +145,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gPowerManagerService",
 XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageService",
                                    "@mozilla.org/mobilemessage/mobilemessageservice;1",
                                    "nsIMobileMessageService");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
+                                   "@mozilla.org/sms/smsservice;1",
+                                   "nsISmsService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageDatabaseService",
                                    "@mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1",
@@ -635,7 +644,6 @@ function RadioInterface(options) {
   this.rilContext = {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNKNOWN,
-    retryCount:     0,  // TODO: Please see bug 868896
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:        null,
     imsi:           null,
@@ -648,7 +656,6 @@ function RadioInterface(options) {
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     lastKnownMcc: null,
                      cell: null,
                      type: null,
                      signalStrength: null,
@@ -657,17 +664,11 @@ function RadioInterface(options) {
                      emergencyCallsOnly: false,
                      roaming: false,
                      network: null,
-                     lastKnownMcc: null,
                      cell: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
   };
-
-  try {
-    this.rilContext.voice.lastKnownMcc =
-      Services.prefs.getCharPref("ril.lastKnownMcc");
-  } catch (e) {}
 
   this.voicemailInfo = {
     number: null,
@@ -871,9 +872,25 @@ RadioInterface.prototype = {
         gMessageManager.saveRequestTarget(msg);
         this.getCallWaitingOption(msg.json.data);
         break;
+      case "RIL:SetCallingLineIdRestriction":
+        gMessageManager.saveRequestTarget(msg);
+        this.setCallingLineIdRestriction(msg.json.data);
+        break;
+      case "RIL:GetCallingLineIdRestriction":
+        gMessageManager.saveRequestTarget(msg);
+        this.getCallingLineIdRestriction(msg.json.data);
+        break;
       case "RIL:GetVoicemailInfo":
         // This message is sync.
         return this.voicemailInfo;
+      case "RIL:SetRoamingPreference":
+        gMessageManager.saveRequestTarget(msg);
+        this.setRoamingPreference(msg.json.data);
+        break;
+      case "RIL:GetRoamingPreference":
+        gMessageManager.saveRequestTarget(msg);
+        this.getRoamingPreference(msg.json.data);
+        break;
     }
   },
 
@@ -1057,12 +1074,24 @@ RadioInterface.prototype = {
       case "setCallWaiting":
         this.handleSetCallWaiting(message);
         break;
+      case "getCLIR":
+        this.handleGetCLIR(message);
+        break;
+      case "setCLIR":
+        this.handleSetCLIR(message);
+        break;
       case "setCellBroadcastSearchList":
         this.handleSetCellBroadcastSearchList(message);
         break;
       case "setRadioEnabled":
         let lock = gSettingsService.createLock();
         lock.set("ril.radio.disabled", !message.on, null, null);
+        break;
+      case "setRoamingPreference":
+        this.handleSetRoamingPreference(message);
+        break;
+      case "queryRoamingPreference":
+        this.handleQueryRoamingPreference(message);
         break;
       default:
         throw new Error("Don't know about this message type: " +
@@ -1167,17 +1196,14 @@ RadioInterface.prototype = {
 
     // Make sure we also reset the operator and signal strength information
     // if we drop off the network.
-    if (newInfo.regState == RIL.NETWORK_CREG_STATE_UNKNOWN) {
+    if (newInfo.regState !== RIL.NETWORK_CREG_STATE_REGISTERED_HOME &&
+        newInfo.regState !== RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING) {
+      voiceInfo.cell = null;
       voiceInfo.network = null;
       voiceInfo.signalStrength = null;
       voiceInfo.relSignalStrength = null;
-    }
-
-    let newCell = newInfo.cell;
-    if ((newCell.gsmLocationAreaCode < 0) || (newCell.gsmCellId < 0)) {
-      voiceInfo.cell = null;
     } else {
-      voiceInfo.cell = newCell;
+      voiceInfo.cell = newInfo.cell;
     }
 
     if (!newInfo.batch) {
@@ -1203,17 +1229,14 @@ RadioInterface.prototype = {
 
     // Make sure we also reset the operator and signal strength information
     // if we drop off the network.
-    if (newInfo.regState == RIL.NETWORK_CREG_STATE_UNKNOWN) {
+    if (newInfo.regState !== RIL.NETWORK_CREG_STATE_REGISTERED_HOME &&
+        newInfo.regState !== RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING) {
+      dataInfo.cell = null;
       dataInfo.network = null;
       dataInfo.signalStrength = null;
       dataInfo.relSignalStrength = null;
-    }
-
-    let newCell = newInfo.cell;
-    if ((newCell.gsmLocationAreaCode < 0) || (newCell.gsmCellId < 0)) {
-      dataInfo.cell = null;
     } else {
-      dataInfo.cell = newCell;
+      dataInfo.cell = newInfo.cell;
     }
 
     if (!newInfo.batch) {
@@ -1330,18 +1353,6 @@ RadioInterface.prototype = {
     let data = this.rilContext.data;
 
     if (this.networkChanged(message, voice.network)) {
-      // Update lastKnownMcc.
-      if (message.mcc) {
-        voice.lastKnownMcc = message.mcc;
-        // Update pref if mcc is changed.
-        // !voice.network is in case voice.network is still null.
-        if (!voice.network || voice.network.mcc != message.mcc) {
-          try {
-            Services.prefs.setCharPref("ril.lastKnownMcc", message.mcc);
-          } catch (e) {}
-        }
-      }
-
       // Update lastKnownNetwork
       if (message.mcc && message.mnc) {
         try {
@@ -1882,6 +1893,31 @@ RadioInterface.prototype = {
     message.body = message.fullBody = message.fullBody || null;
     message.timestamp = Date.now();
 
+    if (gSmsService.isSilentNumber(message.sender)) {
+      message.id = -1;
+      message.threadId = 0;
+      message.delivery = DOM_MOBILE_MESSAGE_DELIVERY_RECEIVED;
+      message.deliveryStatus = RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS;
+      message.read = false;
+
+      let domMessage =
+        gMobileMessageService.createSmsMessage(message.id,
+                                               message.threadId,
+                                               message.delivery,
+                                               message.deliveryStatus,
+                                               message.sender,
+                                               message.receiver,
+                                               message.body,
+                                               message.messageClass,
+                                               message.timestamp,
+                                               message.read);
+
+      Services.obs.notifyObservers(domMessage,
+                                   kSilentSmsReceivedObserverTopic,
+                                   null);
+      return true;
+    }
+
     // TODO: Bug #768441
     // For now we don't store indicators persistently. When the mwi.discard
     // flag is false, we'll need to persist the indicator to EFmwis.
@@ -1971,6 +2007,25 @@ RadioInterface.prototype = {
       return;
     }
 
+    if (options.silent) {
+      // There is no way to modify nsIDOMMozSmsMessage attributes as they are
+      // read only so we just create a new sms instance to send along with
+      // the notification.
+      let sms = options.sms;
+      options.request.notifyMessageSent(
+        gMobileMessageService.createSmsMessage(sms.id,
+                                               sms.threadId,
+                                               DOM_MOBILE_MESSAGE_DELIVERY_SENT,
+                                               sms.deliveryStatus,
+                                               sms.sender,
+                                               sms.receiver,
+                                               sms.body,
+                                               sms.messageClass,
+                                               sms.timestamp,
+                                               sms.read));
+      return;
+    }
+
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      null,
                                                      DOM_MOBILE_MESSAGE_DELIVERY_SENT,
@@ -2000,6 +2055,10 @@ RadioInterface.prototype = {
     }
     delete this._sentSmsEnvelopes[message.envelopeId];
 
+    if (options.silent) {
+      return;
+    }
+
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      null,
                                                      options.sms.delivery,
@@ -2027,6 +2086,11 @@ RadioInterface.prototype = {
       case RIL.ERROR_RADIO_NOT_AVAILABLE:
         error = Ci.nsIMobileMessageCallback.NO_SIGNAL_ERROR;
         break;
+    }
+
+    if (options.silent) {
+      options.request.notifySendMessageFailed(error);
+      return;
     }
 
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
@@ -2155,6 +2219,14 @@ RadioInterface.prototype = {
     gMessageManager.sendIccMessage("RIL:IccInfoChanged",
                                    this.clientId, message);
 
+    // Update lastKnownSimMcc.
+    if (message.mcc) {
+      try {
+        Services.prefs.setCharPref("ril.lastKnownSimMcc",
+                                   message.mcc.toString());
+      } catch (e) {}
+    }
+
     // Update lastKnownHomeNetwork.
     if (message.mcc && message.mnc) {
       try {
@@ -2256,6 +2328,28 @@ RadioInterface.prototype = {
   handleSetCallWaiting: function handleSetCallWaiting(message) {
     if (DEBUG) this.debug("handleSetCallWaiting: " + JSON.stringify(message));
     gMessageManager.sendRequestResults("RIL:SetCallWaitingOption", message);
+  },
+
+  handleGetCLIR: function handleGetCLIR(message) {
+    if (DEBUG) this.debug("handleGetCLIR: " + JSON.stringify(message));
+    gMessageManager.sendRequestResults("RIL:GetCallingLineIdRestriction",
+                                       message);
+  },
+
+  handleSetCLIR: function handleSetCLIR(message) {
+    if (DEBUG) this.debug("handleSetCLIR: " + JSON.stringify(message));
+    gMessageManager.sendRequestResults("RIL:SetCallingLineIdRestriction",
+                                       message);
+  },
+
+  handleSetRoamingPreference: function handleSetRoamingPreference(message) {
+    if (DEBUG) this.debug("handleSetRoamingPreference: " + JSON.stringify(message));
+    gMessageManager.sendRequestResults("RIL:SetRoamingPreference", message);
+  },
+
+  handleQueryRoamingPreference: function handleQueryRoamingPreference(message) {
+    if (DEBUG) this.debug("handleQueryRoamingPreference: " + JSON.stringify(message));
+    gMessageManager.sendRequestResults("RIL:GetRoamingPreference", message);
   },
 
   // nsIObserver
@@ -2628,6 +2722,34 @@ RadioInterface.prototype = {
   getCallWaitingOption: function getCallWaitingOption(message) {
     if (DEBUG) this.debug("getCallWaitingOption: " + JSON.stringify(message));
     message.rilMessageType = "queryCallWaiting";
+    this.worker.postMessage(message);
+  },
+
+  setCallingLineIdRestriction: function setCallingLineIdRestriction(message) {
+    if (DEBUG) {
+      this.debug("setCallingLineIdRestriction: " + JSON.stringify(message));
+    }
+    message.rilMessageType = "setCLIR";
+    this.worker.postMessage(message);
+  },
+
+  getCallingLineIdRestriction: function getCallingLineIdRestriction(message) {
+    if (DEBUG) {
+      this.debug("getCallingLineIdRestriction: " + JSON.stringify(message));
+    }
+    message.rilMessageType = "getCLIR";
+    this.worker.postMessage(message);
+  },
+
+  getRoamingPreference: function getRoamingPreference(message) {
+    if (DEBUG) this.debug("getRoamingPreference: " + JSON.stringify(message));
+    message.rilMessageType = "queryRoamingPreference";
+    this.worker.postMessage(message);
+  },
+
+  setRoamingPreference: function setRoamingPreference(message) {
+    if (DEBUG) this.debug("setRoamingPreference: " + JSON.stringify(message));
+    message.rilMessageType = "setRoamingPreference";
     this.worker.postMessage(message);
   },
 
@@ -3081,7 +3203,7 @@ RadioInterface.prototype = {
     return result;
   },
 
-  sendSMS: function sendSMS(number, message, request) {
+  sendSMS: function sendSMS(number, message, silent, request) {
     let strict7BitEncoding;
     try {
       strict7BitEncoding = Services.prefs.getBoolPref("dom.sms.strict7BitEncoding");
@@ -3105,6 +3227,57 @@ RadioInterface.prototype = {
       options.segmentRef = this.nextSegmentRef;
     }
 
+    let notifyResult = (function notifyResult(rv, domMessage) {
+      // TODO bug 832140 handle !Components.isSuccessCode(rv)
+      if (!silent) {
+        Services.obs.notifyObservers(domMessage, kSmsSendingObserverTopic, null);
+      }
+
+      // If the radio is disabled or the SIM card is not ready, just directly
+      // return with the corresponding error code.
+      let errorCode;
+      if (!PhoneNumberUtils.isPlainPhoneNumber(options.number)) {
+        if (DEBUG) this.debug("Error! Address is invalid when sending SMS: " +
+                              options.number);
+        errorCode = Ci.nsIMobileMessageCallback.INVALID_ADDRESS_ERROR;
+      } else if (!this._radioEnabled) {
+        if (DEBUG) this.debug("Error! Radio is disabled when sending SMS.");
+        errorCode = Ci.nsIMobileMessageCallback.RADIO_DISABLED_ERROR;
+      } else if (this.rilContext.cardState != "ready") {
+        if (DEBUG) this.debug("Error! SIM card is not ready when sending SMS.");
+        errorCode = Ci.nsIMobileMessageCallback.NO_SIM_CARD_ERROR;
+      }
+      if (errorCode) {
+        if (silent) {
+          request.notifySendMessageFailed(errorCode);
+          return;
+        }
+
+        gMobileMessageDatabaseService
+          .setMessageDelivery(domMessage.id,
+                              null,
+                              DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
+                              RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                              function notifyResult(rv, domMessage) {
+          // TODO bug 832140 handle !Components.isSuccessCode(rv)
+          request.notifySendMessageFailed(errorCode);
+          Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
+        });
+        return;
+      }
+
+      // Keep current SMS message info for sent/delivered notifications
+      options.envelopeId = this.createSmsEnvelope({
+        request: request,
+        sms: domMessage,
+        requestStatusReport: options.requestStatusReport,
+        silent: silent
+      });
+
+      // This is the entry point starting to send SMS.
+      this.worker.postMessage(options);
+    }).bind(this);
+
     let sendingMessage = {
       type: "sms",
       sender: this.getMsisdn(),
@@ -3114,52 +3287,26 @@ RadioInterface.prototype = {
       timestamp: Date.now()
     };
 
+    if (silent) {
+      let deliveryStatus = RIL.GECKO_SMS_DELIVERY_STATUS_PENDING;
+      let delivery = DOM_MOBILE_MESSAGE_DELIVERY_SENDING;
+      let domMessage =
+        gMobileMessageService.createSmsMessage(-1, // id
+                                               0,  // threadId
+                                               delivery,
+                                               deliveryStatus,
+                                               sendingMessage.sender,
+                                               sendingMessage.receiver,
+                                               sendingMessage.body,
+                                               "normal", // message class
+                                               sendingMessage.timestamp,
+                                               false);
+      notifyResult(Cr.NS_OK, domMessage);
+      return;
+    }
+
     let id = gMobileMessageDatabaseService.saveSendingMessage(
-      sendingMessage,
-      function notifyResult(rv, domMessage) {
-
-        // TODO bug 832140 handle !Components.isSuccessCode(rv)
-        Services.obs.notifyObservers(domMessage, kSmsSendingObserverTopic, null);
-
-        // If the radio is disabled or the SIM card is not ready, just directly
-        // return with the corresponding error code.
-        let errorCode;
-        if (!this._radioEnabled) {
-          if (DEBUG) this.debug("Error! Radio is disabled when sending SMS.");
-          errorCode = Ci.nsIMobileMessageCallback.RADIO_DISABLED_ERROR;
-        } else if (this.rilContext.cardState != "ready") {
-          if (DEBUG) this.debug("Error! SIM card is not ready when sending SMS.");
-          errorCode = Ci.nsIMobileMessageCallback.NO_SIM_CARD_ERROR;
-        }
-        if (errorCode) {
-          gMobileMessageDatabaseService
-            .setMessageDelivery(domMessage.id,
-                                null,
-                                DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
-                                function notifyResult(rv, domMessage) {
-            // TODO bug 832140 handle !Components.isSuccessCode(rv)
-            request.notifySendMessageFailed(errorCode);
-            Services.obs.notifyObservers(domMessage, kSmsFailedObserverTopic, null);
-          });
-          return;
-        }
-
-        // Keep current SMS message info for sent/delivered notifications
-        options.envelopeId = this.createSmsEnvelope({
-          request: request,
-          sms: domMessage,
-          requestStatusReport: options.requestStatusReport
-        });
-
-        if (PhoneNumberUtils.isPlainPhoneNumber(options.number)) {
-          this.worker.postMessage(options);
-        } else {
-          if (DEBUG) this.debug('Number ' + options.number + ' is not sendable.');
-          this.handleSmsSendFailed(options);
-        }
-
-      }.bind(this));
+      sendingMessage, notifyResult);
   },
 
   registerDataCallCallback: function registerDataCallCallback(callback) {

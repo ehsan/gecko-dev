@@ -12,6 +12,13 @@
 #include "gfxASurface.h"
 #include "GLContextTypes.h"
 #include "gfxPattern.h"
+#include "mozilla/gfx/Rect.h"
+
+namespace mozilla {
+namespace gfx {
+class DataSourceSurface;
+}
+}
 
 namespace mozilla {
 namespace gl {
@@ -66,10 +73,10 @@ public:
 
     /**
      * Returns a gfxASurface for updating |aRegion| of the client's
-     * image if successul, NULL if not.  |aRegion|'s bounds must fit
+     * image if successul, nullptr if not.  |aRegion|'s bounds must fit
      * within Size(); its coordinate space (if any) is ignored.  If
      * the update begins successfully, the returned gfxASurface is
-     * owned by this.  Otherwise, NULL is returned.
+     * owned by this.  Otherwise, nullptr is returned.
      *
      * |aRegion| is an inout param: the returned region is what the
      * client must repaint.  Category (1) regions above can
@@ -164,6 +171,10 @@ public:
      * aFrom - offset in the source to update from
      */
     virtual bool DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom = nsIntPoint(0,0)) = 0;
+    // Moz2D equivalent
+    bool UpdateFromDataSource(gfx::DataSourceSurface *aSurf,
+                              const nsIntRegion* aDstRegion = nullptr,
+                              const gfx::IntPoint* aSrcOffset = nullptr);
 
     virtual void BindTexture(GLenum aTextureUnit) = 0;
     virtual void ReleaseTexture() {}

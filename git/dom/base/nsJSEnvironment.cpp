@@ -135,6 +135,8 @@ static PRLogModuleInfo* gJSDiagnostics;
 // Large value used to specify that a script should run essentially forever
 #define NS_UNLIMITED_SCRIPT_RUNTIME (0x40000000LL << 32)
 
+#define NS_MAJOR_FORGET_SKIPPABLE_CALLS 2
+
 // if you add statics here, add them to the list in nsJSRuntime::Startup
 
 static nsITimer *sGCTimer;
@@ -469,11 +471,12 @@ NS_ScriptErrorReporter(JSContext *cx,
   // We don't want to report exceptions too eagerly, but warnings in the
   // absence of werror are swallowed whole, so report those now.
   if (!JSREPORT_IS_WARNING(report->flags)) {
+    nsIXPConnect* xpc = nsContentUtils::XPConnect();
     if (JS_DescribeScriptedCaller(cx, nullptr, nullptr)) {
+      xpc->MarkErrorUnreported(cx);
       return;
     }
 
-    nsIXPConnect* xpc = nsContentUtils::XPConnect();
     if (xpc) {
       nsAXPCNativeCallContext *cc = nullptr;
       xpc->GetCurrentNativeCallContext(&cc);
@@ -483,6 +486,7 @@ NS_ScriptErrorReporter(JSContext *cx,
           uint16_t lang;
           if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
             lang == nsAXPCNativeCallContext::LANG_JS) {
+            xpc->MarkErrorUnreported(cx);
             return;
           }
         }
@@ -732,7 +736,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
 
   // Check the amount of time this script has been running, or if the
   // dialog is disabled.
-  JSObject* global = ::JS_GetGlobalForScopeChain(cx);
+  JSObject* global = ::JS::CurrentGlobalOrNull(cx);
   bool isTrackingChromeCodeTime =
     global && xpc::AccessCheck::isChrome(js::GetObjectCompartment(global));
   if (duration < (isTrackingChromeCodeTime ?
@@ -1191,7 +1195,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   tmp->mGCOnDestruction = false;
   if (tmp->mContext) {
     JSAutoRequest ar(tmp->mContext);
-    JS_SetGlobalObject(tmp->mContext, nullptr);
+    js::SetDefaultObjectForContext(tmp->mContext, nullptr);
   }
   tmp->DestroyJSContext();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobalObjectRef)
@@ -1322,6 +1326,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   AutoPushJSContext cx(mContext);
   JSAutoRequest ar(cx);
   JS::Rooted<JSObject*> scopeObject(mContext, GetNativeGlobal());
+  JSAutoCompartment ac(cx, scopeObject);
   xpc_UnmarkGrayObject(scopeObject);
 
   bool ok = false;
@@ -1599,7 +1604,7 @@ nsJSContext::GetGlobalObject()
 JSObject*
 nsJSContext::GetNativeGlobal()
 {
-    return js::GetDefaultGlobalForContext(mContext);
+    return js::DefaultObjectForContextOrNull(mContext);
 }
 
 JSContext*
@@ -2333,7 +2338,10 @@ nsJSContext::IsContextInitialized()
 void
 nsJSContext::ScriptEvaluated(bool aTerminated)
 {
-  JS_MaybeGC(mContext);
+  if (GetNativeGlobal()) {
+    JSAutoCompartment ac(mContext, GetNativeGlobal());
+    JS_MaybeGC(mContext);
+  }
 
   if (aTerminated) {
     mOperationCallbackTime = 0;
@@ -2496,7 +2504,9 @@ FireForgetSkippable(uint32_t aSuspected, bool aRemoveChildless)
 {
   PRTime startTime = PR_Now();
   FinishAnyIncrementalGC();
-  nsCycleCollector_forgetSkippable(aRemoveChildless);
+  bool earlyForgetSkippable =
+    sCleanupsSinceLastGC < NS_MAJOR_FORGET_SKIPPABLE_CALLS;
+  nsCycleCollector_forgetSkippable(aRemoveChildless, earlyForgetSkippable);
   sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
   ++sCleanupsSinceLastGC;
   PRTime delta = PR_Now() - startTime;
@@ -2546,8 +2556,9 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   // Run forgetSkippable synchronously to reduce the size of the CC graph. This
   // is particularly useful if we recently finished a GC.
-  if (sCleanupsSinceLastGC < 2 && aExtraForgetSkippableCalls >= 0) {
-    while (sCleanupsSinceLastGC < 2) {
+  if (sCleanupsSinceLastGC < NS_MAJOR_FORGET_SKIPPABLE_CALLS &&
+      aExtraForgetSkippableCalls >= 0) {
+    while (sCleanupsSinceLastGC < NS_MAJOR_FORGET_SKIPPABLE_CALLS) {
       FireForgetSkippable(nsCycleCollector_suspectedCount(), false);
       ranSyncForgetSkippable = true;
     }
@@ -3064,6 +3075,11 @@ DOMGCSliceCallback(JSRuntime *aRt, JS::GCProgress aProgress, const JS::GCDescrip
     }
   }
 
+  if ((aProgress == JS::GC_SLICE_END || aProgress == JS::GC_CYCLE_END) &&
+      ShouldTriggerCC(nsCycleCollector_suspectedCount())) {
+    nsCycleCollector_dispatchDeferredDeletion();
+  }
+
   if (sPrevGCSliceCallback)
     (*sPrevGCSliceCallback)(aRt, aProgress, aDesc);
 }
@@ -3284,7 +3300,7 @@ NS_DOMReadStructuredClone(JSContext* cx,
     nsRefPtr<ImageData> imageData = new ImageData(width, height,
                                                   dataArray.toObject());
     // Wrap it in a JS::Value.
-    JS::Rooted<JSObject*> global(cx, JS_GetGlobalForScopeChain(cx));
+    JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
     if (!global) {
       return nullptr;
     }

@@ -591,7 +591,15 @@ ContentChild::AllocPBrowserChild(const IPCTabContext& aContext,
     // check that it's of a certain type for security purposes, because we
     // believe whatever the parent process tells us.
 
-    nsRefPtr<TabChild> child = TabChild::Create(this, TabContext(aContext), aChromeFlags);
+    MaybeInvalidTabContext tc(aContext);
+    if (!tc.IsValid()) {
+        NS_ERROR(nsPrintfCString("Received an invalid TabContext from "
+                                 "the parent process. (%s)  Crashing...",
+                                 tc.GetInvalidReason()).get());
+        MOZ_CRASH("Invalid TabContext received from the parent process.");
+    }
+
+    nsRefPtr<TabChild> child = TabChild::Create(this, tc.GetTabContext(), aChromeFlags);
 
     // The ref here is released in DeallocPBrowserChild.
     return child.forget().get();
@@ -1181,10 +1189,13 @@ PreloadSlowThings()
 }
 
 bool
-ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
+ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID,
+                          const nsCString& name, const nsCString& UAName)
 {
     mAppInfo.version.Assign(version);
     mAppInfo.buildID.Assign(buildID);
+    mAppInfo.name.Assign(name);
+    mAppInfo.UAName.Assign(UAName);
     // If we're part of the mozbrowser machinery, go ahead and start
     // preloading things.  We can only do this for mozbrowser because
     // PreloadSlowThings() may set the docshell of the first TabChild

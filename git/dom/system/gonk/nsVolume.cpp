@@ -43,7 +43,7 @@ NS_VolumeStateStr(int32_t aState)
 // allocate an nsVolume which is then passed to MainThread. Since we
 // have a situation where we allocate on one thread and free on another
 // we use a thread safe AddRef implementation.
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsVolume, nsIVolume)
+NS_IMPL_ISUPPORTS1(nsVolume, nsIVolume)
 
 nsVolume::nsVolume(const Volume* aVolume)
   : mName(NS_ConvertUTF8toUTF16(aVolume->Name())),
@@ -154,9 +154,9 @@ void
 nsVolume::LogState() const
 {
   if (mState == nsIVolume::STATE_MOUNTED) {
-    LOG("nsVolume: %s state %s @ '%s' gen %d locked %d",
+    LOG("nsVolume: %s state %s @ '%s' gen %d locked %d fake %d",
         NameStr().get(), StateStr(), MountPointStr().get(),
-        MountGeneration(), (int)IsMountLocked());
+        MountGeneration(), (int)IsMountLocked(), (int)IsFake());
     return;
   }
 

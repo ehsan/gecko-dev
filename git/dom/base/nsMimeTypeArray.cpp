@@ -12,6 +12,7 @@
 #include "nsPluginArray.h"
 #include "nsIMIMEService.h"
 #include "nsIMIMEInfo.h"
+#include "Navigator.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -196,12 +197,12 @@ nsMimeTypeArray::EnsureMimeTypes()
     return;
   }
 
-  nsCOMPtr<nsISupports> pluginsSupports;
-  navigator->GetPlugins(getter_AddRefs(pluginsSupports));
-  nsCOMPtr<nsIObserver> pluginsObserver(do_QueryInterface(pluginsSupports));
-
+  ErrorResult rv;
   nsPluginArray *pluginArray =
-    static_cast<nsPluginArray*>(pluginsObserver.get());
+    static_cast<Navigator*>(navigator.get())->GetPlugins(rv);
+  if (!pluginArray) {
+    return;
+  }
 
   nsTArray<nsRefPtr<nsPluginElement> > plugins;
   pluginArray->GetPlugins(plugins);
@@ -218,7 +219,7 @@ nsMimeTypeArray::EnsureMimeTypes()
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsMimeType, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsMimeType, Release)
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsMimeType)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsMimeType, mPluginElement)
 
 nsMimeType::nsMimeType(nsWeakPtr aWindow, nsPluginElement* aPluginElement,
                        uint32_t aPluginTagMimeIndex, const nsAString& aType)

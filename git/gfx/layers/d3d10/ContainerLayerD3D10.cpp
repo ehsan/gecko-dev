@@ -16,7 +16,7 @@ namespace mozilla {
 namespace layers {
 
 ContainerLayerD3D10::ContainerLayerD3D10(LayerManagerD3D10 *aManager)
-  : ContainerLayer(aManager, NULL)
+  : ContainerLayer(aManager, nullptr)
   , LayerD3D10(aManager)
 {
   mImplData = static_cast<LayerD3D10*>(this);
@@ -215,7 +215,7 @@ ContainerLayerD3D10::RenderLayer()
   gfx3DMatrix oldViewMatrix;
 
   if (useIntermediate) {
-    device()->OMGetRenderTargets(1, getter_AddRefs(previousRTView), NULL);
+    device()->OMGetRenderTargets(1, getter_AddRefs(previousRTView), nullptr);
  
     D3D10_TEXTURE2D_DESC desc;
     memset(&desc, 0, sizeof(D3D10_TEXTURE2D_DESC));
@@ -227,7 +227,7 @@ ContainerLayerD3D10::RenderLayer()
     desc.SampleDesc.Count = 1;
     desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     HRESULT hr;
-    hr = device()->CreateTexture2D(&desc, NULL, getter_AddRefs(renderTexture));
+    hr = device()->CreateTexture2D(&desc, nullptr, getter_AddRefs(renderTexture));
 
     if (FAILED(hr)) {
       LayerManagerD3D10::ReportFailure(NS_LITERAL_CSTRING("Failed to create new texture for ContainerLayerD3D10!"), 
@@ -235,11 +235,13 @@ ContainerLayerD3D10::RenderLayer()
       return;
     }
 
-    hr = device()->CreateRenderTargetView(renderTexture, NULL, getter_AddRefs(rtView));
+    hr = device()->CreateRenderTargetView(renderTexture, nullptr, getter_AddRefs(rtView));
     NS_ASSERTION(SUCCEEDED(hr), "Failed to create render target view for ContainerLayerD3D10!");
 
     effect()->GetVariableByName("vRenderTargetOffset")->
       GetRawValue(previousRenderTargetOffset, 0, 8);
+
+    previousViewportSize = mD3DManager->GetViewport();
 
     if (mVisibleRegion.GetNumRects() != 1 || !(GetContentFlags() & CONTENT_OPAQUE)) {
       const gfx3DMatrix& transform3D = GetEffectiveTransform();
@@ -256,10 +258,10 @@ ContainerLayerD3D10::RenderLayer()
         // applied to use relative to our parent, and compensates for the offset
         // that was applied on our parent's rendering.
         D3D10_BOX srcBox;
-        srcBox.left = visibleRect.x + int32_t(transform.x0) - int32_t(previousRenderTargetOffset[0]);
-        srcBox.top = visibleRect.y + int32_t(transform.y0) - int32_t(previousRenderTargetOffset[1]);
-        srcBox.right = srcBox.left + visibleRect.width;
-        srcBox.bottom = srcBox.top + visibleRect.height;
+        srcBox.left = std::max<int32_t>(visibleRect.x + int32_t(transform.x0) - int32_t(previousRenderTargetOffset[0]), 0);
+        srcBox.top = std::max<int32_t>(visibleRect.y + int32_t(transform.y0) - int32_t(previousRenderTargetOffset[1]), 0);
+        srcBox.right = std::min<int32_t>(srcBox.left + visibleRect.width, previousViewportSize.width);
+        srcBox.bottom = std::min<int32_t>(srcBox.top + visibleRect.height, previousViewportSize.height);
         srcBox.back = 1;
         srcBox.front = 0;
 
@@ -277,14 +279,13 @@ ContainerLayerD3D10::RenderLayer()
     }
 
     ID3D10RenderTargetView *rtViewPtr = rtView;
-    device()->OMSetRenderTargets(1, &rtViewPtr, NULL);
+    device()->OMSetRenderTargets(1, &rtViewPtr, nullptr);
 
     renderTargetOffset[0] = (float)visibleRect.x;
     renderTargetOffset[1] = (float)visibleRect.y;
     effect()->GetVariableByName("vRenderTargetOffset")->
       SetRawValue(renderTargetOffset, 0, 8);
 
-    previousViewportSize = mD3DManager->GetViewport();
     mD3DManager->SetViewport(nsIntSize(visibleRect.Size()));
   }
     
@@ -332,7 +333,7 @@ ContainerLayerD3D10::RenderLayer()
   if (useIntermediate) {
     mD3DManager->SetViewport(previousViewportSize);
     ID3D10RenderTargetView *rtView = previousRTView;
-    device()->OMSetRenderTargets(1, &rtView, NULL);
+    device()->OMSetRenderTargets(1, &rtView, nullptr);
     effect()->GetVariableByName("vRenderTargetOffset")->
       SetRawValue(previousRenderTargetOffset, 0, 8);
 
@@ -360,7 +361,7 @@ ContainerLayerD3D10::RenderLayer()
     technique->GetPassByIndex(0)->Apply(0);
 
     ID3D10ShaderResourceView *view;
-    device()->CreateShaderResourceView(renderTexture, NULL, &view);
+    device()->CreateShaderResourceView(renderTexture, nullptr, &view);
     device()->PSSetShaderResources(0, 1, &view);    
     device()->Draw(4, 0);
     view->Release();

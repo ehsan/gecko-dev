@@ -26,6 +26,7 @@
 /* Utility macros */
 #define TO_INT32(x) (x | 0)
 #define TO_UINT32(x) (x >>> 0)
+#define IS_UINT32(x) (x >>> 0 === x)
 
 /* Assertions */
 #ifdef DEBUG
@@ -73,7 +74,12 @@ var std_String_toUpperCase = String.prototype.toUpperCase;
 var std_WeakMap_get = WeakMap.prototype.get;
 var std_WeakMap_has = WeakMap.prototype.has;
 var std_WeakMap_set = WeakMap.prototype.set;
-
+var std_Map_has = Map.prototype.has;
+var std_Set_has = Set.prototype.has;
+var std_Map_iterator = Map().iterator;
+var std_Set_iterator = Set().iterator;
+var std_Map_iterator_next = Object.getPrototypeOf(Map().iterator()).next;
+var std_Set_iterator_next = Object.getPrototypeOf(Set().iterator()).next;
 
 /********** List specification type **********/
 
@@ -146,5 +152,6 @@ function IsObject(v) {
     // (i.e. |document.all|), which have bogus |typeof| behavior.  Detect
     // these objects using strict equality, which said bogosity doesn't affect.
     return (typeof v === "object" && v !== null) ||
+           typeof v === "function" ||
            (typeof v === "undefined" && v !== undefined);
 }
