@@ -795,6 +795,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
 
     bool newContext = false;
     bool compileAndGo = true;
+    bool noScriptRval = false;
     const char *fileName = "@evaluate";
     JSAutoByteString fileNameBytes;
     unsigned lineNumber = 1;
@@ -814,7 +815,7 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             JSBool b;
             if (!JS_ValueToBoolean(cx, v, &b))
                 return false;
-            newContext = !!b;
+            newContext = b;
         }
 
         if (!JS_GetProperty(cx, options, "compileAndGo", &v))
@@ -823,7 +824,16 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             JSBool b;
             if (!JS_ValueToBoolean(cx, v, &b))
                 return false;
-            compileAndGo = !!b;
+            compileAndGo = b;
+        }
+
+        if (!JS_GetProperty(cx, options, "noScriptRval", &v))
+            return false;
+        if (!JSVAL_IS_VOID(v)) {
+            JSBool b;
+            if (!JS_ValueToBoolean(cx, v, &b))
+                return false;
+            noScriptRval = b;
         }
 
         if (!JS_GetProperty(cx, options, "fileName", &v))
@@ -884,20 +894,18 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         if (!aec.enter(cx, global))
             return false;
 
-        if (compileAndGo) {
-            // JS_EvaluateUCScript always enables the compile-and-go option.
-            if (!JS_EvaluateUCScript(cx, global, codeChars, codeLength, fileName, lineNumber, vp))
-                return false;
-        } else {
-            uint32_t saved = JS_GetOptions(cx);
+        uint32_t saved = JS_GetOptions(cx);
+        uint32_t options = saved & ~(JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
+        if (compileAndGo)
+            options |= JSOPTION_COMPILE_N_GO;
+        if (noScriptRval)
+            options |= JSOPTION_NO_SCRIPT_RVAL;
+        JS_SetOptions(cx, options);
 
-            JS_SetOptions(cx, saved & ~JSOPTION_COMPILE_N_GO);
-            JSScript *script = JS_CompileUCScript(cx, global, codeChars, codeLength, fileName, lineNumber);
-            JS_SetOptions(cx, saved);
-
-            if (!script || !JS_ExecuteScript(cx, global, script, vp))
-                return false;
-        }
+        JSScript *script = JS_CompileUCScript(cx, global, codeChars, codeLength, fileName, lineNumber);
+        JS_SetOptions(cx, saved);
+        if (!script || !JS_ExecuteScript(cx, global, script, vp))
+            return false;
     }
 
     return JS_WrapValue(cx, vp);
@@ -2557,7 +2565,7 @@ static JSClass sandbox_class = {
 static JSObject *
 NewSandbox(JSContext *cx, bool lazy)
 {
-    RootedObject obj(cx, JS_NewCompartmentAndGlobalObject(cx, &sandbox_class, NULL));
+    RootedObject obj(cx, JS_NewGlobalObject(cx, &sandbox_class, NULL));
     if (!obj)
         return NULL;
 
@@ -2782,7 +2790,8 @@ static JSBool
 resolver_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags, JSObject **objp)
 {
     jsval v = JS_GetReservedSlot(obj, 0);
-    return CopyProperty(cx, obj, RootedObject(cx, JSVAL_TO_OBJECT(v)), id, flags, objp);
+    Rooted<JSObject*> vobj(cx, &v.toObject());
+    return CopyProperty(cx, obj, vobj, id, flags, objp);
 }
 
 static JSBool
@@ -2794,8 +2803,10 @@ resolver_enumerate(JSContext *cx, HandleObject obj)
     AutoIdArray ida(cx, JS_Enumerate(cx, referent));
     bool ok = !!ida;
     JSObject *ignore;
-    for (size_t i = 0; ok && i < ida.length(); i++)
-        ok = CopyProperty(cx, obj, referent, RootedId(cx, ida[i]), JSRESOLVE_QUALIFIED, &ignore);
+    for (size_t i = 0; ok && i < ida.length(); i++) {
+        Rooted<jsid> id(cx, ida[i]);
+        ok = CopyProperty(cx, obj, referent, id, JSRESOLVE_QUALIFIED, &ignore);
+    }
     return ok;
 }
 
@@ -3147,13 +3158,13 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    JSObject *parent = JS_GetParent(JSVAL_TO_OBJECT(v));
+    Rooted<JSObject*> parent(cx, JS_GetParent(&v.toObject()));
     *vp = OBJECT_TO_JSVAL(parent);
 
     /* Outerize if necessary.  Embrace the ugliness! */
     if (parent) {
         if (JSObjectOp op = parent->getClass()->ext.outerObject)
-            *vp = OBJECT_TO_JSVAL(op(cx, RootedObject(cx, parent)));
+            *vp = OBJECT_TO_JSVAL(op(cx, parent));
     }
 
     return true;
@@ -3225,24 +3236,11 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    static JSClass dummy_class = {
-        "jdummy",
-        JSCLASS_GLOBAL_FLAGS,
-        JS_PropertyStub,  JS_PropertyStub,
-        JS_PropertyStub,  JS_StrictPropertyStub,
-        JS_EnumerateStub, JS_ResolveStub,
-        JS_ConvertStub
-    };
-
-    JSObject *fakeGlobal = JS_NewGlobalObject(cx, &dummy_class);
-    if (!fakeGlobal)
-        return false;
-
+    JSObject *global = JS_GetGlobalForScopeChain(cx);
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-
     unsigned oldopts = JS_GetOptions(cx);
     JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
-    bool ok = JS_CompileUCScript(cx, fakeGlobal, JS_GetStringCharsZ(cx, scriptContents),
+    bool ok = JS_CompileUCScript(cx, global, JS_GetStringCharsZ(cx, scriptContents),
                                  JS_GetStringLength(scriptContents), "<string>", 1);
     JS_SetOptions(cx, oldopts);
 
@@ -3269,7 +3267,7 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     js::Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
                       JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
                       "<string>", /* lineno = */ 1, cx->findVersion(),
-                      /* cfp = */ NULL, /* foldConstants = */ true, /* compileAndGo = */ false);
+                      /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 
@@ -3420,33 +3418,13 @@ Deserialize(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-enum CompartmentKind { SAME_COMPARTMENT, NEW_COMPARTMENT };
-
 static JSObject *
-NewGlobalObject(JSContext *cx, CompartmentKind compartment);
+NewGlobalObject(JSContext *cx);
 
 static JSBool
 NewGlobal(JSContext *cx, unsigned argc, jsval *vp)
 {
-    if (argc != 1 || !JSVAL_IS_STRING(JS_ARGV(cx, vp)[0])) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "newGlobal");
-        return false;
-    }
-
-    JSString *str = JSVAL_TO_STRING(JS_ARGV(cx, vp)[0]);
-
-    JSBool equalSame = false, equalNew = false;
-    if (!JS_StringEqualsAscii(cx, str, "same-compartment", &equalSame) ||
-        !JS_StringEqualsAscii(cx, str, "new-compartment", &equalNew)) {
-        return false;
-    }
-
-    if (!equalSame && !equalNew) {
-        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "newGlobal");
-        return false;
-    }
-
-    JSObject *global = NewGlobalObject(cx, equalSame ? SAME_COMPARTMENT : NEW_COMPARTMENT);
+    JSObject *global = NewGlobalObject(cx);
     if (!global)
         return false;
 
@@ -3517,6 +3495,7 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "  Evaluate code as though it were the contents of a file.\n"
 "  options is an optional object that may have these properties:\n"
 "      compileAndGo: use the compile-and-go compiler option (default: true)\n"
+"      noScriptRval: use the no-script-rval compiler option (default: false)\n"
 "      fileName: filename for error messages and debug info\n"
 "      lineNumber: starting line number for error messages and debug info\n"
 "      global: global in which to execute the code\n"
@@ -4582,13 +4561,9 @@ DestroyContext(JSContext *cx, bool withGC)
 }
 
 static JSObject *
-NewGlobalObject(JSContext *cx, CompartmentKind compartment)
+NewGlobalObject(JSContext *cx)
 {
-    RootedObject glob(cx);
-
-    glob = (compartment == NEW_COMPARTMENT)
-           ? JS_NewCompartmentAndGlobalObject(cx, &global_class, NULL)
-           : JS_NewGlobalObject(cx, &global_class);
+    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL));
     if (!glob)
         return NULL;
 
@@ -4633,7 +4608,7 @@ NewGlobalObject(JSContext *cx, CompartmentKind compartment)
             return NULL;
     }
 
-    if (compartment == NEW_COMPARTMENT && !JS_WrapObject(cx, glob.address()))
+    if (!JS_WrapObject(cx, glob.address()))
         return NULL;
 
     return glob;
@@ -4757,7 +4732,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
     }
 
     RootedObject glob(cx);
-    glob = NewGlobalObject(cx, NEW_COMPARTMENT);
+    glob = NewGlobalObject(cx);
     if (!glob)
         return 1;
 
@@ -4776,7 +4751,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
     class ShellWorkerHooks : public js::workers::WorkerHooks {
     public:
         JSObject *newGlobalObject(JSContext *cx) {
-            return NewGlobalObject(cx, NEW_COMPARTMENT);
+            return NewGlobalObject(cx);
         }
     };
     ShellWorkerHooks hooks;

@@ -58,6 +58,7 @@ $(CPPSRCS): ../%Binding.cpp: $(bindinggen_dependencies) \
 
 _TEST_FILES = \
   test_enums.html \
+  test_integers.html \
   test_interfaceToString.html \
   test_lookupGetter.html \
   test_InstanceOf.html \
@@ -71,3 +72,7 @@ libs:: $(_TEST_FILES)
 check::
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON_PATH) $(PLY_INCLUDE) \
 	  $(srcdir)/../parser/runtests.py
+
+check-interactive:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON_PATH) $(PLY_INCLUDE) \
+	  $(srcdir)/../parser/runtests.py -q

@@ -71,7 +71,7 @@ struct nsDOMClassInfoData
   PRUint32 mInterfacesBitmap;
   bool mChromeOnly;
   bool mDisabled;
-#ifdef NS_DEBUG
+#ifdef DEBUG
   PRUint32 mDebugID;
 #endif
 };
@@ -562,8 +562,6 @@ public:
                        JSObject *globalObj, JSObject **parentObj);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
-  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, bool *_retval);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {

@@ -137,6 +137,7 @@
            footertype="promobox"
            orient="vertical"
            ignorekeys="true"
+           consumeoutsideclicks="true"
            hidden="true"
            onpopupshown="StarUI.panelShown(event);"
            aria-labelledby="editBookmarkPanelTitle">
@@ -259,6 +260,7 @@
            type="arrow"
            hidden="true"
            noautofocus="true"
+           consumeoutsideclicks="true"
            onpopupshown="gIdentityHandler.onPopupShown(event);"
            level="top">
       <hbox id="identity-popup-container" align="top">
@@ -1043,13 +1045,13 @@
                          class="devtools-toolbarbutton"
                          hidden="true"
                          command="Tools:Inspect"/>
-          <toolbarbutton id="developer-toolbar-responsiveui"
-                         label="&responsiveDesignTool.label;"
+          <toolbarbutton id="developer-toolbar-styleeditor"
+                         label="&styleeditor.label;"
                          class="devtools-toolbarbutton"
                          hidden="true"
-                         command="Tools:ResponsiveUI"/>
+                         command="Tools:StyleEditor"/>
           <toolbarbutton id="developer-toolbar-debugger"
-                         label="&scriptsButton.label;"
+                         label="&debuggerMenu.label2;"
                          class="devtools-toolbarbutton"
                          hidden="true"
                          command="Tools:Debugger"/>

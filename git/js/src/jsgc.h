@@ -80,9 +80,6 @@ class ChunkPool {
 
     /* Must be called with the GC lock taken. */
     void expireAndFree(JSRuntime *rt, bool releaseAll);
-
-    /* Must be called either during the GC or with the GC lock taken. */
-    JS_FRIEND_API(int64_t) countCleanDecommittedArenas(JSRuntime *rt);
 };
 
 static inline JSGCTraceKind
@@ -1069,6 +1066,9 @@ const int ZealVerifierValue = 4;
 const int ZealFrameVerifierValue = 5;
 const int ZealStackRootingSafeValue = 6;
 const int ZealStackRootingValue = 7;
+const int ZealIncrementalRootsThenFinish = 8;
+const int ZealIncrementalMarkAllThenFinish = 9;
+const int ZealIncrementalMultipleSlices = 10;
 
 #ifdef JS_GC_ZEAL
 

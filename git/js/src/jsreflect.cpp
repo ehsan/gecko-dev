@@ -2577,7 +2577,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
       {
         /* The parser notes any uninitialized properties by setting the PNX_DESTRUCT flag. */
         if (pn->pn_xflags & PNX_DESTRUCT) {
-            parser->reportErrorNumber(pn, JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
+            parser->reportError(pn, JSMSG_BAD_OBJECT_INIT);
             return false;
         }
         NodeVector elts(cx);
@@ -3232,7 +3232,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
     Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
                   chars, length, filename, lineno, cx->findVersion(), 
-                  /* cfp = */ NULL, /* foldConstants = */ false, /* compileAndGo = */ false);
+                  /* foldConstants = */ false, /* compileAndGo = */ false);
     if (!parser.init())
         return JS_FALSE;
 

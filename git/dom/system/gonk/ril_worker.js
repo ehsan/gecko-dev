@@ -689,6 +689,12 @@ let RIL = {
         // call state.
         let model_id = libcutils.property_get("ril.model_id");
         if (DEBUG) debug("Detected RIL model " + model_id);
+        if (!model_id) {
+          // On some RIL models, the RIL has to be "warmed up" for us to read this property.
+          // It apparently isn't warmed up yet, going to try again later.
+          if (DEBUG) debug("Could not detect correct model_id. Going to try later.");
+          return;
+        }
         if (model_id == "I9100") {
           if (DEBUG) {
             debug("Detected I9100, enabling " +
@@ -1524,8 +1530,22 @@ let RIL = {
    */
   hangUp: function hangUp(options) {
     let call = this.currentCalls[options.callIndex];
-    if (call && call.state != CALL_STATE_HOLDING) {
-      Buf.simpleRequest(REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND);
+    if (!call) {
+      return;
+    }
+
+    switch (call.state) {
+      case CALL_STATE_ACTIVE:
+      case CALL_STATE_DIALING:
+      case CALL_STATE_ALERTING:
+        Buf.newParcel(REQUEST_HANGUP);
+        Buf.writeUint32(1);
+        Buf.writeUint32(options.callIndex);
+        Buf.sendParcel();
+        break;
+      case CALL_STATE_HOLDING:
+        Buf.simpleRequest(REQUEST_HANGUP_WAITING_OR_BACKGROUND);
+        break;
     }
   },
 
@@ -1736,7 +1756,7 @@ let RIL = {
    *        String containing PDP type to request. ("IP", "IPV6", ...)
    */
   setupDataCall: function setupDataCall(options) {
-    let token = Buf.newParcel(REQUEST_SETUP_DATA_CALL);
+    let token = Buf.newParcel(REQUEST_SETUP_DATA_CALL, options);
     Buf.writeUint32(7);
     Buf.writeString(options.radioTech.toString());
     Buf.writeString(DATACALL_PROFILE_DEFAULT.toString());
@@ -2183,6 +2203,48 @@ let RIL = {
     if (stateChanged) {
       rs.type = "dataregistrationstatechange";
       this._sendNetworkInfoMessage(NETWORK_INFO_DATA_REGISTRATION_STATE, rs);
+    }
+  },
+
+  _processOperator: function _processOperator(operatorData) {
+    if (operatorData.length < 3) {
+      if (DEBUG) {
+        debug("Expected at least 3 strings for operator.");
+      }
+    }
+
+    if (!this.operator) {
+      this.operator = {type: "operatorchange"};
+    }
+
+    let [longName, shortName, networkTuple] = operatorData;
+    let thisTuple = String(this.operator.mcc) + this.operator.mnc;
+
+    if (this.operator.longName !== longName ||
+        this.operator.shortName !== shortName ||
+        thisTuple !== networkTuple) {
+
+      this.operator.longName = longName;
+      this.operator.shortName = shortName;
+      this.operator.mcc = 0;
+      this.operator.mnc = 0;
+
+      // According to ril.h, the operator fields will be NULL when the operator
+      // is not currently registered. We can avoid trying to parse the numeric
+      // tuple in that case.
+      if (DEBUG && !longName) {
+        debug("Operator is currently unregistered");
+      }
+
+      if (longName && shortName && networkTuple) {
+        try {
+          this._processNetworkTuple(networkTuple, this.operator);
+        } catch (e) {
+          debug("Error processing operator tuple: " + e);
+        }
+      }
+
+      this._sendNetworkInfoMessage(NETWORK_INFO_OPERATOR, this.operator);
     }
   },
 
@@ -2982,36 +3044,12 @@ RIL[REQUEST_OPERATOR] = function REQUEST_OPERATOR(length, options) {
     return;
   }
 
-  let operator = Buf.readStringList();
+  let operatorData = Buf.readStringList();
+  if (DEBUG) debug("operator: " + operatorData);
 
-  if (DEBUG) debug("Operator data: " + operator);
-  if (operator.length < 3) {
-    if (DEBUG) debug("Expected at least 3 strings for operator.");
-  }
+  this._processOperator(operatorData);
 
-  if (!this.operator) {
-    this.operator = {type: "operatorchange"};
-  }
 
-  let numeric = String(this.operator.mcc) + this.operator.mnc;
-  if (this.operator.longName != operator[0] ||
-      this.operator.shortName != operator[1] ||
-      numeric != operator[2]) {
-
-    this.operator.longName = operator[0];
-    this.operator.shortName = operator[1];
-    this.operator.mcc = 0;
-    this.operator.mnc = 0;
-
-    let networkTuple = operator[2];
-    try {
-      this._processNetworkTuple(networkTuple, this.operator);
-    } catch (e) {
-      debug("Error processing operator tuple: " + e);
-    }
-
-    this._sendNetworkInfoMessage(NETWORK_INFO_OPERATOR, this.operator);
-  }
 };
 RIL[REQUEST_RADIO_POWER] = null;
 RIL[REQUEST_DTMF] = null;
@@ -3259,41 +3297,43 @@ RIL[REQUEST_QUERY_CLIP] = null;
 RIL[REQUEST_LAST_DATA_CALL_FAIL_CAUSE] = null;
 
 RIL.readDataCall_v5 = function readDataCall_v5() {
-  return {
-    cid: Buf.readUint32().toString(),
-    active: Buf.readUint32(), // DATACALL_ACTIVE_*
-    type: Buf.readString(),
-    apn: Buf.readString(),
-    address: Buf.readString()
-  };
+  if (!options) {
+    options = {};
+  }
+  cid = Buf.readUint32().toString();
+  active = Buf.readUint32(); // DATACALL_ACTIVE_*
+  type = Buf.readString();
+  apn = Buf.readString();
+  address = Buf.readString();
+  return options;
 };
 
-RIL.readDataCall_v6 = function readDataCall_v6(obj) {
-  if (!obj) {
-    obj = {};
+RIL.readDataCall_v6 = function readDataCall_v6(options) {
+  if (!options) {
+    options = {};
   }
-  obj.status = Buf.readUint32();  // DATACALL_FAIL_*
+  options.status = Buf.readUint32();  // DATACALL_FAIL_*
   if (!RILQUIRKS_DATACALLSTATE_NO_SUGGESTEDRETRYTIME) {
-    obj.suggestedRetryTime = Buf.readUint32();
+    options.suggestedRetryTime = Buf.readUint32();
   }
-  obj.cid = Buf.readUint32().toString();
-  obj.active = Buf.readUint32();  // DATACALL_ACTIVE_*
-  obj.type = Buf.readString();
-  obj.ifname = Buf.readString();
-  obj.ipaddr = Buf.readString();
-  obj.dns = Buf.readString();
-  obj.gw = Buf.readString();
-  if (obj.dns) {
-    obj.dns = obj.dns.split(" ");
+  options.cid = Buf.readUint32().toString();
+  options.active = Buf.readUint32();  // DATACALL_ACTIVE_*
+  options.type = Buf.readString();
+  options.ifname = Buf.readString();
+  options.ipaddr = Buf.readString();
+  options.dns = Buf.readString();
+  options.gw = Buf.readString();
+  if (options.dns) {
+    options.dns = options.dns.split(" ");
   }
   //TODO for now we only support one address and gateway
-  if (obj.ipaddr) {
-    obj.ipaddr = obj.ipaddr.split(" ")[0];
+  if (options.ipaddr) {
+    options.ipaddr = options.ipaddr.split(" ")[0];
   }
-  if (obj.gw) {
-    obj.gw = obj.gw.split(" ")[0];
+  if (options.gw) {
+    options.gw = options.gw.split(" ")[0];
   }
-  return obj;
+  return options;
 };
 
 RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
@@ -3316,9 +3356,9 @@ RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
   for (let i = 0; i < num; i++) {
     let datacall;
     if (version < 6) {
-      datacall = this.readDataCall_v5();
+      datacall = this.readDataCall_v5(options);
     } else {
-      datacall = this.readDataCall_v6();
+      datacall = this.readDataCall_v6(options);
     }
     datacalls[datacall.cid] = datacall;
   }
