@@ -22,10 +22,7 @@ using namespace mozilla::dom;
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION(ResponsiveImageSelector, mContent)
-
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(ResponsiveImageSelector, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(ResponsiveImageSelector, Release)
+NS_IMPL_ISUPPORTS0(ResponsiveImageSelector);
 
 static bool
 ParseInteger(const nsAString& aString, int32_t& aInt)
@@ -266,19 +263,6 @@ ResponsiveImageSelector::GetSelectedImageDensity()
   return mCandidates[bestIndex].Density(this);
 }
 
-bool
-ResponsiveImageSelector::SelectImage(bool aReselect)
-{
-  if (!aReselect && mBestCandidateIndex != -1) {
-    // Already have selection
-    return false;
-  }
-
-  int oldBest = mBestCandidateIndex;
-  mBestCandidateIndex = -1;
-  return GetBestCandidateIndex() != oldBest;
-}
-
 int
 ResponsiveImageSelector::GetBestCandidateIndex()
 {
@@ -352,6 +336,10 @@ bool
 ResponsiveImageSelector::ComputeFinalWidthForCurrentViewport(int32_t *aWidth)
 {
   unsigned int numSizes = mSizeQueries.Length();
+  if (!numSizes) {
+    return false;
+  }
+
   nsIDocument* doc = mContent ? mContent->OwnerDoc() : nullptr;
   nsIPresShell *presShell = doc ? doc->GetShell() : nullptr;
   nsPresContext *pctx = presShell ? presShell->GetPresContext() : nullptr;

@@ -127,7 +127,7 @@ SVGImageElement::LoadSVGImage(bool aForce, bool aNotify)
   if (baseURI && !href.IsEmpty())
     NS_MakeAbsoluteURI(href, href, baseURI);
 
-  return LoadImage(href, aForce, aNotify, eImageLoadType_Normal);
+  return LoadImage(href, aForce, aNotify);
 }
 
 //----------------------------------------------------------------------

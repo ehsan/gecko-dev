@@ -276,7 +276,7 @@ gfxFT2Font::AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
 
 #ifdef USE_SKIA
 mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-gfxFT2Font::GetGlyphRenderingOptions(const TextRunDrawParams* aRunParams)
+gfxFT2Font::GetGlyphRenderingOptions()
 {
   mozilla::gfx::FontHinting hinting;
 

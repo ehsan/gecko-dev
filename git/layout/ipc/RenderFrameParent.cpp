@@ -154,8 +154,7 @@ public:
 
   virtual void HandleLongTap(const CSSPoint& aPoint,
                              int32_t aModifiers,
-                             const ScrollableLayerGuid& aGuid,
-                             uint64_t aInputBlockId) MOZ_OVERRIDE
+                             const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
       // We have to send this message from the "UI thread" (main
@@ -163,12 +162,12 @@ public:
       mUILoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &RemoteContentController::HandleLongTap,
-                          aPoint, aModifiers, aGuid, aInputBlockId));
+                          aPoint, aModifiers, aGuid));
       return;
     }
     if (mRenderFrame) {
       TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTap(aPoint, aModifiers, aGuid, aInputBlockId);
+      browser->HandleLongTap(aPoint, aModifiers, aGuid);
     }
   }
 
@@ -417,12 +416,10 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 
 nsEventStatus
 RenderFrameParent::NotifyInputEvent(WidgetInputEvent& aEvent,
-                                    ScrollableLayerGuid* aOutTargetGuid,
-                                    uint64_t* aOutInputBlockId)
+                                    ScrollableLayerGuid* aOutTargetGuid)
 {
   if (GetApzcTreeManager()) {
-    return GetApzcTreeManager()->ReceiveInputEvent(
-        aEvent, aOutTargetGuid, aOutInputBlockId);
+    return GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid);
   }
   return nsEventStatus_eIgnore;
 }
@@ -531,7 +528,6 @@ RenderFrameParent::ZoomToRect(uint32_t aPresShellId, ViewID aViewId,
 
 void
 RenderFrameParent::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                        uint64_t aInputBlockId,
                                         bool aPreventDefault)
 {
   if (aGuid.mLayersId != mLayersId) {
@@ -540,7 +536,7 @@ RenderFrameParent::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
     return;
   }
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ContentReceivedTouch(aInputBlockId, aPreventDefault);
+    GetApzcTreeManager()->ContentReceivedTouch(aGuid, aPreventDefault);
   }
 }
 

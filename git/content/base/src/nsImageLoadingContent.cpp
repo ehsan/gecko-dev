@@ -522,19 +522,6 @@ nsImageLoadingContent::FrameDestroyed(nsIFrame* aFrame)
   }
 }
 
-/* static */
-nsContentPolicyType
-nsImageLoadingContent::PolicyTypeForLoad(ImageLoadType aImageLoadType)
-{
-  if (aImageLoadType == eImageLoadType_Imageset) {
-    return nsIContentPolicy::TYPE_IMAGESET;
-  }
-
-  MOZ_ASSERT(aImageLoadType == eImageLoadType_Normal,
-             "Unknown ImageLoadType type in PolicyTypeForLoad");
-  return nsIContentPolicy::TYPE_IMAGE;
-}
-
 int32_t
 nsImageLoadingContent::GetRequestType(imgIRequest* aRequest,
                                       ErrorResult& aError)
@@ -613,7 +600,7 @@ nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
 
   // Do the load.
   nsCOMPtr<nsIStreamListener> listener;
-  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest(eImageLoadType_Normal);
+  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest();
   nsresult rv = nsContentUtils::GetImgLoaderForChannel(aChannel)->
     LoadImageWithChannel(aChannel, this, doc,
                          getter_AddRefs(listener),
@@ -645,8 +632,7 @@ nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
 }
 
 void
-nsImageLoadingContent::ForceReload(const mozilla::dom::Optional<bool>& aNotify,
-                                   mozilla::ErrorResult& aError)
+nsImageLoadingContent::ForceReload(ErrorResult& aError)
 {
   nsCOMPtr<nsIURI> currentURI;
   GetCurrentURI(getter_AddRefs(currentURI));
@@ -655,32 +641,16 @@ nsImageLoadingContent::ForceReload(const mozilla::dom::Optional<bool>& aNotify,
     return;
   }
 
-  // defaults to true
-  bool notify = !aNotify.WasPassed() || aNotify.Value();
-
-  // We keep this flag around along with the old URI even for failed requests
-  // without a live request object
-  ImageLoadType loadType = \
-    (mCurrentRequestFlags & REQUEST_IS_IMAGESET) ? eImageLoadType_Imageset
-                                                 : eImageLoadType_Normal;
-  nsresult rv = LoadImage(currentURI, true, notify, loadType, nullptr,
-                          nsIRequest::VALIDATE_ALWAYS);
+  nsresult rv = LoadImage(currentURI, true, true, nullptr, nsIRequest::VALIDATE_ALWAYS);
   if (NS_FAILED(rv)) {
     aError.Throw(rv);
   }
 }
 
-NS_IMETHODIMP
-nsImageLoadingContent::ForceReload(bool aNotify /* = true */,
-                                   uint8_t aArgc)
+NS_IMETHODIMP nsImageLoadingContent::ForceReload()
 {
-  mozilla::dom::Optional<bool> notify;
-  if (aArgc >= 1) {
-    notify.Construct() = aNotify;
-  }
-
   ErrorResult result;
-  ForceReload(notify, result);
+  ForceReload(result);
   return result.ErrorCode();
 }
 
@@ -765,8 +735,7 @@ nsImageLoadingContent::GetVisibleCount()
 nsresult
 nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
                                  bool aForce,
-                                 bool aNotify,
-                                 ImageLoadType aImageLoadType)
+                                 bool aNotify)
 {
   // First, get a document (needed for security checks and the like)
   nsIDocument* doc = GetOurOwnerDoc();
@@ -789,9 +758,9 @@ nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
 
     // Loading an embedded img from the same URI as the document URI will not work
     // as a resource cannot recursively embed itself. Attempting to do so generally
-    // results in having to pre-emptively close down an in-flight HTTP transaction
+    // results in having to pre-emptively close down an in-flight HTTP transaction 
     // and then incurring the significant cost of establishing a new TCP channel.
-    // This is generally triggered from <img src="">
+    // This is generally triggered from <img src=""> 
     // In light of that, just skip loading it..
     // Do make sure to drop our existing image, if any
     CancelImageRequests(aNotify);
@@ -800,14 +769,13 @@ nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
 
   NS_TryToSetImmutable(imageURI);
 
-  return LoadImage(imageURI, aForce, aNotify, aImageLoadType, doc);
+  return LoadImage(imageURI, aForce, aNotify, doc);
 }
 
 nsresult
 nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
                                  bool aForce,
                                  bool aNotify,
-                                 ImageLoadType aImageLoadType,
                                  nsIDocument* aDocument,
                                  nsLoadFlags aLoadFlags)
 {
@@ -861,14 +829,11 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 
   // Are we blocked?
   int16_t cpDecision = nsIContentPolicy::REJECT_REQUEST;
-  nsContentPolicyType policyType = PolicyTypeForLoad(aImageLoadType);
-
   nsContentUtils::CanLoadImage(aNewURI,
                                static_cast<nsIImageLoadingContent*>(this),
                                aDocument,
                                aDocument->NodePrincipal(),
-                               &cpDecision,
-                               policyType);
+                               &cpDecision);
   if (!NS_CP_ACCEPTED(cpDecision)) {
     FireEvent(NS_LITERAL_STRING("error"));
     SetBlockedRequest(aNewURI, cpDecision);
@@ -884,7 +849,7 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
   }
 
   // Not blocked. Do the load.
-  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest(aImageLoadType);
+  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest();
   nsCOMPtr<nsIContent> content =
       do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   nsresult rv;
@@ -893,8 +858,7 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
                                  aDocument->GetDocumentURI(),
                                  this, loadFlags,
                                  content->LocalName(),
-                                 getter_AddRefs(req),
-                                 policyType);
+                                 getter_AddRefs(req));
 
   if (NS_SUCCEEDED(rv)) {
     TrackImage(req);
@@ -1018,14 +982,14 @@ nsImageLoadingContent::UpdateImageState(bool aNotify)
     // XXX - This machinery should be removed after bug 521604.
     return;
   }
-
+  
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   if (!thisContent) {
     return;
   }
 
   mLoading = mBroken = mUserDisabled = mSuppressed = false;
-
+  
   // If we were blocked by server-based content policy, we claim to be
   // suppressed.  If we were blocked by type-based content policy, we claim to
   // be user-disabled.  Otherwise, claim to be broken.
@@ -1060,8 +1024,7 @@ nsImageLoadingContent::CancelImageRequests(bool aNotify)
 
 nsresult
 nsImageLoadingContent::UseAsPrimaryRequest(imgRequestProxy* aRequest,
-                                           bool aNotify,
-                                           ImageLoadType aImageLoadType)
+                                           bool aNotify)
 {
   // Our state will change. Watch it.
   AutoStateChanger changer(this, aNotify);
@@ -1071,7 +1034,7 @@ nsImageLoadingContent::UseAsPrimaryRequest(imgRequestProxy* aRequest,
   ClearCurrentRequest(NS_BINDING_ABORTED, REQUEST_DISCARD);
 
   // Clone the request we were given.
-  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest(aImageLoadType);
+  nsRefPtr<imgRequestProxy>& req = PrepareNextRequest();
   nsresult rv = aRequest->Clone(this, getter_AddRefs(req));
   if (NS_SUCCEEDED(rv)) {
     TrackImage(req);
@@ -1162,15 +1125,15 @@ nsImageLoadingContent::FireEvent(const nsAString& aEventType)
 }
 
 nsRefPtr<imgRequestProxy>&
-nsImageLoadingContent::PrepareNextRequest(ImageLoadType aImageLoadType)
+nsImageLoadingContent::PrepareNextRequest()
 {
   // If we don't have a usable current request, get rid of any half-baked
   // request that might be sitting there and make this one current.
   if (!HaveSize(mCurrentRequest))
-    return PrepareCurrentRequest(aImageLoadType);
+    return PrepareCurrentRequest();
 
   // Otherwise, make it pending.
-  return PreparePendingRequest(aImageLoadType);
+  return PreparePendingRequest();
 }
 
 void
@@ -1192,19 +1155,16 @@ nsImageLoadingContent::SetBlockedRequest(nsIURI* aURI, int16_t aContentDecision)
   if (!HaveSize(mCurrentRequest)) {
 
     mImageBlockingStatus = aContentDecision;
-    uint32_t keepFlags = mCurrentRequestFlags & REQUEST_IS_IMAGESET;
     ClearCurrentRequest(NS_ERROR_IMAGE_BLOCKED, REQUEST_DISCARD);
 
-    // We still want to remember what URI we were and if it was an imageset,
-    // despite not having an actual request. These are both cleared as part of
-    // ClearCurrentRequest() before a new request is started.
+    // We still want to remember what URI we were despite not having an actual
+    // request.
     mCurrentURI = aURI;
-    mCurrentRequestFlags = keepFlags;
   }
 }
 
 nsRefPtr<imgRequestProxy>&
-nsImageLoadingContent::PrepareCurrentRequest(ImageLoadType aImageLoadType)
+nsImageLoadingContent::PrepareCurrentRequest()
 {
   // Blocked images go through SetBlockedRequest, which is a separate path. For
   // everything else, we're unblocked.
@@ -1217,26 +1177,18 @@ nsImageLoadingContent::PrepareCurrentRequest(ImageLoadType aImageLoadType)
     mCurrentRequestFlags |= REQUEST_NEEDS_ANIMATION_RESET;
   }
 
-  if (aImageLoadType == eImageLoadType_Imageset) {
-    mCurrentRequestFlags |= REQUEST_IS_IMAGESET;
-  }
-
   // Return a reference.
   return mCurrentRequest;
 }
 
 nsRefPtr<imgRequestProxy>&
-nsImageLoadingContent::PreparePendingRequest(ImageLoadType aImageLoadType)
+nsImageLoadingContent::PreparePendingRequest()
 {
   // Get rid of anything that was there previously.
   ClearPendingRequest(NS_ERROR_IMAGE_SRC_CHANGED, REQUEST_DISCARD);
 
   if (mNewRequestsWillNeedAnimationReset) {
     mPendingRequestFlags |= REQUEST_NEEDS_ANIMATION_RESET;
-  }
-
-  if (aImageLoadType == eImageLoadType_Imageset) {
-    mPendingRequestFlags |= REQUEST_IS_IMAGESET;
   }
 
   // Return a reference.
@@ -1281,11 +1233,7 @@ nsImageLoadingContent::MakePendingRequestCurrent()
   // to go to 0 and the image to be discarded!
   ImageRequestAutoLock autoLock(mCurrentRequest);
 
-  ImageLoadType loadType = \
-    (mPendingRequestFlags & REQUEST_IS_IMAGESET) ? eImageLoadType_Imageset
-                                                 : eImageLoadType_Normal;
-
-  PrepareCurrentRequest(loadType) = mPendingRequest;
+  PrepareCurrentRequest() = mPendingRequest;
   mPendingRequest = nullptr;
   mCurrentRequestFlags = mPendingRequestFlags;
   mPendingRequestFlags = 0;
@@ -1298,9 +1246,8 @@ nsImageLoadingContent::ClearCurrentRequest(nsresult aReason,
 {
   if (!mCurrentRequest) {
     // Even if we didn't have a current request, we might have been keeping
-    // a URI and flags as a placeholder for a failed load. Clear that now.
+    // a URI as a placeholder for a failed load. Clear that now.
     mCurrentURI = nullptr;
-    mCurrentRequestFlags = 0;
     return;
   }
   NS_ABORT_IF_FALSE(!mCurrentURI,

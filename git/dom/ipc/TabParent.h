@@ -210,7 +210,6 @@ public:
                                            const bool& aIsRoot,
                                            const ZoomConstraints& aConstraints) MOZ_OVERRIDE;
     virtual bool RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                          const uint64_t& aInputBlockId,
                                           const bool& aPreventDefault) MOZ_OVERRIDE;
 
     virtual PColorPickerParent*
@@ -234,8 +233,7 @@ public:
                          const ScrollableLayerGuid& aGuid);
     void HandleLongTap(const CSSPoint& aPoint,
                        int32_t aModifiers,
-                       const ScrollableLayerGuid& aGuid,
-                       uint64_t aInputBlockId);
+                       const ScrollableLayerGuid& aGuid);
     void HandleLongTapUp(const CSSPoint& aPoint,
                          int32_t aModifiers,
                          const ScrollableLayerGuid& aGuid);
@@ -263,7 +261,7 @@ public:
     bool SendRealKeyEvent(mozilla::WidgetKeyboardEvent& event);
     bool SendRealTouchEvent(WidgetTouchEvent& event);
     bool SendHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid);
-    bool SendHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId);
+    bool SendHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid);
     bool SendHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid);
     bool SendHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid);
 
@@ -425,12 +423,8 @@ private:
     // |aOutTargetGuid| will contain the identifier
     // of the APZC instance that handled the event. aOutTargetGuid may be
     // null.
-    // |aOutInputBlockId| will contain the identifier of the input block
-    // that this event was added to, if there was one. aOutInputBlockId may
-    // be null.
     nsEventStatus MaybeForwardEventToRenderFrame(WidgetInputEvent& aEvent,
-                                                 ScrollableLayerGuid* aOutTargetGuid,
-                                                 uint64_t* aOutInputBlockId);
+                                                 ScrollableLayerGuid* aOutTargetGuid);
     // The offset for the child process which is sampled at touch start. This
     // means that the touch events are relative to where the frame was at the
     // start of the touch. We need to look for a better solution to this

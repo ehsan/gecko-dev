@@ -86,12 +86,12 @@ APZController::SetPendingResponseFlusher(APZPendingResponseFlusher* aFlusher)
 }
 
 void
-APZController::ContentReceivedTouch(const uint64_t aInputBlockId, bool aPreventDefault)
+APZController::ContentReceivedTouch(const ScrollableLayerGuid& aGuid, bool aPreventDefault)
 {
   if (!sAPZC) {
     return;
   }
-  sAPZC->ContentReceivedTouch(aInputBlockId, aPreventDefault);
+  sAPZC->ContentReceivedTouch(aGuid, aPreventDefault);
 }
 
 bool
@@ -115,15 +115,14 @@ APZController::TransformCoordinateToGecko(const ScreenIntPoint& aPoint,
 
 nsEventStatus
 APZController::ReceiveInputEvent(WidgetInputEvent* aEvent,
-                                 ScrollableLayerGuid* aOutTargetGuid,
-                                 uint64_t* aOutInputBlockId)
+                                 ScrollableLayerGuid* aOutTargetGuid)
 {
   MOZ_ASSERT(aEvent);
 
   if (!sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  return sAPZC->ReceiveInputEvent(*aEvent->AsInputEvent(), aOutTargetGuid, aOutInputBlockId);
+  return sAPZC->ReceiveInputEvent(*aEvent->AsInputEvent(), aOutTargetGuid);
 }
 
 // APZC sends us this request when we need to update the display port on
@@ -215,13 +214,12 @@ APZController::HandleSingleTap(const CSSPoint& aPoint,
 void
 APZController::HandleLongTap(const CSSPoint& aPoint,
                              int32_t aModifiers,
-                             const mozilla::layers::ScrollableLayerGuid& aGuid,
-                             uint64_t aInputBlockId)
+                             const ScrollableLayerGuid& aGuid)
 {
   if (mFlusher) {
     mFlusher->FlushPendingContentResponse();
   }
-  ContentReceivedTouch(aInputBlockId, false);
+  ContentReceivedTouch(aGuid, false);
 }
 
 void

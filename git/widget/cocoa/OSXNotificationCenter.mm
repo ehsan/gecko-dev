@@ -14,7 +14,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
-#include "nsIContentPolicy.h"
 #include "imgRequestProxy.h"
 
 using namespace mozilla;
@@ -245,7 +244,7 @@ OSXNotificationCenter::ShowAlertNotification(const nsAString & aImageUrl, const 
       if (imageUri) {
         nsresult rv = il->LoadImage(imageUri, nullptr, nullptr, aPrincipal, nullptr,
                                     this, nullptr, nsIRequest::LOAD_NORMAL, nullptr,
-                                    nsIContentPolicy::TYPE_IMAGE, EmptyString(),
+                                    EmptyString(),
                                     getter_AddRefs(osxni->mIconRequest));
         if (NS_SUCCEEDED(rv)) {
           // Set a timer for six seconds. If we don't have an icon by the time this
