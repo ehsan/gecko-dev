@@ -291,9 +291,7 @@ public:
   /**
    * Set the "inline" event listener for aEventName to |v|.  This
    * might actually remove the event listener, depending on the value
-   * of |v|.  Note that on entry to this function cx and aScope might
-   * not be in the same compartment, though cx and v are guaranteed to
-   * be in the same compartment.
+   * of |v|.
    */
   nsresult SetJSEventListenerToJsval(nsIAtom *aEventName, JSContext *cx,
                                      JSObject *aScope, const jsval &v);

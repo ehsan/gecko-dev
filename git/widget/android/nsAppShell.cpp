@@ -53,8 +53,6 @@
 #include "nsDOMNotifyPaintEvent.h"
 #include "nsIDOMClientRectList.h"
 #include "nsIDOMClientRect.h"
-#include "nsIDOMWakeLockListener.h"
-#include "nsIPowerManagerService.h"
 
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
@@ -153,22 +151,8 @@ class AfterPaintListener : public nsIDOMEventListener {
     nsCOMPtr<nsIDOMEventTarget> mEventTarget;
 };
 
-class WakeLockListener : public nsIDOMMozWakeLockListener {
- public:
-  NS_DECL_ISUPPORTS;
-
-  nsresult Callback(const nsAString& topic, const nsAString& state) {
-    AndroidBridge::Bridge()->NotifyWakeLockChanged(topic, state);
-    return NS_OK;
-  }
-};
-
 NS_IMPL_ISUPPORTS1(AfterPaintListener, nsIDOMEventListener)
 nsCOMPtr<AfterPaintListener> sAfterPaintListener = nsnull;
-
-NS_IMPL_ISUPPORTS1(WakeLockListener, nsIDOMMozWakeLockListener)
-nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nsnull;
-nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nsnull;
 
 nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),
@@ -180,28 +164,12 @@ nsAppShell::nsAppShell()
 {
     gAppShell = this;
     sAfterPaintListener = new AfterPaintListener();
-
-    sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-
-    if (sPowerManagerService) {
-        sWakeLockListener = new WakeLockListener();
-    } else {
-        NS_WARNING("Failed to retrieve PowerManagerService, wakelocks will be broken!");
-    }
-
 }
 
 nsAppShell::~nsAppShell()
 {
     gAppShell = nsnull;
     delete sAfterPaintListener;
-
-    if (sPowerManagerService) {
-        sPowerManagerService->RemoveWakeLockListener(sWakeLockListener);
-
-        sPowerManagerService = nsnull;
-        sWakeLockListener = nsnull;
-    }
 }
 
 void
@@ -237,9 +205,6 @@ nsAppShell::Init()
     if (obsServ) {
         obsServ->AddObserver(this, "xpcom-shutdown", false);
     }
-
-    if (sPowerManagerService)
-        sPowerManagerService->AddWakeLockListener(sWakeLockListener);
 
     if (!bridge)
         return rv;

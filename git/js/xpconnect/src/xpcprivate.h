@@ -692,7 +692,7 @@ public:
 
     JSBool OnJSContextNew(JSContext* cx);
 
-    bool DeferredRelease(nsISupports* obj);
+    JSBool DeferredRelease(nsISupports* obj);
 
     JSBool GetDoingFinalization() const {return mDoingFinalization;}
 
