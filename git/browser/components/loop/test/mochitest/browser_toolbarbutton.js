@@ -7,6 +7,9 @@
 
 "use strict";
 
+const MozLoopServiceInternal = Cu.import("resource:///modules/loop/MozLoopService.jsm", {}).
+                               MozLoopServiceInternal;
+
 registerCleanupFunction(function*() {
   MozLoopService.doNotDisturb = false;
   yield MozLoopServiceInternal.clearError("testing");

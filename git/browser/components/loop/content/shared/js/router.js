@@ -6,7 +6,7 @@
 
 var loop = loop || {};
 loop.shared = loop.shared || {};
-loop.shared.router = (function() {
+loop.shared.router = (function(l10n) {
   "use strict";
 
   /**
@@ -186,4 +186,4 @@ loop.shared.router = (function() {
     BaseRouter: BaseRouter,
     BaseConversationRouter: BaseConversationRouter
   };
-})();
+})(document.webL10n || document.mozL10n);

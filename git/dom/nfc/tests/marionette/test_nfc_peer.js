@@ -34,7 +34,16 @@ function handleTechnologyDiscoveredRE0(msg) {
   nfc.onpeerready = peerReadyCb;
   nfc.onpeerlost = peerLostCb;
 
-  nfc.notifyUserAcceptedP2P(MANIFEST_URL);
+  let request = nfc.checkP2PRegistration(MANIFEST_URL);
+  request.onsuccess = function (evt) {
+    is(request.result, true, "check for P2P registration result");
+    nfc.notifyUserAcceptedP2P(MANIFEST_URL);
+  }
+
+  request.onerror = function () {
+    ok(false, "checkP2PRegistration failed.");
+    toggleNFC(false).then(runNextTest);
+  }
 }
 
 function handleTechnologyDiscoveredRE0ForP2PRegFailure(msg) {
@@ -85,34 +94,6 @@ function testCheckP2PRegFailure() {
   toggleNFC(true).then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
 }
 
-/**
- * test for onpeerlost still should be called even onpeerready resets itself.
- */
-function testPeerLostShouldBeCalled() {
-  nfc.onpeerready = function() {
-    NCI.deactivate();
-    nfc.onpeerready = null;
-  };
-
-  nfc.onpeerlost = function() {
-    ok(true, "peerlost should be called even peerready is reset");
-    toggleNFC(false).then(runNextTest);
-  };
-
-  sysMsgHelper.waitForTechDiscovered(function() {
-    log("testPeerLostShouldBeCalled techDiscoverd");
-    nfc.notifyUserAcceptedP2P(MANIFEST_URL);
-  });
-
-  toggleNFC(true)
-    .then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
-}
-
-/**
- * test case for
- * 1. tech-discovered
- * 2. tech-lost -> onpeerlost shouldn't be called.
- */
 function testPeerLostShouldNotBeCalled() {
   log("testPeerLostShouldNotBeCalled");
   nfc.onpeerlost = function () {
@@ -177,7 +158,15 @@ function testPeerShouldThrow() {
 
   sysMsgHelper.waitForTechDiscovered(function() {
     log("testPeerShouldThrow techDiscovered");
-    nfc.notifyUserAcceptedP2P(MANIFEST_URL);
+    let request = nfc.checkP2PRegistration(MANIFEST_URL);
+    request.onsuccess = function (evt) {
+      nfc.notifyUserAcceptedP2P(MANIFEST_URL);
+    }
+
+    request.onerror = function () {
+      ok(false, "checkP2PRegistration failed.");
+      toggleNFC(false).then(runNextTest);
+    }
   });
 
   toggleNFC(true)
@@ -208,7 +197,6 @@ let tests = [
   testPeerReady,
   testGetNFCPeer,
   testCheckP2PRegFailure,
-  testPeerLostShouldBeCalled,
   testPeerLostShouldNotBeCalled,
   testPeerShouldThrow,
   testPeerInvalidToken,

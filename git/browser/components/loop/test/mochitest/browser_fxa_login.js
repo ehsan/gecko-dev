@@ -7,7 +7,6 @@
 
 "use strict";
 
-const gFxAOAuthTokenData = Cu.import("resource:///modules/loop/MozLoopService.jsm", {}).gFxAOAuthTokenData;
 const BASE_URL = "http://mochi.test:8888/browser/browser/components/loop/test/mochitest/loop_fxa.sjs?";
 
 add_task(function* setup() {
@@ -30,27 +29,27 @@ add_task(function* checkOAuthParams() {
     state: "state",
   };
   yield promiseOAuthParamsSetup(BASE_URL, params);
-  let client = yield MozLoopServiceInternal.promiseFxAOAuthClient();
+  let client = yield MozLoopService.internal.promiseFxAOAuthClient();
   for (let key of Object.keys(params)) {
     ise(client.parameters[key], params[key], "Check " + key + " was passed to the OAuth client");
   }
 });
 
 add_task(function* basicAuthorization() {
-  let result = yield MozLoopServiceInternal.promiseFxAOAuthAuthorization();
+  let result = yield MozLoopService.internal.promiseFxAOAuthAuthorization();
   is(result.code, "code1", "Check code");
   is(result.state, "state", "Check state");
 });
 
 add_task(function* sameOAuthClientForTwoCalls() {
-  resetFxA();
-  let client1 = yield MozLoopServiceInternal.promiseFxAOAuthClient();
-  let client2 = yield MozLoopServiceInternal.promiseFxAOAuthClient();
+  MozLoopService.resetFxA();
+  let client1 = yield MozLoopService.internal.promiseFxAOAuthClient();
+  let client2 = yield MozLoopService.internal.promiseFxAOAuthClient();
   ise(client1, client2, "The same client should be returned");
 });
 
 add_task(function* paramsInvalid() {
-  resetFxA();
+  MozLoopService.resetFxA();
   // Delete the params so an empty object is returned.
   yield promiseDeletedOAuthParams(BASE_URL);
   let result = null;
@@ -65,7 +64,7 @@ add_task(function* paramsInvalid() {
 });
 
 add_task(function* params_nonJSON() {
-  resetFxA();
+  MozLoopService.resetFxA();
   Services.prefs.setCharPref("loop.server", "https://loop.invalid");
   let result = null;
   let loginPromise = MozLoopService.logInToFxA();
@@ -77,7 +76,7 @@ add_task(function* params_nonJSON() {
 });
 
 add_task(function* invalidState() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -93,7 +92,7 @@ add_task(function* invalidState() {
 });
 
 add_task(function* basicRegistration() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -103,14 +102,14 @@ add_task(function* basicRegistration() {
   };
   yield promiseOAuthParamsSetup(BASE_URL, params);
 
-  let tokenData = yield MozLoopServiceInternal.promiseFxAOAuthToken("code1", "state");
+  let tokenData = yield MozLoopService.internal.promiseFxAOAuthToken("code1", "state");
   is(tokenData.access_token, "code1_access_token", "Check access_token");
   is(tokenData.scope, "profile", "Check scope");
   is(tokenData.token_type, "bearer", "Check token_type");
 });
 
 add_task(function* registrationWithInvalidState() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -120,7 +119,7 @@ add_task(function* registrationWithInvalidState() {
   };
   yield promiseOAuthParamsSetup(BASE_URL, params);
 
-  let tokenPromise = MozLoopServiceInternal.promiseFxAOAuthToken("code1", "state");
+  let tokenPromise = MozLoopService.internal.promiseFxAOAuthToken("code1", "state");
   yield tokenPromise.then(body => {
     ok(false, "Promise should have rejected");
   },
@@ -130,7 +129,7 @@ add_task(function* registrationWithInvalidState() {
 });
 
 add_task(function* registrationWith401() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -141,7 +140,7 @@ add_task(function* registrationWith401() {
   };
   yield promiseOAuthParamsSetup(BASE_URL, params);
 
-  let tokenPromise = MozLoopServiceInternal.promiseFxAOAuthToken("code1", "state");
+  let tokenPromise = MozLoopService.internal.promiseFxAOAuthToken("code1", "state");
   yield tokenPromise.then(body => {
     ok(false, "Promise should have rejected");
   },
@@ -151,7 +150,7 @@ add_task(function* registrationWith401() {
 });
 
 add_task(function* basicAuthorizationAndRegistration() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -168,7 +167,7 @@ add_task(function* basicAuthorizationAndRegistration() {
 });
 
 add_task(function* loginWithParams401() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -185,12 +184,12 @@ add_task(function* loginWithParams401() {
   },
   error => {
     ise(error.code, 401, "Check error code");
-    ise(gFxAOAuthTokenData, null, "Check there is no saved token data");
+    ise(MozLoopService.gFxAOAuthTokenData, null, "Check there is no saved token data");
   });
 });
 
 add_task(function* loginWithRegistration401() {
-  resetFxA();
+  MozLoopService.resetFxA();
   let params = {
     client_id: "client_id",
     content_uri: BASE_URL + "/content",
@@ -207,6 +206,6 @@ add_task(function* loginWithRegistration401() {
   },
   error => {
     ise(error.code, 401, "Check error code");
-    ise(gFxAOAuthTokenData, null, "Check there is no saved token data");
+    ise(MozLoopService.gFxAOAuthTokenData, null, "Check there is no saved token data");
   });
 });
