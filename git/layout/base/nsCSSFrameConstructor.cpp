@@ -91,7 +91,6 @@
 #include "nsStyleStructInlines.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
-#include "nsSVGIntegrationUtils.h"
 #include <algorithm>
 
 #ifdef MOZ_XUL
@@ -7753,11 +7752,6 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       // opacity updates in many cases.
       needInvalidatingPaint = true;
       aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
-      if (nsSVGIntegrationUtils::UsingEffectsForFrame(aFrame)) {
-        // SVG effects paints the opacity without using
-        // nsDisplayOpacity. We need to invalidate manually.
-        aFrame->InvalidateFrameSubtree();
-      }
     }
     if ((aChange & nsChangeHint_UpdateTransformLayer) &&
         aFrame->IsTransformed()) {

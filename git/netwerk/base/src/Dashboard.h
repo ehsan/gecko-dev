@@ -9,6 +9,7 @@
 #include "nsIDashboardEventNotifier.h"
 #include "nsTArray.h"
 #include "nsString.h"
+#include "jsapi.h"
 #include "nsIDNSService.h"
 #include "nsIServiceManager.h"
 #include "nsIThread.h"

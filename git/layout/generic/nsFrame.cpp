@@ -1673,9 +1673,7 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
     // and then flush this list into aOutput by wrapping the whole lot with a single
     // nsDisplayTransform.
 
-    if (childFrame &&
-        childFrame->GetParent() &&
-        (childFrame->GetParent()->Preserves3DChildren() || childFrame == aFrame)) {
+    if (childFrame && (childFrame->GetParent()->Preserves3DChildren() || childFrame == aFrame)) {
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           if (!aTemp->IsEmpty()) {
@@ -4116,9 +4114,8 @@ nsFrame::ReflowAbsoluteFrames(nsPresContext*           aPresContext,
     nsContainerFrame* container = do_QueryFrame(this);
     NS_ASSERTION(container, "Abs-pos children only supported on container frames for now");
 
-    nsRect containingBlock(0, 0, containingBlockWidth, containingBlockHeight);
     absoluteContainer->Reflow(container, aPresContext, aReflowState, aStatus,
-                              containingBlock,
+                              containingBlockWidth, containingBlockHeight,
                               aConstrainHeight, true, true, // XXX could be optimized
                               &aDesiredSize.mOverflowAreas);
   }
@@ -4586,14 +4583,7 @@ nsIFrame::AreLayersMarkedActive(nsChangeHint aChangeHint)
 {
   LayerActivity* layerActivity =
     static_cast<LayerActivity*>(Properties().Get(LayerActivityProperty()));
-  if (layerActivity && (layerActivity->mChangeHint & aChangeHint)) {
-    return true;
-  }
-  if (aChangeHint & nsChangeHint_UpdateTransformLayer &&
-      Preserves3D()) {
-    return GetParent()->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer);
-  }
-  return false;
+  return layerActivity && (layerActivity->mChangeHint & aChangeHint);
 }
 
 /* static */ void

@@ -74,7 +74,6 @@ public:
                                   double aStreamTime);
   virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo);
   TrackTicks GetCurrentPosition();
-  bool AllInputsFinished() const;
 
   // Any thread
   AudioNodeEngine* Engine() { return mEngine; }

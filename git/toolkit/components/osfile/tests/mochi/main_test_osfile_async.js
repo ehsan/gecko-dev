@@ -889,11 +889,7 @@ let test_duration = maketest("duration", function duration(test) {
     let pathDest = OS.Path.join(OS.Constants.Path.tmpDir,
       "osfile async test read writeAtomic.tmp");
     let tmpPath = pathDest + ".tmp";
-    let readOptions = {
-      outExecutionDuration: null
-    };
-    let contents = yield OS.File.read(pathSource, undefined, readOptions);
-    testOptions(readOptions);
+    let contents = yield OS.File.read(pathSource);
     // Options structure passed to a OS.File writeAtomic method.
     let writeAtomicOptions = {
       // This field should be first initialized with the actual

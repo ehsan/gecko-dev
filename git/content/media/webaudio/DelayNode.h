@@ -37,11 +37,9 @@ public:
 
 private:
   static void SendDelayToStream(AudioNode* aNode);
-  friend class DelayNodeEngine;
 
 private:
   nsRefPtr<AudioParam> mDelay;
-  SelfReference<DelayNode> mPlayingRef;
 };
 
 }
