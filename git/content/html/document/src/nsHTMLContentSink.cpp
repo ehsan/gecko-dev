@@ -425,6 +425,7 @@ HTMLContentSink::AddAttributes(const nsIParserNode& aNode,
     return NS_OK;
   }
 
+  nsCAutoString k;
   nsHTMLTag nodeType = nsHTMLTag(aNode.GetNodeType());
 
   // The attributes are on the parser node in the order they came in in the
@@ -453,12 +454,15 @@ HTMLContentSink::AddAttributes(const nsIParserNode& aNode,
     step = -1;
   }
   
-  nsAutoString key;
   for (; i != limit; i += step) {
     // Get lower-cased key
-    nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), key);
+    const nsAString& key = aNode.GetKeyAt(i);
+    // Copy up-front to avoid shared-buffer overhead (and convert to UTF-8
+    // at the same time since that's what the atom table uses).
+    CopyUTF16toUTF8(key, k);
+    ToLowerCase(k);
 
-    nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(key);
+    nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(k);
 
     if (aCheckIfPresent && aContent->HasAttr(kNameSpaceID_None, keyAtom)) {
       continue;
@@ -938,10 +942,13 @@ SinkContext::CloseContainer(const nsHTMLTag aTag, PRBool aMalformed)
 #ifdef NS_DEBUG
       {
         // Tracing code
+        const char *tagStr;
+        mStack[mStackPos].mContent->Tag()->GetUTF8String(&tagStr);
+
         SINK_TRACE(gSinkLogModuleInfo, SINK_TRACE_REFLOW,
                    ("SinkContext::CloseContainer: reflow on notifyImmediate "
                     "tag=%s newIndex=%d stackPos=%d",
-                    nsAtomCString(mStack[mStackPos].mContent->Tag()).get(),
+                    tagStr,
                     mStack[mStackPos].mNumFlushed, mStackPos));
       }
 #endif
@@ -1346,10 +1353,12 @@ SinkContext::FlushTags()
 #ifdef NS_DEBUG
         {
           // Tracing code
+          const char* tagStr;
+          mStack[stackPos].mContent->Tag()->GetUTF8String(&tagStr);
+
           SINK_TRACE(gSinkLogModuleInfo, SINK_TRACE_REFLOW,
                      ("SinkContext::FlushTags: tag=%s from newindex=%d at "
-                      "stackPos=%d",
-                      nsAtomCString(mStack[stackPos].mContent->Tag()).get(),
+                      "stackPos=%d", tagStr,
                       mStack[stackPos].mNumFlushed, stackPos));
         }
 #endif

@@ -76,7 +76,6 @@ private:
  protected:
 
   PRUint32 mUpdateInterval;
-  PRBool   mEnabled;
 
   virtual void Startup()  = 0;
   virtual void Shutdown() = 0;

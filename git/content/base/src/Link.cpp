@@ -469,11 +469,17 @@ Link::ResetLinkState(bool aNotify)
     return;
   }
 
+  // If we are not a link, revert to the default state and do no more work.
+  if (mLinkState == eLinkState_NotLink) {
+    mLinkState = defaultState;
+    return;
+  }
+
   nsIContent *content = Content();
 
-  // Tell the document to forget about this link if we were a link before.
+  // Tell the document to forget about this link.
   nsIDocument *doc = content->GetCurrentDoc();
-  if (doc && mLinkState != eLinkState_NotLink) {
+  if (doc) {
     doc->ForgetLink(this);
   }
 

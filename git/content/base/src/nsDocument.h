@@ -82,6 +82,7 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
 #include "nsScriptLoader.h"
+#include "nsICSSLoader.h"
 #include "nsIRadioGroupContainer.h"
 #include "nsIScriptEventManager.h"
 #include "nsILayoutHistoryState.h"
@@ -135,6 +136,10 @@ struct nsRadioGroupStruct;
 class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
 class nsChildContentList;
+#ifdef MOZ_SMIL
+class nsSMILAnimationController;
+#endif // MOZ_SMIL
+
 
 /**
  * Right now our identifier map entries contain information for 'name'
@@ -890,11 +895,7 @@ public:
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
 
-  nsTArray<nsCString> mFileDataUris;
-
 #ifdef MOZ_SMIL
-  // Returns our (lazily-initialized) animation controller.
-  // If HasAnimationController is true, this is guaranteed to return non-null.
   nsSMILAnimationController* GetAnimationController();
 #endif // MOZ_SMIL
 
@@ -932,14 +933,7 @@ public:
 
   virtual void MaybePreLoadImage(nsIURI* uri);
 
-  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset);
-
-  virtual nsresult LoadChromeSheetSync(nsIURI* uri, PRBool isAgentSheet,
-                                       nsICSSStyleSheet** sheet);
-
   virtual nsISupports* GetCurrentContentSink();
-
-  virtual void RegisterFileDataUri(nsACString& aUri);
 
 protected:
   friend class nsNodeUtils;
@@ -1196,6 +1190,10 @@ private:
   nsCOMArray<imgIRequest> mPreloadingImages;
 
   nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
+
+#ifdef MOZ_SMIL
+  nsAutoPtr<nsSMILAnimationController> mAnimationController;
+#endif // MOZ_SMIL
 
 #ifdef DEBUG
 protected:

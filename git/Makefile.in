@@ -61,9 +61,12 @@ TIERS += base
 tier_base_dirs = \
 	config \
 	build \
-	memory \
 	probes \
 	$(NULL)
+
+ifdef MOZ_MEMORY
+tier_base_dirs += memory/jemalloc
+endif
 
 ifdef COMPILE_ENVIRONMENT
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
@@ -84,11 +87,6 @@ DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    unallmakefiles mozilla-config.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
-
-ifdef WINCE
-check::
-	$(PYTHON) $(topsrcdir)/build/mobile/devicemanager-utils.py copy $(DIST)/bin
-endif
 
 default alldep all:: $(topsrcdir)/configure config.status
 	$(RM) -rf $(DIST)/sdk

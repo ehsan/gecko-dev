@@ -70,7 +70,6 @@ function check_results_callback(aSequence) {
       case Ci.nsINavHistoryService.TRANSITION_DOWNLOAD:
         return redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
       case Ci.nsINavHistoryService.TRANSITION_EMBED:
-      case Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK:
         return includeHidden && redirectsMode != Ci.nsINavHistoryQueryOptions.REDIRECTS_MODE_TARGET;
       case Ci.nsINavHistoryService.TRANSITION_REDIRECT_TEMPORARY:
       case Ci.nsINavHistoryService.TRANSITION_REDIRECT_PERMANENT:
@@ -225,7 +224,6 @@ function add_visits_to_database() {
     Ci.nsINavHistoryService.TRANSITION_TYPED,
     Ci.nsINavHistoryService.TRANSITION_BOOKMARK,
     Ci.nsINavHistoryService.TRANSITION_EMBED,
-    Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK,
     // Would make hard sorting by visit date because last_visit_date is actually
     // calculated excluding download transitions, but the query includes
     // downloads.
@@ -240,8 +238,7 @@ function add_visits_to_database() {
       uri: "http://" + transition + ".example.com/",
       title: transition + "-example",
       lastVisit: timeInMicroseconds--,
-      visitCount: (transition == Ci.nsINavHistoryService.TRANSITION_EMBED ||
-                   transition == Ci.nsINavHistoryService.TRANSITION_FRAMED_LINK) ? 0 : visitCount++,
+      visitCount: transition == Ci.nsINavHistoryService.TRANSITION_EMBED ? 0 : visitCount++,
       isInQuery: true }));
 
   // Add a REDIRECT_TEMPORARY layer of visits for each of the above visits.

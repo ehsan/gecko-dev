@@ -45,6 +45,7 @@
 #include "nsRefPtrHashtable.h"
 
 #include "gfxPlatformFontList.h"
+#include "gfxCoreTextFonts.h"
 #include "gfxPlatform.h"
 
 #include <Carbon/Carbon.h>

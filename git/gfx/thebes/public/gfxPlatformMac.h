@@ -98,6 +98,9 @@ public:
     // lower threshold on font anti-aliasing
     PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
 
+    // record Unicode cluster boundaries in the text run
+    virtual void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
+
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
     

@@ -108,7 +108,6 @@ typedef struct InstanceData {
   TestFunction testFunction;
   TestFunction functionToFail;
   NPError failureCode;
-  NPObject* callOnDestroy;
   PostMode postMode;
   std::string testUrl;
   std::string frame;
@@ -126,8 +125,5 @@ typedef struct InstanceData {
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);
-
-void NoteIntentionalCrash();
-void IntentionalCrash();
 
 #endif // nptest_h_

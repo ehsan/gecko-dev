@@ -63,7 +63,6 @@
 #include "nsContentList.h"
 #include "nsIObserver.h"
 #include "nsIBaseWindow.h"
-#include "nsCSSLoader.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScriptRuntime.h"
@@ -146,7 +145,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIRequest.h"
 #include "nsILink.h"
-#include "nsFileDataProtocolHandler.h"
 
 #include "nsICharsetAlias.h"
 #include "nsIParser.h"
@@ -1505,10 +1503,6 @@ nsDocument::~nsDocument()
   }
 
   mPendingTitleChangeEvent.Revoke();
-
-  for (PRUint32 i = 0; i < mFileDataUris.Length(); ++i) {
-    nsFileDataProtocolHandler::RemoveFileDataEntry(mFileDataUris[i]);
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
@@ -1756,10 +1750,9 @@ nsDocument::Init()
 
   mOnloadBlocker = new nsOnloadBlocker();
   NS_ENSURE_TRUE(mOnloadBlocker, NS_ERROR_OUT_OF_MEMORY);
-
-  mCSSLoader = new mozilla::css::Loader(this);
+  
+  NS_NewCSSLoader(this, &mCSSLoader);
   NS_ENSURE_TRUE(mCSSLoader, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(mCSSLoader);
   // Assume we're not quirky, until we know otherwise
   mCSSLoader->SetCompatibilityMode(eCompatibility_FullStandards);
 
@@ -3500,8 +3493,9 @@ nsDocument::AddCatalogStyleSheet(nsIStyleSheet* aSheet)
 void
 nsDocument::EnsureCatalogStyleSheet(const char *aStyleSheetURI)
 {
-  mozilla::css::Loader* cssLoader = CSSLoader();
-  if (cssLoader->GetEnabled()) {
+  nsICSSLoader* cssLoader = CSSLoader();
+  PRBool enabled;
+  if (NS_SUCCEEDED(cssLoader->GetEnabled(&enabled)) && enabled) {
     PRInt32 sheetCount = GetNumberOfCatalogStyleSheets();
     for (PRInt32 i = 0; i < sheetCount; i++) {
       nsIStyleSheet* sheet = GetCatalogStyleSheetAt(i);
@@ -6718,7 +6712,9 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
     aPrefix->ToString(qName);
     qName.Append(':');
   }
-  qName.Append(nsAtomString(aName));
+  const char *name;
+  aName->GetUTF8String(&name);
+  AppendUTF8toUTF16(name, qName);
 
   // Note: "a:b:c" is a valid name in non-namespaces XML, and
   // nsDocument::CreateElement can call us with such a name and no prefix,
@@ -7332,6 +7328,13 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
   }
 }
 
+static PRUint32 GetURIHash(nsIURI* aURI)
+{
+  nsCAutoString str;
+  aURI->GetSpec(str);
+  return HashString(str);
+}
+
 void
 nsDocument::AddStyleRelevantLink(Link* aLink)
 {
@@ -7615,44 +7618,6 @@ nsDocument::MaybePreLoadImage(nsIURI* uri)
   }
 }
 
-namespace {
-
-/**
- * Stub for LoadSheet(), since all we want is to get the sheet into
- * the CSSLoader's style cache
- */
-class StubCSSLoaderObserver : public nsICSSLoaderObserver {
-public:
-  NS_IMETHOD
-  StyleSheetLoaded(nsICSSStyleSheet*, PRBool, nsresult)
-  {
-    return NS_OK;
-  }
-  NS_DECL_ISUPPORTS
-};
-NS_IMPL_ISUPPORTS1(StubCSSLoaderObserver, nsICSSLoaderObserver)
-
-}
-
-void
-nsDocument::PreloadStyle(nsIURI* uri, const nsAString& charset)
-{
-  // The CSSLoader will retain this object after we return.
-  nsCOMPtr<nsICSSLoaderObserver> obs = new StubCSSLoaderObserver();
-
-  // Charset names are always ASCII.
-  CSSLoader()->LoadSheet(uri, NodePrincipal(),
-                         NS_LossyConvertUTF16toASCII(charset),
-                         obs);
-}
-
-nsresult
-nsDocument::LoadChromeSheetSync(nsIURI* uri, PRBool isAgentSheet,
-                                nsICSSStyleSheet** sheet)
-{
-  return CSSLoader()->LoadSheetSync(uri, isAgentSheet, isAgentSheet, sheet);
-}
-
 class nsDelayedEventDispatcher : public nsRunnable
 {
 public:
@@ -7708,12 +7673,6 @@ nsISupports*
 nsDocument::GetCurrentContentSink()
 {
   return mParser ? mParser->GetContentSink() : nsnull;
-}
-
-void
-nsDocument::RegisterFileDataUri(nsACString& aUri)
-{
-  mFileDataUris.AppendElement(aUri);
 }
 
 void

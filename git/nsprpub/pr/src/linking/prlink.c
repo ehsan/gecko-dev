@@ -45,8 +45,15 @@
 #endif
 
 #if defined(XP_MACOSX) && defined(USE_MACH_DYLD)
-#include <Carbon/Carbon.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <CodeFragments.h>
+#include <TextUtils.h>
+#include <Types.h>
+#include <Aliases.h>
+#include <CFURL.h>
+#include <CFBundle.h>
+#include <CFString.h>
+#include <CFDictionary.h>
+#include <CFData.h>
 #endif
 
 #ifdef XP_UNIX

@@ -260,8 +260,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
 
   // Look for a compiled handler on the element. 
   // Should be compiled and bound with "on" in front of the name.
-  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
-                                             nsDependentAtomString(mEventName));
+  nsAutoString onEvent(NS_LITERAL_STRING("onxbl"));
+  nsAutoString str;
+  mEventName->ToString(str);
+  onEvent += str;
+  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(onEvent);
 
   // Compile the event handler.
   PRUint32 stID = nsIProgrammingLanguage::JAVASCRIPT;
@@ -439,7 +442,10 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   else
     controller = GetController(aTarget); // We're attached to the receiver possibly.
 
-  if (mEventName == nsGkAtoms::keypress &&
+  nsAutoString type;
+  mEventName->ToString(type);
+
+  if (type.EqualsLiteral("keypress") &&
       mDetail == nsIDOMKeyEvent::DOM_VK_SPACE &&
       mMisc == 1) {
     // get the focused element so that we can pageDown only at

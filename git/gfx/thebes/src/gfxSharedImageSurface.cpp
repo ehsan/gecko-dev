@@ -57,9 +57,7 @@ gfxSharedImageSurface::~gfxSharedImageSurface()
     // Finish all pending XServer operations
     if (mDisp) {
         XSync(mDisp, False);
-        if (mShmInfo.shmaddr)
-            XShmDetach(mDisp, &mShmInfo);
-        mShmInfo.shmaddr = nsnull;
+        XShmDetach(mDisp, &mShmInfo);
     }
 
     if (mData)

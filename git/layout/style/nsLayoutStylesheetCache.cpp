@@ -38,7 +38,7 @@
 #include "nsLayoutStylesheetCache.h"
 
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 #include "nsIFile.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
@@ -254,8 +254,7 @@ nsLayoutStylesheetCache::LoadSheetFile(nsIFile* aFile, nsCOMPtr<nsICSSStyleSheet
 }
 
 void
-nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
-                                   nsCOMPtr<nsICSSStyleSheet> &aSheet,
+nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI, nsCOMPtr<nsICSSStyleSheet> &aSheet,
                                    PRBool aEnableUnsafeRules)
 {
   if (!aURI) {
@@ -263,19 +262,17 @@ nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
     return;
   }
 
-  if (!gCSSLoader) { 
-    gCSSLoader = new mozilla::css::Loader();
-    NS_IF_ADDREF(gCSSLoader);
-  }
+  if (!gCSSLoader)
+    NS_NewCSSLoader(&gCSSLoader);
 
   if (gCSSLoader) {
     gCSSLoader->LoadSheetSync(aURI, aEnableUnsafeRules, PR_TRUE,
                               getter_AddRefs(aSheet));
   }
-}
+}  
 
 nsLayoutStylesheetCache*
 nsLayoutStylesheetCache::gStyleCache = nsnull;
 
-mozilla::css::Loader*
+nsICSSLoader*
 nsLayoutStylesheetCache::gCSSLoader = nsnull;

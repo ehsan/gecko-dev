@@ -48,10 +48,7 @@ function browserWindowsCount() {
 }
 
 function test() {
-  // This test takes quite some time, and timeouts frequently, so we require
-  // more time to run.
-  // See Bug 518970.
-  requestLongerTimeout(2);
+  /** Test for Bug 394759 **/
   
   // test setup
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
@@ -206,6 +203,7 @@ function test() {
     let oldState_wins = JSON.parse(oldState).windows.length;
     if (oldState_wins != 1) {
       ok(false, "oldState in test_purge has " + oldState_wins + " windows instead of 1");
+      info(oldState);
     }
 
     // create a new state for testing

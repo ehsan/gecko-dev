@@ -1199,6 +1199,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Border)) {
+    const nsStyleTableBorder* tableStyle = aData->mStyleContext->GetStyleTableBorder();
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
       // bordercolor

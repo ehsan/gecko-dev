@@ -45,6 +45,7 @@
 #include "nsIAnnotationService.h"
 #include "nsITransaction.h"
 #include "nsNavHistory.h"
+#include "nsNavHistoryResult.h" // need for Int64 hashtable
 #include "nsToolkitCompsCID.h"
 #include "nsCategoryCache.h"
 
@@ -85,6 +86,8 @@ public:
     }
     return gBookmarksService;
   }
+
+  nsresult AddBookmarkToHash(PRInt64 aBookmarkId, PRTime aMinTime);
 
   nsresult ResultNodeForContainer(PRInt64 aID,
                                   nsNavHistoryQueryOptions* aOptions,
@@ -184,6 +187,16 @@ private:
   // be committed when our batch level reaches 0 again.
   PRBool mBatchHasTransaction;
 
+  // This stores a mapping from all pages reachable by redirects from bookmarked
+  // pages to the bookmarked page. Used by GetBookmarkedURIFor.
+  nsDataHashtable<nsTrimInt64HashKey, PRInt64> mBookmarksHash;
+  nsDataHashtable<nsTrimInt64HashKey, PRInt64>* GetBookmarksHash();
+  nsresult FillBookmarksHash();
+  nsresult RecursiveAddBookmarkHash(PRInt64 aBookmarkId,
+                                    PRInt64 aCurrentSource,
+                                    PRTime aMinTime);
+  nsresult UpdateBookmarkHashOnRemove(PRInt64 aPlaceId);
+
   nsresult GetParentAndIndexOfFolder(PRInt64 aFolder,
                                      PRInt64* aParent,
                                      PRInt32* aIndex);
@@ -268,7 +281,6 @@ private:
   nsresult GetBookmarkIdsForURITArray(nsIURI* aURI,
                                       nsTArray<PRInt64>& aResult);
 
-  PRInt64 RecursiveFindRedirectedBookmark(PRInt64 aPlaceId);
 
   /**
    *  You should always use this getter and never use directly the nsCOMPtr.
@@ -318,8 +330,8 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBGetItemIndex;
   nsCOMPtr<mozIStorageStatement> mDBGetChildAt;
   nsCOMPtr<mozIStorageStatement> mDBGetItemIdForGUID;
+  nsCOMPtr<mozIStorageStatement> mDBGetRedirectDestinations;
   nsCOMPtr<mozIStorageStatement> mDBIsBookmarkedInDatabase;
-  nsCOMPtr<mozIStorageStatement> mDBIsURIBookmarkedInDatabase;
   nsCOMPtr<mozIStorageStatement> mDBIsRealBookmark;
   nsCOMPtr<mozIStorageStatement> mDBGetLastBookmarkID;
   nsCOMPtr<mozIStorageStatement> mDBSetItemDateAdded;
@@ -334,7 +346,6 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBMoveItem;
   nsCOMPtr<mozIStorageStatement> mDBSetItemTitle;
   nsCOMPtr<mozIStorageStatement> mDBChangeBookmarkURI;
-  nsCOMPtr<mozIStorageStatement> mDBFindRedirectedBookmark;
 
   class RemoveFolderTransaction : public nsITransaction {
   public:

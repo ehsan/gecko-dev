@@ -48,8 +48,8 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
-#include "nsCSSParser.h"
-#include "nsCSSLoader.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsIDOMMutationEvent.h"
 
 #ifdef MOZ_SVG
@@ -224,6 +224,7 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
                                      nsAttrValue& aResult,
                                      PRBool aForceInDataDoc)
 {
+  nsresult result = NS_OK;
   nsIDocument* doc = GetOwnerDoc();
 
   if (doc && (aForceInDataDoc ||
@@ -242,16 +243,19 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
     }
 
     if (isCSS) {
-      mozilla::css::Loader* cssLoader = doc->CSSLoader();
-      nsCSSParser cssParser(cssLoader);
+      nsICSSLoader* cssLoader = doc->CSSLoader();
+      nsCOMPtr<nsICSSParser> cssParser;
+      result = cssLoader->GetParserFor(nsnull, getter_AddRefs(cssParser));
       if (cssParser) {
         nsCOMPtr<nsIURI> baseURI = GetBaseURI();
 
         nsCOMPtr<nsICSSStyleRule> rule;
-        cssParser.ParseStyleAttribute(aValue, doc->GetDocumentURI(),
-                                      baseURI,
-                                      NodePrincipal(),
-                                      getter_AddRefs(rule));
+        result = cssParser->ParseStyleAttribute(aValue, doc->GetDocumentURI(),
+                                                baseURI,
+                                                NodePrincipal(),
+                                                getter_AddRefs(rule));
+        cssLoader->RecycleParser(cssParser);
+
         if (rule) {
           aResult.SetTo(rule);
           return;

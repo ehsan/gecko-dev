@@ -198,8 +198,10 @@ public:
   void InsertCellFrame(nsTableCellFrame* aFrame,
                        PRInt32           aColIndex);
 
-  nsresult CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
-                                     nscoord&          aDesiredHeight);
+  nsresult CalculateCellActualSize(nsIFrame*       aRowFrame,
+                                   nscoord&        aDesiredWidth,
+                                   nscoord&        aDesiredHeight,
+                                   nscoord         aAvailWidth);
 
   PRBool IsFirstInserted() const;
   void   SetFirstInserted(PRBool aValue);

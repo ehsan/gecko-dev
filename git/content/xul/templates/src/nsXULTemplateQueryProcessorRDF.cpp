@@ -652,9 +652,9 @@ nsXULTemplateQueryProcessorRDF::TranslateRef(nsISupports* aDatasource,
 
 NS_IMETHODIMP
 nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
-                                               nsIXULTemplateResult* aRight,
-                                               nsIAtom* aVar,
-                                               PRInt32* aResult)
+                                                             nsIXULTemplateResult* aRight,
+                                                             nsIAtom* aVar,
+                                                             PRInt32* aResult)
 {
     NS_ENSURE_ARG_POINTER(aLeft);
     NS_ENSURE_ARG_POINTER(aRight);
@@ -673,7 +673,8 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
         return NS_OK;
     }
 
-    nsDependentAtomString sortkey(aVar);
+    nsAutoString sortkey;
+    aVar->ToString(sortkey);
 
     nsCOMPtr<nsISupports> leftNode, rightNode;
 

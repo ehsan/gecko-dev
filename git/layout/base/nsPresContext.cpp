@@ -432,19 +432,13 @@ nsPresContext::GetFontPreferences()
   mDefaultFixedFont.size = CSSPixelsToAppUnits(13);
 
   // the font prefs are based on langGroup, not actual language
-  nsCAutoString langGroup;
+  const char *langGroup = "x-western"; // Assume x-western is safe...
   if (mLanguage && mLangService) {
     nsresult rv;
     nsIAtom *group = mLangService->GetLanguageGroup(mLanguage, &rv);
     if (NS_SUCCEEDED(rv) && group) {
-      group->ToUTF8String(langGroup);
+      group->GetUTF8String(&langGroup);
     }
-    else {
-      langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
-    }
-  }
-  else {
-    langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
   }
 
   nsCAutoString pref;
@@ -1135,8 +1129,8 @@ void
 nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
                                  PRUint16 aOldMode)
 {
-  if (aDoc->HasAnimationController()) {
-    nsSMILAnimationController* controller = aDoc->GetAnimationController();
+  nsSMILAnimationController *controller = aDoc->GetAnimationController();
+  if (controller) {
     switch (aNewMode)
     {
       case imgIContainer::kNormalAnimMode:
@@ -1151,6 +1145,13 @@ nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
         break;
     }
   }
+}
+
+void
+nsPresContext::SMILOverrideStyleChanged(nsIContent* aContent)
+{
+  mShell->FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
+                                               NS_STYLE_HINT_NONE);
 }
 #endif // MOZ_SMIL
 
@@ -2435,6 +2436,11 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   nsRect bounds;
   if (bounds.IntersectRect(closure.mAffectedPluginBounds,
                            closure.mRootFrame->GetRect())) {
+    // It's OK to disable GetUsedX assertions because after a reflow,
+    // any changed geometry will cause UpdatePluginGeometry to happen
+    // again.
+    nsAutoDisableGetUsedXAssertions disableAssertions;
+
     nsDisplayListBuilder builder(closure.mRootFrame, PR_FALSE, PR_FALSE);
     builder.SetAccurateVisibleRegions();
     nsDisplayList list;

@@ -961,8 +961,8 @@ class Target(object):
                         libname = lp.resolve('', stem)
 
                         for dir in searchdirs:
-                            libpath = util.normaljoin(dir, libname).replace('\\', '/')
-                            fspath = util.normaljoin(makefile.workdir, libpath)
+                            libpath = os.path.join(dir, libname).replace('\\', '/')
+                            fspath = os.path.join(makefile.workdir, libpath)
                             mtime = getmtime(fspath)
                             if mtime is not None:
                                 self.vpathtarget = libpath
@@ -975,13 +975,12 @@ class Target(object):
 
         search = [self.target]
         if not os.path.isabs(self.target):
-            search += [util.normaljoin(dir, self.target).replace('\\', '/')
+            search += [os.path.join(dir, self.target).replace('\\', '/')
                        for dir in makefile.getvpath(self.target)]
 
         for t in search:
-            fspath = util.normaljoin(makefile.workdir, t).replace('\\', '/')
+            fspath = os.path.join(makefile.workdir, t).replace('\\', '/')
             mtime = getmtime(fspath)
-#            _log.info("Searching %s ... checking %s ... mtime %r" % (t, fspath, mtime))
             if mtime is not None:
                 self.vpathtarget = t
                 self.mtime = mtime
@@ -1322,7 +1321,7 @@ class _RemakeContext(object):
                     self.cb(remade=True)
                     return
                 elif required and t.mtime is None:
-                    self.cb(remade=False, error=DataError("No rule to remake missing include file %s" % t.target))
+                    self.cb(remade=False, error=DataError("No rule to remaking missing include file %s", t.target))
                     return
 
             self.cb(remade=False)
@@ -1483,7 +1482,7 @@ class Makefile(object):
         Include the makefile at `path`.
         """
         self.included.append((path, required))
-        fspath = util.normaljoin(self.workdir, path)
+        fspath = os.path.join(self.workdir, path)
         if os.path.exists(fspath):
             stmts = parser.parsefile(fspath)
             self.variables.append('MAKEFILE_LIST', Variables.SOURCE_AUTOMATIC, path, None, self)

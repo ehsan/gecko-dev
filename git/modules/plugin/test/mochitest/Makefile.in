@@ -52,8 +52,6 @@ _MOCHITEST_FILES = \
   test_npruntime_npninvokedefault.html \
   loremipsum.txt \
   loremipsum_file.txt \
-  loremipsum_nocache.txt \
-  loremipsum_nocache.txt^headers^ \
   post.sjs \
   pluginstream.js \
   plugin_window.html \
@@ -76,10 +74,6 @@ _MOCHITEST_FILES = \
   test_npn_asynccall.html \
   test_bug532208.html \
   large-pic.jpg \
-  test_twostreams.html \
-  test_streamatclose.html \
-  neverending.sjs \
-  test_newstreamondestroy.html \
   $(NULL)
 
 #  test_npruntime_npnsetexception.html \ Disabled for e10s
@@ -116,7 +110,6 @@ endif
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
 _MOCHITEST_FILES += \
 		test_copyText.html \
-		test_crash_nested_loop.html \
 		$(NULL)
 endif
 

@@ -212,9 +212,10 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
     // foo-bar becomes fooBar). Note that if there are any names that already
     // have uppercase letters they might cause false matches (both fooBar and
     // foo-bar matching fooBar).
-    const PRUnichar *name = aName->GetUTF16String();
+    const char *name;
+    aName->GetUTF8String(&name);
     nsCAutoString methodName;
-    PRUnichar letter;
+    char letter;
     PRBool upperNext = PR_FALSE;
     while ((letter = *name)) {
         if (letter == '-') {

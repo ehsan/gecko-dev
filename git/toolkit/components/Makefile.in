@@ -63,7 +63,6 @@ PARALLEL_DIRS += \
   passwordmgr \
   places \
   startup \
-  statusfilter \
   typeaheadfind \
   urlformatter \
   viewconfig \
@@ -98,9 +97,13 @@ PARALLEL_DIRS += \
   $(NULL)
 endif
 
-ifdef MOZ_TOOLKIT_SEARCH
+ifndef MOZ_THUNDERBIRD
+
+ifndef MOZ_SUITE
 PARALLEL_DIRS += search
 endif
+
+endif # MOZ_THUNDERBIRD
 
 ifdef MOZ_RDF
 PARALLEL_DIRS += downloads

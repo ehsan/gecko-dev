@@ -41,7 +41,6 @@
  * A class that handles loading and evaluation of <script> elements.
  */
 
-#include "jscntxt.h"
 #include "nsScriptLoader.h"
 #include "nsIDOMCharacterData.h"
 #include "nsParserUtils.h"
@@ -61,6 +60,7 @@
 #include "nsIScriptElement.h"
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDocShell.h"
+#include "jscntxt.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
@@ -584,7 +584,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("New ScriptLoader i ****with CSP****"));
       PRBool inlineOK;
       // this call will send violation reports when necessary
-      rv = csp->GetAllowsInlineScript(&inlineOK);
+      rv = NS_SUCCEEDED(csp->GetAllowsInlineScript(&inlineOK));
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (!inlineOK) {

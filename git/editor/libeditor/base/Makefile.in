@@ -58,7 +58,6 @@ CPPSRCS		=                           \
 		nsEditor.cpp                \
 		nsEditorCommands.cpp        \
 		nsEditorController.cpp      \
-		nsEditorEventListener.cpp   \
 		nsEditorUtils.cpp           \
 		nsSelectionState.cpp        \
 		$(NULL)
