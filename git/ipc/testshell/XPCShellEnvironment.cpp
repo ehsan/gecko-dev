@@ -1026,8 +1026,9 @@ XPCShellEnvironment::Init()
         return false;
     }
 
-    JS::Rooted<JSObject*> globalObj(cx, holder->GetJSObject());
-    if (!globalObj) {
+    JS::Rooted<JSObject*> globalObj(cx);
+    rv = holder->GetJSObject(globalObj.address());
+    if (NS_FAILED(rv)) {
         NS_ERROR("Failed to get global JSObject!");
         return false;
     }

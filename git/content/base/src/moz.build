@@ -35,10 +35,7 @@ EXPORTS += [
 ]
 
 if CONFIG['MOZ_WEBRTC']:
-    EXPORTS += [
-        'nsDOMDataChannel.h',
-        'nsDOMDataChannelDeclarations.h',
-    ]
+    EXPORTS += ['nsDOMDataChannel.h']
 
 EXPORTS.mozilla.dom += [
     'Attr.h',

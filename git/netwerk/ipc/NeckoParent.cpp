@@ -88,8 +88,7 @@ NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
     nsRefPtr<TabParent> tabParent = static_cast<TabParent*>(aBrowser);
 
     *aAppId = tabParent->OwnOrContainingAppId();
-    *aInBrowserElement = aSerialized.IsNotNull() ? aSerialized.mIsInBrowserElement
-                                                 : tabParent->IsBrowserElement();
+    *aInBrowserElement = tabParent->IsBrowserElement();
 
     if (*aAppId == NECKO_UNKNOWN_APP_ID) {
       return "TabParent reports appId=NECKO_UNKNOWN_APP_ID!";

@@ -33,7 +33,7 @@
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
 #include "nsPIDOMWindow.h"
-#include "nsDOMDataChannelDeclarations.h"
+#include "nsDOMDataChannel.h"
 
 #ifdef MOZILLA_INTERNAL_API
 #include "nsContentUtils.h"

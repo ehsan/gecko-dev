@@ -1245,7 +1245,8 @@ _getpluginelement(NPP npp)
                   getter_AddRefs(holder));
   NS_ENSURE_TRUE(holder, nullptr);
 
-  JS::Rooted<JSObject*> obj(cx, holder->GetJSObject());
+  JS::Rooted<JSObject*> obj(cx);
+  holder->GetJSObject(obj.address());
   NS_ENSURE_TRUE(obj, nullptr);
 
   return nsJSObjWrapper::GetNewOrUsed(npp, cx, obj);

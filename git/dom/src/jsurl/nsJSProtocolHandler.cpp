@@ -290,8 +290,9 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         // our current compartment. Because our current context doesn't necessarily
         // subsume that of the sandbox, we want to unwrap and enter the sandbox's
         // compartment. It's a shame that the APIs here are so clunkly. :-(
-        JS::Rooted<JSObject*> sandboxObj(cx, sandbox->GetJSObject());
-        NS_ENSURE_STATE(sandboxObj);
+        JS::Rooted<JSObject*> sandboxObj(cx);
+        rv = sandbox->GetJSObject(sandboxObj.address());
+        NS_ENSURE_SUCCESS(rv, rv);
         sandboxObj = js::UncheckedUnwrap(sandboxObj);
         JSAutoCompartment ac(cx, sandboxObj);
 

@@ -866,7 +866,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     if (ppm) {
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
                           CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
-                          nullptr, JS::NullPtr(), nullptr);
+                          nullptr, nullptr, nullptr);
     }
     nsCOMPtr<nsIThreadObserver>
         kungFuDeathGrip(static_cast<nsIThreadObserver*>(this));
@@ -2331,7 +2331,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg,
   if (ppm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, true, &cloneData, JS::NullPtr(), aRetvals);
+                        aMsg, true, &cloneData, nullptr, aRetvals);
   }
   return true;
 }
@@ -2344,7 +2344,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
   if (ppm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, false, &cloneData, JS::NullPtr(), nullptr);
+                        aMsg, false, &cloneData, nullptr, nullptr);
   }
   return true;
 }

@@ -445,7 +445,9 @@ SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
 already_AddRefed<SVGAnimatedRect>
 SVGSVGElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsRefPtr<SVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>

@@ -403,8 +403,7 @@ protected:
      * Execute the precompiled script object scoped by this XUL document's
      * containing window object, and using its associated script context.
      */
-    nsresult ExecuteScript(nsIScriptContext *aContext,
-                           JS::Handle<JSScript*> aScriptObject);
+    nsresult ExecuteScript(nsIScriptContext *aContext, JSScript* aScriptObject);
 
     /**
      * Helper method for the above that uses aScript to find the appropriate

@@ -79,11 +79,7 @@ public:
 
     int32_t phoneState = nsIAudioManager::PHONE_STATE_INVALID;
     am->GetPhoneState(&phoneState);
-#if ANDROID_VERSION < 17
     AudioSystem::setPhoneState(phoneState);
-#else
-    AudioSystem::setPhoneState(static_cast<audio_mode_t>(phoneState));
-#endif
 
     AudioSystem::get_audio_flinger();
     return NS_OK;
@@ -261,16 +257,8 @@ AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
     mCurrentStreamVolumeTbl[loop] = sMaxStreamVolumeTbl[loop];
   }
   // Force publicnotification to output at maximal volume
-#if ANDROID_VERSION < 17
-  AudioSystem::setStreamVolumeIndex(
-    static_cast<audio_stream_type_t>(AUDIO_STREAM_ENFORCED_AUDIBLE),
-    sMaxStreamVolumeTbl[AUDIO_STREAM_ENFORCED_AUDIBLE]);
-#else
-  AudioSystem::setStreamVolumeIndex(
-    static_cast<audio_stream_type_t>(AUDIO_STREAM_ENFORCED_AUDIBLE),
-    sMaxStreamVolumeTbl[AUDIO_STREAM_ENFORCED_AUDIBLE],
-    AUDIO_DEVICE_OUT_SPEAKER);
-#endif
+  AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_ENFORCED_AUDIBLE),
+                                    sMaxStreamVolumeTbl[AUDIO_STREAM_ENFORCED_AUDIBLE]);
 
   AudioSystem::setErrorCallback(BinderDeadCallback);
 }
@@ -362,11 +350,7 @@ AudioManager::SetPhoneState(int32_t aState)
     return NS_OK;
   }
 
-#if ANDROID_VERSION < 17
   if (AudioSystem::setPhoneState(aState)) {
-#else
-  if (AudioSystem::setPhoneState(static_cast<audio_mode_t>(aState))) {
-#endif
     return NS_ERROR_FAILURE;
   }
 
@@ -467,23 +451,8 @@ AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
     // sync volume with music after powering on fm radio
     if (aFmRadioAudioEnabled) {
       int32_t volIndex = 0;
-#if ANDROID_VERSION < 17
-      AudioSystem::getStreamVolumeIndex(
-        static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC),
-        &volIndex);
-      AudioSystem::setStreamVolumeIndex(
-        static_cast<audio_stream_type_t>(AUDIO_STREAM_FM),
-        volIndex);
-#else
-      AudioSystem::getStreamVolumeIndex(
-        static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC),
-        &volIndex,
-        AUDIO_DEVICE_OUT_DEFAULT);
-      AudioSystem::setStreamVolumeIndex(
-        static_cast<audio_stream_type_t>(AUDIO_STREAM_FM),
-        volIndex,
-        AUDIO_DEVICE_OUT_SPEAKER);
-#endif
+      AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC), &volIndex);
+      AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), volIndex);
       mCurrentStreamVolumeTbl[AUDIO_STREAM_FM] = volIndex;
     }
     return NS_OK;
@@ -494,31 +463,12 @@ AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
 
 NS_IMETHODIMP
 AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
-#if ANDROID_VERSION < 17
   status_t status =
-    AudioSystem::setStreamVolumeIndex(
-      static_cast<audio_stream_type_t>(aStream),
-      aIndex);
-#else
-  status_t status =
-    AudioSystem::setStreamVolumeIndex(
-      static_cast<audio_stream_type_t>(aStream),
-      aIndex,
-      AUDIO_DEVICE_OUT_SPEAKER);
-#endif
+    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex);
 
   // sync fm volume with music stream type
   if (aStream == AUDIO_STREAM_MUSIC && IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
-#if ANDROID_VERSION < 17
-    AudioSystem::setStreamVolumeIndex(
-      static_cast<audio_stream_type_t>(AUDIO_STREAM_FM),
-      aIndex);
-#else
-    AudioSystem::setStreamVolumeIndex(
-      static_cast<audio_stream_type_t>(AUDIO_STREAM_FM),
-      aIndex,
-      AUDIO_DEVICE_OUT_SPEAKER);
-#endif
+    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), aIndex);
     mCurrentStreamVolumeTbl[AUDIO_STREAM_FM] = aIndex;
   }
   mCurrentStreamVolumeTbl[aStream] = aIndex;

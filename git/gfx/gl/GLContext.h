@@ -297,8 +297,7 @@ public:
     enum {
         RendererAdreno200,
         RendererAdreno205,
-        RendererAdrenoTM205,
-        RendererAdrenoTM320,
+        RendererAdreno320,
         RendererSGX530,
         RendererSGX540,
         RendererOther

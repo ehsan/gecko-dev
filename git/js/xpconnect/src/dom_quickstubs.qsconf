@@ -53,6 +53,7 @@ members = [
     # dom/interfaces/core
     'nsIDOMDOMStringList.*',
 
+    'nsIDOMKeyEvent.*',
     'nsIDOMDragEvent.*',
     'nsIDOMProgressEvent.lengthComputable',
     'nsIDOMProgressEvent.loaded',

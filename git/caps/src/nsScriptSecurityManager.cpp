@@ -1633,7 +1633,7 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
     /*
     ** Get origin of subject and object and compare.
     */
-    JS::Rooted<JSObject*> obj(aCx, (JSObject*)aTargetObj);
+    JSObject* obj = (JSObject*)aTargetObj;
     nsIPrincipal* object = doGetObjectPrincipal(obj);
 
     if (!object)
@@ -2023,8 +2023,7 @@ NS_IMETHODIMP
 nsScriptSecurityManager::GetObjectPrincipal(JSContext *aCx, JSObject *aObj,
                                             nsIPrincipal **result)
 {
-    JS::Rooted<JSObject*> obj(aCx, aObj);
-    *result = doGetObjectPrincipal(obj);
+    *result = doGetObjectPrincipal(aObj);
     if (!*result)
         return NS_ERROR_FAILURE;
     NS_ADDREF(*result);
@@ -2033,7 +2032,7 @@ nsScriptSecurityManager::GetObjectPrincipal(JSContext *aCx, JSObject *aObj,
 
 // static
 nsIPrincipal*
-nsScriptSecurityManager::doGetObjectPrincipal(JS::Handle<JSObject*> aObj)
+nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj)
 {
     JSCompartment *compartment = js::GetObjectCompartment(aObj);
     JSPrincipals *principals = JS_GetCompartmentPrincipals(compartment);
@@ -2053,15 +2052,14 @@ nsScriptSecurityManager::doGetObjectPrincipal(JS::Handle<JSObject*> aObj)
 #ifdef DEBUG
 // static
 nsIPrincipal*
-nsScriptSecurityManager::old_doGetObjectPrincipal(JS::Handle<JSObject*> aObj,
+nsScriptSecurityManager::old_doGetObjectPrincipal(JSObject *aObj,
                                                   bool aAllowShortCircuit)
 {
     NS_ASSERTION(aObj, "Bad call to doGetObjectPrincipal()!");
     nsIPrincipal* result = nullptr;
 
-    JSContext* cx = sXPConnect->GetCurrentJSContext();
-    JS::RootedObject obj(cx, aObj);
-    JS::RootedObject origObj(cx, obj);
+    JS::RootedObject obj(sXPConnect->GetCurrentJSContext(), aObj);
+    JSObject* origObj = obj;
     js::Class *jsClass = js::GetObjectClass(obj);
 
     // A common case seen in this code is that we enter this function
@@ -2294,8 +2292,8 @@ nsScriptSecurityManager::CheckXPCPermissions(JSContext* cx,
                     do_QueryInterface(aObj);
                 if (xpcwrappedjs)
                 {
-                    jsObject = xpcwrappedjs->GetJSObject();
-                    NS_ENSURE_STATE(jsObject);
+                    rv = xpcwrappedjs->GetJSObject(jsObject.address());
+                    NS_ENSURE_SUCCESS(rv, rv);
                 }
             }
 

@@ -1436,7 +1436,7 @@ TabChild::DispatchMessageManagerMessage(const nsAString& aMessageName,
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     mm->ReceiveMessage(static_cast<EventTarget*>(mTabChildGlobal),
-                       aMessageName, false, &cloneData, JS::NullPtr(), nullptr);
+                       aMessageName, false, &cloneData, nullptr, nullptr);
 }
 
 static void
@@ -1974,7 +1974,7 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     mm->ReceiveMessage(static_cast<EventTarget*>(mTabChildGlobal),
-                       aMessage, false, &cloneData, JS::NullPtr(), nullptr);
+                       aMessage, false, &cloneData, nullptr, nullptr);
   }
   return true;
 }

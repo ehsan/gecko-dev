@@ -67,7 +67,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGPatternElement)
 already_AddRefed<SVGAnimatedRect>
 SVGPatternElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsRefPtr<SVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>

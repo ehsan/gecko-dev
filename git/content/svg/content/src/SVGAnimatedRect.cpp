@@ -35,15 +35,19 @@ SVGAnimatedRect::~SVGAnimatedRect()
 }
 
 already_AddRefed<SVGIRect>
-SVGAnimatedRect::GetBaseVal()
+SVGAnimatedRect::GetBaseVal(ErrorResult& aRv)
 {
-  return mVal->ToDOMBaseVal(mSVGElement);
+  nsRefPtr<SVGIRect> rect;
+  aRv = mVal->ToDOMBaseVal(getter_AddRefs(rect), mSVGElement);
+  return rect.forget();
 }
 
 already_AddRefed<SVGIRect>
-SVGAnimatedRect::GetAnimVal()
+SVGAnimatedRect::GetAnimVal(ErrorResult& aRv)
 {
-  return mVal->ToDOMAnimVal(mSVGElement);
+  nsRefPtr<SVGIRect> rect;
+  aRv = mVal->ToDOMAnimVal(getter_AddRefs(rect), mSVGElement);
+  return rect.forget();
 }
 
 JSObject*

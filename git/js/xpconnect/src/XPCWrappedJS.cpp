@@ -236,10 +236,15 @@ nsXPCWrappedJS::GetWeakReference(nsIWeakReference** aInstancePtr)
     return nsSupportsWeakReference::GetWeakReference(aInstancePtr);
 }
 
-JSObject*
-nsXPCWrappedJS::GetJSObject()
+NS_IMETHODIMP
+nsXPCWrappedJS::GetJSObject(JSObject** aJSObj)
 {
-    return xpc_UnmarkGrayObject(mJSObj);
+    NS_PRECONDITION(aJSObj, "bad param");
+    NS_PRECONDITION(IsValid(), "bad wrapper");
+
+    if (!(*aJSObj = GetJSObject()))
+        return NS_ERROR_OUT_OF_MEMORY;
+    return NS_OK;
 }
 
 static bool

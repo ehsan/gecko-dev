@@ -791,7 +791,7 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
 
   nsRefPtr<Image> image;
   hr = mDXVA2Manager->CopyToImage(aSample,
-                                  mPictureRegion,
+                                  nsIntSize(mPictureRegion.width, mPictureRegion.height),
                                   mDecoder->GetImageContainer(),
                                   getter_AddRefs(image));
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);

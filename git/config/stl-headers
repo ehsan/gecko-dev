@@ -18,7 +18,6 @@ new
 # unsafely in Gecko, so we might as well prevent them from
 # throwing exceptions
 algorithm
-atomic
 deque
 iostream
 iterator
@@ -39,4 +38,3 @@ cstdlib
 cstring
 cwchar
 tuple
-xutility

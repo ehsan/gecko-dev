@@ -57,8 +57,8 @@ AsyncStatementJSHelper::getParams(AsyncStatement *aStatement,
   }
 
   JS::Rooted<JSObject*> obj(aCtx);
-  obj = aStatement->mStatementParamsHolder->GetJSObject();
-  NS_ENSURE_STATE(obj);
+  rv = aStatement->mStatementParamsHolder->GetJSObject(obj.address());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *_params = OBJECT_TO_JSVAL(obj);
   return NS_OK;

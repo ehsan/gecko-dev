@@ -333,6 +333,10 @@ using mozilla::dom::workers::ResolveWorkerClasses;
 #include "TimeManager.h"
 #endif
 
+#ifdef MOZ_WEBRTC
+#include "nsIDOMDataChannel.h"
+#endif
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -560,6 +564,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(DragEvent, nsEventSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ClipboardEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(KeyboardEvent, nsEventSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CompositionEvent, nsEventSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -899,6 +905,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
 #ifdef MOZ_TIME_MANAGER
   NS_DEFINE_CLASSINFO_DATA(MozTimeManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+#endif
+
+#ifdef MOZ_WEBRTC
+  NS_DEFINE_CLASSINFO_DATA(DataChannel, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
 };
 
@@ -1702,6 +1713,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(KeyboardEvent, nsIDOMKeyEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMKeyEvent)
+    DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(CompositionEvent, nsIDOMCompositionEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCompositionEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
@@ -2269,6 +2285,13 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 #endif
 
+#ifdef MOZ_WEBRTC
+  DOM_CLASSINFO_MAP_BEGIN(DataChannel, nsIDOMDataChannel)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataChannel)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+  DOM_CLASSINFO_MAP_END
+#endif
+
   MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(sClassInfoData) == eDOMClassInfoIDCount,
                     "The number of items in sClassInfoData doesn't match the "
                     "number of nsIDOMClassInfo ID's, this is bad! Fix it!");
@@ -2649,8 +2672,8 @@ nsDOMClassInfo::CheckAccess(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     nsresult rv;
     JS::Rooted<JSObject*> real_obj(cx);
     if (wrapper) {
-      real_obj = wrapper->GetJSObject();
-      NS_ENSURE_STATE(real_obj);
+      rv = wrapper->GetJSObject(real_obj.address());
+      NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
       real_obj = obj;
@@ -3360,7 +3383,8 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
     } else {
       nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(native);
 
-      JS::Rooted<JSObject*> thisObject(cx, wrappedJS->GetJSObject());
+      JS::Rooted<JSObject*> thisObject(cx);
+      wrappedJS->GetJSObject(thisObject.address());
       if (!thisObject) {
         return NS_ERROR_UNEXPECTED;
       }
@@ -4105,7 +4129,8 @@ GetXPCProto(nsIXPConnect *aXPConnect, JSContext *cx, nsGlobalWindow *aWin,
                                           aProto);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JSObject*> proto_obj(cx, (*aProto)->GetJSObject());
+  JS::Rooted<JSObject*> proto_obj(cx);
+  (*aProto)->GetJSObject(proto_obj.address());
   if (!JS_WrapObject(cx, proto_obj.address())) {
     return NS_ERROR_FAILURE;
   }
@@ -4147,7 +4172,8 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JS::Rooted<JSObject*> class_obj(cx, holder->GetJSObject());
+  JS::Rooted<JSObject*> class_obj(cx);
+  holder->GetJSObject(class_obj.address());
   NS_ASSERTION(class_obj, "The return value lied");
 
   const nsIID *primary_iid = &NS_GET_IID(nsISupports);
@@ -4424,7 +4450,8 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     rv = constructor->Install(cx, obj, v);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::Rooted<JSObject*> class_obj(cx, holder->GetJSObject());
+    JS::Rooted<JSObject*> class_obj(cx);
+    holder->GetJSObject(class_obj.address());
     NS_ASSERTION(class_obj, "The return value lied");
 
     // ... and define the constants from the DOM interface on that
@@ -4452,8 +4479,9 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
                      getter_AddRefs(proto_holder));
 
     if (NS_SUCCEEDED(rv) && obj != aWin->GetGlobalJSObject()) {
-      JS::Rooted<JSObject*> dot_prototype(cx, proto_holder->GetJSObject());
-      NS_ENSURE_STATE(dot_prototype);
+      JS::Rooted<JSObject*> dot_prototype(cx);
+      rv = proto_holder->GetJSObject(dot_prototype.address());
+      NS_ENSURE_SUCCESS(rv, rv);
 
       const nsDOMClassInfoData *ci_data;
       if (name_struct->mType == nsGlobalNameStruct::eTypeClassConstructor) {
@@ -4493,8 +4521,9 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
                      getter_AddRefs(proto_holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JSObject* dot_prototype = proto_holder->GetJSObject();
-    NS_ENSURE_STATE(dot_prototype);
+    JSObject* dot_prototype;
+    rv = proto_holder->GetJSObject(&dot_prototype);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     const nsDOMClassInfoData *ci_data;
     if (alias_struct->mType == nsGlobalNameStruct::eTypeClassConstructor) {
@@ -4526,7 +4555,9 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     rv = constructor->Install(cx, obj, val);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_ASSERTION(holder->GetJSObject(), "Why didn't we get a JSObject?");
+    JSObject* class_obj;
+    holder->GetJSObject(&class_obj);
+    NS_ASSERTION(class_obj, "Why didn't we get a JSObject?");
 
     *did_resolve = true;
 
@@ -4871,7 +4902,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Make sure we wrap the location object in the window's scope.
-    JS::Rooted<JSObject*> scope(cx, wrapper->GetJSObject());
+    JS::Rooted<JSObject*> scope(cx);
+    wrapper->GetJSObject(scope.address());
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     JS::Rooted<JS::Value> v(cx);
@@ -5054,7 +5086,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // defined on our prototype chain. This way we can access this
   // expando w/o ever getting back into XPConnect.
   if (flags & JSRESOLVE_ASSIGNING) {
-    JS::Rooted<JSObject*> realObj(cx, wrapper->GetJSObject());
+    JS::Rooted<JSObject*> realObj(cx);
+    wrapper->GetJSObject(realObj.address());
 
     if (obj == realObj) {
       JS::Rooted<JSObject*> proto(cx);
@@ -5899,7 +5932,13 @@ nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       !ObjectIsNativeWrapper(cx, obj)) {
 
     {
-      JS::Rooted<JSObject*> realObj(cx, wrapper ? wrapper->GetJSObject() : obj);
+      JS::Rooted<JSObject*> realObj(cx);
+
+      if (wrapper) {
+        wrapper->GetJSObject(realObj.address());
+      } else {
+        realObj = obj;
+      }
 
       JSAutoCompartment ac(cx, realObj);
       JS::Rooted<JSObject*> proto(cx);
@@ -6889,7 +6928,8 @@ nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
-  JS::Rooted<JSObject*> realObj(cx, wrapper->GetJSObject());
+  JS::Rooted<JSObject*> realObj(cx);
+  wrapper->GetJSObject(realObj.address());
 
   JSAutoCompartment ac(cx, realObj);
 

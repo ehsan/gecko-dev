@@ -52,8 +52,8 @@ ReturnKeyRange(JSContext* aCx,
     return false;
   }
 
-  JS::Rooted<JSObject*> result(aCx, holder->GetJSObject());
-  if (!result) {
+  JS::Rooted<JSObject*> result(aCx);
+  if (NS_FAILED(holder->GetJSObject(result.address()))) {
     JS_ReportError(aCx, "Couldn't get JSObject from wrapper.");
     return false;
   }

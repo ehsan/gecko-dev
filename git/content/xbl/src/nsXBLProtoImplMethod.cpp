@@ -264,8 +264,7 @@ nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
     rv = aStream->WriteWStringZ(mName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return XBL_SerializeFunction(aContext, aStream,
-                                 JS::Handle<JSObject*>::fromMarkedLocation(&mJSMethodObject));
+    return XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
   }
 
   return NS_OK;
@@ -370,8 +369,7 @@ nsXBLProtoImplAnonymousMethod::Write(nsIScriptContext* aContext,
     nsresult rv = aStream->Write8(aType);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = XBL_SerializeFunction(aContext, aStream,
-                               JS::Handle<JSObject*>::fromMarkedLocation(&mJSMethodObject));
+    rv = XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

@@ -373,14 +373,12 @@ nsXBLProtoImplProperty::Write(nsIScriptContext* aContext,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mJSAttributes & JSPROP_GETTER) {
-    rv = XBL_SerializeFunction(aContext, aStream,
-      JS::Handle<JSObject*>::fromMarkedLocation(&mJSGetterObject));
+    rv = XBL_SerializeFunction(aContext, aStream, mJSGetterObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (mJSAttributes & JSPROP_SETTER) {
-    rv = XBL_SerializeFunction(aContext, aStream,
-      JS::Handle<JSObject*>::fromMarkedLocation(&mJSSetterObject));
+    rv = XBL_SerializeFunction(aContext, aStream, mJSSetterObject);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

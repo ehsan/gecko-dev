@@ -13,8 +13,7 @@ nsTArrayToJSArray(JSContext* aCx, const nsTArray<T>& aSourceArray,
   MOZ_ASSERT(aCx);
   JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> arrayObj(aCx,
-    JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr));
+  JSObject* arrayObj = JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr);
   if (!arrayObj) {
     NS_WARNING("JS_NewArrayObject failed!");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -28,12 +27,11 @@ nsTArrayToJSArray(JSContext* aCx, const nsTArray<T>& aSourceArray,
     nsresult rv = aSourceArray[index]->QueryInterface(NS_GET_IID(nsISupports), getter_AddRefs(obj));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::Rooted<JS::Value> wrappedVal(aCx);
-    rv = nsContentUtils::WrapNative(aCx, global, obj, wrappedVal.address(),
-                                    nullptr, true);
+    jsval wrappedVal;
+    rv = nsContentUtils::WrapNative(aCx, global, obj, &wrappedVal, nullptr, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (!JS_SetElement(aCx, arrayObj, index, wrappedVal.address())) {
+    if (!JS_SetElement(aCx, arrayObj, index, &wrappedVal)) {
       NS_WARNING("JS_SetElement failed!");
       return NS_ERROR_FAILURE;
     }
@@ -57,8 +55,7 @@ nsTArrayToJSArray<nsString>(JSContext* aCx,
   MOZ_ASSERT(aCx);
   JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> arrayObj(aCx,
-    JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr));
+  JSObject* arrayObj = JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr);
   if (!arrayObj) {
     NS_WARNING("JS_NewArrayObject failed!");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -73,9 +70,9 @@ nsTArrayToJSArray<nsString>(JSContext* aCx,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    JS::Rooted<JS::Value> wrappedVal(aCx, STRING_TO_JSVAL(s));
+    jsval wrappedVal = STRING_TO_JSVAL(s);
 
-    if (!JS_SetElement(aCx, arrayObj, index, wrappedVal.address())) {
+    if (!JS_SetElement(aCx, arrayObj, index, &wrappedVal)) {
       NS_WARNING("JS_SetElement failed!");
       return NS_ERROR_FAILURE;
     }

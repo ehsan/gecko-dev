@@ -43,7 +43,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGSymbolElement)
 already_AddRefed<SVGAnimatedRect>
 SVGSymbolElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsRefPtr<SVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>

@@ -3644,8 +3644,7 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 
 
 nsresult
-XULDocument::ExecuteScript(nsIScriptContext * aContext,
-                           JS::Handle<JSScript*> aScriptObject)
+XULDocument::ExecuteScript(nsIScriptContext * aContext, JSScript* aScriptObject)
 {
     NS_PRECONDITION(aScriptObject != nullptr && aContext != nullptr, "null ptr");
     if (! aScriptObject || ! aContext)
@@ -3654,8 +3653,9 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
     NS_ENSURE_TRUE(mScriptGlobalObject, NS_ERROR_NOT_INITIALIZED);
 
     // Execute the precompiled script with the given version
+    JS::Rooted<JSScript*> script(aContext->GetNativeContext(), aScriptObject);
     JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
-    return aContext->ExecuteScript(aScriptObject, global);
+    return aContext->ExecuteScript(script, global);
 }
 
 nsresult

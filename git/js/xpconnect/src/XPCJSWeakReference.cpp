@@ -78,7 +78,8 @@ xpcJSWeakReference::Get(JSContext* aCx, JS::Value* aRetval)
                                           aRetval);
     }
 
-    JS::RootedObject obj(aCx, wrappedObj->GetJSObject());
+    JS::RootedObject obj(aCx);
+    wrappedObj->GetJSObject(obj.address());
     if (!obj) {
         return NS_OK;
     }

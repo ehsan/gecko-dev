@@ -205,8 +205,7 @@ nsXULPrototypeCache::GetScript(nsIURI* aURI)
 }
 
 nsresult
-nsXULPrototypeCache::PutScript(nsIURI* aURI,
-                               JS::Handle<JSScript*> aScriptObject)
+nsXULPrototypeCache::PutScript(nsIURI* aURI, JSScript* aScriptObject)
 {
     CacheScriptEntry existingEntry;
     if (mScriptTable.Get(aURI, &existingEntry)) {

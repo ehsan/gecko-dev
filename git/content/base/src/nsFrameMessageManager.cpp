@@ -626,7 +626,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
                                       bool aSync,
                                       const StructuredCloneData* aCloneData,
-                                      JS::Handle<JSObject*> aObjectsArray,
+                                      JSObject* aObjectsArray,
                                       InfallibleTArray<nsString>* aJSONRetVal,
                                       JSContext* aContext)
 {
@@ -646,7 +646,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         if (!wrappedJS) {
           continue;
         }
-        JS::Rooted<JSObject*> object(ctx, wrappedJS->GetJSObject());
+        JS::Rooted<JSObject*> object(ctx);
+        wrappedJS->GetJSObject(object.address());
         if (!object) {
           continue;
         }
@@ -1008,7 +1009,8 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       // Need to scope JSAutoRequest to happen after Push but before Pop,
       // at least for now. See bug 584673.
       JSAutoRequest ar(mCx);
-      JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
+      JS::Rooted<JSObject*> global(mCx);
+      mGlobal->GetJSObject(global.address());
       if (global) {
         (void) JS_ExecuteScript(mCx, global, holder->mScript, nullptr);
       }
@@ -1066,7 +1068,8 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
       // Need to scope JSAutoRequest to happen after Push but before Pop,
       // at least for now. See bug 584673.
       JSAutoRequest ar(mCx);
-      JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
+      JS::Rooted<JSObject*> global(mCx);
+      mGlobal->GetJSObject(global.address());
       if (global) {
         JSAutoCompartment ac(mCx, global);
         JS::CompileOptions options(mCx);
@@ -1135,8 +1138,9 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
   NS_ENSURE_SUCCESS(rv, false);
 
 
-  JS::Rooted<JSObject*> global(cx, mGlobal->GetJSObject());
-  NS_ENSURE_TRUE(global, false);
+  JS::Rooted<JSObject*> global(cx);
+  rv = mGlobal->GetJSObject(global.address());
+  NS_ENSURE_SUCCESS(rv, false);
 
   JS_SetGlobalObject(cx, global);
 
@@ -1202,7 +1206,7 @@ public:
 
       nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sChildProcessManager;
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()), mMessage,
-                          false, &data, JS::NullPtr(), nullptr, nullptr);
+                          false, &data, nullptr, nullptr, nullptr);
     }
     return NS_OK;
   }
@@ -1332,7 +1336,7 @@ public:
       nsRefPtr<nsFrameMessageManager> ppm =
         nsFrameMessageManager::sSameProcessParentManager;
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                          mMessage, false, &data, JS::NullPtr(), nullptr, nullptr);
+                          mMessage, false, &data, nullptr, nullptr, nullptr);
      }
      return NS_OK;
   }
@@ -1372,7 +1376,7 @@ public:
     if (nsFrameMessageManager::sSameProcessParentManager) {
       nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sSameProcessParentManager;
       ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()), aMessage,
-                          true, &aData, JS::NullPtr(), aJSONRetVal);
+                          true, &aData, nullptr, aJSONRetVal);
     }
     return true;
   }

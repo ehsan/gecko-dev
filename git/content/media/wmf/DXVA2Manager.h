@@ -9,7 +9,6 @@
 #include "WMF.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Mutex.h"
-#include "nsRect.h"
 
 class nsIntSize;
 
@@ -36,7 +35,7 @@ public:
 
   // Creates an Image for the video frame stored in aVideoSample.
   virtual HRESULT CopyToImage(IMFSample* aVideoSample,
-                              const nsIntRect& aRegion,
+                              const nsIntSize& aSize,
                               layers::ImageContainer* aContainer,
                               layers::Image** aOutImage) = 0;
 

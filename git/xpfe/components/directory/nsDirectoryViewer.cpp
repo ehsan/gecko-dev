@@ -253,10 +253,11 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     NS_ASSERTION(NS_SUCCEEDED(rv), "unable to xpconnect-wrap http-index");
     if (NS_FAILED(rv)) return rv;
 
-    JS::Rooted<JSObject*> jsobj(cx, wrapper->GetJSObject());
-    NS_ASSERTION(jsobj,
+    JS::Rooted<JSObject*> jsobj(cx);
+    rv = wrapper->GetJSObject(jsobj.address());
+    NS_ASSERTION(NS_SUCCEEDED(rv),
                  "unable to get jsobj from xpconnect wrapper");
-    if (!jsobj) return NS_ERROR_UNEXPECTED;
+    if (NS_FAILED(rv)) return rv;
 
     JS::Rooted<JS::Value> jslistener(cx, OBJECT_TO_JSVAL(jsobj));
 
