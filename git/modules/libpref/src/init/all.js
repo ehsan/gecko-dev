@@ -259,8 +259,6 @@ pref("ui.scrollToClick", 0);
 pref("accessibility.tabfocus_applies_to_xul", true);
 #endif
 
-pref("focusmanager.testmode", false);
-
 pref("accessibility.usetexttospeech", "");
 pref("accessibility.usebrailledisplay", "");
 pref("accessibility.accesskeycausesactivation", true);

@@ -48,7 +48,7 @@ import android.util.Log;
 import ch.boye.httpclientandroidlib.HttpEntity;
 
 public class JPakeRequest implements Resource {
-  private static String LOG_TAG = "JPakeRequest";
+  private static String LOG_TAG = "JPAKE_REQUEST";
 
   private BaseResource resource;
   public JPakeRequestDelegate delegate;
