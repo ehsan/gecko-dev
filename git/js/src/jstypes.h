@@ -218,6 +218,16 @@
 # endif
 #endif
 
+#ifndef JS_NEVER_INLINE
+# if defined _MSC_VER
+#  define JS_NEVER_INLINE __declspec(noinline)
+# elif defined __GNUC__
+#  define JS_NEVER_INLINE __attribute__((noinline))
+# else
+#  define JS_NEVER_INLINE
+# endif
+#endif
+
 #ifdef NS_STATIC_CHECKING
 /*
  * Attributes for static analysis. Functions declared with JS_REQUIRES_STACK
@@ -313,10 +323,6 @@
 # endif
 #elif defined(__GNUC__)
 # ifdef __x86_64__
-#  define JS_64BIT
-# endif
-#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-# ifdef __x86_64
 #  define JS_64BIT
 # endif
 #else

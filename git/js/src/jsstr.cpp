@@ -1799,7 +1799,7 @@ FindReplaceLength(JSContext *cx, ReplaceData &rdata, size_t *sizep)
         /* Push lambda and its 'this' parameter. */
         Value *sp = rdata.args.getvp();
         sp++->setObject(*lambda);
-        sp++->setNull();
+        sp++->setObjectOrNull(lambda->getParent());
 
         /* Push $&, $1, $2, ... */
         if (!PushRegExpSubstr(cx, cx->regExpStatics.lastMatch, sp))
@@ -5504,7 +5504,7 @@ Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length)
     return ucs4Char;
 }
 
-#ifdef DEBUG
+#if defined DEBUG || defined JS_DUMP_CONSERVATIVE_GC_ROOTS
 
 JS_FRIEND_API(size_t)
 js_PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp,
