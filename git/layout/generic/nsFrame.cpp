@@ -84,7 +84,6 @@
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/gfx/Tools.h"
 #include "nsPrintfCString.h"
-#include "ActiveLayerTracker.h"
 
 using namespace mozilla;
 using namespace mozilla::css;
@@ -649,13 +648,6 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
     }
   }
 
-  // This needs to happen before shell->NotifyDestroyingFrame because that
-  // clears our Properties() table.
-  bool isPrimaryFrame = (mContent && mContent->GetPrimaryFrame() == this);
-  if (isPrimaryFrame) {
-    ActiveLayerTracker::TransferActivityToContent(this, mContent);
-  }
-
   shell->NotifyDestroyingFrame(this);
 
   if (mState & NS_FRAME_EXTERNAL_REFERENCE) {
@@ -671,7 +663,7 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   // Make sure that our deleted frame can't be returned from GetPrimaryFrame()
-  if (isPrimaryFrame) {
+  if (mContent && mContent->GetPrimaryFrame() == this) {
     mContent->SetPrimaryFrame(nullptr);
   }
 

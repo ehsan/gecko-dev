@@ -2388,7 +2388,7 @@ ClipListsExceptCaret(nsDisplayListCollection* aLists,
 }
 
 static bool
-DisplayportExceedsMaxTextureSize(nsPresContext* aPresContext, const nsRect& aDisplayPort, bool aLowPrecision)
+DisplayportExceedsMaxTextureSize(nsPresContext* aPresContext, const nsRect& aDisplayPort)
 {
 #ifdef MOZ_WIDGET_GONK
   // On B2G we actively run into max texture size limits because the displayport-sizing code
@@ -2402,10 +2402,6 @@ DisplayportExceedsMaxTextureSize(nsPresContext* aPresContext, const nsRect& aDis
   // will kill this child process to prevent OOMs (see the patch that landed as part of bug
   // 965945 for details).
   gfxSize resolution = aPresContext->PresShell()->GetCumulativeResolution();
-  if (aLowPrecision) {
-    resolution.width *= gfxPrefs::LowPrecisionResolution();
-    resolution.height *= gfxPrefs::LowPrecisionResolution();
-  }
   return (aPresContext->AppUnitsToDevPixels(aDisplayPort.width) * resolution.width > 4096) ||
          (aPresContext->AppUnitsToDevPixels(aDisplayPort.height) * resolution.height > 4096);
 #else
@@ -2527,17 +2523,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       usingDisplayport = nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), &displayPort);
     }
 
-    bool usingLowPrecision = gfxPrefs::UseLowPrecisionBuffer();
-    if (usingDisplayport && DisplayportExceedsMaxTextureSize(mOuter->PresContext(), displayPort, usingLowPrecision)) {
+    if (usingDisplayport && DisplayportExceedsMaxTextureSize(mOuter->PresContext(), displayPort)) {
       usingDisplayport = false;
-    }
-    if (usingDisplayport && usingLowPrecision) {
-      // If we have low-res painting enabled we should check the critical displayport too
-      nsRect critDp;
-      bool usingCritDp = nsLayoutUtils::GetCriticalDisplayPort(mOuter->GetContent(), &critDp);
-      if (usingCritDp && !critDp.IsEmpty() && DisplayportExceedsMaxTextureSize(mOuter->PresContext(), critDp, false)) {
-        usingDisplayport = false;
-      }
     }
 
     // Override the dirty rectangle if the displayport has been set.

@@ -147,13 +147,12 @@ function updateMainAndFooter(aMsg, aFooterAction, aClassName)
     gMain.classList.add(gVerbose.checked ? 'verbose' : 'non-verbose');
   }
 
-  let msgElement;
   if (aMsg) {
     let className = "section"
     if (aClassName) {
       className = className + " " + aClassName;
     }
-    msgElement = appendElementWithText(gMain, 'div', className, aMsg);
+    appendElementWithText(gMain, 'div', className, aMsg);
   }
 
   switch (aFooterAction) {
@@ -161,7 +160,6 @@ function updateMainAndFooter(aMsg, aFooterAction, aClassName)
    case SHOW_FOOTER:   gFooter.classList.remove('hidden'); break;
    default: assertInput(false, "bad footer action in updateMainAndFooter");
   }
-  return msgElement;
 }
 
 function appendTextNode(aP, aText)
@@ -415,27 +413,25 @@ function saveGCLogAndVerboseCCLog()
 
 function dumpGCLogAndCCLog(aVerbose)
 {
+  let gcLogPath = {};
+  let ccLogPath = {};
+
   let dumper = Cc["@mozilla.org/memory-info-dumper;1"]
                 .getService(Ci.nsIMemoryInfoDumper);
 
-  let inProgress = updateMainAndFooter("Saving logs...", HIDE_FOOTER);
+  updateMainAndFooter("Saving logs...", HIDE_FOOTER);
+
+  dumper.dumpGCAndCCLogsToFile("", aVerbose, /* dumpChildProcesses = */ false,
+                               gcLogPath, ccLogPath);
+
+  updateMainAndFooter("", HIDE_FOOTER);
   let section = appendElement(gMain, 'div', "section");
+  appendElementWithText(section, 'div', "",
+                        "Saved GC log to " + gcLogPath.value);
 
-  function displayInfo(gcLog, ccLog, isParent) {
-    appendElementWithText(section, 'div', "",
-                          "Saved GC log to " + gcLog.path);
-
-    let ccLogType = aVerbose ? "verbose" : "concise";
-    appendElementWithText(section, 'div', "",
-                          "Saved " + ccLogType + " CC log to " + ccLog.path);
-  }
-
-  dumper.dumpGCAndCCLogsToFile("", aVerbose, /* dumpChildProcesses = */ true,
-                               { onDump: displayInfo,
-                                 onFinish: function() {
-                                   inProgress.remove();
-                                 }
-                               });
+  let ccLogType = aVerbose ? "verbose" : "concise";
+  appendElementWithText(section, 'div', "",
+                        "Saved " + ccLogType + " CC log to " + ccLogPath.value);
 }
 
 /**
@@ -752,14 +748,9 @@ function makeDReportMap(aJSONReports)
     assert(jr.description !== undefined, "Missing description");
 
     // Strip out some non-deterministic stuff that prevents clean diffs --
-    // e.g. PIDs, addresses, null principal UUIDs. (Note that we don't strip
-    // out all UUIDs because some of them -- such as those used by add-ons --
-    // are deterministic.)
+    // e.g. PIDs, addresses.
     let strippedProcess = jr.process.replace(/pid \d+/, "pid NNN");
     let strippedPath = jr.path.replace(/0x[0-9A-Fa-f]+/, "0xNNN");
-    strippedPath = strippedPath.replace(
-      /moz-nullprincipal:{........-....-....-....-............}/,
-      "moz-nullprincipal:{NNNNNNNN-NNNN-NNNN-NNNN-NNNNNNNNNNNN}");
     let processPath = strippedProcess + kProcessPathSep + strippedPath;
 
     let rOld = dreportMap[processPath];

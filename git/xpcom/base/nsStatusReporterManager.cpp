@@ -34,8 +34,7 @@ class DumpStatusInfoToTempDirRunnable : public nsRunnable
 {
 public:
   DumpStatusInfoToTempDirRunnable()
-  {
-  }
+  {}
 
   NS_IMETHOD Run()
   {
@@ -46,10 +45,9 @@ public:
   }
 };
 
-void
-doStatusReport(const nsCString& aInputStr)
+void doStatusReport(const nsCString& inputStr)
 {
-  LOG("FifoWatcher(%s) dispatching status report runnable.", aInputStr.get());
+  LOG("FifoWatcher(%s) dispatching status report runnable.", inputStr.get());
   nsRefPtr<DumpStatusInfoToTempDirRunnable> runnable =
     new DumpStatusInfoToTempDirRunnable();
   NS_DispatchToMainThread(runnable);
@@ -61,15 +59,14 @@ doStatusReport(const nsCString& aInputStr)
 static bool gStatusReportProgress = 0;
 static int gNumReporters = 0;
 
-nsresult
-getStatus(nsACString& aDesc)
+nsresult getStatus(nsACString& desc)
 {
-  if (!gStatusReportProgress) {
-    aDesc.AssignLiteral("Init");
-  } else {
-    aDesc.AssignLiteral("Running: There are ");
-    aDesc.AppendInt(gNumReporters);
-    aDesc.AppendLiteral(" reporters");
+  if(!gStatusReportProgress)
+    desc.AssignLiteral("Init");
+  else {
+    desc.AssignLiteral("Running: There are ");
+    desc.AppendInt(gNumReporters);
+    desc.AppendLiteral(" reporters");
   }
   return NS_OK;
 }
@@ -136,7 +133,7 @@ nsStatusReporterManager::Init()
 #if DO_STATUS_REPORT
   if (FifoWatcher::MaybeCreate()) {
     FifoWatcher* fw = FifoWatcher::GetSingleton();
-    fw->RegisterCallback(NS_LITERAL_CSTRING("status report"), doStatusReport);
+    fw->RegisterCallback(NS_LITERAL_CSTRING("status report"),doStatusReport);
   }
 #endif
 
@@ -163,16 +160,14 @@ nsStatusReporterManager::DumpReports()
                                  filename,
                                  getter_AddRefs(tmpFile),
                                  NS_LITERAL_CSTRING("status-reports"));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   nsCOMPtr<nsIFileOutputStream> ostream =
     do_CreateInstance("@mozilla.org/network/file-output-stream;1");
   rv = ostream->Init(tmpFile, -1, -1, 0);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   //Write the reports to the file
 
@@ -189,21 +184,18 @@ nsStatusReporterManager::DumpReports()
 
     nsCString process;
     rv = r->GetProcess(process);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    if (NS_WARN_IF(NS_FAILED(rv)))
       return rv;
-    }
 
     nsCString name;
     rv = r->GetName(name);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    if (NS_WARN_IF(NS_FAILED(rv)))
       return rv;
-    }
 
     nsCString description;
     rv = r->GetDescription(description);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    if (NS_WARN_IF(NS_FAILED(rv)))
       return rv;
-    }
 
     if (first) {
       first = false;
@@ -212,113 +204,100 @@ nsStatusReporterManager::DumpReports()
     }
 
     rv = DumpReport(ostream, process, name, description);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    if (NS_WARN_IF(NS_FAILED(rv)))
       return rv;
-    }
   }
   DUMP(ostream, "\n]\n}\n");
 
   rv = ostream->Close();
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   // Rename the status reports file
   nsCOMPtr<nsIFile> srFinalFile;
   rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(srFinalFile));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
 #ifdef ANDROID
   rv = srFinalFile->AppendNative(NS_LITERAL_CSTRING("status-reports"));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 #endif
 
   rv = srFinalFile->AppendNative(filename);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   rv = srFinalFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   nsAutoString srActualFinalFilename;
   rv = srFinalFile->GetLeafName(srActualFinalFilename);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   rv = tmpFile->MoveTo(/* directory */ nullptr, srActualFinalFilename);
 
-  if (NS_WARN_IF(NS_FAILED(rv))) {
+  if (NS_WARN_IF(NS_FAILED(rv)))
     return rv;
-  }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsStatusReporterManager::EnumerateReporters(nsISimpleEnumerator** aResult)
+nsStatusReporterManager::EnumerateReporters(nsISimpleEnumerator** result)
 {
-  return NS_NewArrayEnumerator(aResult, mReporters);
+  return NS_NewArrayEnumerator(result, mReporters);
 }
 
 NS_IMETHODIMP
-nsStatusReporterManager::RegisterReporter(nsIStatusReporter* aReporter)
+nsStatusReporterManager::RegisterReporter(nsIStatusReporter* reporter)
 {
-  if (mReporters.IndexOf(aReporter) != -1) {
+  if (mReporters.IndexOf(reporter) != -1)
     return NS_ERROR_FAILURE;
-  }
 
-  mReporters.AppendObject(aReporter);
+  mReporters.AppendObject(reporter);
   gNumReporters++;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsStatusReporterManager::UnregisterReporter(nsIStatusReporter* aReporter)
+nsStatusReporterManager::UnregisterReporter(nsIStatusReporter* reporter)
 {
-  if (!mReporters.RemoveObject(aReporter)) {
+  if (!mReporters.RemoveObject(reporter))
     return NS_ERROR_FAILURE;
-  }
   gNumReporters--;
   return NS_OK;
 }
 
 nsresult
-NS_RegisterStatusReporter(nsIStatusReporter* aReporter)
+NS_RegisterStatusReporter (nsIStatusReporter* reporter)
 {
   nsCOMPtr<nsIStatusReporterManager> mgr =
     do_GetService("@mozilla.org/status-reporter-manager;1");
-  if (!mgr) {
+  if (mgr == nullptr)
     return NS_ERROR_FAILURE;
-  }
-  return mgr->RegisterReporter(aReporter);
+  return mgr->RegisterReporter(reporter);
 }
 
 nsresult
-NS_UnregisterStatusReporter(nsIStatusReporter* aReporter)
+NS_UnregisterStatusReporter (nsIStatusReporter* reporter)
 {
   nsCOMPtr<nsIStatusReporterManager> mgr =
     do_GetService("@mozilla.org/status-reporter-manager;1");
-  if (!mgr) {
+  if (mgr == nullptr)
     return NS_ERROR_FAILURE;
-  }
-  return mgr->UnregisterReporter(aReporter);
+  return mgr->UnregisterReporter(reporter);
 }
 
 nsresult
-NS_DumpStatusReporter()
+NS_DumpStatusReporter ()
 {
   nsCOMPtr<nsIStatusReporterManager> mgr =
     do_GetService("@mozilla.org/status-reporter-manager;1");
-  if (!mgr) {
+  if (mgr == nullptr)
     return NS_ERROR_FAILURE;
-  }
   return mgr->DumpReports();
 }

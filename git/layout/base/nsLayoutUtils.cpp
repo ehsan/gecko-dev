@@ -2308,16 +2308,13 @@ nsLayoutUtils::TransformFrameRectToAncestor(nsIFrame* aFrame,
 
 static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
   nsIntPoint offset(0, 0);
-  while ((aWidget->WindowType() == eWindowType_child ||
-          aWidget->WindowType() == eWindowType_plugin)) {
-    nsIWidget* parent = aWidget->GetParent();
-    if (!parent) {
-      break;
-    }
+  nsIWidget* parent = aWidget->GetParent();
+  while (parent) {
     nsIntRect bounds;
     aWidget->GetBounds(bounds);
     offset += bounds.TopLeft();
     aWidget = parent;
+    parent = aWidget->GetParent();
   }
   aRootWidget = aWidget;
   return offset;
