@@ -351,6 +351,6 @@ interface MozIcc : EventTarget
    *         If succeeds, the promise is resolved with boolean indicating the
    *         availability of the service. Otherwise, rejected with a DOMError.
    */
-  [NewObject]
+  [NewObject, Throws]
   Promise<boolean> getServiceState(IccService service);
 };

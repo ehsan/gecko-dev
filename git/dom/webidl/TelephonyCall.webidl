@@ -33,13 +33,13 @@ interface TelephonyCall : EventTarget {
 
   readonly attribute TelephonyCallGroup? group;
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> answer();
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> hangUp();
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> hold();
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> resume();
 
   attribute EventHandler onstatechange;

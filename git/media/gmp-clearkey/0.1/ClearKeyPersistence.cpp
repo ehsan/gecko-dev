@@ -5,7 +5,7 @@
 #include "ClearKeyPersistence.h"
 #include "ClearKeyUtils.h"
 #include "ClearKeyStorage.h"
-#include "ClearKeySessionManager.h"
+#include "ClearKeyDecryptionManager.h"
 #include "mozilla/RefPtr.h"
 
 #include <stdint.h>
@@ -97,7 +97,7 @@ ClearKeyPersistence::GetNewSessionId(GMPSessionType aSessionType)
 
 class CreateSessionTask : public GMPTask {
 public:
-  CreateSessionTask(ClearKeySessionManager* aTarget,
+  CreateSessionTask(ClearKeyDecryptionManager* aTarget,
                     uint32_t aCreateSessionToken,
                     uint32_t aPromiseId,
                     const uint8_t* aInitData,
@@ -125,7 +125,7 @@ public:
     delete this;
   }
 private:
-  RefPtr<ClearKeySessionManager> mTarget;
+  RefPtr<ClearKeyDecryptionManager> mTarget;
   uint32_t mCreateSessionToken;
   uint32_t mPromiseId;
   vector<uint8_t> mInitData;
@@ -134,7 +134,7 @@ private:
 
 
 /* static */ bool
-ClearKeyPersistence::DeferCreateSessionIfNotReady(ClearKeySessionManager* aInstance,
+ClearKeyPersistence::DeferCreateSessionIfNotReady(ClearKeyDecryptionManager* aInstance,
                                                   uint32_t aCreateSessionToken,
                                                   uint32_t aPromiseId,
                                                   const uint8_t* aInitData,
@@ -156,7 +156,7 @@ ClearKeyPersistence::DeferCreateSessionIfNotReady(ClearKeySessionManager* aInsta
 
 class LoadSessionTask : public GMPTask {
 public:
-  LoadSessionTask(ClearKeySessionManager* aTarget,
+  LoadSessionTask(ClearKeyDecryptionManager* aTarget,
                   uint32_t aPromiseId,
                   const char* aSessionId,
                   uint32_t aSessionIdLength)
@@ -174,13 +174,13 @@ public:
     delete this;
   }
 private:
-  RefPtr<ClearKeySessionManager> mTarget;
+  RefPtr<ClearKeyDecryptionManager> mTarget;
   uint32_t mPromiseId;
   string mSessionId;
 };
 
 /* static */ bool
-ClearKeyPersistence::DeferLoadSessionIfNotReady(ClearKeySessionManager* aInstance,
+ClearKeyPersistence::DeferLoadSessionIfNotReady(ClearKeyDecryptionManager* aInstance,
                                                 uint32_t aPromiseId,
                                                 const char* aSessionId,
                                                 uint32_t aSessionIdLength)
@@ -204,7 +204,7 @@ ClearKeyPersistence::IsPersistentSessionId(const string& aSessionId)
 
 class LoadSessionFromKeysTask : public ReadContinuation {
 public:
-  LoadSessionFromKeysTask(ClearKeySessionManager* aTarget,
+  LoadSessionFromKeysTask(ClearKeyDecryptionManager* aTarget,
                           const string& aSessionId,
                           uint32_t aPromiseId)
     : mTarget(aTarget)
@@ -220,13 +220,13 @@ public:
     mTarget->PersistentSessionDataLoaded(aStatus, mPromiseId, mSessionId, aData, aLength);
   }
 private:
-  RefPtr<ClearKeySessionManager> mTarget;
+  RefPtr<ClearKeyDecryptionManager> mTarget;
   string mSessionId;
   uint32_t mPromiseId;
 };
 
 /* static */ void
-ClearKeyPersistence::LoadSessionData(ClearKeySessionManager* aInstance,
+ClearKeyPersistence::LoadSessionData(ClearKeyDecryptionManager* aInstance,
                                      const string& aSid,
                                      uint32_t aPromiseId)
 {

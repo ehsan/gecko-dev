@@ -72,24 +72,24 @@ interface BluetoothAdapter : EventTarget {
    * Several onattributechanged events would be triggered during processing the
    * request, and the last one indicates adapter.state becomes enabled/disabled.
    */
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> enable();
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> disable();
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> setName(DOMString aName);
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> setDiscoverable(boolean aDiscoverable);
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<BluetoothDiscoveryHandle> startDiscovery();
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> stopDiscovery();
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> pair(DOMString deviceAddress);
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> unpair(DOMString deviceAddress);
 
   sequence<BluetoothDevice> getPairedDevices();

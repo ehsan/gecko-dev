@@ -12,12 +12,12 @@ public:
     ++mRefCount;
   }
 
-  uint32_t Release() {
-    uint32_t newCount = --mRefCount;
-    if (!newCount) {
+  void Release() {
+    if (mRefCount == 1) {
       delete this;
+    } else {
+      --mRefCount;
     }
-    return newCount;
   }
 
 protected:

@@ -4272,11 +4272,11 @@ HTMLMediaElement::VideoTracks()
   return mVideoTrackList;
 }
 
-/* readonly attribute TextTrackList? textTracks; */
+/* readonly attribute TextTrackList textTracks; */
 TextTrackList*
-HTMLMediaElement::GetTextTracks()
+HTMLMediaElement::TextTracks()
 {
-  return GetOrCreateTextTrackManager()->GetTextTracks();
+  return GetOrCreateTextTrackManager()->TextTracks();
 }
 
 already_AddRefed<TextTrack>

@@ -556,7 +556,7 @@ this.BrowserUITelemetry = {
     result.hiddenTabs = hiddenTabs;
 
     if (Components.isSuccessCode(searchResult)) {
-      result.currentSearchEngine = Services.search.currentEngine.name;
+      result.currentSearchEngine = Services.search.currentEngine;
     }
 
     return result;

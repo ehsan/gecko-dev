@@ -342,7 +342,6 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
     if (mIsPNG) {
       mContainedDecoder = new nsPNGDecoder(mImage);
       mContainedDecoder->SetSizeDecode(IsSizeDecode());
-      mContainedDecoder->SetSendPartialInvalidations(mSendPartialInvalidations);
       mContainedDecoder->InitSharedDecoder(mImageData, mImageDataLength,
                                            mColormap, mColormapSize,
                                            Move(mRefForContainedDecoder));
@@ -421,7 +420,6 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
     mContainedDecoder = bmpDecoder;
     bmpDecoder->SetUseAlphaData(true);
     mContainedDecoder->SetSizeDecode(IsSizeDecode());
-    mContainedDecoder->SetSendPartialInvalidations(mSendPartialInvalidations);
     mContainedDecoder->InitSharedDecoder(mImageData, mImageDataLength,
                                          mColormap, mColormapSize,
                                          Move(mRefForContainedDecoder));
