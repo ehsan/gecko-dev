@@ -70,8 +70,6 @@ _MOCHITEST_FILES = \
 		test_streamNotify.html \
 		test_instantiation.html \
 		test_cookies.html \
-		test_npn_timers.html \
-		test_npn_asynccall.html \
 		$(NULL)
 
 #		test_npruntime_npnsetexception.html \ Disabled for e10s
@@ -95,6 +93,7 @@ _MOCHICHROME_FILES = \
 		test_npruntime.xul   \
 		test_privatemode.xul \
 		test_wmode.xul \
+		test_npapi_timers.xul \
 		$(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))

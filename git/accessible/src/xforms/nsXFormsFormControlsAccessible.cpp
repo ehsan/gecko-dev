@@ -130,11 +130,10 @@ nsXFormsTriggerAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 NS_IMETHODIMP
 nsXFormsTriggerAccessible::DoAction(PRUint8 aIndex)
 {
-  if (aIndex != eAction_Click)
-    return NS_ERROR_INVALID_ARG;
+  if (aIndex == eAction_Click)
+    return DoCommand();
 
-  DoCommand();
-  return NS_OK;
+  return NS_ERROR_INVALID_ARG;
 }
 
 // nsXFormsInputAccessible
@@ -247,8 +246,7 @@ nsXFormsInputBooleanAccessible::DoAction(PRUint8 aIndex)
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  DoCommand();
-  return NS_OK;
+  return DoCommand();
 }
 
 // nsXFormsInputDateAccessible

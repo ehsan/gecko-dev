@@ -52,6 +52,7 @@
 // Files and directories that exist on a per-browser basis.
 // ----------------------------------------------------------------------------
 
+#define NS_APP_MICROSUMMARY_DIR                 "MicsumGens"
 #define NS_APP_EXISTING_PREF_OVERRIDE           "ExistingPrefOverride"
 
 // ----------------------------------------------------------------------------

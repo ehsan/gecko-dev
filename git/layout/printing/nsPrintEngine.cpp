@@ -1893,7 +1893,7 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
     if (!frame) {
-      SetPrintPO(aPO, PR_FALSE);
+      aPO->mDontPrint = PR_TRUE;
       return NS_OK;
     }
 

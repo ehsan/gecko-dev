@@ -626,8 +626,7 @@ nsXFormsSelectableItemAccessible::DoAction(PRUint8 aIndex)
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  DoCommand();
-  return NS_OK;
+  return DoCommand();
 }
 
 PRBool

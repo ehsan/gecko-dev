@@ -51,6 +51,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsITimer.h"
 
 #define NS_ROOTACCESSIBLE_IMPL_CID                      \
 {  /* eaba2cf0-21b1-4e2b-b711-d3a89dcd5e1a */           \
@@ -121,9 +122,11 @@ public:
 
     nsCaretAccessible *GetCaretAccessible();
 
-protected:
-  NS_DECL_RUNNABLEMETHOD(nsRootAccessible, FireCurrentFocusEvent)
-
+  private:
+    nsCOMPtr<nsITimer> mFireFocusTimer;
+    static void FireFocusCallback(nsITimer *aTimer, void *aClosure);
+    
+  protected:
     nsresult AddEventListeners();
     nsresult RemoveEventListeners();
     nsresult HandleEventWithTarget(nsIDOMEvent* aEvent,
