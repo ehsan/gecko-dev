@@ -19,6 +19,11 @@
 var Promise = require('../util/promise').Promise;
 
 /**
+ * This is where we cache the connectors that we know about
+ */
+var connectors = {};
+
+/**
  * This is how to implement a connector
  *  var baseConnector = {
  *    item: 'connector',
@@ -106,47 +111,38 @@ Connection.prototype.disconnect = function() {
 
 exports.Connection = Connection;
 
-/**
- * A manager for the registered Connectors
- */
-function Connectors() {
-  // This is where we cache the connectors that we know about
-  this._registered = {};
-}
 
 /**
  * Add a new connector to the cache
  */
-Connectors.prototype.add = function(connector) {
-  this._registered[connector.name] = connector;
+exports.addConnector = function(connector) {
+  connectors[connector.name] = connector;
 };
 
 /**
  * Remove an existing connector from the cache
  */
-Connectors.prototype.remove = function(connector) {
+exports.removeConnector = function(connector) {
   var name = typeof connector === 'string' ? connector : connector.name;
-  delete this._registered[name];
+  delete connectors[name];
 };
 
 /**
  * Get access to the list of known connectors
  */
-Connectors.prototype.getAll = function() {
-  return Object.keys(this._registered).map(function(name) {
-    return this._registered[name];
-  }.bind(this));
+exports.getConnectors = function() {
+  return Object.keys(connectors).map(function(name) {
+    return connectors[name];
+  });
 };
 
 /**
  * Get access to a connector by name. If name is undefined then use the first
  * registered connector as a default.
  */
-Connectors.prototype.get = function(name) {
+exports.get = function(name) {
   if (name == null) {
-    name = Object.keys(this._registered)[0];
+    name = Object.keys(connectors)[0];
   }
-  return this._registered[name];
+  return connectors[name];
 };
-
-exports.Connectors = Connectors;

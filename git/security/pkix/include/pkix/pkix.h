@@ -25,7 +25,6 @@
 #ifndef mozilla_pkix__pkix_h
 #define mozilla_pkix__pkix_h
 
-#include "pkix/nullptr.h"
 #include "pkixtypes.h"
 #include "prtime.h"
 
@@ -95,7 +94,8 @@ SECStatus BuildCertChain(TrustDomain& trustDomain, const SECItem& cert,
                          KeyUsage requiredKeyUsageIfPresent,
                          KeyPurposeId requiredEKUIfPresent,
                          const CertPolicyId& requiredPolicy,
-            /*optional*/ const SECItem* stapledOCSPResponse);
+            /*optional*/ const SECItem* stapledOCSPResponse,
+                 /*out*/ ScopedCERTCertList& results);
 
 // Verify the given signed data using the given public key.
 SECStatus VerifySignedData(const CERTSignedData& sd,

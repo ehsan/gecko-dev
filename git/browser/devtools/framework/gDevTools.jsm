@@ -11,12 +11,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/devtools/Loader.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "promise",
-                                  "resource://gre/modules/Promise.jsm", "Promise");
-
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource://gre/modules/devtools/Console.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "promise", "resource://gre/modules/Promise.jsm", "Promise");
 
 const EventEmitter = devtools.require("devtools/toolkit/event-emitter");
 const FORBIDDEN_IDS = new Set(["toolbox", ""]);
@@ -435,7 +430,7 @@ let gDevToolsBrowser = {
       focusEl.setAttribute("disabled", "true");
     }
     if (devToolbarEnabled && Services.prefs.getBoolPref("devtools.toolbar.visible")) {
-      win.DeveloperToolbar.show(false).catch(console.error);
+      win.DeveloperToolbar.show(false);
     }
 
     // Enable WebIDE?

@@ -16,6 +16,8 @@
 
 'use strict';
 
+var settings = require('../settings');
+
 exports.items = [
   {
     // A type for selecting a known setting
@@ -23,14 +25,12 @@ exports.items = [
     name: 'setting',
     parent: 'selection',
     cacheable: true,
-    lookup: function(context) {
-      var settings = context.system.settings;
-      if (!this._registeredListener) {
-        settings.onChange.add(function(ev) {
-          this.clearCache();
-        }, this);
-        this._registeredListener = true;
-      }
+    constructor: function() {
+      settings.onChange.add(function(ev) {
+        this.clearCache();
+      }, this);
+    },
+    lookup: function() {
       return settings.getAll().map(function(setting) {
         return { name: setting.name, value: setting };
       });

@@ -75,7 +75,7 @@ exports.shutdown = function(options) {
 
 function jsTestAllowed(options) {
   return options.isRemote || options.isNoDom ||
-         options.requisition.system.commands.get('{') == null;
+         options.requisition.canon.getCommand('{') == null;
 }
 
 exports.testBasic = function(options) {

@@ -17,6 +17,7 @@
 'use strict';
 
 var l10n = require('../util/l10n');
+var connectors = require('../connectors/connectors');
 var cli = require('../cli');
 
 /**
@@ -45,9 +46,8 @@ var connector = {
   item: 'type',
   name: 'connector',
   parent: 'selection',
-  lookup: function(context) {
-    var connectors = context.system.connectors;
-    return connectors.getAll().map(function(connector) {
+  lookup: function() {
+    return connectors.getConnectors().map(function(connector) {
       return { name: connector.name, value: connector };
     });
   }
@@ -72,7 +72,7 @@ var connect = {
       short: 'm',
       type: 'connector',
       description: l10n.lookup('connectMethodDesc'),
-      defaultValue: null,
+      defaultValue: undefined, // set to connectors.get('xhr') below
       option: true
     },
     {
@@ -91,17 +91,15 @@ var connect = {
       throw new Error(l10n.lookupFormat('connectDupReply', [ args.prefix ]));
     }
 
-    var connector = args.method || context.system.connectors.get('xhr');
-
-    return connector.connect(args.url).then(function(connection) {
+    return args.method.connect(args.url).then(function(connection) {
       // Nasty: stash the prefix on the connection to help us tidy up
       connection.prefix = args.prefix;
       connections[args.prefix] = connection;
 
       return connection.call('specs').then(function(specs) {
         var remoter = this.createRemoter(args.prefix, connection);
-        var commands = cli.getMapping(context).requisition.system.commands;
-        commands.addProxyCommands(specs, remoter, args.prefix, args.url);
+        var canon = cli.getMapping(context).requisition.canon;
+        canon.addProxyCommands(specs, remoter, args.prefix, args.url);
 
         // TODO: We should add type proxies here too
 
@@ -113,8 +111,8 @@ var connect = {
   },
 
   /**
-   * When we register a set of remote commands, we need to provide a proxy
-   * executor. This is that executor.
+   * When we register a set of remote commands, we need to provide the canon
+   * with a proxy executor. This is that executor.
    */
   createRemoter: function(prefix, connection) {
     return function(cmdArgs, context) {
@@ -145,6 +143,17 @@ var connect = {
 };
 
 /**
+ * We just need to call connectors.get later than module load time to
+ * enable something to load the xhr module
+ */
+Object.defineProperty(connect.params[1], 'defaultValue', {
+  get: function() {
+    return connectors.get('xhr');
+  },
+  enumerable : true
+});
+
+/**
  * 'disconnect' command
  */
 var disconnect = {
@@ -164,8 +173,8 @@ var disconnect = {
   exec: function(args, context) {
     var connection = args.prefix;
     return connection.disconnect().then(function() {
-      var commands = cli.getMapping(context).requisition.system.commands;
-      var removed = commands.removeProxyCommands(connection.prefix);
+      var canon = cli.getMapping(context).requisition.canon;
+      var removed = canon.removeProxyCommands(connection.prefix);
       delete connections[connection.prefix];
       return l10n.lookupFormat('disconnectReply', [ removed.length ]);
     });

@@ -1769,9 +1769,6 @@ gfxContext::GetUserPathExtent()
     cairo_path_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
-    if (mPathIsRect) {
-      return ThebesRect(mTransform.TransformBounds(mRect));
-    }
     EnsurePath();
     return ThebesRect(mPath->GetBounds());
   }
@@ -1785,9 +1782,6 @@ gfxContext::GetUserFillExtent()
     cairo_fill_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
-    if (mPathIsRect) {
-      return ThebesRect(mTransform.TransformBounds(mRect));
-    }
     EnsurePath();
     return ThebesRect(mPath->GetBounds());
   }
@@ -1801,11 +1795,6 @@ gfxContext::GetUserStrokeExtent()
     cairo_stroke_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
-    if (mPathIsRect) {
-      Rect rect = mRect;
-      rect.Inflate(CurrentState().strokeOptions.mLineWidth / 2);
-      return ThebesRect(mTransform.TransformBounds(rect));
-    }
     EnsurePath();
     return ThebesRect(mPath->GetStrokedBounds(CurrentState().strokeOptions, mTransform));
   }

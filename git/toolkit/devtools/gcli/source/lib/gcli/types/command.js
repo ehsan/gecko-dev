@@ -72,8 +72,8 @@ exports.items = [
     },
 
     lookup: function(context) {
-      var commands = cli.getMapping(context).requisition.system.commands;
-      return exports.getCommandLookup(commands);
+      var canon = cli.getMapping(context).requisition.canon;
+      return exports.getCommandLookup(canon);
     },
 
     parse: function(arg, context) {
@@ -98,17 +98,18 @@ exports.getDisplayedParamLookup = function(requisition) {
 };
 
 exports.parse = function(context, arg, allowNonExec) {
-  var commands = cli.getMapping(context).requisition.system.commands;
-  var lookup = exports.getCommandLookup(commands);
+  var canon = cli.getMapping(context).requisition.canon;
+  var lookup = exports.getCommandLookup(canon);
   var predictions = exports.findPredictions(arg, lookup);
-  return exports.convertPredictions(commands, arg, allowNonExec, predictions);
+  return exports.convertPredictions(canon, arg, allowNonExec, predictions);
 };
 
-exports.getCommandLookup = function(commands) {
-  var sorted = commands.getAll().sort(function(c1, c2) {
+exports.getCommandLookup = function(canon) {
+  var commands = canon.getCommands();
+  commands.sort(function(c1, c2) {
     return c1.name.localeCompare(c2.name);
   });
-  return sorted.map(function(command) {
+  return commands.map(function(command) {
     return { name: command.name, value: command };
   });
 };
@@ -213,8 +214,8 @@ exports.findPredictions = function(arg, lookup) {
   return predictions;
 };
 
-exports.convertPredictions = function(commands, arg, allowNonExec, predictions) {
-  var command = commands.get(arg.text);
+exports.convertPredictions = function(canon, arg, allowNonExec, predictions) {
+  var command = canon.getCommand(arg.text);
   // Helper function - Commands like 'context' work best with parent
   // commands which are not executable. However obviously to execute a
   // command, it needs an exec function.

@@ -637,8 +637,7 @@ static nsresult NewImageChannel(nsIChannel **aResult,
   }
 
   bool setOwner = nsContentUtils::SetUpChannelOwner(aLoadingPrincipal,
-                                                    *aResult, aURI, false,
-                                                    false, false);
+                                                      *aResult, aURI, false);
   *aForcePrincipalCheckForCacheEntry = setOwner;
 
   // Create a new loadgroup for this new channel, using the old group as

@@ -41,7 +41,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsILoadInfo.h"
 #include "nsIPromptFactory.h"
 #include "nsIURI.h"
 #include "nsIWebBrowserChrome.h"
@@ -2186,16 +2185,6 @@ public:
   }
   NS_IMETHOD GetOwner(nsISupports**) NO_IMPL
   NS_IMETHOD SetOwner(nsISupports*) NO_IMPL
-  NS_IMETHOD GetLoadInfo(nsILoadInfo** aLoadInfo)
-  {
-    NS_IF_ADDREF(*aLoadInfo = mLoadInfo);
-    return NS_OK;
-  }
-  NS_IMETHOD SetLoadInfo(nsILoadInfo* aLoadInfo)
-  {
-    mLoadInfo = aLoadInfo;
-    return NS_OK;
-  }
   NS_IMETHOD GetNotificationCallbacks(nsIInterfaceRequestor** aRequestor)
   {
     NS_ADDREF(*aRequestor = this);
@@ -2248,7 +2237,6 @@ protected:
   nsCOMPtr<nsIURI> mUri;
   uint64_t mCallbackId;
   nsCOMPtr<Element> mElement;
-  nsCOMPtr<nsILoadInfo> mLoadInfo;
 };
 
 NS_IMPL_ISUPPORTS(FakeChannel, nsIChannel, nsIAuthPromptCallback,

@@ -83,7 +83,6 @@
 
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/FallbackEncoding.h"
-#include "mozilla/LoadInfo.h"
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
 #include "nsNodeInfoManager.h"
@@ -1526,10 +1525,7 @@ nsHTMLDocument::Open(JSContext* cx,
 
   // Set the caller principal, if any, on the channel so that we'll
   // make sure to use it when we reset.
-  nsCOMPtr<nsILoadInfo> loadInfo =
-    new LoadInfo(callerPrincipal, LoadInfo::eInheritPrincipal,
-                 LoadInfo::eNotSandboxed);
-  rv = channel->SetLoadInfo(loadInfo);
+  rv = channel->SetOwner(callerPrincipal);
   if (rv.Failed()) {
     return nullptr;
   }
@@ -2392,10 +2388,7 @@ nsHTMLDocument::CreateAndAddWyciwygChannel(void)
                                        GetDocumentCharacterSet());
 
   // Use our new principal
-  nsCOMPtr<nsILoadInfo> loadInfo =
-    new LoadInfo(NodePrincipal(), LoadInfo::eInheritPrincipal,
-                 LoadInfo::eNotSandboxed);
-  channel->SetLoadInfo(loadInfo);
+  channel->SetOwner(NodePrincipal());
 
   // Inherit load flags from the original document's channel
   channel->SetLoadFlags(mLoadFlags);

@@ -65,7 +65,7 @@ var mockDoc = {
 };
 
 exports.testParamGroup = function(options) {
-  var tsg = options.requisition.system.commands.get('tsg');
+  var tsg = options.requisition.canon.getCommand('tsg');
 
   assert.is(tsg.params[0].groupName, null, 'tsg param 0 group null');
   assert.is(tsg.params[1].groupName, 'First', 'tsg param 1 group First');
@@ -423,7 +423,7 @@ exports.testExecNode = function(options) {
 
   return helpers.audit(options, [
     {
-      skipIf: options.isNoDom,
+      skipIf: options.isRemote, // No DOM on server
       setup:    'tse :root',
       check: {
         input:  'tse :root',

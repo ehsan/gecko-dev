@@ -277,7 +277,7 @@ static void
 StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, const T &dest)
 {
     switch (arrayType) {
-      case Scalar::Float32:
+      case ScalarTypeDescr::TYPE_FLOAT32:
         if (LIRGenerator::allowFloat32Optimizations()) {
             masm.storeFloat32(value, dest);
         } else {
@@ -289,7 +289,7 @@ StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, cons
             masm.storeFloat32(ScratchFloat32Reg, dest);
         }
         break;
-      case Scalar::Float64:
+      case ScalarTypeDescr::TYPE_FLOAT64:
 #ifdef JS_MORE_DETERMINISTIC
         // See the comment in TypedArrayObjectTemplate::doubleToNative.
         masm.canonicalizeDouble(value);
@@ -302,13 +302,13 @@ StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, cons
 }
 
 void
-MacroAssembler::storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value,
+MacroAssembler::storeToTypedFloatArray(int arrayType, FloatRegister value,
                                        const BaseIndex &dest)
 {
     StoreToTypedFloatArray(*this, arrayType, value, dest);
 }
 void
-MacroAssembler::storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister value,
+MacroAssembler::storeToTypedFloatArray(int arrayType, FloatRegister value,
                                        const Address &dest)
 {
     StoreToTypedFloatArray(*this, arrayType, value, dest);
@@ -316,27 +316,27 @@ MacroAssembler::storeToTypedFloatArray(Scalar::Type arrayType, FloatRegister val
 
 template<typename T>
 void
-MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegister dest, Register temp,
+MacroAssembler::loadFromTypedArray(int arrayType, const T &src, AnyRegister dest, Register temp,
                                    Label *fail)
 {
     switch (arrayType) {
-      case Scalar::Int8:
+      case ScalarTypeDescr::TYPE_INT8:
         load8SignExtend(src, dest.gpr());
         break;
-      case Scalar::Uint8:
-      case Scalar::Uint8Clamped:
+      case ScalarTypeDescr::TYPE_UINT8:
+      case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
         load8ZeroExtend(src, dest.gpr());
         break;
-      case Scalar::Int16:
+      case ScalarTypeDescr::TYPE_INT16:
         load16SignExtend(src, dest.gpr());
         break;
-      case Scalar::Uint16:
+      case ScalarTypeDescr::TYPE_UINT16:
         load16ZeroExtend(src, dest.gpr());
         break;
-      case Scalar::Int32:
+      case ScalarTypeDescr::TYPE_INT32:
         load32(src, dest.gpr());
         break;
-      case Scalar::Uint32:
+      case ScalarTypeDescr::TYPE_UINT32:
         if (dest.isFloat()) {
             load32(src, temp);
             convertUInt32ToDouble(temp, dest.fpu());
@@ -349,7 +349,7 @@ MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegi
             branchTest32(Assembler::Signed, dest.gpr(), dest.gpr(), fail);
         }
         break;
-      case Scalar::Float32:
+      case ScalarTypeDescr::TYPE_FLOAT32:
         if (LIRGenerator::allowFloat32Optimizations()) {
             loadFloat32(src, dest.fpu());
             canonicalizeFloat(dest.fpu());
@@ -358,7 +358,7 @@ MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegi
             canonicalizeDouble(dest.fpu());
         }
         break;
-      case Scalar::Float64:
+      case ScalarTypeDescr::TYPE_FLOAT64:
         loadDouble(src, dest.fpu());
         canonicalizeDouble(dest.fpu());
         break;
@@ -367,27 +367,27 @@ MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, AnyRegi
     }
 }
 
-template void MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const Address &src, AnyRegister dest,
+template void MacroAssembler::loadFromTypedArray(int arrayType, const Address &src, AnyRegister dest,
                                                  Register temp, Label *fail);
-template void MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const BaseIndex &src, AnyRegister dest,
+template void MacroAssembler::loadFromTypedArray(int arrayType, const BaseIndex &src, AnyRegister dest,
                                                  Register temp, Label *fail);
 
 template<typename T>
 void
-MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, const ValueOperand &dest,
+MacroAssembler::loadFromTypedArray(int arrayType, const T &src, const ValueOperand &dest,
                                    bool allowDouble, Register temp, Label *fail)
 {
     switch (arrayType) {
-      case Scalar::Int8:
-      case Scalar::Uint8:
-      case Scalar::Uint8Clamped:
-      case Scalar::Int16:
-      case Scalar::Uint16:
-      case Scalar::Int32:
+      case ScalarTypeDescr::TYPE_INT8:
+      case ScalarTypeDescr::TYPE_UINT8:
+      case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
+      case ScalarTypeDescr::TYPE_INT16:
+      case ScalarTypeDescr::TYPE_UINT16:
+      case ScalarTypeDescr::TYPE_INT32:
         loadFromTypedArray(arrayType, src, AnyRegister(dest.scratchReg()), InvalidReg, nullptr);
         tagValue(JSVAL_TYPE_INT32, dest.scratchReg(), dest);
         break;
-      case Scalar::Uint32:
+      case ScalarTypeDescr::TYPE_UINT32:
         // Don't clobber dest when we could fail, instead use temp.
         load32(src, temp);
         if (allowDouble) {
@@ -411,14 +411,14 @@ MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, const V
             tagValue(JSVAL_TYPE_INT32, temp, dest);
         }
         break;
-      case Scalar::Float32:
+      case ScalarTypeDescr::TYPE_FLOAT32:
         loadFromTypedArray(arrayType, src, AnyRegister(ScratchFloat32Reg), dest.scratchReg(),
                            nullptr);
         if (LIRGenerator::allowFloat32Optimizations())
             convertFloat32ToDouble(ScratchFloat32Reg, ScratchDoubleReg);
         boxDouble(ScratchDoubleReg, dest);
         break;
-      case Scalar::Float64:
+      case ScalarTypeDescr::TYPE_FLOAT64:
         loadFromTypedArray(arrayType, src, AnyRegister(ScratchDoubleReg), dest.scratchReg(),
                            nullptr);
         boxDouble(ScratchDoubleReg, dest);
@@ -428,9 +428,9 @@ MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const T &src, const V
     }
 }
 
-template void MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const Address &src, const ValueOperand &dest,
+template void MacroAssembler::loadFromTypedArray(int arrayType, const Address &src, const ValueOperand &dest,
                                                  bool allowDouble, Register temp, Label *fail);
-template void MacroAssembler::loadFromTypedArray(Scalar::Type arrayType, const BaseIndex &src, const ValueOperand &dest,
+template void MacroAssembler::loadFromTypedArray(int arrayType, const BaseIndex &src, const ValueOperand &dest,
                                                  bool allowDouble, Register temp, Label *fail);
 
 // Inlined version of gc::CheckAllocatorState that checks the bare essentials

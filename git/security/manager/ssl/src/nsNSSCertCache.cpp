@@ -46,7 +46,8 @@ nsNSSCertCache::CacheAllCerts()
 
   nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
   
-  ScopedCERTCertList newList(PK11_ListCerts(PK11CertListUnique, cxt));
+  mozilla::pkix::ScopedCERTCertList newList(
+    PK11_ListCerts(PK11CertListUnique, cxt));
 
   if (newList) {
     MutexAutoLock lock(mutex);

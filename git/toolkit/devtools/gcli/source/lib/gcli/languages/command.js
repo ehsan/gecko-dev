@@ -25,6 +25,7 @@ var Status = require('../types/types').Status;
 var cli = require('../cli');
 var Requisition = require('../cli').Requisition;
 var CommandAssignment = require('../cli').CommandAssignment;
+var fields = require('../fields/fields');
 var intro = require('../ui/intro');
 
 var RESOLVED = Promise.resolve(true);
@@ -71,7 +72,7 @@ var commandLanguage = exports.commandLanguage = {
   constructor: function(terminal) {
     this.terminal = terminal;
     this.document = terminal.document;
-    this.focusManager = terminal.focusManager;
+    this.focusManager = this.terminal.focusManager;
 
     var options = this.terminal.options;
     this.requisition = options.requisition;
@@ -82,7 +83,7 @@ var commandLanguage = exports.commandLanguage = {
         options.environment.window = options.environment.document.defaultView;
       }
 
-      this.requisition = new Requisition(terminal.system, options);
+      this.requisition = new Requisition(options);
     }
 
     // We also keep track of the last known arg text for the current assignment
@@ -216,8 +217,7 @@ var commandLanguage = exports.commandLanguage = {
       field.destroy();
     }
 
-    var fields = this.terminal.system.fields;
-    field = this.terminal.field = fields.get(this.assignment.param.type, {
+    field = this.terminal.field = fields.getField(this.assignment.param.type, {
       document: this.terminal.document,
       requisition: this.requisition
     });

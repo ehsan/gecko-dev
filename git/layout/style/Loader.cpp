@@ -17,7 +17,6 @@
 /* loading of CSS style sheets using the network APIs */
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/LoadInfo.h"
 #include "mozilla/MemoryReporting.h"
 
 #include "mozilla/css/Loader.h"
@@ -1561,17 +1560,12 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     rv = NS_URIChainHasFlags(aLoadData->mURI,
                              nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
                              &inherit);
-    inherit =
-      ((NS_SUCCEEDED(rv) && inherit) ||
-       (nsContentUtils::URIIsLocalFile(aLoadData->mURI) &&
-        NS_SUCCEEDED(aLoadData->mLoaderPrincipal->
-                     CheckMayLoad(aLoadData->mURI, false, false))));
-    nsCOMPtr<nsILoadInfo> loadInfo =
-      new LoadInfo(aLoadData->mLoaderPrincipal,
-                   inherit ?
-                     LoadInfo::eInheritPrincipal : LoadInfo::eDontInheritPrincipal,
-                   LoadInfo::eNotSandboxed);
-    channel->SetLoadInfo(loadInfo);
+    if ((NS_SUCCEEDED(rv) && inherit) ||
+        (nsContentUtils::URIIsLocalFile(aLoadData->mURI) &&
+         NS_SUCCEEDED(aLoadData->mLoaderPrincipal->
+                      CheckMayLoad(aLoadData->mURI, false, false)))) {
+      channel->SetOwner(aLoadData->mLoaderPrincipal);
+    }
   }
 
   // We don't have to hold on to the stream loader.  The ownership

@@ -17,6 +17,7 @@
 'use strict';
 
 var l10n = require('../util/l10n');
+var settings = require('../settings');
 var Promise = require('../util/promise').Promise;
 
 /**
@@ -120,7 +121,7 @@ var prefList = {
       // This can be slow, get out of the way of the main thread
       setTimeout(function() {
         var prefsData = {
-          settings: context.system.settings.getAll(args.search),
+          settings: settings.getAll(args.search),
           search: args.search
         };
         resolve(prefsData);

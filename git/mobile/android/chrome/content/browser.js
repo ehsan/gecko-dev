@@ -6882,7 +6882,13 @@ var SearchEngines = {
     });
 
     // Send a speculative connection to the default engine.
-    Services.search.defaultEngine.speculativeConnect({window: window});
+    let connector = Services.io.QueryInterface(Ci.nsISpeculativeConnect);
+    let searchURI = Services.search.defaultEngine.getSubmission("dummy").uri;
+    let callbacks = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIWebNavigation).QueryInterface(Ci.nsILoadContext);
+    try {
+      connector.speculativeConnect(searchURI, callbacks);
+    } catch (e) {}
   },
 
   // Helper method to extract the engine name from a JSON. Simplifies the observe function.

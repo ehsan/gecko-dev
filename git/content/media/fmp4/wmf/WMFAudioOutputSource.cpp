@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WMFAudioMFTManager.h"
+#include "WMFAudioOutputSource.h"
 #include "mp4_demuxer/DecoderData.h"
 #include "VideoUtils.h"
 #include "WMFUtils.h"
@@ -66,7 +66,7 @@ AACAudioSpecificConfigToUserData(const uint8_t* aAudioSpecConfig,
   aOutUserData.AppendElements(aAudioSpecConfig, aConfigLength);
 }
 
-WMFAudioMFTManager::WMFAudioMFTManager(
+WMFAudioOutputSource::WMFAudioOutputSource(
   const mp4_demuxer::AudioDecoderConfig& aConfig)
   : mAudioChannels(aConfig.channel_count)
   , mAudioBytesPerSample(aConfig.bits_per_sample / 8)
@@ -75,19 +75,19 @@ WMFAudioMFTManager::WMFAudioMFTManager(
   , mAudioFrameSum(0)
   , mMustRecaptureAudioPosition(true)
 {
-  MOZ_COUNT_CTOR(WMFAudioMFTManager);
+  MOZ_COUNT_CTOR(WMFAudioOutputSource);
   AACAudioSpecificConfigToUserData(&aConfig.audio_specific_config[0],
                                    aConfig.audio_specific_config.length(),
                                    mUserData);
 }
 
-WMFAudioMFTManager::~WMFAudioMFTManager()
+WMFAudioOutputSource::~WMFAudioOutputSource()
 {
-  MOZ_COUNT_DTOR(WMFAudioMFTManager);
+  MOZ_COUNT_DTOR(WMFAudioOutputSource);
 }
 
 TemporaryRef<MFTDecoder>
-WMFAudioMFTManager::Init()
+WMFAudioOutputSource::Init()
 {
   RefPtr<MFTDecoder> decoder(new MFTDecoder());
 
@@ -129,7 +129,7 @@ WMFAudioMFTManager::Init()
 }
 
 HRESULT
-WMFAudioMFTManager::Input(mp4_demuxer::MP4Sample* aSample)
+WMFAudioOutputSource::Input(mp4_demuxer::MP4Sample* aSample)
 {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
   uint32_t length = aSample->size;
@@ -137,8 +137,8 @@ WMFAudioMFTManager::Input(mp4_demuxer::MP4Sample* aSample)
 }
 
 HRESULT
-WMFAudioMFTManager::Output(int64_t aStreamOffset,
-                           nsAutoPtr<MediaData>& aOutData)
+WMFAudioOutputSource::Output(int64_t aStreamOffset,
+                        nsAutoPtr<MediaData>& aOutData)
 {
   aOutData = nullptr;
   RefPtr<IMFSample> sample;

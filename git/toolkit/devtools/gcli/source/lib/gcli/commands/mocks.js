@@ -30,7 +30,7 @@ exports.items = [
         name: 'included',
         type: {
           name: 'selection',
-          data: [ 'on', 'off' ]
+          data: [ 'on', 'off']
         },
         description: 'Turn mock commands on or off',
       }
@@ -45,12 +45,12 @@ exports.items = [
 
     on: function(requisition) {
       mockCommands.setup(requisition);
-      mockSettings.setup(requisition.system);
+      mockSettings.setup();
     },
 
     off: function(requisition) {
       mockCommands.shutdown(requisition);
-      mockSettings.shutdown(requisition.system);
+      mockSettings.shutdown();
     }
   }
 ];

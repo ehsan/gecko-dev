@@ -22,7 +22,7 @@ var util = require('../util/util');
  * A Field is a way to get input for a single parameter.
  * This class is designed to be inherited from. It's important that all
  * subclasses have a similar constructor signature because they are created
- * via Fields.get(...)
+ * via getField(...)
  * @param type The type to use in conversions
  * @param options A set of properties to help fields configure themselves:
  * - document: The document we use in calling createElement
@@ -125,23 +125,20 @@ exports.Field = Field;
 
 
 /**
- * A manager for the registered Fields
+ * Internal array of known fields
  */
-function Fields() {
-  // Internal array of known fields
-  this._fieldCtors = [];
-}
+var fieldCtors = [];
 
 /**
  * Add a field definition by field constructor
  * @param fieldCtor Constructor function of new Field
  */
-Fields.prototype.add = function(fieldCtor) {
+exports.addField = function(fieldCtor) {
   if (typeof fieldCtor !== 'function') {
-    console.error('fields.add erroring on ', fieldCtor);
-    throw new Error('fields.add requires a Field constructor');
+    console.error('addField erroring on ', fieldCtor);
+    throw new Error('addField requires a Field constructor');
   }
-  this._fieldCtors.push(fieldCtor);
+  fieldCtors.push(fieldCtor);
 };
 
 /**
@@ -149,18 +146,18 @@ Fields.prototype.add = function(fieldCtor) {
  * @param field A previously registered field, specified either with a field
  * name or from the field name
  */
-Fields.prototype.remove = function(field) {
+exports.removeField = function(field) {
   if (typeof field !== 'string') {
-    this._fieldCtors = this._fieldCtors.filter(function(test) {
+    fieldCtors = fieldCtors.filter(function(test) {
       return test !== field;
     });
   }
   else if (field instanceof Field) {
-    this.remove(field.name);
+    exports.removeField(field.name);
   }
   else {
-    console.error('fields.remove erroring on ', field);
-    throw new Error('fields.remove requires an instance of Field');
+    console.error('removeField erroring on ', field);
+    throw new Error('removeField requires an instance of Field');
   }
 };
 
@@ -174,10 +171,10 @@ Fields.prototype.remove = function(field) {
  * - requisition: The requisition we're monitoring,
  * @return A newly constructed field that best matches the input options
  */
-Fields.prototype.get = function(type, options) {
+exports.getField = function(type, options) {
   var FieldConstructor;
   var highestClaim = -1;
-  this._fieldCtors.forEach(function(fieldCtor) {
+  fieldCtors.forEach(function(fieldCtor) {
     var context = (options.requisition == null) ?
                   null : options.requisition.executionContext;
     var claim = fieldCtor.claim(type, context);
@@ -188,7 +185,7 @@ Fields.prototype.get = function(type, options) {
   });
 
   if (!FieldConstructor) {
-    console.error('Unknown field type ', type, ' in ', this._fieldCtors);
+    console.error('Unknown field type ', type, ' in ', fieldCtors);
     throw new Error('Can\'t find field for ' + type);
   }
 
@@ -199,7 +196,6 @@ Fields.prototype.get = function(type, options) {
   return new FieldConstructor(type, options);
 };
 
-exports.Fields = Fields;
 
 /**
  * For use with delegate types that do not yet have anything to resolve to.
@@ -232,7 +228,4 @@ BlankField.prototype.getConversion = function() {
   return this.type.parseString('', this.requisition.executionContext);
 };
 
-/**
- * Items for export
- */
-exports.items = [ BlankField ];
+exports.addField(BlankField);

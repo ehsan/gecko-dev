@@ -127,8 +127,8 @@ function getHelpListData(commandsData, context) {
  * Create a block of data suitable to be passed to the help_list.html template
  */
 function getMatchingCommands(context, prefix) {
-  var commands = cli.getMapping(context).requisition.system.commands;
-  var reply = commands.getAll().filter(function(command) {
+  var canon = cli.getMapping(context).requisition.canon;
+  var commands = canon.getCommands().filter(function(command) {
     if (command.hidden) {
       return false;
     }
@@ -144,23 +144,23 @@ function getMatchingCommands(context, prefix) {
     return true;
   });
 
-  reply.sort(function(c1, c2) {
+  commands.sort(function(c1, c2) {
     return c1.name.localeCompare(c2.name);
   });
 
-  reply = reply.map(function(command) {
+  commands = commands.map(function(command) {
     return command.toJson();
   });
 
-  return reply;
+  return commands;
 }
 
 /**
  * Find all the sub commands of the given command
  */
 function getSubCommands(context, command) {
-  var commands = cli.getMapping(context).requisition.system.commands;
-  var subcommands = commands.getAll().filter(function(subcommand) {
+  var canon = cli.getMapping(context).requisition.canon;
+  var subcommands = canon.getCommands().filter(function(subcommand) {
     return subcommand.name.indexOf(command.name) === 0 &&
            subcommand.name !== command.name &&
            !subcommand.hidden;
@@ -218,8 +218,8 @@ exports.items = [
     ],
 
     exec: function(args, context) {
-      var commands = cli.getMapping(context).requisition.system.commands;
-      var command = commands.get(args.search);
+      var canon = cli.getMapping(context).requisition.canon;
+      var command = canon.getCommand(args.search);
       if (command) {
         return context.typedData('commandData', {
           command: command.toJson(),

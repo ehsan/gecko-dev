@@ -25,8 +25,6 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalProtocolService.h"
 
-class nsILoadInfo;
-
 ////////////////////////////////////////////////////////////////////////
 // a stub channel implemenation which will map calls to AsyncRead and OpenInputStream
 // to calls in the OS for loading the url.
@@ -256,21 +254,13 @@ nsExtProtocolChannel::SetContentLength(int64_t aContentLength)
 
 NS_IMETHODIMP nsExtProtocolChannel::GetOwner(nsISupports * *aPrincipal)
 {
+  NS_NOTREACHED("GetOwner");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsExtProtocolChannel::SetOwner(nsISupports * aPrincipal)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP nsExtProtocolChannel::GetLoadInfo(nsILoadInfo * *aLoadInfo)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP nsExtProtocolChannel::SetLoadInfo(nsILoadInfo * aLoadInfo)
-{
+  NS_NOTREACHED("SetOwner");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

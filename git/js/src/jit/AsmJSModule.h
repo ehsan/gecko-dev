@@ -79,7 +79,7 @@ class AsmJSModule
                     } init;
                 } var;
                 uint32_t ffiIndex_;
-                Scalar::Type viewType_;
+                ArrayBufferView::ViewType viewType_;
                 AsmJSMathBuiltinFunction mathBuiltinFunc_;
                 struct {
                     ConstantKind kind_;
@@ -143,7 +143,7 @@ class AsmJSModule
             JS_ASSERT(pod.which_ == ArrayView);
             return name_;
         }
-        Scalar::Type viewType() const {
+        ArrayBufferView::ViewType viewType() const {
             JS_ASSERT(pod.which_ == ArrayView);
             return pod.u.viewType_;
         }
@@ -645,7 +645,7 @@ class AsmJSModule
         g.pod.u.ffiIndex_ = *ffiIndex = pod.numFFIs_++;
         return globals_.append(g);
     }
-    bool addArrayView(Scalar::Type vt, PropertyName *field) {
+    bool addArrayView(ArrayBufferView::ViewType vt, PropertyName *field) {
         JS_ASSERT(!isFinishedWithModulePrologue());
         pod.hasArrayView_ = true;
         Global g(Global::ArrayView, field);

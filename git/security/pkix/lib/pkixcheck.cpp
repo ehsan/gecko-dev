@@ -26,7 +26,6 @@
 
 #include "pkix/bind.h"
 #include "pkix/pkix.h"
-#include "pkix/ScopedPtr.h"
 #include "pkixcheck.h"
 #include "pkixder.h"
 #include "pkixutil.h"
@@ -412,7 +411,7 @@ PORT_FreeArena_false(PLArenaPool* arena) {
 }
 
 Result
-CheckNameConstraints(const BackCert& cert, KeyPurposeId requiredEKUIfPresent)
+CheckNameConstraints(const BackCert& cert)
 {
   // These hardcoded consts are to handle a post certificate creation
   // name constraints. In this case for ANSSI.
@@ -510,8 +509,7 @@ CheckNameConstraints(const BackCert& cert, KeyPurposeId requiredEKUIfPresent)
       return MapSECStatus(SECFailure);
     }
 
-    bool includeCN = child->endEntityOrCA == EndEntityOrCA::MustBeEndEntity &&
-                     requiredEKUIfPresent == KeyPurposeId::id_kp_serverAuth;
+    bool includeCN = child->includeCN == BackCert::IncludeCN::Yes;
     // owned by arena
     const CERTGeneralName*
       names(CERT_GetConstrainedCertificateNames(nssCert.get(), arena.get(),
@@ -698,6 +696,7 @@ Result
 CheckIssuerIndependentProperties(TrustDomain& trustDomain,
                                  const BackCert& cert,
                                  PRTime time,
+                                 EndEntityOrCA endEntityOrCA,
                                  KeyUsage requiredKeyUsageIfPresent,
                                  KeyPurposeId requiredEKUIfPresent,
                                  const CertPolicyId& requiredPolicy,
@@ -705,8 +704,6 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
                 /*optional out*/ TrustLevel* trustLevelOut)
 {
   Result rv;
-
-  const EndEntityOrCA endEntityOrCA = cert.endEntityOrCA;
 
   TrustLevel trustLevel;
   rv = MapSECStatus(trustDomain.GetCertTrust(endEntityOrCA, requiredPolicy,

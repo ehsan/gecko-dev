@@ -16,7 +16,7 @@ public class FxAccountAuthenticatorService extends Service {
   // Lazily initialized by <code>getAuthenticator</code>.
   protected FxAccountAuthenticator accountAuthenticator = null;
 
-  protected synchronized FxAccountAuthenticator getAuthenticator() {
+  protected FxAccountAuthenticator getAuthenticator() {
     if (accountAuthenticator == null) {
       accountAuthenticator = new FxAccountAuthenticator(this);
     }
@@ -35,21 +35,10 @@ public class FxAccountAuthenticatorService extends Service {
   public IBinder onBind(Intent intent) {
     Logger.debug(LOG_TAG, "onBind");
 
-    if (intent == null) {
-      // Should never happen, but can -- Bug 1025937.
-      return null;
+    if (intent.getAction().equals(android.accounts.AccountManager.ACTION_AUTHENTICATOR_INTENT)) {
+      return getAuthenticator().getIBinder();
     }
 
-    if (!android.accounts.AccountManager.ACTION_AUTHENTICATOR_INTENT.equals(intent.getAction())) {
-      return null;
-    }
-
-    final FxAccountAuthenticator authenticator = getAuthenticator();
-    if (authenticator == null) {
-      // Should never happen.
-      return null;
-    }
-
-    return authenticator.getIBinder();
+    return null;
   }
 }

@@ -4,9 +4,6 @@
 
  "use strict";
 
-const {Cu} = require("chrome");
-const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 const dbginfo = new WeakMap();
 
 // These functions implement search within the debugger. Since
@@ -107,11 +104,6 @@ function initialize(ctx) {
  */
 function hasBreakpoint(ctx, line) {
   let { cm } = ctx;
-  // In some rare occasions CodeMirror might not be properly initialized yet, so
-  // return an exceptional value in that case.
-  if (cm.lineInfo(line) === null) {
-    return null;
-  }
   let markers = cm.lineInfo(line).gutterMarkers;
 
   return markers != null &&
@@ -126,35 +118,22 @@ function hasBreakpoint(ctx, line) {
  * emit a breakpointAdded event.
  */
 function addBreakpoint(ctx, line, cond) {
-  function _addBreakpoint(ctx, line, cond) {
-    let { ed, cm } = ctx;
-    let meta = dbginfo.get(ed);
-    let info = cm.lineInfo(line);
-
-    ed.addMarker(line, "breakpoints", "breakpoint");
-    meta.breakpoints[line] = { condition: cond };
-
-    info.handle.on("delete", function onDelete() {
-      info.handle.off("delete", onDelete);
-      meta.breakpoints[info.line] = null;
-    });
-
-    ed.emit("breakpointAdded", line);
-    deferred.resolve();
-  }
-
   if (hasBreakpoint(ctx, line))
     return;
 
-  let deferred = promise.defer();
-  // If lineInfo() returns null, wait a tick to give the editor a chance to
-  // initialize properly.
-  if (ctx.cm.lineInfo(line) === null) {
-    DevToolsUtils.executeSoon(() => _addBreakpoint(ctx, line, cond));
-  } else {
-    _addBreakpoint(ctx, line, cond);
-  }
-  return deferred.promise;
+  let { ed, cm } = ctx;
+  let meta = dbginfo.get(ed);
+  let info = cm.lineInfo(line);
+
+  ed.addMarker(line, "breakpoints", "breakpoint");
+  meta.breakpoints[line] = { condition: cond };
+
+  info.handle.on("delete", function onDelete() {
+    info.handle.off("delete", onDelete);
+    meta.breakpoints[info.line] = null;
+  });
+
+  ed.emit("breakpointAdded", line);
 }
 
 /**

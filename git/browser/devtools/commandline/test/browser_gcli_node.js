@@ -57,7 +57,6 @@ exports.shutdown = function(options) {
 exports.testNode = function(options) {
   return helpers.audit(options, [
     {
-      skipRemainingIf: options.isNoDom,
       setup:    'tse ',
       check: {
         input:  'tse ',

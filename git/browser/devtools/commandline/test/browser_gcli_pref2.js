@@ -43,9 +43,10 @@ function test() {
 // var assert = require('../testharness/assert');
 // var helpers = require('./helpers');
 var mockSettings = require('./mockSettings');
+var settings = require('gcli/settings');
 
 exports.testPrefExec = function(options) {
-  if (options.requisition.system.commands.get('pref') == null) {
+  if (options.requisition.canon.getCommand('pref') == null) {
     assert.log('Skipping test; missing pref command.');
     return;
   }
@@ -134,7 +135,7 @@ exports.testPrefExec = function(options) {
     },
     {
       skipRemainingIf: function commandPrefListMissing() {
-        return options.requisition.system.commands.get('pref list') == null;
+        return options.requisition.canon.getCommand('pref list') == null;
       },
       setup:    'pref list tempNum',
       check: {

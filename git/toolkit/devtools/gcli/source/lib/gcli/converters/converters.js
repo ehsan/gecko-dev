@@ -134,23 +134,20 @@ function getChainConverter(first, second) {
 }
 
 /**
- * A manager for the registered Converters
+ * This is where we cache the converters that we know about
  */
-function Converters() {
-  // This is where we cache the converters that we know about
-  this._registered = {
-    from: {}
-  };
-}
+var converters = {
+  from: {}
+};
 
 /**
  * Add a new converter to the cache
  */
-Converters.prototype.add = function(converter) {
-  var fromMatch = this._registered.from[converter.from];
+exports.addConverter = function(converter) {
+  var fromMatch = converters.from[converter.from];
   if (fromMatch == null) {
     fromMatch = {};
-    this._registered.from[converter.from] = fromMatch;
+    converters.from[converter.from] = fromMatch;
   }
 
   fromMatch[converter.to] = converter;
@@ -159,8 +156,8 @@ Converters.prototype.add = function(converter) {
 /**
  * Remove an existing converter from the cache
  */
-Converters.prototype.remove = function(converter) {
-  var fromMatch = this._registered.from[converter.from];
+exports.removeConverter = function(converter) {
+  var fromMatch = converters.from[converter.from];
   if (fromMatch == null) {
     return;
   }
@@ -173,10 +170,10 @@ Converters.prototype.remove = function(converter) {
 /**
  * Work out the best converter that we've got, for a given conversion.
  */
-Converters.prototype.get = function(from, to) {
-  var fromMatch = this._registered.from[from];
+function getConverter(from, to) {
+  var fromMatch = converters.from[from];
   if (fromMatch == null) {
-    return this._getFallbackConverter(from, to);
+    return getFallbackConverter(from, to);
   }
 
   var converter = fromMatch[to];
@@ -203,15 +200,15 @@ Converters.prototype.get = function(from, to) {
       }
     }
 
-    return this._getFallbackConverter(from, to);
+    return getFallbackConverter(from, to);
   }
   return converter;
-};
+}
 
 /**
- * Helper for get to pick the best fallback converter
+ * Helper for getConverter to pick the best fallback converter
  */
-Converters.prototype._getFallbackConverter = function(from, to) {
+function getFallbackConverter(from, to) {
   console.error('No converter from ' + from + ' to ' + to + '. Using fallback');
 
   if (to === 'dom') {
@@ -223,7 +220,7 @@ Converters.prototype._getFallbackConverter = function(from, to) {
   }
 
   throw new Error('No conversion possible from ' + from + ' to ' + to + '.');
-};
+}
 
 /**
  * Convert some data from one type to another
@@ -233,26 +230,24 @@ Converters.prototype._getFallbackConverter = function(from, to) {
  * @param conversionContext An execution context (i.e. simplified requisition)
  * which is often required for access to a document, or createView function
  */
-Converters.prototype.convert = function(data, from, to, conversionContext) {
+exports.convert = function(data, from, to, conversionContext) {
   try {
     if (from === to) {
       return Promise.resolve(data);
     }
 
-    var converter = this.get(from, to);
+    var converter = getConverter(from, to);
     return host.exec(function() {
       return converter.exec(data, conversionContext);
-    }.bind(this));
+    });
   }
   catch (ex) {
-    var converter = this.get('error', to);
+    var converter = getConverter('error', to);
     return host.exec(function() {
       return converter.exec(ex, conversionContext);
-    }.bind(this));
+    });
   }
 };
-
-exports.Converters = Converters;
 
 /**
  * Items for export

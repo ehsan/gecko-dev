@@ -188,10 +188,7 @@ ThreadLink::ThreadLink(MessageChannel *aChan, MessageChannel *aTargetChan)
 
 ThreadLink::~ThreadLink()
 {
-    MOZ_ASSERT(mChan);
-    MOZ_ASSERT(mChan->mMonitor);
-    MonitorAutoLock lock(*mChan->mMonitor);
-
+    // :TODO: MonitorAutoLock lock(*mChan->mMonitor);
     // Bug 848949: We need to prevent the other side
     // from sending us any more messages to avoid Use-After-Free.
     // The setup here is as shown:
@@ -206,13 +203,11 @@ ThreadLink::~ThreadLink()
     // We want to null out the diagonal link from their ThreadLink
     // to our MessageChannel.  Note that we must hold the monitor so
     // that we do this atomically with respect to them trying to send
-    // us a message.  Since the channels share the same monitor this
-    // also protects against the two ~ThreadLink() calls racing.
+    // us a message.
     if (mTargetChan) {
-        MOZ_ASSERT(mTargetChan->mLink);
-        static_cast<ThreadLink*>(mTargetChan->mLink)->mTargetChan = nullptr;
+        static_cast<ThreadLink*>(mTargetChan->mLink)->mTargetChan = 0;
     }
-    mTargetChan = nullptr;
+    mTargetChan = 0;
 }
 
 void

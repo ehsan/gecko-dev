@@ -17,6 +17,7 @@
 'use strict';
 
 var l10n = require('../util/l10n');
+var settings = require('../settings');
 var Output = require('../cli').Output;
 var view = require('./view');
 
@@ -37,12 +38,12 @@ exports.items = [
  * Called when the UI is ready to add a welcome message to the output
  */
 exports.maybeShowIntro = function(commandOutputManager, conversionContext) {
-  var hideIntro = conversionContext.system.settings.get('hideIntro');
+  var hideIntro = settings.getSetting('hideIntro');
   if (hideIntro.value) {
     return;
   }
 
-  var output = new Output(conversionContext);
+  var output = new Output();
   output.type = 'view';
   commandOutputManager.onOutput({ output: output });
 
@@ -78,8 +79,7 @@ exports.createView = function(ignoreArgs, conversionContext, showHideButton) {
       ondblclick: conversionContext.updateExec,
       showHideButton: showHideButton,
       onGotIt: function(ev) {
-        var settings = conversionContext.system.settings;
-        var hideIntro = settings.get('hideIntro');
+        var hideIntro = settings.getSetting('hideIntro');
         hideIntro.value = true;
         this.mainDiv.style.display = 'none';
       }

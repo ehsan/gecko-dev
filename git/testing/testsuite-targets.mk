@@ -379,7 +379,7 @@ cppunittests-remote:
         fi
 
 jetpack-tests:
-	cd $(topsrcdir)/addon-sdk/source && $(PYTHON) bin/cfx -b $(abspath $(browser_path)) --parseable testpkgs
+	$(PYTHON) $(topsrcdir)/addon-sdk/source/bin/cfx -b $(browser_path) --parseable testpkgs
 
 pgo-profile-run:
 	$(PYTHON) $(topsrcdir)/build/pgo/profileserver.py $(EXTRA_TEST_ARGS)

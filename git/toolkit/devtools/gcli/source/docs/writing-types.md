@@ -54,7 +54,7 @@ contains default implementations:
 * increment(value)
 * decrement(value)
 
-Type, Conversion and Status are all declared by commands.js.
+Type, Conversion and Status are all declared by canon.js.
 
 The values produced by the parse function can be of any type, but if you are
 producing your own, you are strongly encouraged to include properties called

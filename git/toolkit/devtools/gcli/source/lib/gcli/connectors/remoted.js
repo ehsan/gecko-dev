@@ -42,13 +42,12 @@ Remoter.prototype.addListener = function(action) {
   var listener = {
     action: action,
     caller: function() {
-      var commands = this.requisition.system.commands;
-      action('commandsChanged', commands.getCommandSpecs());
+      action('canonChanged', this.requisition.canon.getCommandSpecs());
     }.bind(this)
   };
   this._listeners.push(listener);
 
-  this.requisition.system.commands.onCommandsChange.add(listener.caller);
+  this.requisition.canon.onCanonChange.add(listener.caller);
 };
 
 /**
@@ -69,7 +68,7 @@ Remoter.prototype.removeListener = function(action) {
     throw new Error('action not a known listener');
   }
 
-  this.requisition.system.commands.onCommandsChange.remove(listener.caller);
+  this.requisition.canon.onCanonChange.remove(listener.caller);
 };
 
 /**
@@ -80,7 +79,7 @@ Remoter.prototype.exposed = {
    * Retrieve a list of the remotely executable commands
    */
   specs: method(function() {
-    return this.requisition.system.commands.getCommandSpecs();
+    return this.requisition.canon.getCommandSpecs();
   }, {
     request: {},
     response: RetVal("json")
@@ -190,7 +189,7 @@ Remoter.prototype.exposed = {
    * Perform a lookup on a selection type to get the allowed values
    */
   selectioninfo: method(function(commandName, paramName, action) {
-    var command = this.requisition.system.commands.get(commandName);
+    var command = this.requisition.canon.getCommand(commandName);
     if (command == null) {
       throw new Error('No command called \'' + commandName + '\'');
     }
@@ -228,8 +227,7 @@ Remoter.prototype.exposed = {
    * @return a promise of a string containing the output of the command
    */
   system: method(function(cmd, args, cwd, env) {
-    var context = this.requisition.executionContext;
-    return host.spawn(context, { cmd: cmd, args: args, cwd: cwd, env: env });
+    return host.spawn({ cmd: cmd, args: args, cwd: cwd, env: env });
   }, {
     request: {
       cmd: Arg(0, "string"), // The executable to call
@@ -250,8 +248,7 @@ Remoter.prototype.exposed = {
       matches: new RegExp(matches)
     };
 
-    var context = this.requisition.executionContext;
-    return fileparser.parse(context, typed, options).then(function(reply) {
+    return fileparser.parse(typed, options).then(function(reply) {
       reply.status = reply.status.toString();
       if (reply.predictor == null) {
         return reply;

@@ -297,18 +297,18 @@
                 class="toolbaritem-tabsmenu"
                 contexttype="tabbar"
                 oncommand="gBrowser.reloadAllTabs();"
-                label="&toolbarContextMenu.reloadAllTabs.label;"
+                label="&reloadAllTabs.label;"
                 accesskey="&toolbarContextMenu.reloadAllTabs.accesskey;"/>
       <menuitem id="toolbar-context-bookmarkAllTabs"
                 class="toolbaritem-tabsmenu"
                 contexttype="tabbar"
                 command="Browser:BookmarkAllTabs"
-                label="&toolbarContextMenu.bookmarkAllTabs.label;"
+                label="&bookmarkAllTabs.label;"
                 accesskey="&toolbarContextMenu.bookmarkAllTabs.accesskey;"/>
       <menuitem id="toolbar-context-undoCloseTab"
                 class="toolbaritem-tabsmenu"
                 contexttype="tabbar"
-                label="&toolbarContextMenu.undoCloseTab.label;"
+                label="&undoCloseTab.label;"
                 accesskey="&toolbarContextMenu.undoCloseTab.accesskey;"
                 observes="History:UndoCloseTab"/>
       <menuseparator/>
@@ -634,12 +634,8 @@
                     key="key_tabview"
                     label="&viewTabGroups.label;"
                     command="Browser:ToggleTabView"
+                    cui-areatype="toolbar"
                     observes="tabviewGroupsNumber"/>
-          <menuitem id="alltabs_undoCloseTab"
-                    class="menuitem-iconic"
-                    key="key_undoCloseTab"
-                    label="&undoCloseTab.label;"
-                    observes="History:UndoCloseTab"/>
           <menuseparator id="alltabs-popup-separator"/>
         </menupopup>
       </toolbarbutton>

@@ -344,9 +344,7 @@ nsContextMenu.prototype = {
   },
 
   initSpellingItems: function() {
-    var canSpell = InlineSpellCheckerUI.canSpellCheck &&
-                   !InlineSpellCheckerUI.initialSpellCheckPending &&
-                   this.canSpellCheck;
+    var canSpell = InlineSpellCheckerUI.canSpellCheck && this.canSpellCheck;
     var onMisspelling = InlineSpellCheckerUI.overMisspelling;
     var showUndo = canSpell && InlineSpellCheckerUI.canUndo();
     this.showItem("spell-check-enabled", canSpell);
