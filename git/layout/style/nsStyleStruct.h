@@ -2420,9 +2420,8 @@ private:
 };
 
 template<>
-struct nsTArray_CopyChooser<nsStyleFilter> {
-  typedef nsTArray_CopyWithConstructors<nsStyleFilter> Type;
-};
+struct nsTArray_CopyElements<nsStyleFilter>
+  : public nsTArray_CopyWithConstructors<nsStyleFilter> {};
 
 struct nsStyleSVGReset {
   nsStyleSVGReset();
