@@ -61,9 +61,6 @@ function useSettings() {
   return useSettings.result;
 }
 
-XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
-                                  "resource://gre/modules/SystemAppProxy.jsm");
-
 function UpdateCheckListener(updatePrompt) {
   this._updatePrompt = updatePrompt;
 }
@@ -136,6 +133,7 @@ UpdatePrompt.prototype = {
   _applyPromptTimer: null,
   _waitingForIdle: false,
   _updateCheckListner: null,
+  _pendingEvents: [],
 
   get applyPromptTimeout() {
     return Services.prefs.getIntPref(PREF_APPLY_PROMPT_TIMEOUT);
@@ -145,8 +143,14 @@ UpdatePrompt.prototype = {
     return Services.prefs.getIntPref(PREF_APPLY_IDLE_TIMEOUT);
   },
 
-  handleContentStart: function UP_handleContentStart() {
-    SystemAppProxy.addEventListener("mozContentEvent", this);
+  handleContentStart: function UP_handleContentStart(shell) {
+    let content = shell.contentBrowser.contentWindow;
+    content.addEventListener("mozContentEvent", this);
+
+    for (let i = 0; i < this._pendingEvents.length; i++) {
+      shell.sendChromeEvent(this._pendingEvents[i]);
+    }
+    this._pendingEvents.length = 0;
   },
 
   // nsIUpdatePrompt
@@ -286,12 +290,15 @@ UpdatePrompt.prototype = {
     let detail = aDetail || {};
     detail.type = aType;
 
-    let sent = SystemAppProxy.dispatchEvent(detail);
-    if (!sent) {
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    if (!browser) {
+      this._pendingEvents.push(detail);
       log("Warning: Couldn't send update event " + aType +
           ": no content browser. Will send again when content becomes available.");
       return false;
     }
+
+    browser.shell.sendChromeEvent(detail);
     return true;
   },
 

@@ -11,9 +11,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "SystemAppProxy",
-                                  "resource://gre/modules/SystemAppProxy.jsm");
-
 function ActivitiesDialog() {
   this._id = 0;
 
@@ -34,6 +31,8 @@ ActivitiesDialog.prototype = {
     // Keep up the frond-end of an activity choice. The messages contains
     // a list of {names, icons} for applications able to handle this particular
     // activity. The front-end should display a UI to pick one.
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+    let content = browser.getContentWindow();
     let detail = {
       type: "activity-choice",
       id: id,
@@ -43,17 +42,17 @@ ActivitiesDialog.prototype = {
 
     // Listen the resulting choice from the front-end. If there is no choice,
     // let's return -1, which means the user has cancelled the dialog.
-    SystemAppProxy.addEventListener("mozContentEvent", function act_getChoice(evt) {
+    content.addEventListener("mozContentEvent", function act_getChoice(evt) {
       if (evt.detail.id != id)
         return;
 
-      SystemAppProxy.removeEventListener("mozContentEvent", act_getChoice);
+      content.removeEventListener("mozContentEvent", act_getChoice);
       activity.callback.handleEvent(evt.detail.value !== undefined
                                       ? evt.detail.value
                                       : -1);
     });
 
-    SystemAppProxy.dispatchEvent(detail);
+    browser.shell.sendChromeEvent(detail);
   },
 
   chooseActivity: function ap_chooseActivity(aName, aActivities, aCallback) {

@@ -13,24 +13,44 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const { Services } = Cu.import("resource://gre/modules/Services.jsm");
-const { SystemAppProxy } = Cu.import("resource://gre/modules/SystemAppProxy.jsm");
 
-let eventHandler = function(evt) {
-  if (!evt.detail || evt.detail.type !== "permission-prompt") {
-    return;
+let browser = Services.wm.getMostRecentWindow("navigator:browser");
+let shell;
+
+function loadShell() {
+  if (!browser) {
+    debug("no browser");
+    return false;
   }
+  shell = browser.shell;
+  return true;
+}
 
-  sendAsyncMessage("permission-request", evt.detail);
-};
+function getContentWindow() {
+  return shell.contentBrowser.contentWindow;
+}
 
-SystemAppProxy.addEventListener("mozChromeEvent", eventHandler);
+if (loadShell()) {
+  let content = getContentWindow();
+  let eventHandler = function(evt) {
+    if (!evt.detail || evt.detail.type !== "permission-prompt") {
+      return;
+    }
 
-// need to remove ChromeEvent listener after test finished.
-addMessageListener("teardown", function() {
-  SystemAppProxy.removeEventListener("mozChromeEvent", eventHandler);
-});
+    sendAsyncMessage("permission-request", evt.detail);
+  };
 
-addMessageListener("permission-response", function(detail) {
-  SystemAppProxy._sendCustomEvent('mozContentEvent', detail);
-});
+  content.addEventListener("mozChromeEvent", eventHandler);
+
+  // need to remove ChromeEvent listener after test finished.
+  addMessageListener("teardown", function() {
+    content.removeEventListener("mozChromeEvent", eventHandler);
+  });
+
+  addMessageListener("permission-response", function(detail) {
+    let event = content.document.createEvent('CustomEvent');
+    event.initCustomEvent('mozContentEvent', true, true, detail);
+    content.dispatchEvent(event);
+  });
+}
 
