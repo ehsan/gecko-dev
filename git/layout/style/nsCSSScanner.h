@@ -47,8 +47,12 @@
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
 
+class nsIUnicharInputStream;
+
 // XXX turn this off for minimo builds
 #define CSS_REPORT_PARSE_ERRORS
+
+#define CSS_BUFFER_SIZE 256
 
 // for #ifdef CSS_REPORT_PARSE_ERRORS
 #include "nsXPIDLString.h"
@@ -137,7 +141,9 @@ class nsCSSScanner {
   // Init the scanner.
   // |aLineNumber == 1| is the beginning of a file, use |aLineNumber == 0|
   // when the line number is unknown.
-  void Init(const nsAString& aBuffer,
+  // Either aInput or (aBuffer and aCount) must be set.
+  void Init(nsIUnicharInputStream* aInput, 
+            const PRUnichar *aBuffer, PRUint32 aCount,
             nsIURI* aURI, PRUint32 aLineNumber,
             nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader);
   void Close();
@@ -147,6 +153,8 @@ class nsCSSScanner {
 
   // Set whether or not we are processing SVG
   void SetSVGMode(bool aSVGMode) {
+    NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
+                 "bad bool value");
     mSVGMode = aSVGMode;
   }
   bool IsSVGMode() const {
@@ -179,7 +187,7 @@ class nsCSSScanner {
 
   PRUint32 GetLineNumber() { return mLineNumber; }
 
-  // Get the next token. Return false on EOF. aTokenResult
+  // Get the next token. Return PR_FALSE on EOF. aTokenResult
   // is filled in with the data for the token.
   bool Next(nsCSSToken& aTokenResult);
 
@@ -192,7 +200,15 @@ class nsCSSScanner {
   // "-1" back so we can read it again as a number.)
   void Pushback(PRUnichar aChar);
 
+  // Reports operating-system level errors, e.g. read failures and
+  // out of memory.
+  nsresult GetLowLevelError();
+
+  // sometimes the parser wants to make note of a low-level error
+  void SetLowLevelError(nsresult aErrorCode);
+  
 protected:
+  bool EnsureData();
   PRInt32 Read();
   PRInt32 Peek();
   bool LookAhead(PRUnichar aChar);
@@ -210,6 +226,10 @@ protected:
 
   bool GatherIdent(PRInt32 aChar, nsString& aIdent);
 
+  // Only used when input is a stream
+  nsCOMPtr<nsIUnicharInputStream> mInputStream;
+  PRUnichar mBuffer[CSS_BUFFER_SIZE];
+
   const PRUnichar *mReadPointer;
   PRUint32 mOffset;
   PRUint32 mCount;
@@ -217,6 +237,7 @@ protected:
   PRInt32 mPushbackCount;
   PRInt32 mPushbackSize;
   PRUnichar mLocalPushback[4];
+  nsresult mLowLevelError;
 
   PRUint32 mLineNumber;
   // True if we are in SVG mode; false in "normal" CSS

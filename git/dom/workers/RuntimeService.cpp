@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "RuntimeService.h"
 
 #include "nsIDOMChromeWindow.h"
@@ -56,7 +54,7 @@
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
-#include <Navigator.h>
+#include "nsGlobalWindow.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
@@ -68,8 +66,6 @@
 #include "EventTarget.h"
 #include "Worker.h"
 #include "WorkerPrivate.h"
-
-using namespace mozilla;
 
 USING_WORKERS_NAMESPACE
 
@@ -219,7 +215,7 @@ PrefCallback(const char* aPrefName, void* aClosure)
 #ifdef JS_GC_ZEAL
   else if (!strcmp(aPrefName, gPrefsToWatch[PREF_gczeal])) {
     PRInt32 gczeal = Preferences::GetInt(gPrefsToWatch[PREF_gczeal]);
-    RuntimeService::SetDefaultGCZeal(PRUint8(clamped(gczeal, 0, 3)));
+    RuntimeService::SetDefaultGCZeal(PRUint8(NS_MIN(NS_MAX(gczeal, 0), 3)));
     rts->UpdateAllWorkerGCZeal();
   }
 #endif
@@ -389,7 +385,7 @@ ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
       bool enabled;
       if (NS_FAILED(ssm->IsCapabilityEnabled("UniversalXPConnect", &enabled))) {
         NS_WARNING("IsCapabilityEnabled failed!");
-        isChrome = false;
+        isChrome = PR_FALSE;
       }
 
       isChrome = !!enabled;
@@ -836,12 +832,12 @@ RuntimeService::Init()
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false);
+  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mObserved = true;
 
-  for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+  for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(gPrefsToWatch); index++) {
     if (NS_FAILED(Preferences::RegisterCallback(PrefCallback,
                                                 gPrefsToWatch[index], this))) {
       NS_WARNING("Failed to register pref callback?!");
@@ -956,7 +952,7 @@ RuntimeService::Cleanup()
   }
 
   if (mObserved) {
-    for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+    for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(gPrefsToWatch); index++) {
       Preferences::UnregisterCallback(PrefCallback, gPrefsToWatch[index], this);
     }
 

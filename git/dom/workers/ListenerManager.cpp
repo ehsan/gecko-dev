@@ -36,18 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "ListenerManager.h"
 
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 #include "Events.h"
 
-using namespace mozilla;
-using dom::workers::events::ListenerManager;
+using mozilla::dom::workers::events::ListenerManager;
 
 namespace {
 
@@ -392,10 +389,6 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
   }
 
   for (size_t index = 0; index < listeners.length(); index++) {
-    if (events::EventImmediatePropagationStopped(aCx, aEvent)) {
-      break;
-    }
-
     // If anything fails in here we want to report the exception and continue on
     // to the next listener rather than bailing out. If something fails and
     // does not set an exception then we bail out entirely as we've either run
@@ -433,7 +426,7 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
 
     jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
     jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionValue(aCx, aTarget, listenerVal, ArrayLength(argv),
+    if (!JS_CallFunctionValue(aCx, aTarget, listenerVal, JS_ARRAY_LENGTH(argv),
                               argv, &rval)) {
       if (!JS_ReportPendingException(aCx)) {
         return false;

@@ -69,8 +69,8 @@ public:
 
   /**
    * Gets a weak reference to the hashtable entry.
-   * @param aFound If not nsnull, will be set to true if the entry is found,
-   *               to false otherwise.
+   * @param aFound If not nsnull, will be set to PR_TRUE if the entry is found,
+   *               to PR_FALSE otherwise.
    * @return The entry, or nsnull if not found. Do not release this pointer!
    */
   RefPtr* GetWeak(KeyType aKey, bool* aFound = nsnull) const;
@@ -124,7 +124,7 @@ nsRefPtrHashtable<KeyClass,RefPtr>::Get
       NS_IF_ADDREF(*pRefPtr);
     }
 
-    return true;
+    return PR_TRUE;
   }
 
   // if the key doesn't exist, set *pRefPtr to null
@@ -132,7 +132,7 @@ nsRefPtrHashtable<KeyClass,RefPtr>::Get
   if (pRefPtr)
     *pRefPtr = nsnull;
 
-  return false;
+  return PR_FALSE;
 }
 
 template<class KeyClass, class RefPtr>
@@ -145,14 +145,14 @@ nsRefPtrHashtable<KeyClass,RefPtr>::GetWeak
   if (ent)
   {
     if (aFound)
-      *aFound = true;
+      *aFound = PR_TRUE;
 
     return ent->mData;
   }
 
-  // Key does not exist, return nsnull and set aFound to false
+  // Key does not exist, return nsnull and set aFound to PR_FALSE
   if (aFound)
-    *aFound = false;
+    *aFound = PR_FALSE;
   return nsnull;
 }
 
@@ -180,7 +180,7 @@ nsRefPtrHashtableMT<KeyClass,RefPtr>::Get
 
     PR_Unlock(this->mLock);
 
-    return true;
+    return PR_TRUE;
   }
 
   // if the key doesn't exist, set *pRefPtr to null
@@ -190,7 +190,7 @@ nsRefPtrHashtableMT<KeyClass,RefPtr>::Get
 
   PR_Unlock(this->mLock);
 
-  return false;
+  return PR_FALSE;
 }
 
 #endif // nsRefPtrHashtable_h__

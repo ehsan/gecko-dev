@@ -112,8 +112,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     nsCOMPtr<nsIURI> mSpeculationBaseURI;
 
-    nsCOMPtr<nsIURI> mViewSourceBaseURI;
-
     /**
      * Whether the parser has started
      */
@@ -126,16 +124,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     bool                          mRunFlushLoopOnStack;
 
     bool                          mCallContinueInterruptedParsingIfEnabled;
-
-    /**
-     * True if this parser should refuse to process any more input.
-     * Currently, the only way a parser can break is if it drops some input
-     * due to a memory allocation failure. In such a case, the whole parser
-     * needs to be marked as broken, because some input has been lost and
-     * parsing more input could lead to a DOM where pieces of HTML source
-     * that weren't supposed to become scripts become scripts.
-     */
-    bool                          mBroken;
 
   public:
   
@@ -249,26 +237,12 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      * a document--only when parsing to an actual DOM fragment
      */
     void EnableFragmentMode(bool aPreventScriptExecution) {
-      mFragmentMode = true;
+      mFragmentMode = PR_TRUE;
       mPreventScriptExecution = aPreventScriptExecution;
     }
     
     bool IsFragmentMode() {
       return mFragmentMode;
-    }
-
-    /**
-     * Marks this parser as broken and tells the stream parser (if any) to
-     * terminate.
-     */
-    void MarkAsBroken();
-
-    /**
-     * Checks if this parser is broken.
-     */
-    inline bool IsBroken() {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-      return mBroken;
     }
 
     inline void BeginDocUpdate() {
@@ -296,7 +270,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
         sAppendBatchSlotsExamined++;
 #endif
         if (*iter == aParent) {
-          newParent = false;
+          newParent = PR_FALSE;
           break;
         }
       }
@@ -338,7 +312,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       for (;;) {
         nsIContent* parent = aNode->GetParent();
         if (!parent) {
-          return true;
+          return PR_TRUE;
         }
         for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
           if (iter->Contains(parent)) {
@@ -407,7 +381,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     }
     
     void StartReadingFromStage() {
-      mReadingFromStage = true;
+      mReadingFromStage = PR_TRUE;
     }
 
     void StreamEnded();
@@ -417,8 +391,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mStage.AssertEmpty();
     }
 #endif
-
-    nsIURI* GetViewSourceBaseURI();
 
     void PreloadScript(const nsAString& aURL,
                        const nsAString& aCharset,

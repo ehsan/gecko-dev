@@ -369,7 +369,7 @@ enumfunc_pentries(CategoryLeaf* aLeaf, void* userArg)
                    args->categoryName,
                    aLeaf->GetKey(),
                    aLeaf->value) == (PRUint32) -1) {
-      args->success = false;
+      args->success = PR_FALSE;
       status = PL_DHASH_STOP;
     }
   }
@@ -470,7 +470,7 @@ nsCategoryManager::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
 nsCategoryManager::nsCategoryManager()
   : mLock("nsCategoryManager")
-  , mSuppressNotifications(false)
+  , mSuppressNotifications(PR_FALSE)
 {
   PL_INIT_ARENA_POOL(&mArena, "CategoryManagerArena",
                      NS_CATEGORYMANAGER_ARENA_SIZE);

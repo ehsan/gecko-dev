@@ -619,7 +619,8 @@ protected:
     nsIPresShell *GetPresShell() {
       nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
       if (content) {
-        return content->OwnerDoc()->GetShell();
+        nsIDocument* ownerDoc = content->GetOwnerDoc();
+        return ownerDoc ? ownerDoc->GetShell() : nsnull;
       }
       if (mDocShell) {
         nsCOMPtr<nsIPresShell> shell;
@@ -686,7 +687,7 @@ protected:
                          shadowBlur(0.0),
                          textAlign(TEXT_ALIGN_START),
                          textBaseline(TEXT_BASELINE_ALPHABETIC),
-                         imageSmoothingEnabled(true)
+                         imageSmoothingEnabled(PR_TRUE)
         { }
 
         ContextState(const ContextState& other)
@@ -820,11 +821,11 @@ NS_NewCanvasRenderingContext2DThebes(nsIDOMCanvasRenderingContext2D** aResult)
 }
 
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
-    : mValid(false), mZero(false), mOpaque(false), mResetLayer(true)
-    , mIPC(false)
+    : mValid(PR_FALSE), mZero(PR_FALSE), mOpaque(PR_FALSE), mResetLayer(PR_TRUE)
+    , mIPC(PR_FALSE)
     , mCanvasElement(nsnull)
-    , mSaveCount(0), mIsEntireFrameInvalid(false)
-    , mPredictManyRedrawCalls(false), mHasPath(false), mInvalidateCount(0)
+    , mSaveCount(0), mIsEntireFrameInvalid(PR_FALSE)
+    , mPredictManyRedrawCalls(PR_FALSE), mHasPath(PR_FALSE), mInvalidateCount(0)
     , mLastStyle(STYLE_MAX), mStyleStack(20)
 {
     sNumLivingContexts++;
@@ -856,9 +857,9 @@ nsCanvasRenderingContext2D::Reset()
 
     mSurface = nsnull;
     mThebes = nsnull;
-    mValid = false;
-    mIsEntireFrameInvalid = false;
-    mPredictManyRedrawCalls = false;
+    mValid = PR_FALSE;
+    mIsEntireFrameInvalid = PR_FALSE;
+    mPredictManyRedrawCalls = PR_FALSE;
     return NS_OK;
 }
 
@@ -872,7 +873,7 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
 
     if (!aStr.IsVoid()) {
         nsIDocument* document = mCanvasElement ?
-                                HTMLCanvasElement()->OwnerDoc() : nsnull;
+                                HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
         // Pass the CSS Loader object to the parser, to allow parser error
         // reports to include the outer window ID.
@@ -885,7 +886,7 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
 
         CurrentState().SetColorStyle(aWhichStyle, color);
 
-        mDirtyStyle[aWhichStyle] = true;
+        mDirtyStyle[aWhichStyle] = PR_TRUE;
         return NS_OK;
     }
 
@@ -893,14 +894,14 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
         nsCOMPtr<nsCanvasGradient> grad(do_QueryInterface(aInterface));
         if (grad) {
             CurrentState().SetGradientStyle(aWhichStyle, grad);
-            mDirtyStyle[aWhichStyle] = true;
+            mDirtyStyle[aWhichStyle] = PR_TRUE;
             return NS_OK;
         }
 
         nsCOMPtr<nsCanvasPattern> pattern(do_QueryInterface(aInterface));
         if (pattern) {
             CurrentState().SetPatternStyle(aWhichStyle, pattern);
-            mDirtyStyle[aWhichStyle] = true;
+            mDirtyStyle[aWhichStyle] = PR_TRUE;
             return NS_OK;
         }
     }
@@ -913,7 +914,7 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
         EmptyString(), 0, 0,
         nsIScriptError::warningFlag,
         "Canvas",
-        mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
+        mCanvasElement ? HTMLCanvasElement()->GetOwnerDoc() : nsnull);
 
     return NS_OK;
 }
@@ -925,11 +926,11 @@ nsCanvasRenderingContext2D::GetStyleAsStringOrInterface(nsAString& aStr,
                                                         Style aWhichStyle)
 {
     if (CurrentState().patternStyles[aWhichStyle]) {
-        aStr.SetIsVoid(true);
+        aStr.SetIsVoid(PR_TRUE);
         NS_ADDREF(*aInterface = CurrentState().patternStyles[aWhichStyle]);
         *aType = CMG_STYLE_PATTERN;
     } else if (CurrentState().gradientStyles[aWhichStyle]) {
-        aStr.SetIsVoid(true);
+        aStr.SetIsVoid(PR_TRUE);
         NS_ADDREF(*aInterface = CurrentState().gradientStyles[aWhichStyle]);
         *aType = CMG_STYLE_GRADIENT;
     } else {
@@ -967,7 +968,7 @@ void
 nsCanvasRenderingContext2D::DirtyAllStyles()
 {
     for (int i = 0; i < STYLE_MAX; i++) {
-        mDirtyStyle[i] = true;
+        mDirtyStyle[i] = PR_TRUE;
     }
 }
 
@@ -989,7 +990,7 @@ nsCanvasRenderingContext2D::ApplyStyle(Style aWhichStyle,
 
     // if not using global alpha, don't optimize with dirty bit
     if (aUseGlobalAlpha)
-        mDirtyStyle[aWhichStyle] = false;
+        mDirtyStyle[aWhichStyle] = PR_FALSE;
     mLastStyle = aWhichStyle;
 
     nsCanvasPattern* pattern = CurrentState().patternStyles[aWhichStyle];
@@ -1029,7 +1030,7 @@ nsCanvasRenderingContext2D::Redraw()
 {
     if (mIsEntireFrameInvalid)
         return NS_OK;
-    mIsEntireFrameInvalid = true;
+    mIsEntireFrameInvalid = PR_TRUE;
 
     if (!mCanvasElement) {
         NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
@@ -1097,9 +1098,9 @@ nsCanvasRenderingContext2D::Initialize(nsIDocShell *docShell, PRInt32 width, PRI
     mWidth = width;
     mHeight = height;
 
-    mResetLayer = true;
-    mValid = true;
-    mSurfaceCreated = false;
+    mResetLayer = PR_TRUE;
+    mValid = PR_TRUE;
+    mSurfaceCreated = PR_FALSE;
 
     // set up the initial canvas defaults
     mStyleStack.Clear();
@@ -1124,7 +1125,7 @@ void
 nsCanvasRenderingContext2D::CreateThebes()
 {
     mThebes = new gfxContext(mSurface);
-    mSurfaceCreated = true;
+    mSurfaceCreated = PR_TRUE;
     
     mThebes->SetOperator(gfxContext::OPERATOR_CLEAR);
     mThebes->NewPath();
@@ -1157,14 +1158,14 @@ bool
 nsCanvasRenderingContext2D::EnsureSurface()
 {
     if (!mValid) {
-        return false;
+        return PR_FALSE;
     }
 
     if (mSurface && mThebes && mSurfaceCreated) {
         if (mSurface->CairoStatus()) {
-            return false;
+            return PR_FALSE;
         }
-        return true;
+        return PR_TRUE;
     }
     
     nsRefPtr<gfxASurface> surface;
@@ -1173,11 +1174,11 @@ nsCanvasRenderingContext2D::EnsureSurface()
     if (gfxASurface::CheckSurfaceSize(gfxIntSize(mWidth, mHeight), 0xffff)) {
         // Zero sized surfaces have problems, so just use a 1 by 1.
         if (mHeight == 0 || mWidth == 0) {
-            mZero = true;
+            mZero = PR_TRUE;
             mHeight = 1;
             mWidth = 1;
         } else {
-            mZero = false;
+            mZero = PR_FALSE;
         }
 
         gfxASurface::gfxImageFormat format = GetImageFormat();
@@ -1186,7 +1187,7 @@ nsCanvasRenderingContext2D::EnsureSurface()
             nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
             nsIDocument* ownerDoc = nsnull;
             if (content)
-                ownerDoc = content->OwnerDoc();
+                ownerDoc = content->GetOwnerDoc();
             nsRefPtr<LayerManager> layerManager = nsnull;
 
             if (ownerDoc)
@@ -1223,16 +1224,16 @@ nsCanvasRenderingContext2D::EnsureSurface()
             JS_updateMallocCounter(context, mWidth * mHeight * 4);
         }
     } else {
-        return false;
+        return PR_FALSE;
     }
 
     mSurface = surface;
     CreateThebes();
 
     if (mSurface->CairoStatus()) {
-        return false;
+        return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -1605,7 +1606,7 @@ nsCanvasRenderingContext2D::SetStrokeStyle(nsIVariant *aValue)
         if (iid)
             NS_Free(iid);
 
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return SetStrokeStyle_multi(str, sup);
     }
 
@@ -1664,7 +1665,7 @@ nsCanvasRenderingContext2D::SetFillStyle(nsIVariant *aValue)
         rv = aValue->GetAsInterface(&iid, getter_AddRefs(sup));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return SetFillStyle_multi(str, sup);
     }
 
@@ -1833,15 +1834,6 @@ nsCanvasRenderingContext2D::CreatePattern(nsIDOMHTMLElement *image,
         return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(image);
-    nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content);
-    if (canvas) {
-        nsIntSize size = canvas->GetSize();
-        if (size.width == 0 || size.height == 0) {
-            return NS_ERROR_DOM_INVALID_STATE_ERR;
-        }
-    }
-
     // The canvas spec says that createPattern should use the first frame
     // of animated images
     nsLayoutUtils::SurfaceFromElementResult res =
@@ -1857,6 +1849,9 @@ nsCanvasRenderingContext2D::CreatePattern(nsIDOMHTMLElement *image,
     nsRefPtr<nsCanvasPattern> pat = new nsCanvasPattern(thebespat, res.mPrincipal,
                                                         res.mIsWriteOnly,
                                                         res.mCORSUsed);
+    if (!pat)
+        return NS_ERROR_OUT_OF_MEMORY;
+
     *_retval = pat.forget().get();
     return NS_OK;
 }
@@ -1919,7 +1914,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
 {
     nsIDocument* document = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
     // Pass the CSS Loader object to the parser, to allow parser error reports
     // to include the outer window ID.
@@ -1933,7 +1928,7 @@ nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
 
     CurrentState().SetColorStyle(STYLE_SHADOW, color);
 
-    mDirtyStyle[STYLE_SHADOW] = true;
+    mDirtyStyle[STYLE_SHADOW] = PR_TRUE;
 
     return NS_OK;
 }
@@ -2047,7 +2042,7 @@ nsCanvasRenderingContext2D::DrawPath(Style style, gfxRect *dirtyRect)
         // no need for a ref here, the blur owns the context
         gfxContext* ctx = ShadowInitialize(drawExtents, blur);
         if (ctx) {
-            ApplyStyle(style, false);
+            ApplyStyle(style, PR_FALSE);
             CopyContext(ctx, mThebes);
             ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
 
@@ -2195,7 +2190,7 @@ nsCanvasRenderingContext2D::BeginPath()
     if (!EnsureSurface())
         return NS_ERROR_FAILURE;
 
-    mHasPath = false;
+    mHasPath = PR_FALSE;
     mThebes->NewPath();
     return NS_OK;
 }
@@ -2249,7 +2244,7 @@ nsCanvasRenderingContext2D::MoveTo(float x, float y)
     if (!FloatValidate(x,y))
         return NS_OK;
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     mThebes->MoveTo(gfxPoint(x, y));
     return NS_OK;
 }
@@ -2263,7 +2258,7 @@ nsCanvasRenderingContext2D::LineTo(float x, float y)
     if (!FloatValidate(x,y))
         return NS_OK;
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     mThebes->LineTo(gfxPoint(x, y));
     return NS_OK;
 }
@@ -2283,7 +2278,7 @@ nsCanvasRenderingContext2D::QuadraticCurveTo(float cpx, float cpy, float x, floa
     gfxPoint p(x,y);
     gfxPoint cp(cpx, cpy);
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     mThebes->CurveTo((c+cp*2)/3.0, (p+cp*2)/3.0, p);
 
     return NS_OK;
@@ -2300,7 +2295,7 @@ nsCanvasRenderingContext2D::BezierCurveTo(float cp1x, float cp1y,
     if (!FloatValidate(cp1x,cp1y,cp2x,cp2y,x,y))
         return NS_OK;
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     mThebes->CurveTo(gfxPoint(cp1x, cp1y),
                      gfxPoint(cp2x, cp2y),
                      gfxPoint(x, y));
@@ -2320,7 +2315,7 @@ nsCanvasRenderingContext2D::ArcTo(float x1, float y1, float x2, float y2, float 
     if (radius < 0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
 
     gfxPoint p0 = mThebes->CurrentPoint();
 
@@ -2384,7 +2379,7 @@ nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, flo
 
     gfxPoint p(x,y);
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     if (ccw)
         mThebes->NegativeArc(p, r, startAngle, endAngle);
     else
@@ -2401,7 +2396,7 @@ nsCanvasRenderingContext2D::Rect(float x, float y, float w, float h)
     if (!FloatValidate(x,y,w,h))
         return NS_OK;
 
-    mHasPath = true;
+    mHasPath = PR_TRUE;
     mThebes->Rectangle(gfxRect(x, y, w, h));
     return NS_OK;
 }
@@ -2426,7 +2421,7 @@ CreateFontStyleRule(const nsAString& aFont,
     bool changed;
 
     nsIPrincipal* principal = aNode->NodePrincipal();
-    nsIDocument* document = aNode->OwnerDoc();
+    nsIDocument* document = aNode->GetOwnerDoc();
 
     nsIURI* docURL = document->GetDocumentURI();
     nsIURI* baseURL = document->GetDocBaseURI();
@@ -2442,14 +2437,14 @@ CreateFontStyleRule(const nsAString& aFont,
 
     rv = parser.ParseProperty(eCSSProperty_font, aFont, docURL, baseURL,
                               principal, rule->GetDeclaration(), &changed,
-                              false);
+                              PR_FALSE);
     if (NS_FAILED(rv))
         return rv;
 
     rv = parser.ParseProperty(eCSSProperty_line_height,
                               NS_LITERAL_STRING("normal"), docURL, baseURL,
                               principal, rule->GetDeclaration(), &changed,
-                              false);
+                              PR_FALSE);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2606,6 +2601,9 @@ nsCanvasRenderingContext2D::SetTextAlign(const nsAString& ta)
         CurrentState().textAlign = TEXT_ALIGN_RIGHT;
     else if (ta.EqualsLiteral("center"))
         CurrentState().textAlign = TEXT_ALIGN_CENTER;
+    // spec says to not throw error for invalid arg, but do it anyway
+    else
+        return NS_ERROR_INVALID_ARG;
 
     return NS_OK;
 }
@@ -2653,6 +2651,9 @@ nsCanvasRenderingContext2D::SetTextBaseline(const nsAString& tb)
         CurrentState().textBaseline = TEXT_BASELINE_IDEOGRAPHIC;
     else if (tb.EqualsLiteral("bottom"))
         CurrentState().textBaseline = TEXT_BASELINE_BOTTOM;
+    // spec says to not throw error for invalid arg, but do it anyway
+    else
+        return NS_ERROR_INVALID_ARG;
 
     return NS_OK;
 }
@@ -3018,7 +3019,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     gfxRect boundingBox = processor.mBoundingBox;
 
     // don't ever need to measure the bounding box twice
-    processor.mDoMeasureBoundingBox = false;
+    processor.mDoMeasureBoundingBox = PR_FALSE;
 
     if (doDrawShadow) {
         // for some reason the box is too tight, probably rounding error
@@ -3055,7 +3056,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         processor.mThebes = mThebes;
     }
 
-    gfxContextPathAutoSaveRestore pathSR(mThebes, false);
+    gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
 
     // back up and clear path if stroking
     if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
@@ -3370,7 +3371,7 @@ nsCanvasRenderingContext2D::IsPointInPath(float x, float y, bool *retVal)
         return NS_ERROR_FAILURE;
 
     if (!FloatValidate(x,y)) {
-        *retVal = false;
+        *retVal = PR_FALSE;
         return NS_OK;
     }
 
@@ -3691,7 +3692,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     nscolor bgColor;
 
     nsIDocument* elementDoc = mCanvasElement ?
-                              HTMLCanvasElement()->OwnerDoc() : nsnull;
+                              HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
     // Pass the CSS Loader object to the parser, to allow parser error reports
     // to include the outer window ID.
@@ -4197,7 +4198,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated();
 
-    mResetLayer = false;
+    mResetLayer = PR_FALSE;
 
     return canvasLayer.forget();
 }
@@ -4214,7 +4215,7 @@ nsCanvasRenderingContext2D::MarkContextClean()
     if (mInvalidateCount > 0) {
         mPredictManyRedrawCalls = mInvalidateCount > kCanvasMaxInvalidateCount;
     }
-    mIsEntireFrameInvalid = false;
+    mIsEntireFrameInvalid = PR_FALSE;
     mInvalidateCount = 0;
 }
 

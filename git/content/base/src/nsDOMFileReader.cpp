@@ -39,7 +39,7 @@
 
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMFile.h"
 #include "nsDOMError.h"
 #include "nsICharsetAlias.h"
@@ -69,6 +69,7 @@
 #include "nsIJSContextStack.h"
 #include "nsJSEnvironment.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIDOMClassInfo.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsCycleCollectionParticipant.h"
@@ -78,9 +79,8 @@
 #include "mozilla/Preferences.h"
 #include "xpcprivate.h"
 #include "xpcpublic.h"
-#include "XPCQuickStubs.h"
+#include "xpcquickstubs.h"
 #include "jstypedarray.h"
-#include "nsDOMJSUtils.h"
 
 using namespace mozilla;
 
@@ -409,7 +409,7 @@ nsDOMFileReader::DoOnStopRequest(nsIRequest *aRequest,
       break;
   }
   
-  mResult.SetIsVoid(false);
+  mResult.SetIsVoid(PR_FALSE);
 
   FreeFileData();
 

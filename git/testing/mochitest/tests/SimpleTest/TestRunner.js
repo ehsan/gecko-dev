@@ -1,7 +1,7 @@
 /*
  * e10s event dispatcher from content->chrome
  *
- * type = eventName (QuitApplication)
+ * type = eventName (QuitApplication, LoggerInit, LoggerClose, Logger, GetPref, SetPref)
  * data = json object {"filename":filename} <- for LoggerInit
  */
 function getElement(id) {
@@ -22,6 +22,10 @@ function contentDispatchEvent(type, data, sync) {
   element.setData("type", type);
   element.setData("data", JSON.stringify(data));
   document.dispatchEvent(element);
+}
+
+function contentSyncEvent(type, data) {
+  contentDispatchEvent(type, data, 1);
 }
 
 function contentAsyncEvent(type, data) {
@@ -79,6 +83,7 @@ TestRunner._urls = [];
 TestRunner.timeout = 5 * 60 * 1000; // 5 minutes.
 TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
 
+TestRunner.ipcMode = SpecialPowers.hasContentProcesses();
 TestRunner._expectingProcessCrash = false;
 
 /**
@@ -177,7 +182,9 @@ TestRunner._makeIframe = function (url, retry) {
         // typically calling ourselves from setTimeout is sufficient
         // but we'll try focus() just in case that's needed
 
-        contentAsyncEvent("Focus");
+        if (TestRunner.ipcMode) {
+          contentAsyncEvent("Focus");
+        }
         window.focus();
         iframe.focus();
         if (retry < 3) {
@@ -304,8 +311,6 @@ TestRunner.runNextTest = function() {
           indicator.style.backgroundColor = "red";
         }
 
-        SpecialPowers.unregisterProcessCrashObservers();
-
         TestRunner.log("TEST-START | Shutdown"); // used by automation.py
         TestRunner.log("Passed: " + $("pass-count").innerHTML);
         TestRunner.log("Failed: " + $("fail-count").innerHTML);
@@ -379,7 +384,7 @@ TestRunner.testFinished = function(tests) {
 
     SpecialPowers.executeAfterFlushingMessageQueue(function() {
         cleanUpCrashDumpFiles();
-        SpecialPowers.flushPrefEnv(runNextTest);
+        runNextTest();
     });
 };
 

@@ -56,9 +56,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsprf.h"
@@ -82,7 +79,6 @@
 
 #include "vm/Stack-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::types;
 
@@ -851,12 +847,7 @@ date_parseISOString(JSLinearString *str, jsdouble *result, JSContext *cx)
             tzMul = -1;
         ++i;
         NEED_NDIGITS(2, tzHour);
-        /*
-         * Non-standard extension to the ISO date format (permitted by ES5):
-         * allow "-0700" as a time zone offset, not just "-07:00".
-         */
-        if (PEEK(':'))
-          ++i;
+        NEED(':');
         NEED_NDIGITS(2, tzMin);
     } else {
         isLocalTime = JS_TRUE;
@@ -1042,7 +1033,7 @@ date_parseString(JSLinearString *str, jsdouble *result, JSContext *cx)
             }
             if (i <= st + 1)
                 goto syntax;
-            for (k = ArrayLength(wtb); --k >= 0;)
+            for (k = JS_ARRAY_LENGTH(wtb); --k >= 0;)
                 if (date_regionMatches(wtb[k], 0, s, st, i-st, 1)) {
                     int action = ttb[k];
                     if (action != 0) {
@@ -2522,32 +2513,32 @@ date_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 date_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    bool ok;
-    JSObject *obj = NonGenericMethodGuard(cx, args, date_valueOf, &DateClass, &ok);
-    if (!obj)
-        return ok;
+    /*
+     * It is an error to call date_valueOf on a non-date object, but we don't
+     * need to check for that explicitly here because every path calls
+     * GetUTCTime, which does the check.
+     */
 
     /* If called directly with no arguments, convert to a time number. */
-    if (argc == 0) {
-        args.rval() = obj->getDateUTCTime();
-        return true;
-    }
+    if (argc == 0)
+        return date_getTime(cx, argc, vp);
+
+    /* Verify this before extracting a string from the first argument. */
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj)
+        return false;
 
     /* Convert to number only if the hint was given, otherwise favor string. */
-    JSString *str = js_ValueToString(cx, args[0]);
+    JSString *str = js_ValueToString(cx, vp[2]);
     if (!str)
         return false;
     JSLinearString *linear_str = str->ensureLinear(cx);
     if (!linear_str)
         return false;
     JSAtom *number_str = cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER];
-    if (EqualStrings(linear_str, number_str)) {
-        args.rval() = obj->getDateUTCTime();
-        return true;
-    }
-    return date_format(cx, obj->getDateUTCTime().toNumber(), FORMATSPEC_FULL, args);
+    if (EqualStrings(linear_str, number_str))
+        return date_getTime(cx, argc, vp);
+    return date_toString(cx, argc, vp);
 }
 
 // Don't really need an argument here, but we don't support arg-less builtins

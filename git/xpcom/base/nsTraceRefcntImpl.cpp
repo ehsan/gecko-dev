@@ -361,7 +361,7 @@ public:
     nsTraceRefcntStats& stats =
       (type == nsTraceRefcntImpl::NEW_STATS) ? mNewStats : mAllStats;
     if (gLogLeaksOnly && !HaveLeaks(&stats))
-      return false;
+      return PR_FALSE;
 
     fprintf(out,
         "\n" \
@@ -370,7 +370,7 @@ public:
 
     this->DumpTotal(out);
 
-    return true;
+    return PR_TRUE;
   }
 
   void Dump(PRIntn i, FILE* out, nsTraceRefcntImpl::StatisticsType type) {
@@ -521,7 +521,7 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
   LOCK_TRACELOG();
 
   bool wasLogging = gLogging;
-  gLogging = false;  // turn off logging for this method
+  gLogging = PR_FALSE;  // turn off logging for this method
 
   BloatEntry total("TOTAL", 0);
   PL_HashTableEnumerateEntries(gBloatView, BloatEntry::TotalEntries, &total);
@@ -653,20 +653,20 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
       *result = stdout;
       fprintf(stdout, "### %s defined -- logging %s to stdout\n",
               envVar, msg);
-      return true;
+      return PR_TRUE;
     }
     else if (nsCRT::strcmp(value, "2") == 0) {
       *result = stderr;
       fprintf(stdout, "### %s defined -- logging %s to stderr\n",
               envVar, msg);
-      return true;
+      return PR_TRUE;
     }
     else {
       FILE *stream;
       nsCAutoString fname(value);
       if (XRE_GetProcessType() != GeckoProcessType_Default) {
         bool hasLogExtension = 
-            fname.RFind(".log", true, -1, 4) == kNotFound ? false : true;
+            fname.RFind(".log", PR_TRUE, -1, 4) == kNotFound ? false : true;
         if (hasLogExtension)
           fname.Cut(fname.Length() - 4, 4);
         fname.AppendLiteral("_");
@@ -689,7 +689,7 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
       return stream != NULL;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -701,7 +701,7 @@ static PLHashNumber HashNumber(const void* aKey)
 static void InitTraceLog(void)
 {
   if (gInitialized) return;
-  gInitialized = true;
+  gInitialized = PR_TRUE;
 
   bool defined;
   defined = InitLog("XPCOM_MEM_BLOAT_LOG", "bloat/leaks", &gBloatLog);
@@ -712,7 +712,7 @@ static void InitTraceLog(void)
     if (!gBloatView) {
       NS_WARNING("out of memory");
       gBloatLog = nsnull;
-      gLogLeaksOnly = false;
+      gLogLeaksOnly = PR_FALSE;
     }
   }
 
@@ -722,7 +722,7 @@ static void InitTraceLog(void)
 
   defined = InitLog("XPCOM_MEM_LEAKY_LOG", "for leaky", &gLeakyLog);
   if (defined) {
-    gLogToLeaky = true;
+    gLogToLeaky = PR_TRUE;
     PRFuncPtr p = nsnull, q = nsnull;
 #ifdef HAVE_DLOPEN
     {
@@ -743,7 +743,7 @@ static void InitTraceLog(void)
       leakyLogRelease = (void (*)(void*,int,int)) q;
     }
     else {
-      gLogToLeaky = false;
+      gLogToLeaky = PR_FALSE;
       fprintf(stdout, "### ERROR: XPCOM_MEM_LEAKY_LOG defined, but can't locate __log_addref and __log_release symbols\n");
       fflush(stdout);
     }
@@ -856,7 +856,7 @@ static void InitTraceLog(void)
 
 
   if (gBloatLog || gRefcntsLog || gAllocLog || gLeakyLog || gCOMPtrLog) {
-    gLogging = true;
+    gLogging = PR_TRUE;
   }
 
   gTraceLock = PR_NewLock();
@@ -925,7 +925,7 @@ NS_LogInit()
 {
 #ifdef NS_IMPL_REFCNT_LOGGING
   if (++gInitCount)
-    nsTraceRefcntImpl::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
 
 #ifdef NS_TRACE_MALLOC
@@ -972,7 +972,7 @@ LogTerm()
     }
     nsTraceRefcntImpl::Shutdown();
 #ifdef NS_IMPL_REFCNT_LOGGING
-    nsTraceRefcntImpl::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_FALSE);
     gActivityTLS = BAD_TLS_INDEX;
 #endif
   }
@@ -1058,7 +1058,7 @@ NS_LogRelease(void* aPtr, nsrefcnt aRefcnt, const char* aClazz)
     bool loggingThisType = (!gTypesToLog || LogThisType(aClazz));
     PRInt32 serialno = 0;
     if (gSerialNumbers && loggingThisType) {
-      serialno = GetSerialNumber(aPtr, false);
+      serialno = GetSerialNumber(aPtr, PR_FALSE);
       NS_ASSERTION(serialno != 0,
                    "Serial number requested for unrecognized pointer!  "
                    "Are you memmoving a refcounted object?");
@@ -1122,7 +1122,7 @@ NS_LogCtor(void* aPtr, const char* aType, PRUint32 aInstanceSize)
     bool loggingThisType = (!gTypesToLog || LogThisType(aType));
     PRInt32 serialno = 0;
     if (gSerialNumbers && loggingThisType) {
-      serialno = GetSerialNumber(aPtr, true);
+      serialno = GetSerialNumber(aPtr, PR_TRUE);
     }
 
     bool loggingThisObject = (!gObjectsToLog || LogThisObj(serialno));
@@ -1159,7 +1159,7 @@ NS_LogDtor(void* aPtr, const char* aType, PRUint32 aInstanceSize)
     bool loggingThisType = (!gTypesToLog || LogThisType(aType));
     PRInt32 serialno = 0;
     if (gSerialNumbers && loggingThisType) {
-      serialno = GetSerialNumber(aPtr, false);
+      serialno = GetSerialNumber(aPtr, PR_FALSE);
       RecycleSerialNumberPtr(aPtr);
     }
 
@@ -1192,7 +1192,7 @@ NS_LogCOMPtrAddRef(void* aCOMPtr, nsISupports* aObject)
   if (!gTypesToLog || !gSerialNumbers) {
     return;
   }
-  PRInt32 serialno = GetSerialNumber(object, false);
+  PRInt32 serialno = GetSerialNumber(object, PR_FALSE);
   if (serialno == 0) {
     return;
   }
@@ -1233,7 +1233,7 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
   if (!gTypesToLog || !gSerialNumbers) {
     return;
   }
-  PRInt32 serialno = GetSerialNumber(object, false);
+  PRInt32 serialno = GetSerialNumber(object, PR_FALSE);
   if (serialno == 0) {
     return;
   }

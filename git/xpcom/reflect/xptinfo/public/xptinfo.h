@@ -83,10 +83,10 @@ public:
     bool IsInterfacePointer() const
         {  switch (TagPart()) {
              default:
-               return false;
+               return PR_FALSE;
              case T_INTERFACE:
              case T_INTERFACE_IS:
-               return true;
+               return PR_TRUE;
            }
         }
 
@@ -99,12 +99,12 @@ public:
     bool IsDependent() const
         {  switch (TagPart()) {
              default:
-               return false;
+               return PR_FALSE;
              case T_INTERFACE_IS:
              case TD_ARRAY:
              case T_PSTRING_SIZE_IS:
              case T_PWSTRING_SIZE_IS:
-               return true;
+               return PR_TRUE;
            }
         }
 

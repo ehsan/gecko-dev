@@ -44,6 +44,10 @@
 #include "nsIBaseWindow.h"
 #include "nsIWidget.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOMElement.h"
+#include "nsIDocumentViewer.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
@@ -84,7 +88,7 @@ GetDOMWindow(nsIXULWindow* inWindow, nsCOMPtr<nsIDOMWindow>& outDOMWindow)
 
 nsWindowMediator::nsWindowMediator() :
   mEnumeratorList(), mOldestWindow(nsnull), mTopmostWindow(nsnull),
-  mTimeStamp(0), mSortingZOrder(false), mReady(false),
+  mTimeStamp(0), mSortingZOrder(PR_FALSE), mReady(PR_FALSE),
   mListLock("nsWindowMediator.mListLock")
 {
 }
@@ -101,10 +105,10 @@ nsresult nsWindowMediator::Init()
   nsCOMPtr<nsIObserverService> obsSvc =
     do_GetService("@mozilla.org/observer-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = obsSvc->AddObserver(this, "xpcom-shutdown", true);
+  rv = obsSvc->AddObserver(this, "xpcom-shutdown", PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mReady = true;
+  mReady = PR_TRUE;
   return NS_OK;
 }
 
@@ -169,7 +173,7 @@ nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
     mOldestWindow = inInfo->mYounger;
   if (inInfo == mTopmostWindow)
     mTopmostWindow = inInfo->mLower;
-  inInfo->Unlink(true, true);
+  inInfo->Unlink(PR_TRUE, PR_TRUE);
   if (inInfo == mOldestWindow)
     mOldestWindow = nsnull;
   if (inInfo == mTopmostWindow)
@@ -419,7 +423,7 @@ nsWindowMediator::CalculateZPosition(
   nsresult      result = NS_OK;
 
   *outPosition = inPosition;
-  *outAltered = false;
+  *outAltered = PR_FALSE;
 
   if (mSortingZOrder) { // don't fight SortZOrder()
     *outBelow = inBelow;
@@ -439,7 +443,7 @@ nsWindowMediator::CalculateZPosition(
     if (!info || info->mYounger != info && info->mLower == info)
       info = mTopmostWindow;
     else
-      found = true;
+      found = PR_TRUE;
 
     if (!found) {
       /* Treat unknown windows as a request to be on top.
@@ -462,7 +466,7 @@ nsWindowMediator::CalculateZPosition(
 
       *outPosition = nsIWindowMediator::zLevelBelow;
       belowWindow = info->mHigher->mWindow;
-      *outAltered = true;
+      *outAltered = PR_TRUE;
     }
   } else if (inPosition == nsIWindowMediator::zLevelBottom) {
     if (mTopmostWindow && mTopmostWindow->mHigher->mZLevel < inZ) {
@@ -475,7 +479,7 @@ nsWindowMediator::CalculateZPosition(
 
       *outPosition = nsIWindowMediator::zLevelBelow;
       belowWindow = info->mWindow;
-      *outAltered = true;
+      *outAltered = PR_TRUE;
     }
   } else {
     unsigned long relativeZ;
@@ -494,7 +498,7 @@ nsWindowMediator::CalculateZPosition(
           } while (info != mTopmostWindow);
 
           belowWindow = info->mHigher->mWindow;
-          *outAltered = true;
+          *outAltered = PR_TRUE;
         }
       } else if (relativeZ < inZ) {
         // nope. look for a higher window to be behind.
@@ -508,7 +512,7 @@ nsWindowMediator::CalculateZPosition(
           belowWindow = info->mWindow;
         else
           *outPosition = nsIWindowMediator::zLevelTop;
-        *outAltered = true;
+        *outAltered = PR_TRUE;
       } // else they're equal, so it's OK
     }
   }
@@ -574,7 +578,7 @@ nsWindowMediator::SetZPosition(
     belowInfo = mTopmostWindow ? mTopmostWindow->mHigher : nsnull;
 
   if (inInfo != belowInfo) {
-    inInfo->Unlink(false, true);
+    inInfo->Unlink(PR_FALSE, PR_TRUE);
     inInfo->InsertAfter(nsnull, belowInfo);
   }
   if (inPosition == nsIWindowMediator::zLevelTop)
@@ -644,12 +648,12 @@ nsWindowMediator::SortZOrderFrontToBack()
   if (!mTopmostWindow) // early during program execution there's no z list yet
     return;            // there's also only one window, so this is not dangerous
 
-  mSortingZOrder = true;
+  mSortingZOrder = PR_TRUE;
 
   /* Step through the list from top to bottom. If we find a window which
      should be moved down in the list, move it to its highest legal position. */
   do {
-    finished = true;
+    finished = PR_TRUE;
     lowest = mTopmostWindow->mHigher;
     scan = mTopmostWindow;
     while (scan != lowest) {
@@ -664,7 +668,7 @@ nsWindowMediator::SortZOrderFrontToBack()
         // reposition |scan| within the list
         if (scan == mTopmostWindow)
           mTopmostWindow = scan->mLower;
-        scan->Unlink(false, true);
+        scan->Unlink(PR_FALSE, PR_TRUE);
         scan->InsertAfter(nsnull, prev);
 
         // fix actual window order
@@ -678,16 +682,16 @@ nsWindowMediator::SortZOrderFrontToBack()
         if (base)
           base->GetMainWidget(getter_AddRefs(prevWidget));
         if (scanWidget)
-          scanWidget->PlaceBehind(eZPlacementBelow, prevWidget, false);
+          scanWidget->PlaceBehind(eZPlacementBelow, prevWidget, PR_FALSE);
 
-        finished = false;
+        finished = PR_FALSE;
         break;
       }
       scan = scan->mLower;
     }
   } while (!finished);
 
-  mSortingZOrder = false;
+  mSortingZOrder = PR_FALSE;
 }
 
 // see comment for SortZOrderFrontToBack
@@ -702,12 +706,12 @@ nsWindowMediator::SortZOrderBackToFront()
   if (!mTopmostWindow) // early during program execution there's no z list yet
     return;            // there's also only one window, so this is not dangerous
 
-  mSortingZOrder = true;
+  mSortingZOrder = PR_TRUE;
 
   /* Step through the list from bottom to top. If we find a window which
      should be moved up in the list, move it to its lowest legal position. */
   do {
-    finished = true;
+    finished = PR_TRUE;
     lowest = mTopmostWindow->mHigher;
     scan = lowest;
     while (scan != mTopmostWindow) {
@@ -720,7 +724,7 @@ nsWindowMediator::SortZOrderBackToFront()
 
         // reposition |scan| within the list
         if (scan != search && scan != search->mLower) {
-          scan->Unlink(false, true);
+          scan->Unlink(PR_FALSE, PR_TRUE);
           scan->InsertAfter(nsnull, search);
         }
         if (search == lowest)
@@ -739,15 +743,15 @@ nsWindowMediator::SortZOrderBackToFront()
             base->GetMainWidget(getter_AddRefs(searchWidget));
         }
         if (scanWidget)
-          scanWidget->PlaceBehind(eZPlacementBelow, searchWidget, false);
-        finished = false;
+          scanWidget->PlaceBehind(eZPlacementBelow, searchWidget, PR_FALSE);
+        finished = PR_FALSE;
         break;
       }
       scan = scan->mHigher;
     }
   } while (!finished);
 
-  mSortingZOrder = false;
+  mSortingZOrder = PR_FALSE;
 }
 
 NS_IMPL_ISUPPORTS3(nsWindowMediator,
@@ -793,7 +797,7 @@ nsWindowMediator::Observe(nsISupports* aSubject,
     MutexAutoLock lock(mListLock);
     while (mOldestWindow)
       UnregisterWindow(mOldestWindow);
-    mReady = false;
+    mReady = PR_FALSE;
   }
   return NS_OK;
 }
@@ -806,7 +810,7 @@ notifyOpenWindow(nsISupports *aElement, void* aData)
   WindowTitleData* winData = static_cast<WindowTitleData*>(aData);
   listener->OnOpenWindow(winData->mWindow);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -817,7 +821,7 @@ notifyCloseWindow(nsISupports *aElement, void* aData)
   WindowTitleData* winData = static_cast<WindowTitleData*>(aData);
   listener->OnCloseWindow(winData->mWindow);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool 
@@ -828,5 +832,5 @@ notifyWindowTitleChange(nsISupports *aElement, void* aData)
   WindowTitleData* titleData = reinterpret_cast<WindowTitleData*>(aData);
   listener->OnWindowTitleChange(titleData->mWindow, titleData->mTitle);
 
-  return true;
+  return PR_TRUE;
 }

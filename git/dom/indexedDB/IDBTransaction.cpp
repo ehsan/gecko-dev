@@ -42,7 +42,7 @@
 #include "nsIScriptContext.h"
 
 #include "mozilla/storage.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
@@ -182,14 +182,6 @@ IDBTransaction::OnRequestFinished()
   }
 }
 
-void
-IDBTransaction::SetTransactionListener(IDBTransactionListener* aListener)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!mListener, "Shouldn't already have a listener!");
-  mListener = aListener;
-}
-
 nsresult
 IDBTransaction::CommitOrRollback()
 {
@@ -198,7 +190,7 @@ IDBTransaction::CommitOrRollback()
   TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
   NS_ENSURE_STATE(pool);
 
-  nsRefPtr<CommitHelper> helper(new CommitHelper(this, mListener));
+  nsRefPtr<CommitHelper> helper(new CommitHelper(this));
 
   mCachedStatements.Enumerate(DoomCachedStatements, helper);
   NS_ASSERTION(!mCachedStatements.Count(), "Statements left!");
@@ -359,6 +351,122 @@ IDBTransaction::AddStatement(bool aCreate,
     "SET data = :data "
     "WHERE object_store_id = :osid "
     "AND key_value = :key_value"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::DeleteStatement(bool aAutoIncrement)
+{
+  if (aAutoIncrement) {
+    return GetCachedStatement(
+      "DELETE FROM ai_object_data "
+      "WHERE id = :key_value "
+      "AND object_store_id = :osid"
+    );
+  }
+  return GetCachedStatement(
+    "DELETE FROM object_data "
+    "WHERE key_value = :key_value "
+    "AND object_store_id = :osid"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::GetStatement(bool aAutoIncrement)
+{
+  if (aAutoIncrement) {
+    return GetCachedStatement(
+      "SELECT data "
+      "FROM ai_object_data "
+      "WHERE id = :id "
+      "AND object_store_id = :osid"
+    );
+  }
+  return GetCachedStatement(
+    "SELECT data "
+    "FROM object_data "
+    "WHERE key_value = :id "
+    "AND object_store_id = :osid"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::IndexGetStatement(bool aUnique,
+                                  bool aAutoIncrement)
+{
+  if (aAutoIncrement) {
+    if (aUnique) {
+      return GetCachedStatement(
+        "SELECT ai_object_data_id "
+        "FROM ai_unique_index_data "
+        "WHERE index_id = :index_id "
+        "AND value = :value"
+      );
+    }
+    return GetCachedStatement(
+      "SELECT ai_object_data_id "
+      "FROM ai_index_data "
+      "WHERE index_id = :index_id "
+      "AND value = :value"
+    );
+  }
+  if (aUnique) {
+    return GetCachedStatement(
+      "SELECT object_data_key "
+      "FROM unique_index_data "
+      "WHERE index_id = :index_id "
+      "AND value = :value"
+    );
+  }
+  return GetCachedStatement(
+    "SELECT object_data_key "
+    "FROM index_data "
+    "WHERE index_id = :index_id "
+    "AND value = :value"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::IndexGetObjectStatement(bool aUnique,
+                                        bool aAutoIncrement)
+{
+  if (aAutoIncrement) {
+    if (aUnique) {
+      return GetCachedStatement(
+        "SELECT data "
+        "FROM ai_object_data "
+        "INNER JOIN ai_unique_index_data "
+        "ON ai_object_data.id = ai_unique_index_data.ai_object_data_id "
+        "WHERE index_id = :index_id "
+        "AND value = :value"
+      );
+    }
+    return GetCachedStatement(
+      "SELECT data "
+      "FROM ai_object_data "
+      "INNER JOIN ai_index_data "
+      "ON ai_object_data.id = ai_index_data.ai_object_data_id "
+      "WHERE index_id = :index_id "
+      "AND value = :value"
+    );
+  }
+  if (aUnique) {
+    return GetCachedStatement(
+      "SELECT data "
+      "FROM object_data "
+      "INNER JOIN unique_index_data "
+      "ON object_data.id = unique_index_data.object_data_id "
+      "WHERE index_id = :index_id "
+      "AND value = :value"
+    );
+  }
+  return GetCachedStatement(
+    "SELECT data "
+    "FROM object_data "
+    "INNER JOIN index_data "
+    "ON object_data.id = index_data.object_data_id "
+    "WHERE index_id = :index_id "
+    "AND value = :value"
   );
 }
 
@@ -667,13 +775,8 @@ IDBTransaction::Abort()
   mAborted = true;
   mReadyState = nsIIDBTransaction::DONE;
 
-  if (Mode() == nsIIDBTransaction::VERSION_CHANGE) {
-    // If a version change transaction is aborted, the db must be closed
-    mDatabase->Close();
-  }
-
   // Fire the abort event if there are no outstanding requests. Otherwise the
-  // abort event will be fired when all outstanding requests finish.
+  // abort event will be fired when all outdtanding requests finish.
   if (needToCommitOrRollback) {
     return CommitOrRollback();
   }
@@ -748,7 +851,7 @@ IDBTransaction::SetOntimeout(nsIDOMEventListener* aOntimeout)
 nsresult
 IDBTransaction::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   aVisitor.mParentTarget = mDatabase;
   return NS_OK;
 }
@@ -805,10 +908,8 @@ IDBTransaction::AfterProcessNextEvent(nsIThreadInternal* aThread,
   return NS_OK;
 }
 
-CommitHelper::CommitHelper(IDBTransaction* aTransaction,
-                           IDBTransactionListener* aListener)
+CommitHelper::CommitHelper(IDBTransaction* aTransaction)
 : mTransaction(aTransaction),
-  mListener(aListener),
   mAborted(!!aTransaction->mAborted),
   mHaveMetadata(false)
 {
@@ -864,14 +965,7 @@ CommitHelper::Run()
 #ifdef DEBUG
     mTransaction->mFiredCompleteOrAbort = true;
 #endif
-
-    // Tell the listener (if we have one) that we're done
-    if (mListener) {
-      mListener->NotifyTransactionComplete(mTransaction);
-    }
-
     mTransaction = nsnull;
-
     return NS_OK;
   }
 
@@ -900,7 +994,7 @@ CommitHelper::Run()
         nsresult rv =
           IDBFactory::LoadDatabaseInformation(mConnection,
                                               mTransaction->Database()->Id(),
-                                              &mOldVersion, mOldObjectStores);
+                                              mOldVersion, mOldObjectStores);
         if (NS_SUCCEEDED(rv)) {
           mHaveMetadata = true;
         }

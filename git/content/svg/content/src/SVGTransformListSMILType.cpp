@@ -105,19 +105,19 @@ SVGTransformListSMILType::IsEqual(const nsSMILValue& aLeft,
 
   // If array-lengths don't match, we're trivially non-equal.
   if (leftArr.Length() != rightArr.Length()) {
-    return false;
+    return PR_FALSE;
   }
 
   // Array-lengths match -- check each array-entry for equality.
   PRUint32 length = leftArr.Length(); // == rightArr->Length(), if we get here
   for (PRUint32 i = 0; i < length; ++i) {
     if (leftArr[i] != rightArr[i]) {
-      return false;
+      return PR_FALSE;
     }
   }
 
   // Found no differences.
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -370,14 +370,14 @@ SVGTransformListSMILType::AppendTransforms(const SVGTransformList& aList,
   TransformArray& transforms = *static_cast<TransformArray*>(aValue.mU.mPtr);
 
   if (!transforms.SetCapacity(transforms.Length() + aList.Length()))
-    return false;
+    return PR_FALSE;
 
   for (PRUint32 i = 0; i < aList.Length(); ++i) {
     // No need to check the return value below since we have already allocated
     // the necessary space
     transforms.AppendElement(SVGTransformSMILData(aList[i]));
   }
-  return true;
+  return PR_TRUE;
 }
 
 // static
@@ -392,12 +392,12 @@ SVGTransformListSMILType::GetTransforms(const nsSMILValue& aValue,
 
   aTransforms.Clear();
   if (!aTransforms.SetCapacity(smilTransforms.Length()))
-      return false;
+      return PR_FALSE;
 
   for (PRUint32 i = 0; i < smilTransforms.Length(); ++i) {
     // No need to check the return value below since we have already allocated
     // the necessary space
     aTransforms.AppendElement(smilTransforms[i].ToSVGTransform());
   }
-  return true;
+  return PR_TRUE;
 }

@@ -100,7 +100,7 @@ NS_INTERFACE_MAP_BEGIN(nsExtProtocolChannel)
 NS_INTERFACE_MAP_END_THREADSAFE
 
 nsExtProtocolChannel::nsExtProtocolChannel() : mStatus(NS_OK), 
-                                               mWasOpened(false)
+                                               mWasOpened(PR_FALSE)
 {
 }
 
@@ -210,7 +210,7 @@ NS_IMETHODIMP nsExtProtocolChannel::AsyncOpen(nsIStreamListener *listener, nsISu
   NS_ENSURE_ARG_POINTER(listener);
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
-  mWasOpened = true;
+  mWasOpened = PR_TRUE;
 
   return OpenURL();
 }
@@ -298,7 +298,7 @@ NS_IMETHODIMP nsExtProtocolChannel::GetName(nsACString &result)
 
 NS_IMETHODIMP nsExtProtocolChannel::IsPending(bool *result)
 {
-  *result = false;
+  *result = PR_FALSE;
   return NS_OK; 
 }
 
@@ -365,7 +365,7 @@ NS_IMETHODIMP
 nsExternalProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 // returns TRUE if the OS can handle this protocol scheme and false otherwise.
@@ -443,6 +443,6 @@ NS_IMETHODIMP nsExternalProtocolHandler::ExternalAppExistsForScheme(const nsACSt
       PromiseFlatCString(aScheme).get(), _retval);
 
   // In case we don't have external protocol service.
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }

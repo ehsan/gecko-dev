@@ -73,7 +73,7 @@ nsIdleServiceQt::nsIdleServiceQt()
 
 static void Initialize()
 {
-    sInitialized = true;
+    sInitialized = PR_TRUE;
 
 #if !defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_X11)
     // This will leak - See comments in ~nsIdleServiceQt().

@@ -44,8 +44,6 @@
  * potentially re-creating) style contexts
  */
 
-#include "mozilla/Util.h"
-
 #include "nsStyleSet.h"
 #include "nsNetUtil.h"
 #include "nsCSSStyleSheet.h"
@@ -66,8 +64,8 @@
 #include "nsEventStates.h"
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
+namespace css = mozilla::css;
 
 NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
 
@@ -138,9 +136,9 @@ nsStyleSet::nsStyleSet()
   : mRuleTree(nsnull),
     mUnusedRuleNodeCount(0),
     mBatching(0),
-    mInShutdown(false),
-    mAuthorStyleDisabled(false),
-    mInReconstruct(false),
+    mInShutdown(PR_FALSE),
+    mAuthorStyleDisabled(PR_FALSE),
+    mInReconstruct(PR_FALSE),
     mDirty(0)
 {
 }
@@ -207,7 +205,7 @@ nsStyleSet::BeginReconstruct()
   // rule trees that really aren't referenced anymore (which should be
   // all of them, if there are no bugs in reresolution code).
 
-  mInReconstruct = true;
+  mInReconstruct = PR_TRUE;
   mRuleTree = newTree;
 
   return NS_OK;
@@ -217,7 +215,7 @@ void
 nsStyleSet::EndReconstruct()
 {
   NS_ASSERTION(mInReconstruct, "Unmatched begin/end?");
-  mInReconstruct = false;
+  mInReconstruct = PR_FALSE;
 #ifdef DEBUG
   for (PRInt32 i = mRoots.Length() - 1; i >= 0; --i) {
     nsRuleNode *n = mRoots[i]->GetRuleNode();
@@ -475,7 +473,7 @@ EnumRulesMatching(nsIStyleRuleProcessor* aProcessor, void* aData)
 {
   T* data = static_cast<T*>(aData);
   aProcessor->RulesMatching(data);
-  return true;
+  return PR_TRUE;
 }
 
 static inline bool
@@ -528,7 +526,7 @@ ReplaceAnimationRule(nsRuleNode *aOldRuleNode,
                     "wrong level");
 
   if (aNewAnimRule) {
-    n = n->Transition(aNewAnimRule, nsStyleSet::eAnimationSheet, false);
+    n = n->Transition(aNewAnimRule, nsStyleSet::eAnimationSheet, PR_FALSE);
   }
 
   for (PRUint32 i = moreSpecificNodes.Length(); i-- != 0; ) {
@@ -667,7 +665,7 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
         : nsnull;
       result = GetContext(aParentContext, ruleNode, visitedRuleNode,
                           aIsLink, aIsVisitedLink,
-                          aPseudoTag, aPseudoType, false, nsnull);
+                          aPseudoTag, aPseudoType, PR_FALSE, nsnull);
     }
   }
 
@@ -772,13 +770,13 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   // this will be either the root or one of the restriction rules.
   nsRuleNode* lastRestrictionRN = aRuleWalker->CurrentNode();
 
-  aRuleWalker->SetLevel(eAgentSheet, false, true);
+  aRuleWalker->SetLevel(eAgentSheet, PR_FALSE, PR_TRUE);
   if (mRuleProcessors[eAgentSheet])
     (*aCollectorFunc)(mRuleProcessors[eAgentSheet], aData);
   nsRuleNode* lastAgentRN = aRuleWalker->CurrentNode();
   bool haveImportantUARules = !aRuleWalker->GetCheckForImportantRules();
 
-  aRuleWalker->SetLevel(eUserSheet, false, true);
+  aRuleWalker->SetLevel(eUserSheet, PR_FALSE, PR_TRUE);
   bool skipUserStyles =
     aContent && aContent->IsInNativeAnonymousSubtree();
   if (!skipUserStyles && mRuleProcessors[eUserSheet]) // NOTE: different
@@ -786,12 +784,12 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   nsRuleNode* lastUserRN = aRuleWalker->CurrentNode();
   bool haveImportantUserRules = !aRuleWalker->GetCheckForImportantRules();
 
-  aRuleWalker->SetLevel(ePresHintSheet, false, false);
+  aRuleWalker->SetLevel(ePresHintSheet, PR_FALSE, PR_FALSE);
   if (mRuleProcessors[ePresHintSheet])
     (*aCollectorFunc)(mRuleProcessors[ePresHintSheet], aData);
   nsRuleNode* lastPresHintRN = aRuleWalker->CurrentNode();
   
-  aRuleWalker->SetLevel(eDocSheet, false, true);
+  aRuleWalker->SetLevel(eDocSheet, PR_FALSE, PR_TRUE);
   bool cutOffInheritance = false;
   if (mBindingManager && aContent) {
     // We can supply additional document-level sheets that should be walked.
@@ -802,21 +800,21 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
   if (!skipUserStyles && !cutOffInheritance &&
       mRuleProcessors[eDocSheet]) // NOTE: different
     (*aCollectorFunc)(mRuleProcessors[eDocSheet], aData);
-  aRuleWalker->SetLevel(eStyleAttrSheet, false,
+  aRuleWalker->SetLevel(eStyleAttrSheet, PR_FALSE,
                         aRuleWalker->GetCheckForImportantRules());
   if (mRuleProcessors[eStyleAttrSheet])
     (*aCollectorFunc)(mRuleProcessors[eStyleAttrSheet], aData);
   nsRuleNode* lastDocRN = aRuleWalker->CurrentNode();
   bool haveImportantDocRules = !aRuleWalker->GetCheckForImportantRules();
 
-  aRuleWalker->SetLevel(eOverrideSheet, false, true);
+  aRuleWalker->SetLevel(eOverrideSheet, PR_FALSE, PR_TRUE);
   if (mRuleProcessors[eOverrideSheet])
     (*aCollectorFunc)(mRuleProcessors[eOverrideSheet], aData);
   nsRuleNode* lastOvrRN = aRuleWalker->CurrentNode();
   bool haveImportantOverrideRules = !aRuleWalker->GetCheckForImportantRules();
 
   if (haveImportantDocRules) {
-    aRuleWalker->SetLevel(eDocSheet, true, false);
+    aRuleWalker->SetLevel(eDocSheet, PR_TRUE, PR_FALSE);
     AddImportantRules(lastDocRN, lastPresHintRN, aRuleWalker);  // doc
   }
 #ifdef DEBUG
@@ -826,7 +824,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 #endif
 
   if (haveImportantOverrideRules) {
-    aRuleWalker->SetLevel(eOverrideSheet, true, false);
+    aRuleWalker->SetLevel(eOverrideSheet, PR_TRUE, PR_FALSE);
     AddImportantRules(lastOvrRN, lastDocRN, aRuleWalker);  // override
   }
 #ifdef DEBUG
@@ -836,7 +834,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 #endif
 
   // This needs to match IsMoreSpecificThanAnimation() above.
-  aRuleWalker->SetLevel(eAnimationSheet, false, false);
+  aRuleWalker->SetLevel(eAnimationSheet, PR_FALSE, PR_FALSE);
   (*aCollectorFunc)(mRuleProcessors[eAnimationSheet], aData);
 
 #ifdef DEBUG
@@ -844,7 +842,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 #endif
 
   if (haveImportantUserRules) {
-    aRuleWalker->SetLevel(eUserSheet, true, false);
+    aRuleWalker->SetLevel(eUserSheet, PR_TRUE, PR_FALSE);
     AddImportantRules(lastUserRN, lastAgentRN, aRuleWalker); //user
   }
 #ifdef DEBUG
@@ -854,7 +852,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 #endif
 
   if (haveImportantUARules) {
-    aRuleWalker->SetLevel(eAgentSheet, true, false);
+    aRuleWalker->SetLevel(eAgentSheet, PR_TRUE, PR_FALSE);
     AddImportantRules(lastAgentRN, lastRestrictionRN, aRuleWalker); //agent
   }
 #ifdef DEBUG
@@ -870,7 +868,7 @@ nsStyleSet::FileRules(nsIStyleRuleProcessor::EnumFunc aCollectorFunc,
 #ifdef DEBUG
   nsRuleNode *lastImportantRN = aRuleWalker->CurrentNode();
 #endif
-  aRuleWalker->SetLevel(eTransitionSheet, false, false);
+  aRuleWalker->SetLevel(eTransitionSheet, PR_FALSE, PR_FALSE);
   (*aCollectorFunc)(mRuleProcessors[eTransitionSheet], aData);
 #ifdef DEBUG
   AssertNoCSSRules(aRuleWalker->CurrentNode(), lastImportantRN);
@@ -922,17 +920,17 @@ bool nsStyleSet::BuildDefaultStyleData(nsPresContext* aPresContext)
                "leaking default style data");
   mDefaultStyleData.mResetData = new (aPresContext) nsResetStyleData;
   if (!mDefaultStyleData.mResetData)
-    return false;
+    return PR_FALSE;
   mDefaultStyleData.mInheritedData = new (aPresContext) nsInheritedStyleData;
   if (!mDefaultStyleData.mInheritedData)
-    return false;
+    return PR_FALSE;
 
 #define SSARG_PRESCONTEXT aPresContext
 
 #define CREATE_DATA(name, type, args) \
   if (!(mDefaultStyleData.m##type##Data->mStyleStructs[eStyleStruct_##name] = \
           new (aPresContext) nsStyle##name args)) \
-    return false;
+    return PR_FALSE;
 
 #define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args) \
   CREATE_DATA(name, Inherited, ctor_args)
@@ -945,15 +943,15 @@ bool nsStyleSet::BuildDefaultStyleData(nsPresContext* aPresContext)
 #undef STYLE_STRUCT_RESET
 #undef SSARG_PRESCONTEXT
 
-  return true;
+  return PR_TRUE;
 }
 
 already_AddRefed<nsStyleContext>
 nsStyleSet::ResolveStyleFor(Element* aElement,
                             nsStyleContext* aParentContext)
 {
-  TreeMatchContext treeContext(true, nsRuleWalker::eRelevantLinkUnvisited,
-                               aElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
+                               aElement->GetOwnerDoc());
   return ResolveStyleFor(aElement, aParentContext, treeContext);
 }
 
@@ -988,7 +986,7 @@ nsStyleSet::ResolveStyleFor(Element* aElement,
                     nsCSSRuleProcessor::GetContentState(aElement).
                       HasState(NS_EVENT_STATE_VISITED),
                     nsnull, nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                    true, aElement);
+                    PR_TRUE, aElement);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1000,15 +998,15 @@ nsStyleSet::ResolveStyleForRules(nsStyleContext* aParentContext,
   nsRuleWalker ruleWalker(mRuleTree);
   // FIXME: Perhaps this should be passed in, but it probably doesn't
   // matter.
-  ruleWalker.SetLevel(eDocSheet, false, false);
+  ruleWalker.SetLevel(eDocSheet, PR_FALSE, PR_FALSE);
   for (PRInt32 i = 0; i < aRules.Count(); i++) {
     ruleWalker.ForwardOnPossiblyCSSRule(aRules.ObjectAt(i));
   }
 
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nsnull,
-                    false, false,
+                    PR_FALSE, PR_FALSE,
                     nsnull, nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                    false, nsnull);
+                    PR_FALSE, nsnull);
 }
 
 already_AddRefed<nsStyleContext>
@@ -1021,7 +1019,7 @@ nsStyleSet::ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
   ruleWalker.SetCurrentNode(aBaseContext->GetRuleNode());
   // FIXME: Perhaps this should be passed in, but it probably doesn't
   // matter.
-  ruleWalker.SetLevel(eDocSheet, false, false);
+  ruleWalker.SetLevel(eDocSheet, PR_FALSE, PR_FALSE);
   for (PRInt32 i = 0; i < aRules.Count(); i++) {
     ruleWalker.ForwardOnPossiblyCSSRule(aRules.ObjectAt(i));
   }
@@ -1042,16 +1040,16 @@ nsStyleSet::ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
                     aBaseContext->RelevantLinkVisited(),
                     aBaseContext->GetPseudo(),
                     aBaseContext->GetPseudoType(),
-                    false, nsnull);
+                    PR_FALSE, nsnull);
 }
 
 already_AddRefed<nsStyleContext>
 nsStyleSet::ResolveStyleForNonElement(nsStyleContext* aParentContext)
 {
   return GetContext(aParentContext, mRuleTree, nsnull,
-                    false, false,
+                    PR_FALSE, PR_FALSE,
                     nsCSSAnonBoxes::mozNonElement,
-                    nsCSSPseudoElements::ePseudo_AnonBox, false, nsnull);
+                    nsCSSPseudoElements::ePseudo_AnonBox, PR_FALSE, nsnull);
 }
 
 void
@@ -1059,7 +1057,7 @@ nsStyleSet::WalkRestrictionRule(nsCSSPseudoElements::Type aPseudoType,
                                 nsRuleWalker* aRuleWalker)
 {
   // This needs to match GetPseudoRestriction in nsRuleNode.cpp.
-  aRuleWalker->SetLevel(eAgentSheet, false, false);
+  aRuleWalker->SetLevel(eAgentSheet, PR_FALSE, PR_FALSE);
   if (aPseudoType == nsCSSPseudoElements::ePseudo_firstLetter)
     aRuleWalker->Forward(mFirstLetterRule);
   else if (aPseudoType == nsCSSPseudoElements::ePseudo_firstLine)
@@ -1078,8 +1076,8 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
   NS_ASSERTION(aParentElement, "Must have parent element");
 
   nsRuleWalker ruleWalker(mRuleTree);
-  TreeMatchContext treeContext(true, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
+                               aParentElement->GetOwnerDoc());
   PseudoElementRuleProcessorData data(PresContext(), aParentElement,
                                       &ruleWalker, aType, treeContext);
   WalkRestrictionRule(aType, &ruleWalker);
@@ -1101,7 +1099,7 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     // For pseudos, |data.IsLink()| being true means that
                     // our parent node is a link.
-                    false, false,
+                    PR_FALSE, PR_FALSE,
                     nsCSSPseudoElements::GetPseudoAtom(aType), aType,
                     aType == nsCSSPseudoElements::ePseudo_before ||
                     aType == nsCSSPseudoElements::ePseudo_after,
@@ -1113,8 +1111,8 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
                                     nsCSSPseudoElements::Type aType,
                                     nsStyleContext* aParentContext)
 {
-  TreeMatchContext treeContext(true, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
+                               aParentElement->GetOwnerDoc());
   return ProbePseudoElementStyle(aParentElement, aType, aParentContext,
                                  treeContext);
 }
@@ -1162,7 +1160,7 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
     GetContext(aParentContext, ruleNode, visitedRuleNode,
                // For pseudos, |data.IsLink()| being true means that
                // our parent node is a link.
-               false, false,
+               PR_FALSE, PR_FALSE,
                pseudoTag, aType,
                aType == nsCSSPseudoElements::ePseudo_before ||
                aType == nsCSSPseudoElements::ePseudo_after,
@@ -1207,9 +1205,9 @@ nsStyleSet::ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag,
             &ruleWalker);
 
   return GetContext(aParentContext, ruleWalker.CurrentNode(), nsnull,
-                    false, false,
+                    PR_FALSE, PR_FALSE,
                     aPseudoTag, nsCSSPseudoElements::ePseudo_AnonBox,
-                    false, nsnull);
+                    PR_FALSE, nsnull);
 }
 
 #ifdef MOZ_XUL
@@ -1226,8 +1224,8 @@ nsStyleSet::ResolveXULTreePseudoStyle(Element* aParentElement,
                "Unexpected pseudo");
 
   nsRuleWalker ruleWalker(mRuleTree);
-  TreeMatchContext treeContext(true, nsRuleWalker::eRelevantLinkUnvisited,
-                               aParentElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_TRUE, nsRuleWalker::eRelevantLinkUnvisited,
+                               aParentElement->GetOwnerDoc());
   XULTreeRuleProcessorData data(PresContext(), aParentElement, &ruleWalker,
                                 aPseudoTag, aComparator, treeContext);
   FileRules(EnumRulesMatching<XULTreeRuleProcessorData>, &data, aParentElement,
@@ -1247,9 +1245,9 @@ nsStyleSet::ResolveXULTreePseudoStyle(Element* aParentElement,
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     // For pseudos, |data.IsLink()| being true means that
                     // our parent node is a link.
-                    false, false,
+                    PR_FALSE, PR_FALSE,
                     aPseudoTag, nsCSSPseudoElements::ePseudo_XULTree,
-                    false, nsnull);
+                    PR_FALSE, nsnull);
 }
 #endif
 
@@ -1257,30 +1255,30 @@ bool
 nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
                                 nsTArray<nsFontFaceRuleContainer>& aArray)
 {
-  NS_ENSURE_FALSE(mInShutdown, false);
+  NS_ENSURE_FALSE(mInShutdown, PR_FALSE);
 
-  for (PRUint32 i = 0; i < ArrayLength(gCSSSheetTypes); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
     nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
                                     (mRuleProcessors[gCSSSheetTypes[i]].get());
     if (ruleProc && !ruleProc->AppendFontFaceRules(aPresContext, aArray))
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
 nsStyleSet::AppendKeyframesRules(nsPresContext* aPresContext,
                                  nsTArray<nsCSSKeyframesRule*>& aArray)
 {
-  NS_ENSURE_FALSE(mInShutdown, false);
+  NS_ENSURE_FALSE(mInShutdown, PR_FALSE);
 
-  for (PRUint32 i = 0; i < ArrayLength(gCSSSheetTypes); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
     nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
                                     (mRuleProcessors[gCSSSheetTypes[i]].get());
     if (ruleProc && !ruleProc->AppendKeyframesRules(aPresContext, aArray))
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -1470,9 +1468,9 @@ static bool SheetHasDocumentStateStyle(nsIStyleRuleProcessor* aProcessor,
   StatefulData* data = (StatefulData*)aData;
   if (aProcessor->HasDocumentStateDependentStyle(data)) {
     data->mHint = eRestyle_Self;
-    return false; // don't continue
+    return PR_FALSE; // don't continue
   }
-  return true; // continue
+  return PR_TRUE; // continue
 }
 
 // Test if style is dependent on a document state.
@@ -1482,13 +1480,13 @@ nsStyleSet::HasDocumentStateDependentStyle(nsPresContext* aPresContext,
                                            nsEventStates  aStateMask)
 {
   if (!aContent || !aContent->IsElement())
-    return false;
+    return PR_FALSE;
 
-  TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aContent->OwnerDoc());
+  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
+                               aContent->GetOwnerDoc());
   StatefulData data(aPresContext, aContent->AsElement(), aStateMask,
                     treeContext);
-  WalkRuleProcessors(SheetHasDocumentStateStyle, &data, true);
+  WalkRuleProcessors(SheetHasDocumentStateStyle, &data, PR_TRUE);
   return data.mHint != 0;
 }
 
@@ -1498,7 +1496,7 @@ static bool SheetHasStatefulStyle(nsIStyleRuleProcessor* aProcessor,
   StatefulData* data = (StatefulData*)aData;
   nsRestyleHint hint = aProcessor->HasStateDependentStyle(data);
   data->mHint = nsRestyleHint(data->mHint | hint);
-  return true; // continue
+  return PR_TRUE; // continue
 }
 
 // Test if style is dependent on content state
@@ -1507,10 +1505,10 @@ nsStyleSet::HasStateDependentStyle(nsPresContext*       aPresContext,
                                    Element*             aElement,
                                    nsEventStates        aStateMask)
 {
-  TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
+                               aElement->GetOwnerDoc());
   StatefulData data(aPresContext, aElement, aStateMask, treeContext);
-  WalkRuleProcessors(SheetHasStatefulStyle, &data, false);
+  WalkRuleProcessors(SheetHasStatefulStyle, &data, PR_FALSE);
   return data.mHint;
 }
 
@@ -1531,7 +1529,7 @@ SheetHasAttributeStyle(nsIStyleRuleProcessor* aProcessor, void *aData)
   AttributeData* data = (AttributeData*)aData;
   nsRestyleHint hint = aProcessor->HasAttributeDependentStyle(data);
   data->mHint = nsRestyleHint(data->mHint | hint);
-  return true; // continue
+  return PR_TRUE; // continue
 }
 
 // Test if style is dependent on content state
@@ -1542,11 +1540,11 @@ nsStyleSet::HasAttributeDependentStyle(nsPresContext* aPresContext,
                                        PRInt32        aModType,
                                        bool           aAttrHasChanged)
 {
-  TreeMatchContext treeContext(false, nsRuleWalker::eLinksVisitedOrUnvisited,
-                               aElement->OwnerDoc());
+  TreeMatchContext treeContext(PR_FALSE, nsRuleWalker::eLinksVisitedOrUnvisited,
+                               aElement->GetOwnerDoc());
   AttributeData data(aPresContext, aElement, aAttribute,
                      aModType, aAttrHasChanged, treeContext);
-  WalkRuleProcessors(SheetHasAttributeStyle, &data, false);
+  WalkRuleProcessors(SheetHasAttributeStyle, &data, PR_FALSE);
   return data.mHint;
 }
 
@@ -1555,7 +1553,7 @@ nsStyleSet::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
   // We can't use WalkRuleProcessors without a content node.
   bool stylesChanged = false;
-  for (PRUint32 i = 0; i < ArrayLength(mRuleProcessors); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mRuleProcessors); ++i) {
     nsIStyleRuleProcessor *processor = mRuleProcessors[i];
     if (!processor) {
       continue;
@@ -1577,7 +1575,7 @@ nsCSSStyleSheet::EnsureUniqueInnerResult
 nsStyleSet::EnsureUniqueInnerOnCSSSheets()
 {
   nsAutoTArray<nsCSSStyleSheet*, 32> queue;
-  for (PRUint32 i = 0; i < ArrayLength(gCSSSheetTypes); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
     nsCOMArray<nsIStyleSheet> &sheets = mSheets[gCSSSheetTypes[i]];
     for (PRUint32 j = 0, j_end = sheets.Count(); j < j_end; ++j) {
       nsCSSStyleSheet *sheet = static_cast<nsCSSStyleSheet*>(sheets[j]);

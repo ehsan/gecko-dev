@@ -130,7 +130,7 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   // This will set e->mGlobalName.mType to
   // nsGlobalNameStruct::eTypeNotInitialized
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMPL_ISUPPORTS2(nsScriptNameSpaceManager,
@@ -138,7 +138,7 @@ NS_IMPL_ISUPPORTS2(nsScriptNameSpaceManager,
                    nsISupportsWeakReference)
 
 nsScriptNameSpaceManager::nsScriptNameSpaceManager()
-  : mIsInitialized(false)
+  : mIsInitialized(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsScriptNameSpaceManager);
 }
@@ -269,7 +269,7 @@ nsScriptNameSpaceManager::FillHashWithDOMInterfaces()
   }
 
   // Next, look for externally registered DOM interfaces
-  rv = RegisterExternalInterfaces(false);
+  rv = RegisterExternalInterfaces(PR_FALSE);
 
   return rv;
 }
@@ -370,13 +370,13 @@ nsScriptNameSpaceManager::RegisterInterface(const char* aIfName,
                                             const nsIID *aIfIID,
                                             bool* aFoundOld)
 {
-  *aFoundOld = false;
+  *aFoundOld = PR_FALSE;
 
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, aIfName);
   NS_ENSURE_TRUE(s, NS_ERROR_OUT_OF_MEMORY);
 
   if (s->mType != nsGlobalNameStruct::eTypeNotInitialized) {
-    *aFoundOld = true;
+    *aFoundOld = PR_TRUE;
 
     return NS_OK;
   }
@@ -451,7 +451,7 @@ nsScriptNameSpaceManager::Init()
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
   if (serv) {
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, true);
+    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, PR_TRUE);
   }
 
   return NS_OK;
@@ -585,14 +585,14 @@ nsScriptNameSpaceManager::RegisterClassProto(const char *aClassName,
 {
   NS_ENSURE_ARG_POINTER(aConstructorProtoIID);
 
-  *aFoundOld = false;
+  *aFoundOld = PR_FALSE;
 
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, aClassName);
   NS_ENSURE_TRUE(s, NS_ERROR_OUT_OF_MEMORY);
 
   if (s->mType != nsGlobalNameStruct::eTypeNotInitialized &&
       s->mType != nsGlobalNameStruct::eTypeInterface) {
-    *aFoundOld = true;
+    *aFoundOld = PR_TRUE;
 
     return NS_OK;
   }
@@ -744,7 +744,7 @@ nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryMa
       if (s->mType == nsGlobalNameStruct::eTypeNotInitialized) {
         s->mAlias = new nsGlobalNameStruct::ConstructorAlias;
         s->mType = nsGlobalNameStruct::eTypeExternalConstructorAlias;
-        s->mChromeOnly = false;
+        s->mChromeOnly = PR_FALSE;
         s->mAlias->mCID = cid;
         AppendASCIItoUTF16(constructorProto, s->mAlias->mProtoName);
         s->mAlias->mProto = nsnull;

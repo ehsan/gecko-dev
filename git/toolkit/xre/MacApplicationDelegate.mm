@@ -142,7 +142,7 @@ ProcessPendingGetURLAppleEvents()
   AutoAutoreleasePool pool;
   bool keepSpinning = true;
   while (keepSpinning) {
-    sProcessedGetURLEvent = false;
+    sProcessedGetURLEvent = PR_FALSE;
     NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask
                                         untilDate:nil
                                            inMode:NSDefaultRunLoopMode
@@ -238,7 +238,7 @@ ProcessPendingGetURLAppleEvents()
     return YES;
 
   nsCOMPtr<nsILocalFileMac> inFile;
-  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)url, true, getter_AddRefs(inFile));
+  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)url, PR_TRUE, getter_AddRefs(inFile));
   if (NS_FAILED(rv))
     return NO;
 
@@ -346,7 +346,7 @@ ProcessPendingGetURLAppleEvents()
   if (!cancelQuit)
     return NSTerminateNow;
 
-  cancelQuit->SetData(false);
+  cancelQuit->SetData(PR_FALSE);
   obsServ->NotifyObservers(cancelQuit, "quit-application-requested", nsnull);
 
   bool abortQuit;
@@ -372,7 +372,7 @@ ProcessPendingGetURLAppleEvents()
   bool isGetURLEvent =
     ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL);
   if (isGetURLEvent)
-    sProcessedGetURLEvent = true;
+    sProcessedGetURLEvent = PR_TRUE;
 
   if (isGetURLEvent ||
       ([event eventClass] == 'WWW!' && [event eventID] == 'OURL')) {

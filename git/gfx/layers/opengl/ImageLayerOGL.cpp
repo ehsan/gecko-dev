@@ -313,17 +313,13 @@ ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
     return imageSurface.forget().get();
   }
 
-  if (mActiveImage->GetFormat() != Image::CAIRO_SURFACE)
-  {
-    *aSize = gfxIntSize(0, 0);
-    return nsnull;
+  if (mActiveImage->GetFormat() == Image::CAIRO_SURFACE) {
+    CairoImageOGL *cairoImage =
+      static_cast<CairoImageOGL*>(mActiveImage.get());
+    size = cairoImage->mSize;
+    gl = cairoImage->mTexture.GetGLContext();
+    tex1 = cairoImage->mTexture.GetTextureID();
   }
-
-  CairoImageOGL *cairoImage =
-    static_cast<CairoImageOGL*>(mActiveImage.get());
-  size = cairoImage->mSize;
-  gl = cairoImage->mTexture.GetGLContext();
-  tex1 = cairoImage->mTexture.GetTextureID();
 
   nsRefPtr<gfxImageSurface> s = gl->ReadTextureImage(tex1, size, LOCAL_GL_RGBA);
   *aSize = size;
@@ -373,11 +369,11 @@ ImageContainerOGL::SetLayerManager(LayerManager *aManager)
     // XXX if we don't have context sharing, we should tell our images
     // that their textures are no longer valid.
     mManager = nsnull;
-    return true;
+    return PR_TRUE;
   }
 
   if (aManager->GetBackendType() != LayerManager::LAYERS_OPENGL) {
-    return false;
+    return PR_FALSE;
   }
 
   LayerManagerOGL* lmOld = static_cast<LayerManagerOGL*>(mManager);
@@ -393,7 +389,7 @@ ImageContainerOGL::SetLayerManager(LayerManager *aManager)
 
   lmNew->RememberImageContainer(this);
 
-  return true;
+  return PR_TRUE;
 }
 
 Layer*
@@ -432,13 +428,13 @@ ImageLayerOGL::RenderLayer(int,
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[0].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[1].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, yuvImage->mTextures[2].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     
     YCbCrTextureLayerProgram *program = mOGLManager->GetYCbCrLayerProgram();
 
@@ -486,7 +482,7 @@ ImageLayerOGL::RenderLayer(int,
     ColorTextureLayerProgram *program = 
       mOGLManager->GetColorTextureLayerProgram(cairoImage->mLayerProgram);
 
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
 
     program->Activate();
     // The following uniform controls the scaling of the vertex coords.
@@ -662,7 +658,7 @@ InitTexture(GLContext* aGL, GLuint aTexture, GLenum aFormat, const gfxIntSize& a
 
 PlanarYCbCrImageOGL::PlanarYCbCrImageOGL(LayerManagerOGL *aManager,
                                          RecycleBin *aRecycleBin)
-  : PlanarYCbCrImage(nsnull), mRecycleBin(aRecycleBin), mHasData(false)
+  : PlanarYCbCrImage(nsnull), mRecycleBin(aRecycleBin), mHasData(PR_FALSE)
 {
 #if 0
   // We really want to allocate this on the decode thread -- but to do that,
@@ -697,7 +693,7 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
   
   mBuffer = CopyData(mData, mSize, mBufferSize, aData);
 
-  mHasData = true;
+  mHasData = PR_TRUE;
 }
 
 void
@@ -794,10 +790,12 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   }
 #endif
 
+  InitTexture(gl, tex, LOCAL_GL_RGBA, mSize);
+
   mLayerProgram =
     gl->UploadSurfaceToTexture(aData.mSurface,
                                nsIntRect(0,0, mSize.width, mSize.height),
-                               tex, true);
+                               tex);
 }
 
 void CairoImageOGL::SetTiling(bool aTiling)
@@ -840,7 +838,7 @@ ShadowImageLayerOGL::Init(const SharedImage& aFront)
     mTexImage = gl()->CreateTextureImage(nsIntSize(mSize.width, mSize.height),
                                          surf->GetContentType(),
                                          LOCAL_GL_CLAMP_TO_EDGE);
-    return true;
+    return PR_TRUE;
   } else {
     YUVImage yuv = aFront.get_YUVImage();
 
@@ -869,9 +867,9 @@ ShadowImageLayerOGL::Init(const SharedImage& aFront)
     InitTexture(gl(), mYUVTexture[0].GetTextureID(), LOCAL_GL_LUMINANCE, mSize);
     InitTexture(gl(), mYUVTexture[1].GetTextureID(), LOCAL_GL_LUMINANCE, mCbCrSize);
     InitTexture(gl(), mYUVTexture[2].GetTextureID(), LOCAL_GL_LUMINANCE, mCbCrSize);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -883,8 +881,7 @@ ShadowImageLayerOGL::Swap(const SharedImage& aNewFront,
       nsRefPtr<gfxASurface> surf =
         ShadowLayerForwarder::OpenDescriptor(aNewFront.get_SurfaceDescriptor());
       gfxIntSize size = surf->GetSize();
-      if (mSize != size || !mTexImage ||
-          mTexImage->GetContentType() != surf->GetContentType()) {
+      if (mSize != size || !mTexImage) {
         Init(aNewFront);
       }
       // XXX this is always just ridiculously slow
@@ -933,7 +930,7 @@ void
 ShadowImageLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
     mTexImage = nsnull;
   }
 }
@@ -960,23 +957,23 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     colorProgram->SetLayerOpacity(GetEffectiveOpacity());
     colorProgram->SetRenderOffset(aOffset);
 
-    mTexImage->SetFilter(mFilter);
     mTexImage->BeginTileIteration();
     do {
-      TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
+      TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
+      ApplyFilter(mFilter);
       colorProgram->SetLayerQuadRect(mTexImage->GetTileRect());
       mOGLManager->BindAndDrawQuad(colorProgram);
     } while (mTexImage->NextTile());
   } else {
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[0].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[1].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
     gl()->fActiveTexture(LOCAL_GL_TEXTURE2);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[2].GetTextureID());
-    gl()->ApplyFilterToBoundTexture(mFilter);
+    ApplyFilter(mFilter);
 
     YCbCrTextureLayerProgram *yuvProgram = mOGLManager->GetYCbCrLayerProgram();
 

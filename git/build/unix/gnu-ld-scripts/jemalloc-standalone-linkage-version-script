@@ -4,7 +4,6 @@
 		_malloc_prefork;
 		jemalloc_stats;
 		malloc_usable_size;
-		je_malloc_usable_size_in_advance;
 		posix_memalign;
 		free;
 		realloc;

@@ -60,19 +60,10 @@ const PREF_GETADDONS_GETRECOMMENDED      = "extensions.getAddons.recommended.url
 const PREF_GETADDONS_BROWSESEARCHRESULTS = "extensions.getAddons.search.browseURL";
 const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 
-const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-#ifdef MOZ_COMPATIBILITY_NIGHTLY
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
-                                 ".nightly";
-#else
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
-                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
-
 const XMLURI_PARSE_ERROR  = "http://www.mozilla.org/newlayout/xml/parsererror.xml";
 
 const API_VERSION = "1.5";
-const DEFAULT_CACHE_TYPES = "extension,theme,locale,dictionary";
+const DEFAULT_CACHE_TYPES = "extension,theme,locale";
 
 const KEY_PROFILEDIR = "ProfD";
 const FILE_DATABASE  = "addons.sqlite";
@@ -819,23 +810,13 @@ var AddonRepository = {
    *         The callback to pass results to
    */
   searchAddons: function(aSearchTerms, aMaxResults, aCallback) {
-    let substitutions = {
+    let url = this._formatURLPref(PREF_GETADDONS_GETSEARCHRESULTS, {
       API_VERSION : API_VERSION,
       TERMS : encodeURIComponent(aSearchTerms),
 
       // Get twice as many results to account for potential filtering
       MAX_RESULTS : 2 * aMaxResults
-    };
-
-    let checkCompatibility = true;
-    try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
-    } catch(e) { }
-
-    if (!checkCompatibility)
-      substitutions.VERSION = "";
-
-    let url = this._formatURLPref(PREF_GETADDONS_GETSEARCHRESULTS, substitutions);
+    });
 
     let self = this;
     function handleResults(aElements, aTotalResults) {
@@ -951,9 +932,6 @@ var AddonRepository = {
               break;
             case 2:
               addon.type = "theme";
-              break;
-            case 3:
-              addon.type = "dictionary";
               break;
             default:
               WARN("Unknown type id when parsing addon: " + id);
@@ -1098,26 +1076,17 @@ var AddonRepository = {
   _parseAddons: function(aElements, aTotalResults, aSkip) {
     let self = this;
     let results = [];
-
-    let checkCompatibility = true;
-    try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
-    } catch(e) { }
-
-    function isSameApplication(aAppNode) {
-      return self._getTextContent(aAppNode) == Services.appinfo.ID;
-    }
-
     for (let i = 0; i < aElements.length && results.length < this._maxResults; i++) {
       let element = aElements[i];
 
+      // Ignore add-ons not compatible with this Application
       let tags = this._getUniqueDescendant(element, "compatible_applications");
       if (tags == null)
         continue;
 
       let applications = tags.getElementsByTagName("appID");
       let compatible = Array.some(applications, function(aAppNode) {
-        if (!isSameApplication(aAppNode))
+        if (self._getTextContent(aAppNode) != Services.appinfo.ID)
           return false;
 
         let parent = aAppNode.parentNode;
@@ -1131,14 +1100,8 @@ var AddonRepository = {
                 Services.vc.compare(currentVersion, maxVersion) <= 0);
       });
 
-      // Ignore add-ons not compatible with this Application
-      if (!compatible) {
-        if (checkCompatibility)
-          continue;
-
-        if (!Array.some(applications, isSameApplication))
-          continue;
-      }
+      if (!compatible)
+        continue;
 
       // Add-on meets all requirements, so parse out data
       let result = this._parseAddon(element, aSkip);
@@ -1158,8 +1121,6 @@ var AddonRepository = {
       // way to purchase the add-on
       if (!result.xpiURL && !result.addon.purchaseURL)
         continue;
-
-      result.addon.isCompatible = compatible;
 
       results.push(result);
       // Ignore this add-on from now on by adding it to the skip array
@@ -1290,10 +1251,10 @@ var AddonDatabase = {
   // false if there was an unrecoverable error openning the database
   databaseOk: true,
   // A cache of statements that are used and need to be finalized on shutdown
-  asyncStatementsCache: {},
+  statementCache: {},
 
-  // The queries used by the database
-  queries: {
+  // The statements used by the database
+  statements: {
     getAllAddons: "SELECT internal_id, id, type, name, version, " +
                   "creator, creatorURL, description, fullDescription, " +
                   "developerComments, eula, iconURL, homepageURL, supportURL, " +
@@ -1367,7 +1328,7 @@ var AddonDatabase = {
     let dbfile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_DATABASE], true);
     let dbMissing = !dbfile.exists();
 
-    var tryAgain = (function() {
+    function tryAgain() {
       LOG("Deleting database, and attempting openConnection again");
       this.initialized = false;
       if (this.connection.connectionReady)
@@ -1375,7 +1336,7 @@ var AddonDatabase = {
       if (dbfile.exists())
         dbfile.remove(false);
       return this.openConnection(true);
-    }).bind(this);
+    }
 
     try {
       this.connection = Services.storage.openUnsharedDatabase(dbfile);
@@ -1445,9 +1406,9 @@ var AddonDatabase = {
 
     this.initialized = false;
 
-    for each (let stmt in this.asyncStatementsCache)
+    for each (let stmt in this.statementCache)
       stmt.finalize();
-    this.asyncStatementsCache = {};
+    this.statementCache = {};
 
     if (this.connection.transactionInProgress) {
       ERROR("Outstanding transaction, rolling back.");
@@ -1485,21 +1446,20 @@ var AddonDatabase = {
   },
 
   /**
-   * Gets a cached async statement or creates a new statement if it doesn't
-   * already exist.
+   * Gets a cached statement or creates a new statement if it doesn't already
+   * exist.
    *
    * @param  aKey
    *         A unique key to reference the statement
-   * @return a mozIStorageAsyncStatement for the SQL corresponding to the
-   *         unique key
+   * @return a mozIStorageStatement for the SQL corresponding to the unique key
    */
-  getAsyncStatement: function AD_getAsyncStatement(aKey) {
-    if (aKey in this.asyncStatementsCache)
-      return this.asyncStatementsCache[aKey];
+  getStatement: function AD_getStatement(aKey) {
+    if (aKey in this.statementCache)
+      return this.statementCache[aKey];
 
-    let sql = this.queries[aKey];
+    let sql = this.statements[aKey];
     try {
-      return this.asyncStatementsCache[aKey] = this.connection.createAsyncStatement(sql);
+      return this.statementCache[aKey] = this.connection.createStatement(sql);
     } catch (e) {
       ERROR("Error creating statement " + aKey + " (" + sql + ")");
       throw e;
@@ -1519,7 +1479,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the addon table
     function getAllAddons() {
-      self.getAsyncStatement("getAllAddons").executeAsync({
+      self.getStatement("getAllAddons").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1544,7 +1504,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the developer table
     function getAllDevelopers() {
-      self.getAsyncStatement("getAllDevelopers").executeAsync({
+      self.getStatement("getAllDevelopers").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1578,7 +1538,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the screenshot table
     function getAllScreenshots() {
-      self.getAsyncStatement("getAllScreenshots").executeAsync({
+      self.getStatement("getAllScreenshots").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1629,7 +1589,7 @@ var AddonDatabase = {
     let self = this;
 
     // Completely empty the database
-    let stmts = [this.getAsyncStatement("emptyAddon")];
+    let stmts = [this.getStatement("emptyAddon")];
 
     this.connection.executeAsync(stmts, stmts.length, {
       handleResult: function() {},
@@ -1695,7 +1655,7 @@ var AddonDatabase = {
         if (!aArray || aArray.length == 0)
           return;
 
-        let stmt = self.getAsyncStatement(aStatementKey);
+        let stmt = self.getStatement(aStatementKey);
         let params = stmt.newBindingParamsArray();
         aArray.forEach(function(aElement, aIndex) {
           aAddParams(params, internal_id, aElement, aIndex);
@@ -1762,7 +1722,7 @@ var AddonDatabase = {
    * @return The asynchronous mozIStorageStatement
    */
   _makeAddonStatement: function AD__makeAddonStatement(aAddon) {
-    let stmt = this.getAsyncStatement("insertAddon");
+    let stmt = this.getStatement("insertAddon");
     let params = stmt.params;
 
     PROP_SINGLE.forEach(function(aProperty) {

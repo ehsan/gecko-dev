@@ -45,11 +45,12 @@
 #include "jscompartment.h"
 #include "jsfriendapi.h"
 #include "jsinterp.h"
+#include "jsstaticcheck.h"
 #include "jsxml.h"
+#include "jsregexp.h"
 #include "jsgc.h"
 
 #include "frontend/ParseMaps.h"
-#include "vm/RegExpObject.h"
 
 namespace js {
 
@@ -208,8 +209,8 @@ class CompartmentChecker
     void check(JSScript *script) {
         if (script) {
             check(script->compartment());
-            if (!script->isCachedEval && script->u.globalObject)
-                check(script->u.globalObject);
+            if (script->u.object)
+                check(script->u.object);
         }
     }
 
@@ -503,7 +504,7 @@ JSContext::ensureGeneratorStackSpace()
 inline js::RegExpStatics *
 JSContext::regExpStatics()
 {
-    return js::GetGlobalForScopeChain(this)->getRegExpStatics();
+    return js::RegExpStatics::extractFrom(js::GetGlobalForScopeChain(this));
 }
 
 inline void

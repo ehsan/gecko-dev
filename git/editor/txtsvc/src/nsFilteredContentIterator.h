@@ -75,7 +75,7 @@ public:
 
   /* Helpers */
   bool DidSkip()      { return mDidSkip; }
-  void         ClearDidSkip() {  mDidSkip = false; }
+  void         ClearDidSkip() {  mDidSkip = PR_FALSE; }
 
 protected:
   nsFilteredContentIterator() { }

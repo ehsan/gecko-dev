@@ -97,7 +97,7 @@ gfxQuartzSurface::gfxQuartzSurface(cairo_surface_t *csurf,
     mCGContext = cairo_quartz_surface_get_cg_context (csurf);
     CGContextRetain (mCGContext);
 
-    Init(csurf, true);
+    Init(csurf, PR_TRUE);
 }
 
 gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,

@@ -120,71 +120,25 @@ ConvertCloneBuffersToArrayInternal(
 
 } // anonymous namespace
 
-HelperBase::~HelperBase()
-{
-  if (!NS_IsMainThread()) {
-    IDBRequest* request;
-    mRequest.forget(&request);
-
-    if (request) {
-      nsCOMPtr<nsIThread> mainThread;
-      NS_GetMainThread(getter_AddRefs(mainThread));
-      NS_WARN_IF_FALSE(mainThread, "Couldn't get the main thread!");
-
-      if (mainThread) {
-        NS_ProxyRelease(mainThread, static_cast<nsIDOMEventTarget*>(request));
-      }
-    }
-  }
-}
-
-nsresult
-HelperBase::WrapNative(JSContext* aCx,
-                       nsISupports* aNative,
-                       jsval* aResult)
-{
-  NS_ASSERTION(aCx, "Null context!");
-  NS_ASSERTION(aNative, "Null pointer!");
-  NS_ASSERTION(aResult, "Null pointer!");
-  NS_ASSERTION(mRequest, "Null request!");
-
-  JSObject* global = mRequest->ScriptContext()->GetNativeGlobal();
-  NS_ENSURE_TRUE(global, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  nsresult rv =
-    nsContentUtils::WrapNative(aCx, global, aNative, aResult);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  return NS_OK;
-}
-
-void
-HelperBase::ReleaseMainThreadObjects()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  mRequest = nsnull;
-}
-
 AsyncConnectionHelper::AsyncConnectionHelper(IDBDatabase* aDatabase,
                                              IDBRequest* aRequest)
-: HelperBase(aRequest),
-  mDatabase(aDatabase),
+: mDatabase(aDatabase),
+  mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mResultCode(NS_OK),
-  mDispatched(false)
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
 
 AsyncConnectionHelper::AsyncConnectionHelper(IDBTransaction* aTransaction,
                                              IDBRequest* aRequest)
-: HelperBase(aRequest),
-  mDatabase(aTransaction->mDatabase),
+: mDatabase(aTransaction->mDatabase),
   mTransaction(aTransaction),
+  mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mResultCode(NS_OK),
-  mDispatched(false)
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -198,6 +152,9 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
     IDBTransaction* transaction;
     mTransaction.forget(&transaction);
 
+    IDBRequest* request;
+    mRequest.forget(&request);
+
     nsCOMPtr<nsIThread> mainThread;
     NS_GetMainThread(getter_AddRefs(mainThread));
     NS_WARN_IF_FALSE(mainThread, "Couldn't get the main thread!");
@@ -209,6 +166,9 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
       if (transaction) {
         NS_ProxyRelease(mainThread,
                         static_cast<nsIIDBTransaction*>(transaction));
+      }
+      if (request) {
+        NS_ProxyRelease(mainThread, static_cast<nsIDOMEventTarget*>(request));
       }
     }
   }
@@ -235,7 +195,7 @@ AsyncConnectionHelper::Run()
     gCurrentTransaction = mTransaction;
 
     if (mRequest) {
-      nsresult rv = mRequest->NotifyHelperCompleted(this);
+      nsresult rv = mRequest->SetDone(this);
       if (NS_SUCCEEDED(mResultCode) && NS_FAILED(rv)) {
         mResultCode = rv;
       }
@@ -346,13 +306,13 @@ AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
 {
   if (mDatabase && mDatabase->IsInvalidated()) {
     // Someone is trying to delete the database file. Exit lightningfast!
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
   TimeDuration elapsed = TimeStamp::Now() - mStartTime;
   if (elapsed >= mTimeoutDuration) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
@@ -360,7 +320,7 @@ AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
     return mOldProgressHandler->OnProgress(aConnection, _retval);
   }
 
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -389,7 +349,7 @@ AsyncConnectionHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     mTransaction->OnNewRequest();
   }
 
-  mDispatched = true;
+  mDispatched = PR_TRUE;
 
   return NS_OK;
 }
@@ -419,19 +379,14 @@ AsyncConnectionHelper::Init()
   return NS_OK;
 }
 
-already_AddRefed<nsDOMEvent>
-AsyncConnectionHelper::CreateSuccessEvent()
-{
-  return CreateGenericEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR));
-}
-
 nsresult
 AsyncConnectionHelper::OnSuccess()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mRequest, "Null request!");
 
-  nsRefPtr<nsDOMEvent> event = CreateSuccessEvent();
+  nsRefPtr<nsDOMEvent> event =
+    CreateGenericEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR));
   if (!event) {
     NS_ERROR("Failed to create event!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -467,7 +422,7 @@ AsyncConnectionHelper::OnError()
 
   // Make an error event and fire it at the target.
   nsRefPtr<nsDOMEvent> event =
-    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR), true);
+    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR), PR_TRUE);
   if (!event) {
     NS_ERROR("Failed to create event!");
     return;
@@ -510,8 +465,28 @@ AsyncConnectionHelper::ReleaseMainThreadObjects()
 
   mDatabase = nsnull;
   mTransaction = nsnull;
+  mRequest = nsnull;
+}
 
-  HelperBase::ReleaseMainThreadObjects();
+nsresult
+AsyncConnectionHelper::WrapNative(JSContext* aCx,
+                                  nsISupports* aNative,
+                                  jsval* aResult)
+{
+  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(aNative, "Null pointer!");
+  NS_ASSERTION(aResult, "Null pointer!");
+  NS_ASSERTION(mRequest, "Null request!");
+
+  JSObject* global =
+    static_cast<JSObject*>(mRequest->ScriptContext()->GetNativeGlobal());
+  NS_ENSURE_TRUE(global, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  nsresult rv =
+    nsContentUtils::WrapNative(aCx, global, aNative, aResult);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  return NS_OK;
 }
 
 // static
@@ -560,12 +535,14 @@ TransactionPoolEventTarget::Dispatch(nsIRunnable* aRunnable,
   NS_ASSERTION(aFlags == NS_DISPATCH_NORMAL, "Unsupported!");
 
   TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
+  NS_ENSURE_TRUE(pool, NS_ERROR_FAILURE);
+
   return pool->Dispatch(mTransaction, aRunnable, false, nsnull);
 }
 
 NS_IMETHODIMP
 TransactionPoolEventTarget::IsOnCurrentThread(bool* aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }

@@ -58,7 +58,7 @@ public:
   nsCookiePermission() 
     : mCookiesLifetimeSec(LL_MAXINT)
     , mCookiesLifetimePolicy(0) // ACCEPT_NORMALLY
-    , mCookiesAlwaysAcceptSession(false)
+    , mCookiesAlwaysAcceptSession(PR_FALSE)
     {}
   virtual ~nsCookiePermission() {}
 

@@ -55,13 +55,13 @@ using namespace mozilla::dom;
 nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
                                      nsGUIEvent* aEvent)
   : nsDOMUIEvent(aPresContext,
-                 aEvent ? aEvent : new nsGUIEvent(false, NS_SVG_ZOOM, 0))
+                 aEvent ? aEvent : new nsGUIEvent(PR_FALSE, NS_SVG_ZOOM, 0))
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->eventStructType = NS_SVGZOOM_EVENT;
     mEvent->time = PR_Now();
   }
@@ -94,13 +94,13 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
             SVGSVGElement->GetCurrentTranslate();
           mNewTranslate =
             new DOMSVGPoint(translate.GetX(), translate.GetY());
-          mNewTranslate->SetReadonly(true);
+          mNewTranslate->SetReadonly(PR_TRUE);
 
           const nsSVGTranslatePoint& prevTranslate =
             SVGSVGElement->GetPreviousTranslate();
           mPreviousTranslate =
             new DOMSVGPoint(prevTranslate.GetX(), prevTranslate.GetY());
-          mPreviousTranslate->SetReadonly(true);
+          mPreviousTranslate->SetReadonly(PR_TRUE);
         }
       }
     }

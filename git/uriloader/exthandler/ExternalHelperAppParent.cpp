@@ -62,7 +62,7 @@ ExternalHelperAppParent::ExternalHelperAppParent(
     const IPC::URI& uri,
     const PRInt64& aContentLength)
   : mURI(uri)
-  , mPending(false)
+  , mPending(PR_FALSE)
   , mLoadFlags(0)
   , mStatus(NS_OK)
   , mContentLength(aContentLength)
@@ -96,7 +96,7 @@ bool
 ExternalHelperAppParent::RecvOnStartRequest(const nsCString& entityID)
 {
   mEntityID = entityID;
-  mPending = true;
+  mPending = PR_TRUE;
   mStatus = mListener->OnStartRequest(this, nsnull);
   return true;
 }
@@ -121,7 +121,7 @@ ExternalHelperAppParent::RecvOnDataAvailable(const nsCString& data,
 bool
 ExternalHelperAppParent::RecvOnStopRequest(const nsresult& code)
 {
-  mPending = false;
+  mPending = PR_FALSE;
   mListener->OnStopRequest(this, nsnull,
                            (NS_SUCCEEDED(code) && NS_FAILED(mStatus)) ? mStatus : code);
   unused << Send__delete__(this);

@@ -133,9 +133,9 @@ nsXULPrototypeCache::GetInstance()
             mozilla::services::GetObserverService();
         if (obsSvc) {
             nsXULPrototypeCache *p = sInstance;
-            obsSvc->AddObserver(p, "chrome-flush-skin-caches", false);
-            obsSvc->AddObserver(p, "chrome-flush-caches", false);
-            obsSvc->AddObserver(p, "startupcache-invalidate", false);
+            obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
+            obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
+            obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
         }
 		
     }
@@ -226,7 +226,7 @@ nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
 }
 
 
-JSScript*
+void*
 nsXULPrototypeCache::GetScript(nsIURI* aURI, PRUint32 *aLangID)
 {
     CacheScriptEntry entry;
@@ -250,7 +250,7 @@ ReleaseScriptObjectCallback(nsIURI* aKey, CacheScriptEntry &aData, void* aClosur
 }
 
 nsresult
-nsXULPrototypeCache::PutScript(nsIURI* aURI, PRUint32 aLangID, JSScript* aScriptObject)
+nsXULPrototypeCache::PutScript(nsIURI* aURI, PRUint32 aLangID, void* aScriptObject)
 {
     CacheScriptEntry existingEntry;
     if (mScriptTable.Get(aURI, &existingEntry)) {
@@ -519,13 +519,13 @@ nsresult
 nsXULPrototypeCache::HasData(nsIURI* uri, bool* exists)
 {
     if (mOutputStreamTable.Get(uri, nsnull)) {
-        *exists = true;
+        *exists = PR_TRUE;
         return NS_OK;
     }
     nsCAutoString spec(kXULCachePrefix);
     nsresult rv = PathifyURI(uri, spec);
     if (NS_FAILED(rv)) {
-        *exists = false;
+        *exists = PR_FALSE;
         return NS_OK;
     }
     nsAutoArrayPtr<char> buf;
@@ -539,7 +539,7 @@ nsXULPrototypeCache::HasData(nsIURI* uri, bool* exists)
         // this URI.
         StartupCache* sc = StartupCache::GetSingleton();
         if (!sc) {
-            *exists = false;
+            *exists = PR_FALSE;
             return NS_OK;
         }
         rv = sc->GetBuffer(spec.get(), getter_Transfers(buf), &len);

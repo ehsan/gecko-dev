@@ -66,7 +66,7 @@ public:
      * black background and the other onto white, recovers alpha values from
      * the difference and sets the alpha values on the black surface.
      * The surfaces must have format RGB24 or ARGB32.
-     * Returns true on success.
+     * Returns PR_TRUE on success.
      */
     static bool RecoverAlpha (gfxImageSurface *blackSurface,
                                 const gfxImageSurface *whiteSurface,

@@ -46,7 +46,7 @@
 #include "nsTreeColumns.h"
 #include "nsTreeUtils.h"
 #include "nsStyleContext.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsINodeInfo.h"
 #include "nsContentUtils.h"
 #include "nsTreeBodyFrame.h"
@@ -118,19 +118,19 @@ nsTreeColumn::IsLastVisible(nsTreeBodyFrame* aBodyFrame)
 
   // cyclers are fixed width, don't adjust them
   if (IsCycler())
-    return false;
+    return PR_FALSE;
 
   // we're certainly not the last visible if we're not visible
   if (GetFrame()->GetRect().width == 0)
-    return false;
+    return PR_FALSE;
 
   // try to find a visible successor
   for (nsTreeColumn *next = GetNext(); next; next = next->GetNext()) {
     nsIFrame* frame = next->GetFrame();
     if (frame && frame->GetRect().width > 0)
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -605,7 +605,7 @@ nsTreeColumns::RestoreNaturalOrder()
     nsIContent *child = colsContent->GetChildAt(i);
     nsAutoString ordinal;
     ordinal.AppendInt(i);
-    child->SetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, ordinal, true);
+    child->SetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, ordinal, PR_TRUE);
   }
 
   nsTreeColumns::InvalidateColumns();

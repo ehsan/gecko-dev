@@ -73,11 +73,11 @@ nsPartChannel::nsPartChannel(nsIChannel *aMultipartChannel, PRUint32 aPartID,
   mListener(aListener),
   mStatus(NS_OK),
   mContentLength(LL_MAXUINT),
-  mIsByteRangeRequest(false),
+  mIsByteRangeRequest(PR_FALSE),
   mByteRangeStart(0),
   mByteRangeEnd(0),
   mPartID(aPartID),
-  mIsLastPart(false)
+  mIsLastPart(PR_FALSE)
 {
     mMultipartChannel = aMultipartChannel;
 
@@ -93,7 +93,7 @@ nsPartChannel::~nsPartChannel()
 
 void nsPartChannel::InitializeByteRange(PRInt64 aStart, PRInt64 aEnd)
 {
-    mIsByteRangeRequest = true;
+    mIsByteRangeRequest = PR_TRUE;
     
     mByteRangeStart = aStart;
     mByteRangeEnd   = aEnd;
@@ -512,7 +512,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // don't bother sending a token in the first "part." This is
         // illegal, but we'll handle the case anyway by shoving the
         // boundary token in for the server.
-        mFirstOnData = false;
+        mFirstOnData = PR_FALSE;
         NS_ASSERTION(!mBufLen, "this is our first time through, we can't have buffered data");
         const char * token = mToken.get();
            
@@ -522,7 +522,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             // we don't have enough data yet to make this comparison.
             // skip this check, and try again the next time OnData()
             // is called.
-            mFirstOnData = true;
+            mFirstOnData = PR_TRUE;
         }
         else if (!PL_strnstr(cursor, token, mTokenLen+2)) {
             buffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
@@ -551,7 +551,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         if (NS_FAILED(rv)) ERR_OUT
 
         if (done) {
-            mProcessingHeaders = false;
+            mProcessingHeaders = PR_FALSE;
             rv = SendStart(channel);
             if (NS_FAILED(rv)) ERR_OUT
         }
@@ -582,7 +582,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
 
         if (mNewPart) {
             // parse headers
-            mNewPart = false;
+            mNewPart = PR_FALSE;
             cursor = token;
             bool done = false; 
             rv = ParseHeaders(channel, cursor, bufLen, &done);
@@ -594,17 +594,17 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             else {
                 // we haven't finished processing header info.
                 // we'll break out and try to process later.
-                mProcessingHeaders = true;
+                mProcessingHeaders = PR_TRUE;
                 break;
             }
         }
         else {
-            mNewPart = true;
+            mNewPart = PR_TRUE;
             // Reset state so we don't carry it over from part to part
             mContentType.Truncate();
             mContentLength = LL_MAXUINT;
             mContentDisposition.Truncate();
-            mIsByteRangeRequest = false;
+            mIsByteRangeRequest = PR_FALSE;
             mByteRangeStart = 0;
             mByteRangeEnd = 0;
             
@@ -663,7 +663,7 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     nsresult rv = NS_OK;
     mContext = ctxt;
 
-    mFirstOnData = true;
+    mFirstOnData = PR_TRUE;
     mTotalSent   = 0;
 
     nsCOMPtr<nsIChannel> channel = do_QueryInterface(request, &rv);
@@ -748,15 +748,15 @@ nsMultiMixedConv::nsMultiMixedConv() :
   mCurrentPartID(0)
 {
     mTokenLen           = 0;
-    mNewPart            = true;
+    mNewPart            = PR_TRUE;
     mContentLength      = LL_MAXUINT;
     mBuffer             = nsnull;
     mBufLen             = 0;
-    mProcessingHeaders  = false;
+    mProcessingHeaders  = PR_FALSE;
     mByteRangeStart     = 0;
     mByteRangeEnd       = 0;
     mTotalSent          = 0;
-    mIsByteRangeRequest = false;
+    mIsByteRangeRequest = PR_FALSE;
 }
 
 nsMultiMixedConv::~nsMultiMixedConv() {
@@ -945,7 +945,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
             cursor += lineFeedIncrement;
             cursorLen -= lineFeedIncrement;
 
-            done = true;
+            done = PR_TRUE;
             break;
         }
 
@@ -1004,7 +1004,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
                     mByteRangeEnd = atoi(tmpPtr);
                 }
 
-                mIsByteRangeRequest = true;
+                mIsByteRangeRequest = PR_TRUE;
                 if (mContentLength == LL_MAXUINT)
                     mContentLength = PRUint64(PRInt64(mByteRangeEnd - mByteRangeStart + PRInt64(1)));
             }

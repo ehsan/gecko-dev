@@ -65,7 +65,7 @@
 #include "nsNetUtil.h"
 #include "nsFrameMessageManager.h"
 #include "nsIScriptContext.h"
-#include "nsDOMEventTargetWrapperCache.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIDialogCreator.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIPresShell.h"
@@ -87,7 +87,7 @@ namespace dom {
 class TabChild;
 class PContentDialogChild;
 
-class TabChildGlobal : public nsDOMEventTargetWrapperCache,
+class TabChildGlobal : public nsDOMEventTargetHelper,
                        public nsIContentFrameMessageManager,
                        public nsIScriptObjectPrincipal,
                        public nsIScriptContextPrincipal
@@ -96,7 +96,7 @@ public:
   TabChildGlobal(TabChild* aTabChild);
   ~TabChildGlobal();
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TabChildGlobal, nsDOMEventTargetWrapperCache)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(TabChildGlobal, nsDOMEventTargetHelper)
   NS_FORWARD_SAFE_NSIFRAMEMESSAGEMANAGER(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
                              const jsval& aObject,
@@ -126,7 +126,7 @@ public:
   {
     // By default add listeners only for trusted events!
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
-                                                    aUseCapture, false, 2);
+                                                    aUseCapture, PR_FALSE, 2);
   }
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
@@ -255,7 +255,6 @@ public:
 
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
 
-    void SetBackgroundColor(const nscolor& aColor);
 protected:
     NS_OVERRIDE
     virtual PRenderFrameChild* AllocPRenderFrame();
@@ -279,7 +278,6 @@ private:
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     PRUint32 mChromeFlags;
     nsIntRect mOuterRect;
-    nscolor mLastBackgroundColor;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

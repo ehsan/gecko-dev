@@ -28,7 +28,6 @@
  *   Julian Viereck <jviereck@mozilla.com>
  *   Mihai Șucan <mihai.sucan@gmail.com>
  *   Michael Ratcliffe <mratcliffe@mozilla.com>
- *   Joe Walker <jwalker@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -73,22 +72,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
                                    "@mozilla.org/widget/clipboardhelper;1",
                                    "nsIClipboardHelper");
 
-XPCOMUtils.defineLazyGetter(this, "gcli", function () {
-  var obj = {};
-  Cu.import("resource:///modules/gcli.jsm", obj);
-  return obj.gcli;
-});
-
 XPCOMUtils.defineLazyGetter(this, "StyleInspector", function () {
   var obj = {};
   Cu.import("resource:///modules/devtools/StyleInspector.jsm", obj);
   return obj.StyleInspector;
-});
-
-XPCOMUtils.defineLazyGetter(this, "CssRuleView", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/CssRuleView.jsm", tmp);
-  return tmp.CssRuleView;
 });
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
@@ -133,26 +120,9 @@ function LogFactory(aMessagePrefix)
   return log;
 }
 
-/**
- * Load the various Command JSMs.
- * Should be called when the console first opens.
- *
- * @return an object containing the EXPORTED_SYMBOLS from all the command
- * modules. In general there is no reason when JSMs need to export symbols
- * except when they need the host environment to inform them of things like the
- * current window/document/etc.
- */
-function loadCommands() {
-  let commandExports = {};
-
-  Cu.import("resource:///modules/GcliCommands.jsm", commandExports);
-
-  return commandExports;
-}
-
 let log = LogFactory("*** HUDService:");
 
-const HUD_STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
+const HUD_STRINGS_URI = "chrome://global/locale/headsUpDisplay.properties";
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(HUD_STRINGS_URI);
@@ -198,9 +168,7 @@ const LEVELS = {
   dir: SEVERITY_LOG,
   group: SEVERITY_LOG,
   groupCollapsed: SEVERITY_LOG,
-  groupEnd: SEVERITY_LOG,
-  time: SEVERITY_LOG,
-  timeEnd: SEVERITY_LOG
+  groupEnd: SEVERITY_LOG
 };
 
 // The lowest HTTP response code (inclusive) that is considered an error.
@@ -1513,24 +1481,6 @@ HUD_SERVICE.prototype =
     if (!aAnimated || hudRef.consolePanel) {
       this.disableAnimation(hudId);
     }
-
-    // Create a processing instruction for GCLIs CSS stylesheet, but only if
-    // we don't have one for this document. Also record the context we're
-    // adding this for so we know when to remove it.
-    let procInstr = aContext.ownerDocument.gcliCssProcInstr;
-    if (!procInstr) {
-      procInstr = aContext.ownerDocument.createProcessingInstruction(
-              "xml-stylesheet",
-              "href='chrome://browser/skin/devtools/gcli.css' type='text/css'");
-      procInstr.contexts = [];
-
-      let root = aContext.ownerDocument.getElementsByTagName('window')[0];
-      root.parentNode.insertBefore(procInstr, root);
-      aContext.ownerDocument.gcliCssProcInstr = procInstr;
-    }
-    if (procInstr.contexts.indexOf(hudId) == -1) {
-      procInstr.contexts.push(hudId);
-    }
   },
 
   /**
@@ -1561,20 +1511,6 @@ HUD_SERVICE.prototype =
       this.unregisterDisplay(hudId);
 
       window.focus();
-    }
-
-    // Remove this context from the list of contexts that need the GCLI CSS
-    // processing instruction and then remove the processing instruction if it
-    // isn't needed any more.
-    let procInstr = aContext.ownerDocument.gcliCssProcInstr;
-    if (procInstr) {
-      procInstr.contexts = procInstr.contexts.filter(function(id) {
-        return id !== hudId;
-      });
-      if (procInstr.contexts.length == 0 && procInstr.parentNode) {
-        procInstr.parentNode.removeChild(procInstr);
-        delete aContext.ownerDocument.gcliCssProcInstr;
-      }
     }
   },
 
@@ -1814,12 +1750,7 @@ HUD_SERVICE.prototype =
     // Remove children from the output. If the output is not cleared, there can
     // be leaks as some nodes has node.onclick = function; set and GC can't
     // remove the nodes then.
-    if (hud.jsterm) {
-      hud.jsterm.clearOutput();
-    }
-    if (hud.gcliterm) {
-      hud.gcliterm.clearOutput();
-    }
+    hud.jsterm.clearOutput();
 
     hud.destroy();
 
@@ -1838,9 +1769,7 @@ HUD_SERVICE.prototype =
       hud.splitter.parentNode.removeChild(hud.splitter);
     }
 
-    if (hud.jsterm) {
-      hud.jsterm.autocompletePopup.destroy();
-    }
+    hud.jsterm.autocompletePopup.destroy();
 
     delete this.hudReferences[aHUDId];
 
@@ -2095,30 +2024,6 @@ HUD_SERVICE.prototype =
           hud.groupDepth--;
         }
         return;
-
-      case "time":
-        if (!args) {
-          return;
-        }
-        if (args.error) {
-          Cu.reportError(this.getStr(args.error));
-          return;
-        }
-        body = this.getFormatStr("timerStarted", [args.name]);
-        clipboardText = body;
-        sourceURL = aMessage.filename;
-        sourceLine = aMessage.lineNumber;
-        break;
-
-      case "timeEnd":
-        if (!args) {
-          return;
-        }
-        body = this.getFormatStr("timeEnd", [args.name, args.duration]);
-        clipboardText = body;
-        sourceURL = aMessage.filename;
-        sourceLine = aMessage.lineNumber;
-        break;
 
       default:
         Cu.reportError("Unknown Console API log level: " + level);
@@ -3186,12 +3091,7 @@ function HeadsUpDisplay(aConfig)
   // create the JSTerm input element
   try {
     this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
-    if (this.jsterm) {
-      this.jsterm.inputNode.focus();
-    }
-    if (this.gcliterm) {
-      this.gcliterm.inputNode.focus();
-    }
+    this.jsterm.inputNode.focus();
   }
   catch (ex) {
     Cu.reportError(ex);
@@ -3311,9 +3211,6 @@ HeadsUpDisplay.prototype = {
 
       if (this.jsterm) {
         this.jsterm.inputNode.focus();
-      }
-      if (this.gcliterm) {
-        this.gcliterm.inputNode.focus();
       }
     }).bind(this);
 
@@ -3506,9 +3403,6 @@ HeadsUpDisplay.prototype = {
     if (this.jsterm) {
       this.jsterm.inputNode.focus();
     }
-    if (this.gcliterm) {
-      this.gcliterm.inputNode.focus();
-    }
   },
 
   /**
@@ -3541,11 +3435,6 @@ HeadsUpDisplay.prototype = {
   jsterm: null,
 
   /**
-   * The GcliTerm object that contains the console's GCLI
-   */
-  gcliterm: null,
-
-  /**
    * creates and attaches the console input node
    *
    * @param nsIDOMWindow aWindow
@@ -3554,24 +3443,12 @@ HeadsUpDisplay.prototype = {
   createConsoleInput:
   function HUD_createConsoleInput(aWindow, aParentNode, aExistingConsole)
   {
-    let usegcli = false;
-    try {
-      usegcli = Services.prefs.getBoolPref("devtools.gcli.enable");
-    }
-    catch (ex) {}
+    var context = Cu.getWeakReference(aWindow);
 
     if (appName() == "FIREFOX") {
-      if (!usegcli) {
-        let context = Cu.getWeakReference(aWindow);
-        let mixin = new JSTermFirefoxMixin(context, aParentNode,
-                                           aExistingConsole);
-        this.jsterm = new JSTerm(context, aParentNode, mixin, this.console);
-      }
-      else {
-        this.gcliterm = new GcliTerm(aWindow, this.hudId, this.chromeDocument,
-                                     this.console, this.hintNode);
-        aParentNode.appendChild(this.gcliterm.element);
-      }
+      let mixin = new JSTermFirefoxMixin(context, aParentNode,
+                                         aExistingConsole);
+      this.jsterm = new JSTerm(context, aParentNode, mixin, this.console);
     }
     else {
       throw new Error("Unsupported Gecko Application");
@@ -3594,16 +3471,13 @@ HeadsUpDisplay.prototype = {
       this.consolePanel.label = this.getPanelTitle();
     }
 
-    if (this.jsterm) {
+    if (!this.jsterm) {
+      this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
+    }
+    else {
       this.jsterm.context = Cu.getWeakReference(this.contentWindow);
       this.jsterm.console = this.console;
       this.jsterm.createSandbox();
-    }
-    else if (this.gcliterm) {
-      this.gcliterm.reattachConsole(this.contentWindow, this.console);
-    }
-    else {
-      this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
     }
   },
 
@@ -3648,6 +3522,14 @@ HeadsUpDisplay.prototype = {
     consoleWrap.setAttribute("class", "hud-console-wrapper");
     consoleWrap.setAttribute("flex", "1");
 
+    this.outputNode = this.makeXULNode("richlistbox");
+    this.outputNode.setAttribute("class", "hud-output-node");
+    this.outputNode.setAttribute("flex", "1");
+    this.outputNode.setAttribute("orient", "vertical");
+    this.outputNode.setAttribute("context", this.hudId + "-output-contextmenu");
+    this.outputNode.setAttribute("style", "direction: ltr;");
+    this.outputNode.setAttribute("seltype", "multiple");
+
     this.filterSpacer = this.makeXULNode("spacer");
     this.filterSpacer.setAttribute("flex", "1");
 
@@ -3666,36 +3548,9 @@ HeadsUpDisplay.prototype = {
     let consoleFilterToolbar = this.makeFilterToolbar();
     consoleFilterToolbar.setAttribute("id", "viewGroup");
     this.consoleFilterToolbar = consoleFilterToolbar;
-
-    let hintSpacerNode = this.makeXULNode("box");
-    hintSpacerNode.setAttribute("flex", 1);
-
-    this.hintNode = this.makeXULNode("div");
-    this.hintNode.setAttribute("class", "gcliterm-hint-node");
-
-    let hintParentNode = this.makeXULNode("vbox");
-    hintParentNode.setAttribute("flex", "0");
-    hintParentNode.setAttribute("class", "gcliterm-hint-parent");
-    hintParentNode.appendChild(hintSpacerNode);
-    hintParentNode.appendChild(this.hintNode);
-    hintParentNode.hidden = true;
-
-    let hbox = this.makeXULNode("hbox");
-    hbox.setAttribute("flex", "1");
-
-    this.outputNode = this.makeXULNode("richlistbox");
-    this.outputNode.setAttribute("class", "hud-output-node");
-    this.outputNode.setAttribute("flex", "1");
-    this.outputNode.setAttribute("orient", "vertical");
-    this.outputNode.setAttribute("context", this.hudId + "-output-contextmenu");
-    this.outputNode.setAttribute("style", "direction: ltr;");
-    this.outputNode.setAttribute("seltype", "multiple");
-
-    hbox.appendChild(hintParentNode);
-    hbox.appendChild(this.outputNode);
-
     consoleWrap.appendChild(consoleFilterToolbar);
-    consoleWrap.appendChild(hbox);
+
+    consoleWrap.appendChild(this.outputNode);
 
     outerWrap.appendChild(consoleWrap);
 
@@ -4010,13 +3865,7 @@ HeadsUpDisplay.prototype = {
   {
     let hudId = this.hudId;
     function HUD_clearButton_onCommand() {
-      let hud = HUDService.getHudReferenceById(hudId);
-      if (hud.jsterm) {
-        hud.jsterm.clearOutput();
-      }
-      if (hud.gcliterm) {
-        hud.gcliterm.clearOutput();
-      }
+      HUDService.getHudReferenceById(hudId).jsterm.clearOutput();
     }
 
     let clearButton = this.makeXULNode("toolbarbutton");
@@ -4087,12 +3936,7 @@ HeadsUpDisplay.prototype = {
    */
   destroy: function HUD_destroy()
   {
-    if (this.jsterm) {
-      this.jsterm.destroy();
-    }
-    if (this.gcliterm) {
-      this.gcliterm.destroy();
-    }
+    this.jsterm.destroy();
 
     this.positionMenuitems.above.removeEventListener("command",
       this._positionConsoleAbove, false);
@@ -4621,62 +4465,13 @@ function JSTermHelper(aJSTerm)
     }
 
     if (!errstr) {
-      let chromeWin = HUDService.getHudReferenceById(aJSTerm.hudId).chromeWindow;
-      let styleInspector = new StyleInspector(chromeWin);
-      styleInspector.createPanel(false, function() {
-        styleInspector.panel.setAttribute("hudToolId", aJSTerm.hudId);
-        styleInspector.open(aNode);
-      });
+      let stylePanel = StyleInspector.createPanel();
+      stylePanel.setAttribute("hudToolId", aJSTerm.hudId);
+      stylePanel.showTool(aNode);
     } else {
       aJSTerm.writeOutput(errstr + "\n", CATEGORY_OUTPUT, SEVERITY_ERROR);
     }
   };
-
-  aJSTerm.sandbox.inspectrules = function JSTH_inspectrules(aNode)
-  {
-    aJSTerm.helperEvaluated = true;
-    let doc = aJSTerm.parentNode.ownerDocument;
-    let win = doc.defaultView;
-    let panel = createElement(doc, "panel", {
-      label: "CSS Rules",
-      titlebar: "normal",
-      noautofocus: "true",
-      noautohide: "true",
-      close: "true",
-      width: 350,
-      height: (win.screen.height / 2)
-    });
-
-    let iframe = createAndAppendElement(panel, "iframe", {
-      src: "chrome://browser/content/devtools/cssruleview.xul",
-      flex: "1",
-    });
-
-    panel.addEventListener("load", function onLoad() {
-      panel.removeEventListener("load", onLoad, true);
-      let doc = iframe.contentDocument;
-      let view = new CssRuleView(doc);
-      doc.documentElement.appendChild(view.element);
-      view.highlight(aNode);
-    }, true);
-
-    let parent = doc.getElementById("mainPopupSet");
-    parent.appendChild(panel);
-
-    panel.addEventListener("popuphidden", function onHide() {
-      panel.removeEventListener("popuphidden", onHide);
-      parent.removeChild(panel);
-    });
-
-    let footer = createElement(doc, "hbox", { align: "end" });
-    createAndAppendElement(footer, "spacer", { flex: 1});
-    createAndAppendElement(footer, "resizer", { dir: "bottomend" });
-    panel.appendChild(footer);
-
-    let anchor = win.gBrowser.selectedBrowser;
-    panel.openPopup(anchor, "end_before", 0, 0, false, false);
-
-  }
 
   /**
    * Prints aObject to the output.
@@ -5636,7 +5431,6 @@ JSTermFirefoxMixin.prototype = {
     this.completeNode.setAttribute("class", "jsterm-complete-node");
     this.completeNode.setAttribute("multiline", "true");
     this.completeNode.setAttribute("rows", "1");
-    this.completeNode.setAttribute("tabindex", "-1");
 
     this.inputNode = this.xulElementFactory("textbox");
     this.inputNode.setAttribute("class", "jsterm-input-node");
@@ -5650,15 +5444,22 @@ JSTermFirefoxMixin.prototype = {
     inputStack.appendChild(this.inputNode);
 
     if (this.existingConsoleNode == undefined) {
-      throw new Error("This can't happen");
+      this.outputNode = this.xulElementFactory("vbox");
+      this.outputNode.setAttribute("class", "jsterm-output-node");
+
+      this.term = this.xulElementFactory("vbox");
+      this.term.setAttribute("class", "jsterm-wrapper-node");
+      this.term.setAttribute("flex", "1");
+      this.term.appendChild(this.outputNode);
     }
+    else {
+      this.outputNode = this.existingConsoleNode;
 
-    this.outputNode = this.existingConsoleNode;
-
-    this.term = this.xulElementFactory("hbox");
-    this.term.setAttribute("class", "jsterm-input-container");
-    this.term.setAttribute("style", "direction: ltr;");
-    this.term.appendChild(inputStack);
+      this.term = this.xulElementFactory("hbox");
+      this.term.setAttribute("class", "jsterm-input-container");
+      this.term.setAttribute("style", "direction: ltr;");
+      this.term.appendChild(inputStack);
+    }
   },
 
   get inputValue()
@@ -5790,8 +5591,9 @@ ConsoleUtils = {
   function ConsoleUtils_createMessageNode(aDocument, aCategory, aSeverity,
                                           aBody, aHUDId, aSourceURL,
                                           aSourceLine, aClipboardText, aLevel) {
-    if (typeof aBody != "string" && aClipboardText == null && aBody.innerText) {
-      aClipboardText = aBody.innerText;
+    if (aBody instanceof Ci.nsIDOMNode && aClipboardText == null) {
+      throw new Error("HUDService.createMessageNode(): DOM node supplied " +
+                      "without any clipboard text");
     }
 
     // Make the icon container, which is a vertical box. Its purpose is to
@@ -5829,13 +5631,6 @@ ConsoleUtils = {
                               (aSourceLine ? ":" + aSourceLine : ""));
     aBody = aBody instanceof Ci.nsIDOMNode && !(aLevel == "dir") ?
             aBody : aDocument.createTextNode(aBody);
-
-    if (!aBody.nodeType) {
-      aBody = aDocument.createTextNode(aBody.toString());
-    }
-    if (typeof aBody == "string") {
-      aBody = aDocument.createTextNode(aBody);
-    }
 
     bodyNode.appendChild(aBody);
 
@@ -6966,242 +6761,3 @@ catch (ex) {
   // TODO: kill anything that may have started up
   // see bug 568665
 }
-
-///////////////////////////////////////////////////////////////////////////
-// GcliTerm
-///////////////////////////////////////////////////////////////////////////
-
-/**
- * Some commands need customization - this is how we get at them.
- */
-let commandExports = undefined;
-
-/**
- * GcliTerm
- *
- * Initialize GCLI by creating a set of startup options from the available
- * properties.
- *
- * @param nsIDOMWindow aContentWindow
- *        The content window that we're providing as the context to commands
- * @param string aHudId
- *        The HUD to which we should send console messages.
- * @param nsIDOMDocument aDocument
- *        The DOM document from which to create nodes.
- * @param object aConsole
- *        Console object to use within the GcliTerm.
- * @param nsIDOMElement aHintNode
- *        The node to which we add GCLI's hints.
- * @constructor
- */
-function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
-{
-  this.context = Cu.getWeakReference(aContentWindow);
-  this.hudId = aHudId;
-  this.document = aDocument;
-  this.console = aConsole;
-  this.hintNode = aHintNode;
-
-  this.createUI();
-  this.createSandbox();
-
-  this.show = this.show.bind(this);
-  this.hide = this.hide.bind(this);
-
-  this.opts = {
-    environment: { hudId: this.hudId },
-    chromeDocument: this.document,
-    contentDocument: aContentWindow.document,
-    jsEnvironment: {
-      globalObject: unwrap(aContentWindow),
-      evalFunction: this.evalInSandbox.bind(this)
-    },
-    inputElement: this.inputNode,
-    completeElement: this.completeNode,
-    inputBackgroundElement: this.inputStack,
-    hintElement: this.hintNode,
-    completionPrompt: "",
-    gcliTerm: this
-  };
-
-  gcli._internal.commandOutputManager.addListener(this.onCommandOutput, this);
-  gcli._internal.createView(this.opts);
-
-  if (!commandExports) {
-    commandExports = loadCommands();
-  }
-}
-
-GcliTerm.prototype = {
-  /**
-   * Remove the hint column from the display.
-   */
-  hide: function GcliTerm_hide()
-  {
-    this.hintNode.parentNode.hidden = true;
-  },
-
-  /**
-   * Undo the effects of calling hide().
-   */
-  show: function GcliTerm_show()
-  {
-    this.hintNode.parentNode.hidden = false;
-  },
-
-  /**
-   * Destroy the GcliTerm object. Call this method to avoid memory leaks.
-   */
-  destroy: function Gcli_destroy()
-  {
-    gcli._internal.removeView(this.opts);
-    gcli._internal.commandOutputManager.removeListener(this.onCommandOutput, this);
-
-    delete this.opts.chromeDocument;
-    delete this.opts.inputElement;
-    delete this.opts.completeElement;
-    delete this.opts.inputBackgroundElement;
-    delete this.opts.hintElement;
-    delete this.opts.contentDocument;
-    delete this.opts.jsEnvironment;
-    delete this.opts.gcliTerm;
-
-    delete this.context;
-    delete this.document;
-    delete this.console;
-    delete this.hintNode;
-
-    delete this.sandbox;
-    delete this.element
-    delete this.inputStack
-    delete this.completeNode
-    delete this.inputNode
-  },
-
-  /**
-   * Re-attaches a console when the contentWindow is recreated.
-   *
-   * @param nsIDOMWindow aContentWindow
-   *        The content window that we're providing as the context to commands
-   * @param object aConsole
-   *        Console object to use within the GcliTerm.
-   */
-  reattachConsole: function Gcli_reattachConsole(aContentWindow, aConsole)
-  {
-    this.context = Cu.getWeakReference(aContentWindow);
-    this.console = aConsole;
-    this.createSandbox();
-  },
-
-  /**
-   * Generates and attaches the GCLI Terminal part of the Web Console, which
-   * essentially consists of the interactive JavaScript input facility.
-   */
-  createUI: function Gcli_createUI()
-  {
-    this.element = this.document.createElement("vbox");
-    this.element.setAttribute("class", "gcliterm-input-container");
-    this.element.setAttribute("flex", "0");
-
-    this.inputStack = this.document.createElement("stack");
-    this.inputStack.setAttribute("class", "gcliterm-stack-node");
-    this.element.appendChild(this.inputStack);
-
-    this.completeNode = this.document.createElement("div");
-    this.completeNode.setAttribute("class", "gcliterm-complete-node");
-    this.completeNode.setAttribute("aria-live", "polite");
-    this.inputStack.appendChild(this.completeNode);
-
-    this.inputNode = this.document.createElement("textbox");
-    this.inputNode.setAttribute("class", "gcliterm-input-node");
-    this.inputNode.setAttribute("rows", "1");
-    this.inputStack.appendChild(this.inputNode);
-  },
-
-  /**
-   * Called by GCLI/canon when command line output changes.
-   */
-  onCommandOutput: function Gcli_onCommandOutput(aEvent)
-  {
-    // When we can update the history of the console, then we should stop
-    // filtering incomplete reports.
-    if (!aEvent.output.completed) {
-      return;
-    }
-
-    this.writeOutput(aEvent.output.typed, { category: CATEGORY_INPUT });
-
-    if (aEvent.output.output == null) {
-      return;
-    }
-
-    let output = aEvent.output.output;
-    if (aEvent.output.command.returnType == "html" && typeof output == "string") {
-      let frag = this.document.createRange().createContextualFragment(
-          '<div xmlns="' + HTML_NS + '" xmlns:xul="' + XUL_NS + '">' +
-          output + '</div>');
-
-      output = this.document.createElementNS(HTML_NS, "div");
-      output.appendChild(frag);
-    }
-    this.writeOutput(output);
-  },
-
-  /**
-   * Setup the eval sandbox, should be called whenever we are attached.
-   */
-  createSandbox: function Gcli_createSandbox()
-  {
-    let win = this.context.get().QueryInterface(Ci.nsIDOMWindow);
-
-    // create a JS Sandbox out of this.context
-    this.sandbox = new Cu.Sandbox(win, {
-      sandboxPrototype: win,
-      wantXrays: false
-    });
-    this.sandbox.console = this.console;
-  },
-
-  /**
-   * Evaluates a string in the sandbox.
-   *
-   * @param string aString
-   *        String to evaluate in the sandbox
-   * @return The result of the evaluation
-   */
-  evalInSandbox: function Gcli_evalInSandbox(aString)
-  {
-    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
-  },
-
-  /**
-   * Writes a message to the HUD that originates from the interactive
-   * JavaScript console.
-   *
-   * @param string aOutputMessage
-   *        The message to display.
-   * @param number aCategory
-   *        One of the CATEGORY_ constants.
-   * @param number aSeverity
-   *        One of the SEVERITY_ constants.
-   */
-  writeOutput: function Gcli_writeOutput(aOutputMessage, aOptions)
-  {
-    aOptions = aOptions || {};
-
-    let node = ConsoleUtils.createMessageNode(
-                    this.document,
-                    aOptions.category || CATEGORY_OUTPUT,
-                    aOptions.severity || SEVERITY_LOG,
-                    aOutputMessage,
-                    this.hudId,
-                    aOptions.sourceUrl || undefined,
-                    aOptions.sourceLine || undefined,
-                    aOptions.clipboardText || undefined);
-
-    ConsoleUtils.outputMessageNode(node, this.hudId);
-  },
-
-  clearOutput: JSTerm.prototype.clearOutput,
-};
-

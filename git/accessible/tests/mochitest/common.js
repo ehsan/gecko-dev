@@ -42,7 +42,7 @@ const nsIDOMDocument = Components.interfaces.nsIDOMDocument;
 const nsIDOMEvent = Components.interfaces.nsIDOMEvent;
 const nsIDOMHTMLDocument = Components.interfaces.nsIDOMHTMLDocument;
 const nsIDOMNode = Components.interfaces.nsIDOMNode;
-const nsIDOMHTMLElement = Components.interfaces.nsIDOMHTMLElement;
+const nsIDOMNSHTMLElement = Components.interfaces.nsIDOMNSHTMLElement;
 const nsIDOMWindow = Components.interfaces.nsIDOMWindow;
 const nsIDOMXULElement = Components.interfaces.nsIDOMXULElement;
 

@@ -52,17 +52,19 @@
 #define NM_DBUS_SERVICE                 "org.freedesktop.NetworkManager"
 #define NM_DBUS_PATH                            "/org/freedesktop/NetworkManager"
 #define NM_DBUS_INTERFACE                       "org.freedesktop.NetworkManager"
-#define NM_DBUS_SIGNAL_STATE_CHANGE             "StateChange" /* Deprecated in 0.7.x */
-#define NM_DBUS_SIGNAL_STATE_CHANGED            "StateChanged"
-
-#define NM_STATE_CONNECTED_OLD    3 /* Before NM 0.9.0 */
-#define NM_STATE_CONNECTED_LOCAL  50
-#define NM_STATE_CONNECTED_SITE   60
-#define NM_STATE_CONNECTED_GLOBAL 70
+#define NM_DBUS_SIGNAL_STATE_CHANGE             "StateChange"
+typedef enum NMState
+{
+        NM_STATE_UNKNOWN = 0,
+        NM_STATE_ASLEEP,
+        NM_STATE_CONNECTING,
+        NM_STATE_CONNECTED,
+        NM_STATE_DISCONNECTED
+} NMState;
 
 nsNetworkManagerListener::nsNetworkManagerListener() :
-    mLinkUp(true), mNetworkManagerActive(false),
-    mOK(true), mManageIOService(true)
+    mLinkUp(PR_TRUE), mNetworkManagerActive(PR_FALSE),
+    mOK(PR_TRUE), mManageIOService(PR_TRUE)
 {
 }
 
@@ -141,13 +143,13 @@ nsNetworkManagerListener::RegisterWithConnection(DBusConnection* connection) {
     dbus_message_new_method_call(NM_DBUS_SERVICE, NM_DBUS_PATH,
                                  NM_DBUS_INTERFACE, "state");
   if (!msg) {
-    mOK = false;
+    mOK = PR_FALSE;
     return;
   }
   
   DBusPendingCall* reply = mDBUS->SendWithReply(this, msg);
   if (!reply) {
-    mOK = false;
+    mOK = PR_FALSE;
     return;
   }
 
@@ -176,20 +178,18 @@ nsNetworkManagerListener::NotifyNetworkStatusObservers() {
 
 void
 nsNetworkManagerListener::UnregisterWithConnection(DBusConnection* connection) {
-  mNetworkManagerActive = false;
+  mNetworkManagerActive = PR_FALSE;
   NotifyNetworkStatusObservers();
 }
 
 bool
 nsNetworkManagerListener::HandleMessage(DBusMessage* message) {
   if (dbus_message_is_signal(message, NM_DBUS_INTERFACE,
-                             NM_DBUS_SIGNAL_STATE_CHANGE) ||
-      dbus_message_is_signal(message, NM_DBUS_INTERFACE,
-                             NM_DBUS_SIGNAL_STATE_CHANGED)) {
+                             NM_DBUS_SIGNAL_STATE_CHANGE)) {
     UpdateNetworkStatus(message);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -199,13 +199,10 @@ nsNetworkManagerListener::UpdateNetworkStatus(DBusMessage* msg) {
                              DBUS_TYPE_INVALID))
     return;
 
-  mNetworkManagerActive = true;
+  mNetworkManagerActive = PR_TRUE;
   
   bool wasUp = mLinkUp;
-  mLinkUp = result == NM_STATE_CONNECTED_OLD ||
-            result == NM_STATE_CONNECTED_LOCAL ||
-            result == NM_STATE_CONNECTED_SITE ||
-            result == NM_STATE_CONNECTED_GLOBAL;
+  mLinkUp = result == NM_STATE_CONNECTED;
   if (wasUp == mLinkUp)
     return;
 

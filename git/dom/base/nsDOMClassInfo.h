@@ -48,7 +48,6 @@
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "nsIScriptGlobalObject.h"
 #include "nsContentUtils.h"
-#include "xpcpublic.h"
 
 namespace mozilla {
 class DOMSVGLengthList;
@@ -59,7 +58,7 @@ class DOMSVGTransformList;
 }
 class nsGlobalWindow;
 class nsIDOMDocument;
-class nsIDOMHTMLOptionsCollection;
+class nsIDOMNSHTMLOptionCollection;
 class nsIDOMNodeList;
 class nsIDOMSVGLength;
 class nsIDOMSVGLengthList;
@@ -101,8 +100,6 @@ struct nsDOMClassInfoData
   PRUint32 mInterfacesBitmap;
   bool mChromeOnly;
   bool mDisabled;
-  // For new style DOM bindings.
-  mozilla::dom::binding::DefineInterface mDefineDOMInterface;
 #ifdef NS_DEBUG
   PRUint32 mDebugID;
 #endif
@@ -732,9 +729,6 @@ protected:
                                     nsresult *aResult);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsHTMLCollectionSH(aData);
@@ -944,7 +938,7 @@ public:
                          JSObject *obj, jsid id, jsval *vp, bool *_retval);
 
   static nsresult SetOption(JSContext *cx, jsval *vp, PRUint32 aIndex,
-                            nsIDOMHTMLOptionsCollection *aOptCollection);
+                            nsIDOMNSHTMLOptionCollection *aOptCollection);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1583,9 +1577,6 @@ public:
   {
     return NS_OK;
   }
-  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsid id, PRUint32 flags,
-                        JSObject **objp, bool *_retval);
   NS_IMETHOD Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                   JSObject *obj, PRUint32 argc, jsval *argv, jsval *vp,
                   bool *_retval);

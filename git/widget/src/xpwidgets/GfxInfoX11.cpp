@@ -246,34 +246,17 @@ static inline PRUint64 version(PRUint32 major, PRUint32 minor, PRUint32 revision
     return (PRUint64(major) << 32) + (PRUint64(minor) << 16) + PRUint64(revision);
 }
 
-static GfxDriverInfo gDriverInfo[] = {
-  GfxDriverInfo()
-};
-
-const GfxDriverInfo*
-GfxInfo::GetGfxDriverInfo()
-{
-  return &gDriverInfo[0];
-}
-
 nsresult
-GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, 
-                              PRInt32 *aStatus, 
-                              nsAString & aSuggestedDriverVersion, 
-                              GfxDriverInfo* aDriverInfo /* = nsnull */, 
-                              OperatingSystem* aOS /* = nsnull */)
-
+GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aSuggestedDriverVersion, GfxDriverInfo* aDriverInfo /* = nsnull */)
 {
     GetData();
     *aStatus = nsIGfxInfo::FEATURE_NO_INFO;
-    aSuggestedDriverVersion.SetIsVoid(true);
+    aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
 
 #ifdef MOZ_PLATFORM_MAEMO
     // on Maemo, the glxtest probe doesn't build, and we don't really need GfxInfo anyway
     return NS_OK;
 #endif
-
-    OperatingSystem os = DRIVER_OS_LINUX;
 
     // Disable OpenGL layers when we don't have texture_from_pixmap because it regresses performance. 
     if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS && !mHasTextureFromPixmap) {
@@ -315,11 +298,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
         // Also, this case is hit whenever the GLXtest probe failed to get driver info or crashed.
         *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
     }
-
-  if (aOS)
-    *aOS = os;
-
-  return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
+  return NS_OK;
 }
 
 

@@ -43,7 +43,12 @@
 #include "nsIJSContextStack.h"
 #include "nsServiceManagerUtils.h"
 #include "nsDOMJSUtils.h"
-#include "nsWrapperCacheInlines.h"
+
+nsDOMEventTargetWrapperCache::~nsDOMEventTargetWrapperCache()
+{
+  nsISupports *supports = static_cast<nsIDOMEventTarget*>(this);
+  nsContentUtils::ReleaseWrapper(supports, this);
+}
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetWrapperCache)
 

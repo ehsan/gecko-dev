@@ -93,13 +93,14 @@ nsSHEntryShared::Shutdown()
 
 nsSHEntryShared::nsSHEntryShared()
   : mDocShellID(0)
-  , mIsFrameNavigation(false)
-  , mSaveLayoutState(true)
-  , mSticky(true)
-  , mDynamicallyCreated(false)
+  , mParent(nsnull)
+  , mIsFrameNavigation(PR_FALSE)
+  , mSaveLayoutState(PR_TRUE)
+  , mSticky(PR_TRUE)
+  , mDynamicallyCreated(PR_FALSE)
   , mLastTouched(0)
   , mID(gSHEntrySharedID++)
-  , mExpired(false)
+  , mExpired(PR_FALSE)
   , mViewerBounds(0, 0, 0, 0)
 {
 }
@@ -135,6 +136,7 @@ nsSHEntryShared::Duplicate(nsSHEntryShared *aEntry)
   newEntry->mDocShellID = aEntry->mDocShellID;
   newEntry->mChildShells.AppendObjects(aEntry->mChildShells);
   newEntry->mOwner = aEntry->mOwner;
+  newEntry->mParent = aEntry->mParent;
   newEntry->mContentType.Assign(aEntry->mContentType);
   newEntry->mIsFrameNavigation = aEntry->mIsFrameNavigation;
   newEntry->mSaveLayoutState = aEntry->mSaveLayoutState;
@@ -182,7 +184,7 @@ nsSHEntryShared::DropPresentationState()
 
   RemoveFromExpirationTracker();
   mContentViewer = nsnull;
-  mSticky = true;
+  mSticky = PR_TRUE;
   mWindowState = nsnull;
   mViewerBounds.SetRect(0, 0, 0, 0);
   mChildShells.Clear();

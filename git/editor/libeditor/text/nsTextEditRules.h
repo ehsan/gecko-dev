@@ -192,7 +192,7 @@ protected:
     * @param aSelection
     * @param aInFormat  the format requested for the output, a MIME type
     * @param aOutText   the string to use for output, if aCancel is set to true
-    * @param aOutCancel if set to true, the caller should cancel the operation
+    * @param aOutCancel if set to PR_TRUE, the caller should cancel the operation
     *                   and use aOutText as the result.
     */
   nsresult WillOutputText(nsISelection *aSelection,
@@ -240,31 +240,31 @@ protected:
 
   bool IsPasswordEditor() const
   {
-    return mEditor ? mEditor->IsPasswordEditor() : false;
+    return mEditor ? mEditor->IsPasswordEditor() : PR_FALSE;
   }
   bool IsSingleLineEditor() const
   {
-    return mEditor ? mEditor->IsSingleLineEditor() : false;
+    return mEditor ? mEditor->IsSingleLineEditor() : PR_FALSE;
   }
   bool IsPlaintextEditor() const
   {
-    return mEditor ? mEditor->IsPlaintextEditor() : false;
+    return mEditor ? mEditor->IsPlaintextEditor() : PR_FALSE;
   }
   bool IsReadonly() const
   {
-    return mEditor ? mEditor->IsReadonly() : false;
+    return mEditor ? mEditor->IsReadonly() : PR_FALSE;
   }
   bool IsDisabled() const
   {
-    return mEditor ? mEditor->IsDisabled() : false;
+    return mEditor ? mEditor->IsDisabled() : PR_FALSE;
   }
   bool IsMailEditor() const
   {
-    return mEditor ? mEditor->IsMailEditor() : false;
+    return mEditor ? mEditor->IsMailEditor() : PR_FALSE;
   }
   bool DontEchoPassword() const
   {
-    return mEditor ? mEditor->DontEchoPassword() : false;
+    return mEditor ? mEditor->DontEchoPassword() : PR_FALSE;
   }
 
   // data members
@@ -304,8 +304,8 @@ class nsTextRulesInfo : public nsRulesInfo
     outputFormat(0),
     maxLength(-1),
     collapsedAction(nsIEditor::eNext),
-    bOrdered(false),
-    entireList(false),
+    bOrdered(PR_FALSE),
+    entireList(PR_FALSE),
     bulletType(0),
     alignType(0),
     blockType(0),
@@ -349,9 +349,9 @@ class nsAutoLockRulesSniffing
   public:
   
   nsAutoLockRulesSniffing(nsTextEditRules *rules) : mRules(rules) 
-                 {if (mRules) mRules->mLockRulesSniffing = true;}
+                 {if (mRules) mRules->mLockRulesSniffing = PR_TRUE;}
   ~nsAutoLockRulesSniffing() 
-                 {if (mRules) mRules->mLockRulesSniffing = false;}
+                 {if (mRules) mRules->mLockRulesSniffing = PR_FALSE;}
   
   protected:
   nsTextEditRules *mRules;
@@ -367,7 +367,7 @@ class nsAutoLockListener
   public:
   
   nsAutoLockListener(bool *enabled) : mEnabled(enabled)
-                 {if (mEnabled) { mOldState=*mEnabled; *mEnabled = false;}}
+                 {if (mEnabled) { mOldState=*mEnabled; *mEnabled = PR_FALSE;}}
   ~nsAutoLockListener() 
                  {if (mEnabled) *mEnabled = mOldState;}
   

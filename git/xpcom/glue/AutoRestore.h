@@ -165,7 +165,7 @@ namespace mozilla {
    * goes out of scope.  For example:
    *   {
    *     AutoRestore<bool> savePainting(mIsPainting);
-   *     mIsPainting = true;
+   *     mIsPainting = PR_TRUE;
    *     
    *     // ... your code here ...
    *

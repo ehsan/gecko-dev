@@ -115,10 +115,9 @@ struct JSFunction : public JSObject_Slots2
             JSNativeTraceInfo *trcinfo;
         } n;
         struct Scripted {
-            JSScript    *script_; /* interpreted bytecode descriptor or null;
-                                     use the setter! */
+            JSScript    *script;  /* interpreted bytecode descriptor or null */
             uint16       skipmin; /* net skip amount up (toward zero) from
-                                     script_->staticLevel to nearest upvar,
+                                     script->staticLevel to nearest upvar,
                                      including upvars in nested functions */
             js::Shape   *names;   /* argument and variable names */
         } i;
@@ -197,15 +196,10 @@ struct JSFunction : public JSObject_Slots2
 
     JSScript *script() const {
         JS_ASSERT(isInterpreted());
-        return u.i.script_;
+        return u.i.script;
     }
 
-    void setScript(JSScript *script) {
-        JS_ASSERT(isInterpreted());
-        u.i.script_ = script;
-    }
-
-    JSScript *maybeScript() const {
+    JSScript * maybeScript() const {
         return isInterpreted() ? script() : NULL;
     }
 
@@ -219,7 +213,7 @@ struct JSFunction : public JSObject_Slots2
     }
 
     static uintN offsetOfNativeOrScript() {
-        JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, i.script_));
+        JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, i.script));
         JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, nativeOrScript));
         return offsetof(JSFunction, u.nativeOrScript);
     }
@@ -447,7 +441,28 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
 
 inline JSObject *
 CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
-                    bool ignoreSingletonClone = false);
+                    bool ignoreSingletonClone = false)
+{
+    JS_ASSERT(parent);
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, parent, JSProto_Function, &proto))
+        return NULL;
+
+    /*
+     * For attempts to clone functions at a function definition opcode or from
+     * a method barrier, don't perform the clone if the function has singleton
+     * type. CloneFunctionObject was called pessimistically, and we need to
+     * preserve the type's property that if it is singleton there is only a
+     * single object with its type in existence.
+     */
+    if (ignoreSingletonClone && fun->hasSingletonType()) {
+        JS_ASSERT(fun->getProto() == proto);
+        fun->setParent(parent);
+        return fun;
+    }
+
+    return js_CloneFunctionObject(cx, fun, parent, proto);
+}
 
 inline JSObject *
 CloneFunctionObject(JSContext *cx, JSFunction *fun)
@@ -535,6 +550,9 @@ SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp
 
 extern JSBool
 js_GetArgsValue(JSContext *cx, js::StackFrame *fp, js::Value *vp);
+
+extern JSBool
+js_GetArgsProperty(JSContext *cx, js::StackFrame *fp, jsid id, js::Value *vp);
 
 /*
  * Get the arguments object for the given frame.  If the frame is strict mode

@@ -73,10 +73,10 @@ static EventListenerCounter sEventListenerCounter;
  * nsJSEventListener implementation
  */
 nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
-                                     JSObject* aScopeObject,
+                                     void *aScopeObject,
                                      nsISupports *aTarget,
                                      nsIAtom* aType,
-                                     JSObject *aHandler)
+                                     void *aHandler)
   : nsIJSEventListener(aContext, aScopeObject, aTarget, aHandler),
     mEventName(aType)
 {
@@ -86,11 +86,11 @@ nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
                "EventListener with no context or scope?");
   nsContentUtils::HoldScriptObject(aContext->GetScriptTypeID(), this,
                                    &NS_CYCLE_COLLECTION_NAME(nsJSEventListener),
-                                   aScopeObject, false);
+                                   aScopeObject, PR_FALSE);
   if (aHandler) {
     nsContentUtils::HoldScriptObject(aContext->GetScriptTypeID(), this,
                                      &NS_CYCLE_COLLECTION_NAME(nsJSEventListener),
-                                     aHandler, true);
+                                     aHandler, PR_TRUE);
   }
 }
 
@@ -167,24 +167,24 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
       NS_ENSURE_SUCCESS(rv, rv);
       rv = var->SetAsWString(scriptEvent->errorMsg);
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = iargv->AppendElement(var, false);
+      rv = iargv->AppendElement(var, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
       // filename
       var = do_CreateInstance(NS_VARIANT_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
       rv = var->SetAsWString(scriptEvent->fileName);
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = iargv->AppendElement(var, false);
+      rv = iargv->AppendElement(var, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
       // line number
       var = do_CreateInstance(NS_VARIANT_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
       rv = var->SetAsUint32(scriptEvent->lineNr);
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = iargv->AppendElement(var, false);
+      rv = iargv->AppendElement(var, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      handledScriptError = true;
+      handledScriptError = PR_TRUE;
     }
   }
 
@@ -192,7 +192,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
     iargv = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
     NS_ENSURE_TRUE(iargv != nsnull, NS_ERROR_OUT_OF_MEMORY);
-    rv = iargv->AppendElement(aEvent, false);
+    rv = iargv->AppendElement(aEvent, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -256,7 +256,7 @@ nsJSEventListener::HandleEvent(nsIDOMEvent* aEvent)
 }
 
 /* virtual */ void
-nsJSEventListener::SetHandler(JSObject *aHandler)
+nsJSEventListener::SetHandler(void *aHandler)
 {
   // Technically we should drop the old mHandler and hold the new
   // one... except for JS this is a no-op, and we're really not
@@ -272,14 +272,17 @@ nsJSEventListener::SetHandler(JSObject *aHandler)
  */
 
 nsresult
-NS_NewJSEventListener(nsIScriptContext* aContext, JSObject* aScopeObject,
+NS_NewJSEventListener(nsIScriptContext *aContext, void *aScopeObject,
                       nsISupports*aTarget, nsIAtom* aEventType,
-                      JSObject* aHandler, nsIDOMEventListener ** aReturn)
+                      void *aHandler, nsIDOMEventListener ** aReturn)
 {
   NS_ENSURE_ARG(aEventType);
   nsJSEventListener* it =
     new nsJSEventListener(aContext, aScopeObject, aTarget, aEventType,
                           aHandler);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   NS_ADDREF(*aReturn = it);
 
   return NS_OK;

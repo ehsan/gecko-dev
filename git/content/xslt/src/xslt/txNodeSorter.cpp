@@ -112,7 +112,7 @@ txNodeSorter::addSortElement(Expr* aSelectExpr, Expr* aLangExpr,
         }
 
         // Case-order 
-        MBool upperFirst = false;
+        MBool upperFirst = PR_FALSE;
         if (aCaseOrderExpr) {
             nsAutoString attrValue;
 
@@ -120,7 +120,7 @@ txNodeSorter::addSortElement(Expr* aSelectExpr, Expr* aLangExpr,
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (TX_StringEqualsAtom(attrValue, nsGkAtoms::upperFirst)) {
-                upperFirst = true;
+                upperFirst = PR_TRUE;
             }
             else if (!TX_StringEqualsAtom(attrValue,
                                           nsGkAtoms::lowerFirst)) {
@@ -290,8 +290,8 @@ txNodeSorter::calcSortValue(TxObject*& aSortValue, SortKey* aKey,
                                                          aSortValue);
     if (NS_FAILED(rv)) {
         aSortData->mRv = rv;
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }

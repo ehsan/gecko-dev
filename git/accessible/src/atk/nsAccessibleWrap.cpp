@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsAccessible.h"
 #include "nsAccessibleWrap.h"
 
@@ -71,7 +69,6 @@
 #include "nsMaiInterfaceDocument.h"
 #include "nsMaiInterfaceImage.h"
 
-using namespace mozilla;
 using namespace mozilla::a11y;
 
 nsAccessibleWrap::EAvailableAtkSignals nsAccessibleWrap::gAvailableAtkSignals =
@@ -347,7 +344,7 @@ void nsAccessibleWrap::SetMaiHyperlink(MaiHyperlink* aMaiHyperlink)
     NS_ASSERTION(quark_mai_hyperlink, "quark_mai_hyperlink not initialized");
     NS_ASSERTION(IS_MAI_OBJECT(mAtkObject), "Invalid AtkObject");
     if (quark_mai_hyperlink && IS_MAI_OBJECT(mAtkObject)) {
-        MaiHyperlink* maiHyperlink = GetMaiHyperlink(false);
+        MaiHyperlink* maiHyperlink = GetMaiHyperlink(PR_FALSE);
         if (!maiHyperlink && !aMaiHyperlink) {
             return; // Never set and we're shutting down
         }
@@ -525,7 +522,7 @@ GetMaiAtkType(PRUint16 interfacesBits)
                                   atkTypeName,
                                   &tinfo, GTypeFlags(0));
 
-    for (PRUint32 index = 0; index < ArrayLength(atk_if_infos); index++) {
+    for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(atk_if_infos); index++) {
       if (interfacesBits & (1 << index)) {
         g_type_add_interface_static(type,
                                     GetAtkTypeForMai((MaiInterfaceType)index),
@@ -966,7 +963,7 @@ refRelationSetCB(AtkObject *aAtkObj)
     nsIAccessibleRelation::RELATION_DESCRIPTION_FOR,
   };
 
-  for (PRUint32 i = 0; i < ArrayLength(relationTypes); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(relationTypes); i++) {
     AtkRelationType atkType = static_cast<AtkRelationType>(relationTypes[i]);
     AtkRelation* atkRelation =
       atk_relation_set_get_relation_by_type(relation_set, atkType);
@@ -1063,7 +1060,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
             nsRefPtr<AccEvent> stateChangeEvent =
-              new AccStateChangeEvent(accessible, states::FOCUSED, true);
+              new AccStateChangeEvent(accessible, states::FOCUSED, PR_TRUE);
             return FireAtkStateChangeEvent(stateChangeEvent, atkObj);
         }
       } break;
@@ -1089,24 +1086,10 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         }
       } break;
 
-    case nsIAccessibleEvent::EVENT_SELECTION:
-    case nsIAccessibleEvent::EVENT_SELECTION_ADD:
-    case nsIAccessibleEvent::EVENT_SELECTION_REMOVE:
-    {
-      // XXX: dupe events may be fired
-      MAI_LOG_DEBUG(("\n\nReceived: EVENT_SELECTION_CHANGED\n"));
-      AccSelChangeEvent* selChangeEvent = downcast_accEvent(aEvent);
-      g_signal_emit_by_name(nsAccessibleWrap::GetAtkObject(selChangeEvent->Widget()),
-                            "selection_changed");
-      break;
-    }
-
-    case nsIAccessibleEvent::EVENT_SELECTION_WITHIN:
-    {
-      MAI_LOG_DEBUG(("\n\nReceived: EVENT_SELECTION_CHANGED\n"));
-      g_signal_emit_by_name(atkObj, "selection_changed");
-      break;
-    }
+    case nsIAccessibleEvent::EVENT_SELECTION_CHANGED:
+        MAI_LOG_DEBUG(("\n\nReceived: EVENT_SELECTION_CHANGED\n"));
+        g_signal_emit_by_name(atkObj, "selection_changed");
+        break;
 
     case nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TEXT_SELECTION_CHANGED\n"));
@@ -1229,10 +1212,10 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         break;
 
     case nsIAccessibleEvent::EVENT_SHOW:
-        return FireAtkShowHideEvent(aEvent, atkObj, true);
+        return FireAtkShowHideEvent(aEvent, atkObj, PR_TRUE);
 
     case nsIAccessibleEvent::EVENT_HIDE:
-        return FireAtkShowHideEvent(aEvent, atkObj, false);
+        return FireAtkShowHideEvent(aEvent, atkObj, PR_FALSE);
 
         /*
          * Because dealing with menu is very different between nsIAccessible
@@ -1253,7 +1236,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_ACTIVATED\n"));
         nsRootAccessible *rootAcc =
           static_cast<nsRootAccessible *>(accessible);
-        rootAcc->mActivated = true;
+        rootAcc->mActivated = PR_TRUE;
         guint id = g_signal_lookup ("activate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
 
@@ -1266,7 +1249,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_WINDOW_DEACTIVATED\n"));
         nsRootAccessible *rootAcc =
           static_cast<nsRootAccessible *>(accessible);
-        rootAcc->mActivated = false;
+        rootAcc->mActivated = PR_FALSE;
         guint id = g_signal_lookup ("deactivate", MAI_TYPE_ATK_OBJECT);
         g_signal_emit(atkObj, id, 0);
       } break;
@@ -1313,14 +1296,14 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_MENUPOPUP_START:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_MENUPOPUP_START\n"));
         atk_focus_tracker_notify(atkObj); // fire extra focus event
-        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, true);
-        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, true);
+        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, PR_TRUE);
+        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, PR_TRUE);
         break;
 
     case nsIAccessibleEvent::EVENT_MENUPOPUP_END:
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_MENUPOPUP_END\n"));
-        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, false);
-        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, false);
+        atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, PR_FALSE);
+        atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, PR_FALSE);
         break;
     }
 

@@ -70,24 +70,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
-    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
-    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLStyleElement
   NS_DECL_NSIDOMHTMLSTYLEELEMENT
@@ -107,6 +90,9 @@ public:
                            bool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
+
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+  virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -180,7 +166,7 @@ nsHTMLStyleElement::GetDisabled(bool* aDisabled)
     }
   }
   else {
-    *aDisabled = false;
+    *aDisabled = PR_FALSE;
   }
 
   return result;
@@ -312,18 +298,18 @@ nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 nsresult
 nsHTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
   return NS_OK;
 }
 
 nsresult
 nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  SetEnableUpdates(false);
+  SetEnableUpdates(PR_FALSE);
 
-  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
   
-  SetEnableUpdates(true);
+  SetEnableUpdates(PR_TRUE);
   
   UpdateStyleSheetInternal(nsnull);
   return rv;
@@ -332,7 +318,7 @@ nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 already_AddRefed<nsIURI>
 nsHTMLStyleElement::GetStyleSheetURL(bool* aIsInline)
 {
-  *aIsInline = true;
+  *aIsInline = PR_TRUE;
   return nsnull;
 }
 
@@ -345,7 +331,7 @@ nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Truncate();
   aType.Truncate();
   aMedia.Truncate();
-  *aIsAlternate = false;
+  *aIsAlternate = PR_FALSE;
 
   nsAutoString title;
   GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);

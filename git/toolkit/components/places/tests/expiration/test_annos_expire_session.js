@@ -53,8 +53,6 @@ let as = Cc["@mozilla.org/browser/annotation-service;1"].
          getService(Ci.nsIAnnotationService);
 
 function run_test() {
-  do_test_pending();
-
   // Set interval to a large value so we don't expire on it.
   setInterval(3600); // 1h
 
@@ -86,17 +84,25 @@ function run_test() {
   items = as.getItemsWithAnnotation("test2");
   do_check_eq(items.length, 10);
 
-  waitForAsyncUpdates(function() {
-    let stmt = DBConn().createStatement(
-      "SELECT id FROM moz_annos "
-    + "UNION "
-    + "SELECT id FROM moz_items_annos "
-    );
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
+  // Observe expirations.
+  observer = {
+    observe: function(aSubject, aTopic, aData) {
+      os.removeObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
 
-    do_test_finished();
-  });
+      let pages = as.getPagesWithAnnotation("test1");
+      do_check_eq(pages.length, 0);
+      pages = as.getPagesWithAnnotation("test2");
+      do_check_eq(pages.length, 0);
+      let items = as.getItemsWithAnnotation("test1");
+      do_check_eq(items.length, 0);
+      items = as.getItemsWithAnnotation("test2");
+      do_check_eq(items.length, 0);
 
-  shutdownPlaces();
+      do_test_finished();
+    }
+  };
+  os.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+
+  shutdownExpiration();
+  do_test_pending();
 }

@@ -46,9 +46,6 @@
 
 JS_BEGIN_EXTERN_C
 
-extern JS_FRIEND_API(void)
-JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
-
 extern JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt);
 
@@ -59,7 +56,7 @@ extern JS_FRIEND_API(JSFunction *)
 JS_GetObjectFunction(JSObject *obj);
 
 extern JS_FRIEND_API(JSObject *)
-JS_GetGlobalForFrame(JSStackFrame *fp);
+JS_GetFrameScopeChainRaw(JSStackFrame *fp);
 
 extern JS_FRIEND_API(JSBool)
 JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
@@ -79,24 +76,6 @@ JS_SetProtoCalled(JSContext *cx);
 extern JS_FRIEND_API(size_t)
 JS_GetCustomIteratorCount(JSContext *cx);
 
-extern JS_FRIEND_API(JSBool)
-JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret);
-
-enum {
-    JS_TELEMETRY_GC_REASON,
-    JS_TELEMETRY_GC_IS_COMPARTMENTAL,
-    JS_TELEMETRY_GC_IS_SHAPE_REGEN,
-    JS_TELEMETRY_GC_MS,
-    JS_TELEMETRY_GC_MARK_MS,
-    JS_TELEMETRY_GC_SWEEP_MS
-};
-
-typedef void
-(* JSAccumulateTelemetryDataCallback)(int id, JSUint32 sample);
-
-extern JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback);
-
 /* Data for tracking analysis/inference memory usage. */
 typedef struct TypeInferenceMemoryStats
 {
@@ -109,13 +88,11 @@ typedef struct TypeInferenceMemoryStats
 
 extern JS_FRIEND_API(void)
 JS_GetTypeInferenceMemoryStats(JSContext *cx, JSCompartment *compartment,
-                               TypeInferenceMemoryStats *stats,
-                               JSUsableSizeFun usf);
+                               TypeInferenceMemoryStats *stats);
 
 extern JS_FRIEND_API(void)
 JS_GetTypeInferenceObjectStats(/*TypeObject*/ void *object,
-                               TypeInferenceMemoryStats *stats,
-                               JSUsableSizeFun usf);
+                               TypeInferenceMemoryStats *stats);
 
 extern JS_FRIEND_API(JSPrincipals *)
 JS_GetCompartmentPrincipals(JSCompartment *compartment);
@@ -152,16 +129,6 @@ JS_END_EXTERN_C
 #ifdef __cplusplus
 
 namespace js {
-
-#ifdef DEBUG
- /*
-  * DEBUG-only method to dump the complete object graph of heap-allocated things.
-  * fp is the file for the dump output.
-  */
-extern JS_FRIEND_API(void)
-DumpHeapComplete(JSContext *cx, FILE *fp);
-
-#endif
 
 class JS_FRIEND_API(AutoPreserveCompartment) {
   private:
@@ -215,11 +182,11 @@ struct Object {
     void        *_1;
     js::Class   *clasp;
     uint32      flags;
-    uint32      objShape;
-    void        *_2;
+    uint32      _3;
+    void        *_4;
     JSObject    *parent;
     void        *privateData;
-    jsuword     capacity;
+    jsuword     _5;
     js::Value   *slots;
     TypeObject  *type;
 
@@ -278,20 +245,10 @@ GetObjectPrivate(const JSObject *obj)
     return reinterpret_cast<const shadow::Object*>(obj)->privateData;
 }
 
-inline JSObject *
-GetObjectGlobal(JSObject *obj)
-{
-    while (JSObject *parent = GetObjectParent(obj))
-        obj = parent;
-    return obj;
-}
-
 #ifdef DEBUG
 extern JS_FRIEND_API(void) CheckReservedSlot(const JSObject *obj, size_t slot);
-extern JS_FRIEND_API(void) CheckSlot(const JSObject *obj, size_t slot);
 #else
 inline void CheckReservedSlot(const JSObject *obj, size_t slot) {}
-inline void CheckSlot(const JSObject *obj, size_t slot) {}
 #endif
 
 /*
@@ -312,25 +269,6 @@ SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
     reinterpret_cast<shadow::Object *>(obj)->slotRef(slot) = value;
 }
 
-inline uint32
-GetNumSlots(const JSObject *obj)
-{
-    return uint32(reinterpret_cast<const shadow::Object *>(obj)->capacity);
-}
-
-inline const Value &
-GetSlot(const JSObject *obj, size_t slot)
-{
-    CheckSlot(obj, slot);
-    return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
-}
-
-inline uint32
-GetObjectShape(const JSObject *obj)
-{
-    return reinterpret_cast<const shadow::Object*>(obj)->objShape;
-}
-
 static inline js::PropertyOp
 CastAsJSPropertyOp(JSObject *object)
 {
@@ -345,9 +283,6 @@ CastAsJSStrictPropertyOp(JSObject *object)
 
 JS_FRIEND_API(bool)
 GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *props);
-
-JS_FRIEND_API(bool)
-StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate

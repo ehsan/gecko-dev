@@ -85,11 +85,11 @@ nsMathMLmactionFrame::~nsMathMLmactionFrame()
   //  printf("maction:%p unregistering as mouse event listener ...\n", this);
   if (mListener) {
     mContent->RemoveEventListener(NS_LITERAL_STRING("click"), mListener,
-                                  false);
+                                  PR_FALSE);
     mContent->RemoveEventListener(NS_LITERAL_STRING("mouseover"), mListener,
-                                  false);
+                                  PR_FALSE);
     mContent->RemoveEventListener(NS_LITERAL_STRING("mouseout"), mListener,
-                                  false);
+                                  PR_FALSE);
   }
 }
 
@@ -229,11 +229,11 @@ nsMathMLmactionFrame::SetInitialChildList(ChildListID     aListID,
     mListener = new nsMathMLmactionFrame::MouseListener(this);
     // printf("maction:%p registering as mouse event listener ...\n", this);
     mContent->AddEventListener(NS_LITERAL_STRING("click"), mListener,
-                               false, false);
+                               PR_FALSE, PR_FALSE);
     mContent->AddEventListener(NS_LITERAL_STRING("mouseover"), mListener,
-                               false, false);
+                               PR_FALSE, PR_FALSE);
     mContent->AddEventListener(NS_LITERAL_STRING("mouseout"), mListener,
-                               false, false);
+                               PR_FALSE, PR_FALSE);
   }
   return rv;
 }

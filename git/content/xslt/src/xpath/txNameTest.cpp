@@ -64,7 +64,7 @@ bool txNameTest::matches(const txXPathNode& aNode, txIMatchContext* aContext)
          !txXPathNodeUtils::isAttribute(aNode)) ||
         (mNodeType == txXPathNodeType::DOCUMENT_NODE &&
          !txXPathNodeUtils::isRoot(aNode))) {
-        return false;
+        return PR_FALSE;
     }
 
     // Totally wild?

@@ -39,9 +39,6 @@
 
 #include "mozilla/layers/PLayers.h"
 
-/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "LayerManagerOGL.h"
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
@@ -110,7 +107,7 @@ LayerManagerOGL::Destroy()
 
     CleanupResources();
 
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -181,10 +178,10 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
   NS_ABORT_IF_FALSE(mGLContext == nsnull, "Don't reiniailize layer managers");
 
   if (!aContext)
-    return false;
+    return PR_FALSE;
 
   mGLContext = aContext;
-  mGLContext->SetFlipped(true);
+  mGLContext->SetFlipped(PR_TRUE);
 
   MakeCurrent();
 
@@ -204,7 +201,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
     ptype *p = new ptype(mGLContext);                                             \
     if (!p->Initialize(vsstr, fsstr)) {                                           \
       delete p;                                                                   \
-      return false;                                                            \
+      return PR_FALSE;                                                            \
     }                                                                             \
     mPrograms.AppendElement(p);                                                   \
   } while (0)
@@ -261,7 +258,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
 
   mFBOTextureTarget = LOCAL_GL_NONE;
 
-  for (PRUint32 i = 0; i < ArrayLength(textureTargets); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(textureTargets); i++) {
     GLenum target = textureTargets[i];
     mGLContext->fGenTextures(1, &mBackBufferTexture);
     mGLContext->fBindTexture(target, mBackBufferTexture);
@@ -645,7 +642,6 @@ LayerManagerOGL::FPSState::DrawFPS(GLContext* context, CopyProgram* copyprog)
   context->fEnable(LOCAL_GL_BLEND);
   context->fBlendFunc(LOCAL_GL_ONE, LOCAL_GL_SRC_COLOR);
 
-  context->fActiveTexture(LOCAL_GL_TEXTURE0);
   context->fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
 
   copyprog->Activate();
@@ -769,7 +765,7 @@ LayerManagerOGL::Render()
   if (mWidgetSize.width != width ||
       mWidgetSize.height != height)
   {
-    MakeCurrent(true);
+    MakeCurrent(PR_TRUE);
 
     mWidgetSize.width = width;
     mWidgetSize.height = height;
@@ -996,10 +992,8 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                                     mBackBufferTexture,
                                     0);
 
-  if (mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
-      LOCAL_GL_FRAMEBUFFER_COMPLETE) {
-    NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete");
-  }
+  NS_ASSERTION(mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) ==
+               LOCAL_GL_FRAMEBUFFER_COMPLETE, "Error setting up framebuffer.");
 
   mBackBufferSize.width = aWidth;
   mBackBufferSize.height = aHeight;
@@ -1093,7 +1087,7 @@ LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \
   for (size_t lpindex = 0;                                  \
-       lpindex < ArrayLength(sLayerProgramTypes);           \
+       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
        ++lpindex)                                           \
   {                                                         \
     LayerProgram *vname = static_cast<LayerProgram*>        \
@@ -1157,12 +1151,8 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                                     tex,
                                     0);
 
-  // Making this call to fCheckFramebufferStatus prevents a crash on
-  // PowerVR. See bug 695246.
-  if (mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) !=
-      LOCAL_GL_FRAMEBUFFER_COMPLETE) {
-    NS_RUNTIMEABORT("Error setting up framebuffer --- framebuffer not complete");
-  }
+  NS_ASSERTION(mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) ==
+               LOCAL_GL_FRAMEBUFFER_COMPLETE, "Error setting up framebuffer.");
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);
   mGLContext->fScissor(0, 0, aRect.width, aRect.height);
@@ -1174,6 +1164,21 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
 
   *aFBO = fbo;
   *aTexture = tex;
+}
+
+void 
+LayerOGL::ApplyFilter(gfxPattern::GraphicsFilter aFilter)
+{
+  if (aFilter == gfxPattern::FILTER_NEAREST) {
+    gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
+    gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
+  } else {
+    if (aFilter != gfxPattern::FILTER_GOOD) {
+      NS_WARNING("Unsupported filter type!");
+    }
+    gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+    gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+  }
 }
 
 already_AddRefed<ShadowThebesLayer>

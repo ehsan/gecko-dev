@@ -77,13 +77,11 @@
         </div>
       </div>
   
-      <div id="newAddons" class="section-row" onclick="goToAddons(' ');" role="button">
-        <div>
-          <img class="favicon" src="chrome://browser/skin/images/addons-32.png"/>
-          <div>&aboutHome.recommendedAddons2;</div>
+      <div id="newAddons" class="section-box">
+        <h1>&aboutHome.recommendedAddons2;</h1>
+        <div id="loadingAddons" class="loading">
+          <img src="chrome://browser/skin/images/throbber.png"/>
         </div>
-      </div>
-      <div id="newAddonsList" class="section-box" style="display: none;">
       </div>
 
       <div id="locale" class="section-row" style="display: none;" onclick="openLocalePicker();" role="button">
@@ -94,10 +92,7 @@
         <span id="feedback" style="width: &aboutHome.footerWidth;" class="section-row" pref="app.feedbackURL" onclick="openLink(this);" role="button">&aboutHome.giveFeedback;</span
         ><span id="support" style="width: &aboutHome.footerWidth;" class="section-row" pref="app.support.baseURL" onclick="openLink(this);" role="button">&aboutHome.getHelp;</span>
       </div>
-      <div id="sync-setup">
-        <a id="syncSetupSync" href="#" onclick="openSetupSyncWizard();">&aboutHome.setupSync;</a>
-        <a id="syncPairDevice" href="#" onclick="openPairDeviceWizard();">&aboutHome.syncPairDevice;</a>
-      </div>
+
     </div>
   </div>
 
@@ -133,6 +128,7 @@
     let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
     let gChromeWin = null;
 
+    Cu.import("resource://gre/modules/AddonManager.jsm");
     Cu.import("resource://gre/modules/NetUtil.jsm");
 
     function openLink(aElement) {
@@ -160,13 +156,12 @@
     function openLocalePicker() {
       let win = getChromeWin();
       win.BrowserUI.showPanel("prefs-container");
-      win.document.getElementById("prefs-uilanguage-button").click();
+      win.document.getElementById("prefs-languages").click();
     }
 
     function init() {
       initTabs();
       initAddons();
-      initSetupSync();
 
       let prefs = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefService).QueryInterface(Ci.nsIPrefBranch2);
       if (prefs.getBoolPref("browser.firstrun.show.uidiscovery")) {
@@ -182,7 +177,6 @@
 
     function uninit() {
       uninitAddons();
-      uninitSetupSync();
     }
 
     function _readFile(aFile, aCallback) {
@@ -195,15 +189,10 @@
           return;
         }
 
-        let fileSize = aStream.available();
-        let cvstream = Cc["@mozilla.org/intl/converter-input-stream;1"].createInstance(Ci.nsIConverterInputStream);
-        cvstream.init(aStream, "UTF-8", fileSize, Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
-        let content = {};
-        cvstream.readString(fileSize, content);
-        cvstream.close();
+        let content = NetUtil.readInputStreamToString(aStream, aStream.available()) || "";
         aStream.close();
 
-        aCallback(content.value.replace(/\r\n?/g, "\n"));
+        aCallback(content.replace(/\r\n?/g, "\n"));
       });
     }
 
@@ -328,14 +317,19 @@
         return file;
       },
 
-      _loadAddons: function(aAddons) {
-        if (aAddons.length == 0)
-          return;
+      _loadAddons: function(aAddons, aAddonCount, aTotalResults) {
+        let list = document.getElementById("newAddons");
+        let loading = document.getElementById("loadingAddons");
 
-        // Clear all content before filling the addons
-        let list = document.getElementById("newAddonsList");
-        while (list.firstElementChild)
-          list.removeChild(list.firstElementChild);
+        if (aAddons.length == 0 && loading) {
+          loading.innerHTML = "<div class='no-items'>" + document.getElementById("text-noaddons").textContent + "</div>";
+          return;
+        }
+
+        // Clear all content but the header before filling the addons
+        let header = list.firstElementChild;
+        while (header.nextSibling)
+          list.removeChild(header.nextSibling);
 
         for (let i=0; i<aAddons.length; i++) {
           let addon = aAddons[i];
@@ -369,30 +363,45 @@
           outer.appendChild(inner);
           list.appendChild(outer);
         }
-
-        list.style.display = "block";
-        document.getElementById("newAddons").setAttribute("showlist", "true");
       },
 
-      loadFromCache: function loadFromCache() {
+      loadFromCacheOrScheduleUpdate: function(aDelay) {
         let self = this;
         let file = this._getFile();
         if (file.exists()) {
           _readFile(file, function(aContent) {
             let json = JSON.parse(aContent);
             if (!json || json.addons.length == 0) {
-              self._loadAddons([]);
+              self._loadAddons([], 0, 0);
               return;
             }
   
-            self._loadAddons(json.addons);
+            // Ignore addons already installed
+            let addonsCache = json.addons;
+            AddonManager.getAllAddons(function(aAddons) {
+              let addons = addonsCache.filter(function(addon) {
+                for (let i =0; i < aAddons.length; i++)
+                  if (addon.id == aAddons[i].id)
+                    return false;
+  
+                return true;
+              });
+  
+              self._loadAddons(addons, addons.length, json.totalResults);
+            });
           });
+        } else {
+          setTimeout(function() {
+            let aus = Cc["@mozilla.org/browser/addon-update-service;1"].getService(Ci.nsITimerCallback);
+            aus.notify(null);
+          }, aDelay);
         }
       }
     }
 
     function updateAddons() {
-      RecommendedAddons.loadFromCache();
+      // If a cache does not exist, start an update after 6 seconds
+      RecommendedAddons.loadFromCacheOrScheduleUpdate(6000);
     }
 
     function initAddons() {
@@ -409,7 +418,7 @@
 
      // If a sidebar is completely open, just bail
      let [leftWidth, rightWidth] = win.Browser.computeSidebarVisibility();
-     if (leftWidth == 1 || rightWidth == 1 || win.Util.isTablet()) {
+     if (leftWidth == 1 || rightWidth == 1) {
        endDiscovery();
        return;
      }
@@ -430,44 +439,7 @@
      doc.removeEventListener("animationend", endDiscovery, false);
      doc.removeEventListener("PanBegin", endDiscovery, false);
    }
-
-   function initSetupSync() {
-     let services = getChromeWin().Services; 
-     if (services.prefs.prefHasUserValue("services.sync.username")) {
-       syncConnected();
-     } else {
-       syncDisconnected();
-     }
-     services.obs.addObserver(syncConnected, "weave:service:setup-complete", false);
-     services.obs.addObserver(syncDisconnected, "weave:service:start-over", false);
-   }
-
-   function uninitSetupSync() {
-     let services = getChromeWin().Services; 
-     services.obs.removeObserver(syncConnected, "weave:service:setup-complete");
-     services.obs.removeObserver(syncDisconnected, "weave:service:start-over");
-   }
-
-   function syncConnected() {
-     document.getElementById("syncSetupSync").style.display = "none";
-     document.getElementById("syncPairDevice").style.display = "inline";
-   }
-
-   function syncDisconnected() {
-     document.getElementById("syncSetupSync").style.display = "inline";
-     document.getElementById("syncPairDevice").style.display = "none";
-   }
-
-   function openSetupSyncWizard() {
-     let chromeWin = getChromeWin();
-     chromeWin.WeaveGlue.open();
-   }
-
-   function openPairDeviceWizard() {
-     let chromeWin = getChromeWin();
-     chromeWin.SyncPairDevice.open();
-   }
-
+   
    function initLightbox() {
      let prefs = getChromeWin().Services.prefs;
      let channel = prefs.getCharPref("app.update.channel");

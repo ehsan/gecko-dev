@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nscore.h"
 #include "nsString.h"
 #include "nsXPCOMStrings.h"
@@ -46,8 +44,6 @@
 #include "prprf.h"
 #include <windows.h>
 #include "nsCRT.h"
-
-using namespace mozilla;
 
 struct iso_pair 
 {
@@ -520,7 +516,7 @@ iso_map iso_list[] =
 	}
 };
 
-#define LENGTH_MAPPING_LIST		ArrayLength(iso_list)
+#define LENGTH_MAPPING_LIST		NS_ARRAY_LENGTH(iso_list)
 	
 //
 // This list maps ISO 2 digit country codes to Win32 country codes.
@@ -618,7 +614,7 @@ nsWin32Locale::initFunctionPointers(void)
       localeNameToLCID = (LocaleNameToLCIDPtr) GetProcAddress(kernelDLL, "LocaleNameToLCID");
       lcidToLocaleName = (LCIDToLocaleNamePtr) GetProcAddress(kernelDLL, "LCIDToLocaleName");
     }
-    sInitialized = true;
+    sInitialized = PR_TRUE;
   }
 }
 

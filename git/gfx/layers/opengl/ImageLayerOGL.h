@@ -175,7 +175,7 @@ public:
   ~ImageLayerOGL() { Destroy(); }
 
   // LayerOGL Implementation
-  virtual void Destroy() { mDestroyed = true; }
+  virtual void Destroy() { mDestroyed = PR_TRUE; }
   virtual Layer* GetLayer();
 
   virtual void RenderLayer(int aPreviousFrameBuffer,

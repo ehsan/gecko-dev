@@ -39,7 +39,7 @@
 #include "jspubtd.h"
 %}
 
-[scriptable, uuid(5b3f9656-9d81-40e4-85ba-01f302177815)]
+[scriptable, uuid(1b065b41-6e00-450c-a44c-e0e44581c08a)]
 interface nsIInlineEventHandlers : nsISupports
 {
   [implicit_jscontext] attribute jsval onabort;
@@ -77,11 +77,12 @@ interface nsIInlineEventHandlers : nsISupports
   [implicit_jscontext] attribute jsval onmousemove;
   [implicit_jscontext] attribute jsval onmouseout;
   [implicit_jscontext] attribute jsval onmouseover;
+  [implicit_jscontext] attribute jsval onmouseenter;
+  [implicit_jscontext] attribute jsval onmouseleave;
   [implicit_jscontext] attribute jsval onmouseup;
   // Not supported yet
   // [implicit_jscontext] attribute jsval onmousewheel;
   [implicit_jscontext] attribute jsval onmozfullscreenchange;
-  [implicit_jscontext] attribute jsval onmozfullscreenerror;
   [implicit_jscontext] attribute jsval onpause;
   [implicit_jscontext] attribute jsval onplay;
   [implicit_jscontext] attribute jsval onplaying;

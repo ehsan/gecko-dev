@@ -52,6 +52,7 @@
 #include "nsISSLSocketControl.h"
 #include "nsSSLStatus.h"
 #include "nsISSLStatusProvider.h"
+#include "nsIIdentityInfo.h"
 #include "nsIAssociatedContentSecurity.h"
 #include "nsXPIDLString.h"
 #include "nsNSSShutDown.h"
@@ -130,6 +131,7 @@ class nsNSSSocketInfo : public nsITransportSecurityInfo,
                         public nsISSLSocketControl,
                         public nsIInterfaceRequestor,
                         public nsISSLStatusProvider,
+                        public nsIIdentityInfo,
                         public nsIAssociatedContentSecurity,
                         public nsISerializable,
                         public nsIClassInfo,
@@ -146,6 +148,7 @@ public:
   NS_DECL_NSISSLSOCKETCONTROL
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSISSLSTATUSPROVIDER
+  NS_DECL_NSIIDENTITYINFO
   NS_DECL_NSIASSOCIATEDCONTENTSECURITY
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
@@ -153,7 +156,7 @@ public:
 
   nsresult SetSecurityState(PRUint32 aState);
   nsresult SetShortSecurityDescription(const PRUnichar *aText);
-  void SetErrorMessage(const PRUnichar *aText);
+  nsresult SetErrorMessage(const PRUnichar *aText);
 
   nsresult SetForSTARTTLS(bool aForSTARTTLS);
   nsresult GetForSTARTTLS(bool *aForSTARTTLS);
@@ -170,7 +173,10 @@ public:
   nsresult GetPort(PRInt32 *aPort);
   nsresult SetPort(PRInt32 aPort);
 
-  void GetPreviousCert(nsIX509Cert** _result);
+  nsresult GetCert(nsIX509Cert** _result);
+  nsresult SetCert(nsIX509Cert *aCert);
+
+  nsresult GetPreviousCert(nsIX509Cert** _result);
 
   void SetCanceled(bool aCanceled);
   bool GetCanceled();
@@ -184,13 +190,15 @@ public:
 
   void SetAllowTLSIntoleranceTimeout(bool aAllow);
 
-  bool GetExternalErrorReporting();
+  nsresult GetExternalErrorReporting(bool* state);
+  nsresult SetExternalErrorReporting(bool aState);
 
   nsresult RememberCAChain(CERTCertList *aCertList);
 
   /* Set SSL Status values */
   nsresult SetSSLStatus(nsSSLStatus *aSSLStatus);
   nsSSLStatus* SSLStatus() { return mSSLStatus; }
+  bool hasCertErrors();
   
   PRStatus CloseSocketAndDestroy();
   
@@ -198,11 +206,13 @@ public:
     return mIsCertIssuerBlacklisted;
   }
   void SetCertIssuerBlacklisted() {
-    mIsCertIssuerBlacklisted = true;
+    mIsCertIssuerBlacklisted = PR_TRUE;
   }
 protected:
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   PRFileDesc* mFd;
+  nsCOMPtr<nsIX509Cert> mCert;
+  nsCOMPtr<nsIX509Cert> mPreviousCert; // DocShellDependent
   enum { 
     blocking_state_unknown, is_nonblocking_socket, is_blocking_socket 
   } mBlockingState;
@@ -233,6 +243,8 @@ protected:
   nsresult ActivateSSL();
 
   nsSSLSocketThreadData *mThreadData;
+
+  nsresult EnsureDocShellDependentStuffKnown();
 
 private:
   virtual void virtualDestroyNSSReference();

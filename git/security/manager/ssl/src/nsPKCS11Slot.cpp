@@ -75,14 +75,14 @@ nsPKCS11Slot::refreshSlotInfo()
       ccDesc, 
       ccDesc+PL_strnlen(ccDesc, sizeof(slot_info.slotDescription)));
     mSlotDesc = NS_ConvertUTF8toUTF16(cDesc);
-    mSlotDesc.Trim(" ", false, true);
+    mSlotDesc.Trim(" ", PR_FALSE, PR_TRUE);
     // Set the Manufacturer field
     const char *ccManID = (const char*)slot_info.manufacturerID;
     const nsACString &cManID = Substring(
       ccManID, 
       ccManID+PL_strnlen(ccManID, sizeof(slot_info.manufacturerID)));
     mSlotManID = NS_ConvertUTF8toUTF16(cManID);
-    mSlotManID.Trim(" ", false, true);
+    mSlotManID.Trim(" ", PR_FALSE, PR_TRUE);
     // Set the Hardware Version field
     mSlotHWVersion = EmptyString();
     mSlotHWVersion.AppendInt(slot_info.hardwareVersion.major);
@@ -340,11 +340,11 @@ nsPKCS11Module::FindSlotByName(const PRUnichar *aName,
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting \"%s\"\n", asciiname));
   PK11SlotInfo *slotinfo = NULL;
   PK11SlotList *slotList = PK11_FindSlotsByNames(mModule->dllName, 
-        asciiname /* slotName */, NULL /* token Name */, false);
+        asciiname /* slotName */, NULL /* token Name */, PR_FALSE);
   if (!slotList) {
     /* name must be the token name */
     slotList = PK11_FindSlotsByNames(mModule->dllName, 
-        NULL /*slot Name */, asciiname /* token Name */, false);
+        NULL /*slot Name */, asciiname /* token Name */, PR_FALSE);
   }
   if (slotList) {
     /* should only be one */

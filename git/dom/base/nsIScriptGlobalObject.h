@@ -91,7 +91,7 @@ struct JSObject; // until we finally remove GetGlobalJSObject...
 // A helper function for nsIScriptGlobalObject implementations to use
 // when handling a script error.  Generally called by the global when a context
 // notifies it of an error via nsIScriptGlobalObject::HandleScriptError.
-// Returns true if HandleDOMEvent was actually called, in which case
+// Returns PR_TRUE if HandleDOMEvent was actually called, in which case
 // aStatus will be filled in with the status.
 bool
 NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
@@ -100,8 +100,8 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
 
 
 #define NS_ISCRIPTGLOBALOBJECT_IID \
-{ 0x08f73284, 0x26e3, 0x4fa6, \
-  { 0xbf, 0x89, 0x83, 0x26, 0xf9, 0x2a, 0x94, 0xb3 } }
+{ 0x4eb16819, 0x4e81, 0x406e, \
+  { 0x93, 0x05, 0x6f, 0x30, 0xfc, 0xd2, 0x62, 0x4a } }
 
 /**
  * The global object which keeps a script context for each supported script
@@ -128,7 +128,15 @@ public:
    */
   virtual nsIScriptContext *GetScriptContext(PRUint32 lang) = 0;
   
-  virtual JSObject* GetGlobalJSObject() = 0;
+  /**
+   * Get the opaque "global" object for the specified lang.
+   */
+  virtual void *GetScriptGlobal(PRUint32 lang) = 0;
+
+  // Set/GetContext deprecated methods - use GetScriptContext/Global
+  virtual JSObject *GetGlobalJSObject() {
+        return (JSObject *)GetScriptGlobal(nsIProgrammingLanguage::JAVASCRIPT);
+  }
 
   virtual nsIScriptContext *GetContext() {
         return GetScriptContext(nsIProgrammingLanguage::JAVASCRIPT);

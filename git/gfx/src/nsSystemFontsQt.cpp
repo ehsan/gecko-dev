@@ -72,7 +72,7 @@ nsSystemFontsQt::GetSystemFontInfo(const char *aClassName, nsString *aFontName,
     QFont qFont = QApplication::font(aClassName);
 
     aFontStyle->style = FONT_STYLE_NORMAL;
-    aFontStyle->systemFont = true;
+    aFontStyle->systemFont = PR_TRUE;
     NS_NAMED_LITERAL_STRING(quote, "\"");
     nsString family((PRUnichar*)qFont.family().data());
     *aFontName = quote + family + quote;

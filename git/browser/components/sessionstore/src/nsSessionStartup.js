@@ -177,9 +177,6 @@ SessionStartup.prototype = {
       Services.obs.addObserver(this, "domwindowopened", true);
 
     Services.obs.addObserver(this, "sessionstore-windows-restored", true);
-
-    if (this._sessionType != Ci.nsISessionStartup.NO_SESSION)
-      Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
 
   /**
@@ -200,8 +197,6 @@ SessionStartup.prototype = {
       // no reason for initializing at this point (cf. bug 409115)
       Services.obs.removeObserver(this, "final-ui-startup");
       Services.obs.removeObserver(this, "quit-application");
-      if (this._sessionType != Ci.nsISessionStartup.NO_SESSION)
-        Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     case "domwindowopened":
       var window = aSubject;
@@ -215,10 +210,6 @@ SessionStartup.prototype = {
       Services.obs.removeObserver(this, "sessionstore-windows-restored");
       // free _initialState after nsSessionStore is done with it
       this._initialState = null;
-      break;
-    case "browser:purge-session-history":
-      Services.obs.removeObserver(this, "browser:purge-session-history");
-      // reset all state on sanitization
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
       break;
     }

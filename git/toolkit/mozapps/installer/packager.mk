@@ -104,9 +104,6 @@ endif
 ifeq ($(_MSC_VER),1600)
 JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
 endif
-ifeq ($(_MSC_VER),1700)
-JSSHELL_BINS += $(DIST)/bin/msvcr110.dll
-endif
 else
 JSSHELL_BINS += \
   $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
@@ -324,8 +321,9 @@ INNER_MAKE_PACKAGE	= \
   make -C ../embedding/android gecko.ap_ && \
   cp ../embedding/android/gecko.ap_ $(_ABS_DIST) && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
+    rm -rf lib && \
     mkdir -p lib/$(ABI_DIR) && \
-    mv libmozutils.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ABI_DIR) && \
+    mv libmozutils.so lib/$(ABI_DIR) && \
     rm -f lib.id && \
     for SOMELIB in *.so ; \
     do \
@@ -465,7 +463,6 @@ OMNIJAR_FILES	= \
   defaults \
   greprefs.js \
   jsloader \
-  hyphenation \
   $(NULL)
 
 NON_OMNIJAR_FILES += \

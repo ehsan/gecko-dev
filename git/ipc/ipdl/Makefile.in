@@ -59,7 +59,6 @@ IPDLDIRS =  \
   dom/ipc  \
   dom/src/storage \
   gfx/layers/ipc \
-  hal/sandbox \
   ipc/testshell  \
   js/ipc  \
   js/jetpack \

@@ -813,14 +813,8 @@ placeitem[ui="manage"] > .bookmark-manage textbox[anonid="uri"]:-moz-locale-dir(
 
 #awesome-header .panel-row-button {
   -moz-padding-end: 0px;
-  padding: @padding_large@ !important;
-  height: @touch_row@;
-  margin: 0px;
-  border: 0px;
-}
-
-#awesome-header .panel-row-button .toolbarbutton-text {
-  font-size: @font_xxtiny@ !important;
+  padding: @padding_normal@ !important;
+  border: none !important;
 }
 
 #awesome-header {
@@ -1300,21 +1294,9 @@ pageaction > vbox {
 
 /* Override richlistbox and richlistitem styles */
 #context-header {
-  margin: 0px;
-  padding: 0px @padding_xlarge@;
-  min-height: @touch_row@
-}
-
-#context-header > label {
-  border-bottom: @border_width_xxlarge@ solid @color_divider_border@;
-  padding: @padding_xlarge@ @padding_large@;
-  color: @color_text_default@;
-  font-size: @font_snormal@;
-  margin: 0px;
-}
-
-#context-header > label[value=""] {
-  visibility: collapse;
+  background-color: transparent;
+  border-bottom: @border_width_xlarge@ solid @color_divider_border@;
+  margin: @margin_large@ @margin_large@ 0px;
 }
 
 #context-commands > scrollbox {
@@ -1324,21 +1306,18 @@ pageaction > vbox {
 .action-button,
 .context-command {
   -moz-box-align: center;
-  padding: 0px @padding_xlarge@;
+  padding: 0px @padding_large@;
   border: none;
   border-top: @border_width_tiny@ solid transparent;
-  font-size: @font_snormal@;
 }
 
 .action-button > label,
 .context-command > label {
   min-height: @touch_row@;
-  padding: 0px @padding_large@;
   padding-top: -moz-calc(@touch_row@ / 2 - 0.75em);
   -moz-box-align: center;
   border-bottom: @border_width_tiny@ solid @color_button_border@;
   -moz-box-flex: 1;
-  margin: 0px;
   margin-bottom: -@border_width_tiny@;
 }
 
@@ -1427,10 +1406,15 @@ pageaction:not([image]) > hbox >.pageaction-image {
 }
 
 #share-title,
-#bookmark-popup-title {
+#bookmark-popup-title,
+#context-hint {
   color: @color_text_default@;
   font-size: @font_small@;
   padding: @padding_small@;
+}
+
+#context-hint[value=""] {
+  visibility: collapse;
 }
 
 #search-engines-list > .action-button > .button-box > .button-icon {
@@ -1535,12 +1519,12 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
 
 /* alerts popup ----------------------------------------------------------- */
 #alerts-container {
-  color: @color_text_header@;
-  background-color: @color_background_toaster@;
-  box-shadow: 0 0 @shadow_width_tiny@ @shadow_width_medium@ @color_shadow_light@;
-  border-radius: @border_radius_small@;
-  padding: @padding_xxnormal@ @padding_large@; /* core spacing on top/bottom */
-  margin-bottom: @margin_toaster@;
+  color: @color_text_default@;
+  background-color: #5e6166;
+  border: @border_width_small@ solid #767973;
+  border-radius: @border_radius_normal@;
+  padding: @padding_normal@; /* core spacing on top/bottom */
+  margin-bottom: @margin_large@;
   -moz-transition-property: opacity;
   -moz-transition-duration: 0.5s;
   opacity: 0;
@@ -1551,11 +1535,11 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
 }
 
 #alerts-title {
-  font-size: @font_xtiny@ !important;
+  font-size: @font_small@ !important;
 }
 
 #alerts-text {
-  font-size: @font_xtiny@ !important;
+  font-size: @font_xsmall@ !important;
   white-space: pre;
 }
 
@@ -1715,7 +1699,6 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
   border-top: @border_width_tiny@ solid @color_button_border@;
   border-bottom: none;
   background-color: transparent;
-  font-size: @font_snormal@ !important;
 }
 
 #appmenu-popup-sitecommands {
@@ -1725,7 +1708,7 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
 }
 
 #appmenu-popup-sitecommands > .appmenu-pageaction {
-  font-size: @font_xxtiny@;
+  font-size: @font_tiny@;
   display: inline-block;
   min-height: -moz-calc(1.5 * @touch_button_xlarge@) !important;
   min-width: -moz-calc(1.5 * @touch_button_xlarge@) !important;
@@ -2006,10 +1989,6 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
   -moz-border-start: @border_width_tiny@ solid @color_button_border@;
 }
 
-.documenttab-popup-closebutton > .button-box {
-  border: none;
-}
-
 #tabs-popup-newtab-button:hover:active {
   background-color: @color_background_highlight@;  
 }
@@ -2049,7 +2028,6 @@ setting[type="bool"]:hover:active .setting-input > checkbox[checked="true"] > .c
 
 #tabs-popup-newtab-button > .button-box {
   min-height: -moz-calc(0.75 * @touch_row@);
-  border: none;
   border-top: @border_width_tiny@ solid @color_button_border@;
 }
 

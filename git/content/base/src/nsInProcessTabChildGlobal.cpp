@@ -69,7 +69,7 @@ bool SendSyncMessageToParent(void* aCallbackData,
   }
   if (tabChild->mChromeMessageManager) {
     nsRefPtr<nsFrameMessageManager> mm = tabChild->mChromeMessageManager;
-    mm->ReceiveMessage(owner, aMessage, true, aJSON, nsnull, aJSONRetVal);
+    mm->ReceiveMessage(owner, aMessage, PR_TRUE, aJSON, nsnull, aJSONRetVal);
   }
   return true;
 }
@@ -86,7 +86,7 @@ public:
     mTabChild->mASyncMessages.RemoveElement(this);
     if (mTabChild->mChromeMessageManager) {
       nsRefPtr<nsFrameMessageManager> mm = mTabChild->mChromeMessageManager;
-      mm->ReceiveMessage(mTabChild->mOwner, mMessage, false,
+      mm->ReceiveMessage(mTabChild->mOwner, mMessage, PR_FALSE,
                          mJSON, nsnull, nsnull);
     }
     return NS_OK;
@@ -112,8 +112,8 @@ bool SendAsyncMessageToParent(void* aCallbackData,
 nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
                                                      nsIContent* aOwner,
                                                      nsFrameMessageManager* aChrome)
-: mDocShell(aShell), mInitialized(false), mLoadingScript(false),
-  mDelayedDisconnect(false), mOwner(aOwner), mChromeMessageManager(aChrome)
+: mDocShell(aShell), mInitialized(PR_FALSE), mLoadingScript(PR_FALSE),
+  mDelayedDisconnect(PR_FALSE), mOwner(aOwner), mChromeMessageManager(aChrome)
 {
 }
 
@@ -135,7 +135,7 @@ nsInProcessTabChildGlobal::Init()
   InitTabChildGlobal();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                    "Couldn't initialize nsInProcessTabChildGlobal");
-  mMessageManager = new nsFrameMessageManager(false,
+  mMessageManager = new nsFrameMessageManager(PR_FALSE,
                                               SendSyncMessageToParent,
                                               SendAsyncMessageToParent,
                                               nsnull,
@@ -148,13 +148,13 @@ nsInProcessTabChildGlobal::Init()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsInProcessTabChildGlobal)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                nsDOMEventTargetWrapperCache)
+                                                nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMessageManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobal)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
-                                                  nsDOMEventTargetWrapperCache)
+                                                  nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMessageManager)
   nsFrameScriptExecutor::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -167,7 +167,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ContentFrameMessageManager)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(nsInProcessTabChildGlobal, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsInProcessTabChildGlobal, nsDOMEventTargetHelper)
@@ -229,9 +229,9 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   nsCOMPtr<nsIDOMEvent> event;
   NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
   if (event) {
-    event->InitEvent(NS_LITERAL_STRING("unload"), false, false);
+    event->InitEvent(NS_LITERAL_STRING("unload"), PR_FALSE, PR_FALSE);
     nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
-    privateEvent->SetTrusted(true);
+    privateEvent->SetTrusted(PR_TRUE);
 
     bool dummy;
     nsDOMEventTargetHelper::DispatchEvent(event, &dummy);
@@ -258,7 +258,7 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
       DestroyCx();
     }
   } else {
-    mDelayedDisconnect = true;
+    mDelayedDisconnect = PR_TRUE;
   }
 }
 
@@ -271,7 +271,7 @@ nsInProcessTabChildGlobal::GetOwnerContent()
 nsresult
 nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   aVisitor.mParentTarget = mOwner;
 
 #ifdef DEBUG
@@ -366,15 +366,15 @@ nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL)
     return;
   }
   if (!mInitialized) {
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     Init();
   }
   bool tmp = mLoadingScript;
-  mLoadingScript = true;
+  mLoadingScript = PR_TRUE;
   LoadFrameScriptInternal(aURL);
   mLoadingScript = tmp;
   if (!mLoadingScript && mDelayedDisconnect) {
-    mDelayedDisconnect = false;
+    mDelayedDisconnect = PR_FALSE;
     Disconnect();
   }
 }

@@ -49,7 +49,7 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
                                        nsSMILInterval* aBaseInterval)
   : mTime(aTime),
     mFlags(0),
-    mVisited(false),
+    mVisited(PR_FALSE),
     mFixedEndpointRefCnt(0),
     mSerial(0),
     mCreator(aCreator),
@@ -122,7 +122,7 @@ nsSMILInstanceTime::HandleChangedInterval(
                                                       aEndObjectChanged;
 
   mozilla::AutoRestore<bool> setVisited(mVisited);
-  mVisited = true;
+  mVisited = PR_TRUE;
 
   nsRefPtr<nsSMILInstanceTime> deathGrip(this);
   mCreator->HandleChangedInstanceTime(*GetBaseTime(), aSrcContainer, *this,
@@ -190,18 +190,18 @@ bool
 nsSMILInstanceTime::IsDependentOn(const nsSMILInstanceTime& aOther) const
 {
   if (mVisited)
-    return false;
+    return PR_FALSE;
 
   const nsSMILInstanceTime* myBaseTime = GetBaseTime();
   if (!myBaseTime)
-    return false;
+    return PR_FALSE;
 
   if (myBaseTime == &aOther)
-    return true;
+    return PR_TRUE;
 
   // mVisited is mutable
   mozilla::AutoRestore<bool> setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
-  const_cast<nsSMILInstanceTime*>(this)->mVisited = true;
+  const_cast<nsSMILInstanceTime*>(this)->mVisited = PR_TRUE;
   return myBaseTime->IsDependentOn(aOther);
 }
 

@@ -48,15 +48,16 @@ public:
   void Init(PRUint8 aAttrEnum = 0xff, PRInt32 aValue = 0) {
     mAnimVal = mBaseVal = aValue;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = false;
-    mIsBaseSet = false;
+    mIsAnimated = PR_FALSE;
+    mIsBaseSet = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement);
+                              nsSVGElement *aSVGElement,
+                              bool aDoSetAttr);
   void GetBaseValueString(nsAString& aValue);
 
-  void SetBaseValue(PRInt32 aValue, nsSVGElement *aSVGElement);
+  void SetBaseValue(PRInt32 aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);
   PRInt32 GetBaseValue() const
     { return mBaseVal; }
 
@@ -64,18 +65,20 @@ public:
   int GetAnimValue() const
     { return mAnimVal; }
 
-  // Returns true if the animated value of this integer has been explicitly
+  // Returns PR_TRUE if the animated value of this integer has been explicitly
   // set (either by animation, or by taking on the base value which has been
-  // explicitly set by markup or a DOM call), false otherwise.
-  // If this returns false, the animated value is still valid, that is,
+  // explicitly set by markup or a DOM call), PR_FALSE otherwise.
+  // If this returns PR_FALSE, the animated value is still valid, that is,
   // useable, and represents the default base value of the attribute.
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
   
   nsresult ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                 nsSVGElement* aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
   
 private:
 
@@ -100,18 +103,21 @@ public:
     NS_IMETHOD GetBaseVal(PRInt32* aResult)
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(PRInt32 aValue)
-      { mVal->SetBaseValue(aValue, mSVGElement); return NS_OK; }
+      { mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE); return NS_OK; }
 
     // Script may have modified animation parameters or timeline -- DOM getters
     // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetAnimVal(PRInt32* aResult)
     {
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       *aResult = mVal->GetAnimValue();
       return NS_OK;
     }
   };
 
+#ifdef MOZ_SMIL
   struct SMILInteger : public nsISMILAttr
   {
   public:
@@ -133,6 +139,7 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 
 #endif //__NS_SVGINTEGER_H__

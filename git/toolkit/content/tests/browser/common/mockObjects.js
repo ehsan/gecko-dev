@@ -65,6 +65,7 @@ MockObjectRegisterer.prototype = {
    * to ensure that unregister() is called.
    */
   register: function MOR_register() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     if (this._originalFactory)
       throw new Exception("Invalid object state when calling register()");
 
@@ -78,24 +79,41 @@ MockObjectRegisterer.prototype = {
       }
     };
 
-    var retVal = SpecialPowers.swapFactoryRegistration(this._cid, this._contractID, this._mockFactory, this._originalFactory);
-    if ('error' in retVal) {
-      throw new Exception("ERROR: " + retVal.error);
-    } else {
-      this._cid = retVal.cid;
-      this._originalFactory = retVal.originalFactory;
-    }
+    var componentRegistrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+
+    // Get the component CID.
+    this._cid = componentRegistrar.contractIDToCID(this._contractID);
+
+    // ... and make sure we correctly replace the original factory with the mock one.
+    this._originalFactory = Components.manager.getClassObject(Components.classes[this._contractID],
+                                                              Components.interfaces.nsIFactory);
+
+    componentRegistrar.unregisterFactory(this._cid, this._originalFactory);
+
+    componentRegistrar.registerFactory(this._cid,
+                                       "",
+                                       this._contractID,
+                                       this._mockFactory);
   },
 
   /**
    * Restores the original factory.
    */
   unregister: function MOR_unregister() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     if (!this._originalFactory)
       throw new Exception("Invalid object state when calling unregister()");
 
     // Free references to the mock factory.
-    SpecialPowers.swapFactoryRegistration(this._cid, this._contractID, this._mockFactory, this._originalFactory);
+    var componentRegistrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+    componentRegistrar.unregisterFactory(this._cid,
+                                         this._mockFactory);
+
+    // Restore the original factory.
+    componentRegistrar.registerFactory(this._cid,
+                                       "",
+                                       this._contractID,
+                                       this._originalFactory);
 
     // Allow registering a mock factory again later.
     this._cid = null;

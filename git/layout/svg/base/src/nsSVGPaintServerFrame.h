@@ -63,7 +63,7 @@ public:
 
   /**
    * Configure paint server prior to rendering
-   * @return false to skip rendering
+   * @return PR_FALSE to skip rendering
    */
   virtual bool SetupPaintServer(gfxContext *aContext,
                                   nsSVGGeometryFrame *aSource,

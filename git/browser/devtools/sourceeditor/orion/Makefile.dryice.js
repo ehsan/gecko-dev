@@ -49,7 +49,6 @@ copy({
     ORION_EDITOR + "/orion/textview/rulers.js",
     ORION_EDITOR + "/orion/textview/undoStack.js",
     ORION_EDITOR + "/orion/textview/textModel.js",
-    ORION_EDITOR + "/orion/textview/tooltip.js",
     ORION_EDITOR + "/orion/textview/textView.js",
     ORION_EDITOR + "/orion/editor/htmlGrammar.js",
     ORION_EDITOR + "/orion/editor/textMateStyler.js",

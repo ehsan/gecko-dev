@@ -56,7 +56,7 @@ anp_typeface_createFromName(const char name[], ANPTypefaceStyle aStyle)
                       16.0,
                       NS_NewPermanentAtom(NS_LITERAL_STRING("en")),
                       0.0,
-                      false, false,
+                      PR_FALSE, PR_FALSE,
                       NS_LITERAL_STRING(""),
                       NS_LITERAL_STRING(""));
   ANPTypeface* tf = new ANPTypeface;

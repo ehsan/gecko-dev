@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
@@ -99,7 +103,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_DATA: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -151,7 +155,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
                 NS_HTML5_BREAK(tagopenloop);
               }
               state = NS_HTML5META_SCANNER_DATA;
-              reconsume = true;
+              reconsume = PR_TRUE;
               NS_HTML5_CONTINUE(stateloop);
             }
           }
@@ -218,7 +222,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_BEFORE_ATTRIBUTE_NAME: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -371,7 +375,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_ATTRIBUTE_VALUE_DOUBLE_QUOTED: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -419,7 +423,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
             }
             default: {
               state = NS_HTML5META_SCANNER_BEFORE_ATTRIBUTE_NAME;
-              reconsume = true;
+              reconsume = PR_TRUE;
               NS_HTML5_CONTINUE(stateloop);
             }
           }
@@ -441,7 +445,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
           }
           default: {
             state = NS_HTML5META_SCANNER_BEFORE_ATTRIBUTE_NAME;
-            reconsume = true;
+            reconsume = PR_TRUE;
             NS_HTML5_CONTINUE(stateloop);
           }
         }
@@ -449,7 +453,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_ATTRIBUTE_VALUE_UNQUOTED: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -541,7 +545,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
             }
             default: {
               state = NS_HTML5META_SCANNER_SCAN_UNTIL_GT;
-              reconsume = true;
+              reconsume = PR_TRUE;
               NS_HTML5_CONTINUE(stateloop);
             }
           }
@@ -561,7 +565,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
             }
             default: {
               state = NS_HTML5META_SCANNER_SCAN_UNTIL_GT;
-              reconsume = true;
+              reconsume = PR_TRUE;
               NS_HTML5_CONTINUE(stateloop);
             }
           }
@@ -672,7 +676,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_ATTRIBUTE_VALUE_SINGLE_QUOTED: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -695,7 +699,7 @@ nsHtml5MetaScanner::stateLoop(PRInt32 state)
       case NS_HTML5META_SCANNER_SCAN_UNTIL_GT: {
         for (; ; ) {
           if (reconsume) {
-            reconsume = false;
+            reconsume = PR_FALSE;
           } else {
             c = read();
           }
@@ -782,18 +786,18 @@ bool
 nsHtml5MetaScanner::handleTagInner()
 {
   if (!!charset && tryCharset(charset)) {
-    return true;
+    return PR_TRUE;
   }
   if (!!content && httpEquivState == NS_HTML5META_SCANNER_HTTP_EQUIV_CONTENT_TYPE) {
     nsString* extract = nsHtml5TreeBuilder::extractCharsetFromContent(content);
     if (!extract) {
-      return false;
+      return PR_FALSE;
     }
     bool success = tryCharset(extract);
     nsHtml5Portability::releaseString(extract);
     return success;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void

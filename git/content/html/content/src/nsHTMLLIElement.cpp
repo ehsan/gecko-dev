@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLLIElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
@@ -44,8 +41,6 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
-
-using namespace mozilla;
 
 class nsHTMLLIElement : public nsGenericHTMLElement,
                         public nsIDOMHTMLLIElement
@@ -141,8 +136,8 @@ nsHTMLLIElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::type) {
       return aResult.ParseEnumValue(aValue, kOrderedListItemTypeTable,
-                                    true) ||
-             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable, false);
+                                    PR_TRUE) ||
+             aResult.ParseEnumValue(aValue, kUnorderedListItemTypeTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::value) {
       return aResult.ParseIntValue(aValue);
@@ -183,7 +178,7 @@ nsHTMLLIElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 

@@ -109,7 +109,7 @@ inline bool TestBits(int aBitset,int aTest) {
     PRInt32 result=(aBitset & aTest);
     return bool(result==aTest);
   }
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -135,35 +135,35 @@ struct nsHTMLElement {
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kBlock);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
   inline  bool    IsBlockEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kBlockEntity);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
   inline  bool    IsSpecialEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kSpecial);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
   inline  bool    IsPhraseEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kPhrase);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
   inline  bool    IsFontStyleEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kFontStyle);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
   
   inline  bool    IsTableElement(void) const {  //return yes if it's a table or child of a table...
@@ -180,10 +180,10 @@ struct nsHTMLElement {
                       case eHTMLTag_th:
                       case eHTMLTag_col:
                       case eHTMLTag_colgroup:
-                        result=true;
+                        result=PR_TRUE;
                         break;
                       default:
-                        result=false;
+                        result=PR_FALSE;
                     }
                     return result;
                   }

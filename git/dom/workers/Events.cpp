@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "Events.h"
 
 #include "jsapi.h"
@@ -59,7 +57,6 @@
 #define CONSTANT_FLAGS \
   JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_PERMANENT | JSPROP_READONLY
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -75,7 +72,6 @@ class Event : public PrivatizableBase
 
 protected:
   bool mStopPropagationCalled;
-  bool mStopImmediatePropagationCalled;
 
 public:
   static bool
@@ -169,16 +165,9 @@ public:
     return JSVAL_TO_BOOLEAN(canceled);
   }
 
-  static bool
-  ImmediatePropagationStopped(JSContext* aCx, JSObject* aEvent)
-  {
-    Event* event = GetPrivate(aCx, aEvent);
-    return event ? event->mStopImmediatePropagationCalled : false;
-  }
-
 protected:
   Event()
-  : mStopPropagationCalled(false), mStopImmediatePropagationCalled(false)
+  : mStopPropagationCalled(false)
   {
     MOZ_COUNT_CTOR(mozilla::dom::workers::Event);
   }
@@ -238,7 +227,6 @@ protected:
                   bool aIsTrusted)
   {
     aEvent->mStopPropagationCalled = false;
-    aEvent->mStopImmediatePropagationCalled = false;
 
     jsval now;
     if (!JS_NewNumberValue(aCx, JS_Now(), &now)) {
@@ -329,21 +317,6 @@ private:
   }
 
   static JSBool
-  StopImmediatePropagation(JSContext* aCx, uintN aArgc, jsval* aVp)
-  {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-
-    Event* event = GetInstancePrivate(aCx, obj, sFunctions[3].name);
-    if (!event) {
-      return false;
-    }
-
-    event->mStopImmediatePropagationCalled = true;
-
-    return true;
-  }
-  
-  static JSBool
   PreventDefault(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
@@ -423,7 +396,6 @@ JSFunctionSpec Event::sFunctions[] = {
   JS_FN("stopPropagation", StopPropagation, 0, FUNCTION_FLAGS),
   JS_FN("preventDefault", PreventDefault, 0, FUNCTION_FLAGS),
   JS_FN("initEvent", InitEvent, 3, FUNCTION_FLAGS),
-  JS_FN("stopImmediatePropagation", StopImmediatePropagation, 0, FUNCTION_FLAGS),
   JS_FS_END
 };
 
@@ -1141,30 +1113,19 @@ EventWasCanceled(JSContext* aCx, JSObject* aEvent)
 }
 
 bool
-EventImmediatePropagationStopped(JSContext* aCx, JSObject* aEvent)
-{
-  return Event::ImmediatePropagationStopped(aCx, aEvent);
-}
-
-bool
 DispatchEventToTarget(JSContext* aCx, JSObject* aTarget, JSObject* aEvent,
                       bool* aPreventDefaultCalled)
 {
-  static const char kFunctionName[] = "dispatchEvent";
-  JSBool hasProperty;
-  if (!JS_HasProperty(aCx, aTarget, kFunctionName, &hasProperty)) {
+  jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
+  jsval rval = JSVAL_VOID;
+  if (!JS_CallFunctionName(aCx, aTarget, "dispatchEvent", JS_ARRAY_LENGTH(argv),
+                           argv, &rval)) {
     return false;
   }
 
-  JSBool preventDefaultCalled = false;
-  if (hasProperty) {
-    jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
-    jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionName(aCx, aTarget, kFunctionName, ArrayLength(argv),
-                             argv, &rval) ||
-        !JS_ValueToBoolean(aCx, rval, &preventDefaultCalled)) {
-      return false;
-    }
+  JSBool preventDefaultCalled;
+  if (!JS_ValueToBoolean(aCx, rval, &preventDefaultCalled)) {
+    return false;
   }
 
   *aPreventDefaultCalled = !!preventDefaultCalled;

@@ -96,7 +96,7 @@ bool AccessPointsEqual(nsCOMArray<nsWifiAccessPoint>& a, nsCOMArray<nsWifiAccess
 {
   if (a.Count() != b.Count()) {
     LOG(("AccessPoint lists have different lengths\n"));
-    return false;
+    return PR_FALSE;
   }
 
   for (PRInt32 i = 0; i < a.Count(); i++) {
@@ -106,14 +106,14 @@ bool AccessPointsEqual(nsCOMArray<nsWifiAccessPoint>& a, nsCOMArray<nsWifiAccess
       LOG(("   %s->%s | %s->%s\n", a[i]->mSsid, b[j]->mSsid, a[i]->mMac, b[j]->mMac));
       if (!strcmp(a[i]->mSsid, b[j]->mSsid) &&
           !strcmp(a[i]->mMac, b[j]->mMac)) {
-        found = true;
+        found = PR_TRUE;
       }
     }
     if (!found)
-      return false;
+      return PR_FALSE;
   }
   LOG(("   match!\n"));
-  return true;
+  return PR_TRUE;
 }
 
 void ReplaceArray(nsCOMArray<nsWifiAccessPoint>& a, nsCOMArray<nsWifiAccessPoint>& b)

@@ -38,31 +38,30 @@
 
 #include "pk11func.h"
 #include "nsCOMPtr.h"
+#include "nsProxiedService.h"
 #include "nsThreadUtils.h"
 #include "nsKeygenThread.h"
 #include "nsIObserver.h"
 #include "nsNSSShutDown.h"
-#include "PSMRunnable.h"
 
 using namespace mozilla;
-using namespace mozilla::psm;
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsKeygenThread, nsIKeygenThread)
 
 
 nsKeygenThread::nsKeygenThread()
 :mutex("nsKeygenThread.mutex"),
- iAmRunning(false),
- keygenReady(false),
- statusDialogClosed(false),
- alreadyReceivedParams(false),
+ iAmRunning(PR_FALSE),
+ keygenReady(PR_FALSE),
+ statusDialogClosed(PR_FALSE),
+ alreadyReceivedParams(PR_FALSE),
  privateKey(nsnull),
  publicKey(nsnull),
  slot(nsnull),
  keyGenMechanism(0),
  params(nsnull),
- isPerm(false),
- isSensitive(false),
+ isPerm(PR_FALSE),
+ isSensitive(PR_FALSE),
  wincx(nsnull),
  threadHandle(nsnull)
 {
@@ -84,7 +83,7 @@ void nsKeygenThread::SetParams(
   MutexAutoLock lock(mutex);
  
     if (!alreadyReceivedParams) {
-      alreadyReceivedParams = true;
+      alreadyReceivedParams = PR_TRUE;
       if (a_slot) {
         slot = PK11_ReferenceSlot(a_slot);
       }
@@ -139,13 +138,15 @@ static void PR_CALLBACK nsKeygenThreadRunner(void *arg)
 
 nsresult nsKeygenThread::StartKeyGeneration(nsIObserver* aObserver)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsKeygenThread::StartKeyGeneration called off the main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-  
   if (!aObserver)
     return NS_OK;
+
+  nsCOMPtr<nsIObserver> obs;
+  NS_GetProxyForObject( NS_PROXY_TO_MAIN_THREAD,
+                        NS_GET_IID(nsIObserver),
+                        aObserver,
+                        NS_PROXY_SYNC | NS_PROXY_ALWAYS,
+                        getter_AddRefs(obs));
 
   MutexAutoLock lock(mutex);
 
@@ -153,11 +154,9 @@ nsresult nsKeygenThread::StartKeyGeneration(nsIObserver* aObserver)
       return NS_OK;
     }
 
-    // We must AddRef aObserver only here on the main thread, because it
-    // probably does not implement a thread-safe AddRef.
-    mNotifyObserver = new NotifyObserverRunnable(aObserver, "keygen-finished");
+    observer.swap(obs);
 
-    iAmRunning = true;
+    iAmRunning = PR_TRUE;
 
     threadHandle = PR_CreateThread(PR_USER_THREAD, nsKeygenThreadRunner, static_cast<void*>(this), 
       PR_PRIORITY_NORMAL, PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
@@ -174,7 +173,7 @@ nsresult nsKeygenThread::UserCanceled(bool *threadAlreadyClosedDialog)
   if (!threadAlreadyClosedDialog)
     return NS_OK;
 
-  *threadAlreadyClosedDialog = false;
+  *threadAlreadyClosedDialog = PR_FALSE;
 
   MutexAutoLock lock(mutex);
   
@@ -185,7 +184,7 @@ nsresult nsKeygenThread::UserCanceled(bool *threadAlreadyClosedDialog)
     // Bad luck, we told him not do, and user still has to wait.
     // However, we remember that it's closed and will not close
     // it again to avoid problems.
-    statusDialogClosed = true;
+    statusDialogClosed = PR_TRUE;
 
   return NS_OK;
 }
@@ -198,8 +197,8 @@ void nsKeygenThread::Run(void)
   {
     MutexAutoLock lock(mutex);
     if (alreadyReceivedParams) {
-      canGenerate = true;
-      keygenReady = false;
+      canGenerate = PR_TRUE;
+      keygenReady = PR_FALSE;
     }
   }
 
@@ -214,12 +213,12 @@ void nsKeygenThread::Run(void)
   // As long as key generation can't be canceled, we don't need 
   // to care for cleaning this up.
 
-  nsCOMPtr<nsIRunnable> notifyObserver;
+  nsCOMPtr<nsIObserver> obs;
   {
     MutexAutoLock lock(mutex);
 
-    keygenReady = true;
-    iAmRunning = false;
+    keygenReady = PR_TRUE;
+    iAmRunning = PR_FALSE;
 
     // forget our parameters
     if (slot) {
@@ -230,17 +229,14 @@ void nsKeygenThread::Run(void)
     params = 0;
     wincx = 0;
 
-    if (!statusDialogClosed && mNotifyObserver)
-      notifyObserver = mNotifyObserver;
+    if (!statusDialogClosed)
+      obs = observer;
 
-    mNotifyObserver = nsnull;
+    observer = nsnull;
   }
 
-  if (notifyObserver) {
-    nsresult rv = NS_DispatchToMainThread(notifyObserver);
-    NS_ASSERTION(NS_SUCCEEDED(rv),
-		 "failed to dispatch keygen thread observer to main thread");
-  }
+  if (obs)
+    obs->Observe(nsnull, "keygen-finished", nsnull);
 }
 
 void nsKeygenThread::Join()

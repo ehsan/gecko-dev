@@ -118,14 +118,14 @@ bool
 SVGLengthList::operator==(const SVGLengthList& rhs) const
 {
   if (Length() != rhs.Length()) {
-    return false;
+    return PR_FALSE;
   }
   for (PRUint32 i = 0; i < Length(); ++i) {
     if (!(mLengths[i] == rhs.mLengths[i])) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 } // namespace mozilla

@@ -49,7 +49,7 @@ extern "C" int MOZ_XMLCheckQName(const char* ptr, const char* end,
 
 nsParserService::nsParserService() : mEntries(0)
 {
-  mHaveNotifiedCategoryObservers = false;
+  mHaveNotifiedCategoryObservers = PR_FALSE;
 }
 
 nsParserService::~nsParserService()
@@ -132,7 +132,7 @@ nsParserService::IsBlock(PRInt32 aId, bool& aIsBlock) const
               (gHTMLElements[aId].IsMemberOf(kList)));
   }
   else {
-    aIsBlock = false;
+    aIsBlock = PR_FALSE;
   }
 
   return NS_OK;
@@ -223,7 +223,7 @@ class nsMatchesTopic : public nsDequeFunctor{
 public:
   bool matched;
   nsObserverEntry* entry;
-  nsMatchesTopic(const nsAString& aString):mString(aString),matched(false){}
+  nsMatchesTopic(const nsAString& aString):mString(aString),matched(PR_FALSE){}
   virtual void* operator()(void* anObject){
     entry=static_cast<nsObserverEntry*>(anObject);
     matched=mString.Equals(entry->mTopic);
@@ -236,7 +236,7 @@ nsObserverEntry*
 nsParserService::GetEntry(const nsAString& aTopic)
 {
   if (!mHaveNotifiedCategoryObservers) {
-    mHaveNotifiedCategoryObservers = true;
+    mHaveNotifiedCategoryObservers = PR_TRUE;
     NS_CreateServicesFromCategory("parser-service-category",
                                   static_cast<nsISupports*>(static_cast<void*>(this)),
                                   "parser-service-start"); 

@@ -73,7 +73,7 @@ FormAutoComplete.prototype = {
         // Preferences. Add observer so we get notified of changes.
         this._prefBranch = Services.prefs.getBranch("browser.formfill.");
         this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
-        this._prefBranch.addObserver("", this.observer, true);
+        this._prefBranch.addObserver("", this.observer, false);
         this.observer._self = this;
 
         this._debug            = this._prefBranch.getBoolPref("debug");
@@ -86,7 +86,7 @@ FormAutoComplete.prototype = {
 
         this._dbStmts = [];
 
-        Services.obs.addObserver(this.observer, "xpcom-shutdown", true);
+        Services.obs.addObserver(this.observer, "xpcom-shutdown", false);
     },
 
     observer : {
@@ -170,12 +170,6 @@ FormAutoComplete.prototype = {
 
         if (!this._enabled)
             return null;
-
-        // don't allow form inputs (aField != null) to get results from search bar history
-        if (aInputName == 'searchbar-history' && aField) {
-            this.log('autoCompleteSearch for input name "' + aInputName + '" is denied');
-            return null;
-        }
 
         this.log("AutoCompleteSearch invoked. Search is: " + aUntrimmedSearchString);
         let searchString = aUntrimmedSearchString.trim().toLowerCase();

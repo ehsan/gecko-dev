@@ -382,7 +382,7 @@ nsAttrValue::ToString(nsAString& aResult) const
 #endif
     case eEnum:
     {
-      GetEnumString(aResult, false);
+      GetEnumString(aResult, PR_FALSE);
       break;
     }
     case ePercent:
@@ -433,11 +433,11 @@ nsAttrValue::GetColorValue(nscolor& aColor) const
   if (Type() != eColor) {
     // Unparseable value, treat as unset.
     NS_ASSERTION(Type() == eString, "unexpected type for color-valued attr");
-    return false;
+    return PR_FALSE;
   }
 
   aColor = GetMiscContainer()->mColor;
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -584,7 +584,7 @@ bool
 nsAttrValue::Equals(const nsAttrValue& aOther) const
 {
   if (BaseType() != aOther.BaseType()) {
-    return false;
+    return PR_FALSE;
   }
 
   switch(BaseType()) {
@@ -606,7 +606,7 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
   MiscContainer* thisCont = GetMiscContainer();
   MiscContainer* otherCont = aOther.GetMiscContainer();
   if (thisCont->mType != otherCont->mType) {
-    return false;
+    return PR_FALSE;
   }
 
   bool needsStringComparison = false;
@@ -615,28 +615,28 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     case eInteger:
     {
       if (thisCont->mInteger == otherCont->mInteger) {
-        needsStringComparison = true;
+        needsStringComparison = PR_TRUE;
       }
       break;
     }
     case eEnum:
     {
       if (thisCont->mEnumValue == otherCont->mEnumValue) {
-        needsStringComparison = true;
+        needsStringComparison = PR_TRUE;
       }
       break;
     }
     case ePercent:
     {
       if (thisCont->mPercent == otherCont->mPercent) {
-        needsStringComparison = true;
+        needsStringComparison = PR_TRUE;
       }
       break;
     }
     case eColor:
     {
       if (thisCont->mColor == otherCont->mColor) {
-        needsStringComparison = true;
+        needsStringComparison = PR_TRUE;
       }
       break;
     }
@@ -650,10 +650,10 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
       // classlists are never mapped attributes so they are never compared.
 
       if (!(*thisCont->mAtomArray == *otherCont->mAtomArray)) {
-        return false;
+        return PR_FALSE;
       }
 
-      needsStringComparison = true;
+      needsStringComparison = PR_TRUE;
       break;
     }
     case eDoubleValue:
@@ -667,12 +667,12 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
-      return false;
+      return PR_FALSE;
     }
   }
   if (needsStringComparison) {
     if (thisCont->mStringBits == otherCont->mStringBits) {
-      return true;
+      return PR_TRUE;
     }
     if ((static_cast<ValueBaseType>(thisCont->mStringBits & NS_ATTRVALUE_BASETYPE_MASK) ==
          eStringBase) &&
@@ -682,7 +682,7 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
         nsCheapString(reinterpret_cast<nsStringBuffer*>(otherCont->mStringBits)));
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -774,7 +774,7 @@ nsAttrValue::Contains(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const
       if (Type() == eAtomArray) {
         AtomArray* array = GetAtomArrayValue();
         if (aCaseSensitive == eCaseMatters) {
-          return array->Contains(aValue);
+          return array->IndexOf(aValue) != AtomArray::NoIndex;
         }
 
         nsDependentAtomString val1(aValue);
@@ -787,41 +787,14 @@ nsAttrValue::Contains(nsIAtom* aValue, nsCaseTreatment aCaseSensitive) const
           // anyway.
           if (nsContentUtils::EqualsIgnoreASCIICase(val1,
                 nsDependentAtomString(*cur))) {
-            return true;
+            return PR_TRUE;
           }
         }
       }
     }
   }
 
-  return false;
-}
-
-struct AtomArrayStringComparator {
-  bool Equals(nsIAtom* atom, const nsAString& string) const {
-    return atom->Equals(string);
-  }
-};
-
-bool
-nsAttrValue::Contains(const nsAString& aValue) const
-{
-  switch (BaseType()) {
-    case eAtomBase:
-    {
-      nsIAtom* atom = GetAtomValue();
-      return atom->Equals(aValue);
-    }
-    default:
-    {
-      if (Type() == eAtomArray) {
-        AtomArray* array = GetAtomArrayValue();
-        return array->Contains(aValue, AtomArrayStringComparator());
-      }
-    }
-  }
-
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -845,7 +818,7 @@ nsAttrValue::ParseAtomArray(const nsAString& aValue)
   
   // skip initial whitespace
   while (iter != end && nsContentUtils::IsHTMLWhitespace(*iter)) {
-    hasSpace = true;
+    hasSpace = PR_TRUE;
     ++iter;
   }
 
@@ -869,7 +842,7 @@ nsAttrValue::ParseAtomArray(const nsAString& aValue)
 
   // skip whitespace
   while (iter != end && nsContentUtils::IsHTMLWhitespace(*iter)) {
-    hasSpace = true;
+    hasSpace = PR_TRUE;
     ++iter;
   }
 
@@ -1023,7 +996,7 @@ nsAttrValue::ParseEnumValue(const nsAString& aValue,
       NS_ASSERTION(GetEnumValue() == tableEntry->value,
                    "failed to store enum properly");
 
-      return true;
+      return PR_TRUE;
     }
     tableEntry++;
   }
@@ -1033,10 +1006,10 @@ nsAttrValue::ParseEnumValue(const nsAString& aValue,
                     "aDefaultValue not inside aTable?");
     SetIntValueAndType(EnumTableEntryToValue(aTable, aDefaultValue),
                        eEnum, &aValue);
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -1048,17 +1021,17 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
   bool strict;
   bool isPercent = false;
   nsAutoString tmp(aString);
-  PRInt32 originalVal = StringToInteger(aString, &strict, &ec, true, &isPercent);
+  PRInt32 originalVal = StringToInteger(aString, &strict, &ec, PR_TRUE, &isPercent);
 
   if (NS_FAILED(ec)) {
-    return false;
+    return PR_FALSE;
   }
 
   PRInt32 val = NS_MAX(originalVal, 0);
 
   // % (percent)
   if (isPercent || tmp.RFindChar('%') >= 0) {
-    isPercent = true;
+    isPercent = PR_TRUE;
   }
 
   strict = strict && (originalVal == val);
@@ -1066,7 +1039,7 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
   SetIntValueAndType(val,
                      isPercent ? ePercent : eInteger,
                      strict ? nsnull : &aString);
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1081,7 +1054,7 @@ nsAttrValue::ParseIntWithBounds(const nsAString& aString,
   bool strict;
   PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
   if (NS_FAILED(ec)) {
-    return false;
+    return PR_FALSE;
   }
 
   PRInt32 val = NS_MAX(originalVal, aMin);
@@ -1089,7 +1062,7 @@ nsAttrValue::ParseIntWithBounds(const nsAString& aString,
   strict = strict && (originalVal == val);
   SetIntValueAndType(val, eInteger, strict ? nsnull : &aString);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1101,12 +1074,12 @@ nsAttrValue::ParseNonNegativeIntValue(const nsAString& aString)
   bool strict;
   PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
   if (NS_FAILED(ec) || originalVal < 0) {
-    return false;
+    return PR_FALSE;
   }
 
   SetIntValueAndType(originalVal, eInteger, strict ? nsnull : &aString);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1118,12 +1091,12 @@ nsAttrValue::ParsePositiveIntValue(const nsAString& aString)
   bool strict;
   PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
   if (NS_FAILED(ec) || originalVal <= 0) {
-    return false;
+    return PR_FALSE;
   }
 
   SetIntValueAndType(originalVal, eInteger, strict ? nsnull : &aString);
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -1157,9 +1130,9 @@ nsAttrValue::ParseColor(const nsAString& aString)
   // (I'm a little skeptical that we shouldn't do the whitespace
   // trimming; WebKit also does it.)
   nsAutoString colorStr(aString);
-  colorStr.CompressWhitespace(true, true);
+  colorStr.CompressWhitespace(PR_TRUE, PR_TRUE);
   if (colorStr.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   nscolor color;
@@ -1169,12 +1142,12 @@ nsAttrValue::ParseColor(const nsAString& aString)
     nsDependentString withoutHash(colorStr.get() + 1, colorStr.Length() - 1);
     if (NS_HexToRGB(withoutHash, &color)) {
       SetColorValue(color, aString);
-      return true;
+      return PR_TRUE;
     }
   } else {
     if (NS_ColorNameToRGB(colorStr, &color)) {
       SetColorValue(color, aString);
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -1186,10 +1159,10 @@ nsAttrValue::ParseColor(const nsAString& aString)
   // Use NS_LooseHexToRGB as a fallback if nothing above worked.
   if (NS_LooseHexToRGB(colorStr, &color)) {
     SetColorValue(color, aString);
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool nsAttrValue::ParseDoubleValue(const nsAString& aString)
@@ -1199,7 +1172,7 @@ bool nsAttrValue::ParseDoubleValue(const nsAString& aString)
   PRInt32 ec;
   double val = PromiseFlatString(aString).ToDouble(&ec);
   if (NS_FAILED(ec)) {
-    return false;
+    return PR_FALSE;
   }
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
@@ -1208,10 +1181,10 @@ bool nsAttrValue::ParseDoubleValue(const nsAString& aString)
     nsAutoString serializedFloat;
     serializedFloat.AppendFloat(val);
     SetMiscAtomOrString(serializedFloat.Equals(aString) ? nsnull : &aString);
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -1221,17 +1194,17 @@ nsAttrValue::ParseIntMarginValue(const nsAString& aString)
 
   nsIntMargin margins;
   if (!nsContentUtils::ParseIntMarginValue(aString, margins))
-    return false;
+    return PR_FALSE;
 
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
     cont->mIntMargin = new nsIntMargin(margins);
     cont->mType = eIntMarginValue;
     SetMiscAtomOrString(&aString);
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -1314,7 +1287,7 @@ nsAttrValue::EnsureEmptyMiscContainer()
     ResetIfSet();
 
     cont = new MiscContainer;
-    NS_ENSURE_TRUE(cont, false);
+    NS_ENSURE_TRUE(cont, PR_FALSE);
 
     SetPtrValueAndType(cont, eOtherBase);
   }
@@ -1323,7 +1296,7 @@ nsAttrValue::EnsureEmptyMiscContainer()
   cont->mStringBits = 0;
   cont->mColor = 0;
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1332,25 +1305,25 @@ nsAttrValue::EnsureEmptyAtomArray()
   if (Type() == eAtomArray) {
     ResetMiscAtomOrString();
     GetAtomArrayValue()->Clear();
-    return true;
+    return PR_TRUE;
   }
 
   if (!EnsureEmptyMiscContainer()) {
     // should already be reset
-    return false;
+    return PR_FALSE;
   }
 
   AtomArray* array = new AtomArray;
   if (!array) {
     Reset();
-    return false;
+    return PR_FALSE;
   }
 
   MiscContainer* cont = GetMiscContainer();
   cont->mAtomArray = array;
   cont->mType = eAtomArray;
 
-  return true;
+  return PR_TRUE;
 }
 
 nsStringBuffer*

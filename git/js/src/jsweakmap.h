@@ -47,8 +47,6 @@
 #include "jsobj.h"
 #include "jsgcmark.h"
 
-#include "js/HashTable.h"
-
 namespace js {
 
 // A subclass template of js::HashMap whose keys and values may be garbage-collected. When
@@ -139,7 +137,6 @@ template <class Key, class Value> class DefaultMarkPolicy;
 class WeakMapBase {
   public:
     WeakMapBase() : next(NULL) { }
-    virtual ~WeakMapBase() { }
 
     void trace(JSTracer *tracer) {
         if (IS_GC_MARKING_TRACER(tracer)) {
@@ -192,18 +189,12 @@ template <class Key, class Value,
 class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, public WeakMapBase {
   private:
     typedef HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy> Base;
+    typedef typename Base::Range Range;
     typedef typename Base::Enum Enum;
 
   public:
-    typedef typename Base::Range Range;
-
     explicit WeakMap(JSRuntime *rt) : Base(rt) { }
     explicit WeakMap(JSContext *cx) : Base(cx) { }
-
-    // Use with caution, as result can be affected by garbage collection.
-    Range nondeterministicAll() {
-        return Base::all();
-    }
 
   private:
     void nonMarkingTrace(JSTracer *tracer) {
@@ -299,14 +290,14 @@ class DefaultMarkPolicy<JSObject *, Value> {
 };
 
 template <>
-class DefaultMarkPolicy<gc::Cell *, JSObject *> {
+class DefaultMarkPolicy<JSObject *, JSObject *> {
   protected:
     JSTracer *tracer;
   public:
     DefaultMarkPolicy(JSTracer *t) : tracer(t) { }
-    bool keyMarked(gc::Cell *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
+    bool keyMarked(JSObject *k)   { return !IsAboutToBeFinalized(tracer->context, k); }
     bool valueMarked(JSObject *v) { return !IsAboutToBeFinalized(tracer->context, v); }
-    bool markEntryIfLive(gc::Cell *k, JSObject *v) {
+    bool markEntryIfLive(JSObject *k, JSObject *v) {
         if (keyMarked(k) && !valueMarked(v)) {
             js::gc::MarkObject(tracer, *v, "WeakMap entry value");
             return true;
@@ -325,7 +316,7 @@ class DefaultMarkPolicy<gc::Cell *, JSObject *> {
 // default mark policy. We give it a distinct name anyway, in case this ever
 // changes.
 //
-typedef DefaultMarkPolicy<gc::Cell *, JSObject *> CrossCompartmentMarkPolicy;
+typedef DefaultMarkPolicy<JSObject *, JSObject *> CrossCompartmentMarkPolicy;
 
 }
 

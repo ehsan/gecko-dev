@@ -59,7 +59,7 @@ bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring& aString, double& a
   }
 
   if (aString.Length() == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   double start = -1.0;
@@ -70,19 +70,19 @@ bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring& aString, double& a
   }
 
   if (aString.Length() == 0) {
-    return true;
+    return PR_TRUE;
   }
 
   if (aString[0] != ',') {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   aString.Rebind(aString, 1);
 
   if (aString.Length() == 0) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   if (ParseNPTTime(aString, end)) {
@@ -91,16 +91,16 @@ bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring& aString, double& a
 
   if (aString.Length() != 0) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTTime(nsDependentSubstring& aString, double& aTime)
 {
   if (aString.Length() == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   return
@@ -109,7 +109,7 @@ bool nsMediaFragmentURIParser::ParseNPTTime(nsDependentSubstring& aString, doubl
     ParseNPTSec(aString, aTime);
 }
 
-// Return true if the given character is a numeric character
+// Return PR_TRUE if the given character is a numeric character
 static bool IsDigit(nsDependentSubstring::char_type aChar)
 {
   return (aChar >= '0' && aChar <= '9');
@@ -129,30 +129,30 @@ bool nsMediaFragmentURIParser::ParseNPTSec(nsDependentSubstring& aString, double
 {
   nsDependentSubstring original(aString);
   if (aString.Length() == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   PRUint32 index = FirstNonDigit(aString, 0);
   if (index == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   nsDependentSubstring n(aString, 0, index);
   PRInt32 ec;
   PRInt32 s = PromiseFlatString(n).ToInteger(&ec);
   if (NS_FAILED(ec)) {
-    return false;
+    return PR_FALSE;
   }
 
   aString.Rebind(aString, index);
   double fraction = 0.0;
   if (!ParseNPTFraction(aString, fraction)) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   aSec = s + fraction;
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTMMSS(nsDependentSubstring& aString, double& aTime)
@@ -163,26 +163,26 @@ bool nsMediaFragmentURIParser::ParseNPTMMSS(nsDependentSubstring& aString, doubl
   double fraction = 0.0;
   if (!ParseNPTMM(aString, mm)) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   if (aString.Length() < 2 || aString[0] != ':') {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   aString.Rebind(aString, 1);
   if (!ParseNPTSS(aString, ss)) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   if (!ParseNPTFraction(aString, fraction)) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
   aTime = mm * 60 + ss + fraction;
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTFraction(nsDependentSubstring& aString, double& aFraction)
@@ -197,14 +197,14 @@ bool nsMediaFragmentURIParser::ParseNPTFraction(nsDependentSubstring& aString, d
       PRInt32 ec;
       fraction = PromiseFlatString(number).ToDouble(&ec);
       if (NS_FAILED(ec)) {
-        return false;
+        return PR_FALSE;
       }
     }
     aString.Rebind(aString, index);
   }
 
   aFraction = fraction;
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTHHMMSS(nsDependentSubstring& aString, double& aTime)
@@ -213,45 +213,45 @@ bool nsMediaFragmentURIParser::ParseNPTHHMMSS(nsDependentSubstring& aString, dou
   PRUint32 hh = 0;
   double seconds = 0.0;
   if (!ParseNPTHH(aString, hh)) {
-    return false;
+    return PR_FALSE;
   }
 
   if (aString.Length() < 2 || aString[0] != ':') {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   aString.Rebind(aString, 1);
   if (!ParseNPTMMSS(aString, seconds)) {
     aString.Rebind(original, 0);
-    return false;
+    return PR_FALSE;
   }
 
   aTime = hh * 3600 + seconds;
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTHH(nsDependentSubstring& aString, PRUint32& aHour)
 {
   if (aString.Length() == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   PRUint32 index = FirstNonDigit(aString, 0);
   if (index == 0) {
-    return false;
+    return PR_FALSE;
   }
 
   nsDependentSubstring n(aString, 0, index);
   PRInt32 ec;
   PRInt32 u = PromiseFlatString(n).ToInteger(&ec);
   if (NS_FAILED(ec)) {
-    return false;
+    return PR_FALSE;
   }
 
   aString.Rebind(aString, index);
   aHour = u;
-  return true;
+  return PR_TRUE;
 }
 
 bool nsMediaFragmentURIParser::ParseNPTMM(nsDependentSubstring& aString, PRUint32& aMinute)
@@ -262,7 +262,7 @@ bool nsMediaFragmentURIParser::ParseNPTMM(nsDependentSubstring& aString, PRUint3
 bool nsMediaFragmentURIParser::ParseNPTSS(nsDependentSubstring& aString, PRUint32& aSecond)
 {
   if (aString.Length() < 2) {
-    return false;
+    return PR_FALSE;
   }
 
   if (IsDigit(aString[0]) && IsDigit(aString[1])) {
@@ -271,18 +271,18 @@ bool nsMediaFragmentURIParser::ParseNPTSS(nsDependentSubstring& aString, PRUint3
 
     PRInt32 u = PromiseFlatString(n).ToInteger(&ec);
     if (NS_FAILED(ec)) {
-      return false;
+      return PR_FALSE;
     }
 
     aString.Rebind(aString, 2);
     if (u >= 60)
-      return false;
+      return PR_FALSE;
 
     aSecond = u;
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void nsMediaFragmentURIParser::Parse()

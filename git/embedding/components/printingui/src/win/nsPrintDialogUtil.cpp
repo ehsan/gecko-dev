@@ -131,47 +131,47 @@ typedef struct {
 
 // There are around 40 default print sizes defined by Windows
 const NativePaperSizes kPaperSizes[] = {
-  {DMPAPER_LETTER,    8.5,   11.0,  true},
-  {DMPAPER_LEGAL,     8.5,   14.0,  true},
-  {DMPAPER_A4,        210.0, 297.0, false},
-  {DMPAPER_TABLOID,   11.0,  17.0,  true},
-  {DMPAPER_LEDGER,    17.0,  11.0,  true},
-  {DMPAPER_STATEMENT, 5.5,   8.5,   true},
-  {DMPAPER_EXECUTIVE, 7.25,  10.5,  true},
-  {DMPAPER_A3,        297.0, 420.0, false},
-  {DMPAPER_A5,        148.0, 210.0, false},
-  {DMPAPER_CSHEET,    17.0,  22.0,  true},  
-  {DMPAPER_DSHEET,    22.0,  34.0,  true},  
-  {DMPAPER_ESHEET,    34.0,  44.0,  true},  
-  {DMPAPER_LETTERSMALL, 8.5, 11.0,  true},  
-  {DMPAPER_A4SMALL,   210.0, 297.0, false}, 
-  {DMPAPER_B4,        250.0, 354.0, false}, 
-  {DMPAPER_B5,        182.0, 257.0, false},
-  {DMPAPER_FOLIO,     8.5,   13.0,  true},
-  {DMPAPER_QUARTO,    215.0, 275.0, false},
-  {DMPAPER_10X14,     10.0,  14.0,  true},
-  {DMPAPER_11X17,     11.0,  17.0,  true},
-  {DMPAPER_NOTE,      8.5,   11.0,  true},  
-  {DMPAPER_ENV_9,     3.875, 8.875, true},  
-  {DMPAPER_ENV_10,    40.125, 9.5,  true},  
-  {DMPAPER_ENV_11,    4.5,   10.375, true},  
-  {DMPAPER_ENV_12,    4.75,  11.0,  true},  
-  {DMPAPER_ENV_14,    5.0,   11.5,  true},  
-  {DMPAPER_ENV_DL,    110.0, 220.0, false}, 
-  {DMPAPER_ENV_C5,    162.0, 229.0, false}, 
-  {DMPAPER_ENV_C3,    324.0, 458.0, false}, 
-  {DMPAPER_ENV_C4,    229.0, 324.0, false}, 
-  {DMPAPER_ENV_C6,    114.0, 162.0, false}, 
-  {DMPAPER_ENV_C65,   114.0, 229.0, false}, 
-  {DMPAPER_ENV_B4,    250.0, 353.0, false}, 
-  {DMPAPER_ENV_B5,    176.0, 250.0, false}, 
-  {DMPAPER_ENV_B6,    176.0, 125.0, false}, 
-  {DMPAPER_ENV_ITALY, 110.0, 230.0, false}, 
-  {DMPAPER_ENV_MONARCH,  3.875,  7.5, true},  
-  {DMPAPER_ENV_PERSONAL, 3.625,  6.5, true},  
-  {DMPAPER_FANFOLD_US,   14.875, 11.0, true},  
-  {DMPAPER_FANFOLD_STD_GERMAN, 8.5, 12.0, true},  
-  {DMPAPER_FANFOLD_LGL_GERMAN, 8.5, 13.0, true},  
+  {DMPAPER_LETTER,    8.5,   11.0,  PR_TRUE},
+  {DMPAPER_LEGAL,     8.5,   14.0,  PR_TRUE},
+  {DMPAPER_A4,        210.0, 297.0, PR_FALSE},
+  {DMPAPER_TABLOID,   11.0,  17.0,  PR_TRUE},
+  {DMPAPER_LEDGER,    17.0,  11.0,  PR_TRUE},
+  {DMPAPER_STATEMENT, 5.5,   8.5,   PR_TRUE},
+  {DMPAPER_EXECUTIVE, 7.25,  10.5,  PR_TRUE},
+  {DMPAPER_A3,        297.0, 420.0, PR_FALSE},
+  {DMPAPER_A5,        148.0, 210.0, PR_FALSE},
+  {DMPAPER_CSHEET,    17.0,  22.0,  PR_TRUE},  
+  {DMPAPER_DSHEET,    22.0,  34.0,  PR_TRUE},  
+  {DMPAPER_ESHEET,    34.0,  44.0,  PR_TRUE},  
+  {DMPAPER_LETTERSMALL, 8.5, 11.0,  PR_TRUE},  
+  {DMPAPER_A4SMALL,   210.0, 297.0, PR_FALSE}, 
+  {DMPAPER_B4,        250.0, 354.0, PR_FALSE}, 
+  {DMPAPER_B5,        182.0, 257.0, PR_FALSE},
+  {DMPAPER_FOLIO,     8.5,   13.0,  PR_TRUE},
+  {DMPAPER_QUARTO,    215.0, 275.0, PR_FALSE},
+  {DMPAPER_10X14,     10.0,  14.0,  PR_TRUE},
+  {DMPAPER_11X17,     11.0,  17.0,  PR_TRUE},
+  {DMPAPER_NOTE,      8.5,   11.0,  PR_TRUE},  
+  {DMPAPER_ENV_9,     3.875, 8.875, PR_TRUE},  
+  {DMPAPER_ENV_10,    40.125, 9.5,  PR_TRUE},  
+  {DMPAPER_ENV_11,    4.5,   10.375, PR_TRUE},  
+  {DMPAPER_ENV_12,    4.75,  11.0,  PR_TRUE},  
+  {DMPAPER_ENV_14,    5.0,   11.5,  PR_TRUE},  
+  {DMPAPER_ENV_DL,    110.0, 220.0, PR_FALSE}, 
+  {DMPAPER_ENV_C5,    162.0, 229.0, PR_FALSE}, 
+  {DMPAPER_ENV_C3,    324.0, 458.0, PR_FALSE}, 
+  {DMPAPER_ENV_C4,    229.0, 324.0, PR_FALSE}, 
+  {DMPAPER_ENV_C6,    114.0, 162.0, PR_FALSE}, 
+  {DMPAPER_ENV_C65,   114.0, 229.0, PR_FALSE}, 
+  {DMPAPER_ENV_B4,    250.0, 353.0, PR_FALSE}, 
+  {DMPAPER_ENV_B5,    176.0, 250.0, PR_FALSE}, 
+  {DMPAPER_ENV_B6,    176.0, 125.0, PR_FALSE}, 
+  {DMPAPER_ENV_ITALY, 110.0, 230.0, PR_FALSE}, 
+  {DMPAPER_ENV_MONARCH,  3.875,  7.5, PR_TRUE},  
+  {DMPAPER_ENV_PERSONAL, 3.625,  6.5, PR_TRUE},  
+  {DMPAPER_FANFOLD_US,   14.875, 11.0, PR_TRUE},  
+  {DMPAPER_FANFOLD_STD_GERMAN, 8.5, 12.0, PR_TRUE},  
+  {DMPAPER_FANFOLD_LGL_GERMAN, 8.5, 13.0, PR_TRUE},  
 };
 const PRInt32 kNumPaperSizes = 41;
 
@@ -185,7 +185,7 @@ CheckForExtendedDialog()
     return GetProcAddress(lib, GetPrintDlgExQuoted);
   }
 #endif
-  return false;
+  return PR_FALSE;
 }
 
 //----------------------------------------------------------------------------------
@@ -293,7 +293,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
     return NS_ERROR_FAILURE;
   }
 
-  aPrintSettings->SetIsInitializedFromPrinter(true);
+  aPrintSettings->SetIsInitializedFromPrinter(PR_TRUE);
   if (aDevMode->dmFields & DM_ORIENTATION) {
     PRInt32 orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
                            nsIPrintSettings::kPortraitOrientation:nsIPrintSettings::kLandscapeOrientation;
@@ -316,7 +316,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
     }
     aDevMode->dmScale = 100;
     // To turn this on you must change where the mPrt->mShrinkToFit is being set in the DocumentViewer
-    //aPrintSettings->SetShrinkToFit(false);
+    //aPrintSettings->SetShrinkToFit(PR_FALSE);
   }
 
   if (aDevMode->dmFields & DM_PAPERSIZE) {
@@ -337,7 +337,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
         aPrintSettings->SetPaperWidth(kPaperSizes[i].mWidth);
         aPrintSettings->SetPaperHeight(kPaperSizes[i].mHeight);
         aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
-        found = true;
+        found = PR_TRUE;
         break;
       }
     }
@@ -565,16 +565,16 @@ static void InitializeExtendedDialog(HWND hdlg, PRInt16 aHowToEnableFrameUI)
 
   // Set up radio buttons
   if (aHowToEnableFrameUI == nsIPrintSettings::kFrameEnableAll) {
-    SetRadio(hdlg, rad4, false);  
-    SetRadio(hdlg, rad5, true); 
-    SetRadio(hdlg, rad6, false);
+    SetRadio(hdlg, rad4, PR_FALSE);  
+    SetRadio(hdlg, rad5, PR_TRUE); 
+    SetRadio(hdlg, rad6, PR_FALSE);
     // set default so user doesn't have to actually press on it
     gFrameSelectedRadioBtn = rad5;
 
   } else { // nsIPrintSettings::kFrameEnableAsIsAndEach
-    SetRadio(hdlg, rad4, false);  
-    SetRadio(hdlg, rad5, false, false); 
-    SetRadio(hdlg, rad6, true);
+    SetRadio(hdlg, rad4, PR_FALSE);  
+    SetRadio(hdlg, rad5, PR_FALSE, PR_FALSE); 
+    SetRadio(hdlg, rad6, PR_TRUE);
     // set default so user doesn't have to actually press on it
     gFrameSelectedRadioBtn = rad6;
   }
@@ -724,7 +724,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     InitializeExtendedDialog(hdlg, howToEnableFrameUI);
 
     // Looks like we were able to extend the dialog
-    gDialogWasExtended = true;
+    gDialogWasExtended = PR_TRUE;
     return TRUE;
   }
   return 0L;
@@ -828,14 +828,14 @@ static bool ShouldExtendPrintDialog()
   nsresult rv;
   nsCOMPtr<nsIPrefService> prefs =
     do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, true);
+  NS_ENSURE_SUCCESS(rv, PR_TRUE);
   nsCOMPtr<nsIPrefBranch> prefBranch;
   rv = prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
-  NS_ENSURE_SUCCESS(rv, true);
+  NS_ENSURE_SUCCESS(rv, PR_TRUE);
 
   bool result;
   rv = prefBranch->GetBoolPref("print.extend_native_print_dialog", &result);
-  NS_ENSURE_SUCCESS(rv, true);
+  NS_ENSURE_SUCCESS(rv, PR_TRUE);
   return result;
 }
 
@@ -848,7 +848,7 @@ ShowNativePrintDialog(HWND              aHWnd,
   //NS_ENSURE_ARG_POINTER(aHWnd);
   NS_ENSURE_ARG_POINTER(aPrintSettings);
 
-  gDialogWasExtended  = false;
+  gDialogWasExtended  = PR_FALSE;
 
   HGLOBAL hGlobalDevMode = NULL;
   HGLOBAL hDevNames      = NULL;
@@ -981,10 +981,10 @@ ShowNativePrintDialog(HWND              aHWnd,
       wchar_t* fileName = &(((wchar_t *)devnames)[devnames->wOutputOffset]);
       NS_ASSERTION(wcscmp(fileName, L"FILE:") == 0, "FileName must be `FILE:`");
       aPrintSettings->SetToFileName(fileName);
-      aPrintSettings->SetPrintToFile(true);
+      aPrintSettings->SetPrintToFile(PR_TRUE);
     } else {
       // clear "print to file" info
-      aPrintSettings->SetPrintToFile(false);
+      aPrintSettings->SetPrintToFile(PR_FALSE);
       aPrintSettings->SetToFileName(nsnull);
     }
 
@@ -1077,7 +1077,7 @@ ShowNativePrintDialog(HWND              aHWnd,
     
   } else {
     ::SetFocus(aHWnd);
-    aPrintSettings->SetIsCancelled(true);
+    aPrintSettings->SetIsCancelled(PR_TRUE);
     if (hGlobalDevMode) ::GlobalFree(hGlobalDevMode);
     return NS_ERROR_ABORT;
   }
@@ -1183,7 +1183,7 @@ static BOOL APIENTRY PropSheetCallBack(HWND hdlg, UINT uiMsg, UINT wParam, LONG 
     InitializeExtendedDialog(hdlg, howToEnableFrameUI);
 
     // Looks like we were able to extend the dialog
-    gDialogWasExtended = true;
+    gDialogWasExtended = PR_TRUE;
     return TRUE;
   }
   return 0L;
@@ -1218,7 +1218,7 @@ ShowNativePrintDialogEx(HWND              aHWnd,
   NS_ENSURE_ARG_POINTER(aHWnd);
   NS_ENSURE_ARG_POINTER(aPrintSettings);
 
-  gDialogWasExtended  = false;
+  gDialogWasExtended  = PR_FALSE;
 
   // Create a Moveable Memory Object that holds a new DevMode
   // from the Printer Name
@@ -1321,10 +1321,10 @@ ShowNativePrintDialogEx(HWND              aHWnd,
       char* fileName = &(((char *)devnames)[devnames->wOutputOffset]);
       NS_ASSERTION(strcmp(fileName, "FILE:") == 0, "FileName must be `FILE:`");
       aPrintSettings->SetToFileName(NS_ConvertASCIItoUTF16(fileName).get());
-      aPrintSettings->SetPrintToFile(true);
+      aPrintSettings->SetPrintToFile(PR_TRUE);
     } else {
       // clear "print to file" info
-      aPrintSettings->SetPrintToFile(false);
+      aPrintSettings->SetPrintToFile(PR_FALSE);
       aPrintSettings->SetToFileName(nsnull);
     }
 

@@ -285,10 +285,8 @@ class DeviceManagerADB(DeviceManager):
   #  success: output of pullfile, string
   #  failure: None
   def getFile(self, remoteFile, localFile = 'tmpfile_dm_adb'):
-    # TODO: add debug flags and allow for printing stdout
-    # self.runCmd(["pull", remoteFile, localFile])
     try:
-      self.runCmd(["pull",  remoteFile, localFile]).stdout.read()
+      self.checkCmd(["pull",  remoteFile, localFile])
       f = open(localFile)
       ret = f.read()
       f.close()
@@ -323,8 +321,7 @@ class DeviceManagerADB(DeviceManager):
       ret.append(f)
       line =  p.stderr.readline()
     #the last line is a summary
-    if (len(ret) > 0):
-      ret.pop()
+    ret.pop(len(ret) - 1)
     return ret
 
 

@@ -52,9 +52,9 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
   archString.Truncate();
 
   bool foundPPC = false,
-         foundX86 = false,
-         foundPPC64 = false,
-         foundX86_64 = false;
+         foundX86 = PR_FALSE,
+         foundPPC64 = PR_FALSE,
+         foundX86_64 = PR_FALSE;
 
   CFBundleRef mainBundle = ::CFBundleGetMainBundle();
   if (!mainBundle) {
@@ -77,13 +77,13 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
     }
 
     if (archInt == kCFBundleExecutableArchitecturePPC)
-      foundPPC = true;
+      foundPPC = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitectureI386)
-      foundX86 = true;
+      foundX86 = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitecturePPC64)
-      foundPPC64 = true;
+      foundPPC64 = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitectureX86_64)
-      foundX86_64 = true;
+      foundX86_64 = PR_TRUE;
   }
 
   ::CFRelease(archList);
@@ -123,7 +123,7 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
 NS_IMETHODIMP nsMacUtilsImpl::GetIsUniversalBinary(bool *aIsUniversalBinary)
 {
   NS_ENSURE_ARG_POINTER(aIsUniversalBinary);
-  *aIsUniversalBinary = false;
+  *aIsUniversalBinary = PR_FALSE;
 
   nsAutoString archString;
   nsresult rv = GetArchString(archString);
@@ -157,14 +157,14 @@ NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
   if (!sInitialized) {
     size_t sz = sizeof(sIsNative);
     sysctlbyname("sysctl.proc_native", &sIsNative, &sz, NULL, 0);
-    sInitialized = true;
+    sInitialized = PR_TRUE;
   }
 
   *aIsTranslated = !sIsNative;
 #else
   // Translation only exists for ppc code.  Other architectures aren't
   // translated.
-  *aIsTranslated = false;
+  *aIsTranslated = PR_FALSE;
 #endif
 
   return NS_OK;

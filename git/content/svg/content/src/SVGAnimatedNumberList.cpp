@@ -38,8 +38,10 @@
 #include "DOMSVGAnimatedNumberList.h"
 #include "nsSVGElement.h"
 #include "nsSVGAttrTearoffTable.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGNumberListSMILType.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -67,7 +69,7 @@ SVGAnimatedNumberList::SetBaseValueString(const nsAString& aValue)
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
   // which takes care of notifying.
 
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   rv = mBaseVal.CopyFrom(newBaseValue);
   if (NS_FAILED(rv) && domWrapper) {
     // Attempting to increase mBaseVal's length failed - reduce domWrapper
@@ -87,7 +89,7 @@ SVGAnimatedNumberList::ClearBaseValue(PRUint32 aAttrEnum)
     domWrapper->InternalBaseValListWillChangeTo(SVGNumberList());
   }
   mBaseVal.Clear();
-  mIsBaseSet = false;
+  mIsBaseSet = PR_FALSE;
   // Caller notifies
 }
 
@@ -149,6 +151,7 @@ SVGAnimatedNumberList::ClearAnimValue(nsSVGElement *aElement,
   aElement->DidAnimateNumberList(aAttrEnum);
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedNumberList::ToSMILAttr(nsSVGElement *aSVGElement,
                                   PRUint8 aAttrEnum)
@@ -170,7 +173,7 @@ SVGAnimatedNumberList::
     nlai->SetInfo(mElement);
     aValue.Swap(val);
   }
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return rv;
 }
 
@@ -212,5 +215,6 @@ SVGAnimatedNumberList::SMILAnimatedNumberList::ClearAnimValue()
     mVal->ClearAnimValue(mElement, mAttrEnum);
   }
 }
+#endif // MOZ_SMIL
 
 } // namespace mozilla

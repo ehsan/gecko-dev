@@ -45,6 +45,7 @@
 
 #include "prlog.h"
 #include "prnetdb.h"
+#include "nsIPrompt.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
@@ -52,6 +53,8 @@
 #include "nsIChannel.h"
 #include "nsNSSCertificate.h"
 #include "nsIX509CertValidity.h"
+#include "nsIProxyObjectManager.h"
+#include "nsProxiedService.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsIClientAuthDialogs.h"
@@ -62,6 +65,7 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsRecentBadCerts.h"
+#include "nsISSLCertErrorDialog.h"
 #include "nsIStrictTransportSecurityService.h"
 
 #include "nsXPIDLString.h"
@@ -79,11 +83,11 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsISecureBrowserUI.h"
+#include "nsProxyRelease.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "PSMRunnable.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -95,10 +99,7 @@
 #include "keyhi.h"
 #include "secport.h"
 
-#include "mozilla/Util.h"
-
 using namespace mozilla;
-using namespace mozilla::psm;
 
 //#define DEBUG_SSL_VERBOSE //Enable this define to get minimal 
                             //reports when doing SSL read/write
@@ -113,13 +114,24 @@ using namespace mozilla::psm;
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass(char, PL_strfree)
 NSSCleanupAutoPtrClass(void, PR_FREEIF)
-NSSCleanupAutoPtrClass_WithParam(PRArenaPool, PORT_FreeArena, FalseParam, false)
+NSSCleanupAutoPtrClass_WithParam(PRArenaPool, PORT_FreeArena, FalseParam, PR_FALSE)
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 /* SSM_UserCertChoice: enum for cert choice info */
 typedef enum {ASK, AUTO} SSM_UserCertChoice;
 
+
+static SECStatus PR_CALLBACK
+nsNSS_SSLGetClientAuthData(void *arg, PRFileDesc *socket,
+						   CERTDistNames *caNames,
+						   CERTCertificate **pRetCert,
+						   SECKEYPrivateKey **pRetKey);
+static SECStatus PR_CALLBACK
+nsNSS_SSLGetClientAuthData(void *arg, PRFileDesc *socket,
+						   CERTDistNames *caNames,
+						   CERTCertificate **pRetCert,
+						   SECKEYPrivateKey **pRetKey);
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
@@ -160,7 +172,7 @@ nsSSLSocketThreadData::nsSSLSocketThreadData()
 , mSSLRemainingReadResultData(nsnull)
 , mSSLResultRemainingBytes(0)
 , mReplacedSSLFileDesc(nsnull)
-, mOneBytePendingFromEarlierWrite(false)
+, mOneBytePendingFromEarlierWrite(PR_FALSE)
 , mThePendingByte(0)
 , mOriginalRequestedTransferAmount(0)
 {
@@ -188,12 +200,12 @@ bool nsSSLSocketThreadData::ensure_buffer_size(PRInt32 amount)
     }
     
     if (!mSSLDataBuffer)
-      return false;
+      return PR_FALSE;
 
     mSSLDataBufferAllocatedSize = amount;
   }
   
-  return true;
+  return PR_TRUE;
 }
 
 nsNSSSocketInfo::nsNSSSocketInfo()
@@ -204,18 +216,18 @@ nsNSSSocketInfo::nsNSSSocketInfo()
     mSubRequestsLowSecurity(0),
     mSubRequestsBrokenSecurity(0),
     mSubRequestsNoSecurity(0),
-    mDocShellDependentStuffKnown(false),
-    mExternalErrorReporting(false),
-    mForSTARTTLS(false),
-    mHandshakePending(true),
-    mCanceled(false),
-    mHasCleartextPhase(false),
-    mHandshakeInProgress(false),
-    mAllowTLSIntoleranceTimeout(true),
-    mRememberClientAuthCertificate(false),
+    mDocShellDependentStuffKnown(PR_FALSE),
+    mExternalErrorReporting(PR_FALSE),
+    mForSTARTTLS(PR_FALSE),
+    mHandshakePending(PR_TRUE),
+    mCanceled(PR_FALSE),
+    mHasCleartextPhase(PR_FALSE),
+    mHandshakeInProgress(PR_FALSE),
+    mAllowTLSIntoleranceTimeout(PR_TRUE),
+    mRememberClientAuthCertificate(PR_FALSE),
     mHandshakeStartTime(0),
     mPort(0),
-    mIsCertIssuerBlacklisted(false)
+    mIsCertIssuerBlacklisted(PR_FALSE)
 {
   mThreadData = new nsSSLSocketThreadData;
 }
@@ -235,11 +247,12 @@ void nsNSSSocketInfo::virtualDestroyNSSReference()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS8(nsNSSSocketInfo,
+NS_IMPL_THREADSAFE_ISUPPORTS9(nsNSSSocketInfo,
                               nsITransportSecurityInfo,
                               nsISSLSocketControl,
                               nsIInterfaceRequestor,
                               nsISSLStatusProvider,
+                              nsIIdentityInfo,
                               nsIAssociatedContentSecurity,
                               nsISerializable,
                               nsIClassInfo,
@@ -337,57 +350,111 @@ nsNSSSocketInfo::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
   }
 
   mCallbacks = aCallbacks;
-  mDocShellDependentStuffKnown = false;
+  mDocShellDependentStuffKnown = PR_FALSE;
 
   return NS_OK;
 }
 
-static void
-getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
-                   nsISecureBrowserUI ** result)
+nsresult
+nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
 {
-  NS_ASSERTION(result != nsnull, "result parameter to getSecureBrowserUI is null");
-  *result = nsnull;
+  if (mDocShellDependentStuffKnown)
+    return NS_OK;
 
-  NS_ASSERTION(NS_IsMainThread(),
-               "getSecureBrowserUI called off the main thread");
+  if (!mCallbacks || nsSSLThread::stoppedOrStopping())
+    return NS_ERROR_FAILURE;
 
-  if (!callbacks)
-    return;
+  mDocShellDependentStuffKnown = PR_TRUE;
 
-  nsCOMPtr<nsISecureBrowserUI> secureUI = do_GetInterface(callbacks);
-  if (secureUI) {
-    secureUI.forget(result);
-    return;
+  nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsIInterfaceRequestor),
+                       static_cast<nsIInterfaceRequestor*>(mCallbacks),
+                       NS_PROXY_SYNC,
+                       getter_AddRefs(proxiedCallbacks));
+
+  // Are we running within a context that wants external SSL error reporting?
+  // We'll look at the presence of a security UI object inside docshell.
+  // If the docshell wants the lock icon, you'll get the ssl error pages, too.
+  // This is helpful to distinguish from all other contexts, like mail windows,
+  // or any other SSL connections running in the background.
+  // We must query it now and remember, because fatal SSL errors will come 
+  // with a socket close, and the socket transport might detach the callbacks 
+  // instance prior to our error reporting.
+
+  nsISecureBrowserUI* secureUI = nsnull;
+  CallGetInterface(proxiedCallbacks.get(), &secureUI);
+
+  nsCOMPtr<nsIDocShell> docshell;
+
+  nsCOMPtr<nsIDocShellTreeItem> item(do_GetInterface(proxiedCallbacks));
+  if (item)
+  {
+    nsCOMPtr<nsIDocShellTreeItem> proxiedItem;
+    nsCOMPtr<nsIDocShellTreeItem> rootItem;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIDocShellTreeItem),
+                         item.get(),
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedItem));
+
+    proxiedItem->GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
+    docshell = do_QueryInterface(rootItem);
+    NS_ASSERTION(docshell, "rootItem do_QI is null");
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> item = do_GetInterface(callbacks);
-  if (item) {
-    nsCOMPtr<nsIDocShellTreeItem> rootItem;
-    (void) item->GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
-      
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(rootItem);
-    if (docShell) {
-      (void) docShell->GetSecurityUI(result);
+  if (docshell && !secureUI)
+  {
+    nsCOMPtr<nsIDocShell> proxiedDocShell;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIDocShell),
+                         docshell.get(),
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedDocShell));
+    if (proxiedDocShell)
+      proxiedDocShell->GetSecurityUI(&secureUI);
+  }
+
+  if (secureUI)
+  {
+    nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
+    NS_ProxyRelease(mainThread, secureUI, PR_FALSE);
+    mExternalErrorReporting = PR_TRUE;
+
+    // If this socket is associated to a docshell, let's try to remember
+    // the currently used cert. If this socket gets a notification from NSS
+    // having the same raw socket, we can keep the PSM wrapper object
+    // and all the data it has cached (like verification results).
+    nsCOMPtr<nsISSLStatusProvider> statprov = do_QueryInterface(secureUI);
+    if (statprov) {
+      nsCOMPtr<nsISupports> isup_stat;
+      statprov->GetSSLStatus(getter_AddRefs(isup_stat));
+      if (isup_stat) {
+        nsCOMPtr<nsISSLStatus> sslstat = do_QueryInterface(isup_stat);
+        if (sslstat) {
+          sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+        }
+      }
     }
   }
+
+  return NS_OK;
 }
 
-// Are we running within a context that wants external SSL error reporting?
-// We'll look at the presence of a security UI object inside docshell.
-// If the docshell wants the lock icon, you'll get the ssl error pages, too.
-// This is helpful to distinguish from all other contexts, like mail windows,
-// or any other SSL connections running in the background.
-bool
-nsNSSSocketInfo::GetExternalErrorReporting()
+nsresult
+nsNSSSocketInfo::GetExternalErrorReporting(bool* state)
 {
-  NS_ASSERTION(NS_IsMainThread(),
-               "nsNSSSocketInfo::GetExternalErrorReporting called off the "
-               "main thread.");
+  nsresult rv = EnsureDocShellDependentStuffKnown();
+  NS_ENSURE_SUCCESS(rv, rv);
+  *state = mExternalErrorReporting;
+  return NS_OK;
+}
 
-  nsCOMPtr<nsISecureBrowserUI> secureUI;
-  getSecureBrowserUI(mCallbacks, getter_AddRefs(secureUI));
-  return secureUI != nsnull;
+nsresult
+nsNSSSocketInfo::SetExternalErrorReporting(bool aState)
+{
+  mExternalErrorReporting = aState;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -484,19 +551,15 @@ nsNSSSocketInfo::GetErrorMessage(PRUnichar** aText) {
   return NS_OK;
 }
 
-void
+nsresult
 nsNSSSocketInfo::SetErrorMessage(const PRUnichar* aText) {
   mErrorMessage.Assign(aText);
+  return NS_OK;
 }
 
 /* void getInterface (in nsIIDRef uuid, [iid_is (uuid), retval] out nsQIResult result); */
 NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsNSSSocketInfo::GetInterface called off the main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-
   nsresult rv;
   if (!mCallbacks) {
     nsCOMPtr<nsIInterfaceRequestor> ir = new PipUIContext();
@@ -508,7 +571,14 @@ NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
     if (nsSSLThread::stoppedOrStopping())
       return NS_ERROR_FAILURE;
 
-    rv = mCallbacks->GetInterface(uuid, result);
+    nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIInterfaceRequestor),
+                         mCallbacks,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedCallbacks));
+
+    rv = proxiedCallbacks->GetInterface(uuid, result);
   }
   return rv;
 }
@@ -548,30 +618,13 @@ NS_IMETHODIMP
 nsNSSSocketInfo::Write(nsIObjectOutputStream* stream) {
   stream->WriteID(kNSSSocketInfoMagic);
 
-  nsRefPtr<nsSSLStatus> status = mSSLStatus;
-  nsCOMPtr<nsISerializable> certSerializable;
+  // Store the flag if there is the certificate present
+  stream->WriteBoolean(!!mCert);
 
-  // Write a redundant copy of the certificate for backward compatibility
-  // with previous versions, which also unnecessarily wrote it.
-  //
   // As we are reading the object our self, not using ReadObject, we have
   // to store it here 'manually' as well, mimicking our object stream
   // implementation.
-
-  if (status) {
-    nsCOMPtr<nsIX509Cert> cert = status->mServerCert;
-    certSerializable = do_QueryInterface(cert);
-
-    if (!certSerializable) {
-      NS_ERROR("certificate is missing or isn't serializable");
-      return NS_ERROR_UNEXPECTED;
-    }
-  } else {
-    NS_WARNING("Serializing nsNSSSocketInfo without mSSLStatus");
-  }
-
-  // Store the flag if there is the certificate present
-  stream->WriteBoolean(certSerializable);
+  nsCOMPtr<nsISerializable> certSerializable = do_QueryInterface(mCert);
   if (certSerializable) {
     stream->WriteID(kNSSCertificateCID);
     stream->WriteID(NS_GET_IID(nsISupports));
@@ -590,8 +643,8 @@ nsNSSSocketInfo::Write(nsIObjectOutputStream* stream) {
   stream->WriteWStringZ(mShortDesc.get());
   stream->WriteWStringZ(mErrorMessage.get());
 
-  stream->WriteCompoundObject(NS_ISUPPORTS_CAST(nsISSLStatus*, status),
-                              NS_GET_IID(nsISupports), true);
+  stream->WriteCompoundObject(NS_ISUPPORTS_CAST(nsISSLStatus*, mSSLStatus),
+                              NS_GET_IID(nsISupports), PR_TRUE);
 
   stream->Write32((PRUint32)mSubRequestsHighSecurity);
   stream->Write32((PRUint32)mSubRequestsLowSecurity);
@@ -637,7 +690,7 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
     // There is no magic, assume there is a certificate present as in versions
     // prior to those with the magic didn't store that flag; we check the 
     // certificate is present by cheking the CID then
-    certificatePresent = true;
+    certificatePresent = PR_TRUE;
   }
 
   if (certificatePresent && UUID_0 == kNSSCertificateCID.m0) {
@@ -656,8 +709,8 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
         do_CreateInstance(kNSSCertificateCID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // This is the redundant copy of the certificate; just ignore it
     serializable->Read(stream);
+    mCert = do_QueryInterface(serializable);
 
     // We are done with reading the certificate, now read the version
     // as we did before.
@@ -666,6 +719,7 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
   else {
     // There seems not to be the certificate present in the stream.
     version = UUID_0;
+    mCert = nsnull;
   }
 
   // If the version field we have just read is not masked with 0xFFFF0000
@@ -683,13 +737,8 @@ nsNSSSocketInfo::Read(nsIObjectInputStream* stream) {
   stream->ReadString(mErrorMessage);
 
   nsCOMPtr<nsISupports> obj;
-  stream->ReadObject(true, getter_AddRefs(obj));
-  
+  stream->ReadObject(PR_TRUE, getter_AddRefs(obj));
   mSSLStatus = reinterpret_cast<nsSSLStatus*>(obj.get());
-
-  if (!mSSLStatus) {
-    NS_WARNING("deserializing nsNSSSocketInfo without mSSLStatus");
-  }
 
   if (version >= 2) {
     stream->Read32((PRUint32*)&mSubRequestsHighSecurity);
@@ -778,7 +827,7 @@ nsresult nsNSSSocketInfo::ActivateSSL()
   if (NS_FAILED(rv))
     return rv;
 
-  mHandshakePending = true;
+  mHandshakePending = PR_TRUE;
 
   return NS_OK;
 }
@@ -795,54 +844,40 @@ nsresult nsNSSSocketInfo::SetFileDescPtr(PRFileDesc* aFilePtr)
   return NS_OK;
 }
 
-class PreviousCertRunnable : public SyncRunnableBase
+nsresult nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
 {
-public:
-  PreviousCertRunnable(nsIInterfaceRequestor * callbacks)
-    : mCallbacks(callbacks)
-  {
-  }
+  NS_ENSURE_ARG_POINTER(_result);
+  nsresult rv = EnsureDocShellDependentStuffKnown();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  virtual void RunOnTargetThread()
-  {
-    nsCOMPtr<nsISecureBrowserUI> secureUI;
-    getSecureBrowserUI(mCallbacks, getter_AddRefs(secureUI));
-    nsCOMPtr<nsISSLStatusProvider> statusProvider = do_QueryInterface(secureUI);
-    if (statusProvider) {
-      nsCOMPtr<nsISSLStatus> status;
-      (void) statusProvider->GetSSLStatus(getter_AddRefs(status));
-      if (status) {
-        (void) status->GetServerCert(getter_AddRefs(mPreviousCert));
-      }
-    }
-  }
+  *_result = mPreviousCert;
+  NS_IF_ADDREF(*_result);
 
-  nsCOMPtr<nsIX509Cert> mPreviousCert; // out
-private:
-  nsCOMPtr<nsIInterfaceRequestor> mCallbacks; // in
-};
-
-void nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
-{
-  NS_ASSERTION(_result, "_result parameter to GetPreviousCert is null");
-  *_result = nsnull;
-
-  if (NS_IsMainThread()) {
-    NS_ERROR("nsNSSSocketInfo::GetPreviousCert called on the main thread");
-    return;
-  }
-
-  nsRefPtr<PreviousCertRunnable> runnable = new PreviousCertRunnable(mCallbacks);
-  nsresult rv = runnable->DispatchToMainThreadAndWait();
-  NS_ASSERTION(NS_SUCCEEDED(rv), "runnable->DispatchToMainThreadAndWait() failed");
-  runnable->mPreviousCert.forget(_result);
+  return NS_OK;
 }
 
-nsresult nsNSSSocketInfo::GetSSLStatus(nsISSLStatus** _result)
+nsresult nsNSSSocketInfo::GetCert(nsIX509Cert** _result)
 {
   NS_ENSURE_ARG_POINTER(_result);
 
-  *_result = mSSLStatus;
+  *_result = mCert;
+  NS_IF_ADDREF(*_result);
+
+  return NS_OK;
+}
+
+nsresult nsNSSSocketInfo::SetCert(nsIX509Cert *aCert)
+{
+  mCert = aCert;
+
+  return NS_OK;
+}
+
+nsresult nsNSSSocketInfo::GetSSLStatus(nsISupports** _result)
+{
+  NS_ENSURE_ARG_POINTER(_result);
+
+  *_result = NS_ISUPPORTS_CAST(nsISSLStatus*, mSSLStatus);
   NS_IF_ADDREF(*_result);
 
   return NS_OK;
@@ -875,7 +910,7 @@ void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(bool aAllow)
 bool nsNSSSocketInfo::HandshakeTimeout()
 {
   if (!mHandshakeInProgress || !mAllowTLSIntoleranceTimeout)
-    return false;
+    return PR_FALSE;
 
   return ((PRIntervalTime)(PR_IntervalNow() - mHandshakeStartTime)
           > PR_SecondsToInterval(HANDSHAKE_TIMEOUT_SECONDS));
@@ -916,6 +951,7 @@ static nsresult
 getErrorMessage(PRInt32 err, 
                 const nsString &host,
                 PRInt32 port,
+                bool externalErrorReporting,
                 nsINSSComponent *component,
                 nsString &returnedMessage)
 {
@@ -928,14 +964,14 @@ getErrorMessage(PRInt32 err,
   {
     nsString hostWithPort;
 
-    // For now, hide port when it's 443 and we're reporting the error.
-    // In the future a better mechanism should be used
+    // For now, hide port when it's 443 and we're reporting the error using
+    // external reporting. In the future a better mechanism should be used
     // to make a decision about showing the port number, possibly by requiring
     // the context object to implement a specific interface.
     // The motivation is that Mozilla browser would like to hide the port number
     // in error pages in the common case.
 
-    if (port == 443) {
+    if (externalErrorReporting && port == 443) {
       params[0] = host.get();
     }
     else {
@@ -1046,17 +1082,17 @@ GetSubjectAltNames(CERTCertificate *nssCert,
   rv = CERT_FindCertExtension(nssCert, SEC_OID_X509_SUBJECT_ALT_NAME,
                               &altNameExtension);
   if (rv != SECSuccess)
-    return false;
+    return PR_FALSE;
 
   san_arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!san_arena)
-    return false;
+    return PR_FALSE;
 
   sanNameList = CERT_DecodeAltNameExtension(san_arena, &altNameExtension);
   if (!sanNameList)
-    return false;
+    return PR_FALSE;
 
-  SECITEM_FreeItem(&altNameExtension, false);
+  SECITEM_FreeItem(&altNameExtension, PR_FALSE);
 
   CERTGeneralName *current = sanNameList;
   do {
@@ -1104,14 +1140,15 @@ GetSubjectAltNames(CERTCertificate *nssCert,
     current = CERT_GetNextGeneralName(current);
   } while (current != sanNameList); // double linked
 
-  PORT_FreeArena(san_arena, false);
-  return true;
+  PORT_FreeArena(san_arena, PR_FALSE);
+  return PR_TRUE;
 }
 
 static void
 AppendErrorTextMismatch(const nsString &host,
                         nsIX509Cert* ix509,
                         nsINSSComponent *component,
+                        bool wantsHtml,
                         nsString &returnedMessage)
 {
   const PRUnichar *params[1];
@@ -1175,8 +1212,14 @@ AppendErrorTextMismatch(const nsString &host,
     const PRUnichar *params[1];
     params[0] = allNames.get();
 
+    const char *stringID;
+    if (wantsHtml)
+      stringID = "certErrorMismatchSingle2";
+    else
+      stringID = "certErrorMismatchSinglePlain";
+
     nsString formattedString;
-    rv = component->PIPBundleFormatStringFromName("certErrorMismatchSingle2", 
+    rv = component->PIPBundleFormatStringFromName(stringID, 
                                                   params, 1, 
                                                   formattedString);
     if (NS_SUCCEEDED(rv)) {
@@ -1201,7 +1244,7 @@ GetDateBoundary(nsIX509Cert* ix509,
                 nsString &nowDate,
                 bool &trueExpired_falseNotYetValid)
 {
-  trueExpired_falseNotYetValid = true;
+  trueExpired_falseNotYetValid = PR_TRUE;
   formattedDate.Truncate();
 
   PRTime notAfter, notBefore, timeToUse;
@@ -1225,7 +1268,7 @@ GetDateBoundary(nsIX509Cert* ix509,
     timeToUse = notAfter;
   } else {
     timeToUse = notBefore;
-    trueExpired_falseNotYetValid = false;
+    trueExpired_falseNotYetValid = PR_FALSE;
   }
 
   nsCOMPtr<nsIDateTimeFormat> dateTimeFormat(do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &rv));
@@ -1260,7 +1303,7 @@ AppendErrorTextTime(nsIX509Cert* ix509,
   rv = component->PIPBundleFormatStringFromName(
            key,
            params, 
-           ArrayLength(params),
+           NS_ARRAY_LENGTH(params),
            formattedString);
   if (NS_SUCCEEDED(rv))
   {
@@ -1302,7 +1345,7 @@ AppendErrorTextCode(PRErrorCode errorCodeToReport,
   }
 }
 
-static void
+static nsresult
 getInvalidCertErrorMessage(PRUint32 multipleCollectedErrors, 
                            PRErrorCode errorCodeToReport, 
                            PRErrorCode errTrust, 
@@ -1312,29 +1355,31 @@ getInvalidCertErrorMessage(PRUint32 multipleCollectedErrors,
                            const nsString &hostWithPort,
                            PRInt32 port,
                            nsIX509Cert* ix509,
+                           bool externalErrorReporting,
+                           bool wantsHtml,
+                           nsINSSComponent *component,
                            nsString &returnedMessage)
 {
+  NS_ENSURE_ARG_POINTER(component);
+
   const PRUnichar *params[1];
   nsresult rv;
 
-  // For now, hide port when it's 443 and we're reporting the error.
-  // In the future a better mechanism should be used
+  // For now, hide port when it's 443 and we're reporting the error using
+  // external reporting. In the future a better mechanism should be used
   // to make a decision about showing the port number, possibly by requiring
   // the context object to implement a specific interface.
   // The motivation is that Mozilla browser would like to hide the port number
   // in error pages in the common case.
   
-  if (port == 443)
+  if (externalErrorReporting && port == 443)
     params[0] = host.get();
   else
     params[0] = hostWithPort.get();
 
-  nsCOMPtr<nsINSSComponent> component = do_GetService(kNSSComponentCID, &rv);
-  if (NS_FAILED(rv))
-    return;
-
   nsString formattedString;
-  rv = component->PIPBundleFormatStringFromName("certErrorIntro", params, 1,
+  rv = component->PIPBundleFormatStringFromName("certErrorIntro", 
+                                                params, 1, 
                                                 formattedString);
   if (NS_SUCCEEDED(rv))
   {
@@ -1350,7 +1395,7 @@ getInvalidCertErrorMessage(PRUint32 multipleCollectedErrors,
 
   if (multipleCollectedErrors & nsICertOverrideService::ERROR_MISMATCH)
   {
-    AppendErrorTextMismatch(host, ix509, component, returnedMessage);
+    AppendErrorTextMismatch(host, ix509, component, wantsHtml, returnedMessage);
   }
 
   if (multipleCollectedErrors & nsICertOverrideService::ERROR_TIME)
@@ -1359,66 +1404,199 @@ getInvalidCertErrorMessage(PRUint32 multipleCollectedErrors,
   }
 
   AppendErrorTextCode(errorCodeToReport, component, returnedMessage);
+
+  return NS_OK;
 }
 
-static void
+static nsresult
+displayAlert(nsAFlatString &formattedString, nsNSSSocketInfo *infoObject)
+{
+  // The interface requestor object may not be safe, so proxy the call to get
+  // the nsIPrompt.
+
+  if (nsSSLThread::stoppedOrStopping())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsIInterfaceRequestor),
+                       static_cast<nsIInterfaceRequestor*>(infoObject),
+                       NS_PROXY_SYNC,
+                       getter_AddRefs(proxiedCallbacks));
+
+  nsCOMPtr<nsIPrompt> prompt (do_GetInterface(proxiedCallbacks));
+  if (!prompt)
+    return NS_ERROR_NO_INTERFACE;
+
+  // Finally, get a proxy for the nsIPrompt
+
+  nsCOMPtr<nsIPrompt> proxyPrompt;
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsIPrompt),
+                       prompt,
+                       NS_PROXY_SYNC,
+                       getter_AddRefs(proxyPrompt));
+
+  proxyPrompt->Alert(nsnull, formattedString.get());
+  return NS_OK;
+}
+
+static nsresult
 nsHandleSSLError(nsNSSSocketInfo *socketInfo, PRInt32 err)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsHandleSSLError called off the main thread");
-    return;
-  }
-
-  // SetCanceled is only called by the main thread or the SSL thread. Whenever
-  // this function is called, the SSL thread is waiting on this thread (the
-  // main thread). So, no mutex is necessary for SetCanceled()/GetCanceled().
   if (socketInfo->GetCanceled()) {
     // If the socket has been flagged as canceled,
     // the code who did was responsible for showing
     // an error message (if desired).
-    return;
+    return NS_OK;
   }
 
   if (nsSSLThread::stoppedOrStopping()) {
-    return;
+    return NS_ERROR_FAILURE;
   }
 
   nsresult rv;
   NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(nssComponentCID, &rv));
   if (NS_FAILED(rv))
-    return;
+    return rv;
 
   nsXPIDLCString hostName;
   socketInfo->GetHostName(getter_Copies(hostName));
+  NS_ConvertASCIItoUTF16 hostNameU(hostName);
 
   PRInt32 port;
   socketInfo->GetPort(&port);
-
-  bool suppressMessage = false;
 
   // Try to get a nsISSLErrorListener implementation from the socket consumer.
   nsCOMPtr<nsIInterfaceRequestor> cb;
   socketInfo->GetNotificationCallbacks(getter_AddRefs(cb));
   if (cb) {
-    nsCOMPtr<nsISSLErrorListener> sel = do_GetInterface(cb);
+    nsCOMPtr<nsIInterfaceRequestor> callbacks;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIInterfaceRequestor),
+                         cb,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(callbacks));
+
+    nsCOMPtr<nsISSLErrorListener> sel = do_GetInterface(callbacks);
     if (sel) {
-      nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(socketInfo);
-      nsCString hostWithPortString = hostName;
-      hostWithPortString.AppendLiteral(":");
-      hostWithPortString.AppendInt(port);
-      rv = sel->NotifySSLError(csi, err, hostWithPortString, &suppressMessage);
-      if (NS_SUCCEEDED(rv) && suppressMessage)
-        return;
+      nsISSLErrorListener *proxy_sel = nsnull;
+      NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                           NS_GET_IID(nsISSLErrorListener),
+                           sel,
+                           NS_PROXY_SYNC,
+                           (void**)&proxy_sel);
+      if (proxy_sel) {
+        nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(socketInfo);
+        bool suppressMessage = false;
+        nsCString hostWithPortString = hostName;
+        hostWithPortString.AppendLiteral(":");
+        hostWithPortString.AppendInt(port);
+        rv = proxy_sel->NotifySSLError(csi, err, hostWithPortString, 
+                                       &suppressMessage);
+        if (NS_SUCCEEDED(rv) && suppressMessage)
+          return NS_OK;
+      }
     }
   }
 
-  if (socketInfo->GetExternalErrorReporting()) {
-    NS_ConvertASCIItoUTF16 hostNameU(hostName);
-    nsString formattedString;
-    (void) getErrorMessage(err, hostNameU, port, nssComponent, formattedString);
+  bool external = false;
+  socketInfo->GetExternalErrorReporting(&external);
+  
+  nsString formattedString;
+  rv = getErrorMessage(err, hostNameU, port, external, nssComponent, formattedString);
+
+  if (external)
+  {
     socketInfo->SetErrorMessage(formattedString.get());
   }
+  else
+  {
+    nsPSMUITracker tracker;
+    if (tracker.isUIForbidden()) {
+      rv = NS_ERROR_NOT_AVAILABLE;
+    }
+    else {
+      rv = displayAlert(formattedString, socketInfo);
+    }
+  }
+  return rv;
+}
+
+static nsresult
+nsHandleInvalidCertError(nsNSSSocketInfo *socketInfo, 
+                         PRUint32 multipleCollectedErrors, 
+                         const nsACString &host, 
+                         const nsACString &hostWithPort,
+                         PRInt32 port,
+                         PRErrorCode errorCodeToReport,
+                         PRErrorCode errTrust, 
+                         PRErrorCode errMismatch, 
+                         PRErrorCode errExpired,
+                         bool wantsHtml,
+                         nsIX509Cert* ix509)
+{
+  nsresult rv;
+  NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
+  nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(nssComponentCID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
+  NS_ConvertASCIItoUTF16 hostU(host);
+  NS_ConvertASCIItoUTF16 hostWithPortU(hostWithPort);
+
+  // What mechanism is used to inform the user?
+  // The highest priority has the "external error reporting" feature,
+  // if set, we'll provide the strings to be used by the nsINSSErrorsService
+
+  bool external = false;
+  socketInfo->GetExternalErrorReporting(&external);
+  
+  nsString formattedString;
+  rv = getInvalidCertErrorMessage(multipleCollectedErrors, errorCodeToReport,
+                                  errTrust, errMismatch, errExpired,
+                                  hostU, hostWithPortU, port, 
+                                  ix509, external, wantsHtml,
+                                  nssComponent, formattedString);
+
+  if (external)
+  {
+    socketInfo->SetErrorMessage(formattedString.get());
+  }
+  else
+  {
+    nsPSMUITracker tracker;
+    if (tracker.isUIForbidden()) {
+      rv = NS_ERROR_NOT_AVAILABLE;
+    }
+    else {
+      nsISSLCertErrorDialog *dialogs = nsnull;
+      rv = getNSSDialogs((void**)&dialogs, 
+        NS_GET_IID(nsISSLCertErrorDialog), 
+        NS_SSLCERTERRORDIALOG_CONTRACTID);
+  
+      if (NS_SUCCEEDED(rv)) {
+        nsPSMUITracker tracker;
+        if (tracker.isUIForbidden()) {
+          rv = NS_ERROR_NOT_AVAILABLE;
+        }
+        else {
+          nsCOMPtr<nsISSLStatus> status;
+          socketInfo->GetSSLStatus(getter_AddRefs(status));
+
+          nsString empty;
+
+          rv = dialogs->ShowCertError(nsnull, status, ix509, 
+                                      formattedString, 
+                                      empty, host, port);
+        }
+  
+        NS_RELEASE(dialogs);
+      }
+    }
+  }
+  return rv;
 }
 
 static PRStatus PR_CALLBACK
@@ -1441,7 +1619,7 @@ nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
   PR_GetSocketOption(fd, &sockopt);
   bool oldBlockVal = sockopt.value.non_blocking;
   sockopt.option = PR_SockOpt_Nonblocking;
-  sockopt.value.non_blocking = false;
+  sockopt.value.non_blocking = PR_FALSE;
   PR_SetSocketOption(fd, &sockopt);
 #endif
   
@@ -1559,7 +1737,7 @@ nsPSMRememberCertErrorsTable::LookupCertErrorBits(nsNSSSocketInfo* infoObject,
     return;
 
   // This host had cert errors, update the bits correctly
-  status->mHaveCertErrorBits = true;
+  status->mHaveCertErrorBits = PR_TRUE;
   status->mIsDomainMismatch = bits.mIsDomainMismatch;
   status->mIsNotValidAtThisTime = bits.mIsNotValidAtThisTime;
   status->mIsUntrusted = bits.mIsUntrusted;
@@ -1582,7 +1760,7 @@ nsSSLIOLayerHelpers::getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key)
 bool
 nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(PRFileDesc* ssl_layer_fd, nsNSSSocketInfo *socketInfo)
 {
-  PRBool currentlyUsesTLS = false;
+  PRBool currentlyUsesTLS = PR_FALSE;
 
   nsCAutoString key;
   getSiteKey(socketInfo, key);
@@ -1594,7 +1772,7 @@ nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(PRFileDesc* ssl_layer_fd, ns
     // drop this site from the list of intolerant sites. TLS failure might be 
     // caused only by a traffic congestion while the server is TLS tolerant.
     removeIntolerantSite(key);
-    return false;
+    return PR_FALSE;
   }
 
   PRBool enableSSL3 = false;
@@ -1611,8 +1789,8 @@ void
 nsSSLIOLayerHelpers::rememberTolerantSite(PRFileDesc* ssl_layer_fd, 
                                           nsNSSSocketInfo *socketInfo)
 {
-  PRBool usingSecurity = false;
-  PRBool currentlyUsesTLS = false;
+  PRBool usingSecurity = PR_FALSE;
+  PRBool currentlyUsesTLS = PR_FALSE;
   SSL_OptionGet(ssl_layer_fd, SSL_SECURITY, &usingSecurity);
   SSL_OptionGet(ssl_layer_fd, SSL_ENABLE_TLS, &currentlyUsesTLS);
   if (!usingSecurity || !currentlyUsesTLS) {
@@ -1722,14 +1900,14 @@ isNonSSLErrorThatWeAllowToRetry(PRInt32 err, bool withInitialCleartext)
   {
     case PR_CONNECT_RESET_ERROR:
       if (!withInitialCleartext)
-        return true;
+        return PR_TRUE;
       break;
     
     case PR_END_OF_FILE_ERROR:
-      return true;
+      return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 static bool
@@ -1745,7 +1923,7 @@ isTLSIntoleranceError(PRInt32 err, bool withInitialCleartext)
   // to retry without TLS.
 
   if (isNonSSLErrorThatWeAllowToRetry(err, withInitialCleartext))
-    return true;
+    return PR_TRUE;
 
   switch (err)
   {
@@ -1764,28 +1942,11 @@ isTLSIntoleranceError(PRInt32 err, bool withInitialCleartext)
     case SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE:
     case SSL_ERROR_DECODE_ERROR_ALERT:
     case SSL_ERROR_RX_UNKNOWN_ALERT:
-      return true;
+      return PR_TRUE;
   }
   
-  return false;
+  return PR_FALSE;
 }
-
-class SSLErrorRunnable : public SyncRunnableBase
-{
- public:
-  SSLErrorRunnable(nsNSSSocketInfo * infoObject, PRErrorCode errorCode)
-    : mInfoObject(infoObject), mErrorCode(errorCode)
-  {
-  }
-
-  virtual void RunOnTargetThread()
-  {
-    nsHandleSSLError(mInfoObject, mErrorCode);
-  }
-  
-  nsRefPtr<nsNSSSocketInfo> mInfoObject;
-  const PRErrorCode mErrorCode;
-};
 
 PRInt32
 nsSSLThread::checkHandshake(PRInt32 bytesTransfered, 
@@ -1834,7 +1995,7 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
 
     if (handleHandshakeResultNow) {
       if (PR_WOULD_BLOCK_ERROR == err) {
-        socketInfo->SetHandshakeInProgress(true);
+        socketInfo->SetHandshakeInProgress(PR_TRUE);
         return bytesTransfered;
       }
 
@@ -1848,9 +2009,7 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
     // This is the common place where we trigger an error message on a SSL socket.
     // This might be reached at any time of the connection.
     if (!wantRetry && (IS_SSL_ERROR(err) || IS_SEC_ERROR(err))) {
-      nsRefPtr<SyncRunnableBase> runnable = new SSLErrorRunnable(socketInfo,
-                                                                 err);
-      (void) runnable->DispatchToMainThreadAndWait();
+      nsHandleSSLError(socketInfo, err);
     }
   }
   else if (wasReading && 0 == bytesTransfered) // zero bytes on reading, socket closed
@@ -1877,8 +2036,8 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
   // set the HandshakePending attribute to false so that we don't try the logic
   // above again in a subsequent transfer.
   if (handleHandshakeResultNow) {
-    socketInfo->SetHandshakePending(false);
-    socketInfo->SetHandshakeInProgress(false);
+    socketInfo->SetHandshakePending(PR_FALSE);
+    socketInfo->SetHandshakeInProgress(PR_FALSE);
   }
   
   return bytesTransfered;
@@ -2078,7 +2237,7 @@ static PRStatus PR_CALLBACK PSMConnectcontinue(PRFileDesc *fd, PRInt16 out_flags
 nsresult nsSSLIOLayerHelpers::Init()
 {
   if (!nsSSLIOLayerInitialized) {
-    nsSSLIOLayerInitialized = true;
+    nsSSLIOLayerInitialized = PR_TRUE;
     nsSSLIOLayerIdentity = PR_GetUniqueIdentity("NSS layer");
     nsSSLIOLayerMethods  = *PR_GetDefaultIOMethods();
 
@@ -2142,7 +2301,7 @@ nsresult nsSSLIOLayerHelpers::Init()
 
   mRenegoUnrestrictedSites->Init(1);
 
-  mTreatUnsafeNegotiationAsBroken = false;
+  mTreatUnsafeNegotiationAsBroken = PR_FALSE;
   
   mHostsWithCertErrors = new nsPSMRememberCertErrorsTable();
   if (!mHostsWithCertErrors || !mHostsWithCertErrors->mErrorHosts.IsInitialized())
@@ -2328,7 +2487,7 @@ SECStatus nsConvertCANamesToStrings(PRArenaPool* arena, char** caNameStrings,
         namestring = CERT_DerNameToAscii(dername);
         if (namestring == NULL) {
             /* XXX - keep going until we fail to convert the name */
-            caNameStrings[n] = const_cast<char*>("");
+            caNameStrings[n] = "";
         }
         else {
             caNameStrings[n] = PORT_ArenaStrdup(arena, namestring);
@@ -2490,8 +2649,8 @@ static char* _str_to_lower(char* string)
 
 /*
  * Sees if the client certificate has a restriction in presenting the cert
- * to the host: returns true if there is no restriction or if the hostname
- * (and the port) satisfies the restriction, or false if the hostname (and
+ * to the host: returns PR_TRUE if there is no restriction or if the hostname
+ * (and the port) satisfies the restriction, or PR_FALSE if the hostname (and
  * the port) does not satisfy the restriction
  */
 static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
@@ -2516,7 +2675,7 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
     if (srv != SECSuccess) {
         /* most of the time, this means the extension was not found: also,
          * since this is not a critical extension (as of now) we may simply
-         * return true
+         * return PR_TRUE
          */
         goto done;
     }
@@ -2579,10 +2738,10 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
                 /* the hostname either is identical to the pattern or
                  * belongs to a subdomain
                  */
-                rv = true;
+                rv = PR_TRUE;
             }
             else {
-                rv = false;
+                rv = PR_FALSE;
             }
             /* clean up strings if necessary */
             break;
@@ -2603,10 +2762,10 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
                 continue;
             }
             if ((hostIPAddr & mask) == (constraint & mask)) {
-                rv = true;
+                rv = PR_TRUE;
             }
             else {
-                rv = false;
+                rv = PR_FALSE;
             }
             break;
         }
@@ -2623,7 +2782,7 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
         /* finally, check the optional port number */
         if ((entries[i]->port != 0) && (port != entries[i]->port)) {
             /* port number does not match */
-            rv = false;
+            rv = PR_FALSE;
             continue;
         }
 
@@ -2634,7 +2793,7 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
 done:
     /* clean up entries */
     if (arena != NULL) {
-        PORT_FreeArena(arena, false);
+        PORT_FreeArena(arena, PR_FALSE);
     }
     if (hostLower != NULL) {
         PR_Free(hostLower);
@@ -2696,7 +2855,7 @@ static bool hasExplicitKeyUsageNonRepudiation(CERTCertificate *cert)
 {
   /* There is no extension, v1 or v2 certificate */
   if (!cert->extensions)
-    return false;
+    return PR_FALSE;
 
   SECStatus srv;
   SECItem keyUsageItem;
@@ -2704,43 +2863,13 @@ static bool hasExplicitKeyUsageNonRepudiation(CERTCertificate *cert)
 
   srv = CERT_FindKeyUsageExtension(cert, &keyUsageItem);
   if (srv == SECFailure)
-    return false;
+    return PR_FALSE;
 
   unsigned char keyUsage = keyUsageItem.data[0];
   PORT_Free (keyUsageItem.data);
 
   return !!(keyUsage & KU_NON_REPUDIATION);
 }
-
-class ClientAuthDataRunnable : public SyncRunnableBase
-{
-public:
-  ClientAuthDataRunnable(CERTDistNames* caNames,
-                         CERTCertificate** pRetCert,
-                         SECKEYPrivateKey** pRetKey,
-                         nsNSSSocketInfo * info,
-                         CERTCertificate * serverCert) 
-    : mRV(SECFailure)
-    , mErrorCodeToReport(SEC_ERROR_NO_MEMORY)
-    , mCANames(caNames)
-    , mPRetCert(pRetCert)
-    , mPRetKey(pRetKey)
-    , mSocketInfo(info)
-    , mServerCert(serverCert)
-  {
-  }
-
-  SECStatus mRV;                        // out
-  PRErrorCode mErrorCodeToReport;       // out
-protected:
-  virtual void RunOnTargetThread();
-private:
-  CERTDistNames* const mCANames;        // in
-  CERTCertificate** const mPRetCert;    // in/out
-  SECKEYPrivateKey** const mPRetKey;    // in/out
-  nsNSSSocketInfo * const mSocketInfo;  // in
-  CERTCertificate * const mServerCert;  // in
-};
 
 /*
  * Function: SECStatus SSM_SSLGetClientAuthData()
@@ -2763,41 +2892,9 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
 								   SECKEYPrivateKey** pRetKey)
 {
   nsNSSShutDownPreventionLock locker;
-
-  if (!socket || !caNames || !pRetCert || !pRetKey) {
-    PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return SECFailure;
-  }
-
-  nsRefPtr<nsNSSSocketInfo> info
-        = reinterpret_cast<nsNSSSocketInfo*>(socket->higher->secret);
-
-  CERTCertificate* serverCert = SSL_PeerCertificate(socket);
-  if (!serverCert) {
-    NS_NOTREACHED("Missing server certificate should have been detected during "
-                  "server cert authentication.");
-    PR_SetError(SSL_ERROR_NO_CERTIFICATE, 0);
-    return SECFailure;
-  }
-
-  // XXX: This should be done asynchronously; see bug 696976
-  nsRefPtr<ClientAuthDataRunnable> runnable =
-    new ClientAuthDataRunnable(caNames, pRetCert, pRetKey, info, serverCert);
-  nsresult rv = runnable->DispatchToMainThreadAndWait();
-  if (NS_FAILED(rv)) {
-    PR_SetError(SEC_ERROR_NO_MEMORY, 0);
-    return SECFailure;
-  }
-  
-  if (runnable->mRV != SECSuccess) {
-    PORT_SetError(runnable->mErrorCodeToReport);
-  }
-
-  return runnable->mRV;
-}
-
-void ClientAuthDataRunnable::RunOnTargetThread()
-{
+  void* wincx = NULL;
+  SECStatus ret = SECFailure;
+  nsNSSSocketInfo* info = NULL;
   PRArenaPool* arena = NULL;
   char** caNameStrings;
   CERTCertificate* cert = NULL;
@@ -2809,7 +2906,22 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   PRIntn keyError = 0; /* used for private key retrieval error */
   SSM_UserCertChoice certChoice;
   PRInt32 NumberOfCerts = 0;
-  void * wincx = mSocketInfo;
+	
+  /* do some argument checking */
+  if (socket == NULL || caNames == NULL || pRetCert == NULL ||
+      pRetKey == NULL) {
+    PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
+    return SECFailure;
+  }
+
+  /* get PKCS11 pin argument */
+  wincx = SSL_RevealPinArg(socket);
+  if (wincx == NULL) {
+    return SECFailure;
+  }
+
+  /* get the socket info */
+  info = (nsNSSSocketInfo*)socket->higher->secret;
 
   /* create caNameStrings */
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -2818,13 +2930,14 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   }
 
   caNameStrings = (char**)PORT_ArenaAlloc(arena, 
-                                          sizeof(char*)*(mCANames->nnames));
+                                          sizeof(char*)*(caNames->nnames));
   if (caNameStrings == NULL) {
     goto loser;
   }
 
-  mRV = nsConvertCANamesToStrings(arena, caNameStrings, mCANames);
-  if (mRV != SECSuccess) {
+
+  ret = nsConvertCANamesToStrings(arena, caNameStrings, caNames);
+  if (ret != SECSuccess) {
     goto loser;
   }
 
@@ -2839,16 +2952,16 @@ void ClientAuthDataRunnable::RunOnTargetThread()
 
     /* find all user certs that are valid and for SSL */
     certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(), 
-                                         certUsageSSLClient, false,
-                                         true, wincx);
+                                         certUsageSSLClient, PR_FALSE,
+                                         PR_TRUE, wincx);
     if (certList == NULL) {
       goto noCert;
     }
 
     /* filter the list to those issued by CAs supported by the server */
-    mRV = CERT_FilterCertListByCANames(certList, mCANames->nnames,
+    ret = CERT_FilterCertListByCANames(certList, caNames->nnames,
                                        caNameStrings, certUsageSSLClient);
-    if (mRV != SECSuccess) {
+    if (ret != SECSuccess) {
       goto noCert;
     }
 
@@ -2867,7 +2980,7 @@ void ClientAuthDataRunnable::RunOnTargetThread()
        * we do not use it
        */
 #if 0		/* XXX This must be re-enabled */
-      if (!CERT_MatchesScopeOfUse(node->cert, mSocketInfo->GetHostName,
+      if (!CERT_MatchesScopeOfUse(node->cert, info->GetHostName,
                                   info->GetHostIP, info->GetHostPort)) {
           node = CERT_LIST_NEXT(node);
           continue;
@@ -2910,9 +3023,16 @@ void ClientAuthDataRunnable::RunOnTargetThread()
   }
   else { // Not Auto => ask
     /* Get the SSL Certificate */
+    CERTCertificate* serverCert = NULL;
+    CERTCertificateCleaner serverCertCleaner(serverCert);
+    serverCert = SSL_PeerCertificate(socket);
+    if (serverCert == NULL) {
+      /* couldn't get the server cert: what do I do? */
+      goto loser;
+    }
 
     nsXPIDLCString hostname;
-    mSocketInfo->GetHostName(getter_Copies(hostname));
+    info->GetHostName(getter_Copies(hostname));
 
     nsresult rv;
     NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
@@ -2926,10 +3046,11 @@ void ClientAuthDataRunnable::RunOnTargetThread()
     nsCString rememberedDBKey;
     if (cars) {
       bool found;
-      nsresult rv = cars->HasRememberedDecision(hostname, mServerCert,
+      nsresult rv = cars->HasRememberedDecision(hostname, 
+                                                serverCert,
                                                 rememberedDBKey, &found);
       if (NS_SUCCEEDED(rv) && found) {
-        hasRemembered = true;
+        hasRemembered = PR_TRUE;
       }
     }
 
@@ -2939,7 +3060,7 @@ if (hasRemembered)
 {
     if (rememberedDBKey.IsEmpty())
     {
-      canceled = true;
+      canceled = PR_TRUE;
     }
     else
     {
@@ -2970,7 +3091,7 @@ if (hasRemembered)
         }
         
         if (!cert) {
-          hasRemembered = false;
+          hasRemembered = PR_FALSE;
         }
       }
     }
@@ -2987,20 +3108,20 @@ if (!hasRemembered)
     /* find all user certs that are for SSL */
     /* note that we are allowing expired certs in this list */
     certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(), 
-                                         certUsageSSLClient, false, 
-                                         false, wincx);
+                                         certUsageSSLClient, PR_FALSE, 
+                                         PR_FALSE, wincx);
     if (certList == NULL) {
       goto noCert;
     }
 
-    if (mCANames->nnames != 0) {
+    if (caNames->nnames != 0) {
       /* filter the list to those issued by CAs supported by the 
        * server 
        */
-      mRV = CERT_FilterCertListByCANames(certList, mCANames->nnames, 
+      ret = CERT_FilterCertListByCANames(certList, caNames->nnames, 
                                         caNameStrings, 
                                         certUsageSSLClient);
-      if (mRV != SECSuccess) {
+      if (ret != SECSuccess) {
         goto loser;
       }
     }
@@ -3040,13 +3161,13 @@ if (!hasRemembered)
     NS_ASSERTION(nicknames->numnicknames == NumberOfCerts, "nicknames->numnicknames != NumberOfCerts");
 
     /* Get CN and O of the subject and O of the issuer */
-    char *ccn = CERT_GetCommonName(&mServerCert->subject);
+    char *ccn = CERT_GetCommonName(&serverCert->subject);
     void *v = ccn;
     voidCleaner ccnCleaner(v);
     NS_ConvertUTF8toUTF16 cn(ccn);
 
     PRInt32 port;
-    mSocketInfo->GetPort(&port);
+    info->GetPort(&port);
 
     nsString cn_host_port;
     if (ccn && strcmp(ccn, hostname) == 0) {
@@ -3062,11 +3183,11 @@ if (!hasRemembered)
       cn_host_port.AppendLiteral(")");
     }
 
-    char *corg = CERT_GetOrgName(&mServerCert->subject);
+    char *corg = CERT_GetOrgName(&serverCert->subject);
     NS_ConvertUTF8toUTF16 org(corg);
     if (corg) PORT_Free(corg);
 
-    char *cissuer = CERT_GetOrgName(&mServerCert->issuer);
+    char *cissuer = CERT_GetOrgName(&serverCert->issuer);
     NS_ConvertUTF8toUTF16 issuer(cissuer);
     if (cissuer) PORT_Free(cissuer);
 
@@ -3125,11 +3246,9 @@ if (!hasRemembered)
         rv = NS_ERROR_NOT_AVAILABLE;
       }
       else {
-        rv = dialogs->ChooseCertificate(mSocketInfo, cn_host_port.get(),
-                                        org.get(), issuer.get(), 
-                                        (const PRUnichar**)certNicknameList,
-                                        (const PRUnichar**)certDetailsList,
-                                        CertsToUse, &selectedIndex, &canceled);
+        rv = dialogs->ChooseCertificate(info, cn_host_port.get(), org.get(), issuer.get(), 
+          (const PRUnichar**)certNicknameList, (const PRUnichar**)certDetailsList,
+          CertsToUse, &selectedIndex, &canceled);
       }
     }
 
@@ -3141,7 +3260,7 @@ if (!hasRemembered)
 
     // even if the user has canceled, we want to remember that, to avoid repeating prompts
     bool wantRemember = false;
-    mSocketInfo->GetRememberClientAuthCertificate(&wantRemember);
+    info->GetRememberClientAuthCertificate(&wantRemember);
 
     int i;
     if (!canceled)
@@ -3156,7 +3275,9 @@ if (!hasRemembered)
     }
 
     if (cars && wantRemember) {
-      cars->RememberDecision(hostname, mServerCert, canceled ? 0 : cert);
+      cars->RememberDecision(hostname, 
+                             serverCert, 
+                             canceled ? 0 : cert);
     }
 }
 
@@ -3183,16 +3304,14 @@ if (!hasRemembered)
 
 noCert:
 loser:
-  if (mRV == SECSuccess) {
-    mRV = SECFailure;
+  if (ret == SECSuccess) {
+    ret = SECFailure;
   }
   if (cert != NULL) {
     CERT_DestroyCertificate(cert);
     cert = NULL;
   }
 done:
-  int error = PR_GetError();
-
   if (extracted != NULL) {
     PR_Free(extracted);
   }
@@ -3203,50 +3322,19 @@ done:
     CERT_DestroyCertList(certList);
   }
   if (arena != NULL) {
-    PORT_FreeArena(arena, false);
+    PORT_FreeArena(arena, PR_FALSE);
   }
 
-  *mPRetCert = cert;
-  *mPRetKey = privKey;
+  *pRetCert = cert;
+  *pRetKey = privKey;
 
-  if (mRV == SECFailure) {
-    mErrorCodeToReport = error;
-  }
+  return ret;
 }
-
-class CertErrorRunnable : public SyncRunnableBase
-{
- public:
-  CertErrorRunnable(const void * fdForLogging,
-                    nsIX509Cert * cert,
-                    nsNSSSocketInfo * infoObject,
-                    const CERTVerifyLog * verify_log,
-                    bool hasCertNameMismatch,
-                    PRErrorCode defaultErrorCodeToReport)
-    : mFdForLogging(fdForLogging), mCert(cert), mInfoObject(infoObject),
-      mVerifyLog(verify_log), mHasCertNameMismatch(hasCertNameMismatch),
-      mRv(SECFailure), mErrorCodeToReport(defaultErrorCodeToReport)
-  {
-  }
-
-  virtual void RunOnTargetThread();
-  
-  // in
-  const void * const mFdForLogging;
-  nsCOMPtr<nsIX509Cert> mCert;
-  nsNSSSocketInfo * const mInfoObject;
-  const CERTVerifyLog * const mVerifyLog;
-  const bool mHasCertNameMismatch;
-  nsXPIDLCString mHostname;
-
-  SECStatus mRv; // out
-  PRErrorCode mErrorCodeToReport; // in/out
-};
 
 static SECStatus
 cancel_and_failure(nsNSSSocketInfo* infoObject)
 {
-  infoObject->SetCanceled(true);
+  infoObject->SetCanceled(PR_TRUE);
   return SECFailure;
 }
 
@@ -3257,14 +3345,8 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   // Calling cancel_and_failure is not necessary, and would be wrong,
   // [for errors other than the ones explicitly handled below,] 
   // because it suppresses error reporting.
-  PRErrorCode defaultErrorCodeToReport = PR_GetError();
-  if (defaultErrorCodeToReport == SEC_ERROR_REVOKED_CERTIFICATE)
+  if (PR_GetError() == SEC_ERROR_REVOKED_CERTIFICATE)
     return SECFailure;
-
-  if (defaultErrorCodeToReport == 0) {
-    NS_ERROR("No error code set during certificate validation failure.");
-    defaultErrorCodeToReport = SEC_ERROR_CERT_NOT_VALID;
-  }
 
   nsNSSShutDownPreventionLock locker;
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo *)arg;
@@ -3285,8 +3367,16 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
   if (!nssCert)
     return cancel_and_failure(infoObject);
 
+  nsCOMPtr<nsIX509Cert> ix509 = static_cast<nsIX509Cert*>(nssCert.get());
+
   SECStatus srv;
   nsresult nsrv;
+  PRUint32 collected_errors = 0;
+  PRUint32 remaining_display_errors = 0;
+
+  PRErrorCode errorCodeTrust = SECSuccess;
+  PRErrorCode errorCodeMismatch = SECSuccess;
+  PRErrorCode errorCodeExpired = SECSuccess;
 
   nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
   if (!inss)
@@ -3301,10 +3391,23 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
     return cancel_and_failure(infoObject);
 
   charCleaner hostnameCleaner(hostname); 
+  nsDependentCString hostString(hostname);
+
+  PRInt32 port;
+  infoObject->GetPort(&port);
+
+  nsCString hostWithPortString = hostString;
+  hostWithPortString.AppendLiteral(":");
+  hostWithPortString.AppendInt(port);
+
+  NS_ConvertUTF8toUTF16 hostWithPortStringUTF16(hostWithPortString);
 
   // Check the name field against the desired hostname.
-  bool hasCertNameMismatch =
-      hostname[0] && CERT_VerifyCertName(peerCert, hostname) != SECSuccess;
+  if (hostname[0] &&
+      CERT_VerifyCertName(peerCert, hostname) != SECSuccess) {
+    collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
+    errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;
+  }
 
   {
     PRArenaPool *log_arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -3323,7 +3426,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
 
     if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
       srv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), peerCert,
-                                  true, certificateUsageSSLServer,
+                                  PR_TRUE, certificateUsageSSLServer,
                                   PR_Now(), (void*)infoObject, 
                                   verify_log, NULL);
     }
@@ -3338,79 +3441,18 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
                                 cvout, (void*)infoObject);
     }
 
+    if (infoObject->IsCertIssuerBlacklisted()) {
+      collected_errors |= nsICertOverrideService::ERROR_UNTRUSTED;
+    }
+
     // We ignore the result code of the cert verification.
     // Either it is a failure, which is expected, and we'll process the
     //                         verify log below.
     // Or it is a success, then a domain mismatch is the only 
     //                     possible failure. 
 
-    nsRefPtr<CertErrorRunnable> runnable =
-      new CertErrorRunnable(static_cast<void*>(sslSocket), 
-                            static_cast<nsIX509Cert*>(nssCert.get()),
-                            infoObject, verify_log, hasCertNameMismatch,
-                            defaultErrorCodeToReport);
-
-    // now grab the host name to pass to the STS Service
-    nsrv = infoObject->GetHostName(getter_Copies(runnable->mHostname));
-    if (NS_FAILED(nsrv)) {
-      PR_SetError(defaultErrorCodeToReport, 0);
-      return SECFailure;
-    }
-
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p][%p] Before dispatching CertErrorRunnable\n",
-           sslSocket, runnable.get()));
-
-    // Dispatch SYNC since the result is used below
-    (void) runnable->DispatchToMainThreadAndWait();
-
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p][%p] After dispatching CertErrorRunnable\n",
-           sslSocket, runnable.get()));
-
-    if (runnable->mRv == SECSuccess)
-      return SECSuccess;
-  
-    NS_ASSERTION(runnable->mErrorCodeToReport != 0,
-                 "CertErrorRunnable did not set error code.");
-    PR_SetError(runnable->mErrorCodeToReport ? runnable->mErrorCodeToReport
-                                             : defaultErrorCodeToReport, 0);
-    return SECFailure;
-  }
-}
-
-void CertErrorRunnable::RunOnTargetThread()
-{
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("[%p][%p] top of CertErrorRunnable::Run\n",
-                                    mFdForLogging, this));
-
-  if (!NS_IsMainThread()) {
-    NS_ERROR("CertErrorRunnable::RunOnTargetThread called off main thread");
-    return;
-  }
-
-  if (nsSSLThread::stoppedOrStopping())
-    return;
- 
-  PRErrorCode errorCodeMismatch = 0;
-  PRErrorCode errorCodeTrust = 0;
-  PRErrorCode errorCodeExpired = 0;
-
-  PRUint32 collected_errors = 0;
-
-  if (mInfoObject->IsCertIssuerBlacklisted()) {
-    collected_errors |= nsICertOverrideService::ERROR_UNTRUSTED;
-    errorCodeTrust = mErrorCodeToReport;
-  }
-
-  if (mHasCertNameMismatch) {
-    collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
-    errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;
-  }
-
-  {
     CERTVerifyLogNode *i_node;
-    for (i_node = mVerifyLog->head; i_node; i_node = i_node->next)
+    for (i_node = verify_log->head; i_node; i_node = i_node->next)
     {
       switch (i_node->error)
       {
@@ -3440,12 +3482,11 @@ void CertErrorRunnable::RunOnTargetThread()
           break;
         default:
           // we are not willing to continue on any other error
-          nsHandleSSLError(mInfoObject, i_node->error);
+          nsHandleSSLError(infoObject, i_node->error);
           // this error is our stop condition, so let's make sure
           // this error code will be reported to the external world.
-          mErrorCodeToReport = i_node->error;
-          mInfoObject->SetCanceled(true);
-          return;
+          PR_SetError(i_node->error, 0);
+          return cancel_and_failure(infoObject);
       }
     }
   }
@@ -3453,57 +3494,53 @@ void CertErrorRunnable::RunOnTargetThread()
   if (!collected_errors)
   {
     NS_NOTREACHED("why did NSS call our bad cert handler if all looks good? Let's cancel the connection");
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("[%p][%p] !collected_errors\n",
-           mFdForLogging, this));
-    return;
+    return SECFailure;
   }
 
-  nsRefPtr<nsSSLStatus> status = mInfoObject->SSLStatus();
+  nsRefPtr<nsSSLStatus> status = infoObject->SSLStatus();
   if (!status) {
     status = new nsSSLStatus();
-    mInfoObject->SetSSLStatus(status);
+    infoObject->SetSSLStatus(status);
   }
 
   if (status) {
     if (!status->mServerCert) {
-      status->mServerCert = mCert;
+      status->mServerCert = nssCert;
     }
 
-    status->mHaveCertErrorBits = true;
+    status->mHaveCertErrorBits = PR_TRUE;
     status->mIsDomainMismatch = collected_errors & nsICertOverrideService::ERROR_MISMATCH;
     status->mIsNotValidAtThisTime = collected_errors & nsICertOverrideService::ERROR_TIME;
     status->mIsUntrusted = collected_errors & nsICertOverrideService::ERROR_UNTRUSTED;
 
     nsSSLIOLayerHelpers::mHostsWithCertErrors->RememberCertHasError(
-      mInfoObject, status, SECFailure);
+      infoObject, status, SECFailure);
   }
 
-  nsDependentCString hostString(mHostname);
-
-  PRInt32 port;
-  mInfoObject->GetPort(&port);
-
-  nsCString hostWithPortString = hostString;
-  hostWithPortString.AppendLiteral(":");
-  hostWithPortString.AppendInt(port);
-
-  NS_ConvertUTF8toUTF16 hostWithPortStringUTF16(hostWithPortString);
-
-  PRUint32 remaining_display_errors = collected_errors;
-
-  nsresult nsrv;
+  remaining_display_errors = collected_errors;
 
   // Enforce Strict-Transport-Security for hosts that are "STS" hosts:
   // connections must be dropped when there are any certificate errors
   // (STS Spec section 7.3).
-  bool strictTransportSecurityEnabled = false;
+
   nsCOMPtr<nsIStrictTransportSecurityService> stss
-    = do_GetService(NS_STSSERVICE_CONTRACTID, &nsrv);
-  if (NS_SUCCEEDED(nsrv)) {
-    nsrv = stss->IsStsHost(mHostname, &strictTransportSecurityEnabled);
-  }
-  if (NS_FAILED(nsrv))
-    return; // use default rv and errorCodeToReport
+    = do_GetService(NS_STSSERVICE_CONTRACTID);
+  nsCOMPtr<nsIStrictTransportSecurityService> proxied_stss;
+
+  nsrv = NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                              NS_GET_IID(nsIStrictTransportSecurityService),
+                              stss, NS_PROXY_SYNC,
+                              getter_AddRefs(proxied_stss));
+  NS_ENSURE_SUCCESS(nsrv, SECFailure);
+
+  // now grab the host name to pass to the STS Service
+  nsXPIDLCString hostName;
+  nsrv = infoObject->GetHostName(getter_Copies(hostName));
+  NS_ENSURE_SUCCESS(nsrv, SECFailure);
+
+  bool strictTransportSecurityEnabled;
+  nsrv = proxied_stss->IsStsHost(hostName, &strictTransportSecurityEnabled);
+  NS_ENSURE_SUCCESS(nsrv, SECFailure);
 
   if (!strictTransportSecurityEnabled) {
     nsCOMPtr<nsICertOverrideService> overrideService =
@@ -3518,7 +3555,7 @@ void CertErrorRunnable::RunOnTargetThread()
       bool isTemporaryOverride; // we don't care
 
       nsrv = overrideService->HasMatchingOverride(hostString, port,
-                                                  mCert,
+                                                  ix509,
                                                   &overrideBits,
                                                   &isTemporaryOverride, 
                                                   &haveOverride);
@@ -3531,36 +3568,43 @@ void CertErrorRunnable::RunOnTargetThread()
 
     if (!remaining_display_errors) {
       // all errors are covered by override rules, so let's accept the cert
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-             ("[%p][%p] All errors covered by override rules\n",
-             mFdForLogging, this));
-      mRv = SECSuccess;
-      return;
+      return SECSuccess;
     }
   } else {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p][%p] Strict-Transport-Security is violated: untrusted "
-            "transport layer\n", mFdForLogging, this));
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Strict-Transport-Security is violated: untrusted transport layer\n"));
   }
-
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-         ("[%p][%p] Certificate error was not overridden\n",
-         mFdForLogging, this));
 
   // Ok, this is a full stop.
   // First, deliver the technical details of the broken SSL status,
   // giving the caller a chance to suppress the error messages.
 
   bool suppressMessage = false;
+  nsresult rv;
 
   // Try to get a nsIBadCertListener2 implementation from the socket consumer.
   nsCOMPtr<nsIInterfaceRequestor> cb;
-  mInfoObject->GetNotificationCallbacks(getter_AddRefs(cb));
+  infoObject->GetNotificationCallbacks(getter_AddRefs(cb));
   if (cb) {
-    nsCOMPtr<nsIBadCertListener2> bcl = do_GetInterface(cb);
+    nsCOMPtr<nsIInterfaceRequestor> callbacks;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIInterfaceRequestor),
+                         cb,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(callbacks));
+
+    nsCOMPtr<nsIBadCertListener2> bcl = do_GetInterface(callbacks);
     if (bcl) {
-      nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(mInfoObject);
-      nsrv = bcl->NotifyCertProblem(csi, status, hostWithPortString, &suppressMessage);
+      nsCOMPtr<nsIBadCertListener2> proxy_bcl;
+      NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                           NS_GET_IID(nsIBadCertListener2),
+                           bcl,
+                           NS_PROXY_SYNC,
+                           getter_AddRefs(proxy_bcl));
+      if (proxy_bcl) {
+        nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(infoObject);
+        rv = proxy_bcl->NotifyCertProblem(csi, status, hostWithPortString, 
+                                          &suppressMessage);
+      }
     }
   }
 
@@ -3572,26 +3616,33 @@ void CertErrorRunnable::RunOnTargetThread()
   }
 
   // pick the error code to report by priority
-  mErrorCodeToReport = 0;
+  PRErrorCode errorCodeToReport = SECSuccess;
   if (remaining_display_errors & nsICertOverrideService::ERROR_UNTRUSTED)
-    mErrorCodeToReport = errorCodeTrust;
+    errorCodeToReport = errorCodeTrust;
   else if (remaining_display_errors & nsICertOverrideService::ERROR_MISMATCH)
-    mErrorCodeToReport = errorCodeMismatch;
+    errorCodeToReport = errorCodeMismatch;
   else if (remaining_display_errors & nsICertOverrideService::ERROR_TIME)
-    mErrorCodeToReport = errorCodeExpired;
+    errorCodeToReport = errorCodeExpired;
 
-  if (!suppressMessage && mInfoObject->GetExternalErrorReporting()) {
-    NS_ConvertASCIItoUTF16 hostU(hostString);
-    NS_ConvertASCIItoUTF16 hostWithPortU(hostWithPortString);
-    nsString formattedString;
-    getInvalidCertErrorMessage(remaining_display_errors, mErrorCodeToReport,
-                               errorCodeTrust, errorCodeMismatch,
-                               errorCodeExpired, hostU, hostWithPortU, port,
-                               mCert, formattedString);
-    mInfoObject->SetErrorMessage(formattedString.get());
+  if (!suppressMessage) {
+    bool external = false;
+    infoObject->GetExternalErrorReporting(&external);
+
+    nsHandleInvalidCertError(infoObject,
+                             remaining_display_errors,
+                             hostString,
+                             hostWithPortString,
+                             port,
+                             errorCodeToReport,
+                             errorCodeTrust,
+                             errorCodeMismatch,
+                             errorCodeExpired,
+                             external, // wantsHtml
+                             ix509);
   }
 
-  mInfoObject->SetCanceled(true);
+  PR_SetError(errorCodeToReport, 0);
+  return cancel_and_failure(infoObject);
 }
 
 static PRFileDesc*
@@ -3603,7 +3654,7 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
   nsNSSShutDownPreventionLock locker;
   PRFileDesc* sslSock = SSL_ImportFD(nsnull, fd);
   if (!sslSock) {
-    NS_ASSERTION(false, "NSS: Error importing socket");
+    NS_ASSERTION(PR_FALSE, "NSS: Error importing socket");
     return nsnull;
   }
   SSL_SetPKCS11PinArg(sslSock, (nsIInterfaceRequestor*)infoObject);
@@ -3621,7 +3672,7 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
 
   PRInt32 ret = SSL_SetURL(sslSock, host);
   if (ret == -1) {
-    NS_ASSERTION(false, "NSS: Error setting server name");
+    NS_ASSERTION(PR_FALSE, "NSS: Error setting server name");
     goto loser;
   }
   return sslSock;
@@ -3639,10 +3690,10 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
 {
   nsNSSShutDownPreventionLock locker;
   if (forSTARTTLS || proxyHost) {
-    if (SECSuccess != SSL_OptionSet(fd, SSL_SECURITY, false)) {
+    if (SECSuccess != SSL_OptionSet(fd, SSL_SECURITY, PR_FALSE)) {
       return NS_ERROR_FAILURE;
     }
-    infoObject->SetHasCleartextPhase(true);
+    infoObject->SetHasCleartextPhase(PR_TRUE);
   }
 
   // Let's see if we're trying to connect to a site we know is
@@ -3651,10 +3702,10 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
   key = nsDependentCString(host) + NS_LITERAL_CSTRING(":") + nsPrintfCString("%d", port);
 
   if (nsSSLIOLayerHelpers::isKnownAsIntolerantSite(key)) {
-    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_TLS, false))
+    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_TLS, PR_FALSE))
       return NS_ERROR_FAILURE;
 
-    infoObject->SetAllowTLSIntoleranceTimeout(false);
+    infoObject->SetAllowTLSIntoleranceTimeout(PR_FALSE);
       
     // We assume that protocols that use the STARTTLS mechanism should support
     // modern hellos. For other protocols, if we suspect a site 
@@ -3664,7 +3715,7 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
     // on our single retry attempt.
   }
 
-  if (SECSuccess != SSL_OptionSet(fd, SSL_HANDSHAKE_AS_CLIENT, true)) {
+  if (SECSuccess != SSL_OptionSet(fd, SSL_HANDSHAKE_AS_CLIENT, PR_TRUE)) {
     return NS_ERROR_FAILURE;
   }
   if (SECSuccess != SSL_BadCertHook(fd, (SSLBadCertHandler) nsNSSBadCertHandler,
@@ -3673,7 +3724,7 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
   }
   
   if (nsSSLIOLayerHelpers::isRenegoUnrestrictedSite(nsDependentCString(host))) {
-    if (SECSuccess != SSL_OptionSet(fd, SSL_REQUIRE_SAFE_NEGOTIATION, false)) {
+    if (SECSuccess != SSL_OptionSet(fd, SSL_REQUIRE_SAFE_NEGOTIATION, PR_FALSE)) {
       return NS_ERROR_FAILURE;
     }
     if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_RENEGOTIATION, SSL_RENEGOTIATE_UNRESTRICTED)) {
@@ -3723,7 +3774,7 @@ nsSSLIOLayerAddToSocket(PRInt32 family,
 
   PRFileDesc *sslSock = nsSSLIOLayerImportFD(fd, infoObject, host, anonymousLoad);
   if (!sslSock) {
-    NS_ASSERTION(false, "NSS: Error importing socket");
+    NS_ASSERTION(PR_FALSE, "NSS: Error importing socket");
     goto loser;
   }
 
@@ -3756,7 +3807,7 @@ nsSSLIOLayerAddToSocket(PRInt32 family,
 
   // We are going use a clear connection first //
   if (forSTARTTLS || proxyHost) {
-    infoObject->SetHandshakePending(false);
+    infoObject->SetHandshakePending(PR_FALSE);
   }
 
   return NS_OK;

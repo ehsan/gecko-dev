@@ -118,8 +118,8 @@ nsViewManager::nsViewManager()
 
   // NOTE:  we use a zeroing operator new, so all data members are
   // assumed to be cleared here.
-  mHasPendingUpdates = false;
-  mRecursiveRefreshPending = false;
+  mHasPendingUpdates = PR_FALSE;
+  mRecursiveRefreshPending = PR_FALSE;
   mUpdateBatchFlags = 0;
 }
 
@@ -190,7 +190,7 @@ nsViewManager::CreateView(const nsRect& aBounds,
     v->SetParent(static_cast<nsView*>(const_cast<nsIView*>(aParent)));
     v->SetPosition(aBounds.x, aBounds.y);
     nsRect dim(0, 0, aBounds.width, aBounds.height);
-    v->SetDimensions(dim, false);
+    v->SetDimensions(dim, PR_FALSE);
   }
   return v;
 }
@@ -222,7 +222,7 @@ NS_IMETHODIMP nsViewManager::SetRootView(nsIView *aView)
       InvalidateHierarchy();
     }
 
-    mRootView->SetZIndex(false, 0, false);
+    mRootView->SetZIndex(PR_FALSE, 0, PR_FALSE);
   }
   // Else don't touch mRootViewManager
 
@@ -256,7 +256,7 @@ void nsViewManager::DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
   // We care about resizes even when one dimension is already zero.
   if (!oldDim.IsEqualEdges(newDim)) {
     // Don't resize the widget. It is already being set elsewhere.
-    mRootView->SetDimensions(newDim, true, false);
+    mRootView->SetDimensions(newDim, PR_TRUE, PR_FALSE);
     if (mObserver)
       mObserver->ResizeReflow(mRootView, aWidth, aHeight);
   }
@@ -265,7 +265,7 @@ void nsViewManager::DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
 NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight)
 {
   if (mRootView) {
-    if (mRootView->IsEffectivelyVisible() && mObserver && mObserver->IsVisible()) {
+    if (mRootView->IsEffectivelyVisible()) {
       if (mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
           mDelayedResize != nsSize(aWidth, aHeight)) {
         // We have a delayed resize; that now obsolete size may already have
@@ -274,7 +274,7 @@ NS_IMETHODIMP nsViewManager::SetWindowDimensions(nscoord aWidth, nscoord aHeight
         // root view's current size then DoSetWindowDimensions will not
         // request a resize reflow (which would correct it). See bug 617076.
         mDelayedResize = nsSize(aWidth, aHeight);
-        FlushDelayedResize(false);
+        FlushDelayedResize(PR_FALSE);
       }
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
       DoSetWindowDimensions(aWidth, aHeight);
@@ -353,7 +353,8 @@ nsIView* nsIViewManager::GetDisplayRootFor(nsIView* aView)
    rendering.
 */
 void nsViewManager::Refresh(nsView *aView, nsIWidget *aWidget,
-                            const nsIntRegion& aRegion)
+                            const nsIntRegion& aRegion,
+                            PRUint32 aUpdateFlags)
 {
   NS_ASSERTION(aView == nsView::GetViewFor(aWidget), "view widget mismatch");
   NS_ASSERTION(aView->GetViewManager() == this, "wrong view manager");
@@ -379,24 +380,24 @@ void nsViewManager::Refresh(nsView *aView, nsIWidget *aWidget,
 
   NS_ASSERTION(!IsPainting(), "recursive painting not permitted");
   if (IsPainting()) {
-    RootViewManager()->mRecursiveRefreshPending = true;
+    RootViewManager()->mRecursiveRefreshPending = PR_TRUE;
     return;
   }  
 
   {
     nsAutoScriptBlocker scriptBlocker;
-    SetPainting(true);
+    SetPainting(PR_TRUE);
 
-    RenderViews(aView, aWidget, damageRegion, aRegion, false, false);
+    RenderViews(aView, aWidget, damageRegion, aRegion, PR_FALSE, PR_FALSE);
 
-    SetPainting(false);
+    SetPainting(PR_FALSE);
   }
 
   if (RootViewManager()->mRecursiveRefreshPending) {
     // Unset this flag first, since if aUpdateFlags includes NS_VMREFRESH_IMMEDIATE
     // we'll reenter this code from the UpdateAllViews call.
-    RootViewManager()->mRecursiveRefreshPending = false;
-    UpdateAllViews(0);
+    RootViewManager()->mRecursiveRefreshPending = PR_FALSE;
+    UpdateAllViews(aUpdateFlags);
   }
 }
 
@@ -428,7 +429,7 @@ void nsViewManager::ProcessPendingUpdates(nsView* aView, bool aDoInvalidate)
   }
 
   if (aView->HasWidget()) {
-    aView->ResetWidgetBounds(false, false, true);
+    aView->ResetWidgetBounds(PR_FALSE, PR_FALSE, PR_TRUE);
   }
 
   // process pending updates in child view.
@@ -510,7 +511,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
     // Don't let dirtyRegion grow beyond 8 rects
     dirtyRegion->SimplifyOutward(8);
     nsViewManager* rootVM = RootViewManager();
-    rootVM->mHasPendingUpdates = true;
+    rootVM->mHasPendingUpdates = PR_TRUE;
     rootVM->IncrementUpdateCount();
     return;
     // this should only happen at the top level, and this result
@@ -594,7 +595,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
     const nsRect* r;
     for (nsRegionRectIterator iter(leftOver); (r = iter.Next());) {
       nsIntRect bounds = ViewToWidget(aWidgetView, *r);
-      aWidget->Invalidate(bounds, false);
+      aWidget->Invalidate(bounds, PR_FALSE);
     }
   }
 }
@@ -605,12 +606,12 @@ ShouldIgnoreInvalidation(nsViewManager* aVM)
   while (aVM) {
     nsIViewObserver* vo = aVM->GetViewObserver();
     if (!vo || vo->ShouldIgnoreInvalidation()) {
-      return true;
+      return PR_TRUE;
     }
     nsView* view = aVM->GetRootViewImpl()->GetParent();
     aVM = view ? view->GetViewManager() : nsnull;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsresult nsViewManager::UpdateView(nsIView *aView, const nsRect &aRect,
@@ -700,7 +701,7 @@ IsViewForPopup(nsIView* aView)
     return (type == eWindowType_popup);
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
@@ -827,13 +828,12 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
                       ? vm->mRootView->GetParent()->GetViewManager()
                       : nsnull) {
             if (vm->mDelayedResize != nsSize(NSCOORD_NONE, NSCOORD_NONE) &&
-                vm->mRootView->IsEffectivelyVisible() &&
-                mObserver && mObserver->IsVisible()) {
-              vm->FlushDelayedResize(true);
+                vm->mRootView->IsEffectivelyVisible()) {
+              vm->FlushDelayedResize(PR_TRUE);
 
               // Paint later.
               vm->UpdateView(vm->mRootView, NS_VMREFRESH_NO_SYNC);
-              didResize = true;
+              didResize = PR_TRUE;
 
               // not sure if it's valid for us to claim that we
               // ignored this, but we're going to do so anyway, since
@@ -881,11 +881,12 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
             // Make sure to sync up any widget geometry changes we
             // have pending before we paint.
             if (rootVM->mHasPendingUpdates) {
-              rootVM->ProcessPendingUpdates(mRootView, false);
+              rootVM->ProcessPendingUpdates(mRootView, PR_FALSE);
             }
             
             if (view && aEvent->message == NS_PAINT) {
-              Refresh(view, event->widget, event->region);
+              Refresh(view, event->widget,
+                      event->region, NS_VMREFRESH_DOUBLE_BUFFER);
             }
           }
         } else if (aEvent->message == NS_PAINT) {
@@ -895,7 +896,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
           nsRegion rgn = event->region.ToAppUnits(AppUnitsPerDevPixel());
           rgn.MoveBy(-aView->ViewToWidgetOffset());
           RenderViews(static_cast<nsView*>(aView), event->widget, rgn,
-                      event->region, true, event->willSendDidPaint);
+                      event->region, PR_TRUE, event->willSendDidPaint);
           // Clients like the editor can trigger multiple
           // reflows during what the user perceives as a single
           // edit operation, so it disables view manager
@@ -956,7 +957,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
         // destruction in, say, some JavaScript event handler.
         nsCOMPtr<nsIViewObserver> obs = GetViewObserver();
         if (obs) {
-          obs->HandleEvent(aView, aEvent, false, aStatus);
+          obs->HandleEvent(aView, aEvent, PR_FALSE, aStatus);
         }
       }
       break; 
@@ -1020,7 +1021,7 @@ nsEventStatus nsViewManager::HandleEvent(nsView* aView, nsGUIEvent* aEvent)
   nsCOMPtr<nsIViewObserver> obs = aView->GetViewManager()->GetViewObserver();
   nsEventStatus status = nsEventStatus_eIgnore;
   if (obs) {
-     obs->HandleEvent(aView, aEvent, false, &status);
+     obs->HandleEvent(aView, aEvent, PR_FALSE, &status);
   }
 
   return status;
@@ -1167,7 +1168,7 @@ NS_IMETHODIMP nsViewManager::InsertChild(nsIView *aParent, nsIView *aChild, nsIV
 
       // if the parent view is marked as "floating", make the newly added view float as well.
       if (parent->GetFloating())
-        child->SetFloating(true);
+        child->SetFloating(PR_TRUE);
 
       //and mark this area as dirty if the view is visible...
 
@@ -1181,8 +1182,8 @@ NS_IMETHODIMP nsViewManager::InsertChild(nsIView *aParent, nsIView *aChild, PRIn
 {
   // no-one really calls this with anything other than aZIndex == 0 on a fresh view
   // XXX this method should simply be eliminated and its callers redirected to the real method
-  SetViewZIndex(aChild, false, aZIndex, false);
-  return InsertChild(aParent, aChild, nsnull, true);
+  SetViewZIndex(aChild, PR_FALSE, aZIndex, PR_FALSE);
+  return InsertChild(aParent, aChild, nsnull, PR_TRUE);
 }
 
 NS_IMETHODIMP nsViewManager::RemoveChild(nsIView *aChild)
@@ -1248,13 +1249,13 @@ void nsViewManager::InvalidateRectDifference(nsView *aView, const nsRect& aRect,
   NS_ASSERTION(aView->GetViewManager() == this,
                "InvalidateRectDifference called on view we don't own");
   if (aRect.y < aCutOut.y) {
-    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aRect.y, aCutOut.y, false);
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aRect.y, aCutOut.y, PR_FALSE);
   }
   if (aCutOut.y < aCutOut.YMost()) {
-    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aCutOut.y, aCutOut.YMost(), true);
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aCutOut.y, aCutOut.YMost(), PR_TRUE);
   }
   if (aCutOut.YMost() < aRect.YMost()) {
-    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aCutOut.YMost(), aRect.YMost(), false);
+    InvalidateHorizontalBandDifference(aView, aRect, aCutOut, aUpdateFlags, aCutOut.YMost(), aRect.YMost(), PR_FALSE);
   }
 }
 
@@ -1268,14 +1269,14 @@ NS_IMETHODIMP nsViewManager::ResizeView(nsIView *aView, const nsRect &aRect, boo
     // resize the view.
     // Prevent Invalidation of hidden views 
     if (view->GetVisibility() == nsViewVisibility_kHide) {  
-      view->SetDimensions(aRect, false);
+      view->SetDimensions(aRect, PR_FALSE);
     } else {
       nsView* parentView = view->GetParent();
       if (!parentView) {
         parentView = view;
       }
       nsRect oldBounds = view->GetBoundsInParentUnits();
-      view->SetDimensions(aRect, true);
+      view->SetDimensions(aRect, PR_TRUE);
       nsViewManager* parentVM = parentView->GetViewManager();
       if (!aRepaintExposedAreaOnly) {
         //Invalidate the union of the old and new size
@@ -1371,18 +1372,18 @@ void nsViewManager::UpdateWidgetsForView(nsView* aView)
 bool nsViewManager::IsViewInserted(nsView *aView)
 {
   if (mRootView == aView) {
-    return true;
+    return PR_TRUE;
   } else if (aView->GetParent() == nsnull) {
-    return false;
+    return PR_FALSE;
   } else {
     nsView* view = aView->GetParent()->GetFirstChild();
     while (view != nsnull) {
       if (view == aView) {
-        return true;
+        return PR_TRUE;
       }        
       view = view->GetNextSibling();
     }
-    return false;
+    return PR_FALSE;
   }
 }
 
@@ -1549,8 +1550,8 @@ nsViewManager::FlushPendingInvalidates()
   NS_ASSERTION(mUpdateBatchCnt == 0, "Must not be in an update batch!");
 
   if (mHasPendingUpdates) {
-    ProcessPendingUpdates(mRootView, true);
-    mHasPendingUpdates = false;
+    ProcessPendingUpdates(mRootView, PR_TRUE);
+    mHasPendingUpdates = PR_FALSE;
   }
 }
 

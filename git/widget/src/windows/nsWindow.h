@@ -114,6 +114,8 @@ public:
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsDeviceContext *aContext,
+                                 nsIAppShell *aAppShell = nsnull,
+                                 nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
@@ -143,10 +145,7 @@ public:
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
-  NS_IMETHOD              Invalidate(bool aIsSynchronous, 
-                                     bool aEraseBackground = false,
-                                     bool aUpdateNCArea = false,
-                                     bool aIncludeChildren = false);
+  NS_IMETHOD              Invalidate(bool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect & aRect, bool aIsSynchronous);
   NS_IMETHOD              Update();
   virtual void*           GetNativeData(PRUint32 aDataType);
@@ -205,11 +204,6 @@ public:
    * Statics used in other classes
    */
   static PRInt32          GetWindowsVersion();
-  static bool             GetRegistryKey(HKEY aRoot,
-                                         const PRUnichar* aKeyName,
-                                         const PRUnichar* aValueName,
-                                         PRUnichar* aBuffer,
-                                         DWORD aBufferLength);
 
   /**
    * Event helpers
@@ -243,10 +237,9 @@ public:
   /**
    * Window utilities
    */
+  static void             GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
   nsWindow*               GetTopLevelWindow(bool aStopOnDialogOrPopup);
-  static HWND             GetTopLevelHWND(HWND aWnd, 
-                                          bool aStopIfNotChild = false, 
-                                          bool aStopIfNotPopup = true);
+  static HWND             GetTopLevelHWND(HWND aWnd, bool aStopOnDialogOrPopup = false);
   HWND                    GetWindowHandle() { return mWnd; }
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
   static nsWindow*        GetNSWindowPtr(HWND aWnd);

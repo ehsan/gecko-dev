@@ -91,7 +91,7 @@ private:
   {
     nsRefPtr<AccEvent> event =
       new AccTextChangeEvent(mHyperText, mTextOffset + aAddlOffset,
-                             aText, true);
+                             aText, PR_TRUE);
     aEvents.AppendElement(event);
   }
 
@@ -103,7 +103,7 @@ private:
   {
     nsRefPtr<AccEvent> event =
       new AccTextChangeEvent(mHyperText, mTextOffset + aAddlOffset,
-                             aText, false);
+                             aText, PR_FALSE);
     aEvents.AppendElement(event);
   }
 

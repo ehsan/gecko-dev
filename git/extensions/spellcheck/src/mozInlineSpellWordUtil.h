@@ -44,8 +44,8 @@
 
 //#define DEBUG_SPELLCHECK
 
-class nsIRange;
-class nsINode;
+class nsIDOMRange;
+class nsIDOMNode;
 
 /**
  *    This class extracts text from the DOM and builds it into a single string.
@@ -71,25 +71,25 @@ class mozInlineSpellWordUtil
 {
 public:
   struct NodeOffset {
-    nsINode* mNode;
-    PRInt32  mOffset;
+    nsIDOMNode* mNode;
+    PRInt32     mOffset;
     
-    NodeOffset(nsINode* aNode, PRInt32 aOffset) :
+    NodeOffset(nsIDOMNode* aNode, PRInt32 aOffset) :
       mNode(aNode), mOffset(aOffset) {}
   };
 
   mozInlineSpellWordUtil()
     : mRootNode(nsnull),
       mSoftBegin(nsnull, 0), mSoftEnd(nsnull, 0),
-      mNextWordIndex(-1), mSoftTextValid(false) {}
+      mNextWordIndex(-1), mSoftTextValid(PR_FALSE) {}
 
   nsresult Init(nsWeakPtr aWeakEditor);
 
-  nsresult SetEnd(nsINode* aEndNode, PRInt32 aEndOffset);
+  nsresult SetEnd(nsIDOMNode* aEndNode, PRInt32 aEndOffset);
 
   // sets the current position, this should be inside the range. If we are in
   // the middle of a word, we'll move to its start.
-  nsresult SetPosition(nsINode* aNode, PRInt32 aOffset);
+  nsresult SetPosition(nsIDOMNode* aNode, PRInt32 aOffset);
 
   // Given a point inside or immediately following a word, this returns the
   // DOM range that exactly encloses that word's characters. The current
@@ -101,13 +101,13 @@ public:
   // before you actually generate the range you are interested in and iterate
   // the words in it.
   nsresult GetRangeForWord(nsIDOMNode* aWordNode, PRInt32 aWordOffset,
-                           nsIRange** aRange);
+                           nsIDOMRange** aRange);
 
   // Moves to the the next word in the range, and retrieves it's text and range.
   // An empty word and a NULL range are returned when we are done checking.
   // aSkipChecking will be set if the word is "special" and shouldn't be
   // checked (e.g., an email address).
-  nsresult GetNextWord(nsAString& aText, nsIRange** aRange,
+  nsresult GetNextWord(nsAString& aText, nsIDOMRange** aRange,
                        bool* aSkipChecking);
 
   // Call to normalize some punctuation. This function takes an autostring
@@ -116,7 +116,7 @@ public:
 
   nsIDOMDocument* GetDOMDocument() const { return mDOMDocument; }
   nsIDocument* GetDocument() const { return mDocument; }
-  nsINode* GetRootNode() { return mRootNode; }
+  nsIDOMNode* GetRootNode() { return mRootNode; }
   nsIUGenCategory* GetCategories() { return mCategories; }
   
 private:
@@ -124,10 +124,11 @@ private:
   // cached stuff for the editor, set by Init
   nsCOMPtr<nsIDOMDocument> mDOMDocument;
   nsCOMPtr<nsIDocument>         mDocument;
+  nsCOMPtr<nsIDOMWindow>        mCSSView;
   nsCOMPtr<nsIUGenCategory>     mCategories;
 
-  // range to check, see SetPosition and SetEnd
-  nsINode*    mRootNode;
+  // range to check, see SetRange
+  nsIDOMNode* mRootNode;
   NodeOffset  mSoftBegin;
   NodeOffset  mSoftEnd;
 
@@ -161,7 +162,7 @@ private:
 
   bool mSoftTextValid;
 
-  void InvalidateWords() { mSoftTextValid = false; }
+  void InvalidateWords() { mSoftTextValid = PR_FALSE; }
   void EnsureWords();
   
   PRInt32 MapDOMPositionToSoftTextOffset(NodeOffset aNodeOffset);
@@ -191,6 +192,6 @@ private:
   void SplitDOMWord(PRInt32 aStart, PRInt32 aEnd);
 
   // Convenience functions, object must be initialized
-  nsresult MakeRange(NodeOffset aBegin, NodeOffset aEnd, nsIRange** aRange);
-  nsresult MakeRangeForWord(const RealWord& aWord, nsIRange** aRange);
+  nsresult MakeRange(NodeOffset aBegin, NodeOffset aEnd, nsIDOMRange** aRange);
+  nsresult MakeRangeForWord(const RealWord& aWord, nsIDOMRange** aRange);
 };

@@ -87,7 +87,7 @@ struct nsGenConNode : public PRCList {
   {
     mPseudoFrame = aPseudoFrame;
     CheckFrameAssertions();
-    return false;
+    return PR_FALSE;
   }
 
   virtual ~nsGenConNode() {} // XXX Avoid, perhaps?

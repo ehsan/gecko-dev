@@ -57,7 +57,7 @@ nsSystemFontsAndroid::GetSystemFontInfo(const char *aClassName, nsString *aFontN
                                         gfxFontStyle *aFontStyle) const
 {
     aFontStyle->style = FONT_STYLE_NORMAL;
-    aFontStyle->systemFont = true;
+    aFontStyle->systemFont = PR_TRUE;
     *aFontName = NS_LITERAL_STRING("Droid Sans");
     aFontStyle->weight = 400;
     aFontStyle->stretch = NS_FONT_STRETCH_NORMAL;

@@ -134,12 +134,12 @@ nsresult nsUnicodeDecodeHelper::ConvertByMultiTable(
     {
       if ((aRangeArray[i].min <= *src) && (*src <= aRangeArray[i].max)) 
       {
-        passRangeCheck = true;
+        passRangeCheck = PR_TRUE;
         if (uScan(aScanClassArray[i], NULL, src, 
                    reinterpret_cast<PRUint16*>(&med), srcLen, 
                    (PRUint32 *)&bcr)) 
         {
-          passScan = true;
+          passScan = PR_TRUE;
           done = uMapCode((uTable*) aMappingTable[i], 
                           static_cast<PRUint16>(med), 
                           reinterpret_cast<PRUint16*>(dest)); 

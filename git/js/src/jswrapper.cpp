@@ -46,6 +46,7 @@
 #include "jsgcmark.h"
 #include "jsiter.h"
 #include "jsnum.h"
+#include "jsregexp.h"
 #include "jswrapper.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -53,8 +54,6 @@
 # include "assembler/jit/ExecutableAllocator.h"
 #endif
 #include "jscompartment.h"
-
-#include "vm/RegExpObject.h"
 
 #include "jsobjinlines.h"
 
@@ -235,7 +234,7 @@ Wrapper::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, bool
                Value *vp)
 {
     // FIXME (bug 596351): Need deal with strict mode.
-    SET(wrappedObject(wrapper)->setGeneric(cx, id, vp, false));
+    SET(wrappedObject(wrapper)->setProperty(cx, id, vp, false));
 }
 
 bool
@@ -268,13 +267,6 @@ Wrapper::construct(JSContext *cx, JSObject *wrapper, uintN argc, Value *argv, Va
     vp->setUndefined(); // default result if we refuse to perform this action
     const jsid id = JSID_VOID;
     GET(ProxyHandler::construct(cx, wrapper, argc, argv, vp));
-}
-
-bool
-Wrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native, CallArgs args)
-{
-    const jsid id = JSID_VOID;
-    CHECKED(CallJSNative(cx, native, args), CALL);
 }
 
 bool
@@ -741,15 +733,11 @@ CrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN argc,
     return call.origin->wrap(cx, rval);
 }
 
-extern JSBool
-js_generic_native_method_dispatcher(JSContext *cx, uintN argc, Value *vp);
-
 bool
 CrossCompartmentWrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native, CallArgs srcArgs)
 {
     JS_ASSERT_IF(!srcArgs.calleev().isUndefined(),
-                 srcArgs.callee().getFunctionPrivate()->native() == native ||
-                 srcArgs.callee().getFunctionPrivate()->native() == js_generic_native_method_dispatcher);
+                 srcArgs.callee().getFunctionPrivate()->native() == native);
     JS_ASSERT(&srcArgs.thisv().toObject() == wrapper);
     JS_ASSERT(!UnwrapObject(wrapper)->isCrossCompartmentWrapper());
 
@@ -778,6 +766,13 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *cla
     call.leave();
     srcArgs.rval() = dstArgs.rval();
     return call.origin->wrap(cx, &srcArgs.rval());
+}
+
+bool
+Wrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native, CallArgs args)
+{
+    const jsid id = JSID_VOID;
+    CHECKED(CallJSNative(cx, native, args), CALL);
 }
 
 bool
@@ -848,34 +843,3 @@ CrossCompartmentWrapper::trace(JSTracer *trc, JSObject *wrapper)
 }
 
 CrossCompartmentWrapper CrossCompartmentWrapper::singleton(0u);
-
-/* Security wrappers. */
-
-template <class Base>
-SecurityWrapper<Base>::SecurityWrapper(uintN flags)
-  : Base(flags)
-{}
-
-template <class Base>
-bool
-SecurityWrapper<Base>::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native,
-                                  CallArgs args)
-{
-    /* Let ProxyHandler report the error. */
-    bool ret = ProxyHandler::nativeCall(cx, wrapper, clasp, native, args);
-    JS_ASSERT(!ret && cx->isExceptionPending());
-    return ret;
-}
-
-template <class Base>
-bool
-SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx)
-{
-    /* Let ProxyHandler say 'no'. */
-    bool ret = ProxyHandler::objectClassIs(obj, classValue, cx);
-    JS_ASSERT(!ret && !cx->isExceptionPending());
-    return ret;
-}
-
-template class js::SecurityWrapper<Wrapper>;
-template class js::SecurityWrapper<CrossCompartmentWrapper>;

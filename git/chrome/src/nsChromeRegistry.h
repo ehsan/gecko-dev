@@ -99,7 +99,7 @@ public:
   NS_IMETHOD ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult);
 
   // nsChromeRegistry methods:
-  nsChromeRegistry() : mInitialized(false) { }
+  nsChromeRegistry() : mInitialized(PR_FALSE) { }
   virtual ~nsChromeRegistry();
 
   virtual nsresult Init();

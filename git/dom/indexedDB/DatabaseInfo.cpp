@@ -61,7 +61,7 @@ struct DatabaseInfoHash
   nsAutoPtr<ObjectStoreInfoHash> objectStoreHash;
 };
 
-typedef nsClassHashtable<nsISupportsHashKey, DatabaseInfoHash>
+typedef nsClassHashtable<nsUint32HashKey, DatabaseInfoHash>
         DatabaseHash;
 
 DatabaseHash* gDatabaseHash = nsnull;
@@ -83,9 +83,9 @@ EnumerateObjectStoreNames(const nsAString& aKey,
 
 #ifdef NS_BUILD_REFCNT_LOGGING
 DatabaseInfo::DatabaseInfo()
-: nextObjectStoreId(1),
-  nextIndexId(1),
-  runningVersionChange(false)
+: id(0),
+  nextObjectStoreId(1),
+  nextIndexId(1)
 {
   MOZ_COUNT_CTOR(DatabaseInfo);
 }
@@ -134,7 +134,7 @@ IndexUpdateInfo::~IndexUpdateInfo()
 
 // static
 bool
-DatabaseInfo::Get(nsIAtom* aId,
+DatabaseInfo::Get(PRUint32 aId,
                   DatabaseInfo** aInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -186,7 +186,7 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
 
 // static
 void
-DatabaseInfo::Remove(nsIAtom* aId)
+DatabaseInfo::Remove(PRUint32 aId)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(Get(aId, nsnull), "Don't know anything about this one!");
@@ -240,7 +240,7 @@ DatabaseInfo::ContainsStoreName(const nsAString& aName)
 
 // static
 bool
-ObjectStoreInfo::Get(nsIAtom* aDatabaseId,
+ObjectStoreInfo::Get(PRUint32 aDatabaseId,
                      const nsAString& aName,
                      ObjectStoreInfo** aInfo)
 {
@@ -296,7 +296,7 @@ ObjectStoreInfo::Put(ObjectStoreInfo* aInfo)
 
 // static
 void
-ObjectStoreInfo::Remove(nsIAtom* aDatabaseId,
+ObjectStoreInfo::Remove(PRUint32 aDatabaseId,
                         const nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");

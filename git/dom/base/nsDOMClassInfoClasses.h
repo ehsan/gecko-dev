@@ -38,6 +38,7 @@
 
 DOMCI_CLASS(Window)
 DOMCI_CLASS(Location)
+DOMCI_CLASS(CaretPosition)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
 DOMCI_CLASS(PluginArray)
@@ -234,12 +235,14 @@ DOMCI_CLASS(SVGDocument)
 // SVG element classes
 DOMCI_CLASS(SVGAElement)
 DOMCI_CLASS(SVGAltGlyphElement)
+#ifdef MOZ_SMIL
 DOMCI_CLASS(SVGAnimateElement)
 DOMCI_CLASS(SVGAnimateTransformElement)
 DOMCI_CLASS(SVGAnimateMotionElement)
 DOMCI_CLASS(SVGMpathElement)
 DOMCI_CLASS(SVGSetElement)
 DOMCI_CLASS(TimeEvent)
+#endif // MOZ_SMIL
 DOMCI_CLASS(SVGCircleElement)
 DOMCI_CLASS(SVGClipPathElement)
 DOMCI_CLASS(SVGDefsElement)
@@ -426,8 +429,6 @@ DOMCI_CLASS(GeoPositionCoords)
 DOMCI_CLASS(GeoPositionAddress)
 DOMCI_CLASS(GeoPositionError)
 
-DOMCI_CLASS(BatteryManager)
-
 // @font-face in CSS
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
@@ -472,7 +473,6 @@ DOMCI_CLASS(WebGLUniformLocation)
 DOMCI_CLASS(WebGLActiveInfo)
 DOMCI_CLASS(WebGLExtension)
 DOMCI_CLASS(WebGLExtensionStandardDerivatives)
-DOMCI_CLASS(WebGLExtensionLoseContext)
 
 DOMCI_CLASS(PaintRequest)
 DOMCI_CLASS(PaintRequestList)
@@ -507,8 +507,10 @@ DOMCI_CLASS(IDBCursorWithValue)
 DOMCI_CLASS(IDBKeyRange)
 DOMCI_CLASS(IDBIndex)
 DOMCI_CLASS(IDBVersionChangeEvent)
-DOMCI_CLASS(IDBOpenDBRequest)
+DOMCI_CLASS(IDBVersionChangeRequest)
 DOMCI_CLASS(IDBDatabaseException)
+
+DOMCI_CLASS(EventException)
 
 DOMCI_CLASS(Touch)
 DOMCI_CLASS(TouchList)

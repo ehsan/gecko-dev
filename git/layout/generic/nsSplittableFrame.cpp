@@ -137,11 +137,11 @@ bool nsSplittableFrame::IsInPrevContinuationChain(nsIFrame* aFrame1, nsIFrame* a
   while (aFrame1 && iterations < 10) {
     // Bail out after 10 iterations so we don't bog down debug builds too much
     if (aFrame1 == aFrame2)
-      return true;
+      return PR_TRUE;
     aFrame1 = aFrame1->GetPrevContinuation();
     ++iterations;
   }
-  return false;
+  return PR_FALSE;
 }
 
 bool nsSplittableFrame::IsInNextContinuationChain(nsIFrame* aFrame1, nsIFrame* aFrame2)
@@ -150,11 +150,11 @@ bool nsSplittableFrame::IsInNextContinuationChain(nsIFrame* aFrame1, nsIFrame* a
   while (aFrame1 && iterations < 10) {
     // Bail out after 10 iterations so we don't bog down debug builds too much
     if (aFrame1 == aFrame2)
-      return true;
+      return PR_TRUE;
     aFrame1 = aFrame1->GetNextContinuation();
     ++iterations;
   }
-  return false;
+  return PR_FALSE;
 }
 #endif
 

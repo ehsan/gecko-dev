@@ -208,7 +208,7 @@ nsPrintingPromptService::ShowProgress(nsIDOMWindow*            parent,
     NS_ENSURE_ARG(printProgressParams);
     NS_ENSURE_ARG(notifyOnOpen);
 
-    *notifyOnOpen = false;
+    *notifyOnOpen = PR_FALSE;
     if (mPrintProgress) {
         *webProgressListener = nsnull;
         *printProgressParams = nsnull;
@@ -338,7 +338,7 @@ nsPrintingPromptService::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest 
         mWebProgressListener->OnStateChange(aWebProgress, aRequest, aStateFlags, aStatus);
         if (mPrintProgress) 
         {
-            mPrintProgress->CloseProgressDialog(true);
+            mPrintProgress->CloseProgressDialog(PR_TRUE);
         }
         mPrintProgress       = nsnull;
         mWebProgressListener = nsnull;

@@ -127,7 +127,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
   // non-mTimers-element strong refs to stay alive.
 
   if (count == 1 && mArmed) {
-    mCanceled = true;
+    mCanceled = PR_TRUE;
 
     NS_ASSERTION(gThread, "An armed timer exists after the thread timer stopped.");
     if (NS_SUCCEEDED(gThread->RemoveTimer(this)))
@@ -140,9 +140,9 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 nsTimerImpl::nsTimerImpl() :
   mClosure(nsnull),
   mCallbackType(CALLBACK_TYPE_UNKNOWN),
-  mFiring(false),
-  mArmed(false),
-  mCanceled(false),
+  mFiring(PR_FALSE),
+  mArmed(PR_FALSE),
+  mCanceled(PR_FALSE),
   mGeneration(0),
   mDelay(0)
 {
@@ -221,8 +221,7 @@ nsresult nsTimerImpl::InitCommon(PRUint32 aType, PRUint32 aDelay)
    */
   if (mArmed)
     gThread->RemoveTimer(this);
-  mCanceled = false;
-  mTimeout = TimeStamp();
+  mCanceled = PR_FALSE;
   mGeneration = PR_ATOMIC_INCREMENT(&gGenerator);
 
   mType = (PRUint8)aType;
@@ -276,7 +275,7 @@ NS_IMETHODIMP nsTimerImpl::Init(nsIObserver *aObserver,
 
 NS_IMETHODIMP nsTimerImpl::Cancel()
 {
-  mCanceled = true;
+  mCanceled = PR_TRUE;
 
   if (gThread)
     gThread->RemoveTimer(this);
@@ -408,7 +407,7 @@ void nsTimerImpl::Fire()
 
   if (mCallbackType == CALLBACK_TYPE_INTERFACE)
     mTimerCallbackWhileFiring = mCallback.i;
-  mFiring = true;
+  mFiring = PR_TRUE;
   
   // Handle callbacks that re-init the timer, but avoid leaking.
   // See bug 330128.
@@ -449,7 +448,7 @@ void nsTimerImpl::Fire()
       NS_RELEASE(callback.o);
   }
 
-  mFiring = false;
+  mFiring = PR_FALSE;
   mTimerCallbackWhileFiring = nsnull;
 
 #ifdef DEBUG_TIMERS

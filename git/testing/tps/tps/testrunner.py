@@ -103,10 +103,7 @@ class TPSTestRunner(object):
                           'services.sync.log.appender.console': 'Trace',
                           'services.sync.log.appender.debugLog.enabled': True,
                           'browser.dom.window.dump.enabled': True,
-                          # Allow installing extensions dropped into the profile folder
-                          'extensions.autoDisableScopes': 10,
-                          # Don't open a dialog to show available add-on updates
-                          'extensions.update.notifyUser' : False,
+                          'extensions.checkCompatibility.4.0': False,
                         }
   syncVerRe = re.compile(
       r"Sync version: (?P<syncversion>.*)\n")
@@ -433,14 +430,7 @@ class TPSTestRunner(object):
       from tps.emailtemplate import GenerateEmailBody
 
       if body is None:
-        buildUrl = None
-        if self.firefoxRunner and self.firefoxRunner.url:
-          buildUrl = self.firefoxRunner.url
-        body = GenerateEmailBody(self.postdata,
-                                 self.numpassed,
-                                 self.numfailed,
-                                 self.config['account']['serverURL'],
-                                 self.buildUrl)
+        body = GenerateEmailBody(self.postdata, self.numpassed, self.numfailed, self.config['account']['serverURL'])
 
       subj = "TPS Report: "
       if self.numfailed == 0 and self.numpassed > 0:

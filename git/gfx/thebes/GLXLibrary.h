@@ -48,9 +48,9 @@ namespace gl {
 class GLXLibrary
 {
 public:
-    GLXLibrary() : mInitialized(false), mTriedInitializing(false),
-                   mHasTextureFromPixmap(false), mDebug(false),
-                   mHasRobustness(false), mOGLLibrary(nsnull) {}
+    GLXLibrary() : mInitialized(PR_FALSE), mTriedInitializing(PR_FALSE),
+                   mHasTextureFromPixmap(PR_FALSE), mDebug(PR_FALSE),
+                   mOGLLibrary(nsnull) {}
 
     void xDestroyContext(Display* display, GLXContext context);
     Bool xMakeCurrent(Display* display, 
@@ -108,12 +108,6 @@ public:
     void xWaitGL();
     void xWaitX();
 
-    GLXContext xCreateContextAttribs(Display* display, 
-                                     GLXFBConfig config, 
-                                     GLXContext share_list, 
-                                     Bool direct,
-                                     const int* attrib_list);
-
     bool EnsureInitialized();
 
     GLXPixmap CreatePixmap(gfxASurface* aSurface);
@@ -122,7 +116,6 @@ public:
     void ReleaseTexImage(GLXPixmap aPixmap);
 
     bool HasTextureFromPixmap() { return mHasTextureFromPixmap; }
-    bool HasRobustness() { return mHasRobustness; }
     bool SupportsTextureFromPixmap(gfxASurface* aSurface);
 
 private:
@@ -216,13 +209,6 @@ private:
     typedef void (GLAPIENTRY * PFNGLXWAITX) ();
     PFNGLXWAITGL xWaitXInternal;
 
-    typedef GLXContext (GLAPIENTRY * PFNGLXCREATECONTEXTATTRIBS) (Display *,
-                                                                  GLXFBConfig,
-                                                                  GLXContext,
-                                                                  Bool,
-                                                                  const int *);
-    PFNGLXCREATECONTEXTATTRIBS xCreateContextAttribsInternal;
-
 #ifdef DEBUG
     void BeforeGLXCall();
     void AfterGLXCall();
@@ -232,7 +218,6 @@ private:
     bool mTriedInitializing;
     bool mHasTextureFromPixmap;
     bool mDebug;
-    bool mHasRobustness;
     PRLibrary *mOGLLibrary;
 };
 

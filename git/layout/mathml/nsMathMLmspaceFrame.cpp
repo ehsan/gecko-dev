@@ -65,7 +65,7 @@ nsMathMLmspaceFrame::~nsMathMLmspaceFrame()
 bool
 nsMathMLmspaceFrame::IsLeaf() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 void

@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
-#include "nsXBLPrototypeBinding.h"
 
 nsXBLProtoImplMethod::nsXBLProtoImplMethod(const PRUnichar* aName) :
   nsXBLProtoImplMember(aName), 
@@ -131,10 +130,10 @@ nsXBLProtoImplMethod::InstallMember(nsIScriptContext* aContext,
                   "Should not be installing an uncompiled method");
   JSContext* cx = aContext->GetNativeContext();
 
-  nsIDocument *ownerDoc = aBoundElement->OwnerDoc();
+  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -244,7 +243,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
                                           functionUri.get(),
                                           uncompiledMethod->mBodyText.GetLineNumber(),
                                           JSVERSION_LATEST,
-                                          true,
+                                          PR_TRUE,
                                           (void **) &methodObject);
 
   // Destroy our uncompiled method and delete our arg list.
@@ -269,38 +268,6 @@ nsXBLProtoImplMethod::Trace(TraceCallback aCallback, void *aClosure) const
 }
 
 nsresult
-nsXBLProtoImplMethod::Read(nsIScriptContext* aContext,
-                           nsIObjectInputStream* aStream)
-{
-  void* methodCode;
-  nsresult rv = XBL_DeserializeFunction(aContext, aStream, this, &methodCode);
-  mJSMethodObject = (JSObject *)methodCode;
-  if (NS_FAILED(rv)) {
-    SetUncompiledMethod(nsnull);
-    return rv;
-  }
-
-#ifdef DEBUG
-  mIsCompiled = true;
-#endif
-
-  return NS_OK;
-}
-
-nsresult
-nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
-                            nsIObjectOutputStream* aStream)
-{
-  nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->WriteWStringZ(mName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
-}
-
-nsresult
 nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 {
   NS_PRECONDITION(IsCompiled(), "Can't execute uncompiled method");
@@ -312,7 +279,10 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   // Get the script context the same way
   // nsXBLProtoImpl::InstallImplementation does.
-  nsIDocument* document = aBoundElement->OwnerDoc();
+  nsIDocument* document = aBoundElement->GetOwnerDoc();
+  if (!document) {
+    return NS_OK;
+  }
 
   nsIScriptGlobalObject* global = document->GetScriptGlobalObject();
   if (!global) {
@@ -377,22 +347,6 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
     if (saved)
         JS_RestoreFrameChain(cx);
     return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
-}
-
-nsresult
-nsXBLProtoImplAnonymousMethod::Write(nsIScriptContext* aContext,
-                                     nsIObjectOutputStream* aStream,
-                                     XBLBindingSerializeDetails aType)
-{
-  if (mJSMethodObject) {
-    nsresult rv = aStream->Write8(aType);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
-    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;

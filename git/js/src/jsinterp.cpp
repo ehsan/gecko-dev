@@ -66,13 +66,14 @@
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jspropertycache.h"
+#include "jsemit.h"
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsstaticcheck.h"
 #include "jstracer.h"
 #include "jslibmath.h"
-
-#include "frontend/BytecodeEmitter.h"
+#include "jsvector.h"
 #ifdef JS_METHODJIT
 #include "methodjit/MethodJIT.h"
 #include "methodjit/MethodJIT-inl.h"
@@ -831,14 +832,14 @@ js::CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs)
     bool isFunction;
     const char *type, *name;
 
-    if (!obj->lookupGeneric(cx, id, &obj2, &prop))
+    if (!obj->lookupProperty(cx, id, &obj2, &prop))
         return false;
     if (!prop)
         return true;
     if (obj2->isNative()) {
         oldAttrs = ((Shape *) prop)->attributes();
     } else {
-        if (!obj2->getGenericAttributes(cx, id, &oldAttrs))
+        if (!obj2->getAttributes(cx, id, &oldAttrs))
             return false;
     }
 
@@ -1069,14 +1070,6 @@ js::InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
     JS_ASSERT(!FunctionClass.construct);
     CallArgs args = argsRef;
 
-    /*
-     * Callers are not required to initialize 'this' when constructing, but
-     * make sure the value is initialized in case we are about to call a native
-     * or if something (e.g. type inference) tries to inspect the frame before
-     * its 'this' value is constructed.
-     */
-    args.thisv().setMagicWithObjectOrNullPayload(NULL);
-
     if (args.calleev().isObject()) {
         JSObject *callee = &args.callee();
         Class *clasp = callee->getClass();
@@ -1084,6 +1077,7 @@ js::InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
             JSFunction *fun = callee->getFunctionPrivate();
 
             if (fun->isConstructor()) {
+                args.thisv().setMagicWithObjectOrNullPayload(NULL);
                 Probes::calloutBegin(cx, fun);
                 bool ok = CallJSNativeConstructor(cx, fun->u.n.native, args);
                 Probes::calloutEnd(cx, fun);
@@ -1099,8 +1093,10 @@ js::InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
             JS_ASSERT(args.rval().isObject());
             return true;
         }
-        if (clasp->construct)
+        if (clasp->construct) {
+            args.thisv().setMagicWithObjectOrNullPayload(NULL);
             return CallJSNativeConstructor(cx, clasp->construct, args);
+        }
     }
 
 error:
@@ -1802,12 +1798,30 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             goto error;                                                       \
     JS_END_MACRO
 
+#if defined(JS_TRACER) && defined(JS_METHODJIT)
+# define LEAVE_ON_SAFE_POINT()                                                \
+    do {                                                                      \
+        JS_ASSERT_IF(leaveOnSafePoint, !TRACE_RECORDER(cx));                  \
+        JS_ASSERT_IF(leaveOnSafePoint, !TRACE_PROFILER(cx));                  \
+        JS_ASSERT_IF(leaveOnSafePoint, interpMode != JSINTERP_NORMAL);        \
+        if (leaveOnSafePoint && !regs.fp()->hasImacropc() &&                  \
+            script->maybeNativeCodeForPC(regs.fp()->isConstructing(), regs.pc)) { \
+            JS_ASSERT(!TRACE_RECORDER(cx));                                   \
+            interpReturnOK = true;                                            \
+            goto leave_on_safe_point;                                         \
+        }                                                                     \
+    } while (0)
+#else
+# define LEAVE_ON_SAFE_POINT() /* nop */
+#endif
+
 #define BRANCH(n)                                                             \
     JS_BEGIN_MACRO                                                            \
         regs.pc += (n);                                                       \
         op = (JSOp) *regs.pc;                                                 \
         if ((n) <= 0)                                                         \
             goto check_backedge;                                              \
+        LEAVE_ON_SAFE_POINT();                                                \
         DO_OP();                                                              \
     JS_END_MACRO
 
@@ -1842,6 +1856,13 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     ENABLE_PCCOUNT_INTERRUPTS();
     Value *argv = regs.fp()->maybeFormalArgs();
     CHECK_INTERRUPT_HANDLER();
+
+#if defined(JS_TRACER) && defined(JS_METHODJIT)
+    bool leaveOnSafePoint = (interpMode == JSINTERP_SAFEPOINT);
+# define CLEAR_LEAVE_ON_TRACE_POINT() ((void) (leaveOnSafePoint = false))
+#else
+# define CLEAR_LEAVE_ON_TRACE_POINT() ((void) 0)
+#endif
 
     if (!entryFrame)
         entryFrame = regs.fp();
@@ -2025,14 +2046,40 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             LoopProfile *prof = TRACE_PROFILER(cx);
             JS_ASSERT(!TRACE_RECORDER(cx));
             LoopProfile::ProfileAction act = prof->profileOperation(cx, op);
-            if (act != LoopProfile::ProfComplete)
-                moreInterrupts = true;
+            switch (act) {
+                case LoopProfile::ProfComplete:
+                    if (interpMode != JSINTERP_NORMAL) {
+                        leaveOnSafePoint = true;
+                        LEAVE_ON_SAFE_POINT();
+                    }
+                    break;
+                default:
+                    moreInterrupts = true;
+                    break;
+            }
         }
 #endif
         if (TraceRecorder* tr = TRACE_RECORDER(cx)) {
             JS_ASSERT(!TRACE_PROFILER(cx));
             AbortableRecordingStatus status = tr->monitorRecording(op);
             JS_ASSERT_IF(cx->isExceptionPending(), status == ARECORD_ERROR);
+
+            if (interpMode != JSINTERP_NORMAL) {
+                JS_ASSERT(interpMode == JSINTERP_RECORD || JSINTERP_SAFEPOINT);
+                switch (status) {
+                  case ARECORD_IMACRO_ABORTED:
+                  case ARECORD_ABORTED:
+                  case ARECORD_COMPLETED:
+                  case ARECORD_STOP:
+#ifdef JS_METHODJIT
+                    leaveOnSafePoint = true;
+                    LEAVE_ON_SAFE_POINT();
+#endif
+                    break;
+                  default:
+                    break;
+                }
+            }
 
             switch (status) {
               case ARECORD_CONTINUE:
@@ -2042,6 +2089,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
               case ARECORD_IMACRO_ABORTED:
                 atoms = rt->atomState.commonAtomsStart();
                 op = JSOp(*regs.pc);
+                CLEAR_LEAVE_ON_TRACE_POINT();
                 if (status == ARECORD_IMACRO)
                     DO_OP();    /* keep interrupting for op. */
                 break;
@@ -2086,7 +2134,7 @@ END_EMPTY_CASES
 
 BEGIN_CASE(JSOP_TRACE)
 BEGIN_CASE(JSOP_NOTRACE)
-    /* No-op */
+    LEAVE_ON_SAFE_POINT();
 END_CASE(JSOP_TRACE)
 
 check_backedge:
@@ -2103,6 +2151,7 @@ check_backedge:
             JS_ASSERT(!TRACE_PROFILER(cx));
             MONITOR_BRANCH_TRACEVIS;
             ENABLE_INTERRUPTS();
+            CLEAR_LEAVE_ON_TRACE_POINT();
         }
         JS_ASSERT_IF(cx->isExceptionPending(), r == MONITOR_ERROR);
         RESTORE_INTERP_VARS_CHECK_EXCEPTION();
@@ -2227,6 +2276,7 @@ BEGIN_CASE(JSOP_STOP)
         if (js_CodeSpec[*imacpc].format & JOF_DECOMPOSE)
             regs.pc += GetDecomposeLength(imacpc, js_CodeSpec[*imacpc].length);
         regs.fp()->clearImacropc();
+        LEAVE_ON_SAFE_POINT();
         atoms = script->atoms;
         op = JSOp(*regs.pc);
         DO_OP();
@@ -2449,7 +2499,7 @@ BEGIN_CASE(JSOP_IN)
     FETCH_ELEMENT_ID(obj, -2, id);
     JSObject *obj2;
     JSProperty *prop;
-    if (!obj->lookupGeneric(cx, id, &obj2, &prop))
+    if (!obj->lookupProperty(cx, id, &obj2, &prop))
         goto error;
     bool cond = prop != NULL;
     TRY_BRANCH_AFTER_COND(cond, 2);
@@ -2607,7 +2657,7 @@ BEGIN_CASE(JSOP_SETCONST)
     LOAD_ATOM(0, atom);
     JSObject &obj = regs.fp()->varObj();
     const Value &ref = regs.sp[-1];
-    if (!obj.defineProperty(cx, atom->asPropertyName(), ref,
+    if (!obj.defineProperty(cx, ATOM_TO_JSID(atom), ref,
                             JS_PropertyStub, JS_StrictPropertyStub,
                             JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         goto error;
@@ -2623,9 +2673,9 @@ BEGIN_CASE(JSOP_ENUMCONSTELEM)
     FETCH_OBJECT(cx, -2, obj);
     jsid id;
     FETCH_ELEMENT_ID(obj, -1, id);
-    if (!obj->defineGeneric(cx, id, ref,
-                            JS_PropertyStub, JS_StrictPropertyStub,
-                            JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
+    if (!obj->defineProperty(cx, id, ref,
+                             JS_PropertyStub, JS_StrictPropertyStub,
+                             JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         goto error;
     }
     regs.sp -= 3;
@@ -2680,7 +2730,7 @@ BEGIN_CASE(JSOP_BINDNAME)
 END_CASE(JSOP_BINDNAME)
 
 BEGIN_CASE(JSOP_IMACOP)
-    JS_ASSERT(UnsignedPtrDiff(regs.fp()->imacropc(), script->code) < script->length);
+    JS_ASSERT(JS_UPTRDIFF(regs.fp()->imacropc(), script->code) < script->length);
     op = JSOp(*regs.fp()->imacropc());
     DO_OP();
 
@@ -3083,7 +3133,7 @@ BEGIN_CASE(JSOP_DELNAME)
     /* ECMA says to return true if name is undefined or inherited. */
     PUSH_BOOLEAN(true);
     if (prop) {
-        if (!obj->deleteProperty(cx, atom->asPropertyName(), &regs.sp[-1], false))
+        if (!obj->deleteProperty(cx, id, &regs.sp[-1], false))
             goto error;
     }
 }
@@ -3099,7 +3149,7 @@ BEGIN_CASE(JSOP_DELPROP)
     FETCH_OBJECT(cx, -1, obj);
 
     Value rval;
-    if (!obj->deleteGeneric(cx, id, &rval, script->strictModeCode))
+    if (!obj->deleteProperty(cx, id, &rval, script->strictModeCode))
         goto error;
 
     regs.sp[-1] = rval;
@@ -3117,7 +3167,7 @@ BEGIN_CASE(JSOP_DELELEM)
     FETCH_ELEMENT_ID(obj, -1, id);
 
     /* Get or set the element. */
-    if (!obj->deleteGeneric(cx, id, &regs.sp[-2], script->strictModeCode))
+    if (!obj->deleteProperty(cx, id, &regs.sp[-2], script->strictModeCode))
         goto error;
 
     regs.sp--;
@@ -3288,7 +3338,7 @@ do_incop:
 
         {
             JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setGeneric(cx, id, &ref, script->strictModeCode))
+            if (!obj->setProperty(cx, id, &ref, script->strictModeCode))
                 goto error;
         }
 
@@ -3305,7 +3355,7 @@ do_incop:
 
         {
             JSAutoResolveFlags rf(cx, setPropFlags);
-            if (!obj->setGeneric(cx, id, &regs.sp[-1], script->strictModeCode))
+            if (!obj->setProperty(cx, id, &regs.sp[-1], script->strictModeCode))
                 goto error;
         }
 
@@ -3503,20 +3553,20 @@ BEGIN_CASE(JSOP_CALLPROP)
     if (lval.isObject()) {
         objv = lval;
     } else {
-        GlobalObject *global = regs.fp()->scopeChain().getGlobal();
-        JSObject *pobj;
+        JSProtoKey protoKey;
         if (lval.isString()) {
-            pobj = global->getOrCreateStringPrototype(cx);
+            protoKey = JSProto_String;
         } else if (lval.isNumber()) {
-            pobj = global->getOrCreateNumberPrototype(cx);
+            protoKey = JSProto_Number;
         } else if (lval.isBoolean()) {
-            pobj = global->getOrCreateBooleanPrototype(cx);
+            protoKey = JSProto_Boolean;
         } else {
             JS_ASSERT(lval.isNull() || lval.isUndefined());
             js_ReportIsNullOrUndefined(cx, -1, lval, NULL);
             goto error;
         }
-        if (!pobj)
+        JSObject *pobj;
+        if (!js_GetClassPrototype(cx, NULL, protoKey, &pobj))
             goto error;
         objv.setObject(*pobj);
     }
@@ -3741,7 +3791,7 @@ BEGIN_CASE(JSOP_SETMETHOD)
             if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rval, script->strictModeCode))
                 goto error;
         } else {
-            if (!obj->setGeneric(cx, id, &rval, script->strictModeCode))
+            if (!obj->setProperty(cx, id, &rval, script->strictModeCode))
                 goto error;
             ABORT_RECORDING(cx, "Non-native set");
         }
@@ -3753,7 +3803,6 @@ BEGIN_CASE(JSOP_GETELEM)
 {
     Value &lref = regs.sp[-2];
     Value &rref = regs.sp[-1];
-    Value &rval = regs.sp[-2];
     if (lref.isString() && rref.isInt32()) {
         JSString *str = lref.toString();
         int32_t i = rref.toInt32();
@@ -3761,9 +3810,9 @@ BEGIN_CASE(JSOP_GETELEM)
             str = cx->runtime->staticStrings.getUnitStringForElement(cx, str, size_t(i));
             if (!str)
                 goto error;
-            rval.setString(str);
-            TypeScript::Monitor(cx, script, regs.pc, rval);
             regs.sp--;
+            regs.sp[-1].setString(str);
+            TypeScript::Monitor(cx, script, regs.pc, regs.sp[-1]);
             len = JSOP_GETELEM_LENGTH;
             DO_NEXT_OP(len);
         }
@@ -3771,9 +3820,9 @@ BEGIN_CASE(JSOP_GETELEM)
 
     if (lref.isMagic(JS_LAZY_ARGUMENTS)) {
         if (rref.isInt32() && size_t(rref.toInt32()) < regs.fp()->numActualArgs()) {
-            rval = regs.fp()->canonicalActualArg(rref.toInt32());
-            TypeScript::Monitor(cx, script, regs.pc, rval);
             regs.sp--;
+            regs.sp[-1] = regs.fp()->canonicalActualArg(rref.toInt32());
+            TypeScript::Monitor(cx, script, regs.pc, regs.sp[-1]);
             len = JSOP_GETELEM_LENGTH;
             DO_NEXT_OP(len);
         }
@@ -3784,48 +3833,58 @@ BEGIN_CASE(JSOP_GETELEM)
     JSObject *obj;
     VALUE_TO_OBJECT(cx, &lref, obj);
 
-    uint32 index;
-    if (IsDefinitelyIndex(rref, &index)) {
+    const Value *copyFrom;
+    Value rval;
+    jsid id;
+    if (rref.isInt32()) {
+        int32_t i = rref.toInt32();
         if (obj->isDenseArray()) {
-            if (index < obj->getDenseArrayInitializedLength()) {
-                rval = obj->getDenseArrayElement(index);
-                if (!rval.isMagic())
+            jsuint idx = jsuint(i);
+            if (idx < obj->getDenseArrayInitializedLength()) {
+                copyFrom = &obj->getDenseArrayElement(idx);
+                if (!copyFrom->isMagic())
                     goto end_getelem;
             }
         } else if (obj->isArguments()) {
-            if (obj->asArguments()->getElement(index, &rval))
-                goto end_getelem;
-        }
+            uint32 arg = uint32(i);
+            ArgumentsObject *argsobj = obj->asArguments();
 
-        if (!obj->getElement(cx, index, &rval))
-            goto error;
-    } else {
-        if (script->hasAnalysis() && !regs.fp()->hasImacropc())
-            script->analysis()->getCode(regs.pc).getStringElement = true;
-
-        SpecialId special;
-        if (ValueIsSpecial(obj, &rref, &special, cx)) {
-            if (!obj->getSpecial(cx, special, &rval))
-                goto error;
-        } else {
-            JSAtom *name;
-            if (!js_ValueToAtom(cx, rref, &name))
-                goto error;
-
-            if (name->isIndex(&index)) {
-                if (!obj->getElement(cx, index, &rval))
-                    goto error;
-            } else {
-                if (!obj->getProperty(cx, name->asPropertyName(), &rval))
-                    goto error;
+            if (arg < argsobj->initialLength()) {
+                copyFrom = &argsobj->element(arg);
+                if (!copyFrom->isMagic(JS_ARGS_HOLE)) {
+                    if (StackFrame *afp = argsobj->maybeStackFrame())
+                        copyFrom = &afp->canonicalActualArg(arg);
+                    goto end_getelem;
+                }
             }
+        }
+        if (JS_LIKELY(INT_FITS_IN_JSID(i)))
+            id = INT_TO_JSID(i);
+        else
+            goto intern_big_int;
+    } else {
+        int32_t i;
+        if (ValueFitsInInt32(rref, &i) && INT_FITS_IN_JSID(i)) {
+            id = INT_TO_JSID(i);
+        } else {
+          intern_big_int:
+            if (!js_InternNonIntElementId(cx, obj, rref, &id))
+                goto error;
         }
     }
 
+    if (JSID_IS_STRING(id) && script->hasAnalysis() && !regs.fp()->hasImacropc())
+        script->analysis()->getCode(regs.pc).getStringElement = true;
+
+    if (!obj->getGeneric(cx, id, &rval))
+        goto error;
+    copyFrom = &rval;
+
   end_getelem:
-    assertSameCompartment(cx, rval);
-    TypeScript::Monitor(cx, script, regs.pc, rval);
     regs.sp--;
+    regs.sp[-1] = *copyFrom;
+    assertSameCompartment(cx, regs.sp[-1]);
+    TypeScript::Monitor(cx, script, regs.pc, regs.sp[-1]);
 }
 END_CASE(JSOP_GETELEM)
 
@@ -3890,7 +3949,7 @@ BEGIN_CASE(JSOP_SETELEM)
         }
     } while (0);
     rval = regs.sp[-1];
-    if (!obj->setGeneric(cx, id, &rval, script->strictModeCode))
+    if (!obj->setProperty(cx, id, &rval, script->strictModeCode))
         goto error;
   end_setelem:;
 }
@@ -3904,7 +3963,7 @@ BEGIN_CASE(JSOP_ENUMELEM)
     jsid id;
     FETCH_ELEMENT_ID(obj, -1, id);
     Value rval = regs.sp[-3];
-    if (!obj->setGeneric(cx, id, &rval, script->strictModeCode))
+    if (!obj->setProperty(cx, id, &rval, script->strictModeCode))
         goto error;
     regs.sp -= 3;
 }
@@ -4161,12 +4220,17 @@ BEGIN_CASE(JSOP_REGEXP)
 {
     /*
      * Push a regexp object cloned from the regexp literal object mapped by the
-     * bytecode at pc.
+     * bytecode at pc. ES5 finally fixed this bad old ES3 design flaw which was
+     * flouted by many browser-based implementations.
+     *
+     * We avoid the GetScopeChain call here and pass fp->scopeChain as
+     * js_GetClassPrototype uses the latter only to locate the global.
      */
     jsatomid index = GET_FULL_INDEX(0);
-    JSObject *proto = regs.fp()->scopeChain().getGlobal()->getOrCreateRegExpPrototype(cx);
-    if (!proto)
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, &regs.fp()->scopeChain(), JSProto_RegExp, &proto))
         goto error;
+    JS_ASSERT(proto);
     JSObject *obj = js_CloneRegExpObject(cx, script->getRegExp(index), proto);
     if (!obj)
         goto error;
@@ -4397,6 +4461,26 @@ BEGIN_CASE(JSOP_ARGUMENTS)
 }
 END_CASE(JSOP_ARGUMENTS)
 
+BEGIN_CASE(JSOP_ARGSUB)
+{
+    jsid id = INT_TO_JSID(GET_ARGNO(regs.pc));
+    Value rval;
+    if (!js_GetArgsProperty(cx, regs.fp(), id, &rval))
+        goto error;
+    PUSH_COPY(rval);
+}
+END_CASE(JSOP_ARGSUB)
+
+BEGIN_CASE(JSOP_ARGCNT)
+{
+    jsid id = ATOM_TO_JSID(rt->atomState.lengthAtom);
+    Value rval;
+    if (!js_GetArgsProperty(cx, regs.fp(), id, &rval))
+        goto error;
+    PUSH_COPY(rval);
+}
+END_CASE(JSOP_ARGCNT)
+
 BEGIN_CASE(JSOP_GETARG)
 BEGIN_CASE(JSOP_CALLARG)
 {
@@ -4474,7 +4558,7 @@ BEGIN_CASE(JSOP_DEFCONST)
 BEGIN_CASE(JSOP_DEFVAR)
 {
     uint32 index = GET_INDEX(regs.pc);
-    PropertyName *name = atoms[index]->asPropertyName();
+    JSAtom *atom = atoms[index];
 
     JSObject *obj = &regs.fp()->varObj();
     JS_ASSERT(!obj->getOps()->defineProperty);
@@ -4483,7 +4567,7 @@ BEGIN_CASE(JSOP_DEFVAR)
         attrs |= JSPROP_PERMANENT;
 
     /* Lookup id in order to check for redeclaration problems. */
-    jsid id = ATOM_TO_JSID(name);
+    jsid id = ATOM_TO_JSID(atom);
     bool shouldDefine;
     if (op == JSOP_DEFVAR) {
         /*
@@ -4492,7 +4576,7 @@ BEGIN_CASE(JSOP_DEFVAR)
          */
         JSProperty *prop;
         JSObject *obj2;
-        if (!obj->lookupProperty(cx, name, &obj2, &prop))
+        if (!obj->lookupProperty(cx, id, &obj2, &prop))
             goto error;
         shouldDefine = (!prop || obj2 != obj);
     } else {
@@ -4577,11 +4661,10 @@ BEGIN_CASE(JSOP_DEFFUN)
     JSObject *parent = &regs.fp()->varObj();
 
     /* ES5 10.5 (NB: with subsequent errata). */
-    PropertyName *name = fun->atom->asPropertyName();
-    jsid id = ATOM_TO_JSID(name);
+    jsid id = ATOM_TO_JSID(fun->atom);
     JSProperty *prop = NULL;
     JSObject *pobj;
-    if (!parent->lookupProperty(cx, name, &pobj, &prop))
+    if (!parent->lookupProperty(cx, id, &pobj, &prop))
         goto error;
 
     Value rval = ObjectValue(*obj);
@@ -4589,11 +4672,8 @@ BEGIN_CASE(JSOP_DEFFUN)
     do {
         /* Steps 5d, 5f. */
         if (!prop || pobj != parent) {
-            if (!parent->defineProperty(cx, name, rval,
-                                        JS_PropertyStub, JS_StrictPropertyStub, attrs))
-            {
+            if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
                 goto error;
-            }
             break;
         }
 
@@ -4602,11 +4682,8 @@ BEGIN_CASE(JSOP_DEFFUN)
         Shape *shape = reinterpret_cast<Shape *>(prop);
         if (parent->isGlobal()) {
             if (shape->configurable()) {
-                if (!parent->defineProperty(cx, name, rval,
-                                            JS_PropertyStub, JS_StrictPropertyStub, attrs))
-                {
+                if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
                     goto error;
-                }
                 break;
             }
 
@@ -4628,7 +4705,7 @@ BEGIN_CASE(JSOP_DEFFUN)
          */
 
         /* Step 5f. */
-        if (!parent->setProperty(cx, name, &rval, script->strictModeCode))
+        if (!parent->setProperty(cx, id, &rval, script->strictModeCode))
             goto error;
     } while (false);
 }
@@ -4655,11 +4732,9 @@ BEGIN_CASE(JSOP_DEFFUN_FC)
     if (!CheckRedeclaration(cx, &parent, id, attrs))
         goto error;
 
-    PropertyName *name = fun->atom->asPropertyName();
     if ((attrs == JSPROP_ENUMERATE)
-        ? !parent.setProperty(cx, name, &rval, script->strictModeCode)
-        : !parent.defineProperty(cx, name, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
-    {
+        ? !parent.setProperty(cx, id, &rval, script->strictModeCode)
+        : !parent.defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs)) {
         goto error;
     }
 }
@@ -4949,7 +5024,7 @@ BEGIN_CASE(JSOP_SETTER)
     if (!CheckRedeclaration(cx, obj, id, attrs))
         goto error;
 
-    if (!obj->defineGeneric(cx, id, UndefinedValue(), getter, setter, attrs))
+    if (!obj->defineProperty(cx, id, UndefinedValue(), getter, setter, attrs))
         goto error;
 
     regs.sp += i;
@@ -5138,7 +5213,7 @@ BEGIN_CASE(JSOP_INITELEM)
             goto error;
         }
     } else {
-        if (!obj->defineGeneric(cx, id, rref, NULL, NULL, JSPROP_ENUMERATE))
+        if (!obj->defineProperty(cx, id, rref, NULL, NULL, JSPROP_ENUMERATE))
             goto error;
     }
     regs.sp -= 2;
@@ -5172,7 +5247,7 @@ BEGIN_CASE(JSOP_DEFSHARP)
                              JSMSG_BAD_SHARP_DEF, numBuf);
         goto error;
     }
-    if (!obj->defineGeneric(cx, id, rref, NULL, NULL, JSPROP_ENUMERATE))
+    if (!obj->defineProperty(cx, id, rref, NULL, NULL, JSPROP_ENUMERATE))
         goto error;
 }
 END_CASE(JSOP_DEFSHARP)
@@ -5275,6 +5350,12 @@ END_VARLEN_CASE
 BEGIN_CASE(JSOP_EXCEPTION)
     PUSH_COPY(cx->getPendingException());
     cx->clearPendingException();
+#if defined(JS_TRACER) && defined(JS_METHODJIT)
+    if (interpMode == JSINTERP_PROFILE) {
+        leaveOnSafePoint = true;
+        LEAVE_ON_SAFE_POINT();
+    }
+#endif
     CHECK_BRANCH();
 END_CASE(JSOP_EXCEPTION)
 
@@ -5389,8 +5470,6 @@ END_CASE(JSOP_DEBUGGER)
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_DEFXMLNS)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     if (!js_SetDefaultXMLNamespace(cx, regs.sp[-1]))
         goto error;
     regs.sp--;
@@ -5399,8 +5478,6 @@ END_CASE(JSOP_DEFXMLNS)
 
 BEGIN_CASE(JSOP_ANYNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     jsid id;
     if (!js_GetAnyName(cx, &id))
         goto error;
@@ -5410,12 +5487,6 @@ END_CASE(JSOP_ANYNAME)
 
 BEGIN_CASE(JSOP_QNAMEPART)
 {
-    /*
-     * We do not JS_ASSERT(!script->strictModeCode) here because JSOP_QNAMEPART
-     * is used for __proto__ and (in contexts where we favor JSOP_*ELEM instead
-     * of JSOP_*PROP) obj.prop compiled as obj['prop'].
-     */
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     PUSH_STRING(atom);
@@ -5424,8 +5495,6 @@ END_CASE(JSOP_QNAMEPART)
 
 BEGIN_CASE(JSOP_QNAMECONST)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     Value rval = StringValue(atom);
@@ -5439,8 +5508,6 @@ END_CASE(JSOP_QNAMECONST)
 
 BEGIN_CASE(JSOP_QNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSObject *obj = js_ConstructXMLQNameObject(cx, lval, rval);
@@ -5453,8 +5520,6 @@ END_CASE(JSOP_QNAME)
 
 BEGIN_CASE(JSOP_TOATTRNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     rval = regs.sp[-1];
     if (!js_ToAttributeName(cx, &rval))
@@ -5465,8 +5530,6 @@ END_CASE(JSOP_TOATTRNAME)
 
 BEGIN_CASE(JSOP_TOATTRVAL)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     rval = regs.sp[-1];
     JS_ASSERT(rval.isString());
@@ -5480,8 +5543,6 @@ END_CASE(JSOP_TOATTRVAL)
 BEGIN_CASE(JSOP_ADDATTRNAME)
 BEGIN_CASE(JSOP_ADDATTRVAL)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSString *str = lval.toString();
@@ -5496,8 +5557,6 @@ END_CASE(JSOP_ADDATTRNAME)
 
 BEGIN_CASE(JSOP_BINDXMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value lval;
     lval = regs.sp[-1];
     JSObject *obj;
@@ -5511,13 +5570,11 @@ END_CASE(JSOP_BINDXMLNAME)
 
 BEGIN_CASE(JSOP_SETXMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSObject *obj = &regs.sp[-3].toObject();
     Value rval = regs.sp[-1];
     jsid id;
     FETCH_ELEMENT_ID(obj, -2, id);
-    if (!obj->setGeneric(cx, id, &rval, script->strictModeCode))
+    if (!obj->setProperty(cx, id, &rval, script->strictModeCode))
         goto error;
     rval = regs.sp[-1];
     regs.sp -= 2;
@@ -5528,8 +5585,6 @@ END_CASE(JSOP_SETXMLNAME)
 BEGIN_CASE(JSOP_CALLXMLNAME)
 BEGIN_CASE(JSOP_XMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value lval = regs.sp[-1];
     JSObject *obj;
     jsid id;
@@ -5547,8 +5602,6 @@ END_CASE(JSOP_XMLNAME)
 BEGIN_CASE(JSOP_DESCENDANTS)
 BEGIN_CASE(JSOP_DELDESC)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSObject *obj;
     FETCH_OBJECT(cx, -2, obj);
     jsval rval = regs.sp[-1];
@@ -5567,10 +5620,8 @@ BEGIN_CASE(JSOP_DELDESC)
 }
 END_CASE(JSOP_DESCENDANTS)
 
-BEGIN_CASE(JSOP_FILTER)
 {
-    JS_ASSERT(!script->strictModeCode);
-
+BEGIN_CASE(JSOP_FILTER)
     /*
      * We push the hole value before jumping to [enditer] so we can detect the
      * first iteration and direct js_StepXMLListFilter to initialize filter's
@@ -5579,13 +5630,11 @@ BEGIN_CASE(JSOP_FILTER)
     PUSH_HOLE();
     len = GET_JUMP_OFFSET(regs.pc);
     JS_ASSERT(len > 0);
-}
 END_VARLEN_CASE
+}
 
 BEGIN_CASE(JSOP_ENDFILTER)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     bool cond = !regs.sp[-1].isMagic();
     if (cond) {
         /* Exit the "with" block left from the previous iteration. */
@@ -5612,8 +5661,6 @@ END_CASE(JSOP_ENDFILTER);
 
 BEGIN_CASE(JSOP_TOXML)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLObject(cx, rval);
     if (!obj)
@@ -5624,8 +5671,6 @@ END_CASE(JSOP_TOXML)
 
 BEGIN_CASE(JSOP_TOXMLLIST)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLListObject(cx, rval);
     if (!obj)
@@ -5636,8 +5681,6 @@ END_CASE(JSOP_TOXMLLIST)
 
 BEGIN_CASE(JSOP_XMLTAGEXPR)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSString *str = js_ValueToString(cx, rval);
     if (!str)
@@ -5648,8 +5691,6 @@ END_CASE(JSOP_XMLTAGEXPR)
 
 BEGIN_CASE(JSOP_XMLELTEXPR)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSString *str;
     if (IsXML(rval)) {
@@ -5667,8 +5708,6 @@ END_CASE(JSOP_XMLELTEXPR)
 
 BEGIN_CASE(JSOP_XMLCDATA)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5681,8 +5720,6 @@ END_CASE(JSOP_XMLCDATA)
 
 BEGIN_CASE(JSOP_XMLCOMMENT)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5695,8 +5732,6 @@ END_CASE(JSOP_XMLCOMMENT)
 
 BEGIN_CASE(JSOP_XMLPI)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5711,8 +5746,6 @@ END_CASE(JSOP_XMLPI)
 
 BEGIN_CASE(JSOP_GETFUNNS)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     if (!cx->fp()->scopeChain().getGlobal()->getFunctionNamespace(cx, &rval))
         goto error;

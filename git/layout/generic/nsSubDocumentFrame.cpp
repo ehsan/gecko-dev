@@ -55,6 +55,7 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIBaseWindow.h"
 #include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIComponentManager.h"
@@ -116,10 +117,10 @@ class AsyncFrameInit;
 
 nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
   : nsLeafFrame(aContext)
-  , mIsInline(false)
-  , mPostedReflowCallback(false)
-  , mDidCreateDoc(false)
-  , mCallingShow(false)
+  , mIsInline(PR_FALSE)
+  , mPostedReflowCallback(PR_FALSE)
+  , mDidCreateDoc(PR_FALSE)
+  , mCallingShow(PR_FALSE)
 {
 }
 
@@ -161,7 +162,7 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   // determine if we are a <frame> or <iframe>
   if (aContent) {
     nsCOMPtr<nsIDOMHTMLFrameElement> frameElem = do_QueryInterface(aContent);
-    mIsInline = frameElem ? false : true;
+    mIsInline = frameElem ? PR_FALSE : PR_TRUE;
   }
 
   nsresult rv =  nsLeafFrame::Init(aContent, aParent, aPrevInFlow);
@@ -177,7 +178,7 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   // really need it or not, and the inner view will get it as the
   // parent.
   if (!HasView()) {
-    rv = nsContainerFrame::CreateViewForFrame(this, true);
+    rv = nsContainerFrame::CreateViewForFrame(this, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -223,7 +224,7 @@ nsSubDocumentFrame::ShowViewer()
       nsIntSize margin = GetMarginAttributes();
       const nsStyleDisplay* disp = GetStyleDisplay();
       nsWeakFrame weakThis(this);
-      mCallingShow = true;
+      mCallingShow = PR_TRUE;
       bool didCreateDoc =
         frameloader->Show(margin.width, margin.height,
                           ConvertOverflow(disp->mOverflowX),
@@ -232,7 +233,7 @@ nsSubDocumentFrame::ShowViewer()
       if (!weakThis.IsAlive()) {
         return;
       }
-      mCallingShow = false;
+      mCallingShow = PR_FALSE;
       mDidCreateDoc = didCreateDoc;
     }
   }
@@ -618,7 +619,7 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
   if (mInnerView) {
     nsIViewManager* vm = mInnerView->GetViewManager();
     vm->MoveViewTo(mInnerView, offset.x, offset.y);
-    vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), innerSize), true);
+    vm->ResizeView(mInnerView, nsRect(nsPoint(0, 0), innerSize), PR_TRUE);
   }
 
   // Determine if we need to repaint our border, background or outline
@@ -628,7 +629,7 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 
   if (!aPresContext->IsPaginated() && !mPostedReflowCallback) {
     PresContext()->PresShell()->PostReflowCallback(this);
-    mPostedReflowCallback = true;
+    mPostedReflowCallback = PR_TRUE;
   }
 
   // printf("OuterFrame::Reflow DONE %X (%d,%d)\n", this,
@@ -652,18 +653,18 @@ nsSubDocumentFrame::ReflowFinished()
 
     if (weakFrame.IsAlive()) {
       // Make sure that we can post a reflow callback in the future.
-      mPostedReflowCallback = false;
+      mPostedReflowCallback = PR_FALSE;
     }
   } else {
-    mPostedReflowCallback = false;
+    mPostedReflowCallback = PR_FALSE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
 nsSubDocumentFrame::ReflowCallbackCanceled()
 {
-  mPostedReflowCallback = false;
+  mPostedReflowCallback = PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -797,7 +798,7 @@ nsSubDocumentFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   if (mPostedReflowCallback) {
     PresContext()->PresShell()->CancelReflowCallback(this);
-    mPostedReflowCallback = false;
+    mPostedReflowCallback = PR_FALSE;
   }
   
   HideViewer();
@@ -884,7 +885,7 @@ BeginSwapDocShellsForDocument(nsIDocument* aDocument, void*)
   aDocument->EnumerateFreezableElements(
     nsObjectFrame::BeginSwapDocShells, nsnull);
   aDocument->EnumerateSubDocuments(BeginSwapDocShellsForDocument, nsnull);
-  return true;
+  return PR_TRUE;
 }
 
 static nsIView*
@@ -916,9 +917,9 @@ InsertViewsInReverseOrder(nsIView* aSibling, nsIView* aParent)
   while (aSibling) {
     nsIView* next = aSibling->GetNextSibling();
     aSibling->SetNextSibling(nsnull);
-    // true means 'after' in document order which is 'before' in view order,
+    // PR_TRUE means 'after' in document order which is 'before' in view order,
     // so this call prepends the child, thus reversing the siblings as we go.
-    vm->InsertChild(aParent, aSibling, nsnull, true);
+    vm->InsertChild(aParent, aSibling, nsnull, PR_TRUE);
     aSibling = next;
   }
 }
@@ -963,12 +964,15 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
     nsCOMPtr<nsIContentViewer> cv;
     ds->GetContentViewer(getter_AddRefs(cv));
     while (cv) {
-      nsCOMPtr<nsPresContext> pc;
-      cv->GetPresContext(getter_AddRefs(pc));
-      nsDeviceContext* dc = pc ? pc->DeviceContext() : nsnull;
-      if (dc) {
-        nsIView* v = cv->FindContainerView();
-        dc->Init(v ? v->GetNearestWidget(nsnull) : nsnull);
+      nsCOMPtr<nsIDocumentViewer> dv = do_QueryInterface(cv);
+      if (dv) {
+        nsCOMPtr<nsPresContext> pc;
+        dv->GetPresContext(getter_AddRefs(pc));
+        nsDeviceContext* dc = pc ? pc->DeviceContext() : nsnull;
+        if (dc) {
+          nsIView* v = dv->FindContainerView();
+          dc->Init(v ? v->GetNearestWidget(nsnull) : nsnull);
+        }
       }
       nsCOMPtr<nsIContentViewer> prev;
       cv->GetPreviousViewer(getter_AddRefs(prev));
@@ -979,7 +983,7 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
   aDocument->EnumerateFreezableElements(
     nsObjectFrame::EndSwapDocShells, nsnull);
   aDocument->EnumerateSubDocuments(EndSwapDocShellsForDocument, nsnull);
-  return true;
+  return PR_TRUE;
 }
 
 static void
@@ -1042,7 +1046,7 @@ nsSubDocumentFrame::EnsureInnerView()
     return nsnull;
   }
   mInnerView = innerView;
-  viewMan->InsertChild(outerView, innerView, nsnull, true);
+  viewMan->InsertChild(outerView, innerView, nsnull, PR_TRUE);
 
   return mInnerView;
 }

@@ -77,25 +77,25 @@ class nsCaret : public nsISelectionListener
     /** GetCaretVisible will get the visibility of the caret
      *  This function is virtual so that it can be used by nsCaretAccessible
      *  without linking
-     *  @param inMakeVisible true it is shown, false it is hidden
+     *  @param inMakeVisible PR_TRUE it is shown, PR_FALSE it is hidden
      *  @return false if and only if inMakeVisible is null, otherwise true 
      */
     virtual nsresult    GetCaretVisible(bool *outMakeVisible);
 
     /** SetCaretVisible will set the visibility of the caret
-     *  @param inMakeVisible true to show the caret, false to hide it
+     *  @param inMakeVisible PR_TRUE to show the caret, PR_FALSE to hide it
      */
     void    SetCaretVisible(bool intMakeVisible);
 
     /** SetCaretReadOnly set the appearance of the caret
-     *  @param inMakeReadonly true to show the caret in a 'read only' state,
-     *	    false to show the caret in normal, editing state
+     *  @param inMakeReadonly PR_TRUE to show the caret in a 'read only' state,
+     *	    PR_FALSE to show the caret in normal, editing state
      */
     void    SetCaretReadOnly(bool inMakeReadonly);
 
     /** GetCaretReadOnly get the appearance of the caret
-     *	@return true if the caret is in 'read only' state, otherwise,
-     *	    returns false
+     *	@return PR_TRUE if the caret is in 'read only' state, otherwise,
+     *	    returns PR_FALSE
      */
     bool GetCaretReadOnly()
     {
@@ -176,8 +176,8 @@ class nsCaret : public nsISelectionListener
      * Sets whether the caret should only be visible in nodes that are not
      * user-modify: read-only, or whether it should be visible in all nodes.
      *
-     * @param aIgnoreUserModify true to have the cursor visible in all nodes,
-     *                          false to have it visible in all nodes except
+     * @param aIgnoreUserModify PR_TRUE to have the cursor visible in all nodes,
+     *                          PR_FALSE to have it visible in all nodes except
      *                          those with user-modify: read-only
      */
 
@@ -307,20 +307,20 @@ class StCaretHider
 {
 public:
                StCaretHider(nsCaret* aSelCon)
-               : mWasVisible(false), mCaret(aSelCon)
+               : mWasVisible(PR_FALSE), mCaret(aSelCon)
                {
                  if (mCaret)
                  {
                    mCaret->GetCaretVisible(&mWasVisible);
                    if (mWasVisible)
-                     mCaret->SetCaretVisible(false);
+                     mCaret->SetCaretVisible(PR_FALSE);
                  }
                }
 
                ~StCaretHider()
                {
                  if (mCaret && mWasVisible)
-                   mCaret->SetCaretVisible(true);
+                   mCaret->SetCaretVisible(PR_TRUE);
                  // nsCOMPtr releases mPresShell
                }
 

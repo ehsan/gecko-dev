@@ -221,7 +221,7 @@ protected:
     // handler.
     void ChildDoneWithOnload(nsIDocumentLoader* aChild) {
         mChildrenInOnload.RemoveObject(aChild);
-        DocLoaderIsEmpty(true);
+        DocLoaderIsEmpty(PR_TRUE);
     }        
 
 protected:

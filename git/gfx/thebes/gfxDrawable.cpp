@@ -77,21 +77,6 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
     // the surface type.
     switch (currentTarget->GetType()) {
 
-        // The printing surfaces don't natively support or need
-        // EXTEND_PAD for padding the edges. Using EXTEND_PAD this way
-        // is suboptimal as it will result in the printing surface
-        // creating a new image for each fill operation. The pattern
-        // will be painted to the image to pad out the pattern, then
-        // the new image will be used as the source. This increases
-        // printing time and memory use, and prevents the use of mime
-        // data from cairo_surface_set_mime_data(). Bug 691061.
-        case gfxASurface::SurfaceTypePDF:
-        case gfxASurface::SurfaceTypePS:
-        case gfxASurface::SurfaceTypeWin32Printing:
-            aPattern->SetExtend(gfxPattern::EXTEND_NONE);
-            aPattern->SetFilter(aDefaultFilter);
-            break;
-
 #ifdef MOZ_X11
         case gfxASurface::SurfaceTypeXlib:
         {
@@ -178,7 +163,7 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
     aContext->SetPattern(pattern);
     aContext->Rectangle(aFillRect);
     aContext->Fill();
-    return true;
+    return PR_TRUE;
 }
 
 gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,
@@ -197,7 +182,7 @@ gfxCallbackDrawable::MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilte
         return nsnull;
 
     nsRefPtr<gfxContext> ctx = new gfxContext(surface);
-    Draw(ctx, gfxRect(0, 0, mSize.width, mSize.height), false, aFilter);
+    Draw(ctx, gfxRect(0, 0, mSize.width, mSize.height), PR_FALSE, aFilter);
     nsRefPtr<gfxSurfaceDrawable> drawable = new gfxSurfaceDrawable(surface, mSize);
     return drawable.forget();
 }
@@ -220,7 +205,7 @@ gfxCallbackDrawable::Draw(gfxContext* aContext,
     if (mCallback)
         return (*mCallback)(aContext, aFillRect, aFilter, aTransform);
 
-    return false;
+    return PR_FALSE;
 }
 
 gfxPatternDrawable::gfxPatternDrawable(gfxPattern* aPattern,
@@ -244,7 +229,7 @@ public:
                               const gfxPattern::GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix())
     {
-        return mDrawable->Draw(aContext, aFillRect, false, aFilter,
+        return mDrawable->Draw(aContext, aFillRect, PR_FALSE, aFilter,
                                aTransform);
     }
 private:
@@ -269,7 +254,7 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
                          const gfxMatrix& aTransform)
 {
     if (!mPattern)
-        return false;
+        return PR_FALSE;
 
     if (aRepeat) {
         // We can't use mPattern directly: We want our repeated tiles to have
@@ -278,9 +263,9 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
         // a pattern from the surface and draw that pattern.
         // gfxCallbackDrawable and gfxSurfaceDrawable already know how to do
         // those things, so we use them here. Drawing mPattern into the surface
-        // will happen through this Draw() method with aRepeat = false.
+        // will happen through this Draw() method with aRepeat = PR_FALSE.
         nsRefPtr<gfxCallbackDrawable> callbackDrawable = MakeCallbackDrawable();
-        return callbackDrawable->Draw(aContext, aFillRect, true, aFilter,
+        return callbackDrawable->Draw(aContext, aFillRect, PR_TRUE, aFilter,
                                       aTransform);
     }
 
@@ -291,5 +276,5 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
     aContext->Rectangle(aFillRect);
     aContext->Fill();
     mPattern->SetMatrix(oldMatrix);
-    return true;
+    return PR_TRUE;
 }

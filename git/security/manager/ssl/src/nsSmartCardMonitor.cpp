@@ -292,12 +292,12 @@ void SmartCardMonitoringThread::Execute()
   // populate token names for already inserted tokens.
   //
   PK11SlotList *sl =
-            PK11_FindSlotsByNames(mModule->dllName, nsnull, nsnull, true);
+            PK11_FindSlotsByNames(mModule->dllName, nsnull, nsnull, PR_TRUE);
   PK11SlotListElement *sle;
  
   if (sl) {
     for (sle=PK11_GetFirstSafe(sl); sle; 
-                                      sle=PK11_GetNextSafe(sl,sle,false)) {
+                                      sle=PK11_GetNextSafe(sl,sle,PR_FALSE)) {
       SetTokenName(PK11_GetSlotID(sle->slot), 
                   PK11_GetTokenName(sle->slot), PK11_GetSlotSeries(sle->slot));
     }

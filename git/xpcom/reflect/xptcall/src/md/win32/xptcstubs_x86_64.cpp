@@ -176,9 +176,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint64* args,
 
         case nsXPTType::T_BOOL:
            if (iCount < PARAM_GPR_COUNT)
-              // We need cast to PRUint8 to remove garbage on upper 56-bit
-              // at first.
-              dp->val.b  = (bool)(PRUint8)gprData[iCount++];
+              dp->val.b  = (bool)gprData[iCount++];
            else
               dp->val.b  = *((bool*)ap++);
            break;

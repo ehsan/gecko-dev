@@ -47,6 +47,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLOptionsCollection.h"
+#include "nsIDOMNSHTMLOptionCollectn.h"
 #include "nsISelectControlFrame.h"
 #include "nsIHTMLCollection.h"
 #include "nsIConstraintValidation.h"
@@ -67,8 +68,8 @@ class nsHTMLSelectElement;
  * select.options in DOM)
  */
 class nsHTMLOptionCollection: public nsIDOMHTMLOptionsCollection,
-                              public nsIHTMLCollection,
-                              public nsWrapperCache
+                              public nsIDOMNSHTMLOptionCollection,
+                              public nsIHTMLCollection
 {
 public:
   nsHTMLOptionCollection(nsHTMLSelectElement* aSelect);
@@ -76,20 +77,21 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap);
-
   // nsIDOMHTMLOptionsCollection interface
   NS_DECL_NSIDOMHTMLOPTIONSCOLLECTION
+
+  // nsIDOMNSHTMLOptionCollection interface
+  NS_DECL_NSIDOMNSHTMLOPTIONCOLLECTION
 
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
-  virtual nsINode* GetParentObject();
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache** aCache);
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
-                                                         nsIHTMLCollection)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
+                                           nsIHTMLCollection)
 
   // Helpers for nsHTMLSelectElement
   /**
@@ -218,15 +220,15 @@ public:
   nsSafeOptionListMutation(nsIContent* aSelect, nsIContent* aParent,
                            nsIContent* aKid, PRUint32 aIndex, bool aNotify);
   ~nsSafeOptionListMutation();
-  void MutationFailed() { mNeedsRebuild = true; }
+  void MutationFailed() { mNeedsRebuild = PR_TRUE; }
 private:
   static void* operator new(size_t) CPP_THROW_NEW { return 0; }
   static void operator delete(void*, size_t) {}
   /** The select element which option list is being mutated. */
   nsRefPtr<nsHTMLSelectElement> mSelect;
-  /** true if the current mutation is the first one in the stack. */
+  /** PR_TRUE if the current mutation is the first one in the stack. */
   bool                       mTopLevelMutation;
-  /** true if it is known that the option list must be recreated. */
+  /** PR_TRUE if it is known that the option list must be recreated. */
   bool                       mNeedsRebuild;
   /** Option list must be recreated if more than one mutation is detected. */
   nsMutationGuard            mGuard;
@@ -265,24 +267,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLFormElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLFormElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
-  }
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLSelectElement
   NS_DECL_NSIDOMHTMLSELECTELEMENT
@@ -579,7 +564,7 @@ protected:
    */
   bool IsCombobox() {
     if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
-      return false;
+      return PR_FALSE;
     }
 
     PRInt32 size = 1;

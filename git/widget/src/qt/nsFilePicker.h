@@ -43,7 +43,6 @@
 #include <QPointer>
 #include "nsBaseFilePicker.h"
 #include "nsCOMArray.h"
-#include "nsString.h"
 
 class QFileDialog;
 

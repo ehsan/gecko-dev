@@ -139,11 +139,13 @@ IsSVGWhitespace(PRUnichar aChar)
          aChar == PRUnichar('\xD')  || aChar == PRUnichar('\xA');
 }
 
+#ifdef MOZ_SMIL
 /*
  * Checks the smil enabled preference.  Declared as a function to match
  * NS_SVGEnabled().
  */
 bool NS_SMILEnabled();
+#endif // MOZ_SMIL
 
 // GRRR WINDOWS HATE HATE HATE
 #undef CLIP_MASK
@@ -583,7 +585,7 @@ public:
    *
    * No other type of element should be passed to this method.
    * (In debug builds, anything non-<svg> will trigger an abort; in non-debug
-   * builds, it will trigger a false return-value as a safe fallback.)
+   * builds, it will trigger a PR_FALSE return-value as a safe fallback.)
    */
   static bool RootSVGElementHasViewbox(const nsIContent *aRootSVGElem);
 };

@@ -128,13 +128,13 @@ nsGrid::nsGrid():mBox(nsnull),
                  mColumns(nsnull), 
                  mRowsBox(nsnull),
                  mColumnsBox(nsnull),
-                 mNeedsRebuild(true),
+                 mNeedsRebuild(PR_TRUE),
                  mRowCount(0),
                  mColumnCount(0),
                  mExtraRowCount(0),
                  mExtraColumnCount(0),
                  mCellMap(nsnull),
-                 mMarkingDirty(false)
+                 mMarkingDirty(PR_FALSE)
 {
     MOZ_COUNT_CTOR(nsGrid);
 }
@@ -157,7 +157,7 @@ nsGrid::NeedsRebuild(nsBoxLayoutState& aState)
     return;
 
   // iterate through columns and rows and dirty them
-  mNeedsRebuild = true;
+  mNeedsRebuild = PR_TRUE;
 
   // find the new row and column box. They could have 
   // been changed.
@@ -181,7 +181,7 @@ nsGrid::RebuildIfNeeded()
   if (!mNeedsRebuild)
     return;
 
-  mNeedsRebuild = false;
+  mNeedsRebuild = PR_FALSE;
 
   // find the row and columns frames
   FindRowsAndColumns(&mRowsBox, &mColumnsBox);
@@ -236,8 +236,8 @@ nsGrid::RebuildIfNeeded()
   }
 
   // build and poplulate row and columns arrays
-  BuildRows(mRowsBox, rowCount, &mRows, true);
-  BuildRows(mColumnsBox, columnCount, &mColumns, false);
+  BuildRows(mRowsBox, rowCount, &mRows, PR_TRUE);
+  BuildRows(mColumnsBox, columnCount, &mColumns, PR_FALSE);
 
   // build and populate the cell map
   mCellMap = BuildCellMap(rowCount, columnCount);
@@ -246,8 +246,8 @@ nsGrid::RebuildIfNeeded()
   mColumnCount = columnCount;
 
   // populate the cell map from column and row children
-  PopulateCellMap(mRows, mColumns, mRowCount, mColumnCount, true);
-  PopulateCellMap(mColumns, mRows, mColumnCount, mRowCount, false);
+  PopulateCellMap(mRows, mColumns, mRowCount, mColumnCount, PR_TRUE);
+  PopulateCellMap(mColumns, mRows, mColumnCount, mRowCount, PR_FALSE);
 }
 
 void
@@ -369,7 +369,7 @@ nsGrid::BuildRows(nsIBox* aBox, PRInt32 aRowCount, nsGridRow** aRows, bool aIsHo
        row = new nsGridRow[aRowCount];
     } else {
       for (PRInt32 i=0; i < mRowCount; i++)
-        mRows[i].Init(nsnull, false);
+        mRows[i].Init(nsnull, PR_FALSE);
 
       row = mRows;
     }
@@ -379,7 +379,7 @@ nsGrid::BuildRows(nsIBox* aBox, PRInt32 aRowCount, nsGridRow** aRows, bool aIsHo
        row = new nsGridRow[aRowCount];
     } else {
        for (PRInt32 i=0; i < mColumnCount; i++)
-         mColumns[i].Init(nsnull, false);
+         mColumns[i].Init(nsnull, PR_FALSE);
 
        row = mColumns;
     }
@@ -485,7 +485,7 @@ void
 nsGrid::DirtyRows(nsIBox* aRowBox, nsBoxLayoutState& aState)
 {
   // make sure we prevent others from dirtying things.
-  mMarkingDirty = true;
+  mMarkingDirty = PR_TRUE;
 
   // if the box is a grid part have it recursively hand it.
   if (aRowBox) {
@@ -494,7 +494,7 @@ nsGrid::DirtyRows(nsIBox* aRowBox, nsBoxLayoutState& aState)
        part->DirtyRows(aRowBox, aState);
   }
 
-  mMarkingDirty = false;
+  mMarkingDirty = PR_FALSE;
 }
 
 nsGridRow*
@@ -547,7 +547,7 @@ nsGrid::GetExtraRowCount(bool aIsHorizontal)
 
 /**
  * These methods return the preferred, min, max sizes for a given row index.
- * aIsHorizontal if aIsHorizontal is true. If you pass false you will get the inverse.
+ * aIsHorizontal if aIsHorizontal is PR_TRUE. If you pass PR_FALSE you will get the inverse.
  * As if you called GetPrefColumnSize(aState, index, aPref)
  */
 nsSize
@@ -836,7 +836,7 @@ nsGrid::GetRowOffsets(nsBoxLayoutState& aState, PRInt32 aIndex, nscoord& aTop, n
 
 /**
  * These methods return the preferred, min, max coord for a given row index if
- * aIsHorizontal is true. If you pass false you will get the inverse.
+ * aIsHorizontal is PR_TRUE. If you pass PR_FALSE you will get the inverse.
  * As if you called GetPrefColumnHeight(aState, index, aPref).
  */
 nscoord
@@ -1071,14 +1071,14 @@ nsGrid::IsGrid(nsIBox* aBox)
 {
   nsIGridPart* part = GetPartFromBox(aBox);
   if (!part)
-    return false;
+    return PR_FALSE;
 
   nsGridLayout2* grid = part->CastToGridLayout();
 
   if (grid)
-    return true;
+    return PR_TRUE;
 
-  return false;
+  return PR_FALSE;
 }
 
 /**

@@ -55,9 +55,9 @@
 // The debugging version of nsPresArena does not free all the memory it
 // allocated when the arena itself is destroyed.
 #ifdef DEBUG_TRACEMALLOC_PRESARENA
-#define PRESARENA_MUST_FREE_DURING_DESTROY true
+#define PRESARENA_MUST_FREE_DURING_DESTROY PR_TRUE
 #else
-#define PRESARENA_MUST_FREE_DURING_DESTROY false
+#define PRESARENA_MUST_FREE_DURING_DESTROY PR_FALSE
 #endif
 
 class nsPresArena {

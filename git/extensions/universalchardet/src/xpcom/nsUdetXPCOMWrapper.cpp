@@ -96,9 +96,9 @@ NS_IMETHODIMP nsXPCOMDetector::DoIt(const char* aBuf,
     if (mDetectedCharset)
       Report(mDetectedCharset);
 
-    *oDontFeedMe = true;
+    *oDontFeedMe = PR_TRUE;
   }
-  *oDontFeedMe = false;
+  *oDontFeedMe = PR_FALSE;
   return NS_OK;
 }
 //----------------------------------------------------------

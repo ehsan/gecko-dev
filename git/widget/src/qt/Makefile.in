@@ -53,7 +53,6 @@ LIBXUL_LIBRARY	= 1
 
 
 MOCSRCS = \
-		moc_moziqwidget.cpp \
 		moc_mozqwidget.cpp \
 		moc_nsAppShell.cpp \
 		$(NULL)
@@ -71,6 +70,7 @@ CPPSRCS	+= \
 		nsWidgetFactory.cpp \
 		nsWindow.cpp \
 		nsLookAndFeel.cpp \
+		nsToolkit.cpp \
 		nsScreenQt.cpp \
 		nsScreenManagerQt.cpp \
 		nsQtKeyUtils.cpp \
@@ -105,8 +105,6 @@ ifneq (qt,$(MOZ_WIDGET_TOOLKIT))
 INACTIVE_COMPONENT = 1
 endif
 
-DIRS += faststartupqt
-
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
@@ -133,7 +131,6 @@ endif
 
 LOCAL_INCLUDES	+= \
 		   -I$(topsrcdir)/widget/src/xpwidgets \
-		   -I$(topsrcdir)/widget/src/qt/faststartupqt \
 		   -I$(srcdir) \
 		   $(NULL)
 ifdef MOZ_X11

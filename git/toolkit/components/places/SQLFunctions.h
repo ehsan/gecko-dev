@@ -247,29 +247,6 @@ public:
   static nsresult create(mozIStorageConnection *aDBConn);
 };
 
-/**
- * SQL function to unreverse the rev_host of a page.
- *
- * @param rev_host
- *        The rev_host value of the page.
- *
- * @return the unreversed host of the page.
- */
-class GetUnreversedHostFunction : public mozIStorageFunction
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGEFUNCTION
-
-  /**
-   * Registers the function with the specified database connection.
-   *
-   * @param aDBConn
-   *        The database connection to register with.
-   */
-  static nsresult create(mozIStorageConnection *aDBConn);
-};
-
 } // namespace places
 } // namespace storage
 

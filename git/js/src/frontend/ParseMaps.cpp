@@ -50,8 +50,8 @@ ParseMapPool::checkInvariants()
      * Having all values be of the same size permits us to easily reuse the
      * allocated space for each of the map types.
      */
-    JS_STATIC_ASSERT(sizeof(Definition *) == sizeof(jsatomid));
-    JS_STATIC_ASSERT(sizeof(Definition *) == sizeof(DefnOrHeader));
+    JS_STATIC_ASSERT(sizeof(JSDefinition *) == sizeof(jsatomid));
+    JS_STATIC_ASSERT(sizeof(JSDefinition *) == sizeof(DefnOrHeader));
     JS_STATIC_ASSERT(sizeof(AtomDefnMap::Entry) == sizeof(AtomIndexMap::Entry));
     JS_STATIC_ASSERT(sizeof(AtomDefnMap::Entry) == sizeof(AtomDOHMap::Entry));
     JS_STATIC_ASSERT(sizeof(AtomMapT::Entry) == sizeof(AtomDOHMap::Entry));
@@ -124,7 +124,7 @@ DumpAtomDefnMap(const AtomDefnMapPtr &map)
 #endif
 
 AtomDeclNode *
-AtomDecls::allocNode(Definition *defn)
+AtomDecls::allocNode(JSDefinition *defn)
 {
     AtomDeclNode *p = cx->tempLifoAlloc().new_<AtomDeclNode>(defn);
     if (!p) {
@@ -135,7 +135,7 @@ AtomDecls::allocNode(Definition *defn)
 }
 
 bool
-AtomDecls::addShadow(JSAtom *atom, Definition *defn)
+AtomDecls::addShadow(JSAtom *atom, JSDefinition *defn)
 {
     AtomDeclNode *node = allocNode(defn);
     if (!node)
@@ -177,7 +177,7 @@ AtomDecls::lastAsNode(DefnOrHeader *doh)
 }
 
 bool
-AtomDecls::addHoist(JSAtom *atom, Definition *defn)
+AtomDecls::addHoist(JSAtom *atom, JSDefinition *defn)
 {
     AtomDeclNode *node = allocNode(defn);
     if (!node)

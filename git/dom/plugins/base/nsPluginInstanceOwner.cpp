@@ -161,7 +161,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    nsContentUtils::DispatchTrustedEvent(mContent->OwnerDoc(), mContent,
+    nsContentUtils::DispatchTrustedEvent(mContent->GetOwnerDoc(), mContent,
         mFinished ? NS_LITERAL_STRING("MozPaintWaitFinished") : NS_LITERAL_STRING("MozPaintWait"),
         true, true);
     return NS_OK;
@@ -583,7 +583,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocument(nsIDocument* *aDocument)
 
   // XXX sXBL/XBL2 issue: current doc or owner doc?
   // But keep in mind bug 322414 comment 33
-  NS_IF_ADDREF(*aDocument = mContent->OwnerDoc());
+  NS_IF_ADDREF(*aDocument = mContent->GetOwnerDoc());
   return NS_OK;
 }
 
@@ -895,7 +895,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
       return NS_ERROR_FAILURE;
     }
 
-    nsIDocument* doc = mContent->OwnerDoc();
+    nsIDocument* doc = mContent->GetOwnerDoc();
     NS_ASSERTION(doc, "Must have an owner doc");
     rv = doc->GetDocBaseURI()->GetSpec(mDocumentBase);
   }
@@ -1233,9 +1233,12 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   // Set to the next slot to fill in name and value cache arrays.
   PRUint32 nextAttrParamIndex = 0;
 
-  // Whether or not we force the wmode below while traversing
-  // the name/value pairs.
-  bool wmodeSet = false;
+  // Potentially add WMODE attribute.
+  if (!wmodeType.IsEmpty()) {
+    mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING("wmode"));
+    mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(wmodeType));
+    nextAttrParamIndex++;
+  }
 
   // Add attribute name/value pairs.
   for (PRInt32 index = start; index != end; index += increment) {
@@ -1249,25 +1252,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
     FixUpURLS(name, value);
 
     mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(name);
-    if (!wmodeType.IsEmpty() && 
-        0 == PL_strcasecmp(mCachedAttrParamNames[nextAttrParamIndex], "wmode")) {
-      mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(wmodeType));
-
-      if (!wmodeSet) {
-        // We allocated space to add a wmode attr, but we don't need it now.
-        mNumCachedAttrs--;
-        wmodeSet = true;
-      }
-    } else {
-      mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(value);
-    }
-    nextAttrParamIndex++;
-  }
-
-  // Potentially add WMODE attribute.
-  if (!wmodeType.IsEmpty() && !wmodeSet) {
-    mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING("wmode"));
-    mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(wmodeType));
+    mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(value);
     nextAttrParamIndex++;
   }
 
@@ -1459,14 +1444,14 @@ void nsPluginInstanceOwner::SetupCARefresh()
 }
 }
 
-void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
+void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext, 
                                                 int aWidth, int aHeight)
 {
   if (aWidth == 0 || aHeight == 0)
     return;
 
-  if (!mIOSurface ||
-      (mIOSurface->GetWidth() != (size_t)aWidth ||
+  if (!mIOSurface || 
+      (mIOSurface->GetWidth() != (size_t)aWidth || 
        mIOSurface->GetHeight() != (size_t)aHeight)) {
     mIOSurface = nsnull;
 
@@ -1495,9 +1480,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
       return;
     }
 
-    // We don't run Flash in-process so we can unconditionally disallow
-    // the offliner renderer.
-    mCARenderer.SetupRenderer(caLayer, aWidth, aHeight, DISALLOW_OFFLINE_RENDERER);
+    mCARenderer.SetupRenderer(caLayer, aWidth, aHeight);
 
     // Setting up the CALayer requires resetting the painting otherwise we
     // get garbage for the first few frames.
@@ -1673,27 +1656,6 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 }
 
 #ifdef ANDROID
-void nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
-{
-  void* javaSurface = mInstance->GetJavaSurface();
-
-  if (!javaSurface)
-    return;
-
-  JNIEnv* env = GetJNIForThread();
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "addPluginView",
-                                            "(Landroid/view/View;DDDD)V");
-  env->CallStaticVoidMethod(cls,
-                            method,
-                            javaSurface,
-                            aRect.x,
-                            aRect.y,
-                            aRect.width,
-                            aRect.height);
-}
-
 void nsPluginInstanceOwner::RemovePluginView()
 {
   if (mInstance && mObjectFrame) {
@@ -2835,6 +2797,45 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
 
 #ifdef ANDROID
 
+class AndroidPaintEventRunnable : public nsRunnable
+{
+public:
+  AndroidPaintEventRunnable(void* aSurface, nsNPAPIPluginInstance* inst, const gfxRect& aFrameRect)
+    : mSurface(aSurface), mInstance(inst), mFrameRect(aFrameRect) {
+  }
+
+  ~AndroidPaintEventRunnable() {
+  }
+
+  NS_IMETHOD Run()
+  {
+    LOG("%p - AndroidPaintEventRunnable::Run\n", this);
+
+    if (!mInstance || !mSurface)
+      return NS_OK;
+
+    // This needs to happen on the gecko main thread.
+    JNIEnv* env = GetJNIForThread();
+    jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
+    jmethodID method = env->GetStaticMethodID(cls,
+                                              "addPluginView",
+                                              "(Landroid/view/View;DDDD)V");
+    env->CallStaticVoidMethod(cls,
+                              method,
+                              mSurface,
+                              mFrameRect.x,
+                              mFrameRect.y,
+                              mFrameRect.width,
+                              mFrameRect.height);
+    return NS_OK;
+  }
+private:
+  void* mSurface;
+  nsCOMPtr<nsNPAPIPluginInstance> mInstance;
+  gfxRect mFrameRect;
+};
+
+
 void nsPluginInstanceOwner::Paint(gfxContext* aContext,
                                   const gfxRect& aFrameRect,
                                   const gfxRect& aDirtyRect)
@@ -2846,20 +2847,33 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   mInstance->GetDrawingModel(&model);
 
   if (model == kSurface_ANPDrawingModel) {
-    AddPluginView(aFrameRect);
 
-    gfxImageSurface* pluginSurface = mInstance->LockTargetSurface();
-    if (!pluginSurface) {
-      mInstance->UnlockTargetSurface(false);
-      return;
+    {
+      ANPEvent event;
+      event.inSize = sizeof(ANPEvent);
+      event.eventType = kLifecycle_ANPEventType;
+      event.data.lifecycle.action = kOnScreen_ANPLifecycleAction;
+      mInstance->HandleEvent(&event, nsnull);
     }
 
-    aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-    aContext->SetSource(pluginSurface, gfxPoint(aFrameRect.x, aFrameRect.y));
-    aContext->Clip(aDirtyRect);
-    aContext->Paint();
+    /*
+    gfxMatrix currentMatrix = aContext->CurrentMatrix();
+    gfxSize scale = currentMatrix.ScaleFactors(true);
+    printf_stderr("!!!!!!!! scale!!:  %f x %f\n", scale.width, scale.height);
+    */
 
-    mInstance->UnlockTargetSurface(false);
+    JNIEnv* env = GetJNIForThread();
+    jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
+    jmethodID method = env->GetStaticMethodID(cls,
+                                              "addPluginView",
+                                              "(Landroid/view/View;DDDD)V");
+    env->CallStaticVoidMethod(cls,
+                              method,
+                              mInstance->GetJavaSurface(),
+                              aFrameRect.x,
+                              aFrameRect.y,
+                              aFrameRect.width,
+                              aFrameRect.height);
     return;
   }
 
@@ -3279,13 +3293,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
     if (!mWidget) {
       bool windowless = false;
       mInstance->IsWindowless(&windowless);
-      nsIDocument *doc = mContent ? mContent->OwnerDoc() : nsnull;
-#ifndef XP_MACOSX
-      if (!windowless && doc && doc->IsFullScreenDoc()) {
-        NS_DispatchToCurrentThread(
-          NS_NewRunnableMethod(doc, &nsIDocument::CancelFullScreen));
-      }
-#endif
+
       // always create widgets in Twips, not pixels
       nsPresContext* context = mObjectFrame->PresContext();
       rv = mObjectFrame->CreateWidget(context->DevPixelsToAppUnits(mPluginWindow->width),

@@ -171,7 +171,7 @@ public:
 
   virtual void DisableCookieAccess()
   {
-    mDisableCookieAccess = true;
+    mDisableCookieAccess = PR_TRUE;
   }
 
   class nsAutoEditingState {
@@ -236,6 +236,11 @@ protected:
   bool IsEditingOnAfterFlush();
 
   void *GenerateParserKey(void);
+
+  virtual PRInt32 GetDefaultNamespaceID() const
+  {
+    return kNameSpaceID_XHTML;
+  }
 
   nsCOMPtr<nsIDOMHTMLCollection> mImages;
   nsCOMPtr<nsIDOMHTMLCollection> mApplets;

@@ -81,6 +81,7 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
     aData->mRuleWalker->Forward(rule);
   }
 
+#ifdef MOZ_SMIL
   rule = element->GetSMILOverrideStyleRule();
   if (rule) {
     if (aData->mPresContext->IsProcessingRestyles() &&
@@ -97,6 +98,7 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
       aData->mRuleWalker->Forward(rule);
     }
   }
+#endif // MOZ_SMIL
 }
 
 /* virtual */ void
@@ -141,7 +143,7 @@ nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 /* virtual */ bool
 nsHTMLCSSStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return false;
+  return PR_FALSE;
 }
 
 // Test if style is dependent on attribute
@@ -160,7 +162,7 @@ nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aDat
 /* virtual */ bool
 nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -198,13 +200,13 @@ nsHTMLCSSStyleSheet::GetType(nsString& aType) const
 nsHTMLCSSStyleSheet::HasRules() const
 {
   // Say we always have rules, since we don't know.
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ bool
 nsHTMLCSSStyleSheet::IsApplicable() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void
@@ -215,7 +217,7 @@ nsHTMLCSSStyleSheet::SetEnabled(bool aEnabled)
 /* virtual */ bool
 nsHTMLCSSStyleSheet::IsComplete() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void

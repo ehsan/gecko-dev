@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLEditor.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
@@ -82,23 +82,23 @@ nsHTMLEditor::ShowInlineTableEditingUI(nsIDOMElement * aCell)
 
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableAddColumnBefore"),
-                         false, getter_AddRefs(mAddColumnBeforeButton));
+                         PR_FALSE, getter_AddRefs(mAddColumnBeforeButton));
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableRemoveColumn"),
-                         false, getter_AddRefs(mRemoveColumnButton));
+                         PR_FALSE, getter_AddRefs(mRemoveColumnButton));
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableAddColumnAfter"),
-                         false, getter_AddRefs(mAddColumnAfterButton));
+                         PR_FALSE, getter_AddRefs(mAddColumnAfterButton));
 
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableAddRowBefore"),
-                         false, getter_AddRefs(mAddRowBeforeButton));
+                         PR_FALSE, getter_AddRefs(mAddRowBeforeButton));
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableRemoveRow"),
-                         false, getter_AddRefs(mRemoveRowButton));
+                         PR_FALSE, getter_AddRefs(mRemoveRowButton));
   CreateAnonymousElement(NS_LITERAL_STRING("a"), bodyElement,
                          NS_LITERAL_STRING("mozTableAddRowAfter"),
-                         false, getter_AddRefs(mAddRowAfterButton));
+                         PR_FALSE, getter_AddRefs(mAddRowAfterButton));
 
   AddMouseClickListener(mAddColumnBeforeButton);
   AddMouseClickListener(mRemoveColumnButton);
@@ -177,13 +177,13 @@ nsHTMLEditor::DoInlineTableEditingAction(nsIDOMElement * aElement)
     bool hideResizersWithInlineTableUI = (mResizedObject == tableElement);
 
     if (anonclass.EqualsLiteral("mozTableAddColumnBefore"))
-      InsertTableColumn(1, false);
+      InsertTableColumn(1, PR_FALSE);
     else if (anonclass.EqualsLiteral("mozTableAddColumnAfter"))
-      InsertTableColumn(1, true);
+      InsertTableColumn(1, PR_TRUE);
     else if (anonclass.EqualsLiteral("mozTableAddRowBefore"))
-      InsertTableRow(1, false);
+      InsertTableRow(1, PR_FALSE);
     else if (anonclass.EqualsLiteral("mozTableAddRowAfter"))
-      InsertTableRow(1, true);
+      InsertTableRow(1, PR_TRUE);
     else if (anonclass.EqualsLiteral("mozTableRemoveColumn")) {
       DeleteTableColumn(1);
 #ifndef DISABLE_TABLE_DELETION
@@ -215,7 +215,7 @@ nsHTMLEditor::AddMouseClickListener(nsIDOMElement * aElement)
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
   if (evtTarget) {
     evtTarget->AddEventListener(NS_LITERAL_STRING("click"),
-                                mEventListener, true);
+                                mEventListener, PR_TRUE);
   }
 }
 
@@ -225,24 +225,22 @@ nsHTMLEditor::RemoveMouseClickListener(nsIDOMElement * aElement)
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aElement));
   if (evtTarget) {
     evtTarget->RemoveEventListener(NS_LITERAL_STRING("click"),
-                                   mEventListener, true);
+                                   mEventListener, PR_TRUE);
   }
 }
 
 NS_IMETHODIMP
 nsHTMLEditor::RefreshInlineTableEditingUI()
 {
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mInlineEditedCell);
-  if (!htmlElement) {
-    return NS_ERROR_NULL_POINTER;
-  }
+  nsCOMPtr<nsIDOMNSHTMLElement> nsElement = do_QueryInterface(mInlineEditedCell);
+  if (!nsElement) {return NS_ERROR_NULL_POINTER; }
 
   PRInt32 xCell, yCell, wCell, hCell;
   GetElementOrigin(mInlineEditedCell, xCell, yCell);
 
-  nsresult res = htmlElement->GetOffsetWidth(&wCell);
+  nsresult res = nsElement->GetOffsetWidth(&wCell);
   NS_ENSURE_SUCCESS(res, res);
-  res = htmlElement->GetOffsetHeight(&hCell);
+  res = nsElement->GetOffsetHeight(&hCell);
   NS_ENSURE_SUCCESS(res, res);
 
   PRInt32 xHoriz = xCell + wCell/2;

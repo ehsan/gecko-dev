@@ -216,6 +216,6 @@ const SequenceModel TIS620ThaiModel =
   TIS620CharToOrderMap,
   ThaiLangModel,
   (float)0.926386,
-  false,
+  PR_FALSE,
   "TIS-620"
 };

@@ -140,15 +140,10 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   return NetUtil;
 });
 
-XPCOMUtils.defineLazyGetter(this, "ScratchpadManager", function() {
-  Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
-  return ScratchpadManager;
-});
-
 XPCOMUtils.defineLazyServiceGetter(this, "CookieSvc",
   "@mozilla.org/cookiemanager;1", "nsICookieManager2");
 
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
   "@mozilla.org/xre/app-info;1", "nsICrashReporter");
 #endif
@@ -1587,10 +1582,6 @@ SessionStoreService.prototype = {
       this._capClosedWindows();
     }
 
-    if (lastSessionState.scratchpads) {
-      ScratchpadManager.restoreSession(lastSessionState.scratchpads);
-    }
-
     // Set data that persists between sessions
     this._recentCrashes = lastSessionState.session &&
                           lastSessionState.session.recentCrashes || 0;
@@ -2263,33 +2254,17 @@ SessionStoreService.prototype = {
   _extractHostsForCookies:
     function sss__extractHostsForCookies(aEntry, aHosts, aCheckPrivacy, aIsPinned) {
 
-    let host = aEntry._host,
-        scheme = aEntry._scheme;
-
-    // If host & scheme aren't defined, then we are likely here in the startup
-    // process via _splitCookiesFromWindow. In that case, we'll turn aEntry.url
-    // into an nsIURI and get host/scheme from that. This will throw for about:
-    // urls in which case we don't need to do anything.
-    if (!host && !scheme) {
-      try {
-        let uri = this._getURIFromString(aEntry.url);
-        host = uri.host;
-        scheme = uri.scheme;
-      }
-      catch(ex) { }
-    }
-
-    // host and scheme may not be set (for about: urls for example), in which
-    // case testing scheme will be sufficient.
-    if (/https?/.test(scheme) && !aHosts[host] &&
+    // _host and _scheme may not be set (for about: urls for example), in which
+    // case testing _scheme will be sufficient.
+    if (/https?/.test(aEntry._scheme) && !aHosts[aEntry._host] &&
         (!aCheckPrivacy ||
-         this._checkPrivacyLevel(scheme == "https", aIsPinned))) {
+         this._checkPrivacyLevel(aEntry._scheme == "https", aIsPinned))) {
       // By setting this to true or false, we can determine when looking at
       // the host in _updateCookies if we should check for privacy.
-      aHosts[host] = aIsPinned;
+      aHosts[aEntry._host] = aIsPinned;
     }
-    else if (scheme == "file") {
-      aHosts[host] = true;
+    else if (aEntry._scheme == "file") {
+      aHosts[aEntry._host] = true;
     }
 
     if (aEntry.children) {
@@ -2506,23 +2481,7 @@ SessionStoreService.prototype = {
     if (ix != -1 && total[ix] && total[ix].sizemode == "minimized")
       ix = -1;
 
-    let session = {
-      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
-      lastUpdate: Date.now(),
-      startTime: this._sessionStartTime,
-      recentCrashes: this._recentCrashes
-    };
-    
-    // get open Scratchpad window states too
-    var scratchpads = ScratchpadManager.getSessionState();
-
-    return {
-      windows: total,
-      selectedWindow: ix + 1,
-      _closedWindows: lastClosedWindowsCopy,
-      session: session,
-      scratchpads: scratchpads
-    };
+    return { windows: total, selectedWindow: ix + 1, _closedWindows: lastClosedWindowsCopy };
   },
 
   /**
@@ -2606,7 +2565,7 @@ SessionStoreService.prototype = {
       this._closedWindows = root._closedWindows;
 
     var winData;
-    if (!root.selectedWindow || root.selectedWindow > root.windows.length) {
+    if (!root.selectedWindow) {
       root.selectedWindow = 0;
     } else {
       // put the selected window at the beginning of the array to ensure that
@@ -2728,10 +2687,6 @@ SessionStoreService.prototype = {
     
     this.restoreHistoryPrecursor(aWindow, tabs, winData.tabs,
       (aOverwriteTabs ? (parseInt(winData.selected) || 1) : 0), 0, 0);
-
-    if (aState.scratchpads) {
-      ScratchpadManager.restoreSession(aState.scratchpads);
-    }
 
     // This will force the keypress listener that Panorama has to attach if it
     // isn't already. This will be the case if tab view wasn't entered or there
@@ -3225,7 +3180,6 @@ SessionStoreService.prototype = {
       shEntry.postData = stream;
     }
 
-    let childDocIdents = {};
     if (aEntry.docIdentifier) {
       // If we have a serialized document identifier, try to find an SHEntry
       // which matches that doc identifier and adopt that SHEntry's
@@ -3233,12 +3187,10 @@ SessionStoreService.prototype = {
       // for the document identifier.
       let matchingEntry = aDocIdentMap[aEntry.docIdentifier];
       if (!matchingEntry) {
-        matchingEntry = {shEntry: shEntry, childDocIdents: childDocIdents};
-        aDocIdentMap[aEntry.docIdentifier] = matchingEntry;
+        aDocIdentMap[aEntry.docIdentifier] = shEntry;
       }
       else {
-        shEntry.adoptBFCacheEntry(matchingEntry.shEntry);
-        childDocIdents = matchingEntry.childDocIdents;
+        shEntry.adoptBFCacheEntry(matchingEntry);
       }
     }
 
@@ -3260,24 +3212,8 @@ SessionStoreService.prototype = {
         //XXXzpao Wallpaper patch for bug 514751
         if (!aEntry.children[i].url)
           continue;
-
-        // We're getting sessionrestore.js files with a cycle in the
-        // doc-identifier graph, likely due to bug 698656.  (That is, we have
-        // an entry where doc identifier A is an ancestor of doc identifier B,
-        // and another entry where doc identifier B is an ancestor of A.)
-        //
-        // If we were to respect these doc identifiers, we'd create a cycle in
-        // the SHEntries themselves, which causes the docshell to loop forever
-        // when it looks for the root SHEntry.
-        //
-        // So as a hack to fix this, we restrict the scope of a doc identifier
-        // to be a node's siblings and cousins, and pass childDocIdents, not
-        // aDocIdents, to _deserializeHistoryEntry.  That is, we say that two
-        // SHEntries with the same doc identifier have the same document iff
-        // they have the same parent or their parents have the same document.
-
         shEntry.AddChild(this._deserializeHistoryEntry(aEntry.children[i], aIdMap,
-                                                       childDocIdents), i);
+                                                       aDocIdentMap), i);
       }
     }
     
@@ -3585,6 +3521,14 @@ SessionStoreService.prototype = {
       }
     }
 
+    oState.session = {
+      state: this._loadState == STATE_RUNNING ? STATE_RUNNING_STR : STATE_STOPPED_STR,
+      lastUpdate: Date.now(),
+      startTime: this._sessionStartTime
+    };
+    if (this._recentCrashes)
+      oState.session.recentCrashes = this._recentCrashes;
+
     // Persist the last session if we deferred restoring it
     if (this._lastSessionState)
       oState.lastSessionState = this._lastSessionState;
@@ -3852,7 +3796,7 @@ SessionStoreService.prototype = {
    * Annotate a breakpad crash report with the currently selected tab's URL.
    */
   _updateCrashReportURL: function sss_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
+#ifdef MOZ_CRASH_REPORTER
     try {
       var currentURI = aWindow.gBrowser.currentURI.clone();
       // if the current URI contains a username/password, remove it
@@ -4038,9 +3982,6 @@ SessionStoreService.prototype = {
     // By creating a regex we reduce overhead and there is only one loop pass
     // through either array (cookieHosts and aWinState.cookies).
     let hosts = Object.keys(cookieHosts).join("|").replace("\\.", "\\.", "g");
-    // If we don't actually have any hosts, then we don't want to do anything.
-    if (!hosts.length)
-      return;
     let cookieRegex = new RegExp(".*(" + hosts + ")");
     for (let cIndex = 0; cIndex < aWinState.cookies.length;) {
       if (cookieRegex.test(aWinState.cookies[cIndex].host)) {

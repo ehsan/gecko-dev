@@ -257,11 +257,11 @@ nsXULLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
 
   nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
-  nsIDocument* document = mContent->OwnerDoc();
+  nsIDocument* document = mContent->GetOwnerDoc();
 
   nsIURI* anchorURI = nsnull;
   NS_NewURI(&anchorURI, href,
-            document->GetDocumentCharacterSet().get(),
+            document ? document->GetDocumentCharacterSet().get() : nsnull,
             baseURI);
 
   return anchorURI;

@@ -41,7 +41,6 @@
 #include "nsAccUtils.h"
 #include "nsRootAccessible.h"
 
-#include "nsEventStateManager.h"
 #include "nsFocusManager.h"
 
 namespace dom = mozilla::dom;
@@ -82,7 +81,7 @@ FocusManager::IsFocused(const nsAccessible* aAccessible) const
     // peculiarity we would end up with plain implementation based on
     // FocusedAccessible() method call. Make sure this issue is fixed in
     // bug 638465.
-    if (focusedNode->OwnerDoc() == aAccessible->GetNode()->OwnerDoc()) {
+    if (focusedNode->GetOwnerDoc() == aAccessible->GetNode()->GetOwnerDoc()) {
       return aAccessible ==
         GetAccService()->GetAccessibleOrContainer(focusedNode, nsnull);
     }
@@ -146,7 +145,7 @@ FocusManager::NotifyOfDOMFocus(nsISupports* aTarget)
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
   if (targetNode) {
     nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(targetNode->OwnerDoc());
+      GetAccService()->GetDocAccessible(targetNode->GetOwnerDoc());
     if (document) {
       // Set selection listener for focused element.
       if (targetNode->IsElement()) {
@@ -172,8 +171,8 @@ FocusManager::NotifyOfDOMBlur(nsISupports* aTarget)
   // If DOM document stays focused then fire accessible focus event to process
   // the case when no element within this DOM document will be focused.
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
-  if (targetNode && targetNode->OwnerDoc() == FocusedDOMDocument()) {
-    nsIDocument* DOMDoc = targetNode->OwnerDoc();
+  if (targetNode && targetNode->GetOwnerDoc() == FocusedDOMDocument()) {
+    nsIDocument* DOMDoc = targetNode->GetOwnerDoc();
     nsDocAccessible* document =
       GetAccService()->GetDocAccessible(DOMDoc);
     if (document) {
@@ -217,7 +216,7 @@ FocusManager::ForceFocusEvent()
   nsINode* focusedNode = FocusedDOMNode();
   if (focusedNode) {
     nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(focusedNode->OwnerDoc());
+      GetAccService()->GetDocAccessible(focusedNode->GetOwnerDoc());
     if (document) {
       document->HandleNotification<FocusManager, nsINode>
         (this, &FocusManager::ProcessDOMFocus, focusedNode);
@@ -247,7 +246,7 @@ FocusManager::ProcessDOMFocus(nsINode* aTarget)
                                          "Notification target", aTarget)
 
   nsDocAccessible* document =
-    GetAccService()->GetDocAccessible(aTarget->OwnerDoc());
+    GetAccService()->GetDocAccessible(aTarget->GetOwnerDoc());
 
   nsAccessible* target = document->GetAccessibleOrContainer(aTarget);
   if (target) {
@@ -336,39 +335,20 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   nsRefPtr<AccEvent> focusEvent =
     new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, target, fromUserInputFlag);
   nsEventShell::FireEvent(focusEvent);
-
-  // Fire scrolling_start event when the document receives the focus if it has
-  // an anchor jump. If an accessible within the document receive the focus
-  // then null out the anchor jump because it no longer applies.
-  nsDocAccessible* targetDocument = target->GetDocAccessible();
-  nsAccessible* anchorJump = targetDocument->AnchorJump();
-  if (anchorJump) {
-    if (target == targetDocument) {
-      // XXX: bug 625699, note in some cases the node could go away before we
-      // we receive focus event, for example if the node is removed from DOM.
-      nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
-                              anchorJump, fromUserInputFlag);
-    }
-    targetDocument->SetAnchorJump(nsnull);
-  }
 }
 
-nsINode*
-FocusManager::FocusedDOMNode() const
+nsIContent*
+FocusManager::FocusedDOMElm() const
 {
   nsFocusManager* DOMFocusManager = nsFocusManager::GetFocusManager();
-  nsIContent* focusedElm = DOMFocusManager->GetFocusedContent();
+  return DOMFocusManager->GetFocusedContent();
+}
 
-  // No focus on remote target elements like xul:browser having DOM focus and
-  // residing in chrome process because it means an element in content process
-  // keeps the focus.
-  if (focusedElm) {
-    if (nsEventStateManager::IsRemoteTarget(focusedElm))
-      return nsnull;
-    return focusedElm;
-  }
+nsIDocument*
+FocusManager::FocusedDOMDocument() const
+{
+  nsFocusManager* DOMFocusManager = nsFocusManager::GetFocusManager();
 
-  // Otherwise the focus can be on DOM document.
   nsCOMPtr<nsIDOMWindow> focusedWnd;
   DOMFocusManager->GetFocusedWindow(getter_AddRefs(focusedWnd));
   if (focusedWnd) {
@@ -378,11 +358,4 @@ FocusManager::FocusedDOMNode() const
     return DOMDocNode;
   }
   return nsnull;
-}
-
-nsIDocument*
-FocusManager::FocusedDOMDocument() const
-{
-  nsINode* focusedNode = FocusedDOMNode();
-  return focusedNode ? focusedNode->OwnerDoc() : nsnull;
 }

@@ -43,7 +43,7 @@
 
 #include "nsDOMLists.h"
 #include "nsDOMError.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsContentUtils.h"
 #include "nsINode.h"
 

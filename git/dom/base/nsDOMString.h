@@ -49,7 +49,7 @@ inline bool DOMStringIsNull(const nsAString& aString)
 
 inline void SetDOMStringToNull(nsAString& aString)
 {
-  aString.SetIsVoid(true);
+  aString.SetIsVoid(PR_TRUE);
 }
 
 #endif /* nsDOMString_h___ */

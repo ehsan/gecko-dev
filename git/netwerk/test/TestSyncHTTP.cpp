@@ -93,7 +93,7 @@ main(int argc, char **argv)
 
         nsCOMPtr<nsIHTTPChannel> httpChannel = do_QueryInterface(c[i].channel);
         if (httpChannel)
-            httpChannel->SetOpenHasEventQueue(false);
+            httpChannel->SetOpenHasEventQueue(PR_FALSE);
 
         // initialize these fields for reading
         c[i].bytesRead = 1;

@@ -38,7 +38,6 @@
 #include <android/log.h>
 #include <dlfcn.h>
 
-#include "mozilla/Hal.h"
 #include "nsXULAppAPI.h"
 #include <pthread.h>
 #include <prthread.h>
@@ -49,7 +48,6 @@
 #include "nsOSHelperAppService.h"
 #include "nsWindow.h"
 #include "mozilla/Preferences.h"
-#include "nsThreadUtils.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -148,15 +146,11 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jScanMedia = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scanMedia", "(Ljava/lang/String;Ljava/lang/String;)V");
     jGetSystemColors = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getSystemColors", "()[I");
     jGetIconForExtension = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getIconForExtension", "(Ljava/lang/String;I)[B");
-    jFireAndWaitForTracerEvent = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "fireAndWaitForTracerEvent", "()V");   
     jCreateShortcut = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "createShortcut", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
     jGetShowPasswordSetting = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getShowPasswordSetting", "()Z");
     jPostToJavaThread = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "postToJavaThread", "(Z)V");
     jInitCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "initCamera", "(Ljava/lang/String;III)[I");
     jCloseCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "closeCamera", "()V");
-    jEnableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableBatteryNotifications", "()V");
-    jDisableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "disableBatteryNotifications", "()V");
-    jGetCurrentBatteryInformation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getCurrentBatteryInformation", "()[F");
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
     jEGL10Class = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGL10"));
@@ -171,7 +165,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     // is not valid for the real gecko main thread, which is set
     // at SetMainThread time.
 
-    return true;
+    return PR_TRUE;
 }
 
 JNIEnv *
@@ -219,9 +213,9 @@ AndroidBridge::SetMainThread(void *thr)
 {
     ALOG_BRIDGE("AndroidBridge::SetMainThread");
     if (thr) {
-        mJNIEnv = AttachThread(false);
+        mJNIEnv = AttachThread(PR_FALSE);
         if (!mJNIEnv)
-            return false;
+            return PR_FALSE;
 
         mThread = thr;
     } else {
@@ -229,7 +223,7 @@ AndroidBridge::SetMainThread(void *thr)
         mThread = nsnull;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -393,7 +387,7 @@ getHandlersFromStringArray(JNIEnv *aJNIEnv, jobjectArray jArr, jsize aLen,
             CreateAndroidHandlerApp(name, className, packageName,
                                     className, aMimeType, aAction);
         
-        aHandlersArray->AppendElement(app, false);
+        aHandlersArray->AppendElement(app, PR_FALSE);
         if (aDefaultApp && isDefault.Length() > 0)
             *aDefaultApp = app;
     }
@@ -420,7 +414,7 @@ AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
                                                   jstrMimeType, jstrAction);
     jobjectArray arr = static_cast<jobjectArray>(obj);
     if (!arr)
-        return false;
+        return PR_FALSE;
 
     jsize len = mJNIEnv->GetArrayLength(arr);
 
@@ -430,7 +424,7 @@ AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
     getHandlersFromStringArray(mJNIEnv, arr, len, aHandlersArray, 
                                aDefaultApp, aAction,
                                nsDependentCString(aMimeType));
-    return true;
+    return PR_TRUE;
 }
 
 bool
@@ -452,7 +446,7 @@ AndroidBridge::GetHandlersForURL(const char *aURL,
                                                   jstrScheme, jstrAction);
     jobjectArray arr = static_cast<jobjectArray>(obj);
     if (!arr)
-        return false;
+        return PR_FALSE;
 
     jsize len = mJNIEnv->GetArrayLength(arr);
 
@@ -461,7 +455,7 @@ AndroidBridge::GetHandlersForURL(const char *aURL,
 
     getHandlersFromStringArray(mJNIEnv, arr, len, aHandlersArray, 
                                aDefaultApp, aAction);
-    return true;
+    return PR_TRUE;
 }
 
 bool
@@ -542,10 +536,10 @@ AndroidBridge::GetClipboardText(nsAString& aText)
                              CallStaticObjectMethod(mGeckoAppShellClass,
                                                     jGetClipboardText));
     if (!jstrType)
-        return false;
+        return PR_FALSE;
     nsJNIString jniStr(jstrType);
     aText.Assign(jniStr);
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -568,8 +562,8 @@ AndroidBridge::ClipboardHasText()
                              CallStaticObjectMethod(mGeckoAppShellClass,
                                                     jGetClipboardText));
     if (!jstrType)
-        return false;
-    return true;
+        return PR_FALSE;
+    return PR_TRUE;
 }
 
 void
@@ -1016,90 +1010,6 @@ AndroidBridge::OpenGraphicsLibraries()
     }
 }
 
-void
-AndroidBridge::FireAndWaitForTracerEvent() {
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, 
-                                  jFireAndWaitForTracerEvent);
-}
-
-
-namespace mozilla {
-    class TracerRunnable : public nsRunnable{
-    public:
-        TracerRunnable() {
-            mTracerLock = new Mutex("TracerRunnable");
-            mTracerCondVar = new CondVar(*mTracerLock, "TracerRunnable");
-            mMainThread = do_GetMainThread();
-            
-        }
-        ~TracerRunnable() {
-            delete mTracerCondVar;
-            delete mTracerLock;
-            mTracerLock = nsnull;
-            mTracerCondVar = nsnull;
-        }
-
-        virtual nsresult Run() {
-            MutexAutoLock lock(*mTracerLock);
-            if (!AndroidBridge::Bridge())
-                return NS_OK;
-            
-            AndroidBridge::Bridge()->FireAndWaitForTracerEvent();
-            mHasRun = PR_TRUE;
-            mTracerCondVar->Notify();
-            return NS_OK;
-        }
-        
-        bool Fire() {
-            if (!mTracerLock || !mTracerCondVar)
-                return false;
-            MutexAutoLock lock(*mTracerLock);
-            mHasRun = PR_FALSE;
-            mMainThread->Dispatch(this, NS_DISPATCH_NORMAL);
-            while (!mHasRun)
-                mTracerCondVar->Wait();
-            return true;
-        }
-
-        void Signal() {
-            MutexAutoLock lock(*mTracerLock);
-            mHasRun = PR_TRUE;
-            mTracerCondVar->Notify();
-        }
-    private:
-        Mutex* mTracerLock;
-        CondVar* mTracerCondVar;
-        PRBool mHasRun;
-        nsCOMPtr<nsIThread> mMainThread;
-
-    };
-    nsCOMPtr<TracerRunnable> sTracerRunnable;
-
-    bool InitWidgetTracing() {
-        if (!sTracerRunnable)
-            sTracerRunnable = new TracerRunnable();
-        return true;
-    }
-
-    void CleanUpWidgetTracing() {
-        if (sTracerRunnable)
-            delete sTracerRunnable;
-        sTracerRunnable = nsnull;
-    }
-
-    bool FireAndWaitForTracerEvent() {
-        if (sTracerRunnable)
-            return sTracerRunnable->Fire();
-        return false;
-    }
-
-   void SignalTracerThread()
-   {
-       if (sTracerRunnable)
-           return sTracerRunnable->Signal();
-   }
-
-}
 bool
 AndroidBridge::HasNativeBitmapAccess()
 {
@@ -1166,45 +1076,6 @@ AndroidBridge::CloseCamera() {
     AutoLocalJNIFrame jniFrame;
 
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jCloseCamera);
-}
-
-void
-AndroidBridge::EnableBatteryNotifications()
-{
-    ALOG_BRIDGE("AndroidBridge::EnableBatteryObserver");
-
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jEnableBatteryNotifications);
-}
-
-void
-AndroidBridge::DisableBatteryNotifications()
-{
-    ALOG_BRIDGE("AndroidBridge::DisableBatteryNotifications");
-
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jDisableBatteryNotifications);
-}
-
-void
-AndroidBridge::GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
-{
-    ALOG_BRIDGE("AndroidBridge::GetCurrentBatteryInformation");
-
-    AutoLocalJNIFrame jniFrame;
-
-    // To prevent calling too many methods through JNI, the Java method returns
-    // an array of float even if we actually want a float and a boolean.
-    jobject obj = mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jGetCurrentBatteryInformation);
-    jfloatArray arr = static_cast<jfloatArray>(obj);
-    if (!arr || mJNIEnv->GetArrayLength(arr) != 2) {
-        return;
-    }
-
-    jfloat* info = mJNIEnv->GetFloatArrayElements(arr, 0);
-
-    aBatteryInfo->level() = info[0];
-    aBatteryInfo->charging() = info[1] == 1.0f;
-
-    mJNIEnv->ReleaseFloatArrayElements(arr, info, 0);
 }
 
 void *
