@@ -413,7 +413,6 @@ public:
   NS_IMETHOD EndSecureKeyboardInput();
 
   void              HidePlugin();
-  void              UpdatePluginPort();
 
   void              ResetParent();
 

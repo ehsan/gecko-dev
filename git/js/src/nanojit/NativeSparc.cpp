@@ -80,26 +80,21 @@ namespace nanojit
         /**
          * Prologue
          */
-        underrunProtect(16);
+        underrunProtect(12);
         uint32_t stackNeeded = STACK_GRANULARITY * _activation.highwatermark;
         uint32_t frameSize = stackNeeded + kcalleeAreaSize + kLinkageAreaSize;
         frameSize = BIT_ROUND_UP(frameSize, 8);
 
-        if (frameSize <= 4096)
-            SUBI(FP, frameSize, SP);
-        else {
-            SUB(FP, G1, SP);
-            ORI(G1, frameSize & 0x3FF, G1);
-            SETHI(frameSize, G1);
-        }
-
         verbose_only( verbose_outputf("        %p:",_nIns); )
         verbose_only( asm_output("        patch entry:"); )
-        NIns *patchEntry = _nIns;
-
-        // The frame size in SAVE is faked. We will still re-caculate SP later.
-        // We can use 0 here but it is not good for debuggers.
-        SAVEI(SP, -148, SP);
+            NIns *patchEntry = _nIns;
+        if (frameSize <= 4096)
+            SAVEI(SP, (-frameSize), SP);
+        else {
+            SAVE(SP, G1, SP);
+            ORI(G1, -frameSize & 0x3FF, G1);
+            SETHI(-frameSize, G1);
+        }
 
         // align the entry point
         asm_align_code();
@@ -859,10 +854,12 @@ namespace nanojit
         freeRsrcOf(ins, false);
         if (d)
             {
-                STW32(L2, d+4, FP);
-                SET32(ins->imm64_0(), L2);
-                STW32(L2, d, FP);
-                SET32(ins->imm64_1(), L2);
+                Register r = registerAlloc(GpRegs);
+                _allocator.addFree(r);
+                STW32(r, d+4, FP);
+                SET32(ins->imm64_0(), r);
+                STW32(r, d, FP);
+                SET32(ins->imm64_1(), r);
             }
     }
 
