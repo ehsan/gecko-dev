@@ -32,6 +32,7 @@ struct ITfDocumentMgr;
 struct ITfDisplayAttributeMgr;
 struct ITfCategoryMgr;
 class nsWindow;
+class nsTextEvent;
 #ifdef MOZ_METRO
 class MetroWidget;
 #endif

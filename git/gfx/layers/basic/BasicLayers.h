@@ -8,7 +8,7 @@
 
 #include <stdint.h>                     // for INT32_MAX, int32_t
 #include "Layers.h"                     // for Layer (ptr only), etc
-#include "gfxTypes.h"
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxCachedTempSurface.h"       // for gfxCachedTempSurface
 #include "gfxContext.h"                 // for gfxContext
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
@@ -139,7 +139,7 @@ public:
                                                  const nsIntRegion& aRegion,
                                                  bool* aNeedsClipToVisibleRegion);
   already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
-                                                          gfxContentType aContent);
+                                                          gfxASurface::gfxContentType aContent);
   void PopGroupToSourceWithCachedSurface(gfxContext *aTarget, gfxContext *aPushed);
 
   virtual bool IsCompositingCheap() { return false; }

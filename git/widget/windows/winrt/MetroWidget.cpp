@@ -999,38 +999,17 @@ MetroWidget::ApzContentIgnoringTouch()
   MetroWidget::sAPZC->ContentReceivedTouch(mRootLayerTreeId, false);
 }
 
-bool
-MetroWidget::HitTestAPZC(ScreenPoint& pt)
-{
-  if (!MetroWidget::sAPZC) {
-    return false;
-  }
-  return MetroWidget::sAPZC->HitTestAPZC(pt);
-}
-
 nsEventStatus
-MetroWidget::ApzReceiveInputEvent(nsInputEvent* aEvent)
+MetroWidget::ApzReceiveInputEvent(nsTouchEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
 
   if (!MetroWidget::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  nsInputEvent& event = static_cast<nsInputEvent&>(*aEvent);
-  return MetroWidget::sAPZC->ReceiveInputEvent(event);
-}
 
-nsEventStatus
-MetroWidget::ApzReceiveInputEvent(nsInputEvent* aInEvent, nsInputEvent* aOutEvent)
-{
-  MOZ_ASSERT(aInEvent);
-  MOZ_ASSERT(aOutEvent);
-
-  if (!MetroWidget::sAPZC) {
-    return nsEventStatus_eIgnore;
-  }
-  nsInputEvent& event = static_cast<nsInputEvent&>(*aInEvent);
-  return MetroWidget::sAPZC->ReceiveInputEvent(event, aOutEvent);
+  MultiTouchInput inputData(*aEvent);
+  return MetroWidget::sAPZC->ReceiveInputEvent(inputData);
 }
 
 LayerManager*
@@ -1225,7 +1204,7 @@ MetroWidget::DispatchWindowEvent(nsGUIEvent* aEvent)
 NS_IMETHODIMP
 MetroWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus)
 {
-  if (event->IsInputDerivedEvent()) {
+  if (NS_IS_INPUT_EVENT(event)) {
     UserActivity();
   }
 

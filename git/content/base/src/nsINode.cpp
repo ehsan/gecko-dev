@@ -16,7 +16,6 @@
 #include "mozilla/CORSMode.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/MutationEvent.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Util.h"
 #include "nsAsyncDOMEvent.h"
@@ -77,6 +76,7 @@
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
 #include "nsLayoutUtils.h"
+#include "nsMutationEvent.h"
 #include "nsNetUtil.h"
 #include "nsNodeInfoManager.h"
 #include "nsNodeUtils.h"
@@ -1048,7 +1048,7 @@ nsINode::AddEventListener(const nsAString& aType,
 
 void
 nsINode::AddEventListener(const nsAString& aType,
-                          EventListener* aListener,
+                          nsIDOMEventListener* aListener,
                           bool aUseCapture,
                           const Nullable<bool>& aWantsUntrusted,
                           ErrorResult& aRv)
@@ -1180,7 +1180,7 @@ nsINode::GetOwnerGlobal()
 bool
 nsINode::UnoptimizableCCNode() const
 {
-  const uintptr_t problematicFlags = (NODE_IS_ANONYMOUS_ROOT |
+  const uintptr_t problematicFlags = (NODE_IS_ANONYMOUS |
                                       NODE_IS_IN_ANONYMOUS_SUBTREE |
                                       NODE_IS_NATIVE_ANONYMOUS_ROOT |
                                       NODE_MAY_BE_IN_BINDING_MNGR);

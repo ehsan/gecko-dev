@@ -53,7 +53,7 @@ gfxReusableImageSurfaceWrapper::GetReadOnlyData() const
   return mSurface->Data();
 }
 
-gfxImageFormat
+gfxASurface::gfxImageFormat
 gfxReusableImageSurfaceWrapper::Format()
 {
   return mSurface->Format();

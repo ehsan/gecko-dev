@@ -41,6 +41,7 @@
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_WARNING
+#include "nsEvent.h"
 #include "nsGUIEvent.h"                 // for nsInputEvent, nsTouchEvent, etc
 #include "nsISupportsImpl.h"
 #include "nsMathUtils.h"                // for NS_hypot

@@ -228,30 +228,30 @@ nsWindow::nsWindow()
 #endif
 }
 
-static inline gfxImageFormat
+static inline gfxASurface::gfxImageFormat
 _depth_to_gfximage_format(int32_t aDepth)
 {
     switch (aDepth) {
     case 32:
-        return gfxImageFormatARGB32;
+        return gfxASurface::ImageFormatARGB32;
     case 24:
-        return gfxImageFormatRGB24;
+        return gfxASurface::ImageFormatRGB24;
     case 16:
-        return gfxImageFormatRGB16_565;
+        return gfxASurface::ImageFormatRGB16_565;
     default:
-        return gfxImageFormatUnknown;
+        return gfxASurface::ImageFormatUnknown;
     }
 }
 
 static inline QImage::Format
-_gfximage_to_qformat(gfxImageFormat aFormat)
+_gfximage_to_qformat(gfxASurface::gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case gfxImageFormatARGB32:
+    case gfxASurface::ImageFormatARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case gfxImageFormatRGB24:
+    case gfxASurface::ImageFormatRGB24:
         return QImage::Format_ARGB32;
-    case gfxImageFormatRGB16_565:
+    case gfxASurface::ImageFormatRGB16_565:
         return QImage::Format_RGB16;
     default:
         return QImage::Format_Invalid;
@@ -274,17 +274,17 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nullptr)
     gBufferMaxSize.height = std::max(gBufferMaxSize.height, size.height);
 
     // Check if system depth has related gfxImage format
-    gfxImageFormat format =
+    gfxASurface::gfxImageFormat format =
         _depth_to_gfximage_format(aDepth);
 
     // Use fallback RGB24 format, Qt will do conversion for us
-    if (format == gfxImageFormatUnknown)
-        format = gfxImageFormatRGB24;
+    if (format == gfxASurface::ImageFormatUnknown)
+        format = gfxASurface::ImageFormatRGB24;
 
 #ifdef MOZ_HAVE_SHMIMAGE
     if (aWidget) {
         if (gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType() ==
-            gfxSurfaceTypeImage) {
+            gfxASurface::SurfaceTypeImage) {
             gShmImage = nsShmImage::Create(gBufferMaxSize,
                                            DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aWidget)),
                                            aDepth);
@@ -1126,7 +1126,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     // Handle buffered painting mode
     if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
 #if defined(MOZ_X11) && defined(Q_WS_X11)
-        if (gBufferSurface->GetType() == gfxSurfaceTypeXlib) {
+        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
             // Paint offscreen pixmap to QPainter
             static QPixmap gBufferPixmap;
             Drawable draw = static_cast<gfxXlibSurface*>(gBufferSurface.get())->XDrawable();
@@ -1138,7 +1138,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
         } else
 #endif
-        if (gBufferSurface->GetType() == gfxSurfaceTypeImage) {
+        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
             // in raster mode we can just wrap gBufferImage as QImage and paint directly
             gfxImageSurface *imgs = static_cast<gfxImageSurface*>(gBufferSurface.get());
             QImage img(imgs->Data(),
@@ -1152,7 +1152,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     } else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
         QRect trans = aPainter->transform().mapRect(r).toRect();
 #ifdef MOZ_X11
-        if (gBufferSurface->GetType() == gfxSurfaceTypeXlib) {
+        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
             nsRefPtr<gfxASurface> widgetSurface = GetSurfaceForQWidget(aWidget);
             nsRefPtr<gfxContext> ctx = new gfxContext(widgetSurface);
             ctx->SetSource(gBufferSurface);
@@ -1161,7 +1161,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             ctx->Fill();
         } else
 #endif
-        if (gBufferSurface->GetType() == gfxSurfaceTypeImage) {
+        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
 #ifdef MOZ_HAVE_SHMIMAGE
             if (gShmImage) {
                 gShmImage->Put(aWidget, trans);
@@ -2715,11 +2715,11 @@ nsWindow::GetThebesSurface()
 #ifdef CAIRO_HAS_QT_SURFACE
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
     if (renderMode == gfxQtPlatform::RENDER_QPAINTER) {
-        mThebesSurface = new gfxQPainterSurface(gfxIntSize(1, 1), GFX_CONTENT_COLOR);
+        mThebesSurface = new gfxQPainterSurface(gfxIntSize(1, 1), gfxASurface::CONTENT_COLOR);
     }
 #endif
     if (!mThebesSurface) {
-        gfxImageFormat imageFormat = gfxImageFormatRGB24;
+        gfxASurface::gfxImageFormat imageFormat = gfxASurface::ImageFormatRGB24;
         mThebesSurface = new gfxImageSurface(gfxIntSize(1, 1), imageFormat);
     }
 

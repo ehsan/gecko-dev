@@ -189,7 +189,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
 
 void
 nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
-                                         EventListener* aListener,
+                                         nsIDOMEventListener* aListener,
                                          bool aUseCapture,
                                          const Nullable<bool>& aWantsUntrusted,
                                          ErrorResult& aRv)

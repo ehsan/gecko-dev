@@ -10,7 +10,6 @@ if CONFIG['MOZ_X11']:
 MODULE = 'widget'
 
 CPP_SOURCES += [
-    'WidgetEventImpl.cpp',
     'WidgetUtils.cpp',
     'nsShmImage.cpp',
 ]

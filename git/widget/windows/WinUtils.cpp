@@ -28,7 +28,6 @@
 #include "nsIObserver.h"
 #include "imgIEncoder.h"
 #include "nsIThread.h"
-#include "MainThreadUtils.h"
 
 #ifdef NS_ENABLE_TSF
 #include <textstor.h>
@@ -646,7 +645,7 @@ AsyncFaviconDataReady::OnComplete(nsIURI *aFaviconURI,
   if (mURLShortcut) {
     imageSurface =
       new gfxImageSurface(gfxIntSize(48, 48),
-                          gfxImageFormatARGB32);
+                          gfxImageSurface::ImageFormatARGB32);
     gfxContext context(imageSurface);
     context.SetOperator(gfxContext::OPERATOR_SOURCE);
     context.SetColor(gfxRGBA(1, 1, 1, 1));

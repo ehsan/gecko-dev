@@ -28,8 +28,6 @@
 
 #include "cutils/properties.h"
 
-#include "MainThreadUtils.h"
-
 using namespace android;
 using namespace base;
 using namespace mozilla::layers;
@@ -115,40 +113,40 @@ MagicGrallocBufferHandle::MagicGrallocBufferHandle(const sp<GraphicBuffer>& aGra
 //-----------------------------------------------------------------------------
 // Parent process
 
-static gfxImageFormat
+static gfxASurface::gfxImageFormat
 ImageFormatForPixelFormat(android::PixelFormat aFormat)
 {
   switch (aFormat) {
   case PIXEL_FORMAT_RGBA_8888:
-    return gfxImageFormatARGB32;
+    return gfxASurface::ImageFormatARGB32;
   case PIXEL_FORMAT_RGBX_8888:
-    return gfxImageFormatRGB24;
+    return gfxASurface::ImageFormatRGB24;
   case PIXEL_FORMAT_RGB_565:
-    return gfxImageFormatRGB16_565;
+    return gfxASurface::ImageFormatRGB16_565;
   case PIXEL_FORMAT_A_8:
-    return gfxImageFormatA8;
+    return gfxASurface::ImageFormatA8;
   default:
     MOZ_CRASH("Unknown gralloc pixel format");
   }
-  return gfxImageFormatARGB32;
+  return gfxASurface::ImageFormatARGB32;
 }
 
 static android::PixelFormat
-PixelFormatForImageFormat(gfxImageFormat aFormat)
+PixelFormatForImageFormat(gfxASurface::gfxImageFormat aFormat)
 {
   switch (aFormat) {
-  case gfxImageFormatARGB32:
+  case gfxASurface::ImageFormatARGB32:
     return android::PIXEL_FORMAT_RGBA_8888;
-  case gfxImageFormatRGB24:
+  case gfxASurface::ImageFormatRGB24:
     return android::PIXEL_FORMAT_RGBX_8888;
-  case gfxImageFormatRGB16_565:
+  case gfxASurface::ImageFormatRGB16_565:
     return android::PIXEL_FORMAT_RGB_565;
-  case gfxImageFormatA8:
+  case gfxASurface::ImageFormatA8:
     return android::PIXEL_FORMAT_A_8;
   default:
     MOZ_CRASH("Unknown gralloc pixel format");
   }
-  return gfxImageFormatARGB32;
+  return gfxASurface::ImageFormatARGB32;
 }
 
 static size_t
@@ -174,13 +172,13 @@ BytesPerPixelForPixelFormat(android::PixelFormat aFormat)
 }
 
 static android::PixelFormat
-PixelFormatForContentType(gfxContentType aContentType)
+PixelFormatForContentType(gfxASurface::gfxContentType aContentType)
 {
   return PixelFormatForImageFormat(
     gfxPlatform::GetPlatform()->OptimalFormatForContent(aContentType));
 }
 
-static gfxContentType
+static gfxASurface::gfxContentType
 ContentTypeFromPixelFormat(android::PixelFormat aFormat)
 {
   return gfxASurface::ContentFromFormat(ImageFormatForPixelFormat(aFormat));
@@ -368,7 +366,7 @@ ShadowLayerForwarder::AllocGrallocBuffer(const gfxIntSize& aSize,
 
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {

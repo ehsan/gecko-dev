@@ -2182,7 +2182,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
   // clear smartcard events, our document has gone away.
-  if (mCrypto && XRE_GetProcessType() != GeckoProcessType_Content) {
+  if (mCrypto) {
     nsresult rv = mCrypto->SetEnableSmartCardEvents(false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -2877,8 +2877,8 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // Handle 'active' event.
   if (!mIdleObservers.IsEmpty() &&
       aVisitor.mEvent->mFlags.mIsTrusted &&
-      (aVisitor.mEvent->HasMouseEventMessage() ||
-       aVisitor.mEvent->HasDragEventMessage())) {
+      (NS_IS_MOUSE_EVENT(aVisitor.mEvent) ||
+       NS_IS_DRAG_EVENT(aVisitor.mEvent))) {
     mAddActiveEventFuzzTime = false;
   }
 
@@ -8097,7 +8097,7 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
 
 void
 nsGlobalWindow::AddEventListener(const nsAString& aType,
-                                 EventListener* aListener,
+                                 nsIDOMEventListener* aListener,
                                  bool aUseCapture,
                                  const Nullable<bool>& aWantsUntrusted,
                                  ErrorResult& aRv)

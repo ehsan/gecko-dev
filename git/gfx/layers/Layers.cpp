@@ -118,7 +118,7 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
 
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxImageFormat aFormat)
+                                   gfxASurface::gfxImageFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
@@ -127,7 +127,7 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
-  return CreateOptimalSurface(aSize, gfxImageFormatA8);
+  return CreateOptimalSurface(aSize, gfxASurface::ImageFormatA8);
 }
 
 TemporaryRef<DrawTarget>

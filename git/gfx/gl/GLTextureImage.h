@@ -9,12 +9,10 @@
 #include "nsAutoPtr.h"
 #include "nsRegion.h"
 #include "nsTArray.h"
-#include "gfxTypes.h"
+#include "gfxASurface.h"
 #include "GLContextTypes.h"
 #include "gfxPattern.h"
 #include "mozilla/gfx/Rect.h"
-
-class gfxASurface;
 
 namespace mozilla {
 namespace gfx {
@@ -60,8 +58,8 @@ public:
         DisallowBigImage = 0x4
     };
 
-    typedef gfxContentType ContentType;
-    typedef gfxImageFormat ImageFormat;
+    typedef gfxASurface::gfxContentType ContentType;
+    typedef gfxASurface::gfxImageFormat ImageFormat;
 
     static already_AddRefed<TextureImage> Create(
                        GLContext* gl,
@@ -265,7 +263,7 @@ protected:
     TextureImage(const nsIntSize& aSize,
                  GLenum aWrapMode, ContentType aContentType,
                  Flags aFlags = NoFlags,
-                 ImageFormat aImageFormat = gfxImageFormatUnknown)
+                 ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
         : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
@@ -311,14 +309,14 @@ public:
                       ContentType aContentType,
                       GLContext* aContext,
                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                      TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+                      TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
     BasicTextureImage(GLuint aTexture,
                       const gfx::IntSize& aSize,
                       GLenum aWrapMode,
                       ContentType aContentType,
                       GLContext* aContext,
                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                      TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+                      TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
 
     virtual void BindTexture(GLenum aTextureUnit);
 
@@ -371,7 +369,7 @@ public:
                       nsIntSize aSize,
                       TextureImage::ContentType,
                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                      TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+                      TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
     ~TiledTextureImage();
     void DumpDiv();
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
@@ -423,7 +421,7 @@ CreateBasicTextureImage(GLContext* aGL,
                         TextureImage::ContentType aContentType,
                         GLenum aWrapMode,
                         TextureImage::Flags aFlags,
-                        TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+                        TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
 
 already_AddRefed<TextureImage>
 CreateBasicTextureImage(GLContext* aGL,

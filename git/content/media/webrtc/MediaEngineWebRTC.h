@@ -111,7 +111,7 @@ public:
     , mSnapshotPath(nullptr)
   {
     mState = kReleased;
-    NS_NewNamedThread("CameraThread", getter_AddRefs(mCameraThread));
+    NS_NewNamedThread("CameraThread", getter_AddRefs(mCameraThread), nullptr);
     Init();
   }
 #else

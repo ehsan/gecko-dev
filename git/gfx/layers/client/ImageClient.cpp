@@ -223,7 +223,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
     bool bufferCreated = false;
     if (!mFrontBuffer) {
-      gfxImageFormat format
+      gfxASurface::gfxImageFormat format
         = gfxPlatform::GetPlatform()->OptimalFormatForContent(surface->GetContentType());
       mFrontBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format),
                                                TEXTURE_DEALLOCATE_HOST);
@@ -449,7 +449,7 @@ DeprecatedImageClientSingle::UpdateImage(ImageContainer* aContainer,
 void
 DeprecatedImageClientSingle::Updated()
 {
-  mForwarder->UpdateTexture(this, 1, mDeprecatedTextureClient->LockSurfaceDescriptor());
+  mForwarder->UpdateTexture(this, 1, mDeprecatedTextureClient->GetDescriptor());
 }
 
 ImageClientBridge::ImageClientBridge(CompositableForwarder* aFwd,

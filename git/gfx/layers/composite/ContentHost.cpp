@@ -342,9 +342,9 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
   MOZ_ASSERT((destBounds.y % size.height) + destBounds.height <= size.height,
                "updated region lies across rotation boundaries!");
 
-  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->LockSurfaceDescriptor(), &destRegion);
+  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->GetBuffer(), &destRegion);
   if (mDeprecatedTextureHostOnWhite) {
-    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->LockSurfaceDescriptor(), &destRegion);
+    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->GetBuffer(), &destRegion);
   }
   mInitialised = true;
 
@@ -463,9 +463,9 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
   mDeprecatedTextureHostOnWhite = mBackHostOnWhite;
   mBackHostOnWhite = oldFront;
 
-  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->LockSurfaceDescriptor());
+  mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->GetBuffer());
   if (mDeprecatedTextureHostOnWhite) {
-    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->LockSurfaceDescriptor());
+    mDeprecatedTextureHostOnWhite->Update(*mDeprecatedTextureHostOnWhite->GetBuffer());
   }
   mInitialised = true;
 

@@ -1088,10 +1088,10 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     }
 
     int bytesPerPixel = 2;
-    gfxImageFormat format = gfxImageFormatRGB16_565;
+    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB16_565;
     if (AndroidBridge::Bridge()->GetScreenDepth() == 24) {
         bytesPerPixel = 4;
-        format = gfxImageFormatRGB24;
+        format = gfxASurface::ImageFormatRGB24;
     }
 
     layers::renderTraceEventStart("Get surface", "424545");

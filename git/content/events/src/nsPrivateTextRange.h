@@ -10,7 +10,6 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TextEvents.h"
 
 class nsPrivateTextRange MOZ_FINAL : public nsIPrivateTextRange
 {

@@ -6,7 +6,7 @@
 #include "domstubs.idl"
 
 %{C++
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 #include "mozilla/dom/Nullable.h"
 #include "js/TypeDecls.h"
 
