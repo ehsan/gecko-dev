@@ -68,7 +68,6 @@ Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 
 Cu.import("resource://services-sync/main.js");      // For access to Service.
@@ -109,7 +108,7 @@ PlacesItem.prototype = {
   },
 
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.PlacesItem",
+  _logName: "Record.PlacesItem",
 };
 
 Utils.deferGetSet(PlacesItem, "cleartext", ["hasDupe", "parentid", "parentName",
@@ -120,7 +119,7 @@ function Bookmark(collection, id, type) {
 }
 Bookmark.prototype = {
   __proto__: PlacesItem.prototype,
-  _logName: "Sync.Record.Bookmark",
+  _logName: "Record.Bookmark",
 };
 
 Utils.deferGetSet(Bookmark, "cleartext", ["title", "bmkUri", "description",
@@ -131,7 +130,7 @@ function BookmarkQuery(collection, id) {
 }
 BookmarkQuery.prototype = {
   __proto__: Bookmark.prototype,
-  _logName: "Sync.Record.BookmarkQuery",
+  _logName: "Record.BookmarkQuery",
 };
 
 Utils.deferGetSet(BookmarkQuery, "cleartext", ["folderName",
@@ -142,7 +141,7 @@ function BookmarkFolder(collection, id, type) {
 }
 BookmarkFolder.prototype = {
   __proto__: PlacesItem.prototype,
-  _logName: "Sync.Record.Folder",
+  _logName: "Record.Folder",
 };
 
 Utils.deferGetSet(BookmarkFolder, "cleartext", ["description", "title",
@@ -153,7 +152,7 @@ function Livemark(collection, id) {
 }
 Livemark.prototype = {
   __proto__: BookmarkFolder.prototype,
-  _logName: "Sync.Record.Livemark",
+  _logName: "Record.Livemark",
 };
 
 Utils.deferGetSet(Livemark, "cleartext", ["siteUri", "feedUri"]);
@@ -163,7 +162,7 @@ function BookmarkSeparator(collection, id) {
 }
 BookmarkSeparator.prototype = {
   __proto__: PlacesItem.prototype,
-  _logName: "Sync.Record.Separator",
+  _logName: "Record.Separator",
 };
 
 Utils.deferGetSet(BookmarkSeparator, "cleartext", "pos");
@@ -933,7 +932,7 @@ BookmarksStore.prototype = {
   _getChildGUIDsForId: function _getChildGUIDsForId(itemid) {
     let stmt = this._childGUIDsStm;
     stmt.params.parent = itemid;
-    let rows = Async.querySpinningly(stmt, this._childGUIDsCols);
+    let rows = Utils.queryAsync(stmt, this._childGUIDsCols);
     return rows.map(function (row) {
       if (row.guid) {
         return row.guid;
@@ -1076,7 +1075,7 @@ BookmarksStore.prototype = {
     let stmt = this._setGUIDStm;
     stmt.params.guid = guid;
     stmt.params.item_id = id;
-    Async.querySpinningly(stmt);
+    Utils.queryAsync(stmt);
     return guid;
   },
 
@@ -1097,7 +1096,7 @@ BookmarksStore.prototype = {
     stmt.params.item_id = id;
 
     // Use the existing GUID if it exists
-    let result = Async.querySpinningly(stmt, this._guidForIdCols)[0];
+    let result = Utils.queryAsync(stmt, this._guidForIdCols)[0];
     if (result && result.guid)
       return result.guid;
 
@@ -1123,7 +1122,7 @@ BookmarksStore.prototype = {
     // guid might be a String object rather than a string.
     stmt.params.guid = guid.toString();
 
-    let results = Async.querySpinningly(stmt, this._idForGUIDCols);
+    let results = Utils.queryAsync(stmt, this._idForGUIDCols);
     this._log.trace("Number of rows matching GUID " + guid + ": "
                     + results.length);
     
@@ -1150,7 +1149,7 @@ BookmarksStore.prototype = {
     // Add in the bookmark's frecency if we have something
     if (record.bmkUri != null) {
       this._frecencyStm.params.url = record.bmkUri;
-      let result = Async.querySpinningly(this._frecencyStm, this._frecencyCols);
+      let result = Utils.queryAsync(this._frecencyStm, this._frecencyCols);
       if (result.length)
         index += result[0].frecency;
     }

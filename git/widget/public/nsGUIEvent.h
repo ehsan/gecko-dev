@@ -103,11 +103,15 @@ class nsHashKey;
 #define NS_COMMAND_EVENT                  24
 #define NS_SCROLLAREA_EVENT               25
 #define NS_TRANSITION_EVENT               26
+#ifdef MOZ_CSS_ANIMATIONS
 #define NS_ANIMATION_EVENT                27
+#endif
 
 #define NS_UI_EVENT                       28
+#ifdef MOZ_SVG
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT                32
 #endif // MOZ_SMIL
@@ -158,8 +162,6 @@ class nsHashKey;
 #define NS_EVENT_FLAG_EXCEPTION_THROWN    0x10000
 
 #define NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS 0x20000
-
-#define NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS 0x40000
 
 #define NS_EVENT_CAPTURE_MASK             (~(NS_EVENT_FLAG_BUBBLE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
 #define NS_EVENT_BUBBLE_MASK              (~(NS_EVENT_FLAG_CAPTURE | NS_EVENT_FLAG_NO_CONTENT_DISPATCH))
@@ -358,6 +360,7 @@ class nsHashKey;
 #define NS_PAGE_SHOW               (NS_PAGETRANSITION_START + 1)
 #define NS_PAGE_HIDE               (NS_PAGETRANSITION_START + 2)
 
+#ifdef MOZ_SVG
 // SVG events
 #define NS_SVG_EVENT_START              2800
 #define NS_SVG_LOAD                     (NS_SVG_EVENT_START)
@@ -370,6 +373,7 @@ class nsHashKey;
 // SVG Zoom events
 #define NS_SVGZOOM_EVENT_START          2900
 #define NS_SVG_ZOOM                     (NS_SVGZOOM_EVENT_START)
+#endif // MOZ_SVG
 
 // XUL command events
 #define NS_XULCOMMAND_EVENT_START       3000
@@ -499,10 +503,12 @@ class nsHashKey;
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
 
+#ifdef MOZ_CSS_ANIMATIONS
 #define NS_ANIMATION_EVENT_START     4250
 #define NS_ANIMATION_START           (NS_ANIMATION_EVENT_START)
 #define NS_ANIMATION_END             (NS_ANIMATION_EVENT_START + 1)
 #define NS_ANIMATION_ITERATION       (NS_ANIMATION_EVENT_START + 2)
+#endif
 
 #ifdef MOZ_SMIL
 #define NS_SMIL_TIME_EVENT_START     4300
@@ -1532,6 +1538,7 @@ public:
   float elapsedTime;
 };
 
+#ifdef MOZ_CSS_ANIMATIONS
 class nsAnimationEvent : public nsEvent
 {
 public:
@@ -1545,6 +1552,7 @@ public:
   nsString animationName;
   float elapsedTime;
 };
+#endif
 
 class nsUIStateChangeEvent : public nsGUIEvent
 {

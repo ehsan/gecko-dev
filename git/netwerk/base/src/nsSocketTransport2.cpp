@@ -1833,7 +1833,7 @@ nsSocketTransport::SetEventSink(nsITransportEventSink *sink,
 }
 
 NS_IMETHODIMP
-nsSocketTransport::IsAlive(PRBool *result)
+nsSocketTransport::IsAlive(PRBool aPassive, PRBool *result)
 {
     *result = PR_FALSE;
 
@@ -1849,12 +1849,32 @@ nsSocketTransport::IsAlive(PRBool *result)
 
     // XXX do some idle-time based checks??
 
-    char c;
-    PRInt32 rval = PR_Recv(fd, &c, 1, PR_MSG_PEEK, 0);
+    if (aPassive) {
+        *result = PR_TRUE;                        /* presume true */
 
-    if ((rval > 0) || (rval < 0 && PR_GetError() == PR_WOULD_BLOCK_ERROR))
-        *result = PR_TRUE;
+        PRPollDesc desc;
+        desc.fd = mFD;
 
+        // include POLL_READ in the in_flags in order to take
+        // conditions PK11LoggedOut / AlreadyShutDown into account on SSL
+        // sockets as a workaround for bug 658138
+        desc.in_flags = PR_POLL_READ | PR_POLL_EXCEPT;
+        desc.out_flags = 0;
+
+        if ((PR_Poll(&desc, 1, 0) == 1) &&
+            (desc.out_flags &
+             (PR_POLL_EXCEPT | PR_POLL_ERR | PR_POLL_NVAL | PR_POLL_HUP))) {
+            *result = PR_FALSE;
+        }
+    }
+    else {
+        char c;
+        PRInt32 rval = PR_Recv(fd, &c, 1, PR_MSG_PEEK, 0);
+        
+        if ((rval > 0) || (rval < 0 && PR_GetError() == PR_WOULD_BLOCK_ERROR))
+            *result = PR_TRUE;
+    }
+    
     {
         MutexAutoLock lock(mLock);
         ReleaseFD_Locked(fd);
@@ -1930,7 +1950,7 @@ nsSocketTransport::SetTimeout(PRUint32 type, PRUint32 value)
 {
     NS_ENSURE_ARG_MAX(type, nsISocketTransport::TIMEOUT_READ_WRITE);
     // truncate overly large timeout values.
-    mTimeouts[type] = (PRUint16) NS_MIN(value, PR_UINT16_MAX);
+    mTimeouts[type] = (PRUint16) PR_MIN(value, PR_UINT16_MAX);
     PostEvent(MSG_TIMEOUT_CHANGED);
     return NS_OK;
 }
@@ -2062,7 +2082,7 @@ DumpBytesToFile(const char *path, const char *header, const char *buf, PRInt32 n
     while (n) {
         p = (const unsigned char *) buf;
 
-        PRInt32 i, row_max = NS_MIN(16, n);
+        PRInt32 i, row_max = PR_MIN(16, n);
 
         for (i = 0; i < row_max; ++i)
             fprintf(fp, "%02x  ", *p++);

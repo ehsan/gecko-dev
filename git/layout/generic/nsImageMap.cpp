@@ -39,16 +39,21 @@
 /* code for HTML client-side image maps */
 
 #include "nsImageMap.h"
-
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsIURL.h"
+#include "nsIURL.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMHTMLMapElement.h"
+#include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
@@ -151,7 +156,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     mCoords = nsnull;
     if (*cp == '\0')
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -165,7 +169,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     }
     if (*n_str == '\0')
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -250,7 +253,6 @@ void Area::ParseCoords(const nsAString& aSpec)
     value_list = new nscoord[cnt];
     if (!value_list)
     {
-      nsMemory::Free(cp);
       return;
     }
 
@@ -293,7 +295,7 @@ void Area::ParseCoords(const nsAString& aSpec)
     mNumCoords = cnt;
     mCoords = value_list;
 
-    nsMemory::Free(cp);
+    NS_Free(cp);
   }
 }
 
@@ -747,16 +749,17 @@ nsImageMap::FreeAreas()
 }
 
 nsresult
-nsImageMap::Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIContent* aMap)
+nsImageMap::Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIDOMHTMLMapElement* aMap)
 {
-  NS_PRECONDITION(aMap, "null ptr");
-  if (!aMap) {
+  NS_PRECONDITION(nsnull != aMap, "null ptr");
+  if (nsnull == aMap) {
     return NS_ERROR_NULL_POINTER;
   }
   mPresShell = aPresShell;
   mImageFrame = aImageFrame;
 
-  mMap = aMap;
+  mMap = do_QueryInterface(aMap);
+  NS_ASSERTION(mMap, "aMap is not an nsIContent!");
   mMap->AddMutationObserver(this);
 
   // "Compile" the areas in the map into faster access versions

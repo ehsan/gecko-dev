@@ -423,10 +423,8 @@ protected:
    *                    applied at the last possible moment (i.e. if they are at
    *                    or before the current sample time) and only if the
    *                    current interval is not already ending.
-   * @return PR_TRUE if the end time of the current interval was updated,
-   *         PR_FALSE otherwise.
    */
-  PRBool ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
+  void ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
 
   /**
    * Clears certain state in response to the element restarting.
@@ -506,17 +504,8 @@ protected:
   void              RegisterMilestone();
   PRBool            GetNextMilestone(nsSMILMilestone& aNextMilestone) const;
 
-  // Notification methods. Note that these notifications can result in nested
-  // calls to this same object. Therefore,
-  // (i)  we should not perform notification until this object is in
-  //      a consistent state to receive callbacks, and
-  // (ii) after calling these methods we must assume that the state of the
-  //      element may have changed.
   void              NotifyNewInterval();
-  void              NotifyChangedInterval(nsSMILInterval* aInterval,
-                                          PRBool aBeginObjectChanged,
-                                          PRBool aEndObjectChanged);
-
+  void              NotifyChangedInterval();
   void              FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail);
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;

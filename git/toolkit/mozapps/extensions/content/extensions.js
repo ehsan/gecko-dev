@@ -924,25 +924,12 @@ var gViewController = {
 
     cmd_showItemPreferences: {
       isEnabled: function(aAddon) {
-        if (!aAddon || !aAddon.isActive || !aAddon.optionsURL)
+        if (!aAddon)
           return false;
-        if (gViewController.currentViewObj == gDetailView &&
-            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-          return false;
-        }
-        return true;
+        return aAddon.isActive && !!aAddon.optionsURL;
       },
       doCommand: function(aAddon) {
-        if (gViewController.currentViewObj == gListView &&
-            aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
-          gViewController.commands.cmd_showItemDetails.doCommand(aAddon);
-          return;
-        }
         var optionsURL = aAddon.optionsURL;
-        if (aAddon.optionsType == AddonManager.OPTIONS_TYPE_TAB &&
-            openOptionsInTab(optionsURL)) {
-          return;
-        }
         var windows = Services.wm.getEnumerator(null);
         while (windows.hasMoreElements()) {
           var win = windows.getNext();
@@ -1202,18 +1189,6 @@ var gViewController = {
   onEvent: function() {}
 };
 
-function openOptionsInTab(optionsURL) {
-  var mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIWebNavigation)
-                         .QueryInterface(Ci.nsIDocShellTreeItem)
-                         .rootTreeItem.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIDOMWindow); 
-  if ("switchToTabHavingURI" in mainWindow) {
-    mainWindow.switchToTabHavingURI(optionsURL, true);
-    return true;
-  }
-  return false;
-}
 
 function formatDate(aDate) {
   return Cc["@mozilla.org/intl/scriptabledateformat;1"]
@@ -2679,8 +2654,7 @@ var gDetailView = {
       document.getElementById("detail-findUpdates-btn").hidden = false;
     }
 
-    document.getElementById("detail-prefs-btn").hidden = !aIsRemote &&
-      !gViewController.commands.cmd_showItemPreferences.isEnabled(aAddon);
+    document.getElementById("detail-prefs-btn").hidden = !aIsRemote && !aAddon.optionsURL;
     
     var gridRows = document.querySelectorAll("#detail-grid rows row");
     for (var i = 0, first = true; i < gridRows.length; ++i) {
@@ -2691,8 +2665,6 @@ var gDetailView = {
         gridRows[i].removeAttribute("first-row");
       }
     }
-
-    this.fillSettingsRows();
 
     this.updateState();
 
@@ -2825,75 +2797,6 @@ var gDetailView = {
     this.node.removeAttribute("loading-extended");
   },
 
-  emptySettingsRows: function () {
-    var lastRow = document.getElementById("detail-downloads");
-    var rows = lastRow.parentNode;
-    while (lastRow.nextSibling)
-      rows.removeChild(rows.lastChild);
-  },
-
-  fillSettingsRows: function () {
-    this.emptySettingsRows();
-    if (this._addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE)
-      return;
-
-    // This function removes and returns the text content of aNode without
-    // removing any child elements. Removing the text nodes ensures any XBL
-    // bindings apply properly.
-    function stripTextNodes(aNode) {
-      var text = '';
-      for (var i = 0; i < aNode.childNodes.length; i++) {
-        if (aNode.childNodes[i].nodeType != document.ELEMENT_NODE) {
-          text += aNode.childNodes[i].textContent;
-          aNode.removeChild(aNode.childNodes[i--]);
-        } else {
-          text += stripTextNodes(aNode.childNodes[i]);
-        }
-      }
-      return text;
-    }
-
-    var rows = document.getElementById("detail-downloads").parentNode;
-
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", this._addon.optionsURL, false);
-    xhr.send();
-
-    var xml = xhr.responseXML;
-    var settings = xml.querySelectorAll(":root > setting");
-
-    for (var i = 0; i < settings.length; i++) {
-      var setting = settings[i];
-      if (i == 0)
-        setting.setAttribute("first-row", true);
-
-      // Remove setting description, for replacement later
-      var desc = stripTextNodes(setting).trim();
-      if (setting.hasAttribute("desc")) {
-        desc = setting.getAttribute("desc").trim();
-        setting.removeAttribute("desc");
-      }
-
-      var type = setting.getAttribute("type");
-      if (type == "file" || type == "directory")
-        setting.setAttribute("fullpath", "true");
-
-      rows.appendChild(setting);
-
-      // Add a new row containing the description
-      if (desc) {
-        var row = document.createElement("row");
-        var label = document.createElement("label");
-        label.className = "preferences-description";
-        label.textContent = desc;
-        row.appendChild(label);
-        rows.appendChild(row);
-      }
-    }
-
-    Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
-  },
-
   getSelectedAddon: function() {
     return this._addon;
   },
@@ -2904,7 +2807,6 @@ var gDetailView = {
 
   onEnabled: function() {
     this.updateState();
-    this.fillSettingsRows();
   },
 
   onDisabling: function() {
@@ -2913,7 +2815,6 @@ var gDetailView = {
 
   onDisabled: function() {
     this.updateState();
-    this.emptySettingsRows();
   },
 
   onUninstalling: function() {

@@ -1082,15 +1082,7 @@ documenttab[reload="true"] > stack > .documenttab-reload {
   border-top: @border_width_tiny@ solid rgb(205,205,205);
   padding: 0;
   -moz-user-focus: ignore;
-}
-
-.action-buttons,
-#pageactions-container {
   display: inline-block;
-}
-
-#context-commands {
-  display: -moz-box;
 }
 
 .action-button,
@@ -1102,8 +1094,8 @@ pageaction {
   -moz-border-left-colors: white;
   border-style: solid;
   border-width: @border_width_tiny@ !important;
-  height: @touch_button_xlarge@;
-  min-height: @touch_button_xlarge@;
+  height: @touch_button_large@;
+  min-height: @touch_button_large@;
   width: 100%;
   min-width: @touch_action_minwidth@; /* keep the button from being too narrow */
 }
@@ -1224,43 +1216,37 @@ pageaction:not([image]) > hbox >.pageaction-image {
   border-bottom: @border_width_tiny@ solid #cacdd5;
 }
 
-setting {
+/* XXX should be a richlistitem */
+.prefbox {
   padding: @padding_xsmall@;
   border-bottom: @border_width_tiny@ solid rgb(207,207,207);
   min-height: @touch_row@; /* row size */
   -moz-box-align: center;
-  -moz-box-orient: horizontal;
 }
 
-.setting-label {
-  -moz-box-flex: 1;
-}
-
-.setting-group > setting {
+.setting-group > .prefbox {
   border-bottom: none;
 }
 
-.setting-subgroup > setting {
+.setting-subgroup > .prefbox {
   border-bottom: none;
   -moz-margin-start: @margin_xxxnormal@;
 }
 
-.setting-subgroup + :not(.setting-subgroup) > setting {
+.setting-subgroup + :not(.setting-subgroup) > .prefbox {
   border-top: @border_width_tiny@ solid rgb(207,207,207);
 }
 
 /* Put setting textboxes on a separate row in portrait */
 @media (@orientation@: portrait) {
-  setting[type="integer"],
-  setting[type="string"],
-  setting[type="file"],
-  setting[type="directory"] {
+  .setting-integer,
+  .setting-string {
     -moz-box-align: start;
     -moz-box-orient: vertical;
   }
 
-  setting[type="integer"] > .setting-input > textbox,
-  setting[type="string"] > .setting-input > textbox {
+  .setting-integer > .setting-input > textbox,
+  .setting-string > .setting-input > textbox {
     width: 499px; /* textboxes seem to need a width in order to flex */
     -moz-box-flex: 1;
   }
@@ -1270,17 +1256,17 @@ setting {
   -moz-margin-start: 28px;  /* sized based on the 32px addon image */
 }
 
-.options-box > setting:last-child {
+.options-box > setting:last-child > .prefbox {
   border-bottom: 0;
 }
 
 /* XXX should be a richlistitem description.title */
-.preferences-title {
+.preftitle {
   font-size: @font_normal@ !important;
 }
 
 /* XXX should be a richlistitem description.normal */
-.preferences-description {
+.prefdesc {
   font-size: @font_small@ !important;
   color: grey;
 }
@@ -1368,36 +1354,28 @@ setting {
   margin-bottom: @margin_small@ !important;
 }
 
+richlistitem.appmenu-site-button > image,
 .appmenu-site-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-site-hdpi.png");
 }
 
+richlistitem.appmenu-addons-button > image,
 .appmenu-addons-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-addons-hdpi.png");
 }
 
+richlistitem.appmenu-preferences-button > image,
 .appmenu-preferences-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-preferences-hdpi.png");
 }
 
+richlistitem.appmenu-downloads-button > image,
 .appmenu-downloads-button {
   list-style-image: url("chrome://browser/skin/images/appmenu-downloads-hdpi.png");
 }
 
-.appmenu-findinpage-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-findinpage-hdpi.png");
-}
-
-.appmenu-saveas-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-downloads-hdpi.png");
-}
-
-.appmenu-share-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-share-hdpi.png");
-}
-
 #appmenu-more-button {
-  list-style-image: url("chrome://browser/skin/images/appmenu-more-hdpi.png");
+  list-style-image: url("chrome://browser/skin/images/appmenu-site-hdpi.png");
   display: none;
 }
 
@@ -1422,30 +1400,6 @@ setting {
   }
 }
 
-#appmenu-overflow {
-  background: rgba(255,255,255,0.95);
-  box-shadow: 0 @shadow_width_small@ @shadow_width_large@ @shadow_width_small@ black;
-  border-style: solid;
-  border-color: #6d6d6d;
-  border-width: @border_width_large@ @border_width_large@ 0 @border_width_large@;
-  margin: @margin_xxxnormal@ @margin_xxxnormal@ 0 @margin_xxxnormal@;
-}
-
-#appmenu-overflow-commands > .appmenu-button {
-  color: #000;
-  background: transparent;
-  font-size: @font_normal@ !important;
-  height: @touch_button_xlarge@;
-  min-height: @touch_button_xlarge@;
-  width: 100%; 
-  -moz-box-align: center;
-}
-
-#appmenu-overflow-commands > .appmenu-button:hover:active {
-  background-image: url("chrome://browser/skin/images/appmenu-active-hdpi.png");
-  background-size: 100% 100%;
-}
-
 /* Sync setup ------------------------------------------------------------- */
 .syncsetup-center {
   text-align: center;
@@ -1463,16 +1417,16 @@ setting {
   min-width: 5.5em;
 }
 
+.syncsetup-link {
+  text-decoration: underline;
+}
+
 .syncsetup-label {
   color: #fff;
 }
 
 #syncsetup-customserver {
   -moz-margin-start: @margin_xnormal@;
-}
-
-#sync-message {
-  padding-bottom: 2em;
 }
 
 /* content scrollbars */

@@ -246,14 +246,17 @@ ContextCallback(JSContext *cx, uintN operation)
 
 xpc::CompartmentPrivate::~CompartmentPrivate()
 {
-    delete waiverWrapperMap;
-    delete expandoMap;
+    if (waiverWrapperMap)
+        delete waiverWrapperMap;
+    if (expandoMap)
+        delete expandoMap;
 }
 
 static JSBool
 CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
 {
-    JS_ASSERT(op == JSCOMPARTMENT_DESTROY);
+    if(op == JSCOMPARTMENT_NEW)
+        return JS_TRUE;
 
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if(!self)
@@ -373,10 +376,8 @@ void XPCJSRuntime::TraceJS(JSTracer* trc, void* data)
         gcmarker->setMarkColor(XPC_GC_COLOR_GRAY);
     }
     self->TraceXPConnectRoots(trc);
-    if (gcmarker) {
-        js::MarkWeakReferences(gcmarker);
+    if (gcmarker)
         gcmarker->setMarkColor(XPC_GC_COLOR_BLACK);
-    }
 }
 
 static void
@@ -591,6 +592,21 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
 
     // Suspect wrapped natives with expando objects.
     GetCompartmentMap().EnumerateRead(SuspectCompartment, &closure);
+}
+
+void
+XPCJSRuntime::ClearWeakRoots()
+{
+    JSContext *iter = nsnull, *acx;
+
+    while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
+    {
+        if(XPCPerThreadData::IsMainThread(acx) &&
+           !nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
+        {
+            JS_ClearNewbornRoots(acx);
+        }
+    }
 }
 
 template<class T> static void
@@ -1286,152 +1302,6 @@ GetPerCompartmentSize(PRInt64 (*f)(JSCompartment *c))
     return n;
 }
 
-static PRInt64
-GetJSStack(void *data)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    PRInt64 n = 0;
-    for (js::ThreadDataIter i(rt); !i.empty(); i.popFront())
-        n += i.threadData()->stackSpace.committedSize();
-    return n;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStack,
-    "explicit/js/stack",
-    MR_MAPPED,
-    "Memory used for the JavaScript stack.  This is the committed portion "
-    "of the stack;  any uncommitted portion is not measured because it "
-    "hardly costs anything.",
-    GetJSStack,
-    NULL)
-
-static PRInt64
-GetCompartmentScriptsSize(JSCompartment *c)
-{
-    PRInt64 n = 0;
-    for (JSScript *script = (JSScript *)c->scripts.next;
-         &script->links != &c->scripts;
-         script = (JSScript *)script->links.next)
-    {
-        n += script->totalSize(); 
-    }
-    return n;
-}
-
-static PRInt64
-GetJSScripts(void *data)
-{
-    return GetPerCompartmentSize(GetCompartmentScriptsSize);
-}
-
-struct PRInt64Data {
-    PRInt64Data() : n(0) { }
-    PRInt64 n;
-};
-
-// This function is miscompiled with MSVC 2005 when PGO is on.  See bug 664647.
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
-void
-GetJSObjectSlotsCallback(JSContext *cx, void *v, size_t traceKind, void *thing)
-{
-    JS_ASSERT(traceKind == JSTRACE_OBJECT);
-    JSObject *obj = (JSObject *)thing;
-    if (obj->hasSlotsArray()) {
-        PRInt64Data *data = (PRInt64Data *) v;
-        data->n += obj->numSlots() * sizeof(js::Value);
-    }
-}
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
-
-static PRInt64
-GetJSObjectSlots(void *dummy)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    JSContext *cx = JS_NewContext(rt, 0);
-    if (!cx) {
-        NS_ERROR("couldn't create context for memory tracing");
-        return (PRInt64) -1;
-    }
-
-    PRInt64Data data;
-    js::IterateCells(cx, NULL, js::TraceKindMask(JSTRACE_OBJECT), &data,
-                     *GetJSObjectSlotsCallback);
-
-    JS_DestroyContextNoGC(cx);
-
-    return data.n;
-}
-
-// This function is miscompiled with MSVC 2005 when PGO is on.  See bug 664647.
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
-void
-GetJSStringCharsCallback(JSContext *cx, void *v, size_t traceKind, void *thing)
-{
-    JS_ASSERT(traceKind == JSTRACE_STRING);
-    JSString *str = (JSString *)thing;
-    PRInt64Data *data = (PRInt64Data *) v;
-    data->n += str->charsHeapSize();
-}
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
- 
-static PRInt64
-GetJSStringChars(void *dummy)
-{
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    JSContext *cx = JS_NewContext(rt, 0);
-    if (!cx) {
-        NS_ERROR("couldn't create context for memory tracing");
-        return (PRInt64) -1;
-    }
-
-    PRInt64Data data;
-    js::IterateCells(cx, NULL, js::TraceKindMask(JSTRACE_STRING), &data,
-                     *GetJSStringCharsCallback);
-
-    JS_DestroyContextNoGC(cx);
-
-    return data.n;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSScripts,
-    "explicit/js/scripts",
-    MR_HEAP,
-    "Memory allocated for JSScripts.  A JSScript is created for each "
-    "user-defined function in a script.  One is also created for "
-    "the top-level code in a script.  Each JSScript includes byte-code and "
-    "various other things.",
-    GetJSScripts,
-    NULL)
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSObjectSlots,
-    "explicit/js/object-slots",
-    MR_HEAP,
-    "Memory allocated for non-fixed object slot arrays, which are used "
-    "to represent object properties.  Some objects also contain a fixed "
-    "number of slots which are stored on the JavaScript heap;  those slots "
-    "are not counted here.",
-    GetJSObjectSlots,
-    NULL)
-
-NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSStringChars,
-    "explicit/js/string-chars",
-    MR_HEAP,
-    "Memory allocated to hold string characters.  Not all of this allocated "
-    "memory is necessarily used to hold characters.  Each string also "
-    "includes a header which is stored on the JavaScript heap;  that header "
-    "is not counted here.",
-    GetJSStringChars,
-    NULL)
-
-
 #ifdef JS_METHODJIT
 
 static PRInt64
@@ -1604,10 +1474,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         mJSRuntime->setCustomGCChunkAllocator(&gXPCJSChunkAllocator);
 
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSGCHeap));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStack));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSScripts));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSObjectSlots));
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSStringChars));
 #ifdef JS_METHODJIT
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMjitCode));
         NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(XPConnectJSMjitData));
@@ -1709,6 +1575,10 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+    PRUint64 totalMemory = PR_GetPhysicalMemorySize();
+    size_t quota = PR_MIN(PR_UINT32_MAX, PR_MAX(25 * sizeof(size_t) * 1024 * 1024,
+                                                totalMemory / 4));
+    JS_SetScriptStackQuota(cx, quota);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);

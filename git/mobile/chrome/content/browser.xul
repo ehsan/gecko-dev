@@ -333,7 +333,6 @@
       </hbox>
 
       <hbox id="pageactions-container" class="window-width" hidden="true">
-#ifndef ANDROID
         <pageaction id="pageaction-findinpage" title="&pageactions.findInPage;"
           onclick="FindHelperUI.show();"/>
 #ifdef NS_PRINTING
@@ -342,7 +341,6 @@
 #endif
         <pageaction id="pageaction-share" title="&pageactions.share.page;"
           onclick="SharingUI.show(getBrowser().currentURI.spec, getBrowser().contentTitle);"/>
-#endif
         <pageaction id="pageaction-password" title="&pageactions.password.forget;"
           onclick="PageActions.forgetPassword(event);"/>
         <pageaction id="pageaction-reset" title="&pageactions.reset;"
@@ -534,9 +532,9 @@
         </hbox>
         <separator class="prompt-line"/>
         <vbox id="syncsetup-simple" class="syncsetup-page" flex="1">
-          <scrollbox id="sync-message" class="prompt-message" orient="vertical" flex="1">
+          <scrollbox class="prompt-message" orient="vertical" flex="1">
             <description class="syncsetup-desc syncsetup-center" flex="1">&sync.setup.jpake;</description>
-            <description class="syncsetup-center link" flex="1" onclick="WeaveGlue.openTutorial();">&sync.setup.tutorial;</description>
+            <description class="syncsetup-center syncsetup-link" flex="1" onclick="WeaveGlue.openTutorial();">&sync.setup.tutorial;</description>
             <separator/>
             <vbox align="center" flex="1">
               <description id="syncsetup-code1" class="syncsetup-code">....</description>
@@ -544,7 +542,7 @@
               <description id="syncsetup-code3" class="syncsetup-code">....</description>
             </vbox>
             <separator/>
-            <description class="syncsetup-center link" flex="1" onclick="WeaveGlue.openManual();">&sync.fallback;</description>
+            <description class="syncsetup-center syncsetup-link" flex="1" onclick="WeaveGlue.openManual();">&sync.fallback;</description>
             <separator flex="1"/>
           </scrollbox>
           <hbox class="prompt-buttons" pack="center">
@@ -597,7 +595,7 @@
       </vbox>
     </vbox>
 
-    <hbox id="context-container" class="window-width window-height context-block" top="0" left="0" hidden="true" flex="1">
+    <hbox id="context-container" class="window-width window-height context-block" top="0" left="0" hidden="true">
       <vbox id="context-popup" class="dialog-dark">
         <hbox id="context-header">
           <label id="context-hint" crop="center" flex="1"/>
@@ -679,10 +677,6 @@
       </vbox>
     </hbox>
 
-    <hbox id="appmenu-overflow" bottom="0" hidden="true" oncommand="AppMenu.hideOverflow();">
-      <richlistbox id="appmenu-overflow-commands" flex="1"/>
-    </hbox>
-
     <hbox id="appmenu" bottom="0" hidden="true" align="stretch" oncommand="AppMenu.hide();">
       <toolbarbutton class="appmenu-site-button appmenu-button"
         label="&appMenu.siteOptions;"
@@ -693,23 +687,9 @@
       <toolbarbutton class="appmenu-addons-button appmenu-button"
         label="&addonsHeader.label;"
         oncommand="BrowserUI.showPanel('addons-container');"/>
-      <toolbarbutton class="appmenu-share-button appmenu-button"
-        label="&pageactions.share.page;"
-        oncommand="SharingUI.show(getBrowser().currentURI.spec, getBrowser().contentTitle);"/>
-      <toolbarbutton class="appmenu-findinpage-button appmenu-button"
-        label="&pageactions.findInPage;"
-        oncommand="FindHelperUI.show();"/>
       <toolbarbutton class="appmenu-downloads-button appmenu-button"
         label="&downloadsHeader.label;"
         oncommand="BrowserUI.showPanel('downloads-container');"/>
-#ifdef NS_PRINTING
-      <toolbarbutton class="appmenu-saveas-button appmenu-button"
-        label="&pageactions.saveas.pdf;"
-        oncommand="PageActions.savePageAsPDF();"/>
-#endif
-      <toolbarbutton class="appmenu-quit-button appmenu-button"
-        label="&pageactions.quit;"
-        oncommand="Browser.quit();"/>
     </hbox>
   </stack>
 

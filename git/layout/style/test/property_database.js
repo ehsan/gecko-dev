@@ -444,8 +444,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1" ],
-		other_values: [ "2", "100", "0" ],
-		invalid_values: [ "1.0", "-1", "-1000" ]
+		other_values: [ "2", "100" ],
+		invalid_values: [ "1.0", "-1", "-1000", "0" ]
 	},
 	"-moz-box-orient": {
 		domProp: "MozBoxOrient",
@@ -1792,8 +1792,8 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ (gInitialFontFamilyIsSansSerif ? "sans-serif" : "serif") ],
-		other_values: [ (gInitialFontFamilyIsSansSerif ? "serif" : "sans-serif"), "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\\\"Times New Roman", "\"Times New Roman\"", "Times, \\\"Times New Roman", "Times, \"Times New Roman\"" ],
-		invalid_values: [ "\"Times New\" Roman", "\"Times New Roman\n", "Times, \"Times New Roman\n" ]
+		other_values: [ (gInitialFontFamilyIsSansSerif ? "serif" : "sans-serif"), "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\"Times New Roman", "Times, \"Times New Roman" ],
+		invalid_values: [ "\"Times New\" Roman" ]
 	},
 	"-moz-font-feature-settings": {
 		domProp: "MozFontFeatureSettings",

@@ -93,6 +93,9 @@ XPCJSContextStack::Pop(JSContext * *_retval)
     NS_ASSERTION(!mStack.IsEmpty(), "ThreadJSContextStack underflow");
 
     PRUint32 idx = mStack.Length() - 1; // The thing we're popping
+    NS_ASSERTION(!mStack[idx].frame,
+                 "Shouldn't have a pending frame to restore on the context "
+                 "we're popping!");
 
     if(_retval)
         *_retval = mStack[idx].cx;
@@ -103,6 +106,7 @@ XPCJSContextStack::Pop(JSContext * *_retval)
         --idx; // Advance to new top of the stack
 
         XPCJSContextInfo & e = mStack[idx];
+        NS_ASSERTION(!e.frame || e.cx, "Shouldn't have frame without a cx!");
         NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
         if(e.cx)
         {
@@ -112,12 +116,12 @@ XPCJSContextStack::Pop(JSContext * *_retval)
                 e.suspendDepth = 0;
             }
 
-            if(e.savedFrameChain)
+            if(e.frame)
             {
                 // Pop() can be called outside any request for e.cx.
                 JSAutoRequest ar(e.cx);
-                JS_RestoreFrameChain(e.cx);
-                e.savedFrameChain = false;
+                JS_RestoreFrameChain(e.cx, e.frame);
+                e.frame = nsnull;
             }
         }
     }
@@ -142,9 +146,11 @@ NS_IMETHODIMP
 XPCJSContextStack::Push(JSContext * cx)
 {
     JS_ASSERT_IF(cx, JS_GetContextThread(cx));
-    if(mStack.Length() > 0)
+    if(!mStack.AppendElement(cx))
+        return NS_ERROR_OUT_OF_MEMORY;
+    if(mStack.Length() > 1)
     {
-        XPCJSContextInfo & e = mStack[mStack.Length() - 1];
+        XPCJSContextInfo & e = mStack[mStack.Length() - 2];
         if(e.cx)
         {
             if(e.cx == cx)
@@ -152,14 +158,16 @@ XPCJSContextStack::Push(JSContext * cx)
                 nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
                 if(ssm)
                 {
-                    if(nsIPrincipal* globalObjectPrincipal = GetPrincipalFromCx(cx))
+                    nsIPrincipal* globalObjectPrincipal =
+                        GetPrincipalFromCx(cx);
+                    if(globalObjectPrincipal)
                     {
                         nsIPrincipal* subjectPrincipal = ssm->GetCxSubjectPrincipal(cx);
                         PRBool equals = PR_FALSE;
                         globalObjectPrincipal->Equals(subjectPrincipal, &equals);
                         if(equals)
                         {
-                            goto append;
+                            return NS_OK;
                         }
                     }
                 }
@@ -168,19 +176,13 @@ XPCJSContextStack::Push(JSContext * cx)
             {
                 // Push() can be called outside any request for e.cx.
                 JSAutoRequest ar(e.cx);
-                if(!JS_SaveFrameChain(e.cx))
-                    return NS_ERROR_OUT_OF_MEMORY;
-                e.savedFrameChain = true;
+                e.frame = JS_SaveFrameChain(e.cx);
             }
 
             if(!cx)
                 e.suspendDepth = JS_SuspendRequest(e.cx);
         }
     }
-
-  append:
-    if(!mStack.AppendElement(cx))
-        return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
 }
 
@@ -419,7 +421,8 @@ static void
 xpc_ThreadDataDtorCB(void* ptr)
 {
     XPCPerThreadData* data = (XPCPerThreadData*) ptr;
-    delete data;
+    if(data)
+        delete data;
 }
 
 void XPCPerThreadData::TraceJS(JSTracer *trc)
@@ -481,7 +484,8 @@ XPCPerThreadData::GetDataImpl(JSContext *cx)
         if(!data || !data->IsValid())
         {
             NS_ERROR("new XPCPerThreadData() failed!");
-            delete data;
+            if(data)
+                delete data;
             return nsnull;
         }
         if(PR_FAILURE == PR_SetThreadPrivate(gTLSIndex, data))

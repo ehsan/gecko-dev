@@ -131,7 +131,6 @@
   clip-path: inherit;
   filter: inherit;
   mask: inherit;
-  opacity: inherit;
   -moz-box-ordinal-group: inherit !important;
 }
 
@@ -186,21 +185,9 @@
   height: 100%;
 }
 
-*|*::-moz-page-sequence, *|*::-moz-scrolled-page-sequence {
-  /* Collection of pages in print/print preview. Visual styles may only appear
-   * in print preview. */
+*|*::-moz-page, *|*::-moz-page-sequence, *|*::-moz-scrolled-page-sequence {
   display: block !important;
-  background: -moz-linear-gradient(top, #606060, #8a8a8a) fixed;
-  height: 100%;
-}
-
-*|*::-moz-page {
-  /* Individual page in print/print preview. Visual styles may only appear
-   * in print preview. */
-  display: block !important;
-  background: white;
-  box-shadow: 5px 5px 8px #202020;
-  margin: 0.125in 0.25in;
+  background: transparent;
 }
 
 *|*::-moz-pagecontent {

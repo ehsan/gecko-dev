@@ -90,8 +90,7 @@ nsProgressFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
-                                                 kNameSpaceID_XHTML,
-                                                 nsIDOMNode::ELEMENT_NODE);
+                                                 kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Create the div.
@@ -267,12 +266,7 @@ nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 
   nsSize autoSize;
   autoSize.height = autoSize.width = fontMet->Font().size; // 1em
-
-  if (GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL) {
-    autoSize.height *= 10; // 10em
-  } else {
-    autoSize.width *= 10; // 10em
-  }
+  autoSize.width *= 10; // 10em
 
   return autoSize;
 }

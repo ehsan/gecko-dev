@@ -489,21 +489,6 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 
-  PRBool retargeted = PR_FALSE;
-
-  if (aEvent->flags & NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(target);
-    if (content && content->IsInNativeAnonymousSubtree()) {
-      nsCOMPtr<nsPIDOMEventTarget> newTarget =
-        do_QueryInterface(content->FindFirstNonNativeAnonymous());
-      NS_ENSURE_STATE(newTarget);
-
-      aEvent->originalTarget = target;
-      target = newTarget;
-      retargeted = PR_TRUE;
-    }
-  }
-
   if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
     nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
     if (!node) {
@@ -594,16 +579,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     aEvent->target = aEvent->target->GetTargetForEventTargetChain();
     NS_ENSURE_STATE(aEvent->target);
   }
-
-  if (retargeted) {
-    aEvent->originalTarget =
-      aEvent->originalTarget->GetTargetForEventTargetChain();
-    NS_ENSURE_STATE(aEvent->originalTarget);
-  }
-  else {
-    aEvent->originalTarget = aEvent->target;
-  }
-
+  aEvent->originalTarget = aEvent->target;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->originalTarget);
   PRBool isInAnon = (content && content->IsInAnonymousSubtree());
 
@@ -779,12 +755,14 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_TEXT_EVENT:
       return NS_NewDOMTextEvent(aDOMEvent, aPresContext,
                                 static_cast<nsTextEvent*>(aEvent));
+#ifdef MOZ_SVG
     case NS_SVG_EVENT:
       return NS_NewDOMSVGEvent(aDOMEvent, aPresContext,
                                aEvent);
     case NS_SVGZOOM_EVENT:
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext,
                                    static_cast<nsGUIEvent*>(aEvent));
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
     case NS_SMIL_TIME_EVENT:
       return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, aEvent);
@@ -802,9 +780,11 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_TRANSITION_EVENT:
       return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext,
                                       static_cast<nsTransitionEvent*>(aEvent));
+#ifdef MOZ_CSS_ANIMATIONS
     case NS_ANIMATION_EVENT:
       return NS_NewDOMAnimationEvent(aDOMEvent, aPresContext,
                                      static_cast<nsAnimationEvent*>(aEvent));
+#endif
     }
 
     // For all other types of events, create a vanilla event object.
@@ -835,8 +815,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("deviceorientationevent"))
     return NS_NewDOMDeviceOrientationEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("devicemotionevent"))
-    return NS_NewDOMDeviceMotionEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("uievent") ||
       aEventType.LowerCaseEqualsLiteral("uievents"))
     return NS_NewDOMUIEvent(aDOMEvent, aPresContext, nsnull);
@@ -844,12 +822,14 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       aEventType.LowerCaseEqualsLiteral("events") ||
       aEventType.LowerCaseEqualsLiteral("htmlevents"))
     return NS_NewDOMEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_SVG
   if (aEventType.LowerCaseEqualsLiteral("svgevent") ||
       aEventType.LowerCaseEqualsLiteral("svgevents"))
     return NS_NewDOMSVGEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("svgzoomevent") ||
       aEventType.LowerCaseEqualsLiteral("svgzoomevents"))
     return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext, nsnull);
+#endif // MOZ_SVG
 #ifdef MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("timeevent") ||
       aEventType.LowerCaseEqualsLiteral("timeevents"))
@@ -884,8 +864,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
   // is probably wrong!
   if (aEventType.LowerCaseEqualsLiteral("transitionevent"))
     return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_CSS_ANIMATIONS
   if (aEventType.LowerCaseEqualsLiteral("animationevent"))
     return NS_NewDOMAnimationEvent(aDOMEvent, aPresContext, nsnull);
+#endif
   if (aEventType.LowerCaseEqualsLiteral("popstateevent"))
     return NS_NewDOMPopStateEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("mozaudioavailableevent"))

@@ -49,7 +49,8 @@
 #include "nsRenderingContext.h"
 #include "gfxPlatform.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIComponentManager.h"
 #include "nsIPersistentProperties2.h"
@@ -66,8 +67,6 @@
 
 #include "nsMathMLOperators.h"
 #include "nsMathMLChar.h"
-
-using namespace mozilla;
 
 //#define SHOW_BORDERS 1
 //#define NOISY_SEARCH 1
@@ -596,6 +595,23 @@ nsGlyphTableList::GetGlyphTableFor(const nsAString& aFamily)
 
 // -----------------------------------------------------------------------------------
 
+// retrieve a pref value set by the user
+static PRBool
+GetPrefValue(nsIPrefBranch* aPrefBranch, const char* aPrefKey, nsString& aPrefValue)
+{
+  aPrefValue.Truncate();
+  if (aPrefBranch) {
+    nsCOMPtr<nsISupportsString> prefString;
+    aPrefBranch->GetComplexValue(aPrefKey,
+                                 NS_GET_IID(nsISupportsString),
+                                 getter_AddRefs(prefString));
+    if (prefString) {
+      prefString->GetData(aPrefValue);
+    }
+  }
+  return !aPrefValue.IsEmpty();
+}
+
 // Lookup the preferences:
 // "font.mathfont-family.\uNNNN.base"     -- fonts for the base size
 // "font.mathfont-family.\uNNNN.variants" -- fonts for larger glyphs
@@ -603,7 +619,7 @@ nsGlyphTableList::GetGlyphTableFor(const nsAString& aFamily)
 // Given the char code and mode of stretch, retrieve the preferred extension
 // font families.
 static PRBool
-GetFontExtensionPref(PRUnichar aChar,
+GetFontExtensionPref(nsIPrefBranch* aPrefBranch, PRUnichar aChar,
                      nsMathfontPrefExtension aExtension, nsString& aValue)
 {
   // initialize OUT param
@@ -650,11 +666,8 @@ GetFontExtensionPref(PRUnichar aChar,
   alternateKey.Append(tmp);
   alternateKey.Append(extension);
 
-  aValue = Preferences::GetString(key.get());
-  if (aValue.IsEmpty()) {
-    aValue = Preferences::GetString(alternateKey.get());
-  }
-  return !aValue.IsEmpty();
+  return GetPrefValue(aPrefBranch, key.get(), aValue) ||
+    GetPrefValue(aPrefBranch, alternateKey.get(), aValue);
 }
 
 
@@ -692,6 +705,7 @@ InitGlobals(nsPresContext* aPresContext)
   nsCAutoString key;
   nsAutoString value;
   nsCOMPtr<nsIPersistentProperties> mathfontProp;
+  nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
 
   // Add the math fonts in the gGlyphTableList in order of preference ...
   // Note: we only load font-names at this stage. The actual glyph tables will
@@ -874,7 +888,7 @@ IsSizeOK(nsPresContext* aPresContext, nscoord a, nscoord b, PRUint32 aHint)
   // or in sloppy markups without protective <mrow></mrow>
   PRBool isNormal =
     (aHint & NS_STRETCH_NORMAL)
-    && PRBool(float(NS_ABS(a - b))
+    && PRBool(float(PR_ABS(a - b))
               < (1.0f - NS_MATHML_DELIMITER_FACTOR) * float(b));
   // Nearer: True if 'a' is around max{ +/-10% of 'b' , 'b' - 5pt },
   // as documented in The TeXbook, Ch.17, p.152.
@@ -883,7 +897,7 @@ IsSizeOK(nsPresContext* aPresContext, nscoord a, nscoord b, PRUint32 aHint)
   if (aHint & (NS_STRETCH_NEARER | NS_STRETCH_LARGEOP)) {
     float c = NS_MAX(float(b) * NS_MATHML_DELIMITER_FACTOR,
                      float(b) - nsPresContext::CSSPointsToAppUnits(NS_MATHML_DELIMITER_SHORTFALL_POINTS));
-    isNearer = PRBool(float(NS_ABS(b - a)) <= (float(b) - c));
+    isNearer = PRBool(float(PR_ABS(b - a)) <= (float(b) - c));
   }
   // Smaller: Mainly for transitory use, to compare two candidate
   // choices
@@ -910,7 +924,7 @@ IsSizeBetter(nscoord a, nscoord olda, nscoord b, PRUint32 aHint)
     return (a <= olda) ? (olda > b) : (a <= b);
 
   // XXXkt prob want log scale here i.e. 1.5 is closer to 1 than 0.5
-  return NS_ABS(a - b) < NS_ABS(olda - b);
+  return PR_ABS(a - b) < PR_ABS(olda - b);
 }
 
 // We want to place the glyphs even when they don't fit at their
@@ -1437,8 +1451,9 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   nsFont font = mStyleContext->GetParent()->GetStyleFont()->mFont;
 
   // Override with specific fonts if applicable for this character
+  nsCOMPtr<nsIPrefBranch> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
   nsAutoString families;
-  if (GetFontExtensionPref(mData[0], eExtension_base, families)) {
+  if (GetFontExtensionPref(prefBranch, mData[0], eExtension_base, families)) {
     font.name = families;
   }
 
@@ -1553,7 +1568,8 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   }
 
   // See if there are preferred fonts for the variants of this char
-  if (!done && GetFontExtensionPref(mData[0], eExtension_variants, families)) {
+  if (!done && GetFontExtensionPref(prefBranch, mData[0], eExtension_variants,
+                                    families)) {
     font.name = families;
 
     StretchEnumContext enumData(this, aPresContext, aRenderingContext,
@@ -1566,7 +1582,8 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 
   // See if there are preferred fonts for the parts of this char
   if (!done && !largeopOnly
-      && GetFontExtensionPref(mData[0], eExtension_parts, families)) {
+      && GetFontExtensionPref(prefBranch, mData[0], eExtension_parts,
+                              families)) {
     font.name = families;
 
     StretchEnumContext enumData(this, aPresContext, aRenderingContext,
@@ -1581,8 +1598,8 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
     // Use the css font-family but add preferred fallback fonts.
     font.name = cssFamilies;
     NS_NAMED_LITERAL_CSTRING(defaultKey, "font.mathfont-family");
-    nsAdoptingString fallbackFonts = Preferences::GetString(defaultKey.get());
-    if (!fallbackFonts.IsEmpty()) {
+    nsAutoString fallbackFonts;
+    if (GetPrefValue(prefBranch, defaultKey.get(), fallbackFonts)) {
       AddFallbackFonts(font.name, fallbackFonts);
     }
 

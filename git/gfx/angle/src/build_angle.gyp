@@ -228,11 +228,7 @@
               'AdditionalDependencies': [
                 'd3d9.lib',
                 'dxguid.lib',
-                'dwmapi.lib',
               ],
-              'DelayLoadDLLs': [
-                'dwmapi.dll',
-              ]
             }
           },
         },

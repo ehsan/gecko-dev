@@ -36,6 +36,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
 gBrowser.selectedTab = gBrowser.addTab();
 
 function test() {

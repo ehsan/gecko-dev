@@ -95,10 +95,6 @@ function test()
     check(function() typeof map.get(key) == "undefined");
     check(function() !map.has(key));
 
-    var value = { };
-    map.set(new Object(), value);
-    gc(); gc(); gc();
-
     print ("done");
 
     reportCompare(0, TestFailCount, "weak map tests");

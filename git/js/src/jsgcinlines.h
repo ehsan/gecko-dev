@@ -44,7 +44,6 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsscope.h"
-#include "jsxml.h"
 
 #include "jslock.h"
 #include "jstl.h"
@@ -162,27 +161,6 @@ GetGCKindSlots(FinalizeKind thingKind)
     }
 }
 
-static inline void
-GCPoke(JSContext *cx, Value oldval)
-{
-    /*
-     * Since we're forcing a GC from JS_GC anyway, don't bother wasting cycles
-     * loading oldval.  XXX remove implied force, fix jsinterp.c's "second arg
-     * ignored", etc.
-     */
-#if 1
-    cx->runtime->gcPoke = JS_TRUE;
-#else
-    cx->runtime->gcPoke = oldval.isGCThing();
-#endif
-
-#ifdef JS_GC_ZEAL
-    /* Schedule a GC to happen "soon" after a GC poke. */
-    if (cx->runtime->gcZeal())
-        cx->runtime->gcNextScheduled = 1;
-#endif
-}
-
 } /* namespace gc */
 } /* namespace js */
 
@@ -195,10 +173,9 @@ GCPoke(JSContext *cx, Value oldval)
 
 template <typename T>
 inline T *
-NewGCThing(JSContext *cx, unsigned thingKind, size_t thingSize)
+NewFinalizableGCThing(JSContext *cx, unsigned thingKind)
 {
     JS_ASSERT(thingKind < js::gc::FINALIZE_LIMIT);
-    JS_ASSERT(thingSize == js::gc::GCThingSizeMap[thingKind]);
 #ifdef JS_THREADSAFE
     JS_ASSERT_IF((cx->compartment == cx->runtime->atomsCompartment),
                  (thingKind == js::gc::FINALIZE_STRING) ||
@@ -206,13 +183,8 @@ NewGCThing(JSContext *cx, unsigned thingKind, size_t thingSize)
 #endif
     JS_ASSERT(!cx->runtime->gcRunning);
 
-#ifdef JS_GC_ZEAL
-    if (cx->runtime->needZealousGC())
-        js::gc::RunDebugGC(cx);
-#endif
-
     METER(cx->compartment->arenas[thingKind].stats.alloc++);
-    js::gc::Cell *cell = cx->compartment->freeLists.getNext(thingKind, thingSize);
+    js::gc::Cell *cell = cx->compartment->freeLists.getNext(thingKind);
     return static_cast<T *>(cell ? cell : js::gc::RefillFinalizableFreeList(cx, thingKind));
 }
 
@@ -223,7 +195,7 @@ inline JSObject *
 js_NewGCObject(JSContext *cx, js::gc::FinalizeKind kind)
 {
     JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    JSObject *obj = NewGCThing<JSObject>(cx, kind, js::gc::GCThingSizeMap[kind]);
+    JSObject *obj = NewFinalizableGCThing<JSObject>(cx, kind);
     if (obj) {
         obj->capacity = js::gc::GetGCKindSlots(kind);
         obj->lastProp = NULL; /* Stops obj from being scanned until initializated. */
@@ -234,26 +206,27 @@ js_NewGCObject(JSContext *cx, js::gc::FinalizeKind kind)
 inline JSString *
 js_NewGCString(JSContext *cx)
 {
-    return NewGCThing<JSString>(cx, js::gc::FINALIZE_STRING, sizeof(JSString));
+    return NewFinalizableGCThing<JSString>(cx, js::gc::FINALIZE_STRING);    
 }
 
 inline JSShortString *
 js_NewGCShortString(JSContext *cx)
 {
-    return NewGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING, sizeof(JSShortString));
+    return NewFinalizableGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING);
 }
 
 inline JSExternalString *
-js_NewGCExternalString(JSContext *cx)
+js_NewGCExternalString(JSContext *cx, uintN type)
 {
-    return NewGCThing<JSExternalString>(cx, js::gc::FINALIZE_EXTERNAL_STRING,
-                                        sizeof(JSExternalString));
+    JS_ASSERT(type < JSExternalString::TYPE_LIMIT);
+    JSExternalString *str = NewFinalizableGCThing<JSExternalString>(cx, js::gc::FINALIZE_EXTERNAL_STRING);
+    return str;
 }
 
 inline JSFunction*
 js_NewGCFunction(JSContext *cx)
 {
-    JSFunction *fun = NewGCThing<JSFunction>(cx, js::gc::FINALIZE_FUNCTION, sizeof(JSFunction));
+    JSFunction *fun = NewFinalizableGCThing<JSFunction>(cx, js::gc::FINALIZE_FUNCTION);
     if (fun) {
         fun->capacity = JSObject::FUN_CLASS_RESERVED_SLOTS;
         fun->lastProp = NULL; /* Stops fun from being scanned until initializated. */
@@ -264,14 +237,14 @@ js_NewGCFunction(JSContext *cx)
 inline js::Shape *
 js_NewGCShape(JSContext *cx)
 {
-    return NewGCThing<js::Shape>(cx, js::gc::FINALIZE_SHAPE, sizeof(js::Shape));
+    return NewFinalizableGCThing<js::Shape>(cx, js::gc::FINALIZE_SHAPE);
 }
 
 #if JS_HAS_XML_SUPPORT
 inline JSXML *
 js_NewGCXML(JSContext *cx)
 {
-    return NewGCThing<JSXML>(cx, js::gc::FINALIZE_XML, sizeof(JSXML));
+    return NewFinalizableGCThing<JSXML>(cx, js::gc::FINALIZE_XML);
 }
 #endif
 

@@ -71,6 +71,8 @@
 
 // Misc
 #include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsContentCID.h"
 #include "nsInternetCiter.h"
@@ -194,11 +196,13 @@ nsPlaintextEditor::GetDefaultEditorPrefs(PRInt32 &aNewlineHandling,
                                          PRInt32 &aCaretStyle)
 {
   if (sNewlineHandlingPref == -1) {
-    Preferences::RegisterCallback(EditorPrefsChangedCallback,
-                                  "editor.singleLine.pasteNewlines");
+    nsContentUtils::RegisterPrefCallback("editor.singleLine.pasteNewlines",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
     EditorPrefsChangedCallback("editor.singleLine.pasteNewlines", nsnull);
-    Preferences::RegisterCallback(EditorPrefsChangedCallback,
-                                  "layout.selection.caret_style");
+    nsContentUtils::RegisterPrefCallback("layout.selection.caret_style",
+                                         EditorPrefsChangedCallback,
+                                         nsnull);
     EditorPrefsChangedCallback("layout.selection.caret_style", nsnull);
   }
 
@@ -1141,8 +1145,12 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   // We may reset mWrapToWindow here, based on the pref's current value.
   if (IsMailEditor())
   {
-    mWrapToWindow =
-      Preferences::GetBool("mail.compose.wrap_to_window_width", mWrapToWindow);
+    nsresult rv;
+    nsCOMPtr<nsIPrefBranch> prefBranch =
+      do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv))
+      prefBranch->GetBoolPref("mail.compose.wrap_to_window_width",
+                              &mWrapToWindow);
   }
 
   // and now we're ready to set the new whitespace/wrapping style.

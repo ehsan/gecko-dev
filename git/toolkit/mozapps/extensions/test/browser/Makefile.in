@@ -87,8 +87,6 @@ _MAIN_TEST_FILES = \
   browser_purchase.js \
   browser_openDialog.js \
   browser_types.js \
-  browser_inlinesettings.js \
-  browser_tabsettings.js \
   $(NULL)
 
 _TEST_FILES = \
@@ -117,7 +115,6 @@ _TEST_RESOURCES = \
   browser_eula.xml \
   browser_purchase.xml \
   discovery.html \
-  options.xul \
   redirect.sjs \
   releaseNotes.xhtml \
   $(NULL)

@@ -72,7 +72,6 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include <math.h>  // for log()
-#include "mozilla/Util.h" // for DebugOnly
 #include "mozilla/Services.h"
 
 #include "mozilla/FunctionTimer.h"
@@ -358,7 +357,7 @@ nsCacheProfilePrefObserver::Remove()
 void
 nsCacheProfilePrefObserver::SetDiskCacheCapacity(PRInt32 capacity)
 {
-    mDiskCacheCapacity = NS_MAX(0, capacity);
+    mDiskCacheCapacity = PR_MAX(0, capacity);
 }
 
 
@@ -419,7 +418,7 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
             rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &capacity);
             if (NS_FAILED(rv))  
                 return rv;
-            mDiskCacheCapacity = NS_MAX(0, capacity);
+            mDiskCacheCapacity = PR_MAX(0, capacity);
             nsCacheService::SetDiskCacheCapacity(mDiskCacheCapacity);
        
         // Update the cache capacity when smart sizing is turned on/off 
@@ -449,7 +448,7 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
                 rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &newCapacity);
                 if (NS_FAILED(rv)) 
                     return rv;
-                mDiskCacheCapacity = NS_MAX(0, newCapacity);
+                mDiskCacheCapacity = PR_MAX(0, newCapacity);
                 nsCacheService::SetDiskCacheCapacity(mDiskCacheCapacity);
             } 
 #if 0            
@@ -478,7 +477,7 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
             PRInt32 capacity = 0;
             rv = branch->GetIntPref(OFFLINE_CACHE_CAPACITY_PREF, &capacity);
             if (NS_FAILED(rv))  return rv;
-            mOfflineCacheCapacity = NS_MAX(0, capacity);
+            mOfflineCacheCapacity = PR_MAX(0, capacity);
             nsCacheService::SetOfflineCacheCapacity(mOfflineCacheCapacity);
 #if 0
         } else if (!strcmp(OFFLINE_CACHE_DIR_PREF, data.get())) {
@@ -581,7 +580,7 @@ nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath)
   
   // 0 MB <= Available < 500 MB: Use between 50MB and 200MB
   if (kBytesAvail < DEFAULT_CACHE_SIZE * 2) 
-    return NS_MAX<PRInt64>(MIN_CACHE_SIZE, kBytesAvail * 4 / 10);
+    return PR_MAX(MIN_CACHE_SIZE, kBytesAvail * 4 / 10);
   
   // 500MB <= Available < 2.5 GB: Use 250MB 
   if (kBytesAvail < static_cast<PRInt64>(DEFAULT_CACHE_SIZE) * 10) 
@@ -655,7 +654,7 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
 
     mDiskCacheCapacity = DISK_CACHE_CAPACITY;
     (void)branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &mDiskCacheCapacity);
-    mDiskCacheCapacity = NS_MAX(0, mDiskCacheCapacity);
+    mDiskCacheCapacity = PR_MAX(0, mDiskCacheCapacity);
 
     (void) branch->GetComplexValue(DISK_CACHE_DIR_PREF,     // ignore error
                                    NS_GET_IID(nsILocalFile),
@@ -751,7 +750,7 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
     mOfflineCacheCapacity = OFFLINE_CACHE_CAPACITY;
     (void)branch->GetIntPref(OFFLINE_CACHE_CAPACITY_PREF,
                              &mOfflineCacheCapacity);
-    mOfflineCacheCapacity = NS_MAX(0, mOfflineCacheCapacity);
+    mOfflineCacheCapacity = PR_MAX(0, mOfflineCacheCapacity);
 
     (void) branch->GetComplexValue(OFFLINE_CACHE_DIR_PREF,     // ignore error
                                    NS_GET_IID(nsILocalFile),
@@ -1819,7 +1818,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
             if (predictedDataSize != -1 &&
                 entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE &&
                 mDiskDevice->EntryIsTooBig(predictedDataSize)) {
-                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
+                nsresult rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
                 return nsnull;
             }
@@ -1842,7 +1841,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
             // Bypass the cache if Content-Length says entry will be too big
             if (predictedDataSize != -1 &&
                 mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
-                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
+                nsresult rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
                 return nsnull;
             }

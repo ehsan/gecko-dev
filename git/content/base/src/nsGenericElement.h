@@ -51,6 +51,7 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOM3EventTarget.h"
+#include "nsIDOM3Node.h"
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNSElement.h"
 #include "nsILinkHandler.h"
@@ -80,6 +81,7 @@ class nsIDOMCSSStyleDeclaration;
 class nsIURI;
 class nsINodeInfo;
 class nsIControllers;
+class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
 class nsIScrollableFrame;
 class nsContentList;
@@ -129,14 +131,14 @@ private:
 /**
  * A tearoff class for nsGenericElement to implement additional interfaces
  */
-class nsNode3Tearoff : public nsIDOMXPathNSResolver
+class nsNode3Tearoff : public nsIDOM3Node, public nsIDOMXPathNSResolver
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsNode3Tearoff)
+  NS_DECL_NSIDOM3NODE
 
-  NS_DECL_NSIDOMXPATHNSRESOLVER
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsNode3Tearoff, nsIDOM3Node)
 
   nsNode3Tearoff(nsINode *aNode) : mNode(aNode)
   {
@@ -343,19 +345,16 @@ public:
   {
     return nsContentUtils::GetContextForEventHandlers(this, aRv);
   }
-  NS_IMETHOD GetTextContent(nsAString &aTextContent)
+  virtual void GetTextContent(nsAString &aTextContent)
   {
     nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
-    return NS_OK;
   }
-  NS_IMETHOD SetTextContent(const nsAString& aTextContent)
+  virtual nsresult SetTextContent(const nsAString& aTextContent)
   {
     return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
   }
 
   // nsIContent interface methods
-  virtual void UpdateEditableState(PRBool aNotify);
-
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -864,7 +863,7 @@ protected:
    * Hook that is called by nsGenericElement::SetAttr to allow subclasses to
    * deal with attribute sets.  This will only be called after we have called
    * SetAndTakeAttr and AttributeChanged (that is, after we have actually set
-   * the attr).  It will always be called under a scriptblocker.
+   * the attr).
    *
    * @param aNamespaceID the namespace of the attr being set
    * @param aName the localname of the attribute being set

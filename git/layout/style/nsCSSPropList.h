@@ -368,6 +368,7 @@ CSS_PROP_FONT(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 #endif
+#ifdef MOZ_CSS_ANIMATIONS
 CSS_PROP_SHORTHAND(
     -moz-animation,
     animation,
@@ -458,6 +459,7 @@ CSS_PROP_DISPLAY(
     kTransitionTimingFunctionKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+#endif
 CSS_PROP_SHORTHAND(
     background,
     background,
@@ -2497,7 +2499,7 @@ CSS_PROP_XUL(
     box_ordinal_group,
     CSS_PROP_DOMPROP_PREFIXED(BoxOrdinalGroup),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_NONNEGATIVE,
+        CSS_PROPERTY_VALUE_AT_LEAST_ONE,
     VARIANT_HI,
     nsnull,
     CSS_PROP_NO_OFFSET,
@@ -2512,6 +2514,7 @@ CSS_PROP_XUL(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 
+#ifdef MOZ_MATHML
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_FONT(
     -moz-script-level,
@@ -2547,6 +2550,7 @@ CSS_PROP_FONT(
     nsnull,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
+#endif
 #endif
 
 CSS_PROP_SVGRESET(

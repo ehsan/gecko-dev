@@ -217,13 +217,11 @@ ShadowLayerForwarder::CreatedImageBuffer(ShadowableLayer* aImage,
 void
 ShadowLayerForwarder::CreatedCanvasBuffer(ShadowableLayer* aCanvas,
                                           nsIntSize aSize,
-                                          const SurfaceDescriptor& aTempFrontSurface,
-                                          bool aNeedYFlip)
+                                          const SurfaceDescriptor& aTempFrontSurface)
 {
   mTxn->AddEdit(OpCreateCanvasBuffer(NULL, Shadow(aCanvas),
                                      aSize,
-                                     aTempFrontSurface,
-                                     aNeedYFlip));
+                                     aTempFrontSurface));
 }
 
 void

@@ -151,16 +151,16 @@ nsDOMMultipartBlob::MozSlice(PRInt64 aStart, PRInt64 aEnd,
     aEnd = (PRInt64)thisLength;
   }
 
-  // Modifies aStart and aEnd.
   ParseSize((PRInt64)thisLength, aStart, aEnd);
 
   // If we clamped to nothing we create an empty blob
   nsTArray<nsCOMPtr<nsIDOMBlob> > blobs;
 
-  PRUint64 length = aEnd - aStart;
+  PRInt64 length = aEnd - aStart;
+  PRUint64 finalLength = length;
   PRUint64 skipStart = aStart;
 
-  NS_ABORT_IF_FALSE(PRUint64(aStart) + length <= thisLength, "Er, what?");
+  NS_ABORT_IF_FALSE(aStart + length <= thisLength, "Er, what?");
 
   // Prune the list of blobs if we can
   PRUint32 i;
@@ -172,7 +172,7 @@ nsDOMMultipartBlob::MozSlice(PRInt64 aStart, PRInt64 aEnd,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (skipStart < l) {
-      PRUint64 upperBound = NS_MIN<PRUint64>(l - skipStart, length);
+      PRInt64 upperBound = NS_MIN<PRInt64>(l - skipStart, length);
 
       nsCOMPtr<nsIDOMBlob> firstBlob;
       rv = mBlobs.ElementAt(i)->MozSlice(skipStart, skipStart + upperBound,
@@ -212,7 +212,7 @@ nsDOMMultipartBlob::MozSlice(PRInt64 aStart, PRInt64 aEnd,
     } else {
       blobs.AppendElement(blob);
     }
-    length -= NS_MIN<PRUint64>(l, length);
+    length -= NS_MIN<PRInt64>(l, length);
   }
 
   // we can create our blob now
@@ -234,7 +234,7 @@ protected:
   nsresult AppendVoidPtr(void* aData, PRUint32 aLength);
   nsresult AppendString(JSString* aString, JSContext* aCx);
   nsresult AppendBlob(nsIDOMBlob* aBlob);
-  nsresult AppendArrayBuffer(JSObject* aBuffer);
+  nsresult AppendArrayBuffer(js::ArrayBuffer* aBuffer);
 
   bool ExpandBufferSize(PRUint64 aSize)
   {
@@ -332,9 +332,9 @@ nsDOMBlobBuilder::AppendBlob(nsIDOMBlob* aBlob)
 }
 
 nsresult
-nsDOMBlobBuilder::AppendArrayBuffer(JSObject* aBuffer)
+nsDOMBlobBuilder::AppendArrayBuffer(js::ArrayBuffer* aBuffer)
 {
-  return AppendVoidPtr(JS_GetArrayBufferData(aBuffer), JS_GetArrayBufferByteLength(aBuffer));
+  return AppendVoidPtr(aBuffer->data, aBuffer->byteLength);
 }
 
 /* nsIDOMBlob getBlob ([optional] in DOMString contentType); */
@@ -379,7 +379,7 @@ nsDOMBlobBuilder::Append(const jsval& aData, JSContext* aCx)
 
     // Is it an array buffer?
     if (js_IsArrayBuffer(obj)) {
-      JSObject* buffer = js::ArrayBuffer::getArrayBuffer(obj);
+      js::ArrayBuffer* buffer = js::ArrayBuffer::fromJSObject(obj);
       if (buffer)
         return AppendArrayBuffer(buffer);
     }

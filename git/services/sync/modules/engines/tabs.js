@@ -65,7 +65,7 @@ function TabSetRecord(collection, id) {
 }
 TabSetRecord.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Tabs",
+  _logName: "Record.Tabs",
   ttl: TABS_TTL
 };
 
@@ -179,7 +179,7 @@ TabStore.prototype = {
     record.clientName = Clients.localName;
 
     // Don't provide any tabs to compare against and ignore the update later.
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
       record.tabs = [];
       return record;
     }
@@ -216,7 +216,7 @@ TabStore.prototype = {
   getAllIDs: function TabStore_getAllIds() {
     // Don't report any tabs if we're in private browsing for first syncs.
     let ids = {};
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
       return ids;
 
     ids[Clients.localID] = true;
@@ -333,7 +333,7 @@ TabTracker.prototype = {
   },
 
   onTab: function onTab(event) {
-    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
       this._log.trace("Ignoring tab event from private browsing.");
       return;
     }

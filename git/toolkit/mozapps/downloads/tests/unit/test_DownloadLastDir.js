@@ -39,7 +39,6 @@ function run_test()
   let Cc = Components.classes;
   let Ci = Components.interfaces;
   let Cu = Components.utils;
-  do_get_profile();
   Cu.import("resource://gre/modules/DownloadLastDir.jsm");
 
   function clearHistory() {

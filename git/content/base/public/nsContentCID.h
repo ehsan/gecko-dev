@@ -214,10 +214,14 @@
 #define NS_RANGEUTILS_CID \
 { 0xa6cf9126, 0x15b3, 0x11d2, {0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32 } }
 
+#ifdef MOZ_SVG
+
 #define NS_SVGDOCUMENT_CID                        \
 { /* b7f44954-1dd1-11b2-8c2e-c2feab4186bc */      \
   0xb7f44954, 0x11d1, 0x11b2,                     \
   {0x8c, 0x2e, 0xc2, 0xfe, 0xab, 0x41, 0x86, 0xbc}}
+
+#endif // MOZ_SVG
 
 #ifdef MOZ_MEDIA
 
@@ -227,6 +231,13 @@
   { 0xb6, 0x51, 0x2e, 0x71, 0xc5, 0xc2, 0xf0, 0x5f } }
 
 #endif
+
+#define NS_SYNCLOADDOMSERVICE_CID                   \
+ { /* 0e4e7d00-f71a-439f-9178-1a71ff11b55f */       \
+  0x0e4e7d00, 0xf71a, 0x439f,                       \
+ {0x91, 0x78, 0x1a, 0x71, 0xff, 0x11, 0xb5, 0x5f} }
+#define NS_SYNCLOADDOMSERVICE_CONTRACTID            \
+"@mozilla.org/content/syncload-dom-service;1"
 
 #define NS_EVENTLISTENERSERVICE_CID                 \
  { /* baa34652-f1f1-4185-b224-244ee82a413a */       \

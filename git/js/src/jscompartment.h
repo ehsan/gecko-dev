@@ -42,18 +42,23 @@
 
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsmath.h"
 #include "jsobj.h"
 #include "jsfun.h"
 #include "jsgcstats.h"
 #include "jsclist.h"
+#include "jsxml.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4251) /* Silence warning about JS_FRIEND_API and data members. */
 #endif
 
-namespace JSC { class ExecutableAllocator; }
-namespace WTF { class BumpPointerAllocator; }
+namespace JSC {
+
+class ExecutableAllocator;
+
+}
 
 namespace js {
 
@@ -100,6 +105,7 @@ struct TracerState
     void*          rpAtLastTreeCall;    // value of rp at innermost tree call guard
     VMSideExit*    outermostTreeExitGuard; // the last side exit returned by js_CallTree
     TreeFragment*  outermostTree;       // the outermost tree we initially invoked
+    uintN*         inlineCallCountp;    // inline call count counter
     VMSideExit**   innermostNestedGuardp;
     VMSideExit*    innermost;
     uint64         startTime;
@@ -118,7 +124,7 @@ struct TracerState
     js::Value*     nativeVp;
 
     TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
-                VMSideExit** innermostNestedGuardp);
+                uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
     ~TracerState();
 };
 
@@ -345,8 +351,6 @@ class NativeIterCache {
     }
 };
 
-class MathCache;
-
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
  * helps date-format-xparb.js.  It also avoids skewing the results for
@@ -416,7 +420,6 @@ struct JS_FRIEND_API(JSCompartment) {
      */
     size_t getMjitCodeSize() const;
 #endif
-    WTF::BumpPointerAllocator    *regExpAllocator;
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -463,6 +466,8 @@ struct JS_FRIEND_API(JSCompartment) {
     bool                         debugMode;  // true iff debug mode on
     JSCList                      scripts;    // scripts in this compartment
 
+    JSC::ExecutableAllocator     *regExpAllocator;
+
     js::NativeIterCache          nativeIterCache;
 
     typedef js::Maybe<js::ToSourceCache> LazyToSourceCache;
@@ -493,7 +498,7 @@ struct JS_FRIEND_API(JSCompartment) {
     void finalizeShapeArenaLists(JSContext *cx);
     bool arenaListsAreEmpty();
 
-    void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
+    void setGCLastBytes(size_t lastBytes);
     void reduceGCTriggerBytes(uint32 amount);
 
     js::DtoaCache dtoaCache;

@@ -54,9 +54,6 @@ nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNode
 {
   // <fieldset> is always barred from constraint validation.
   SetBarredFromConstraintValidation(PR_TRUE);
-
-  // We start out enabled
-  AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
 nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
@@ -130,7 +127,7 @@ nsHTMLFieldSetElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     PRUint32 length = mElements->Length(PR_TRUE);
     for (PRUint32 i=0; i<length; ++i) {
       static_cast<nsGenericHTMLFormElement*>(mElements->GetNodeAt(i))
-        ->FieldSetDisabledChanged(aNotify);
+        ->FieldSetDisabledChanged(nsEventStates(), aNotify);
     }
   }
 

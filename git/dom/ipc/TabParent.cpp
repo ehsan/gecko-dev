@@ -59,6 +59,7 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsFrameLoader.h"
 #include "nsNetUtil.h"
+#include "jsarray.h"
 #include "nsContentUtils.h"
 #include "nsContentPermissionHelper.h"
 #include "nsIDOMNSHTMLFrameElement.h"
@@ -399,7 +400,7 @@ TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
   {
   case NS_QUERY_SELECTED_TEXT:
     {
-      aEvent.mReply.mOffset = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
+      aEvent.mReply.mOffset = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
       if (mIMESelectionAnchor == mIMESelectionFocus) {
         aEvent.mReply.mString.Truncate(0);
       } else {
@@ -445,7 +446,7 @@ bool
 TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
   mIMEComposing = event.message == NS_COMPOSITION_START;
-  mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
+  mIMECompositionStart = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
     return true;
   event.seqno = ++mIMESeqno;
@@ -470,7 +471,7 @@ TabParent::SendTextEvent(nsTextEvent& event)
   // We must be able to simulate the selection because
   // we might not receive selection updates in time
   if (!mIMEComposing) {
-    mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
+    mIMECompositionStart = PR_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   }
   mIMESelectionAnchor = mIMESelectionFocus =
       mIMECompositionStart + event.theText.Length();
@@ -586,8 +587,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader && frameLoader->GetFrameMessageManager()) {
-    nsRefPtr<nsFrameMessageManager> manager =
-      frameLoader->GetFrameMessageManager();
+    nsFrameMessageManager* manager = frameLoader->GetFrameMessageManager();
     JSContext* ctx = manager->GetJSContext();
     JSAutoRequest ar(ctx);
     PRUint32 len = 0; //TODO: obtain a real value in bug 572685

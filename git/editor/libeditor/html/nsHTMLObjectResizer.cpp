@@ -60,13 +60,12 @@
 
 #include "nsPoint.h"
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIServiceManager.h"
-#include "mozilla/Preferences.h"
 
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
-
-using namespace mozilla;
 
 class nsHTMLEditUtils;
 
@@ -555,8 +554,19 @@ nsHTMLEditor::StartResizing(nsIDOMElement *aHandle)
   mActivatedHandle->SetAttribute(NS_LITERAL_STRING("_moz_activated"), NS_LITERAL_STRING("true"));
 
   // do we want to preserve ratio or not?
-  PRBool preserveRatio = nsHTMLEditUtils::IsImage(mResizedObject) &&
-    Preferences::GetBool("editor.resizing.preserve_ratio", PR_TRUE);
+  PRBool preserveRatio = nsHTMLEditUtils::IsImage(mResizedObject);
+  nsresult result;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &result);
+  if (NS_SUCCEEDED(result) && prefBranch && preserveRatio) {
+    result = prefBranch->GetBoolPref("editor.resizing.preserve_ratio", &preserveRatio);
+    if (NS_FAILED(result)) {
+      // just in case Anvil does not update its prefs file
+      // and because it really does not make sense to me to allow free
+      // resizing on corners without a modifier key
+      preserveRatio = PR_TRUE;
+    }
+  }
 
   // the way we change the position/size of the shadow depends on
   // the handle
@@ -599,7 +609,6 @@ nsHTMLEditor::StartResizing(nsIDOMElement *aHandle)
                                       mResizedObjectHeight);
 
   // add a mouse move listener to the editor
-  nsresult result = NS_OK;
   if (!mMouseMotionListenerP) {
     mMouseMotionListenerP = new ResizerMouseMotionListener(this);
     if (!mMouseMotionListenerP) {
@@ -918,8 +927,8 @@ nsHTMLEditor::MouseMove(nsIDOMEvent* aMouseEvent)
     look->GetMetric(nsILookAndFeel::eMetric_DragThresholdX, xThreshold);
     look->GetMetric(nsILookAndFeel::eMetric_DragThresholdY, yThreshold);
 
-    if (NS_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
-        NS_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
+    if (PR_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
+        PR_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
       mGrabberClicked = PR_FALSE;
       StartMoving(nsnull);
     }

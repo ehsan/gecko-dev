@@ -73,6 +73,7 @@
 #include "nsCRT.h"
 #include "nsContentUtils.h"
 #include "nsSyncLoadService.h"
+#include "nsIDOM3Node.h"
 #include "nsContentPolicyUtils.h"
 #include "nsTArray.h"
 #include "nsContentErrors.h"
@@ -89,9 +90,6 @@
 #endif
 #include "nsIDOMLoadListener.h"
 #include "nsIDOMEventGroup.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define NS_MAX_XBL_BINDING_RECURSION 20
 
@@ -164,10 +162,12 @@ PRBool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
       }
     }
   }
+#ifdef MOZ_SVG
   else if (aNameSpaceID == kNameSpaceID_SVG &&
            aTagName == nsGkAtoms::generic) {
     return PR_TRUE;
   }
+#endif
 
   return PR_FALSE;
 }
@@ -511,8 +511,9 @@ nsXBLService::nsXBLService(void)
   if (gRefCnt == 1) {
     gClassTable = new nsHashtable();
   }
-
-  Preferences::AddBoolVarCache(&gAllowDataURIs, "layout.debug.enable_data_xbl");
+  
+  nsContentUtils::AddBoolPrefVarCache("layout.debug.enable_data_xbl",
+                                      &gAllowDataURIs);
 }
 
 nsXBLService::~nsXBLService(void)
@@ -950,36 +951,42 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
       nsAutoString nameSpace;
 
       if (!prefix.IsEmpty()) {
-        child->LookupNamespaceURI(prefix, nameSpace);
+        nsCOMPtr<nsIAtom> prefixAtom = do_GetAtom(prefix);
 
-        if (!nameSpace.IsEmpty()) {
-          if (!hasDisplay) {
-            // We extend some widget/frame. We don't really have a
-            // base binding.
-            protoBinding->SetHasBasePrototype(PR_FALSE);
-            //child->UnsetAttr(kNameSpaceID_None, nsGkAtoms::extends, PR_FALSE);
+        nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(child));
+
+        if (node) {
+          node->LookupNamespaceURI(prefix, nameSpace);
+
+          if (!nameSpace.IsEmpty()) {
+            if (!hasDisplay) {
+              // We extend some widget/frame. We don't really have a
+              // base binding.
+              protoBinding->SetHasBasePrototype(PR_FALSE);
+              //child->UnsetAttr(kNameSpaceID_None, nsGkAtoms::extends, PR_FALSE);
+            }
+
+            PRInt32 nameSpaceID =
+              nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
+
+            nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
+            // Check the white list
+            if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
+              const PRUnichar* params[] = { display.get() };
+              nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                              "InvalidExtendsBinding",
+                                              params, NS_ARRAY_LENGTH(params),
+                                              nsnull,
+                                              EmptyString(), 0, 0,
+                                              nsIScriptError::errorFlag,
+                                              "XBL", doc);
+              NS_ASSERTION(!IsChromeOrResourceURI(aURI),
+                           "Invalid extends value");
+              return NS_ERROR_ILLEGAL_VALUE;
+            }
+
+            protoBinding->SetBaseTag(nameSpaceID, tagName);
           }
-
-          PRInt32 nameSpaceID =
-            nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
-
-          nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
-          // Check the white list
-          if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
-            const PRUnichar* params[] = { display.get() };
-            nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
-                                            "InvalidExtendsBinding",
-                                            params, NS_ARRAY_LENGTH(params),
-                                            nsnull,
-                                            EmptyString(), 0, 0,
-                                            nsIScriptError::errorFlag,
-                                            "XBL", doc);
-            NS_ASSERTION(!IsChromeOrResourceURI(aURI),
-                         "Invalid extends value");
-            return NS_ERROR_ILLEGAL_VALUE;
-          }
-
-          protoBinding->SetBaseTag(nameSpaceID, tagName);
         }
       }
 

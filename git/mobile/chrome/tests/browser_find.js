@@ -3,31 +3,18 @@
 //------------------------------------------------------------------------------
 // Entry point (must be named "test")
 function test() {
-  addEventListener("PopupChanged", popupOpened, false);
-  CommandUpdater.doCommand("cmd_menu");
-}
-
-function popupOpened() {
-  removeEventListener("PopupChanged", popupOpened, false);
-
-  let menu = document.getElementById("appmenu");
-  ok(!menu.hidden, "App menu is shown");
-
+  let menu = document.getElementById("identity-container");
+  let item = document.getElementById("pageaction-findinpage");
   let navigator = document.getElementById("content-navigator");
+
+  // Open and close the find toolbar
+
+  getIdentityHandler().show();
+  ok(!menu.hidden, "Site menu is open");
   ok(!navigator.isActive, "Toolbar is closed");
 
-  addEventListener("PopupChanged", findOpened, false);
-  let item = document.getElementsByClassName("appmenu-findinpage-button")[0];
-  item.click();
-}
-
-function findOpened() {
-  removeEventListener("PopupChanged", findOpened, false);
-
-  let menu = document.getElementById("appmenu");
-  ok(menu.hidden, "App menu is closed");
-
-  let navigator = document.getElementById("content-navigator");
+  EventUtils.sendMouseEvent({ type: "click" }, item);
+  ok(menu.hidden, "Site menu is closed");
   ok(navigator.isActive, "Toolbar is open");
 
   is(navigator._previousButton.disabled, true, "Previous button should be disabled");
