@@ -50,6 +50,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include "jsapi.h"
+#include "jsdhash.h"
+#include "jsprf.h"
+#include "prprf.h"
+#include "jsinterp.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsgc.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -74,14 +82,6 @@
 #include "nsIModule.h"
 #include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
-#include "jsapi.h"
-#include "jsdhash.h"
-#include "jsprf.h"
-#include "prprf.h"
-#include "jsinterp.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsgc.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
 #include "xpclog.h"
@@ -704,6 +704,7 @@ public:
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
         IDX_PARENT                  ,
+        IDX_EXPOSEDPROPS            ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -4297,6 +4298,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
 
 inline JSBool
 xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsval idval);
+
+inline jsid
+GetRTIdByIndex(JSContext *cx, uintN index);
 
 inline jsval
 GetRTStringByIndex(JSContext *cx, uintN index);
