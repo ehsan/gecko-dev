@@ -260,6 +260,11 @@ public:
   static nsRect FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect);
 
   /*
+   * Update the filter invalidation region for this frame, if relevant.
+   */
+  static void UpdateFilterRegion(nsIFrame *aFrame);
+
+  /*
    * Update the area covered by the frame
    */
   static void UpdateGraphic(nsISVGChildFrame *aSVGFrame);
