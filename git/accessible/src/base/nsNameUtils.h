@@ -1,4 +1,6 @@
-/* -*- Mode: idl; tab-width: 20; c-basic-offset: 4; indent-tabs-mode: nil; -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:expandtab:shiftwidth=2:tabstop=2:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,15 +14,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is layout reftest.
+ * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is
- *   Mozilla Corporation
- * Portions created by the Initial Developer are Copyright (C) 2007
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,19 +37,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#ifndef _nsNameUtils_H_
+#define _nsNameUtils_H_
 
-interface nsIDOMHTMLCanvasElement;
+#include "prtypes.h"
 
-[scriptable, uuid(25f2e32c-5d5d-4f5f-95e0-8fd3e2c9905b)]
-interface nsIReftestHelper : nsISupports {
-    /*
-     * Compare the two given canvas elements, and return the number of
-     * pixels that differ.
-     *
-     * The given canvas elements must have the same dimensions, or an
-     * exception will be thrown.
-     */
-    unsigned long compareCanvas (in nsIDOMHTMLCanvasElement canvas1,
-                                 in nsIDOMHTMLCanvasElement canvas2);
+/**
+ * Name from subtree calculation rules.
+ */
+enum ENameFromSubtreeRule
+{
+  // do not walk into subtree to compute the name
+  eNoRule = 0x00,
+  
+  // compute the name from the subtree
+  eFromSubtree = 0x01
 };
+
+/**
+ * The class provides utils methods to compute the accessible name and
+ * description.
+ */
+class nsNameUtils
+{
+public:
+
+  /**
+   * Map array from roles to name rules (bit state of ENameFromSubtreeRule).
+   */
+  static PRUint32 gRoleToNameRulesMap[];
+};
+
+#endif
