@@ -159,8 +159,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
     : mRoot(nsnull),
-      mLoaded(false),
-      mCCGeneration(0)
+      mLoaded(false)
 {
     ++gRefCnt;
 }
@@ -196,9 +195,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
-    if (nsCCUncollectableMarker::InGeneration(cb, tmp->mCCGeneration)) {
-        return NS_SUCCESS_INTERRUPTED_TRAVERSE;
-    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
                                                     nsXULPrototypeElement)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");

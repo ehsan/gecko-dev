@@ -563,7 +563,9 @@ toolbarbutton.bookmark-item[open="true"] {
 }
 
 #wrapper-personal-bookmarks[place="palette"] > .toolbarpaletteitem-box {
-  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat center;
+  width: 16px;
+  height: 16px;
+  background: url("chrome://browser/skin/places/bookmarksToolbar.png") no-repeat;
 }
 
 .bookmarks-toolbar-customize {
