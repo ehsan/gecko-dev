@@ -44,18 +44,6 @@
 
 @class mozRootAccessible;
 
-/**
- * All mozAccessibles are either abstract objects (that correspond to XUL
- * widgets, HTML frames, etc) or are attached to a certain view; for example
- * a document view. When we hand an object off to an AT, we always want
- * to give it the represented view, in the latter case.
- */
-inline id <mozAccessible>
-GetObjectOrRepresentedView(id <mozAccessible> aObject)
-{
-  return [aObject hasRepresentedView] ? [aObject representedView] : aObject;
-}
-
 @interface mozAccessible : NSObject <mozAccessible>
 {
   /**
@@ -136,7 +124,6 @@ GetObjectOrRepresentedView(id <mozAccessible> aObject)
 // notifications sent out to listening accessible providers.
 - (void)didReceiveFocus;
 - (void)valueDidChange;
-- (void)selectedTextDidChange;
 
 #pragma mark -
 

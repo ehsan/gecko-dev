@@ -202,16 +202,19 @@ public:
     AndroidGeckoLayerClient() {}
     AndroidGeckoLayerClient(jobject jobj) { Init(jobj); }
 
+    bool BeginDrawing(int aWidth, int aHeight, const nsAString &aMetadata);
+    void EndDrawing();
     void SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight);
     void SetPageSize(float aZoom, float aPageWidth, float aPageHeight);
-    void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
-                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
+    void SyncViewportInfo(const nsIntRect& aDisplayPort, nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
     void CreateFrame(AndroidLayerRendererFrame& aFrame);
     void ActivateProgram();
     void DeactivateProgram();
 
 protected:
     static jclass jGeckoLayerClientClass;
+    static jmethodID jBeginDrawingMethod;
+    static jmethodID jEndDrawingMethod;
     static jmethodID jSetFirstPaintViewport;
     static jmethodID jSetPageSize;
     static jmethodID jSyncViewportInfoMethod;
@@ -466,6 +469,7 @@ public:
     double X() { return mX; }
     double Y() { return mY; }
     double Z() { return mZ; }
+    double Distance() { return mDistance; }
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
     nsAString& CharactersExtra() { return mCharactersExtra; }
@@ -483,7 +487,6 @@ public:
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
     double Bandwidth() { return mBandwidth; }
     bool CanBeMetered() { return mCanBeMetered; }
-    short ScreenOrientation() { return mScreenOrientation; }
 
 protected:
     int mAction;
@@ -501,12 +504,12 @@ protected:
     int mRangeType, mRangeStyles;
     int mRangeForeColor, mRangeBackColor;
     double mX, mY, mZ;
+    double mDistance;
     int mPointerIndex;
     nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
     double mBandwidth;
     bool mCanBeMetered;
-    short mScreenOrientation;
 
     void ReadIntArray(nsTArray<int> &aVals,
                       JNIEnv *jenv,
@@ -558,8 +561,6 @@ protected:
     static jfieldID jBandwidthField;
     static jfieldID jCanBeMeteredField;
 
-    static jfieldID jScreenOrientationField;
-
 public:
     enum {
         NATIVE_POKE = 0,
@@ -584,13 +585,10 @@ public:
         VIEWPORT = 20,
         VISITED = 21,
         NETWORK_CHANGED = 22,
-        UNUSED3_EVENT = 23,
+        PROXIMITY_EVENT = 23,
         ACTIVITY_RESUMING = 24,
         SCREENSHOT = 25,
-        UNUSED2_EVENT = 26,
-        SCREENORIENTATION_CHANGED = 27,
-        COMPOSITOR_PAUSE = 28,
-        COMPOSITOR_RESUME = 29,
+        SENSOR_ACCURACY = 26,
         dummy_java_enum_list_end
     };
 

@@ -77,20 +77,13 @@ CheckMarkedThing(JSTracer *trc, T *thing)
 {
     JS_ASSERT(trc);
     JS_ASSERT(thing);
-    JS_ASSERT(thing->compartment());
-    JS_ASSERT(thing->compartment()->rt == trc->runtime);
     JS_ASSERT(trc->debugPrinter || trc->debugPrintArg);
-
-    DebugOnly<JSRuntime *> rt = trc->runtime;
-
-    JS_ASSERT_IF(rt->gcIsFull, IS_GC_MARKING_TRACER(trc));
-    JS_ASSERT_IF(thing->compartment()->requireGCTracer(), IS_GC_MARKING_TRACER(trc));
+    JS_ASSERT_IF(trc->runtime->gcCurrentCompartment, IS_GC_MARKING_TRACER(trc));
 
     JS_ASSERT(thing->isAligned());
 
-    JS_ASSERT_IF(rt->gcStrictCompartmentChecking,
-                 thing->compartment()->isCollecting() ||
-                 thing->compartment() == rt->atomsCompartment);
+    JS_ASSERT(thing->compartment());
+    JS_ASSERT(thing->compartment()->rt == trc->runtime);
 }
 
 template<typename T>
@@ -102,15 +95,22 @@ MarkInternal(JSTracer *trc, T **thingp)
 
     CheckMarkedThing(trc, thing);
 
+    JSRuntime *rt = trc->runtime;
+
+    JS_ASSERT_IF(rt->gcCheckCompartment,
+                 thing->compartment() == rt->gcCheckCompartment ||
+                 thing->compartment() == rt->atomsCompartment);
+
     /*
      * Don't mark things outside a compartment if we are in a per-compartment
      * GC.
      */
-    if (!trc->callback) {
-        if (thing->compartment()->isCollecting())
+    if (!rt->gcCurrentCompartment || thing->compartment() == rt->gcCurrentCompartment) {
+        if (!trc->callback) {
             PushMarkStack(static_cast<GCMarker *>(trc), thing);
-    } else {
-        trc->callback(trc, (void **)thingp, GetGCThingTraceKind(thing));
+        } else {
+            trc->callback(trc, (void **)thingp, GetGCThingTraceKind(thing));
+        }
     }
 
 #ifdef DEBUG
@@ -394,29 +394,16 @@ MarkObjectSlots(JSTracer *trc, JSObject *obj, uint32_t start, uint32_t nslots)
 }
 
 void
-MarkCrossCompartmentObjectUnbarriered(JSTracer *trc, JSObject **obj, const char *name)
-{
-    if (IS_GC_MARKING_TRACER(trc) && !(*obj)->compartment()->isCollecting())
-        return;
-
-    MarkObjectUnbarriered(trc, obj, name);
-}
-
-void
-MarkCrossCompartmentScriptUnbarriered(JSTracer *trc, JSScript **script, const char *name)
-{
-    if (IS_GC_MARKING_TRACER(trc) && !(*script)->compartment()->isCollecting())
-        return;
-
-    MarkScriptUnbarriered(trc, script, name);
-}
-
-void
 MarkCrossCompartmentSlot(JSTracer *trc, HeapSlot *s, const char *name)
 {
     if (s->isMarkable()) {
         Cell *cell = (Cell *)s->toGCThing();
-        if (IS_GC_MARKING_TRACER(trc) && !cell->compartment()->isCollecting())
+        JSRuntime *rt = trc->runtime;
+        if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
+            return;
+
+        /* In case we're called from a write barrier. */
+        if (rt->gcIncrementalCompartment && cell->compartment() != rt->gcIncrementalCompartment)
             return;
 
         MarkSlot(trc, s, name);
@@ -441,12 +428,14 @@ MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name)
 
 /*** Push Mark Stack ***/
 
-#define JS_COMPARTMENT_ASSERT(rt, thing)                                \
-    JS_ASSERT((thing)->compartment()->isCollecting())
+#define JS_COMPARTMENT_ASSERT(rt, thing)                                 \
+    JS_ASSERT_IF((rt)->gcCurrentCompartment,                             \
+                 (thing)->compartment() == (rt)->gcCurrentCompartment);
 
-#define JS_COMPARTMENT_ASSERT_STR(rt, thing)                            \
-    JS_ASSERT((thing)->compartment()->isCollecting() ||                 \
-              (thing)->compartment() == (rt)->atomsCompartment);
+#define JS_COMPARTMENT_ASSERT_STR(rt, thing)                             \
+    JS_ASSERT_IF((rt)->gcCurrentCompartment,                             \
+                 (thing)->compartment() == (rt)->gcCurrentCompartment || \
+                 (thing)->compartment() == (rt)->atomsCompartment);
 
 static void
 PushMarkStack(GCMarker *gcmarker, JSXML *thing)
@@ -774,13 +763,16 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
     if (type->proto)
         PushMarkStack(gcmarker, type->proto);
 
-    if (type->singleton && !type->lazy())
-        PushMarkStack(gcmarker, type->singleton);
-
     if (type->newScript) {
         PushMarkStack(gcmarker, type->newScript->fun);
         PushMarkStack(gcmarker, type->newScript->shape);
     }
+
+    if (type->interpretedFunction)
+        PushMarkStack(gcmarker, type->interpretedFunction);
+
+    if (type->singleton && !type->lazy())
+        PushMarkStack(gcmarker, type->singleton);
 
     if (type->interpretedFunction)
         PushMarkStack(gcmarker, type->interpretedFunction);
@@ -1113,10 +1105,9 @@ GCMarker::drainMarkStack(SliceBudget &budget)
     struct AutoCheckCompartment {
         JSRuntime *runtime;
         AutoCheckCompartment(JSRuntime *rt) : runtime(rt) {
-            JS_ASSERT(!rt->gcStrictCompartmentChecking);
-            runtime->gcStrictCompartmentChecking = true;
+            runtime->gcCheckCompartment = runtime->gcCurrentCompartment;
         }
-        ~AutoCheckCompartment() { runtime->gcStrictCompartmentChecking = false; }
+        ~AutoCheckCompartment() { runtime->gcCheckCompartment = NULL; }
     } acc(rt);
 #endif
 

@@ -1078,7 +1078,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     if (dontArrange)
       this._freezeItemSize(count);
 
-    if (this._children.length > 0 && this._activeTab && tabItem.closedManually)
+    if (this._children.length > 0 && this._activeTab)
       UI.setActive(this);
   },
 
@@ -1191,10 +1191,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //   dontAdjustTray - (boolean) if true, do not adjust the tray.
   addAppTab: function GroupItem_addAppTab(xulTab, options) {
     GroupItems.getAppTabFavIconUrl(xulTab, function(iconUrl) {
-      // The tab might have been removed or unpinned while waiting.
-      if (xulTab.closing || !xulTab.parentNode || !xulTab.pinned)
-        return;
-
       let self = this;
       let $appTab = iQ("<img>")
         .addClass("appTabIcon")

@@ -48,9 +48,9 @@ namespace mozilla {
 namespace dom {
 namespace sms {
 
-class SmsManager : public nsDOMEventTargetHelper
-                 , public nsIDOMMozSmsManager
+class SmsManager : public nsIDOMMozSmsManager
                  , public nsIObserver
+                 , public nsDOMEventTargetHelper
 {
 public:
   NS_DECL_ISUPPORTS

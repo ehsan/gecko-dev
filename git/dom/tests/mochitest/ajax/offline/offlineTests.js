@@ -326,7 +326,8 @@ setSJSState: function(sjsPath, stateQuery)
   var client = new XMLHttpRequest();
   client.open("GET", sjsPath + "?state=" + stateQuery, false);
 
-  var appcachechannel = SpecialPowers.wrap(client).channel.QueryInterface(Ci.nsIApplicationCacheChannel);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var appcachechannel = client.channel.QueryInterface(Ci.nsIApplicationCacheChannel);
   appcachechannel.chooseApplicationCache = false;
   appcachechannel.inheritApplicationCache = false;
   appcachechannel.applicationCache = null;

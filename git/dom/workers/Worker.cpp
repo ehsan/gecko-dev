@@ -38,8 +38,8 @@
 
 #include "Worker.h"
 
-#include "mozilla/dom/bindings/DOMJSClass.h"
-#include "mozilla/dom/bindings/Utils.h"
+#include "jsapi.h"
+#include "jsfriendapi.h"
 
 #include "EventTarget.h"
 #include "RuntimeService.h"
@@ -55,13 +55,11 @@
 
 USING_WORKERS_NAMESPACE
 
-using namespace mozilla::dom::bindings;
-
 namespace {
 
 class Worker
 {
-  static DOMJSClass sClass;
+  static JSClass sClass;
   static JSPropertySpec sProperties[];
   static JSFunctionSpec sFunctions[];
 
@@ -86,16 +84,15 @@ public:
   static JSClass*
   Class()
   {
-    return sClass.ToJSClass();
+    return &sClass;
   }
 
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto,
             bool aMainRuntime)
   {
-    JSObject* proto =
-      js::InitClassWithReserved(aCx, aObj, aParentProto, Class(), Construct, 0,
-                                sProperties, sFunctions, NULL, NULL);
+    JSObject* proto = js::InitClassWithReserved(aCx, aObj, aParentProto, &sClass, Construct,
+                                                0, sProperties, sFunctions, NULL, NULL);
     if (!proto) {
       return NULL;
     }
@@ -114,13 +111,36 @@ public:
     return proto;
   }
 
+  static void
+  ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
+  {
+    JS_ASSERT(!JS_IsExceptionPending(aCx));
+
+    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aObj);
+    JS_ASSERT(worker);
+
+    if (aSaveEventHandlers) {
+      for (int index = 0; index < STRING_COUNT; index++) {
+        const char* name = sEventStrings[index];
+        jsval listener;
+        if (!worker->GetEventListenerOnEventTarget(aCx, name + 2, &listener) ||
+            !JS_DefineProperty(aCx, aObj, name, listener, NULL, NULL,
+                               (PROPERTY_FLAGS & ~JSPROP_SHARED))) {
+          JS_ClearPendingException(aCx);
+        }
+      }
+    }
+
+    SetJSPrivateSafeish(aObj, NULL);
+  }
+
   static WorkerPrivate*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName);
 
 protected:
   static JSBool
   ConstructInternal(JSContext* aCx, unsigned aArgc, jsval* aVp,
-                    bool aIsChromeWorker, JSClass* aClass)
+                    bool aIsChromeWorker)
   {
     if (!aArgc) {
       JS_ReportError(aCx, "Constructor requires at least one argument!");
@@ -152,27 +172,23 @@ protected:
       parent->AssertIsOnWorkerThread();
     }
 
-    JSObject* obj = JS_NewObject(aCx, aClass, nsnull, nsnull);
+    JSObject* obj = JS_NewObject(aCx, &sClass, nsnull, nsnull);
     if (!obj) {
       return false;
     }
 
-    nsRefPtr<WorkerPrivate> worker =
-      WorkerPrivate::Create(aCx, obj, parent, scriptURL, aIsChromeWorker);
+    WorkerPrivate* worker = WorkerPrivate::Create(aCx, obj, parent, scriptURL,
+                                                  aIsChromeWorker);
     if (!worker) {
       return false;
     }
 
     // Worker now owned by the JS object.
-    NS_ADDREF(worker.get());
-    js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(worker));
+    SetJSPrivateSafeish(obj, worker);
 
     if (!runtimeService->RegisterWorker(aCx, worker)) {
       return false;
     }
-
-    // Worker now also owned by its thread.
-    NS_ADDREF(worker.get());
 
     JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
     return true;
@@ -197,16 +213,7 @@ private:
       return !JS_IsExceptionPending(aCx);
     }
 
-    NS_ConvertASCIItoUTF16 nameStr(name + 2);
-    nsresult rv = NS_OK;
-    JSObject* listener = worker->GetEventListener(nameStr, rv);
-
-    if (NS_FAILED(rv)) {
-      JS_ReportError(aCx, "Failed to get listener!");
-    }
-
-    *aVp = listener ? OBJECT_TO_JSVAL(listener) : JSVAL_NULL;
-    return true;
+    return worker->GetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static JSBool
@@ -222,46 +229,32 @@ private:
       return !JS_IsExceptionPending(aCx);
     }
 
-    JSObject* listener;
-    if (!JS_ValueToObject(aCx, *aVp, &listener)) {
-      return false;
-    }
-
-    NS_ConvertASCIItoUTF16 nameStr(name + 2);
-    nsresult rv = NS_OK;
-    worker->SetEventListener(nameStr, listener, rv);
-
-    if (NS_FAILED(rv)) {
-      JS_ReportError(aCx, "Failed to set listener!");
-      return false;
-    }
-
-    return true;
+    return worker->SetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    return ConstructInternal(aCx, aArgc, aVp, false, Class());
+    return ConstructInternal(aCx, aArgc, aVp, false);
   }
 
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
+    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aObj);
     if (worker) {
-      worker->_Finalize(aCx);
+      worker->FinalizeInstance(aCx, true);
     }
   }
 
   static void
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
+    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aObj);
     if (worker) {
-      worker->_Trace(aTrc);
+      worker->TraceInstance(aTrc);
     }
   }
 
@@ -305,21 +298,12 @@ private:
   }
 };
 
-MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
-                  "The MaxProtoChainLength must match our manual DOMJSClasses");
-
-DOMJSClass Worker::sClass = {
-  {
-    "Worker",
-    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-    NULL, NULL, NULL, NULL, Trace
-  },
-  { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
-    prototypes::id::_ID_Count },
-  -1, false, DOM_OBJECT_SLOT
+JSClass Worker::sClass = {
+  "Worker",
+  JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  NULL, NULL, NULL, NULL, Trace,
 };
 
 JSPropertySpec Worker::sProperties[] = {
@@ -343,22 +327,21 @@ const char* const Worker::sEventStrings[STRING_COUNT] = {
 
 class ChromeWorker : public Worker
 {
-  static DOMJSClass sClass;
+  static JSClass sClass;
 
 public:
   static JSClass*
   Class()
   {
-    return sClass.ToJSClass();
+    return &sClass;
   }
 
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto,
             bool aMainRuntime)
   {
-    JSObject* proto =
-      js::InitClassWithReserved(aCx, aObj, aParentProto, Class(), Construct, 0,
-                                NULL, NULL, NULL, NULL);
+    JSObject* proto = js::InitClassWithReserved(aCx, aObj, aParentProto, &sClass, Construct,
+                                                0, NULL, NULL, NULL, NULL);
     if (!proto) {
       return NULL;
     }
@@ -377,6 +360,12 @@ public:
     return proto;
   }
 
+  static void
+  ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
+  {
+    Worker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
+  }
+
 private:
   // No instance of this class should ever be created so these are explicitly
   // left without an implementation to prevent linking in case someone tries to
@@ -389,8 +378,8 @@ private:
   {
     if (aObj) {
       JSClass* classPtr = JS_GetClass(aObj);
-      if (classPtr == Class()) {
-        return UnwrapDOMObject<WorkerPrivate>(aObj, Class());
+      if (classPtr == &sClass) {
+        return GetJSPrivateSafeish<WorkerPrivate>(aObj);
       }
     }
 
@@ -400,44 +389,36 @@ private:
   static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    return ConstructInternal(aCx, aArgc, aVp, true, Class());
+    return ConstructInternal(aCx, aArgc, aVp, true);
   }
 
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
+    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aObj);
     if (worker) {
-      worker->_Finalize(aCx);
+      worker->FinalizeInstance(aCx, true);
     }
   }
 
   static void
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj, Class());
+    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aObj);
     if (worker) {
-      worker->_Trace(aTrc);
+      worker->TraceInstance(aTrc);
     }
   }
 };
 
-MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
-                  "The MaxProtoChainLength must match our manual DOMJSClasses");
-
-DOMJSClass ChromeWorker::sClass = {
-  { "ChromeWorker",
-    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-    NULL, NULL, NULL, NULL, Trace,
-  },
-  { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
-    prototypes::id::_ID_Count },
-  -1, false, DOM_OBJECT_SLOT
+JSClass ChromeWorker::sClass = {
+  "ChromeWorker",
+  JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  NULL, NULL, NULL, NULL, Trace
 };
 
 WorkerPrivate*
@@ -445,12 +426,12 @@ Worker::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
                            const char* aFunctionName)
 {
   JSClass* classPtr = JS_GetClass(aObj);
-  if (classPtr == Class() || classPtr == ChromeWorker::Class()) {
-    return UnwrapDOMObject<WorkerPrivate>(aObj, classPtr);
+  if (classPtr == &sClass || classPtr == ChromeWorker::Class()) {
+    return GetJSPrivateSafeish<WorkerPrivate>(aObj);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                       Class()->name, aFunctionName, classPtr->name);
+                       sClass.name, aFunctionName, classPtr->name);
   return NULL;
 }
 
@@ -465,6 +446,20 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
           bool aMainRuntime)
 {
   return Worker::InitClass(aCx, aGlobal, aProto, aMainRuntime);
+}
+
+void
+ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
+{
+  JSClass* clasp = JS_GetClass(aObj);
+  JS_ASSERT(clasp == Worker::Class() || clasp == ChromeWorker::Class());
+
+  if (clasp == ChromeWorker::Class()) {
+    ChromeWorker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
+  }
+  else {
+    Worker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
+  }
 }
 
 } // namespace worker

@@ -34,16 +34,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDOMSVGAnimatedRect.h"
+#include "nsIDOMSVGRect.h"
+#include "nsIDocument.h"
 #include "nsSVGMarkerFrame.h"
-
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
-#include "nsRenderingContext.h"
+#include "nsSVGPathGeometryFrame.h"
 #include "nsSVGEffects.h"
 #include "nsSVGMarkerElement.h"
 #include "nsSVGPathGeometryElement.h"
-#include "nsSVGPathGeometryFrame.h"
+#include "gfxContext.h"
 
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)

@@ -1,6 +1,3 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/identity.js");
@@ -51,7 +48,7 @@ add_test(function test_bad_hmac() {
   function uploadNewKeys() {
     generateNewKeys();
     let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-    serverKeys.encrypt(Weave.Identity.syncKeyBundle);
+    serverKeys.encrypt(Weave.Service.syncKeyBundle);
     do_check_true(serverKeys.upload(Weave.Service.cryptoKeysURL).success);
   }
 
@@ -80,7 +77,7 @@ add_test(function test_bad_hmac() {
     Clients.resetClient();
     generateNewKeys();
     let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-    serverKeys.encrypt(Weave.Identity.syncKeyBundle);
+    serverKeys.encrypt(Weave.Service.syncKeyBundle);
     do_check_true(serverKeys.upload(Weave.Service.cryptoKeysURL).success);
 
     _("Sync.");
@@ -167,8 +164,10 @@ add_test(function test_properties() {
 
 add_test(function test_sync() {
   _("Ensure that Clients engine uploads a new client record once a week.");
-
-  new SyncTestingInfrastructure();
+  
+  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
+  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("username", "foo");
   generateNewKeys();
 
   let contents = {
@@ -406,7 +405,9 @@ add_test(function test_process_incoming_commands() {
 add_test(function test_command_sync() {
   _("Ensure that commands are synced across clients.");
 
-  new SyncTestingInfrastructure();
+  Svc.Prefs.set("serverURL", TEST_SERVER_URL);
+  Svc.Prefs.set("clusterURL", TEST_CLUSTER_URL);
+  Svc.Prefs.set("username", "foo");
 
   Clients._store.wipe();
   generateNewKeys();
@@ -479,8 +480,7 @@ add_test(function test_send_uri_to_client_for_display() {
   let initialScore = tracker.score;
 
   let uri = "http://www.mozilla.org/";
-  let title = "Title of the Page";
-  Clients.sendURIToClientForDisplay(uri, remoteId, title);
+  Clients.sendURIToClientForDisplay(uri, remoteId);
 
   let newRecord = store._remoteClients[remoteId];
 
@@ -489,10 +489,8 @@ add_test(function test_send_uri_to_client_for_display() {
 
   let command = newRecord.commands[0];
   do_check_eq(command.command, "displayURI");
-  do_check_eq(command.args.length, 3);
+  do_check_eq(command.args.length, 2);
   do_check_eq(command.args[0], uri);
-  do_check_eq(command.args[1], Clients.localID);
-  do_check_eq(command.args[2], title);
 
   do_check_true(tracker.score > initialScore);
   do_check_true(tracker.score - initialScore >= SCORE_INCREMENT_XLARGE);
@@ -520,11 +518,10 @@ add_test(function test_receive_display_uri() {
 
   let uri = "http://www.mozilla.org/";
   let remoteId = Utils.makeGUID();
-  let title = "Page Title!";
 
   let command = {
     command: "displayURI",
-    args: [uri, remoteId, title],
+    args: [uri, remoteId],
   };
 
   Clients.localCommands = [command];
@@ -538,7 +535,6 @@ add_test(function test_receive_display_uri() {
 
     do_check_eq(subject.uri, uri);
     do_check_eq(subject.client, remoteId);
-    do_check_eq(subject.title, title);
     do_check_eq(data, null);
 
     run_next_test();

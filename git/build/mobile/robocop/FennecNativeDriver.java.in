@@ -39,19 +39,17 @@
 
 package @ANDROID_PACKAGE_NAME@;
 
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.List;
+import java.io.FileOutputStream;
+import java.io.DataOutputStream;
 
 import java.lang.Class;
 import java.lang.reflect.InvocationTargetException;
@@ -70,8 +68,6 @@ import org.json.*;
 import com.jayway.android.robotium.solo.Solo;
 
 public class FennecNativeDriver implements Driver {
-    private static final int FRAME_TIME_THRESHOLD = 17;     // allow 17ms per frame (~60fps)
-
     // Map of IDs to element names.
     private HashMap mLocators = null;
     private Activity mActivity;
@@ -227,15 +223,21 @@ public class FennecNativeDriver implements Driver {
     public int stopFrameRecording() {
         Class [] parameters = new Class[1];
         parameters[0] = null;
+        List frames;
 
         try {
             Object [] params = null;
-            List<Long> frames = (List<Long>)_stopFrameRecording.invoke(null, params);
+            frames = (List)_stopFrameRecording.invoke(null, params);
+            Object [] framearray = frames.toArray();
+            Long last = new Long(0);
+            Long threshold = new Long(17);
             int numDelays = 0;
-            for (int i = 1; i < frames.size(); i++) {
-                if (frames.get(i) - frames.get(i-1) > FRAME_TIME_THRESHOLD) {
+            for (int i=0; i < framearray.length; i++) {
+                Long val = (Long)framearray[i];
+                if ((val - last) > threshold) {
                     numDelays++;
                 }
+                last = val;
             }
             return numDelays;
         } catch (IllegalAccessException e) {
@@ -261,15 +263,18 @@ public class FennecNativeDriver implements Driver {
     public float stopCheckerboardRecording() {
         Class [] parameters = new Class[1];
         parameters[0] = null;
+        List checkerboard;
 
         try {
             Object [] params = null;
-            List<Float> checkerboard = (List<Float>)_stopCheckerboardRecording.invoke(null, params);
-            float completeness = 0;
-            for (float val : checkerboard) {
-                completeness += (1.0f - val);
+            checkerboard = (List)_stopCheckerboardRecording.invoke(null, params);
+            Object [] amountarray = checkerboard.toArray();
+            double completeness = 0;
+            for (Object obj : amountarray) {
+                float val = (Float)obj;
+                completeness += (1.0 - (double)val) / (double)amountarray.length;
             }
-            return completeness / (float)checkerboard.size();
+            return (float)completeness;
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         } catch (InvocationTargetException e) {
@@ -279,22 +284,17 @@ public class FennecNativeDriver implements Driver {
         return 0.0f;
     }
 
-    private View getSurfaceView() {
-        try {
-            Class c = Class.forName("org.mozilla.gecko.gfx.LayerView");
-            for (View v : mSolo.getCurrentViews()) {
-                if (c.isInstance(v)) {
-                    return v;
-                }
+    private GLSurfaceView getSurfaceView() {
+        for (View v : mSolo.getCurrentViews()) {
+            if (v instanceof GLSurfaceView) {
+                return (GLSurfaceView)v;
             }
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         }
         return null;
     }
 
     public PaintedSurface getPaintedSurface() {
-        View view = getSurfaceView();
+        GLSurfaceView view = getSurfaceView();
         if (view == null) {
             return null;
         }
@@ -314,12 +314,10 @@ public class FennecNativeDriver implements Driver {
         String mapFile = "/mnt/sdcard/pixels.map";
 
         FileOutputStream fos = null;
-        BufferedOutputStream bos = null;
         DataOutputStream dos = null;
         try {
             fos = new FileOutputStream(mapFile);
-            bos = new BufferedOutputStream(fos);
-            dos = new DataOutputStream(bos);
+            dos = new DataOutputStream(fos);
 
             for (int y = h - 1; y >= 0; y--) {
                 for (int x = 0; x < w; x++) {
@@ -327,25 +325,20 @@ public class FennecNativeDriver implements Driver {
                     dos.writeInt((agbr & 0xFF00FF00) | ((agbr >> 16) & 0x000000FF) | ((agbr << 16) & 0x00FF0000));
                 }
             }
+            return new PaintedSurface(mapFile, w, h);
         } catch (IOException e) {
             throw new RoboCopException("exception with pixel writer on file: " + mapFile);
         } finally {
             try {
-                if (dos != null) {
+                if (dos != null && fos != null) {
                     dos.flush();
                     dos.close();
-                }
-                // closing dos automatically closes bos
-                if (fos != null) {
-                    fos.flush();
                     fos.close();
                 }
             } catch (IOException e) {
-                e.printStackTrace();
                 throw new RoboCopException("exception closing pixel writer on file: " + mapFile);
             }
         }
-        return new PaintedSurface(mapFile, w, h);
     }
 
     public int mHeight=0;
@@ -459,48 +452,41 @@ public class FennecNativeDriver implements Driver {
     }
 
     public static void log(LogLevel level, String message) {
-        log(level, message, null);
-    }
-
-    public static void log(LogLevel level, Throwable t) {
-        log(level, null, t);
-    }
-
-    public static void log(LogLevel level, String message, Throwable t) {
         if (mLogFile == null) {
             assert(false);
         }
 
         if (level.isEnabled(mLogLevel)) {
-            PrintWriter pw = null;
+            File file = new File(mLogFile);
+            BufferedWriter bw = null;
+
             try {
-                pw = new PrintWriter(new FileWriter(mLogFile, true));
-                if (message != null) {
-                    pw.println(message);
-                }
-                if (t != null) {
-                    t.printStackTrace(pw);
-                }
-            } catch (IOException ioe) {
+                bw = new BufferedWriter(new FileWriter(mLogFile, true));
+                bw.write(message);
+                bw.newLine();
+            } catch(IOException e) {
                 Log.e("Robocop", "exception with file writer on: " + mLogFile);
             } finally {
-                pw.close();
-            }
-            // PrintWriter doesn't throw IOE but sets an error flag instead,
-            // so check for that
-            if (pw.checkError()) {
-                Log.e("Robocop", "exception with file writer on: " + mLogFile);
+                try {
+                    if (bw != null) {
+                        bw.flush();
+                        bw.close();
+                    }
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
             }
         }
 
         if (level == LogLevel.LOG_LEVEL_INFO) {
-            Log.i("Robocop", message, t);
+            Log.i("Robocop", message);
         } else if (level == LogLevel.LOG_LEVEL_DEBUG) {
-            Log.d("Robocop", message, t);
+            Log.d("Robocop", message);
         } else if (level == LogLevel.LOG_LEVEL_WARN) {
-            Log.w("Robocop", message, t);
+            Log.w("Robocop", message);
         } else if (level == LogLevel.LOG_LEVEL_ERROR) {
-            Log.e("Robocop", message, t);
+            Log.e("Robocop", message);
         }
     }
+
 }

@@ -49,6 +49,8 @@
 #include "nsIFilePicker.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
 #include "nsAutoPtr.h"
@@ -94,6 +96,7 @@
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
+#include "nsDeviceMotion.h"
 #include "mozilla/Util.h"
 
 #include "nsIMemoryReporter.h"
@@ -214,7 +217,10 @@ ContentParent::Init()
         obs->AddObserver(this, "a11y-init-or-shutdown", false);
 #endif
     }
-    Preferences::AddStrongObserver(this, "");
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefs) {
+        prefs->AddObserver("", this, false);
+    }
     nsCOMPtr<nsIThreadInternal>
             threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt) {
@@ -244,8 +250,13 @@ ContentParent::OnChannelConnected(int32 pid)
         SetOtherProcess(handle);
 
 #if defined(ANDROID) || defined(LINUX)
+        EnsurePrefService();
+        nsCOMPtr<nsIPrefBranch> branch;
+        branch = do_QueryInterface(mPrefService);
+
         // Check nice preference
-        PRInt32 nice = Preferences::GetInt("dom.ipc.content.nice", 0);
+        PRInt32 nice = 0;
+        branch->GetIntPref("dom.ipc.content.nice", &nice);
 
         // Environment variable overrides preference
         char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
@@ -319,9 +330,14 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     SetChildMemoryReporters(empty);
 
     // remove the global remote preferences observers
-    Preferences::RemoveObserver(this, "");
+    nsCOMPtr<nsIPrefBranch> prefs 
+            (do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefs) { 
+        prefs->RemoveObserver("", this);
+    }
 
     RecvRemoveGeolocationListener();
+    RecvRemoveDeviceMotionListener();
 
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -450,6 +466,7 @@ ContentParent::IsAlive()
 bool
 ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
 {
+    EnsurePrefService();
     Preferences::MirrorPreferences(prefs);
     return true;
 }
@@ -461,6 +478,18 @@ ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
     gfxAndroidPlatform::GetPlatform()->GetFontList(retValue);
 #endif
     return true;
+}
+
+
+void
+ContentParent::EnsurePrefService()
+{
+    nsresult rv;
+    if (!mPrefService) {
+        mPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+        NS_ASSERTION(NS_SUCCEEDED(rv), 
+                     "We lost prefService in the Chrome process !");
+    }
 }
 
 bool
@@ -656,10 +685,11 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
     return true;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
+NS_IMPL_THREADSAFE_ISUPPORTS4(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
-                              nsIDOMGeoPositionCallback)
+                              nsIDOMGeoPositionCallback,
+                              nsIDeviceMotionListener)
 
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,
@@ -1186,6 +1216,26 @@ ContentParent::RecvRemoveGeolocationListener()
   return true;
 }
 
+bool
+ContentParent::RecvAddDeviceMotionListener()
+{
+    nsCOMPtr<nsIDeviceMotion> dm = 
+        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
+    if (dm)
+        dm->AddListener(this);
+    return true;
+}
+
+bool
+ContentParent::RecvRemoveDeviceMotionListener()
+{
+    nsCOMPtr<nsIDeviceMotion> dm = 
+        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
+    if (dm)
+        dm->RemoveListener(this);
+    return true;
+}
+
 NS_IMETHODIMP
 ContentParent::HandleEvent(nsIDOMGeoPosition* postion)
 {
@@ -1227,6 +1277,26 @@ ContentParent::RecvScriptError(const nsString& aMessage,
   svc->LogMessage(msg);
   return true;
 }
+
+NS_IMETHODIMP
+ContentParent::OnMotionChange(nsIDeviceMotionData *aDeviceData) {
+    PRUint32 type;
+    double x, y, z;
+    aDeviceData->GetType(&type);
+    aDeviceData->GetX(&x);
+    aDeviceData->GetY(&y);
+    aDeviceData->GetZ(&z);
+
+    unused << SendDeviceMotionChanged(type, x, y, z);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+ContentParent::NeedsCalibration() {
+    unused << SendNeedsCalibration();
+    return NS_OK;
+}
+
 
 } // namespace dom
 } // namespace mozilla

@@ -47,7 +47,6 @@
 #include "jspropertytree.h"
 #include "jsscope.h"
 
-#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 
@@ -298,6 +297,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
         fputs("(", fp);
 #define DUMP_FLAG(name, display) if (flags & name) fputs(&(" " #display)[first], fp), first = 0
         DUMP_FLAG(HAS_SHORTID, has_shortid);
+        DUMP_FLAG(METHOD, method);
         DUMP_FLAG(IN_DICTIONARY, in_dictionary);
 #undef  DUMP_FLAG
         fputs(") ", fp);
@@ -355,7 +355,10 @@ js::PropertyTree::dumpShapes(JSContext *cx)
     JSRuntime *rt = cx->runtime;
     fprintf(dumpfp, "rt->gcNumber = %lu", (unsigned long)rt->gcNumber);
 
-    for (gc::GCCompartmentsIter c(rt); !c.done(); c.next()) {
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != c)
+            continue;
+
         fprintf(dumpfp, "*** Compartment %p ***\n", (void *)c.get());
 
         /*

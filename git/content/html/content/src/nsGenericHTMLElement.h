@@ -132,6 +132,7 @@ public:
   NS_IMETHOD InsertAdjacentHTML(const nsAString& aPosition,
                                 const nsAString& aText);
   nsresult ScrollIntoView(bool aTop, PRUint8 optional_argc);
+  nsresult MozRequestFullScreen();
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetHidden(),
   // SetHidden(), GetSpellcheck(), SetSpellcheck(), and GetDraggable() such that
   // classes that inherit interfaces with those methods properly override them.
@@ -1528,6 +1529,9 @@ PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
   } \
   NS_SCRIPTABLE NS_IMETHOD GetOffsetHeight(PRInt32* aOffsetHeight) { \
     return _to GetOffsetHeight(aOffsetHeight); \
+  } \
+  NS_SCRIPTABLE NS_IMETHOD MozRequestFullScreen() { \
+    return _to MozRequestFullScreen(); \
   }
 
 /**

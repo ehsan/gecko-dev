@@ -121,7 +121,7 @@ FormHistory.prototype = {
     },
 
 
-    log : function log(message) {
+    log : function (message) {
         if (!this.debug)
             return;
         dump("FormHistory: " + message + "\n");
@@ -129,7 +129,7 @@ FormHistory.prototype = {
     },
 
 
-    init : function init() {
+    init : function() {
         Services.prefs.addObserver("browser.formfill.", this, true);
 
         this.updatePrefs();
@@ -175,7 +175,7 @@ FormHistory.prototype = {
     },
 
 
-    addEntry : function addEntry(name, value) {
+    addEntry : function (name, value) {
         if (!this.enabled ||
             this.privBrowsingSvc && this.privBrowsingSvc.privateBrowsingEnabled)
             return;
@@ -188,7 +188,7 @@ FormHistory.prototype = {
         let stmt;
 
         if (id != -1) {
-            // Update existing entry.
+            // Update existing entry
             let query = "UPDATE moz_formhistory SET timesUsed = timesUsed + 1, lastUsed = :lastUsed WHERE id = :id";
             let params = {
                             lastUsed : now,
@@ -209,7 +209,7 @@ FormHistory.prototype = {
             }
 
         } else {
-            // Add new entry.
+            // Add new entry
             guid = this.generateGUID();
 
             let query = "INSERT INTO moz_formhistory (fieldname, value, timesUsed, firstUsed, lastUsed, guid) " +
@@ -239,7 +239,7 @@ FormHistory.prototype = {
     },
 
 
-    removeEntry : function removeEntry(name, value) {
+    removeEntry : function (name, value) {
         this.log("removeEntry for " + name + "=" + value);
 
         let [id, guid] = this.getExistingEntryID(name, value);
@@ -273,7 +273,7 @@ FormHistory.prototype = {
     },
 
 
-    removeEntriesForName : function removeEntriesForName(name) {
+    removeEntriesForName : function (name) {
         this.log("removeEntriesForName with name=" + name);
 
         this.sendStringNotification("before-removeEntriesForName", name);
@@ -307,7 +307,7 @@ FormHistory.prototype = {
     },
 
 
-    removeAllEntries : function removeAllEntries() {
+    removeAllEntries : function () {
         this.log("removeAllEntries");
 
         this.sendNotification("before-removeAllEntries", null);
@@ -327,7 +327,7 @@ FormHistory.prototype = {
             this.sendNotification("removeAllEntries", null);
         } catch (e) {
             this.dbConnection.rollbackTransaction();
-            this.log("removeAllEntries failed: " + e);
+            this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
             if (stmt) {
@@ -338,7 +338,7 @@ FormHistory.prototype = {
     },
 
 
-    nameExists : function nameExists(name) {
+    nameExists : function (name) {
         this.log("nameExists for name=" + name);
         let stmt;
         let query = "SELECT COUNT(1) AS numEntries FROM moz_formhistory WHERE fieldname = :fieldname";
@@ -357,14 +357,14 @@ FormHistory.prototype = {
         }
     },
 
-    entryExists : function entryExists(name, value) {
+    entryExists : function (name, value) {
         this.log("entryExists for " + name + "=" + value);
         let [id, guid] = this.getExistingEntryID(name, value);
         this.log("entryExists: id=" + id);
         return (id != -1);
     },
 
-    removeEntriesByTimeframe : function removeEntriesByTimeframe(beginTime, endTime) {
+    removeEntriesByTimeframe : function (beginTime, endTime) {
         this.log("removeEntriesByTimeframe for " + beginTime + " to " + endTime);
 
         this.sendIntNotification("before-removeEntriesByTimeframe", beginTime, endTime);
@@ -399,20 +399,20 @@ FormHistory.prototype = {
         this.dbConnection.commitTransaction();
     },
 
-    moveToDeletedTable : function moveToDeletedTable(values, params) {
+    moveToDeletedTable : function (values, params) {
 #ifdef ANDROID
-        this.log("Moving entries to deleted table.");
+        this.log("move entries to deleted");
 
         let stmt;
 
         try {
-            // Move the entries to the deleted items table.
+            // move the entry to the deleted items table
             let query = "INSERT INTO moz_deleted_formhistory (guid, timeDeleted) ";
             if (values) query += values;
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
         } catch (e) {
-            this.log("Moving deleted entries failed: " + e);
+            this.log("move entry failed: " + e);
             throw e;
         } finally {
             if (stmt) {
@@ -456,7 +456,7 @@ FormHistory.prototype = {
     /* ---- nsIObserver interface ---- */
 
 
-    observe : function observe(subject, topic, data) {
+    observe : function (subject, topic, data) {
         switch(topic) {
         case "nsPref:changed":
             this.updatePrefs();

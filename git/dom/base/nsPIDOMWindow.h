@@ -575,14 +575,14 @@ public:
   virtual nsresult DispatchSyncPopState() = 0;
 
   /**
-   * Tell this window that it should listen for sensor changes of the given type.
+   * Tell this window that there is an observer for orientation changes
    */
-  virtual void EnableDeviceSensor(PRUint32 aType) = 0;
+  virtual void SetHasOrientationEventListener() = 0;
 
   /**
-   * Tell this window that it should remove itself from sensor change notifications.
+   * Tell this window that we remove an orientation listener
    */
-  virtual void DisableDeviceSensor(PRUint32 aType) = 0;
+  virtual void RemoveOrientationEventListener() = 0;
 
   /**
    * Set a arguments for this window. This will be set on the window

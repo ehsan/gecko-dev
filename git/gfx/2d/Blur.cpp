@@ -77,11 +77,6 @@ BoxBlurHorizontal(unsigned char* aInput,
     int32_t boxSize = aLeftLobe + aRightLobe + 1;
     bool skipRectCoversWholeRow = 0 >= aSkipRect.x &&
                                   aWidth <= aSkipRect.XMost();
-    if (boxSize == 1) {
-        memcpy(aOutput, aInput, aWidth*aRows);
-        return;
-    }
-    PRUint32 reciprocal = (PRUint64(1) << 32)/boxSize;
 
     for (int32_t y = 0; y < aRows; y++) {
         // Check whether the skip rect intersects this row. If the skip
@@ -94,7 +89,7 @@ BoxBlurHorizontal(unsigned char* aInput,
             continue;
         }
 
-        uint32_t alphaSum = 0;
+        int32_t alphaSum = 0;
         for (int32_t i = 0; i < boxSize; i++) {
             int32_t pos = i - aLeftLobe;
             // See assertion above; if aWidth is zero, then we would have no
@@ -128,7 +123,7 @@ BoxBlurHorizontal(unsigned char* aInput,
             int32_t last = max(tmp, 0);
             int32_t next = min(tmp + boxSize, aWidth - 1);
 
-            aOutput[aWidth * y + x] = (PRUint64(alphaSum)*reciprocal) >> 32;
+            aOutput[aWidth * y + x] = alphaSum / boxSize;
 
             alphaSum += aInput[aWidth * y + next] -
                         aInput[aWidth * y + last];
@@ -155,11 +150,6 @@ BoxBlurVertical(unsigned char* aInput,
     int32_t boxSize = aTopLobe + aBottomLobe + 1;
     bool skipRectCoversWholeColumn = 0 >= aSkipRect.y &&
                                      aRows <= aSkipRect.YMost();
-    if (boxSize == 1) {
-        memcpy(aOutput, aInput, aWidth*aRows);
-        return;
-    }
-    PRUint32 reciprocal = (PRUint64(1) << 32)/boxSize;
 
     for (int32_t x = 0; x < aWidth; x++) {
         bool inSkipRectX = x >= aSkipRect.x &&
@@ -169,7 +159,7 @@ BoxBlurVertical(unsigned char* aInput,
             continue;
         }
 
-        uint32_t alphaSum = 0;
+        int32_t alphaSum = 0;
         for (int32_t i = 0; i < boxSize; i++) {
             int32_t pos = i - aTopLobe;
             // See assertion above; if aRows is zero, then we would have no
@@ -199,7 +189,7 @@ BoxBlurVertical(unsigned char* aInput,
             int32_t last = max(tmp, 0);
             int32_t next = min(tmp + boxSize, aRows - 1);
 
-            aOutput[aWidth * y + x] = (PRUint64(alphaSum)*reciprocal) >> 32;
+            aOutput[aWidth * y + x] = alphaSum/boxSize;
 
             alphaSum += aInput[aWidth * next + x] -
                         aInput[aWidth * last + x];

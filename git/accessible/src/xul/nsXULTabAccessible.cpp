@@ -164,6 +164,14 @@ nsXULTabAccessible::RelationByType(PRUint32 aType)
   return rel;
 }
 
+void
+nsXULTabAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                               PRInt32 *aSetSize)
+{
+  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mContent, aPosInSet,
+                                                        aSetSize);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTabsAccessible

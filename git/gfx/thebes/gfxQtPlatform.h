@@ -43,12 +43,8 @@
 #include "nsAutoRef.h"
 #include "nsDataHashtable.h"
 #include "nsTArray.h"
-#ifdef MOZ_X11
-#include "X11/Xlib.h"
-#endif
 
 class gfxFontconfigUtils;
-class QWidget;
 #ifndef MOZ_PANGO
 typedef struct FT_LibraryRec_ *FT_Library;
 
@@ -79,8 +75,6 @@ public:
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxContentType contentType);
-
-    virtual bool SupportsAzure(mozilla::gfx::BackendType& aBackend);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -142,10 +136,6 @@ public:
     static PRInt32 GetDPI();
 
     virtual gfxImageFormat GetOffscreenFormat();
-#ifdef MOZ_X11
-    static Display* GetXDisplay(QWidget* aWindow = 0);
-    static Screen* GetXScreen(QWidget* aWindow = 0);
-#endif
 
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;

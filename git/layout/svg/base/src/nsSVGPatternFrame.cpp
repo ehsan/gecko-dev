@@ -36,24 +36,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
 #include "nsSVGPatternFrame.h"
 
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
-#include "gfxMatrix.h"
-#include "gfxPattern.h"
-#include "gfxPlatform.h"
-#include "nsContentUtils.h"
 #include "nsGkAtoms.h"
-#include "nsISVGChildFrame.h"
-#include "nsRenderingContext.h"
-#include "nsStyleContext.h"
-#include "nsSVGEffects.h"
-#include "nsSVGGeometryFrame.h"
-#include "nsSVGPatternElement.h"
-#include "nsSVGUtils.h"
+#include "nsIDOMSVGAnimatedRect.h"
 #include "SVGAnimatedTransformList.h"
+#include "nsStyleContext.h"
+#include "nsINameSpaceManager.h"
+#include "nsISVGChildFrame.h"
+#include "nsSVGRect.h"
+#include "nsSVGUtils.h"
+#include "nsSVGEffects.h"
+#include "nsSVGOuterSVGFrame.h"
+#include "nsSVGPatternElement.h"
+#include "nsSVGGeometryFrame.h"
+#include "gfxContext.h"
+#include "gfxPlatform.h"
+#include "gfxPattern.h"
+#include "gfxMatrix.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -580,14 +581,10 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
     tCTM.Scale(scale, scale);
   }
 
-  const nsSVGViewBox& viewBox = GetViewBox();
-  if (!viewBox.IsValid()) {
-    return tCTM;
-  }
-  const nsSVGViewBoxRect viewBoxRect = GetViewBox().GetAnimValue();
+  const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue();
 
-  if (viewBoxRect.height <= 0.0f || viewBoxRect.width <= 0.0f) {
-    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+  if (viewBox.height <= 0.0f || viewBox.width <= 0.0f) {
+    return tCTM;
   }
 
   float viewportWidth, viewportHeight;
@@ -606,16 +603,11 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
     viewportHeight =
       GetLengthValue(nsSVGPatternElement::HEIGHT)->GetAnimValue(aTarget);
   }
-
-  if (viewportWidth <= 0.0f || viewportHeight <= 0.0f) {
-    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
-  }
-
   gfxMatrix tm = nsSVGUtils::GetViewBoxTransform(
     static_cast<nsSVGPatternElement*>(mContent),
     viewportWidth, viewportHeight,
-    viewBoxRect.x, viewBoxRect.y,
-    viewBoxRect.width, viewBoxRect.height,
+    viewBox.x, viewBox.y,
+    viewBox.width, viewBox.height,
     GetPreserveAspectRatio());
 
   return tm * tCTM;

@@ -597,22 +597,6 @@ nsAccessibilityService::UpdateText(nsIPresShell* aPresShell,
 }
 
 void
-nsAccessibilityService::TreeViewChanged(nsIPresShell* aPresShell,
-                                        nsIContent* aContent,
-                                        nsITreeView* aView)
-{
-  nsDocAccessible* document = GetDocAccessible(aPresShell->GetDocument());
-  if (document) {
-    nsAccessible* accessible = document->GetAccessible(aContent);
-    if (accessible) {
-      nsXULTreeAccessible* treeAcc = accessible->AsXULTree();
-      if (treeAcc) 
-        treeAcc->TreeViewChanged(aView);
-    }
-  }
-}
-
-void
 nsAccessibilityService::UpdateListBullet(nsIPresShell* aPresShell,
                                          nsIContent* aHTMLListItemContent,
                                          bool aHasBullet)
@@ -692,8 +676,10 @@ nsAccessibilityService::RecreateAccessible(nsIPresShell* aPresShell,
                                            nsIContent* aContent)
 {
   nsDocAccessible* document = GetDocAccessible(aPresShell->GetDocument());
-  if (document)
-    document->RecreateAccessible(aContent);
+  if (document) {
+    document->HandleNotification<nsDocAccessible, nsIContent>
+      (document, &nsDocAccessible::RecreateAccessible, aContent);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

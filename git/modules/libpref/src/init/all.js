@@ -320,9 +320,6 @@ pref("toolkit.telemetry.server", "https://data.mozilla.com");
 pref("toolkit.telemetry.server_owner", "Mozilla");
 // Information page about telemetry (temporary ; will be about:telemetry in the end)
 pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.html#telemetry");
-// Determines whether full SQL strings are returned when they might contain sensitive info
-// i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
-pref("toolkit.telemetry.debugSlowSql", false);
 
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
@@ -425,7 +422,7 @@ pref("extensions.spellcheck.inline.max-misspellings", 500);
 
 pref("editor.use_custom_colors", false);
 pref("editor.singleLine.pasteNewlines",      2);
-pref("editor.use_css",                       false);
+pref("editor.use_css",                       true);
 pref("editor.css.default_length_unit",       "px");
 pref("editor.resizing.preserve_ratio",       true);
 pref("editor.positioning.offset",            0);
@@ -637,7 +634,6 @@ pref("dom.min_background_timeout_value", 1000);
 // Use the new DOM bindings (only affects any scopes created after the pref is
 // changed)
 pref("dom.new_bindings", true);
-pref("dom.paris_bindings", true);
 
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
@@ -810,25 +806,10 @@ pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
-
-// An optimistic request is one pipelined when policy might allow a new
-// connection instead
-pref("network.http.pipelining.max-optimistic-requests" , 4);
-
-pref("network.http.pipelining.aggressive", false);
-pref("network.http.pipelining.maxsize" , 300000);
-
-// The read-timeout is a ms timer that causes the transaction to be completely
-// restarted without pipelining. Set to 0 to disable.
-pref("network.http.pipelining.read-timeout", 30000);
+pref("network.http.pipelining.maxrequests" , 4);
 
 // Prompt for 307 redirects
 pref("network.http.prompt-temp-redirect", true);
-
-// If true generate CORRUPTED_CONTENT errors for entities that
-// contain an invalid Assoc-Req response header
-pref("network.http.assoc-req.enforce", false);
 
 // On networks deploying QoS, it is recommended that these be lockpref()'d,
 // since inappropriate marking can easily overwhelm bandwidth reservations
@@ -1360,16 +1341,14 @@ pref("mousewheel.horizscroll.withmetakey.sysnumlines",true);
 
 // These define the smooth scroll behavior (min ms, max ms) for different triggers
 // Some triggers:
-// mouseWheel: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
+// Pixels: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
 // Lines:  Up/Down/Left/Right KB arrows
 // Pages:  Page up/down, Space
 // Scrollbars: Clicking scrollbars arrows, clicking scrollbars tracks
 // Note: Currently OS X trackpad and magic mouse don't use our smooth scrolling
 // Note: These are relevant only when "general.smoothScroll" is enabled
-pref("general.smoothScroll.mouseWheel.durationMinMS", 200);
-pref("general.smoothScroll.mouseWheel.durationMaxMS", 400);
-pref("general.smoothScroll.pixels.durationMinMS", 150);
-pref("general.smoothScroll.pixels.durationMaxMS", 150);
+pref("general.smoothScroll.pixels.durationMinMS", 200);
+pref("general.smoothScroll.pixels.durationMaxMS", 800);
 pref("general.smoothScroll.lines.durationMinMS", 150);
 pref("general.smoothScroll.lines.durationMaxMS", 150);
 pref("general.smoothScroll.pages.durationMinMS", 150);
@@ -1378,8 +1357,6 @@ pref("general.smoothScroll.scrollbars.durationMinMS", 150);
 pref("general.smoothScroll.scrollbars.durationMaxMS", 150);
 pref("general.smoothScroll.other.durationMinMS", 150);
 pref("general.smoothScroll.other.durationMaxMS", 150);
-// Enable disable smooth scrolling for different triggers (when "general.smoothScroll" is enabled)
-pref("general.smoothScroll.mouseWheel", true);
 pref("general.smoothScroll.pixels", true);
 pref("general.smoothScroll.lines", true);
 pref("general.smoothScroll.pages", true);
@@ -2071,7 +2048,8 @@ pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 pref("print.extend_native_print_dialog", true);
 
 // Locate Java by scanning the Sun JRE installation directory with a minimum version
-pref("plugin.scan.SunJRE", "1.6");
+// Note: Does not scan if security.enable_java is not true
+pref("plugin.scan.SunJRE", "1.3");
 
 // Locate plugins by scanning the Adobe Acrobat installation directory with a minimum version
 pref("plugin.scan.Acrobat", "5.0");
@@ -2092,6 +2070,13 @@ pref("plugin.allow.asyncdrawing", false);
 // Help Windows NT, 2000, and XP dialup a RAS connection
 // when a network address is unreachable.
 pref("network.autodial-helper.enabled", true);
+
+// Pref to control whether we set ddeexec subkeys for the http
+// Internet shortcut protocol if we are handling it.  These
+// subkeys will be set only while we are running (to avoid the
+// problem of Windows showing an alert when it tries to use DDE
+// and we're not already running).
+pref("advanced.system.supportDDEExec", true);
 
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
@@ -3513,9 +3498,6 @@ pref("dom.sms.whitelist", "");
 pref("dom.mozContacts.enabled", false);
 pref("dom.mozContacts.whitelist", "");
 
-// WebSettings
-pref("dom.mozSettings.enabled", false);
-
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
 
@@ -3527,7 +3509,6 @@ pref("profiler.entries", 100000);
 // Network API
 pref("dom.network.enabled", true);
 pref("dom.network.metered", false);
-
 #ifdef XP_WIN
 // On 32-bit Windows, fire a low-memory notification if we have less than this
 // many mb of virtual address space available.
@@ -3546,8 +3527,3 @@ pref("memory.low_physical_memory_threshold_mb", 0);
 // low_memory_notification_interval_ms.
 pref("memory.low_memory_notification_interval_ms", 10000);
 #endif
-
-// How long must we wait before declaring that a window is a "ghost" (i.e., a
-// likely leak)?  This should be longer than it usually takes for an eligible
-// window to be collected via the GC/CC.
-pref("memory.ghost_window_timeout_seconds", 60);

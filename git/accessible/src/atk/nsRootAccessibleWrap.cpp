@@ -44,12 +44,8 @@
 nsNativeRootAccessibleWrap::nsNativeRootAccessibleWrap(AtkObject *aAccessible):
     nsRootAccessible(nsnull, nsnull, nsnull)
 {
-  // XXX: mark the object as defunct to ensure no single internal method is
-  // running on it.
-  mFlags |= eIsDefunct;
-
-  g_object_ref(aAccessible);
-  mAtkObject = aAccessible;
+    g_object_ref(aAccessible);
+    mAtkObject = aAccessible;
 }
 
 nsNativeRootAccessibleWrap::~nsNativeRootAccessibleWrap()

@@ -123,7 +123,7 @@ public:
   }
   // Get the language ID.
   PRUint32 getScriptTypeID() const {
-    return nsIProgrammingLanguage::JAVASCRIPT;
+    return mContext->GetScriptTypeID();
   }
 protected:
   T* mObject;

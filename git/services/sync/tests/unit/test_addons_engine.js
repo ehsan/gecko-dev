@@ -154,7 +154,11 @@ add_test(function test_disabled_install_semantics() {
   const PASSPHRASE = "abcdeabcdeabcdeabcdeabcdea";
   const ADDON_ID   = "addon1@tests.mozilla.org";
 
-  new SyncTestingInfrastructure(USER, PASSWORD, PASSPHRASE);
+  Service.username   = USER;
+  Service.password   = PASSWORD;
+  Service.passphrase = PASSPHRASE;
+  Service.serverURL  = TEST_SERVER_URL;
+  Service.clusterURL = TEST_CLUSTER_URL;
 
   generateNewKeys();
 

@@ -456,16 +456,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
           }
 
           // TODO: pass in timestamps?
-
-          // This section of code will only run if the incoming record is not
-          // marked as deleted, so we never want to just drop ours from the database:
-          // we need to upload it later.
-          // Allowing deleted items to propagate through `replace` allows normal
-          // logging and side-effects to occur, and is no more expensive than simply
-          // bumping the modified time.
-          Logger.debug(LOG_TAG, "Replacing existing " + existingRecord.guid +
-                       (toStore.deleted ? " with deleted record " : " with record ") +
-                       toStore.guid);
+          Logger.debug(LOG_TAG, "Replacing " + existingRecord.guid + " with record " + toStore.guid);
           Record replaced = replace(toStore, existingRecord);
 
           // Note that we don't track records here; deciding that is the job
@@ -498,9 +489,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   protected void storeRecordDeletion(final Record record) {
-    // TODO: we ought to mark the record as deleted rather than purging it,
+    // TODO: we ought to mark the record as deleted rather than deleting it,
     // in order to support syncing to multiple destinations. Bug 722607.
-    dbHelper.purgeGuid(record.guid);
+    dbHelper.delete(record);      // TODO: mm?
     delegate.onRecordStoreSucceeded(record);
   }
 
@@ -579,20 +570,14 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
 
     Logger.debug(LOG_TAG, "Finding existing record for incoming record with GUID " + record.guid);
     String recordString = buildRecordString(record);
-    if (recordString == null) {
-      Logger.debug(LOG_TAG, "No record string for incoming record " + record.guid);
-      return null;
-    }
-
     Logger.debug(LOG_TAG, "Searching with record string " + recordString);
     String guid = getRecordToGuidMap().get(recordString);
-    if (guid == null) {
-      Logger.debug(LOG_TAG, "findExistingRecord failed to find one for " + record.guid);
-      return null;
+    if (guid != null) {
+      Logger.debug(LOG_TAG, "Found one. Returning computed record.");
+      return retrieveByGUIDDuringStore(guid);
     }
-
-    Logger.debug(LOG_TAG, "Found one. Returning computed record.");
-    return retrieveByGUIDDuringStore(guid);
+    Logger.debug(LOG_TAG, "findExistingRecord failed to find one for " + record.guid);
+    return null;
   }
 
   public HashMap<String, String> getRecordToGuidMap() throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
@@ -617,10 +602,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       while (!cur.isAfterLast()) {
         Record record = retrieveDuringStore(cur);
         if (record != null) {
-          final String recordString = buildRecordString(record);
-          if (recordString != null) {
-            recordToGuid.put(recordString, record.guid);
-          }
+          recordToGuid.put(buildRecordString(record), record.guid);
         }
         cur.moveToNext();
       }
@@ -631,10 +613,6 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   public void putRecordToGuidMap(String recordString, String guid) throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
-    if (recordString == null) {
-      return;
-    }
-
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }

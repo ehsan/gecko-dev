@@ -52,7 +52,7 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsexn.h"
+#include "jsversion.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
@@ -66,6 +66,7 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsexn.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
@@ -73,10 +74,13 @@
 #include "vm/Debugger.h"
 #include "vm/MethodGuard.h"
 #include "vm/ScopeObject.h"
-#include "vm/Xdr.h"
 
 #if JS_HAS_GENERATORS
 # include "jsiter.h"
+#endif
+
+#if JS_HAS_XDR
+# include "jsxdrapi.h"
 #endif
 
 #ifdef JS_METHODJIT
@@ -96,6 +100,107 @@ using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+
+bool
+StackFrame::getValidCalleeObject(JSContext *cx, Value *vp)
+{
+    if (!isFunctionFrame()) {
+        vp->setNull();
+        return true;
+    }
+
+    JSFunction *fun = this->callee().toFunction();
+    vp->setObject(*fun);
+
+    /*
+     * Check for an escape attempt by a joined function object, which must go
+     * through the frame's |this| object's method read barrier for the method
+     * atom by which it was uniquely associated with a property.
+     */
+    const Value &thisv = functionThis();
+    if (thisv.isObject() && fun->methodAtom() && !fun->isClonedMethod()) {
+        JSObject *thisp = &thisv.toObject();
+        JSObject *first_barriered_thisp = NULL;
+
+        do {
+            /*
+             * While a non-native object is responsible for handling its
+             * entire prototype chain, notable non-natives including dense
+             * and typed arrays have native prototypes, so keep going.
+             */
+            if (!thisp->isNative())
+                continue;
+
+            const Shape *shape = thisp->nativeLookup(cx, ATOM_TO_JSID(fun->methodAtom()));
+            if (shape) {
+                /*
+                 * Two cases follow: the method barrier was not crossed
+                 * yet, so we cross it here; the method barrier *was*
+                 * crossed but after the call, in which case we fetch
+                 * and validate the cloned (unjoined) funobj from the
+                 * method property's slot.
+                 *
+                 * In either case we must allow for the method property
+                 * to have been replaced, or its value overwritten.
+                 */
+                if (shape->isMethod() && thisp->nativeGetMethod(shape) == fun) {
+                    if (!thisp->methodReadBarrier(cx, *shape, vp))
+                        return false;
+                    overwriteCallee(vp->toObject());
+                    return true;
+                }
+
+                if (shape->hasSlot()) {
+                    Value v = thisp->getSlot(shape->slot());
+                    JSFunction *clone;
+
+                    if (IsFunctionObject(v, &clone) &&
+                        clone->isInterpreted() &&
+                        clone->script() == fun->script() &&
+                        clone->methodObj() == thisp) {
+                        /*
+                         * N.B. If the method barrier was on a function
+                         * with singleton type, then while crossing the
+                         * method barrier CloneFunctionObject will have
+                         * ignored the attempt to clone the function.
+                         */
+                        JS_ASSERT_IF(!clone->hasSingletonType(), clone != fun);
+                        *vp = v;
+                        overwriteCallee(*clone);
+                        return true;
+                    }
+                }
+            }
+
+            if (!first_barriered_thisp)
+                first_barriered_thisp = thisp;
+        } while ((thisp = thisp->getProto()) != NULL);
+
+        if (!first_barriered_thisp)
+            return true;
+
+        /*
+         * At this point, we couldn't find an already-existing clone (or
+         * force to exist a fresh clone) created via thisp's method read
+         * barrier, so we must clone fun and store it in fp's callee to
+         * avoid re-cloning upon repeated foo.caller access.
+         *
+         * This must mean the code in js_DeleteGeneric could not find this
+         * stack frame on the stack when the method was deleted. We've lost
+         * track of the method, so we associate it with the first barriered
+         * object found starting from thisp on the prototype chain.
+         */
+        JSFunction *newfunobj = CloneFunctionObject(cx, fun);
+        if (!newfunobj)
+            return false;
+        newfunobj->setMethodObj(*first_barriered_thisp);
+        overwriteCallee(*newfunobj);
+        vp->setObject(*newfunobj);
+        return true;
+    }
+
+    return true;
+}
 
 static JSBool
 fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
@@ -126,7 +231,10 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     for (; fp; fp = fp->prev()) {
         if (!fp->isFunctionFrame() || fp->isEvalFrame())
             continue;
-        if (fp->callee().toFunction() == fun)
+        Value callee;
+        if (!fp->getValidCalleeObject(cx, &callee))
+            return false;
+        if (&callee.toObject() == fun)
             break;
     }
     if (!fp)
@@ -173,12 +281,13 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
         while (frame && frame->isDummyFrame())
             frame = frame->prev();
 
-        if (!frame || !frame->isFunctionFrame()) {
+        if (frame && !frame->getValidCalleeObject(cx, vp))
+            return false;
+
+        if (!vp->isObject()) {
             JS_ASSERT(vp->isNull());
             return true;
         }
-
-        vp->setObject(frame->callee());
 
         /* Censor the caller if it is from another compartment. */
         JSObject &caller = vp->toObject();
@@ -371,20 +480,22 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
     return true;
 }
 
-template<XDRMode mode>
-bool
-js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript)
+#if JS_HAS_XDR
+
+/* XXX store parent and proto, if defined */
+JSBool
+js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 {
+    JSContext *cx;
     JSFunction *fun;
-    JSAtom *atom;
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
                                    and 14 bits reserved for future use */
     uint32_t flagsword;           /* word for argument count and fun->flags */
 
-    JSContext *cx = xdr->cx();
+    cx = xdr->cx;
     JSScript *script;
-    if (mode == XDR_ENCODE) {
+    if (xdr->mode == JSXDR_ENCODE) {
         fun = (*objp)->toFunction();
         if (!fun->isInterpreted()) {
             JSAutoByteString funNameBytes;
@@ -396,7 +507,6 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
         }
         firstword = !!fun->atom;
         flagsword = (fun->nargs << 16) | fun->flags;
-        atom = fun->atom;
         script = fun->script();
     } else {
         RootedVarObject parent(cx, NULL);
@@ -407,26 +517,24 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
             return false;
         if (!fun->clearType(cx))
             return false;
-        atom = NULL;
         script = NULL;
     }
 
-    if (!xdr->codeUint32(&firstword))
+    if (!JS_XDRUint32(xdr, &firstword))
         return false;
-    if ((firstword & 1U) && !XDRAtom(xdr, &atom))
+    if ((firstword & 1U) && !js_XDRAtom(xdr, &fun->atom))
         return false;
-    if (!xdr->codeUint32(&flagsword))
-        return false;
-
-    if (!XDRScript(xdr, &script, parentScript))
+    if (!JS_XDRUint32(xdr, &flagsword))
         return false;
 
-    if (mode == XDR_DECODE) {
+    if (!XDRScript(xdr, &script))
+        return false;
+
+    if (xdr->mode == JSXDR_DECODE) {
         fun->nargs = flagsword >> 16;
         JS_ASSERT((flagsword & JSFUN_KINDMASK) >= JSFUN_INTERPRETED);
         fun->flags = uint16_t(flagsword);
-        fun->atom.init(atom);
-        fun->initScript(script);
+        fun->setScript(script);
         if (!script->typeSetFunction(cx, fun))
             return false;
         JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -437,11 +545,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
     return true;
 }
 
-template bool
-js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *xdr, JSObject **objp, JSScript *parentScript);
-
-template bool
-js::XDRInterpretedFunction(XDRState<XDR_DECODE> *xdr, JSObject **objp, JSScript *parentScript);
+#endif /* JS_HAS_XDR */
 
 /*
  * [[HasInstance]] internal method for Function objects: fetch the .prototype
@@ -483,7 +587,7 @@ JSFunction::trace(JSTracer *trc)
     }
 
     if (atom)
-        MarkString(trc, &atom, "atom");
+        MarkStringUnbarriered(trc, &atom, "atom");
 
     if (isInterpreted()) {
         if (u.i.script_)
@@ -904,7 +1008,7 @@ fun_bind(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 4-6, 10-11. */
-    JSAtom *name = target->isFunction() ? target->toFunction()->atom.get() : NULL;
+    JSAtom *name = target->isFunction() ? target->toFunction()->atom : NULL;
 
     JSObject *funobj =
         js_NewFunction(cx, NULL, CallOrConstructBoundFunction, length,
@@ -1158,6 +1262,7 @@ LookupInterpretedFunctionPrototype(JSContext *cx, JSObject *funobj)
     JS_ASSERT(!shape->configurable());
     JS_ASSERT(shape->isDataDescriptor());
     JS_ASSERT(shape->hasSlot());
+    JS_ASSERT(!shape->isMethod());
     return shape;
 }
 
@@ -1191,14 +1296,15 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
         fun->script().init(NULL);
         fun->initEnvironment(parent);
     } else {
-        fun->u.native = native;
-        JS_ASSERT(fun->u.native);
+        fun->u.n.clasp = NULL;
+        fun->u.n.native = native;
+        JS_ASSERT(fun->u.n.native);
     }
     if (kind == JSFunction::ExtendedFinalizeKind) {
         fun->flags |= JSFUN_EXTENDED;
         fun->initializeExtended();
     }
-    fun->atom.init(atom);
+    fun->atom = atom;
 
     if (native && !fun->setSingletonType(cx))
         return NULL;
@@ -1224,9 +1330,9 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
         clone->initScript(fun->script());
         clone->initEnvironment(parent);
     } else {
-        clone->u.native = fun->native();
+        clone->u.n = fun->u.n;
     }
-    clone->atom.init(fun->atom);
+    clone->atom = fun->atom;
 
     if (kind == JSFunction::ExtendedFinalizeKind) {
         clone->flags |= JSFUN_EXTENDED;

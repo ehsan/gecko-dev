@@ -84,7 +84,6 @@ enum eHtml5TreeOperation {
   eTreeOpSetStyleLineNumber,
   eTreeOpSetScriptLineNumberAndFreeze,
   eTreeOpSvgLoad,
-  eTreeOpMaybeComplainAboutCharset,
   eTreeOpAddClass,
   eTreeOpAddViewSourceHref,
   eTreeOpAddError,
@@ -166,14 +165,6 @@ class nsHtml5TreeOperation {
       mOpCode = aOpCode;
       mOne.charPtr = str;
       mFour.integer = aInt32;
-    }
-
-    inline void Init(eHtml5TreeOperation aOpCode,
-                     const nsACString& aString,
-                     PRInt32 aInt32,
-                     PRInt32 aLineNumber) {
-      Init(aOpCode, aString, aInt32);
-      mTwo.integer = aLineNumber;
     }
 
     inline void Init(eHtml5TreeOperation aOpCode,
@@ -310,17 +301,6 @@ class nsHtml5TreeOperation {
     inline void Init(nsIContent** aElement,
                      const char* aMsgId) {
       Init(aElement, aMsgId, nsnull, nsnull);
-    }
-
-    inline void Init(const char* aMsgId,
-                     bool aError,
-                     PRInt32 aLineNumber) {
-      NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
-        "Op code must be uninitialized when initializing.");
-      mOpCode = eTreeOpMaybeComplainAboutCharset;
-      mOne.charPtr = const_cast<char*>(aMsgId);
-      mTwo.integer = aError;
-      mThree.integer = aLineNumber;
     }
 
     inline void Init(eHtml5TreeOperation aOpCode, const nsAString& aString) {

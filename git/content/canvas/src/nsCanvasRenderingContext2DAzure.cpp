@@ -406,9 +406,7 @@ public:
   NS_IMETHOD InitializeWithSurface(nsIDocShell *shell, gfxASurface *surface, PRInt32 width, PRInt32 height)
   { return NS_ERROR_NOT_IMPLEMENTED; }
 
-  NS_IMETHOD Render(gfxContext *ctx,
-                    gfxPattern::GraphicsFilter aFilter,
-                    PRUint32 aFlags = RenderFlagPremultAlpha);
+  NS_IMETHOD Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
   NS_IMETHOD GetInputStream(const char* aMimeType,
                             const PRUnichar* aEncoderOptions,
                             nsIInputStream **aStream);
@@ -1384,7 +1382,7 @@ nsCanvasRenderingContext2DAzure::SetIsIPC(bool isIPC)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter, PRUint32 aFlags)
+nsCanvasRenderingContext2DAzure::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
 {
   nsresult rv = NS_OK;
 
@@ -1415,14 +1413,6 @@ nsCanvasRenderingContext2DAzure::Render(gfxContext *ctx, gfxPattern::GraphicsFil
 
   if (mOpaque)
       ctx->SetOperator(op);
-
-  if (!(aFlags & RenderFlagPremultAlpha)) {
-      nsRefPtr<gfxASurface> curSurface = ctx->CurrentSurface();
-      nsRefPtr<gfxImageSurface> gis = curSurface->GetAsImageSurface();
-      NS_ABORT_IF_FALSE(gis, "If non-premult alpha, must be able to get image surface!");
-
-      gfxUtils::UnpremultiplyImageSurface(gis);
-  }
 
   return rv;
 }

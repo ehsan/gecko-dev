@@ -21,7 +21,9 @@ BEGIN_TEST(testResolveRecursion)
         JS_StrictPropertyStub, // set
         JS_EnumerateStub,
         (JSResolveOp) my_resolve,
-        JS_ConvertStub
+        JS_ConvertStub,
+        JS_FinalizeStub,
+        JSCLASS_NO_OPTIONAL_MEMBERS
     };
     
     obj1 = JS_NewObject(cx, &my_resolve_class, NULL, NULL);

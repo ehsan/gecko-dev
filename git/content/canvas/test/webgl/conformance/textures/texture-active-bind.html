@@ -39,17 +39,19 @@ function init()
   }
 
   description(
-      "Tests that glActiveTexture and glBindTexture work as expected" +
-      "Specifically texture targets are per active texture unit.");
+      "Tests that glActiveTexture and glBindTexture work as expected." +
+      " Specifically texture targets are per active texture unit.");
 
   var canvas2d = document.getElementById("canvas2d");
   var ctx2d = canvas2d.getContext("2d");
 
   var wtu = WebGLTestUtils;
-  gl = wtu.create3DContext("example");
+  var canvas = document.getElementById("example");
+  gl = wtu.create3DContext(canvas);
   var program = wtu.setupProgram(
       gl,
-      ["vshader", wtu.setupSimpleTextureFragmentShader(gl)],
+      [wtu.loadShaderFromScript(gl, "vshader"),
+       wtu.setupSimpleTextureFragmentShader(gl)],
       ['vPosition', 'texCoord0']);
   wtu.setupUnitQuad(gl);
   gl.disable(gl.DEPTH_TEST);

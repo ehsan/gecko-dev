@@ -64,7 +64,6 @@
 #include "nsToolkitCompsCID.h"
 #include "nsNetUtil.h"
 #include "nsTArray.h"
-#include "jsapi.h"
 
 #include "mozilla/Util.h"
 
@@ -198,9 +197,17 @@ nsSafariProfileMigrator::GetSourceExists(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsSafariProfileMigrator::GetSourceProfiles(JS::Value* aResult)
+nsSafariProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
 {
-  *aResult = JSVAL_NULL;
+  // Safari only has one profile per-user.
+  *aResult = false;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSafariProfileMigrator::GetSourceProfiles(nsIArray** aResult)
+{
+  *aResult = nsnull;
   return NS_OK;
 }
 
@@ -974,6 +981,11 @@ nsSafariProfileMigrator::CopyBookmarksBatched(bool aReplace)
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
+    // If importing defaults fails for whatever reason, let the import process
+    // continue.
+    DebugOnly<nsresult> rv = ImportDefaultBookmarks();
+    MOZ_ASSERT(NS_SUCCEEDED(rv), "Should be able to import default bookmarks");
+
     // In replace mode we are merging at the top level.
     folder = bookmarksMenuFolderId;
   }

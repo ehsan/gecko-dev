@@ -39,7 +39,9 @@
 #ifndef mozilla_dom_workers_workerfeature_h__
 #define mozilla_dom_workers_workerfeature_h__
 
-#include "mozilla/dom/workers/Workers.h"
+#include "Workers.h"
+
+#include "jspubtd.h"
 
 BEGIN_WORKERS_NAMESPACE
 

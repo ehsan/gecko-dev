@@ -17,6 +17,12 @@ registerCleanupFunction(function () {
 });
 
 /**
+ * Global variables that are accessed by tests.
+ */
+let cw;
+let cells;
+
+/**
  * We'll want to restore the original links provider later.
  */
 let originalProvider = NewTabUtils.links._provider;
@@ -74,39 +80,6 @@ let TestRunner = {
       cleanupAndFinish();
   }
 };
-
-/**
- * Returns the selected tab's content window.
- * @return The content window.
- */
-function getContentWindow() {
-  return gBrowser.selectedBrowser.contentWindow;
-}
-
-/**
- * Returns the selected tab's content document.
- * @return The content document.
- */
-function getContentDocument() {
-  return gBrowser.selectedBrowser.contentDocument;
-}
-
-/**
- * Returns the newtab grid of the selected tab.
- * @return The newtab grid.
- */
-function getGrid() {
-  return getContentWindow().gGrid;
-}
-
-/**
- * Returns the cell at the given index of the selected tab's newtab grid.
- * @param aIndex The cell index.
- * @return The newtab cell.
- */
-function getCell(aIndex) {
-  return getGrid().cells[aIndex];
-}
 
 /**
  * Allows to provide a list of links that is used to construct the grid.
@@ -170,14 +143,18 @@ function addNewTabPageTab() {
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
 
+    cw = browser.contentWindow;
+
     if (NewTabUtils.allPages.enabled) {
       // Continue when the link cache has been populated.
       NewTabUtils.links.populateCache(function () {
+        cells = cw.gGrid.cells;
         executeSoon(TestRunner.next);
       });
     } else {
       TestRunner.next();
     }
+
   }, true);
 }
 
@@ -192,118 +169,118 @@ function addNewTabPageTab() {
  *         The fourth cell contains the pinned site 'about:blank#4'.
  */
 function checkGrid(aSitesPattern, aSites) {
-  let length = aSitesPattern.split(",").length;
-  let sites = (aSites || getGrid().sites).slice(0, length);
-  let expected = sites.map(function (aSite) {
-    if (!aSite)
-      return "";
+  let valid = true;
 
-    let pinned = aSite.isPinned();
-    let pinButton = aSite.node.querySelector(".newtab-control-pin");
-    let hasPinnedAttr = pinButton.hasAttribute("pinned");
+  aSites = aSites || cw.gGrid.sites;
 
-    if (pinned != hasPinnedAttr)
-      ok(false, "invalid state (site.isPinned() != site[pinned])");
+  aSitesPattern.split(/\s*,\s*/).forEach(function (id, index) {
+    let site = aSites[index];
+    let match = id.match(/^\d+/);
 
-    return aSite.url.replace(/^about:blank#(\d+)$/, "$1") + (pinned ? "p" : "");
+    // We expect the cell to be empty.
+    if (!match) {
+      if (site) {
+        valid = false;
+        ok(false, "expected cell#" + index + " to be empty");
+      }
+
+      return;
+    }
+
+    // We expect the cell to contain a site.
+    if (!site) {
+      valid = false;
+      ok(false, "didn't expect cell#" + index + " to be empty");
+
+      return;
+    }
+
+    let num = match[0];
+
+    // Check the site's url.
+    if (site.url != "about:blank#" + num) {
+      valid = false;
+      is(site.url, "about:blank#" + num, "cell#" + index + " has the wrong url");
+    }
+
+    let shouldBePinned = /p$/.test(id);
+    let cellContainsPinned = site.isPinned();
+    let cssClassPinned = site.node && site.node.querySelector(".newtab-control-pin").hasAttribute("pinned");
+
+    // Check if the site should be and is pinned.
+    if (shouldBePinned) {
+      if (!cellContainsPinned) {
+        valid = false;
+        ok(false, "expected cell#" + index + " to be pinned");
+      } else if (!cssClassPinned) {
+        valid = false;
+        ok(false, "expected cell#" + index + " to have css class 'pinned'");
+      }
+    } else {
+      if (cellContainsPinned) {
+        valid = false;
+        ok(false, "didn't expect cell#" + index + " to be pinned");
+      } else if (cssClassPinned) {
+        valid = false;
+        ok(false, "didn't expect cell#" + index + " to have css class 'pinned'");
+      }
+    }
   });
 
-  is(aSitesPattern, expected, "grid status = " + aSitesPattern);
+  // If every test passed, say so.
+  if (valid)
+    ok(true, "grid status = " + aSitesPattern);
 }
 
 /**
- * Blocks a site from the grid.
- * @param aIndex The cell index.
+ * Blocks the given cell's site from the grid.
+ * @param aCell the cell that contains the site to block
  */
-function blockCell(aIndex) {
-  whenPagesUpdated();
-  getCell(aIndex).site.block();
+function blockCell(aCell) {
+  aCell.site.block(function () executeSoon(TestRunner.next));
 }
 
 /**
- * Pins a site on a given position.
- * @param aIndex The cell index.
- * @param aPinIndex The index the defines where the site should be pinned.
+ * Pins a given cell's site on a given position.
+ * @param aCell the cell that contains the site to pin
+ * @param aIndex the index the defines where the site should be pinned
  */
-function pinCell(aIndex, aPinIndex) {
-  getCell(aIndex).site.pin(aPinIndex);
+function pinCell(aCell, aIndex) {
+  aCell.site.pin(aIndex);
 }
 
 /**
  * Unpins the given cell's site.
- * @param aIndex The cell index.
+ * @param aCell the cell that contains the site to unpin
  */
-function unpinCell(aIndex) {
-  whenPagesUpdated();
-  getCell(aIndex).site.unpin();
+function unpinCell(aCell) {
+  aCell.site.unpin(function () executeSoon(TestRunner.next));
 }
 
 /**
  * Simulates a drop and drop operation.
- * @param aDropIndex The cell index of the drop target.
- * @param aDragIndex The cell index containing the dragged site (optional).
+ * @param aDropTarget the cell that is the drop target
+ * @param aDragSource the cell that contains the dragged site (optional)
  */
-function simulateDrop(aDropIndex, aDragIndex) {
-  let draggedSite;
-  let {gDrag: drag, gDrop: drop} = getContentWindow();
-  let event = createDragEvent("drop", "about:blank#99\nblank");
-
-  if (typeof aDragIndex != "undefined")
-    draggedSite = getCell(aDragIndex).site;
-
-  if (draggedSite)
-    drag.start(draggedSite, event);
-
-  whenPagesUpdated();
-  drop.drop(getCell(aDropIndex), event);
-
-  if (draggedSite)
-    drag.end(draggedSite);
-}
-
-/**
- * Sends a custom drag event to a given DOM element.
- * @param aEventType The drag event's type.
- * @param aTarget The DOM element that the event is dispatched to.
- * @param aData The event's drag data (optional).
- */
-function sendDragEvent(aEventType, aTarget, aData) {
-  let event = createDragEvent(aEventType, aData);
-  let ifaceReq = getContentWindow().QueryInterface(Ci.nsIInterfaceRequestor);
-  let windowUtils = ifaceReq.getInterface(Ci.nsIDOMWindowUtils);
-  windowUtils.dispatchDOMEventViaPresShell(aTarget, event, true);
-}
-
-/**
- * Creates a custom drag event.
- * @param aEventType The drag event's type.
- * @param aData The event's drag data (optional).
- * @return The drag event.
- */
-function createDragEvent(aEventType, aData) {
-  let dataTransfer = {
-    mozUserCancelled: false,
-    setData: function () null,
-    setDragImage: function () null,
-    getData: function () aData,
-
-    types: {
-      contains: function (aType) aType == "text/x-moz-url"
-    },
-
-    mozGetDataAt: function (aType, aIndex) {
-      if (aIndex || aType != "text/x-moz-url")
-        return null;
-
-      return aData;
+function simulateDrop(aDropTarget, aDragSource) {
+  let event = {
+    clientX: 0,
+    clientY: 0,
+    dataTransfer: {
+      mozUserCancelled: false,
+      setData: function () null,
+      setDragImage: function () null,
+      getData: function () "about:blank#99\nblank"
     }
   };
 
-  let event = getContentDocument().createEvent("DragEvents");
-  event.initDragEvent(aEventType, true, true, getContentWindow(), 0, 0, 0, 0, 0,
-                      false, false, false, false, 0, null, dataTransfer);
+  if (aDragSource)
+    cw.gDrag.start(aDragSource.site, event);
 
-  return event;
+  cw.gDrop.drop(aDropTarget, event, function () executeSoon(TestRunner.next));
+
+  if (aDragSource)
+    cw.gDrag.end(aDragSource.site);
 }
 
 /**

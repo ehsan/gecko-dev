@@ -47,16 +47,6 @@ class XPCWrappedNativeScope;
 
 typedef PRUptrdiff PtrBits;
 
-namespace mozilla {
-namespace dom {
-namespace workers {
-
-class DOMBindingBase;
-
-} // namespace workers
-} // namespace dom
-} // namespace mozilla
-
 #define NS_WRAPPERCACHE_IID \
 { 0x6f3179a1, 0x36f7, 0x4a5c, \
   { 0x8c, 0xf1, 0xad, 0xc8, 0x7c, 0xde, 0x3e, 0x87 } }
@@ -78,11 +68,11 @@ class DOMBindingBase;
  *
  * The cache can store 2 types of objects:
  *
- *  If WRAPPER_IS_DOM_BINDING is not set (IsDOMBinding() returns false):
+ *  If WRAPPER_IS_PROXY is not set (IsProxy() returns false):
  *    - a slim wrapper or the JSObject of an XPCWrappedNative wrapper
  *
- *  If WRAPPER_IS_DOM_BINDING is set (IsDOMBinding() returns true):
- *    - a DOM binding object (regular JS object or proxy)
+ *  If WRAPPER_IS_PROXY is set (IsProxy() returns true):
+ *    - a DOM binding object (proxy)
  *
  * The finalizer for the wrapper clears the cache.
  *
@@ -92,8 +82,6 @@ class DOMBindingBase;
  */
 class nsWrapperCache
 {
-  friend class mozilla::dom::workers::DOMBindingBase;
-
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_WRAPPERCACHE_IID)
 
@@ -153,22 +141,22 @@ public:
     return (mWrapperPtrBits & WRAPPER_BIT_PRESERVED) != 0;
   }
 
-  void SetIsDOMBinding()
+  void SetIsProxy()
   {
     NS_ASSERTION(!mWrapperPtrBits,
                  "This flag should be set before creating any wrappers.");
-    mWrapperPtrBits = WRAPPER_IS_DOM_BINDING;
+    mWrapperPtrBits = WRAPPER_IS_PROXY;
   }
-  void ClearIsDOMBinding()
+  void ClearIsProxy()
   {
-    NS_ASSERTION(!mWrapperPtrBits || mWrapperPtrBits == WRAPPER_IS_DOM_BINDING,
+    NS_ASSERTION(!mWrapperPtrBits || mWrapperPtrBits == WRAPPER_IS_PROXY,
                  "This flag should be cleared before creating any wrappers.");
     mWrapperPtrBits = 0;
   }
 
-  bool IsDOMBinding() const
+  bool IsProxy() const
   {
-    return (mWrapperPtrBits & WRAPPER_IS_DOM_BINDING) != 0;
+    return (mWrapperPtrBits & WRAPPER_IS_PROXY) != 0;
   }
 
 
@@ -211,7 +199,7 @@ private:
   void SetWrapperBits(void *aWrapper)
   {
     mWrapperPtrBits = reinterpret_cast<PtrBits>(aWrapper) |
-                      (mWrapperPtrBits & WRAPPER_IS_DOM_BINDING);
+                      (mWrapperPtrBits & WRAPPER_IS_PROXY);
   }
 
   /**
@@ -228,12 +216,14 @@ private:
   enum { WRAPPER_BIT_PRESERVED = 1 << 0 };
 
   /**
-   * If this bit is set then the wrapper for the native object is a DOM binding
-   * (regular JS object or proxy).
+   * If this bit is set then the wrapper for the native object is a proxy. Note
+   * that that doesn't necessarily mean that the JS object stored in the cache
+   * is a JS proxy, as we sometimes store objects other than the wrapper in the
+   * cache.
    */
-  enum { WRAPPER_IS_DOM_BINDING = 1 << 1 };
+  enum { WRAPPER_IS_PROXY = 1 << 1 };
 
-  enum { kWrapperBitMask = (WRAPPER_BIT_PRESERVED | WRAPPER_IS_DOM_BINDING) };
+  enum { kWrapperBitMask = (WRAPPER_BIT_PRESERVED | WRAPPER_IS_PROXY) };
 
   PtrBits mWrapperPtrBits;
 };

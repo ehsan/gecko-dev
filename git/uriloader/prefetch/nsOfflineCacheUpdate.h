@@ -257,9 +257,6 @@ private:
     nsresult Finish();
     nsresult FinishNoNotify();
 
-    // Find one non-pinned cache group and evict it.
-    nsresult EvictOneNonPinned();
-
     enum {
         STATE_UNINITIALIZED,
         STATE_INITIALIZED,
@@ -303,13 +300,7 @@ private:
      * mismatched manifests, the reschedule count will be increased. */
     PRUint32 mRescheduleCount;
 
-    /* Whena an entry for a pinned app is retried, retries count is
-     * increaded. */
-    PRUint32 mPinnedEntryRetriesCount;
-
     nsRefPtr<nsOfflineCacheUpdate> mImplicitUpdate;
-
-    bool                           mPinned;
 };
 
 class nsOfflineCacheUpdateService : public nsIOfflineCacheUpdateService
@@ -348,10 +339,6 @@ public:
 
     /** Addrefs and returns the singleton nsOfflineCacheUpdateService. */
     static nsOfflineCacheUpdateService *GetInstance();
-
-    static nsresult OfflineAppPinnedForURI(nsIURI *aDocumentURI,
-                                           nsIPrefBranch *aPrefBranch,
-                                           bool *aPinned);
 
 private:
     nsresult ProcessNextUpdate();

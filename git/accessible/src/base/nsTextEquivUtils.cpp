@@ -94,7 +94,7 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(nsAccessible *aAccessible,
     return NS_OK;
 
   nsIContent* refContent = nsnull;
-  IDRefsIterator iter(aAccessible->Document(), content, aIDRefsAttr);
+  IDRefsIterator iter(content, aIDRefsAttr);
   while ((refContent = iter.NextElem())) {
     if (!aTextEquiv.IsEmpty())
       aTextEquiv += ' ';
@@ -118,6 +118,13 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
 
   gInitiatorAcc = aInitiatorAcc;
 
+  nsIPresShell* shell = nsCoreUtils::GetPresShellFor(aContent);
+  if (!shell) {
+    NS_ASSERTION(true, "There is no presshell!");
+    gInitiatorAcc = nsnull;
+    return NS_ERROR_UNEXPECTED;
+  }
+
   // If the given content is not visible or isn't accessible then go down
   // through the DOM subtree otherwise go down through accessible subtree and
   // calculate the flat string.
@@ -129,7 +136,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
 
   if (isVisible) {
     nsAccessible* accessible =
-      gInitiatorAcc->Document()->GetAccessible(aContent);
+      GetAccService()->GetAccessible(aContent, shell);
     if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = false;

@@ -61,7 +61,6 @@ namespace mozilla {
 
     namespace layers {
         class CompositorParent;
-        class CompositorChild;
     }
 }
 
@@ -189,9 +188,8 @@ public:
     virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect);
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
 
-    static void SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
-                              mozilla::layers::CompositorChild* aCompositorChild,
-                              ::base::Thread* aCompositorThread);
+    static void SetCompositorParent(mozilla::layers::CompositorParent* aCompositorParent,
+                                    ::base::Thread* aCompositorThread);
     static void ScheduleComposite();
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition();
@@ -267,8 +265,6 @@ private:
     mozilla::AndroidLayerRendererFrame mLayerRendererFrame;
 
     static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
-    static nsRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
-    static bool sCompositorPaused;
     static base::Thread *sCompositorThread;
 #endif
 };

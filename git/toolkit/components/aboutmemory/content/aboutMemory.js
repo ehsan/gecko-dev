@@ -51,7 +51,6 @@ const Cu = Components.utils;
 const KIND_NONHEAP           = Ci.nsIMemoryReporter.KIND_NONHEAP;
 const KIND_HEAP              = Ci.nsIMemoryReporter.KIND_HEAP;
 const KIND_OTHER             = Ci.nsIMemoryReporter.KIND_OTHER;
-const KIND_SUMMARY           = Ci.nsIMemoryReporter.KIND_SUMMARY;
 const UNITS_BYTES            = Ci.nsIMemoryReporter.UNITS_BYTES;
 const UNITS_COUNT            = Ci.nsIMemoryReporter.UNITS_COUNT;
 const UNITS_COUNT_CUMULATIVE = Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE;
@@ -83,19 +82,17 @@ function flipBackslashes(aUnsafeStr)
   return aUnsafeStr.replace(/\\/g, '/');
 }
 
-const gAssertionFailureMsgPrefix = "aboutMemory.js assertion failed: ";
-
 function assert(aCond, aMsg)
 {
   if (!aCond) {
     reportAssertionFailure(aMsg)
-    throw(gAssertionFailureMsgPrefix + aMsg);
+    throw("aboutMemory.js assertion failed: " + aMsg);
   }
 }
 
 function reportAssertionFailure(aMsg)
 {
-  let debug = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
+  var debug = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
   if (debug.isDebugBuild) {
     debug.assertion(aMsg, "false", "aboutMemory.js", 0);
   }
@@ -103,7 +100,7 @@ function reportAssertionFailure(aMsg)
 
 function debug(x)
 {
-  appendElementWithText(document.body, "div", "debug", JSON.stringify(x));
+  appendElementWithText(document.body, "div", "legend", JSON.stringify(x));
 }
 
 //---------------------------------------------------------------------------
@@ -164,12 +161,10 @@ function minimizeMemoryUsage3x(fAfter)
              .getService(Ci.nsIObserverService);
     os.notifyObservers(null, "memory-pressure", "heap-minimize");
 
-    if (++i < 3) {
+    if (++i < 3)
       runSoon(sendHeapMinNotificationsInner);
-    } else {
-      os.notifyObservers(null, "after-minimize-memory-usage", "about:memory");
+    else
       runSoon(fAfter);
-    }
   }
 
   sendHeapMinNotificationsInner();
@@ -204,45 +199,18 @@ function processMemoryReporters(aMgr, aIgnoreSingle, aIgnoreMulti,
   //
   // - After this point we never use the original memory report again.
 
-  function handleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
-                        aDescription)
-  {
-    checkReport(aUnsafePath, aKind, aUnits, aAmount, aDescription);
-    aHandleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount, aDescription);
-  }
-
-  function handleException(aReporterStr, aUnsafePathOrName, aE)
-  {
-    // There are two exception cases that must be distinguished here.
-    //
-    // - We want to halt proceedings on exceptions thrown within this file
-    //   (i.e. assertion failures in handleReport);  such exceptions contain
-    //   gAssertionFailureMsgPrefix in their string representation.
-    //
-    // - We want to continue on when faced with exceptions thrown outside this
-    //   file (i.e. in collectReports).
-
-    let str = aE.toString();
-    if (str.search(gAssertionFailureMsgPrefix) >= 0) {
-      throw(aE); 
-    } else {
-      debug("Bad memory " + aReporterStr + " '" + aUnsafePathOrName +
-            "': " + aE);
-    }
-  }
-
   let e = aMgr.enumerateReporters();
   while (e.hasMoreElements()) {
     let rOrig = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
     let unsafePath = rOrig.path;
     try {
       if (!aIgnoreSingle(unsafePath)) {
-        handleReport(rOrig.process, unsafePath, rOrig.kind, rOrig.units,
-                     rOrig.amount, rOrig.description);
+        aHandleReport(rOrig.process, unsafePath, rOrig.kind, rOrig.units,
+                      rOrig.amount, rOrig.description);
       }
     }
     catch (e) {
-      handleException("reporter", unsafePath, e);
+      debug("Bad memory reporter " + unsafePath + ": " + e);
     }
   }
   let e = aMgr.enumerateMultiReporters();
@@ -251,43 +219,12 @@ function processMemoryReporters(aMgr, aIgnoreSingle, aIgnoreMulti,
     let name = mrOrig.name;
     try {
       if (!aIgnoreMulti(name)) {
-        mrOrig.collectReports(handleReport, null);
+        mrOrig.collectReports(aHandleReport, null);
       }
     }
     catch (e) {
-      handleException("multi-reporter", name, e);
+      debug("Bad memory multi-reporter " + name + ": " + e);
     }
-  }
-}
-
-// This regexp matches sentences and sentence fragments, i.e. strings that
-// start with a capital letter and ends with a '.'.  (The final sentence may be
-// in parentheses, so a ')' might appear after the '.'.)
-const gSentenceRegExp = /^[A-Z].*\.\)?$/m;
-
-function checkReport(aUnsafePath, aKind, aUnits, aAmount, aDescription)
-{
-  if (aUnsafePath.startsWith("explicit/")) {
-    assert(aKind === KIND_HEAP || aKind === KIND_NONHEAP, "bad explicit kind");
-    assert(aUnits === UNITS_BYTES, "bad explicit units");
-    assert(aDescription.match(gSentenceRegExp),
-           "non-sentence explicit description");
-
-  } else if (aUnsafePath.startsWith("smaps/")) {
-    assert(aKind === KIND_NONHEAP, "bad smaps kind");
-    assert(aUnits === UNITS_BYTES, "bad smaps units");
-    assert(aDescription !== "", "empty smaps description");
-
-  } else if (aKind === KIND_SUMMARY) {
-    assert(!aUnsafePath.startsWith("explicit/") &&
-           !aUnsafePath.startsWith("smaps/"),
-           "bad SUMMARY path");
-
-  } else {
-    assert(aUnsafePath.indexOf("/") === -1, "'other' path contains '/'");
-    assert(aKind === KIND_OTHER, "bad other kind: " + aUnsafePath);
-    assert(aDescription.match(gSentenceRegExp),
-           "non-sentence other description " + aDescription);
   }
 }
 
@@ -539,22 +476,20 @@ Report.prototype = {
 function getReportsByProcess(aMgr)
 {
   // Ignore the "smaps" multi-reporter in non-verbose mode, and the
-  // "compartments" and "ghost-windows" multi-reporters all the time.  (Note
-  // that reports from these multi-reporters can reach here as single reports
-  // if they were in the child process.)
+  // "compartments" multi-reporter all the time.  (Note that reports from these
+  // multi-reporters can reach here as single reports if they were in the child
+  // process.)
 
   function ignoreSingle(aPath) 
   {
     return (aPath.startsWith("smaps/") && !gVerbose) ||
-           aPath.startsWith("compartments/") ||
-           aPath.startsWith("ghost-windows/");
+           (aPath.startsWith("compartments/"))
   }
 
   function ignoreMulti(aName)
   {
-    return (aName === "smaps" && !gVerbose) ||
-           aName === "compartments" ||
-           aName === "ghost-windows";
+    return ((aName === "smaps" && !gVerbose) ||
+            (aName === "compartments"));
   }
 
   let reportsByProcess = {};
@@ -662,6 +597,9 @@ function buildTree(aReports, aTreeName)
     // Add any missing nodes in the tree implied by the unsafePath.
     let r = aReports[unsafePath];
     if (r.treeNameMatches(aTreeName)) {
+      assert(r._kind === KIND_HEAP || r._kind === KIND_NONHEAP,
+             "reports in the tree must have KIND_HEAP or KIND_NONHEAP");
+      assert(r._units === UNITS_BYTES, "r._units === UNITS_BYTES");
       let unsafeNames = r._unsafePath.split('/');
       let u = t;
       for (let i = 0; i < unsafeNames.length; i++) {
@@ -1190,14 +1128,13 @@ function appendMrNameSpan(aP, aKind, aKidsState, aDescription, aUnsafeName,
   }
 }
 
-// This is used to record the (safe) IDs of which sub-trees have been manually
-// expanded (marked as true) and collapsed (marked as false).  It's used to
-// replicate the collapsed/expanded state when the page is updated.  It can end
-// up holding IDs of nodes that no longer exist, e.g. for compartments that
-// have been closed.  This doesn't seem like a big deal, because the number is
-// limited by the number of entries the user has changed from their original
-// state.
-let gShowSubtreesBySafeTreeId = {};
+// This is used to record the (safe) IDs of which sub-trees have been toggled,
+// so the collapsed/expanded state can be replicated when the page is
+// regenerated.  It can end up holding IDs of nodes that no longer exist, e.g.
+// for compartments that have been closed.  This doesn't seem like a big deal,
+// because the number is limited by the number of entries the user has changed
+// from their original state.
+let gTogglesBySafeTreeId = {};
 
 function assertClassListContains(e, className) {
   assert(e, "undefined " + className);
@@ -1221,7 +1158,6 @@ function toggle(aEvent)
   let minusSpan = outerSpan.childNodes[3];
   assertClassListContains(plusSpan,  "mrSep");
   assertClassListContains(minusSpan, "mrSep");
-  let isExpansion = !plusSpan.classList.contains("hidden");
   plusSpan .classList.toggle("hidden");
   minusSpan.classList.toggle("hidden");
 
@@ -1232,10 +1168,10 @@ function toggle(aEvent)
 
   // Record/unrecord that this sub-tree was toggled.
   let safeTreeId = outerSpan.id;
-  if (gShowSubtreesBySafeTreeId[safeTreeId] !== undefined) {
-    delete gShowSubtreesBySafeTreeId[safeTreeId];
+  if (gTogglesBySafeTreeId[safeTreeId]) {
+    delete gTogglesBySafeTreeId[safeTreeId];
   } else {
-    gShowSubtreesBySafeTreeId[safeTreeId] = isExpansion;
+    gTogglesBySafeTreeId[safeTreeId] = true;
   }
 }
 
@@ -1352,8 +1288,8 @@ function appendTreeElements(aPOuter, aT, aProcess)
       // involves reinstating any previous toggling of the sub-tree.
       let safeTreeId = flipBackslashes(aProcess + ":" + unsafePath);
       showSubtrees = !aT._hideKids;
-      if (gShowSubtreesBySafeTreeId[safeTreeId] !== undefined) {
-        showSubtrees = gShowSubtreesBySafeTreeId[safeTreeId];
+      if (gTogglesBySafeTreeId[safeTreeId]) {
+        showSubtrees = !showSubtrees;
       }
       d = appendElement(aP, "span", "hasKids");
       d.id = safeTreeId;
@@ -1491,6 +1427,8 @@ function appendOtherElements(aP, aReportsByProcess)
   for (let unsafePath in aReportsByProcess) {
     let r = aReportsByProcess[unsafePath];
     if (!r._done) {
+      assert(r._kind === KIND_OTHER,
+             "_kind !== KIND_OTHER for " + flipBackslashes(r._unsafePath));
       assert(r._nMerged === undefined, "dup'd OTHER report");
       let o = new OtherReport(r._unsafePath, r._units, r._amount,
                               r._description);
@@ -1556,21 +1494,15 @@ function updateAboutCompartments()
   let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
       getService(Ci.nsIMemoryReporterManager);
 
-  let compartmentsByProcess = getCompartmentsByProcess(mgr);
-  let ghostWindowsByProcess = getGhostWindowsByProcess(mgr);
-
-  function handleProcess(aProcess) {
-    appendProcessAboutCompartmentsElements(body, aProcess,
-                                           compartmentsByProcess[aProcess],
-                                           ghostWindowsByProcess[aProcess]);
-  }
-
   // Generate output for one process at a time.  Always start with the
   // Main process.
-  handleProcess('Main');
+  let compartmentsByProcess = getCompartmentsByProcess(mgr);
+  appendProcessCompartmentsElements(body, "Main",
+                                    compartmentsByProcess["Main"]);
   for (let process in compartmentsByProcess) {
     if (process !== "Main") {
-      handleProcess(process);
+      appendProcessCompartmentsElements(body, process,
+                                        compartmentsByProcess[process]);
     }
   }
 
@@ -1624,7 +1556,14 @@ function getCompartmentsByProcess(aMgr)
                         aDescription)
   {
     let process = aProcess === "" ? "Main" : aProcess;
+
+    assert(aKind        === KIND_OTHER, "bad kind");
+    assert(aUnits       === UNITS_COUNT, "bad units");
+    assert(aAmount      === 1, "bad amount");
+    assert(aDescription === "", "bad description");
+
     let unsafeNames = aUnsafePath.split('/');
+
     let isSystemCompartment;
     if (unsafeNames[0] === "compartments" && unsafeNames[1] == "system" &&
         unsafeNames.length == 3)
@@ -1666,89 +1605,30 @@ function getCompartmentsByProcess(aMgr)
   return compartmentsByProcess;
 }
 
-function GhostWindow(aUnsafeURL)
-{
-  // Call it _unsafeName rather than _unsafeURL for symmetry with the
-  // Compartment object.
-  this._unsafeName = aUnsafeURL;
-
-  // this._nMerged is only defined if > 1
-}
-
-GhostWindow.prototype = {
-  merge: function(r) {
-    this._nMerged = this._nMerged ? this._nMerged + 1 : 2;
-  }
-};
-
-function getGhostWindowsByProcess(aMgr)
-{
-  function ignoreSingle(aPath) 
-  {
-    return !aPath.startsWith('ghost-windows/')
-  }
-
-  function ignoreMulti(aName)
-  {
-    return aName !== "ghost-windows";
-  }
-
-  let ghostWindowsByProcess = {};
-
-  function handleReport(aProcess, aUnsafePath, aKind, aUnits, aAmount,
-                        aDescription)
-  {
-    let unsafeSplit = aUnsafePath.split('/');
-    assert(unsafeSplit[0] == 'ghost-windows',
-           'Unexpected path in getGhostWindowsByProcess: ' + aUnsafePath);
-
-    let unsafeURL = unsafeSplit[1];
-    let ghostWindow = new GhostWindow(unsafeURL);
-
-    let process = aProcess === "" ? "Main" : aProcess;
-    if (!ghostWindowsByProcess[process]) {
-      ghostWindowsByProcess[process] = {};
-    }
-
-    if (ghostWindowsByProcess[process][unsafeURL]) {
-      ghostWindowsByProcess[process][unsafeURL].merge(ghostWindow);
-    }
-    else {
-      ghostWindowsByProcess[process][unsafeURL] = ghostWindow;
-    }
-  }
-
-  processMemoryReporters(aMgr, ignoreSingle, ignoreMulti, handleReport);
-
-  return ghostWindowsByProcess;
-}
-
 //---------------------------------------------------------------------------
 
-function appendProcessAboutCompartmentsElementsHelper(aP, aEntries, aKindString)
+function appendProcessCompartmentsElementsHelper(aP, aCompartments, aKindString)
 {
-  // aEntries might be null or undefined, e.g. if there are no ghost windows
-  // for this process.
-  aEntries = aEntries ? aEntries : {};
+  appendElementWithText(aP, "h2", "", aKindString + " Compartments\n");
 
-  appendElementWithText(aP, "h2", "", aKindString + "\n");
-
+  let compartmentTextArray = [];
   let uPre = appendElement(aP, "pre", "entries");
-
-  let lines = [];
-  for (let name in aEntries) {
-    let e = aEntries[name];
-    let line = flipBackslashes(e._unsafeName);
-    if (e._nMerged) {
-      line += ' [' + e._nMerged + ']';
+  for (let name in aCompartments) {
+    let c = aCompartments[name];
+    let isSystemKind = aKindString === "System";
+    if (c._isSystemCompartment === isSystemKind) {
+      let text = flipBackslashes(c._unsafeName);
+      if (c._nMerged) {
+        text += " [" + c._nMerged + "]";
+      }
+      text += "\n";
+      compartmentTextArray.push(text);
     }
-    line += '\n';
-    lines.push(line);
   }
-  lines.sort();
+  compartmentTextArray.sort();
 
-  for (let i = 0; i < lines.length; i++) {
-    appendElementWithText(uPre, "span", "", lines[i]);
+  for (var i = 0; i < compartmentTextArray.length; i++) {
+    appendElementWithText(uPre, "span", "", compartmentTextArray[i]);
   }
 
   appendTextNode(aP, "\n");   // gives nice spacing when we cut and paste
@@ -1763,30 +1643,14 @@ function appendProcessAboutCompartmentsElementsHelper(aP, aEntries, aKindString)
  *        The name of the process.
  * @param aCompartments
  *        Table of Compartments for this process, indexed by _unsafeName.
- * @param aGhostWindows
- *        Array of window URLs of ghost windows.
- *
  * @return The generated text.
  */
-function appendProcessAboutCompartmentsElements(aP, aProcess, aCompartments, aGhostWindows)
+function appendProcessCompartmentsElements(aP, aProcess, aCompartments)
 {
   appendElementWithText(aP, "h1", "", aProcess + " Process");
   appendTextNode(aP, "\n\n");   // gives nice spacing when we cut and paste
-
-  let userCompartments = {};
-  let systemCompartments = {};
-  for (let name in aCompartments) {
-    let c = aCompartments[name];
-    if (c._isSystemCompartment) {
-      systemCompartments[name] = c;
-    }
-    else {
-      userCompartments[name] = c;
-    }
-  }
   
-  appendProcessAboutCompartmentsElementsHelper(aP, userCompartments, "User Compartments");
-  appendProcessAboutCompartmentsElementsHelper(aP, systemCompartments, "System Compartments");
-  appendProcessAboutCompartmentsElementsHelper(aP, aGhostWindows, "Ghost Windows");
+  appendProcessCompartmentsElementsHelper(aP, aCompartments, "User");
+  appendProcessCompartmentsElementsHelper(aP, aCompartments, "System");
 }
 

@@ -36,11 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Keep in (case-insensitive) order:
-#include "gfxMatrix.h"
-#include "nsSVGAElement.h"
 #include "nsSVGTSpanFrame.h"
+#include "nsISVGGlyphFragmentNode.h"
+#include "nsSVGGraphicElement.h"
+#include "nsSVGAElement.h"
 #include "nsSVGUtils.h"
+#include "gfxMatrix.h"
 #include "SVGLengthList.h"
 
 // <a> elements can contain text. nsSVGGlyphFrames expect to have

@@ -45,7 +45,6 @@
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "DictionaryHelpers.h"
-#include "nsIScriptError.h"
 
 using namespace mozilla;
 
@@ -179,28 +178,12 @@ nsDOMMultipartFile::NewBlob(nsISupports* *aNewObject)
   return NS_OK;
 }
 
-static nsIDOMBlob*
-GetXPConnectNative(JSContext* aCx, JSObject* aObj) {
-  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, aObj));
-  return blob;
-}
-
 NS_IMETHODIMP
 nsDOMMultipartFile::Initialize(nsISupports* aOwner,
                                JSContext* aCx,
                                JSObject* aObj,
                                PRUint32 aArgc,
                                jsval* aArgv)
-{
-  return InitInternal(aCx, aArgc, aArgv, GetXPConnectNative);
-}
-
-nsresult
-nsDOMMultipartFile::InitInternal(JSContext* aCx,
-                                 PRUint32 aArgc,
-                                 jsval* aArgv,
-                                 UnwrapFuncPtr aUnwrapFunc)
 {
   bool nativeEOL = false;
   if (aArgc > 1) {
@@ -237,7 +220,8 @@ nsDOMMultipartFile::InitInternal(JSContext* aCx,
 
       if (element.isObject()) {
         JSObject& obj = element.toObject();
-        nsCOMPtr<nsIDOMBlob> blob = aUnwrapFunc(aCx, &obj);
+        nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
+          nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, &obj));
         if (blob) {
           // Flatten so that multipart blobs will never nest
           nsDOMFileBase* file = static_cast<nsDOMFileBase*>(
@@ -342,8 +326,7 @@ NS_IMPL_ADDREF(nsDOMBlobBuilder)
 NS_IMPL_RELEASE(nsDOMBlobBuilder)
 NS_INTERFACE_MAP_BEGIN(nsDOMBlobBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozBlobBuilder)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMozBlobBuilder)
-  NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBlobBuilder)
 NS_INTERFACE_MAP_END
 
@@ -454,25 +437,4 @@ nsresult NS_NewBlobBuilder(nsISupports* *aSupports)
 {
   nsDOMBlobBuilder* builder = new nsDOMBlobBuilder();
   return CallQueryInterface(builder, aSupports);
-}
-
-NS_IMETHODIMP
-nsDOMBlobBuilder::Initialize(nsISupports* aOwner,
-                             JSContext* aCx,
-                             JSObject* aObj,
-                             PRUint32 aArgc,
-                             jsval* aArgv)
-{
-  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aOwner));
-  if (!window) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
-  if (!doc) {
-    return NS_OK;
-  }
-
-  doc->WarnOnceAbout(nsIDocument::eMozBlobBuilder);
-  return NS_OK;
 }

@@ -86,6 +86,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSPseudoElements.h"
+#include "nsIHTMLContentSink.h" 
 #include "nsCSSFrameConstructor.h"
 
 #include "nsFrameTraversal.h"
@@ -123,7 +124,6 @@
 #include "nsDeckFrame.h"
 
 #include "gfxContext.h"
-#include "nsRenderingContext.h"
 #include "CSSCalc.h"
 #include "nsAbsoluteContainingBlock.h"
 
@@ -2725,14 +2725,15 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   if (aAmountBack == eSelectWord) {
     // To avoid selecting the previous word when at start of word,
     // first move one character forward.
-    nsPeekOffsetStruct pos(eSelectCharacter,
-                           eDirNext,
-                           aStartPos,
-                           0,
-                           aJumpLines,
-                           true,  //limit on scrolled views
-                           false,
-                           false);
+    nsPeekOffsetStruct pos;
+    pos.SetData(eSelectCharacter,
+                eDirNext,
+                aStartPos,
+                0,
+                aJumpLines,
+                true,  //limit on scrolled views
+                false,
+                false);
     rv = PeekOffset(&pos);
     if (NS_SUCCEEDED(rv)) {
       baseFrame = pos.mResultFrame;
@@ -2740,27 +2741,29 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
     }
   }
 
-  // Use peek offset one way then the other:
-  nsPeekOffsetStruct startpos(aAmountBack,
-                              eDirPrevious,
-                              baseOffset,
-                              0,
-                              aJumpLines,
-                              true,  //limit on scrolled views
-                              false,
-                              false);
+  // Use peek offset one way then the other:  
+  nsPeekOffsetStruct startpos;
+  startpos.SetData(aAmountBack,
+                   eDirPrevious,
+                   baseOffset, 
+                   0,
+                   aJumpLines,
+                   true,  //limit on scrolled views
+                   false,
+                   false);
   rv = baseFrame->PeekOffset(&startpos);
   if (NS_FAILED(rv))
     return rv;
 
-  nsPeekOffsetStruct endpos(aAmountForward,
-                            eDirNext,
-                            aStartPos,
-                            0,
-                            aJumpLines,
-                            true,  //limit on scrolled views
-                            false,
-                            false);
+  nsPeekOffsetStruct endpos;
+  endpos.SetData(aAmountForward,
+                 eDirNext,
+                 aStartPos, 
+                 0,
+                 aJumpLines,
+                 true,  //limit on scrolled views
+                 false,
+                 false);
   rv = PeekOffset(&endpos);
   if (NS_FAILED(rv))
     return rv;
@@ -5781,15 +5784,15 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsIFrame::CaretPosition
-nsIFrame::GetExtremeCaretPosition(bool aStart)
+nsPeekOffsetStruct nsIFrame::GetExtremeCaretPosition(bool aStart)
 {
-  CaretPosition result;
+  nsPeekOffsetStruct result;
 
   FrameTarget targetFrame = DrillDownToSelectionFrame(this, !aStart);
   FrameContentRange range = GetRangeForFrame(targetFrame.frame);
   result.mResultContent = range.content;
   result.mContentOffset = aStart ? range.start : range.end;
+  result.mAttachForward = (result.mContentOffset == range.start);
   return result;
 }
 
@@ -7632,7 +7635,13 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
   nsBoxLayoutMetrics *metrics = BoxMetrics();
   nsReflowStatus status = NS_FRAME_COMPLETE;
 
+  bool redrawAfterReflow = false;
+  bool redrawNow = false;
+
   bool needsReflow = NS_SUBTREE_DIRTY(this);
+
+  if (redrawNow)
+     Redraw(aState);
 
   // if we don't need a reflow then 
   // lets see if we are already that size. Yes? then don't even reflow. We are done.
@@ -7799,6 +7808,13 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     Reflow(aPresContext, aDesiredSize, reflowState, status);
 
     NS_ASSERTION(NS_FRAME_IS_COMPLETE(status), "bad status");
+
+    if (redrawAfterReflow) {
+       nsRect r = GetRect();
+       r.width = aDesiredSize.width;
+       r.height = aDesiredSize.height;
+       Redraw(aState, &r);
+    }
 
     PRUint32 layoutFlags = aState.LayoutFlags();
     nsContainerFrame::FinishReflowChild(this, aPresContext, &reflowState,

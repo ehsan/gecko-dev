@@ -157,13 +157,6 @@ nsMacShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetCanSetDesktopBackground(bool* aResult)
-{
-  *aResult = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement, 
                                         PRInt32 aPosition)
 {

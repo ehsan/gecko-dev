@@ -220,7 +220,7 @@ nsHTMLFieldSetElement::InsertChildAt(nsIContent* aChild, PRUint32 aIndex,
   return rv;
 }
 
-void
+nsresult
 nsHTMLFieldSetElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
   bool firstLegendHasChanged = false;
@@ -239,11 +239,14 @@ nsHTMLFieldSetElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
     }
   }
 
-  nsGenericHTMLFormElement::RemoveChildAt(aIndex, aNotify);
+  nsresult rv = nsGenericHTMLFormElement::RemoveChildAt(aIndex, aNotify);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (firstLegendHasChanged) {
     NotifyElementsForFirstLegendChange(aNotify);
   }
+
+  return rv;
 }
 
 void

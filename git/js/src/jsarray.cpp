@@ -139,7 +139,6 @@
 #include "jsstrinlines.h"
 
 #include "vm/ArgumentsObject-inl.h"
-#include "vm/ObjectImpl-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace mozilla;
@@ -405,23 +404,10 @@ DoGetElement(JSContext *cx, JSObject *obj, uint32_t index, JSBool *hole, Value *
 }
 
 template<typename IndexType>
-static void
-AssertGreaterThanZero(IndexType index)
-{
-    JS_ASSERT(index >= 0);
-}
-
-template<>
-void
-AssertGreaterThanZero(uint32_t index)
-{
-}
-
-template<typename IndexType>
 static JSBool
 GetElement(JSContext *cx, JSObject *obj, IndexType index, JSBool *hole, Value *vp)
 {
-    AssertGreaterThanZero(index);
+    JS_ASSERT(index >= 0);
     if (obj->isDenseArray() && index < obj->getDenseArrayInitializedLength() &&
         !(*vp = obj->getDenseArrayElement(uint32_t(index))).isMagic(JS_ARRAY_HOLE)) {
         *hole = JS_FALSE;
@@ -3714,7 +3700,8 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
     arrayProto->setArrayLength(cx, 0);
 
     RootedVarFunction ctor(cx);
-    ctor = global->createConstructor(cx, js_Array, CLASS_ATOM(cx, Array), 1);
+    ctor = global->createConstructor(cx, js_Array, &ArrayClass,
+                                     CLASS_ATOM(cx, Array), 1);
     if (!ctor)
         return NULL;
 

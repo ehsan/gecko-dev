@@ -97,9 +97,6 @@ struct nsGlobalNameStruct
     nsCID mCID; // All other types...
   };
 
-  // For new style DOM bindings.
-  mozilla::dom::binding::DefineInterface mDefineDOMInterface;
-
 private:
 
   // copy constructor
@@ -129,12 +126,9 @@ public:
   // valid until the next call to any of the methods in this class.
   // It also returns a pointer to the string buffer of the classname
   // in the nsGlobalNameStruct.
-  const nsGlobalNameStruct* LookupName(const nsAString& aName,
-                                       const PRUnichar **aClassName = nsnull)
-  {
-    return LookupNameInternal(aName, aClassName);
-  }
-
+  nsresult LookupName(const nsAString& aName,
+                      const nsGlobalNameStruct **aNameStruct,
+                      const PRUnichar **aClassName = nsnull);
   // Returns a nsGlobalNameStruct for the navigator property aName, or
   // null if one is not found. The returned nsGlobalNameStruct is only
   // guaranteed to be valid until the next call to any of the methods
@@ -169,10 +163,7 @@ public:
 
   nsGlobalNameStruct* GetConstructorProto(const nsGlobalNameStruct* aStruct);
 
-  void RegisterDefineDOMInterface(const nsAString& aName,
-    mozilla::dom::binding::DefineInterface aDefineDOMInterface);
-
-private:
+protected:
   // Adds a new entry to the hash and returns the nsGlobalNameStruct
   // that aKey will be mapped to. If mType in the returned
   // nsGlobalNameStruct is != eTypeNotInitialized, an entry for aKey
@@ -199,9 +190,6 @@ private:
   nsresult AddCategoryEntryToHash(nsICategoryManager* aCategoryManager,
                                   const char* aCategory,
                                   nsISupports* aEntry);
-
-  nsGlobalNameStruct* LookupNameInternal(const nsAString& aName,
-                                         const PRUnichar **aClassName = nsnull);
 
   PLDHashTable mGlobalNames;
   PLDHashTable mNavigatorNames;

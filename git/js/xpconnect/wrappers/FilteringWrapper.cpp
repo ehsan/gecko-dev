@@ -143,14 +143,12 @@ FilteringWrapper<Base, Policy>::enter(JSContext *cx, JSObject *wrapper, jsid id,
                              CrossOriginAccessiblePropertiesOnly>
 #define PXOW   FilteringWrapper<XrayProxy, \
                                 CrossOriginAccessiblePropertiesOnly>
-#define DXOW   FilteringWrapper<XrayDOM, \
-                                CrossOriginAccessiblePropertiesOnly>
 #define NNXOW FilteringWrapper<CrossCompartmentSecurityWrapper, \
                                CrossOriginAccessiblePropertiesOnly>
 #define LW    FilteringWrapper<XrayWrapper<SameCompartmentSecurityWrapper>, \
-                               LocationPolicy>
+                               SameOriginOrCrossOriginAccessiblePropertiesOnly>
 #define XLW   FilteringWrapper<XrayWrapper<CrossCompartmentSecurityWrapper>, \
-                               LocationPolicy>
+                               SameOriginOrCrossOriginAccessiblePropertiesOnly>
 
 template<> SOW SOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                               WrapperFactory::SOW_FLAG);
@@ -161,18 +159,15 @@ template<> XOW XOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                               WrapperFactory::PARTIALLY_TRANSPARENT);
 template<> PXOW PXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                                 WrapperFactory::PARTIALLY_TRANSPARENT);
-template<> DXOW DXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
-                                WrapperFactory::PARTIALLY_TRANSPARENT);
 template<> NNXOW NNXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                                   WrapperFactory::PARTIALLY_TRANSPARENT);
-template<> LW  LW::singleton(WrapperFactory::SHADOWING_FORBIDDEN);
-template<> XLW XLW::singleton(WrapperFactory::SHADOWING_FORBIDDEN);
+template<> LW  LW::singleton(0);
+template<> XLW XLW::singleton(0);
 
 template class SOW;
 template class COW;
 template class XOW;
 template class PXOW;
-template class DXOW;
 template class NNXOW;
 template class LW;
 template class XLW;

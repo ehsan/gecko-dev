@@ -472,7 +472,7 @@ class nsTSubstring_CharT
          */
       bool NS_FASTCALL SetCapacity( size_type newCapacity );
 
-      bool NS_FASTCALL SetLength( size_type newLength );
+      void NS_FASTCALL SetLength( size_type newLength );
 
       void Truncate( size_type newLength = 0 )
         {

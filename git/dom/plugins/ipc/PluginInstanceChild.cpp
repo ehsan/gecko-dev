@@ -85,6 +85,7 @@ using namespace std;
 #include "gtk2xtbin.h"
 
 #elif defined(MOZ_WIDGET_QT)
+#include <QX11Info>
 #undef KeyPress
 #undef KeyRelease
 #elif defined(OS_WIN)

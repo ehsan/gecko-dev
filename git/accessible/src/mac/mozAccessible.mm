@@ -71,6 +71,21 @@ ConvertCocoaToGeckoPoint(NSPoint &aInPoint, nsPoint &aOutPoint)
   aOutPoint.MoveTo ((nscoord)aInPoint.x, (nscoord)(mainScreenHeight - aInPoint.y));
 }
 
+// all mozAccessibles are either abstract objects (that correspond to XUL widgets, HTML frames, etc) or are
+// attached to a certain view; for example a document view. when we hand an object off to an AT, we always want
+// to give it the represented view, in the latter case.
+static inline id <mozAccessible>
+GetObjectOrRepresentedView(id <mozAccessible> anObject)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  if ([anObject hasRepresentedView])
+    return [anObject representedView];
+  return anObject;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
 // returns the passed in object if it is not ignored. if it's ignored, will return
 // the first unignored ancestor.
 static inline id
@@ -357,7 +372,7 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   if (mParent)
     return mParent;
 
-  nsAccessible* accessibleParent = mGeckoAccessible->GetUnignoredParent();
+  nsCOMPtr<nsIAccessible> accessibleParent(mGeckoAccessible->GetUnignoredParent());
   if (accessibleParent) {
     id nativeParent = GetNativeFromGeckoAccessible(accessibleParent);
     if (nativeParent)
@@ -403,15 +418,17 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
     return mChildren;
 
   mChildren = [[NSMutableArray alloc] init];
-
+  
   // get the array of children.
-  nsAutoTArray<nsAccessible*, 10> childrenArray;
-  mGeckoAccessible->GetUnignoredChildren(&childrenArray);
-
+  nsTArray<nsRefPtr<nsAccessibleWrap> > childrenArray;
+  mGeckoAccessible->GetUnignoredChildren(childrenArray);
+  
   // now iterate through the children array, and get each native accessible.
-  PRUint32 totalCount = childrenArray.Length();
-  for (PRUint32 idx = 0; idx < totalCount; idx++) {
-    nsAccessible* curAccessible = childrenArray.ElementAt(idx);
+  int totalCount = childrenArray.Length();
+  int index = 0;
+   
+  for (; index < totalCount; index++) {
+    nsAccessibleWrap *curAccessible = childrenArray.ElementAt(index);
     if (curAccessible) {
       mozAccessible *curNative = GetNativeFromGeckoAccessible(curAccessible);
       if (curNative)
@@ -514,11 +531,6 @@ GetNativeFromGeckoAccessible(nsIAccessible *anAccessible)
   // like mozTextAccessible.
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)selectedTextDidChange
-{
-  // Do nothing. mozTextAccessible will.
 }
 
 - (NSString*)customDescription

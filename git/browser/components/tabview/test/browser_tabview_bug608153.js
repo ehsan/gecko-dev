@@ -35,3 +35,14 @@ function test() {
   });
 }
 
+function goToNextGroup() {
+  let utils =
+    QueryInterface(Ci.nsIInterfaceRequestor).
+      getInterface(Ci.nsIDOMWindowUtils);
+
+  const masks = Ci.nsIDOMNSEvent;
+  let mval = 0;
+  mval |= masks.CONTROL_MASK;
+
+  utils.sendKeyEvent("keypress", 0, 96, mval);
+}

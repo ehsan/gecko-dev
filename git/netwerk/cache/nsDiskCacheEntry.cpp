@@ -87,12 +87,7 @@ nsDiskCacheEntry::CreateCacheEntry(nsCacheDevice *  device)
     const char* info = entry->GetMetaDataElement("security-info");
     if (info) {
         nsCOMPtr<nsISupports> infoObj;
-        rv = NS_DeserializeObject(nsDependentCString(info),
-                                  getter_AddRefs(infoObj));
-        if (NS_FAILED(rv)) {
-            delete entry;
-            return nsnull;
-        }
+        NS_DeserializeObject(nsDependentCString(info), getter_AddRefs(infoObj));
         entry->SetSecurityInfo(infoObj);
     }
 

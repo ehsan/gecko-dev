@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -86,20 +86,33 @@ nsJSEventListener::nsJSEventListener(nsIScriptContext *aContext,
   // until we are done with it.
   NS_ASSERTION(aScopeObject && aContext,
                "EventListener with no context or scope?");
-  NS_HOLD_JS_OBJECTS(this, nsJSEventListener);
+  nsContentUtils::HoldScriptObject(aContext->GetScriptTypeID(), this,
+                                   &NS_CYCLE_COLLECTION_NAME(nsJSEventListener),
+                                   aScopeObject, false);
+  if (aHandler) {
+    nsContentUtils::HoldScriptObject(aContext->GetScriptTypeID(), this,
+                                     &NS_CYCLE_COLLECTION_NAME(nsJSEventListener),
+                                     aHandler, true);
+  }
 }
 
 nsJSEventListener::~nsJSEventListener() 
 {
-  if (mContext) {
-    NS_DROP_JS_OBJECTS(this, nsJSEventListener);
-  }
+  if (mContext)
+    nsContentUtils::DropScriptObjects(mContext->GetScriptTypeID(), this,
+                                      &NS_CYCLE_COLLECTION_NAME(nsJSEventListener));
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSEventListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSEventListener)
   if (tmp->mContext) {
-    NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
+    if (tmp->mContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
+      NS_DROP_JS_OBJECTS(tmp, nsJSEventListener);
+    }
+    else {
+      nsContentUtils::DropScriptObjects(tmp->mContext->GetScriptTypeID(), tmp,
+                                  &NS_CYCLE_COLLECTION_NAME(nsJSEventListener));
+    }
     tmp->mScopeObject = nsnull;
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
   }
@@ -110,9 +123,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSEventListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSEventListener)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_MEMBER_CALLBACK(nsIProgrammingLanguage::JAVASCRIPT,
+  NS_IMPL_CYCLE_COLLECTION_TRACE_MEMBER_CALLBACK(tmp->mContext->GetScriptTypeID(),
                                                  mScopeObject)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_MEMBER_CALLBACK(nsIProgrammingLanguage::JAVASCRIPT,
+  NS_IMPL_CYCLE_COLLECTION_TRACE_MEMBER_CALLBACK(tmp->mContext->GetScriptTypeID(),
                                                  mHandler)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -140,7 +153,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSEventListener)
 bool
 nsJSEventListener::IsBlackForCC()
 {
-  if (mContext &&
+  if ((mContext && mContext->GetScriptTypeID() ==
+         nsIProgrammingLanguage::JAVASCRIPT) &&
       (!mScopeObject || !xpc_IsGrayGCThing(mScopeObject)) &&
       (!mHandler || !xpc_IsGrayGCThing(mHandler))) {
     nsIScriptGlobalObject* sgo =

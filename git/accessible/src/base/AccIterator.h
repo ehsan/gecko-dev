@@ -264,8 +264,7 @@ private:
 class IDRefsIterator : public AccIterable
 {
 public:
-  IDRefsIterator(nsDocAccessible* aDoc, nsIContent* aContent,
-                 nsIAtom* aIDRefsAttr);
+  IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr);
   virtual ~IDRefsIterator() { }
 
   /**
@@ -293,7 +292,6 @@ private:
 
   nsString mIDs;
   nsIContent* mContent;
-  nsDocAccessible* mDoc;
   nsAString::index_type mCurrIdx;
 };
 

@@ -53,7 +53,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsRadioInterfaceLayer.h"
-#include "WifiWorker.h"
+#include "nsWifiWorker.h"
 
 
 USING_WORKERS_NAMESPACE
@@ -254,11 +254,6 @@ SystemWorkerManager::Shutdown()
   StopRil();
 
   mRILWorker = nsnull;
-  nsCOMPtr<nsIWifi> wifi(do_QueryInterface(mWifiWorker));
-  if (wifi) {
-    wifi->Shutdown();
-    wifi = nsnull;
-  }
   mWifiWorker = nsnull;
 
   nsCOMPtr<nsIObserverService> obs =

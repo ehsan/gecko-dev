@@ -103,9 +103,6 @@
 #include "nsRenderingContext.h"
 #include "nsIScriptableRegion.h"
 
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
 #endif
@@ -522,11 +519,6 @@ nsTreeBodyFrame::SetView(nsITreeView * aView)
  
   nsIContent *treeContent = GetBaseElement();
   if (treeContent) {
-#ifdef ACCESSIBILITY
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService)
-      accService->TreeViewChanged(PresContext()->GetPresShell(), treeContent, mView);
-#endif
     FireDOMEvent(NS_LITERAL_STRING("TreeViewChanged"), treeContent);
   }
 

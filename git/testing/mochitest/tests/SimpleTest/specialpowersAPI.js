@@ -77,9 +77,7 @@ function bindDOMWindowUtils(aWindow) {
     if (prop in desc && typeof(desc[prop]) == "function") {
       var oldval = desc[prop];
       try {
-        desc[prop] = function() {
-          return oldval.apply(util, arguments);
-        };
+        desc[prop] = function() { return oldval.apply(util, arguments); };
       } catch (ex) {
         dump("WARNING: Special Powers failed to rebind function: " + desc + "::" + prop + "\n");
       }
@@ -389,7 +387,7 @@ SpecialPowersAPI.prototype = {
   },
 
   getDOMWindowUtils: function(aWindow) {
-    if (aWindow == this.window.get() && this.DOMWindowUtils != null)
+    if (aWindow == this.window && this.DOMWindowUtils != null)
       return this.DOMWindowUtils;
 
     return bindDOMWindowUtils(aWindow);
@@ -706,18 +704,6 @@ SpecialPowersAPI.prototype = {
                                                            listener,
                                                            false);
   },
-  getFormFillController: function(window) {
-    return Components.classes["@mozilla.org/satchel/form-fill-controller;1"]
-                     .getService(Components.interfaces.nsIFormFillController);
-  },
-  attachFormFillControllerTo: function(window) {
-    this.getFormFillController()
-        .attachToBrowser(this._getDocShell(window),
-                         this._getAutoCompletePopup(window));
-  },
-  detachFormFillControllerFrom: function(window) {
-    this.getFormFillController().detachFromBrowser(this._getDocShell(window));
-  },
   isBackButtonEnabled: function(window) {
     return !this._getTopChromeWindow(window).document
                                       .getElementById("Browser:Back")
@@ -776,7 +762,7 @@ SpecialPowersAPI.prototype = {
   },
 
   snapshotWindow: function (win, withCaret) {
-    var el = this.window.get().document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     el.width = win.innerWidth;
     el.height = win.innerHeight;
     var ctx = el.getContext("2d");
@@ -1004,7 +990,7 @@ SpecialPowersAPI.prototype = {
   },
 
   snapshotWindow: function (win, withCaret) {
-    var el = this.window.get().document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     el.width = win.innerWidth;
     el.height = win.innerHeight;
     var ctx = el.getContext("2d");
@@ -1055,10 +1041,4 @@ SpecialPowersAPI.prototype = {
     var el = this._getElement(aWindow, target);
     return el.dispatchEvent(event);
   },
-
-  get isDebugBuild() {
-    delete this.isDebugBuild;
-    var debug = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
-    return this.isDebugBuild = debug.isDebugBuild;
-  }
 };

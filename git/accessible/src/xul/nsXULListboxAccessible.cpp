@@ -134,7 +134,7 @@ nsXULColumnItemAccessible::DoAction(PRUint8 aIndex)
 
 nsXULListboxAccessible::
   nsXULListboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  XULSelectControlAccessible(aContent, aDoc), xpcAccessibleTable(this)
+  XULSelectControlAccessible(aContent, aDoc)
 {
   nsIContent* parentContent = mContent->GetParent();
   if (parentContent) {
@@ -162,16 +162,6 @@ nsXULListboxAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }
 
   return NS_ERROR_NO_INTERFACE;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//nsAccessNode
-
-void
-nsXULListboxAccessible::Shutdown()
-{
-  mTable = nsnull;
-  XULSelectControlAccessible::Shutdown();
 }
 
 bool
@@ -238,6 +228,15 @@ nsXULListboxAccessible::NativeRole()
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULListboxAccessible. nsIAccessibleTable
+
+NS_IMETHODIMP
+nsXULListboxAccessible::GetCaption(nsIAccessible **aCaption)
+{
+  NS_ENSURE_ARG_POINTER(aCaption);
+  *aCaption = nsnull;
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsXULListboxAccessible::GetSummary(nsAString &aSummary)
@@ -821,6 +820,15 @@ nsXULListboxAccessible::UnselectColumn(PRInt32 aColumn)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsXULListboxAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
+{
+  NS_ENSURE_ARG_POINTER(aIsProbablyForLayout);
+  *aIsProbablyForLayout = false;
+
+  return NS_OK;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULListboxAccessible: Widgets
 
@@ -968,7 +976,7 @@ nsXULListitemAccessible::NativeRole()
     return roles::ROW;
 
   if (mIsCheckbox)
-    return roles::CHECK_RICH_OPTION;
+    return roles::CHECKBUTTON;
 
   if (mParent && mParent->Role() == roles::COMBOBOX_LIST)
     return roles::COMBOBOX_OPTION;
@@ -1021,6 +1029,14 @@ nsXULListitemAccessible::CanHaveAnonChildren()
 {
   // That indicates we should walk anonymous children for listitems
   return true;
+}
+
+void
+nsXULListitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                                    PRInt32 *aSetSize)
+{
+  nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mContent, aPosInSet,
+                                                        aSetSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

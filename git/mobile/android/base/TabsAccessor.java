@@ -20,10 +20,6 @@ import android.util.Log;
 public final class TabsAccessor {
     private static final String LOGTAG = "GeckoTabsAccessor";
 
-    private static final String[] CLIENTS_AVAILABILITY_PROJECTION = new String[] {
-                                                                        BrowserContract.Clients.GUID
-                                                                    };
-
     private static final String[] TABS_PROJECTION_COLUMNS = new String[] {
                                                                 BrowserContract.Tabs.TITLE,
                                                                 BrowserContract.Tabs.URL,
@@ -39,7 +35,6 @@ public final class TabsAccessor {
         NAME
     };
 
-    private static final String CLIENTS_SELECTION = BrowserContract.Clients.GUID + " IS NOT NULL";
     private static final String TABS_SELECTION = BrowserContract.Tabs.CLIENT_GUID + " IS NOT NULL";
 
     public static class RemoteTab {
@@ -65,14 +60,9 @@ public final class TabsAccessor {
         (new GeckoAsyncTask<Void, Void, Boolean> () {
             @Override
             protected Boolean doInBackground(Void... unused) {
-                Uri uri = BrowserContract.Tabs.CONTENT_URI;
-                uri = uri.buildUpon()
-                         .appendQueryParameter(BrowserContract.PARAM_LIMIT, "1")
-                         .build();
-
-                Cursor cursor = context.getContentResolver().query(uri,
-                                                                   CLIENTS_AVAILABILITY_PROJECTION,
-                                                                   CLIENTS_SELECTION,
+                Cursor cursor = context.getContentResolver().query(BrowserContract.Clients.CONTENT_URI,
+                                                                   null,
+                                                                   null,
                                                                    null,
                                                                    null);
                 
@@ -90,7 +80,7 @@ public final class TabsAccessor {
             protected void onPostExecute(Boolean availability) {
                 listener.areAvailable(availability);
             }
-        }).setPriority(GeckoAsyncTask.PRIORITY_HIGH).execute();
+        }).execute();
     }
 
     // This method returns all tabs from all remote clients, 

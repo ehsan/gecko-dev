@@ -36,15 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
-#include "nsSVGGFrame.h"
-
-// Keep others in (case-insensitive) order:
-#include "nsGkAtoms.h"
 #include "nsIDOMSVGTransformable.h"
+#include "nsSVGGFrame.h"
 #include "nsIFrame.h"
-#include "nsSVGGraphicElement.h"
+#include "nsGkAtoms.h"
 #include "nsSVGUtils.h"
+#include "nsSVGGraphicElement.h"
 
 //----------------------------------------------------------------------
 // Implementation

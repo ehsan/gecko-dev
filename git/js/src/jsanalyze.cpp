@@ -71,7 +71,7 @@ PrintBytecode(JSContext *cx, JSScript *script, jsbytecode *pc)
 
 inline bool
 ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
-                        unsigned *currentOffset, unsigned *forwardJump, unsigned *forwardLoop,
+                        unsigned *currentOffset, unsigned *forwardJump,
                         unsigned stackDepth)
 {
     JS_ASSERT(offset < script->length);
@@ -93,26 +93,10 @@ ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
         /* Scripts containing loops are never inlined. */
         isInlineable = false;
 
-        if (code->analyzed) {
-            /*
-             * Backedge in a do-while loop, the body has been analyzed. Rewalk
-             * the body to set inLoop bits.
-             */
-            for (unsigned i = offset; i <= *currentOffset; i++) {
-                Bytecode *code = maybeCode(i);
-                if (code)
-                    code->inLoop = true;
-            }
-        } else {
-            /*
-             * Backedge in a while/for loop, whose body has not been analyzed
-             * due to a lack of fallthrough at the loop head. Roll back the
-             * offset to analyze the body.
-             */
+        /* Don't follow back edges to bytecode which has already been analyzed. */
+        if (!code->analyzed) {
             if (*forwardJump == 0)
                 *forwardJump = *currentOffset;
-            if (*forwardLoop == 0)
-                *forwardLoop = *currentOffset;
             *currentOffset = offset;
         }
     } else if (offset > *forwardJump) {
@@ -188,7 +172,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         for (unsigned i = 0; i < nargs; i++)
             escapedSlots[ArgSlot(i)] = true;
     } else {
-        for (uint32_t i = 0; i < script->nClosedArgs(); i++) {
+        for (unsigned i = 0; i < script->nClosedArgs; i++) {
             unsigned arg = script->getClosedArg(i);
             JS_ASSERT(arg < nargs);
             escapedSlots[ArgSlot(arg)] = true;
@@ -199,7 +183,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         for (unsigned i = 0; i < script->nfixed; i++)
             escapedSlots[LocalSlot(script, i)] = true;
     } else {
-        for (uint32_t i = 0; i < script->nClosedVars(); i++) {
+        for (uint32_t i = 0; i < script->nClosedVars; i++) {
             unsigned local = script->getClosedVar(i);
             JS_ASSERT(local < script->nfixed);
             escapedSlots[LocalSlot(script, local)] = true;
@@ -218,13 +202,13 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     isCompileable = true;
 
     isInlineable = true;
-    if (script->nClosedArgs() || script->nClosedVars() || heavyweight ||
+    if (script->nClosedArgs || script->nClosedVars || heavyweight ||
         script->usesEval || script->mayNeedArgsObj() || cx->compartment->debugMode()) {
         isInlineable = false;
     }
 
     modifiesArguments_ = false;
-    if (script->nClosedArgs() || heavyweight)
+    if (script->nClosedArgs || heavyweight)
         modifiesArguments_ = true;
 
     canTrackVars = true;
@@ -235,9 +219,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
      * try/catch/finally blocks.
      */
     unsigned forwardJump = 0;
-
-    /* If we are in the middle of a loop, the offset of the highest backedge. */
-    unsigned forwardLoop = 0;
 
     /*
      * If we are in the middle of a try block, the offset of the highest
@@ -289,16 +270,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         if (!code) {
             /* Haven't found a path by which this bytecode is reachable. */
             continue;
-        }
-
-        /*
-         * Update info about bytecodes inside loops, which may have been
-         * analyzed before the backedge was seen.
-         */
-        if (forwardLoop) {
-            code->inLoop = true;
-            if (forwardLoop <= offset)
-                forwardLoop = 0;
         }
 
         if (code->analyzed) {
@@ -422,7 +393,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             int32_t high = GET_JUMP_OFFSET(pc2);
             pc2 += JUMP_OFFSET_LEN;
 
-            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, stackDepth))
                 return;
             getCode(defaultOffset).switchTarget = true;
             getCode(defaultOffset).safePoint = true;
@@ -430,7 +401,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             for (int32_t i = low; i <= high; i++) {
                 unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
                 if (targetOffset != offset) {
-                    if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                    if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, stackDepth))
                         return;
                 }
                 getCode(targetOffset).switchTarget = true;
@@ -447,7 +418,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             unsigned npairs = GET_UINT16(pc2);
             pc2 += UINT16_LEN;
 
-            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, stackDepth))
                 return;
             getCode(defaultOffset).switchTarget = true;
             getCode(defaultOffset).safePoint = true;
@@ -455,7 +426,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             while (npairs) {
                 pc2 += UINT32_INDEX_LEN;
                 unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
-                if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, stackDepth))
                     return;
                 getCode(targetOffset).switchTarget = true;
                 getCode(targetOffset).safePoint = true;
@@ -485,7 +456,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                         forwardCatch = catchOffset;
 
                     if (tn->kind != JSTRY_ITER) {
-                        if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                        if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, stackDepth))
                             return;
                         getCode(catchOffset).exceptionEntry = true;
                         getCode(catchOffset).safePoint = true;
@@ -517,7 +488,8 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_DECLOCAL:
           case JSOP_LOCALINC:
           case JSOP_LOCALDEC:
-          case JSOP_SETLOCAL: {
+          case JSOP_SETLOCAL:
+          case JSOP_SETLOCALPOP: {
             uint32_t local = GET_SLOTNO(pc);
             if (local >= script->nfixed) {
                 localsAliasStack_ = true;
@@ -539,6 +511,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_ARGUMENTS:
           case JSOP_THROW:
           case JSOP_EXCEPTION:
+          case JSOP_DEFLOCALFUN:
           case JSOP_LAMBDA:
           case JSOP_DEBUGGER:
           case JSOP_FUNCALL:
@@ -616,9 +589,11 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_NEWARRAY:
           case JSOP_NEWOBJECT:
           case JSOP_ENDINIT:
+          case JSOP_INITMETHOD:
           case JSOP_INITPROP:
           case JSOP_INITELEM:
           case JSOP_SETPROP:
+          case JSOP_SETMETHOD:
           case JSOP_IN:
           case JSOP_INSTANCEOF:
           case JSOP_LINENO:
@@ -663,7 +638,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             }
 
             unsigned targetOffset = offset + GET_JUMP_OFFSET(pc);
-            if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, newStackDepth))
+            if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, newStackDepth))
                 return;
         }
 
@@ -695,7 +670,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     }
 
     JS_ASSERT(!failed());
-    JS_ASSERT(forwardJump == 0 && forwardLoop == 0 && forwardCatch == 0);
+    JS_ASSERT(forwardJump == 0 && forwardCatch == 0);
 
     ranBytecode_ = true;
 
@@ -824,7 +799,9 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
           }
 
           case JSOP_SETARG:
-          case JSOP_SETLOCAL: {
+          case JSOP_SETLOCAL:
+          case JSOP_SETLOCALPOP:
+          case JSOP_DEFLOCALFUN: {
             uint32_t slot = GetBytecodeSlot(script, pc);
             if (!slotEscapes(slot))
                 killVariable(cx, lifetimes[slot], offset, saved, savedCount);
@@ -1518,6 +1495,7 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
             break;
 
           case JSOP_INITPROP:
+          case JSOP_INITMETHOD:
             stack[stackDepth - 1].v = code->poppedValues[1];
             break;
 

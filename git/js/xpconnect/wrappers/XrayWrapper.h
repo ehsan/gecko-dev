@@ -46,15 +46,11 @@
 // we pull them out of the Wrapper inheritance hierarchy and create a
 // little world around them.
 
-class XPCWrappedNative;
-
 namespace xpc {
 
 namespace XrayUtils {
 
 extern JSClass HolderClass;
-
-JSObject *createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent);
 
 bool
 IsTransparent(JSContext *cx, JSObject *wrapper);
@@ -64,12 +60,8 @@ GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 
 }
 
-class XPCWrappedNativeXrayTraits;
-class ProxyXrayTraits;
-class DOMXrayTraits;
-
 // NB: Base *must* derive from JSProxyHandler
-template <typename Base, typename Traits = XPCWrappedNativeXrayTraits >
+template <typename Base>
 class XrayWrapper : public Base {
   public:
     XrayWrapper(unsigned flags);
@@ -102,14 +94,33 @@ class XrayWrapper : public Base {
     virtual bool construct(JSContext *cx, JSObject *wrapper,
                            unsigned argc, js::Value *argv, js::Value *rval);
 
+    static JSObject *createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent);
+
     static XrayWrapper singleton;
 
   private:
-    bool enumerate(JSContext *cx, JSObject *wrapper, unsigned flags,
-                   JS::AutoIdVector &props);
+    bool resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id, bool set,
+                            js::PropertyDescriptor *desc);
 };
 
-typedef XrayWrapper<js::CrossCompartmentWrapper, ProxyXrayTraits > XrayProxy;
-typedef XrayWrapper<js::CrossCompartmentWrapper, DOMXrayTraits > XrayDOM;
+class XrayProxy : public XrayWrapper<js::CrossCompartmentWrapper> {
+  public:
+    XrayProxy(unsigned flags);
+    virtual ~XrayProxy();
+
+    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                       bool set, js::PropertyDescriptor *desc);
+    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+                                          bool set, js::PropertyDescriptor *desc);
+    virtual bool defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
+                                js::PropertyDescriptor *desc);
+    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *wrapper,
+                                     js::AutoIdVector &props);
+    virtual bool delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp);
+    virtual bool enumerate(JSContext *cx, JSObject *wrapper, js::AutoIdVector &props);
+    // XrayWrapper's fix implementation works for us.
+
+    static XrayProxy singleton;
+};
 
 }

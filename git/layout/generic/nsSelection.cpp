@@ -206,11 +206,10 @@ public:
   // The 'position' is a zero-width rectangle.
   nsIFrame*     GetSelectionEndPointGeometry(SelectionRegion aRegion, nsRect *aRect);
 
-  nsresult      PostScrollSelectionIntoViewEvent(
-                                        SelectionRegion aRegion,
-                                        bool aFirstAncestorOnly,
-                                        nsIPresShell::ScrollAxis aVertical,
-                                        nsIPresShell::ScrollAxis aHorizontal);
+  nsresult      PostScrollSelectionIntoViewEvent(SelectionRegion aRegion,
+                                                 bool aFirstAncestorOnly,
+                                                 PRInt16 aVPercent,
+                                                 PRInt16 aHPercent);
   enum {
     SCROLL_SYNCHRONOUS = 1<<1,
     SCROLL_FIRST_ANCESTOR_ONLY = 1<<2,
@@ -219,10 +218,8 @@ public:
   // aDoFlush only matters if aIsSynchronous is true.  If not, we'll just flush
   // when the scroll event fires so we make sure to scroll to the right place.
   nsresult      ScrollIntoView(SelectionRegion aRegion,
-                               nsIPresShell::ScrollAxis aVertical =
-                                 nsIPresShell::ScrollAxis(),
-                               nsIPresShell::ScrollAxis aHorizontal =
-                                 nsIPresShell::ScrollAxis(),
+                               PRInt16 aVPercent = NS_PRESSHELL_SCROLL_ANYWHERE,
+                               PRInt16 aHPercent = NS_PRESSHELL_SCROLL_ANYWHERE,
                                PRInt32 aFlags = 0);
   nsresult      SubtractRange(RangeData* aRange, nsRange* aSubtract,
                               nsTArray<RangeData>* aOutput);
@@ -289,23 +286,23 @@ private:
     NS_DECL_NSIRUNNABLE
     ScrollSelectionIntoViewEvent(nsTypedSelection *aTypedSelection,
                                  SelectionRegion aRegion,
-                                 nsIPresShell::ScrollAxis aVertical,
-                                 nsIPresShell::ScrollAxis aHorizontal,
+                                 PRInt16 aVScroll,
+                                 PRInt16 aHScroll,
                                  bool aFirstAncestorOnly)
       : mTypedSelection(aTypedSelection),
         mRegion(aRegion),
-        mVerticalScroll(aVertical),
-        mHorizontalScroll(aHorizontal),
+        mVerticalScroll(aVScroll),
+        mHorizontalScroll(aHScroll),
         mFirstAncestorOnly(aFirstAncestorOnly) {
       NS_ASSERTION(aTypedSelection, "null parameter");
     }
     void Revoke() { mTypedSelection = nsnull; }
   private:
     nsTypedSelection *mTypedSelection;
-    SelectionRegion mRegion;
-    nsIPresShell::ScrollAxis mVerticalScroll;
-    nsIPresShell::ScrollAxis mHorizontalScroll;
-    bool mFirstAncestorOnly;
+    SelectionRegion   mRegion;
+    PRInt16           mVerticalScroll;
+    PRInt16           mHorizontalScroll;
+    bool              mFirstAncestorOnly;
   };
 
   void setAnchorFocusRange(PRInt32 aIndex); // pass in index into mRanges;
@@ -1188,10 +1185,11 @@ nsFrameSelection::MoveCaret(PRUint32          aKeycode,
   if (NS_FAILED(result) || !frame)
     return result?result:NS_ERROR_FAILURE;
 
+  nsPeekOffsetStruct pos;
   //set data using mLimiter to stop on scroll views.  If we have a limiter then we stop peeking
   //when we hit scrollable views.  If no limiter then just let it go ahead
-  nsPeekOffsetStruct pos(aAmount, eDirPrevious, offsetused, desiredX,
-                         true, mLimiter != nsnull, true, aVisualMovement);
+  pos.SetData(aAmount, eDirPrevious, offsetused, desiredX, 
+              true, mLimiter != nsnull, true, aVisualMovement);
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(frame);
   
@@ -1729,16 +1727,18 @@ nsFrameSelection::HandleDrag(nsIFrame *aFrame, nsPoint aPoint)
     if (frame && amount == eSelectWord && direction == eDirPrevious) {
       // To avoid selecting the previous word when at start of word,
       // first move one character forward.
-      nsPeekOffsetStruct charPos(eSelectCharacter, eDirNext, offset, 0,
-                                 false, mLimiter != nsnull, false, false);
+      nsPeekOffsetStruct charPos;
+      charPos.SetData(eSelectCharacter, eDirNext, offset, 0,
+                      false, mLimiter != nsnull, false, false);
       if (NS_SUCCEEDED(frame->PeekOffset(&charPos))) {
         frame = charPos.mResultFrame;
         offset = charPos.mContentOffset;
       }
     }
 
-    nsPeekOffsetStruct pos(amount, direction, offset, 0,
-                           false, mLimiter != nsnull, false, false);
+    nsPeekOffsetStruct pos;
+    pos.SetData(amount, direction, offset, 0,
+                false, mLimiter != nsnull, false, false);
 
     if (frame && NS_SUCCEEDED(frame->PeekOffset(&pos)) && pos.mResultContent) {
       offsets.content = pos.mResultContent;
@@ -1970,7 +1970,7 @@ nsFrameSelection::ScrollSelectionIntoView(SelectionType   aType,
   if (!mDomSelections[index])
     return NS_ERROR_NULL_POINTER;
 
-  nsIPresShell::ScrollAxis verticalScroll = nsIPresShell::ScrollAxis();
+  PRInt16 verticalScroll = PRInt16(NS_PRESSHELL_SCROLL_ANYWHERE);
   PRInt32 flags = nsTypedSelection::SCROLL_DO_FLUSH;
   if (aFlags & nsISelectionController::SCROLL_SYNCHRONOUS) {
     flags |= nsTypedSelection::SCROLL_SYNCHRONOUS;
@@ -1978,15 +1978,14 @@ nsFrameSelection::ScrollSelectionIntoView(SelectionType   aType,
     flags |= nsTypedSelection::SCROLL_FIRST_ANCESTOR_ONLY;
   }
   if (aFlags & nsISelectionController::SCROLL_CENTER_VERTICALLY) {
-    verticalScroll = nsIPresShell::ScrollAxis(
-      nsIPresShell::SCROLL_CENTER, nsIPresShell::SCROLL_IF_NOT_FULLY_VISIBLE);
+    verticalScroll = PRInt16(NS_PRESSHELL_SCROLL_CENTER);
   }
 
   // After ScrollSelectionIntoView(), the pending notifications might be
   // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
   return mDomSelections[index]->ScrollIntoView(aRegion,
                                                verticalScroll,
-                                               nsIPresShell::ScrollAxis(),
+                                               PRInt16(NS_PRESSHELL_SCROLL_ANYWHERE),
                                                flags);
 }
 
@@ -2113,7 +2112,7 @@ nsFrameSelection::GetFrameForNodeOffset(nsIContent *aNode,
     return nsnull;
 
   // find the child frame containing the offset we want
-  returnFrame->GetChildFrameContainingOffset(*aReturnOffset, aHint == HINTRIGHT,
+  returnFrame->GetChildFrameContainingOffset(*aReturnOffset, aHint,
                                              &aOffset, &returnFrame);
   return returnFrame;
 }
@@ -4668,12 +4667,10 @@ nsTypedSelection::DoAutoScroll(nsIFrame *aFrame, nsPoint& aPoint)
   // about to do will change the coordinates of aFrame.
   nsPoint globalPoint = aPoint + aFrame->GetOffsetToCrossDoc(rootmostFrame);
 
-  bool didScroll = presContext->PresShell()->ScrollFrameRectIntoView(
-    aFrame, 
-    nsRect(aPoint, nsSize(1,1)),
-    nsIPresShell::ScrollAxis(),
-    nsIPresShell::ScrollAxis(),
-    0);
+  bool didScroll = presContext->PresShell()->
+    ScrollFrameRectIntoView(aFrame, nsRect(aPoint, nsSize(1,1)),
+                            NS_PRESSHELL_SCROLL_ANYWHERE,
+                            NS_PRESSHELL_SCROLL_ANYWHERE, 0);
 
   //
   // Start the AutoScroll timer if necessary.
@@ -5543,11 +5540,10 @@ nsTypedSelection::ScrollSelectionIntoViewEvent::Run()
 }
 
 nsresult
-nsTypedSelection::PostScrollSelectionIntoViewEvent(
-                                         SelectionRegion aRegion,
-                                         bool aFirstAncestorOnly,
-                                         nsIPresShell::ScrollAxis aVertical,
-                                         nsIPresShell::ScrollAxis aHorizontal)
+nsTypedSelection::PostScrollSelectionIntoViewEvent(SelectionRegion aRegion,
+                                                   bool aFirstAncestorOnly,
+                                                   PRInt16 aVPercent,
+                                                   PRInt16 aHPercent)
 {
   // If we've already posted an event, revoke it and place a new one at the
   // end of the queue to make sure that any new pending reflow events are
@@ -5556,7 +5552,7 @@ nsTypedSelection::PostScrollSelectionIntoViewEvent(
   mScrollEvent.Revoke();
 
   nsRefPtr<ScrollSelectionIntoViewEvent> ev =
-      new ScrollSelectionIntoViewEvent(this, aRegion, aVertical, aHorizontal,
+      new ScrollSelectionIntoViewEvent(this, aRegion, aVPercent, aHPercent,
                                        aFirstAncestorOnly);
   nsresult rv = NS_DispatchToCurrentThread(ev);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5566,31 +5562,16 @@ nsTypedSelection::PostScrollSelectionIntoViewEvent(
 }
 
 NS_IMETHODIMP
-nsTypedSelection::ScrollIntoView(SelectionRegion aRegion,
-                                 bool aIsSynchronous,
-                                 PRInt16 aVPercent,
-                                 PRInt16 aHPercent)
+nsTypedSelection::ScrollIntoView(SelectionRegion aRegion, bool aIsSynchronous,
+                                 PRInt16 aVPercent, PRInt16 aHPercent)
 {
-  return ScrollIntoViewInternal(aRegion,
-                                aIsSynchronous,
-                                nsIPresShell::ScrollAxis(aVPercent),
-                                nsIPresShell::ScrollAxis(aHPercent));
-}
-
-NS_IMETHODIMP
-nsTypedSelection::ScrollIntoViewInternal(SelectionRegion aRegion,
-                                         bool aIsSynchronous,
-                                         nsIPresShell::ScrollAxis aVertical,
-                                         nsIPresShell::ScrollAxis aHorizontal)
-{
-  return ScrollIntoView(aRegion, aVertical, aHorizontal,
+  return ScrollIntoView(aRegion, aVPercent, aHPercent,
                         aIsSynchronous ? nsTypedSelection::SCROLL_SYNCHRONOUS : 0);
 }
 
 nsresult
 nsTypedSelection::ScrollIntoView(SelectionRegion aRegion,
-                                 nsIPresShell::ScrollAxis aVertical,
-                                 nsIPresShell::ScrollAxis aHorizontal,
+                                 PRInt16 aVPercent, PRInt16 aHPercent,
                                  PRInt32 aFlags)
 {
   nsresult result;
@@ -5603,7 +5584,7 @@ nsTypedSelection::ScrollIntoView(SelectionRegion aRegion,
   if (!(aFlags & nsTypedSelection::SCROLL_SYNCHRONOUS))
     return PostScrollSelectionIntoViewEvent(aRegion,
       !!(aFlags & nsTypedSelection::SCROLL_FIRST_ANCESTOR_ONLY),
-      aVertical, aHorizontal);
+      aVPercent, aHPercent);
 
   //
   // Shut the caret off before scrolling to avoid
@@ -5641,7 +5622,7 @@ nsTypedSelection::ScrollIntoView(SelectionRegion aRegion,
     if (!frame)
       return NS_ERROR_FAILURE;
 
-    presShell->ScrollFrameRectIntoView(frame, rect, aVertical, aHorizontal,
+    presShell->ScrollFrameRectIntoView(frame, rect, aVPercent, aHPercent,
       (aFlags & nsTypedSelection::SCROLL_FIRST_ANCESTOR_ONLY) ? nsIPresShell::SCROLL_FIRST_ANCESTOR_ONLY: 0);
     return NS_OK;
   }

@@ -34,11 +34,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Keep in (case-insensitive) order:
 #include "nsFrame.h"
-#include "nsGkAtoms.h"
-#include "nsSVGEffects.h"
 #include "nsSVGFilters.h"
+#include "nsSVGEffects.h"
 
 typedef nsFrame SVGFEUnstyledLeafFrameBase;
 

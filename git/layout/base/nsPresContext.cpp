@@ -196,7 +196,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 
 static PLDHashOperator
-destroy_loads(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
   aData->Destroy();
   return PL_DHASH_NEXT;
@@ -344,7 +344,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 static PLDHashOperator
-TraverseImageLoader(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData,
+TraverseImageLoader(const void * aKey, nsRefPtr<nsImageLoader>& aData,
                     void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -558,8 +558,7 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
     &prefs->mDefaultCursiveFont,
     &prefs->mDefaultFantasyFont
   };
-  MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(fontTypes) == eDefaultFont_COUNT,
-                    "FontTypes array count is not correct");
+  PR_STATIC_ASSERT(NS_ARRAY_LENGTH(fontTypes) == eDefaultFont_COUNT);
 
   // Get attributes specific to each generic font. We do not get the user's
   // generic-font-name-to-specific-family-name preferences because its the
@@ -1254,7 +1253,7 @@ static void SetImgAnimModeOnImgReq(imgIRequest* aImgReq, PRUint16 aMode)
 
  // Enumeration call back for HashTable
 static PLDHashOperator
-set_animation_mode(nsIFrame* aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
+set_animation_mode(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
   for (nsImageLoader *loader = aData; loader;
        loader = loader->GetNextLoader()) {
@@ -1736,7 +1735,6 @@ nsPresContext::MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData)
 
       for (PRUint32 i = 0, i_end = notifyList.Length(); i != i_end; ++i) {
         if (pusher.RePush(et)) {
-          nsAutoMicroTask mt;
           nsDOMMediaQueryList::HandleChangeData &d = notifyList[i];
           d.listener->HandleChange(d.mql);
         }
@@ -2489,7 +2487,7 @@ RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
         aClosure->mAffectedPlugins.GetEntry(f);
       // Windowed plugins in transforms are always ignored, we don't
       // create configurations for them
-      if (entry && (!aInTransform || f->PaintedByGecko())) {
+      if (entry && (!aInTransform || !f->GetWidget())) {
         displayPlugin->GetWidgetConfiguration(aBuilder,
                                               aClosure->mOutputConfigurations);
         // we've dealt with this plugin now

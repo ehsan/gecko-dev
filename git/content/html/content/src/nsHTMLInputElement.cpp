@@ -371,10 +371,7 @@ AsyncClickHandler::Run()
 
   // Open dialog
   PRInt16 mode;
-  {
-    nsAutoSyncOperation sync(doc);
-    rv = filePicker->Show(&mode);
-  }
+  rv = filePicker->Show(&mode);
   NS_ENSURE_SUCCESS(rv, rv);
   if (mode == nsIFilePicker::returnCancel) {
     return NS_OK;
@@ -858,10 +855,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     }
 
     UpdateEditableState(aNotify);
-    nsTextEditorState *state = GetEditorState();
-    if (state) {
-      state->UpdateEditableState(aNotify);
-    }
     UpdateState(aNotify);
   }
 

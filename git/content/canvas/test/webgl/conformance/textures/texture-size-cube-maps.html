@@ -50,7 +50,8 @@ gl = wtu.create3DContext(canvas);
 wtu.setupUnitQuad(gl, 0, 1);
 var program = wtu.setupProgram(
     gl,
-    ['vshader', 'fshader'],
+    [wtu.loadShaderFromScript(gl, 'vshader', gl.VERTEX_SHADER),
+     wtu.loadShaderFromScript(gl, 'fshader', gl.FRAGMENT_SHADER)],
     ['vPosition', 'texCoord0'], [0, 1]);
 var rotLoc = gl.getUniformLocation(program, "rotation");
 

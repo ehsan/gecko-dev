@@ -274,11 +274,7 @@ ArrayBuffer::create(JSContext *cx, int32_t nbytes, uint8_t *contents)
     JSObject *obj = NewBuiltinClassInstance(cx, &ArrayBuffer::slowClass);
     if (!obj)
         return NULL;
-#ifdef JS_THREADSAFE
-    JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT16_BACKGROUND);
-#else
     JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT16);
-#endif
 
     if (nbytes < 0) {
         /*
@@ -1443,11 +1439,7 @@ class TypedArrayTemplate
         JSObject *obj = NewBuiltinClassInstance(cx, slowClass());
         if (!obj)
             return NULL;
-#ifdef JS_THREADSAFE
-        JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT8_BACKGROUND);
-#else
         JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT8);
-#endif
 
         /*
          * Specialize the type of the object on the current scripted location,
@@ -1775,7 +1767,9 @@ class TypedArrayTemplate
     {
         JS_ASSERT(tarray);
 
+        JS_ASSERT(0 <= begin);
         JS_ASSERT(begin <= getLength(tarray));
+        JS_ASSERT(0 <= end);
         JS_ASSERT(end <= getLength(tarray));
 
         JSObject *bufobj = getBuffer(tarray);
@@ -2182,7 +2176,8 @@ Class ArrayBuffer::slowClass = {
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,
+    JS_FinalizeStub
 };
 
 Class js::ArrayBufferClass = {
@@ -2297,7 +2292,8 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
     JS_StrictPropertyStub,   /* setProperty */                                 \
     JS_EnumerateStub,                                                          \
     JS_ResolveStub,                                                            \
-    JS_ConvertStub                                                             \
+    JS_ConvertStub,                                                            \
+    JS_FinalizeStub                                                            \
 }
 
 #define IMPL_TYPED_ARRAY_FAST_CLASS(_typedArray)                               \
@@ -2373,7 +2369,7 @@ InitTypedArrayClass(JSContext *cx, GlobalObject *global)
         return NULL;
 
     JSFunction *ctor =
-        global->createConstructor(cx, ArrayType::class_constructor,
+        global->createConstructor(cx, ArrayType::class_constructor, ArrayType::fastClass(),
                                   cx->runtime->atomState.classAtoms[ArrayType::key], 3);
     if (!ctor)
         return NULL;
@@ -2444,7 +2440,7 @@ InitArrayBufferClass(JSContext *cx, GlobalObject *global)
         return NULL;
 
     JSFunction *ctor =
-        global->createConstructor(cx, ArrayBuffer::class_constructor,
+        global->createConstructor(cx, ArrayBuffer::class_constructor, &ArrayBufferClass,
                                   CLASS_ATOM(cx, ArrayBuffer), 1);
     if (!ctor)
         return NULL;

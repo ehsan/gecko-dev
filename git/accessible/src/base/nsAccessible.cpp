@@ -264,6 +264,17 @@ nsAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
 }
 
 NS_IMETHODIMP
+nsAccessible::GetInnerHTML(nsAString& aInnerHTML)
+{
+  aInnerHTML.Truncate();
+
+  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mContent);
+  NS_ENSURE_TRUE(htmlElement, NS_ERROR_NULL_POINTER);
+
+  return htmlElement->GetInnerHTML(aInnerHTML);
+}
+
+NS_IMETHODIMP
 nsAccessible::GetLanguage(nsAString& aLanguage)
 {
   Language(aLanguage);
@@ -1341,13 +1352,17 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
 nsresult
 nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  // If the accessible isn't primary for its node (such as list item bullet or
-  // xul tree item then don't calculate content based attributes.
-  if (!IsPrimaryForNode())
-    return NS_OK;
-
   // Attributes set by this method will not be used to override attributes on a sub-document accessible
   // when there is a <frame>/<iframe> element that spawned the sub-document
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mContent));
+
+  nsAutoString tagName;
+  element->GetTagName(tagName);
+  if (!tagName.IsEmpty()) {
+    nsAutoString oldValueUnused;
+    aAttributes->SetStringProperty(NS_LITERAL_CSTRING("tag"), tagName,
+                                   oldValueUnused);
+  }
 
   nsEventShell::GetEventAttributes(GetNode(), aAttributes);
  
@@ -1363,13 +1378,12 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
   //   The inner nodes can be used to override live region behavior on more general outer nodes
   // However, nodes in outer documents override nodes in inner documents:
   //   Outer doc author may want to override properties on a widget they used in an iframe
-  nsIContent* startContent = mContent;
-  while (startContent) {
-    nsIDocument* doc = startContent->GetDocument();
+  nsIContent *startContent = mContent;
+  while (true) {
+    NS_ENSURE_STATE(startContent);
+    nsIDocument *doc = startContent->GetDocument();
     nsIContent* rootContent = nsCoreUtils::GetRoleContent(doc);
-    if (!rootContent)
-      return NS_OK;
-
+    NS_ENSURE_STATE(rootContent);
     nsAccUtils::SetLiveContainerAttributes(aAttributes, startContent,
                                            rootContent);
 
@@ -1395,11 +1409,6 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
   if (!mContent->IsElement())
     return NS_OK;
 
-  // Expose tag.
-  nsAutoString tagName;
-  mContent->NodeInfo()->GetName(tagName);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tag, tagName);
-
   // Expose draggable object attribute?
   nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mContent);
   if (htmlElement) {
@@ -1412,8 +1421,9 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
   }
 
   // Don't calculate CSS-based object attributes when no frame (i.e.
-  // the accessible is unattached from the tree).
-  if (!mContent->GetPrimaryFrame())
+  // the accessible is not unattached form three) or when the accessible is not
+  // primary for node (like list bullet or XUL tree items).
+  if (!mContent->GetPrimaryFrame() || !IsPrimaryForNode())
     return NS_OK;
 
   // CSS style based object attributes.
@@ -1793,11 +1803,14 @@ nsAccessible::GetKeyBindings(PRUint8 aActionIndex,
 }
 
 role
-nsAccessible::ARIATransformRole(role aRole)
+nsAccessible::ARIARoleInternal()
 {
+  NS_PRECONDITION(mRoleMapEntry && mRoleMapEntry->roleRule == kUseMapRole,
+                  "ARIARoleInternal should only be called when ARIA role overrides!");
+
   // XXX: these unfortunate exceptions don't fit into the ARIA table. This is
   // where the accessible role depends on both the role and ARIA state.
-  if (aRole == roles::PUSHBUTTON) {
+  if (mRoleMapEntry->role == roles::PUSHBUTTON) {
     if (nsAccUtils::HasDefinedARIAToken(mContent, nsGkAtoms::aria_pressed)) {
       // For simplicity, any existing pressed attribute except "" or "undefined"
       // indicates a toggle.
@@ -1812,7 +1825,7 @@ nsAccessible::ARIATransformRole(role aRole)
       return roles::BUTTONMENU;
     }
 
-  } else if (aRole == roles::LISTBOX) {
+  } else if (mRoleMapEntry->role == roles::LISTBOX) {
     // A listbox inside of a combobox needs a special role because of ATK
     // mapping to menu.
     if (mParent && mParent->Role() == roles::COMBOBOX) {
@@ -1825,12 +1838,12 @@ nsAccessible::ARIATransformRole(role aRole)
           return roles::COMBOBOX_LIST;
     }
 
-  } else if (aRole == roles::OPTION) {
+  } else if (mRoleMapEntry->role == roles::OPTION) {
     if (mParent && mParent->Role() == roles::COMBOBOX_LIST)
       return roles::COMBOBOX_OPTION;
   }
 
-  return aRole;
+  return mRoleMapEntry->role;
 }
 
 role
@@ -2002,14 +2015,14 @@ nsAccessible::RelationByType(PRUint32 aType)
       Relation rel(new RelatedAccIterator(Document(), mContent,
                                           nsGkAtoms::aria_labelledby));
       if (mContent->Tag() == nsGkAtoms::label)
-        rel.AppendIter(new IDRefsIterator(mDoc, mContent, mContent->IsHTML() ?
+        rel.AppendIter(new IDRefsIterator(mContent, mContent->IsHTML() ?
                                           nsGkAtoms::_for :
                                           nsGkAtoms::control));
 
       return rel;
     }
     case nsIAccessibleRelation::RELATION_LABELLED_BY: {
-      Relation rel(new IDRefsIterator(mDoc, mContent,
+      Relation rel(new IDRefsIterator(mContent,
                                       nsGkAtoms::aria_labelledby));
       if (mContent->IsHTML()) {
         rel.AppendIter(new HTMLLabelIterator(Document(), this));
@@ -2020,8 +2033,8 @@ nsAccessible::RelationByType(PRUint32 aType)
       return rel;
     }
     case nsIAccessibleRelation::RELATION_DESCRIBED_BY: {
-      Relation rel(new IDRefsIterator(mDoc, mContent,
-                                      nsGkAtoms::aria_describedby));
+      Relation rel(new IDRefsIterator(mContent,
+                                        nsGkAtoms::aria_describedby));
       if (mContent->IsXUL())
         rel.AppendIter(new XULDescriptionIterator(Document(), mContent));
 
@@ -2036,7 +2049,7 @@ nsAccessible::RelationByType(PRUint32 aType)
       // tied to a control.
       if (mContent->Tag() == nsGkAtoms::description &&
           mContent->IsXUL())
-        rel.AppendIter(new IDRefsIterator(mDoc, mContent,
+        rel.AppendIter(new IDRefsIterator(mContent,
                                           nsGkAtoms::control));
 
       return rel;
@@ -2078,13 +2091,13 @@ nsAccessible::RelationByType(PRUint32 aType)
       return Relation(new RelatedAccIterator(Document(), mContent,
                                              nsGkAtoms::aria_controls));
     case nsIAccessibleRelation::RELATION_CONTROLLER_FOR: {
-      Relation rel(new IDRefsIterator(mDoc, mContent,
+      Relation rel(new IDRefsIterator(mContent,
                                       nsGkAtoms::aria_controls));
       rel.AppendIter(new HTMLOutputIterator(Document(), mContent));
       return rel;
     }
     case nsIAccessibleRelation::RELATION_FLOWS_TO:
-      return Relation(new IDRefsIterator(mDoc, mContent,
+      return Relation(new IDRefsIterator(mContent,
                                          nsGkAtoms::aria_flowto));
     case nsIAccessibleRelation::RELATION_FLOWS_FROM:
       return Relation(new RelatedAccIterator(Document(), mContent,
@@ -2217,9 +2230,8 @@ nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
   nsIPresShell* presShell = mDoc->PresShell();
 
   // Scroll into view.
-  presShell->ScrollContentIntoView(aContent,
-                                   nsIPresShell::ScrollAxis(),
-                                   nsIPresShell::ScrollAxis(),
+  presShell->ScrollContentIntoView(aContent, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                   NS_PRESSHELL_SCROLL_ANYWHERE,
                                    nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 
   // Fire mouse down and mouse up events.
@@ -2505,10 +2517,8 @@ nsAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
 void
 nsAccessible::Shutdown()
 {
-  // Mark the accessible as defunct, invalidate the child count and pointers to 
-  // other accessibles, also make sure none of its children point to this parent
-  mFlags |= eIsDefunct;
-
+  // Invalidate the child count and pointers to other accessibles, also make
+  // sure none of its children point to this parent
   InvalidateChildren();
   if (mParent)
     mParent->RemoveChild(this);

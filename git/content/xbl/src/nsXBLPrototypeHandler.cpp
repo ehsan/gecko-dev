@@ -301,7 +301,8 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundGlobal)
     return NS_OK;
 
-  nsIScriptContext *boundContext = boundGlobal->GetScriptContext();
+  nsIScriptContext *boundContext =
+    boundGlobal->GetScriptContext(nsIProgrammingLanguage::JAVASCRIPT);
   if (!boundContext)
     return NS_OK;
 

@@ -109,7 +109,6 @@ protected:
 
   nsresult InitDB();
   nsresult InitFileDB();
-  void CloseDB();
   nsresult InitMemoryDB();
   already_AddRefed<mozIStorageConnection> GetFileDBConnection(nsIFile *dbFile) const;
   already_AddRefed<mozIStorageConnection> GetMemoryDBConnection() const;

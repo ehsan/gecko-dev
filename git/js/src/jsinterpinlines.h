@@ -244,13 +244,17 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
     if (!obj)
         return false;
 
+    unsigned flags = (op == JSOP_CALLPROP)
+                  ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
+                  : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER;
+
     PropertyCacheEntry *entry;
     JSObject *obj2;
     PropertyName *name;
     JS_PROPERTY_CACHE(cx).test(cx, pc, obj, obj2, entry, name);
     if (!name) {
         AssertValidPropertyCacheHit(cx, obj, obj2, entry);
-        if (!NativeGet(cx, obj, obj2, entry->prop, JSGET_CACHE_RESULT, vp))
+        if (!NativeGet(cx, obj, obj2, entry->prop, flags, vp))
             return false;
         return true;
     }
@@ -261,7 +265,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
         if (!GetPropertyGenericMaybeCallXML(cx, op, obj, id, vp))
             return false;
     } else {
-        if (!GetPropertyHelper(cx, obj, id, JSGET_CACHE_RESULT, vp))
+        if (!GetPropertyHelper(cx, obj, id, flags, vp))
             return false;
     }
 
@@ -285,6 +289,7 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
     if (!obj)
         return false;
 
+    JS_ASSERT_IF(*pc == JSOP_SETMETHOD, IsFunctionObject(rval));
     JS_ASSERT_IF(*pc == JSOP_SETNAME || *pc == JSOP_SETGNAME, lval.isObject());
     JS_ASSERT_IF(*pc == JSOP_SETGNAME, obj == &cx->fp()->scopeChain().global());
 
@@ -317,7 +322,7 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
             }
 #endif
 
-            if (shape->hasDefaultSetter() && shape->hasSlot()) {
+            if (shape->hasDefaultSetter() && shape->hasSlot() && !shape->isMethod()) {
                 /* Fast path for, e.g., plain Object instance properties. */
                 obj->nativeSetSlotWithType(cx, shape, rval);
             } else {
@@ -339,9 +344,13 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
 
     jsid id = ATOM_TO_JSID(name);
     if (JS_LIKELY(!obj->getOps()->setProperty)) {
-        unsigned defineHow = (op == JSOP_SETNAME)
-                             ? DNP_CACHE_RESULT | DNP_UNQUALIFIED
-                             : DNP_CACHE_RESULT;
+        unsigned defineHow;
+        if (op == JSOP_SETMETHOD)
+            defineHow = DNP_CACHE_RESULT | DNP_SET_METHOD;
+        else if (op == JSOP_SETNAME)
+            defineHow = DNP_CACHE_RESULT | DNP_UNQUALIFIED;
+        else
+            defineHow = DNP_CACHE_RESULT;
         if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rref, strict))
             return false;
     } else {
@@ -375,7 +384,7 @@ NameOperation(JSContext *cx, jsbytecode *pc, Value *vp)
     JS_PROPERTY_CACHE(cx).test(cx, pc, obj, obj2, entry, name);
     if (!name) {
         AssertValidPropertyCacheHit(cx, obj, obj2, entry);
-        if (!NativeGet(cx, obj, obj2, entry->prop, 0, vp))
+        if (!NativeGet(cx, obj, obj2, entry->prop, JSGET_METHOD_BARRIER, vp))
             return false;
         return true;
     }
@@ -407,7 +416,7 @@ NameOperation(JSContext *cx, jsbytecode *pc, Value *vp)
         JSObject *normalized = obj;
         if (normalized->getClass() == &WithClass && !shape->hasDefaultGetter())
             normalized = &normalized->asWith().object();
-        if (!NativeGet(cx, normalized, obj2, shape, 0, vp))
+        if (!NativeGet(cx, normalized, obj2, shape, JSGET_METHOD_BARRIER, vp))
             return false;
     }
 

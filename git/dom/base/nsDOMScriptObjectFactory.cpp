@@ -159,7 +159,7 @@ nsDOMScriptObjectFactory::GetScriptRuntime(const nsAString &aLanguageName,
     return NS_ERROR_FACTORY_NOT_REGISTERED;
   }
   // And stash it away in our array for fast lookup by ID.
-  PRUint32 lang_ndx = NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT);
+  PRUint32 lang_ndx = NS_STID_INDEX(lang->GetScriptTypeID());
   if (mLanguageArray[lang_ndx] == nsnull) {
     mLanguageArray[lang_ndx] = lang;
   } else {
@@ -213,7 +213,7 @@ nsDOMScriptObjectFactory::GetIDForScriptType(const nsAString &aLanguageName,
   if (NS_FAILED(rv))
     return rv;
 
-  *aScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
+  *aScriptTypeID = languageRuntime->GetScriptTypeID();
   return NS_OK;
 }
 
@@ -237,7 +237,8 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
   nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, nsnull);
 
-  const nsGlobalNameStruct *globalStruct = nameSpaceManager->LookupName(aName);
+  const nsGlobalNameStruct *globalStruct;
+  nameSpaceManager->LookupName(aName, &globalStruct);
   if (globalStruct) {
     if (globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfoCreator) {
       nsresult rv;
@@ -247,8 +248,8 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
       rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), this);
       NS_ENSURE_SUCCESS(rv, nsnull);
 
-      globalStruct = nameSpaceManager->LookupName(aName);
-      NS_ENSURE_TRUE(globalStruct, nsnull);
+      rv = nameSpaceManager->LookupName(aName, &globalStruct);
+      NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && globalStruct, nsnull);
 
       NS_ASSERTION(globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfo,
                    "The classinfo data for this class didn't get registered.");

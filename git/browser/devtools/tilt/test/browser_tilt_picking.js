@@ -22,9 +22,8 @@ function test() {
         let canvas = presenter.canvas;
 
         presenter._onSetupMesh = function() {
-          let p = getPickablePoint(presenter);
 
-          presenter.pickNode(p[0], p[1], {
+          presenter.pickNode(canvas.width / 2, 10, {
             onpick: function(data)
             {
               ok(data.index > 0,

@@ -6,7 +6,6 @@ package org.mozilla.gecko.sync.net;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyManagementException;
@@ -74,8 +73,6 @@ public class BaseResource implements Resource {
   protected HttpRequestBase request;
   public String charset = "utf-8";
 
-  protected static WeakReference<HttpResponseObserver> httpResponseObserver = null;
-
   public BaseResource(String uri) throws URISyntaxException {
     this(uri, rewriteLocalhost);
   }
@@ -102,20 +99,6 @@ public class BaseResource implements Resource {
     }
   }
 
-  public static synchronized HttpResponseObserver getHttpResponseObserver() {
-    if (httpResponseObserver == null) {
-      return null;
-    }
-    return httpResponseObserver.get();
-  }
-
-  public static synchronized void setHttpResponseObserver(HttpResponseObserver newHttpResponseObserver) {
-    if (httpResponseObserver != null) {
-      httpResponseObserver.clear();
-    }
-    httpResponseObserver = new WeakReference<HttpResponseObserver>(newHttpResponseObserver);
-  }
-
   public URI getURI() {
     return this.uri;
   }
@@ -134,6 +117,8 @@ public class BaseResource implements Resource {
    * @param credentials a string, "user:pass".
    */
   private static void applyCredentials(String credentials, HttpUriRequest request, HttpContext context) {
+    addAuthCacheToContext(request, context);
+
     Credentials creds = new UsernamePasswordCredentials(credentials);
     Header header = BasicScheme.authenticate(creds, "US-ASCII", false);
     request.addHeader(header);
@@ -158,8 +143,6 @@ public class BaseResource implements Resource {
     if (credentials != null) {
       BaseResource.applyCredentials(credentials, request, context);
     }
-
-    addAuthCacheToContext(request, context);
 
     HttpParams params = client.getParams();
     HttpConnectionParams.setConnectionTimeout(params, delegate.connectionTimeout());
@@ -246,10 +229,6 @@ public class BaseResource implements Resource {
     try {
       HttpResponse response = client.execute(request, context);
       Logger.debug(LOG_TAG, "Response: " + response.getStatusLine().toString());
-      HttpResponseObserver observer = getHttpResponseObserver();
-      if (observer != null) {
-        observer.observeHttpResponse(response);
-      }
       delegate.handleHttpResponse(response);
     } catch (ClientProtocolException e) {
       delegate.handleHttpProtocolException(e);

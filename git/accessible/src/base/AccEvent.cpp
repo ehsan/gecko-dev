@@ -44,8 +44,10 @@
 #include "nsApplicationAccessibleWrap.h"
 #include "nsDocAccessible.h"
 #include "nsIAccessibleText.h"
+#ifdef MOZ_XUL
+#include "nsXULTreeAccessible.h"
+#endif
 #include "nsAccEvent.h"
-#include "States.h"
 
 #include "nsIDOMDocument.h"
 #include "nsEventStateManager.h"
@@ -53,8 +55,6 @@
 #ifdef MOZ_XUL
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #endif
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent
@@ -101,10 +101,7 @@ AccEvent::GetNode()
 nsDocAccessible*
 AccEvent::GetDocAccessible()
 {
-  if (mAccessible)
-    return mAccessible->Document();
-
-  nsINode* node = GetNode();
+  nsINode *node = GetNode();
   if (node)
     return GetAccService()->GetDocAccessible(node->OwnerDoc());
 
@@ -257,10 +254,6 @@ AccTextChangeEvent::
   , mIsInserted(aIsInserted)
   , mModifiedText(aModifiedText)
 {
-  // XXX We should use IsFromUserInput here, but that isn't always correct
-  // when the text change isn't related to content insertion or removal.
-   mIsFromUserInput = mAccessible->State() &
-    (states::FOCUSED | states::EDITABLE);
 }
 
 already_AddRefed<nsAccEvent>

@@ -57,10 +57,10 @@ ImageData::GetHeight(PRUint32* aHeight)
 
 /* readonly attribute jsval data; */
 NS_IMETHODIMP
-ImageData::GetData(JSContext* aCx, JS::Value* aData)
+ImageData::GetData(JS::Value* aData)
 {
-  *aData = JS::ObjectOrNullValue(GetDataObject());
-  return JS_WrapValue(aCx, aData) ? NS_OK : NS_ERROR_FAILURE;
+  *aData = GetData();
+  return NS_OK;
 }
 
 void

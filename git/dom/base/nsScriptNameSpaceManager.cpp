@@ -498,9 +498,10 @@ nsScriptNameSpaceManager::InitForContext(nsIScriptContext *aContext)
   return closure.rv;
 }
 
-nsGlobalNameStruct*
-nsScriptNameSpaceManager::LookupNameInternal(const nsAString& aName,
-                                             const PRUnichar **aClassName)
+nsresult
+nsScriptNameSpaceManager::LookupName(const nsAString& aName,
+                                     const nsGlobalNameStruct **aNameStruct,
+                                     const PRUnichar **aClassName)
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
@@ -509,16 +510,18 @@ nsScriptNameSpaceManager::LookupNameInternal(const nsAString& aName,
 
   if (PL_DHASH_ENTRY_IS_BUSY(entry) &&
       !((&entry->mGlobalName)->mDisabled)) {
+    *aNameStruct = &entry->mGlobalName;
     if (aClassName) {
       *aClassName = entry->mKey.get();
     }
-    return &entry->mGlobalName;
+  } else {
+    *aNameStruct = nsnull;
+    if (aClassName) {
+      *aClassName = nsnull;
+    }
   }
 
-  if (aClassName) {
-    *aClassName = nsnull;
-  }
-  return nsnull;
+  return NS_OK;
 }
 
 nsresult
@@ -803,12 +806,3 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-void
-nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAString& aName,
-    mozilla::dom::binding::DefineInterface aDefineDOMInterface)
-{
-  nsGlobalNameStruct* s = LookupNameInternal(aName);
-  if (s) {
-    s->mDefineDOMInterface = aDefineDOMInterface;
-  }
-}

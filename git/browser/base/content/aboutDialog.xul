@@ -124,7 +124,7 @@
             <description class="text-blurb" id="warningDesc">
               &warningDesc.version;
 #ifdef MOZ_TELEMETRY_REPORTING
-              &warningDesc.telemetryDesc;
+              &warningDesc.telemetry;
 #endif
             </description>
             <description class="text-blurb" id="communityExperimentalDesc">

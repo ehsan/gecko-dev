@@ -175,7 +175,8 @@ static JSClass
 PointerHolderClass = {
     "Pointer", JSCLASS_HAS_PRIVATE,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, PointerFinalize
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, PointerFinalize,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 template<typename Op>
@@ -1060,6 +1061,7 @@ StringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
 bool
 NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
 {
+    MOZ_ASSERT(!str.IsVoid());
     nsStringBuffer* sharedBuffer;
     jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
     if (JSVAL_IS_NULL(jsstr))

@@ -45,21 +45,21 @@
 
 #include "mozilla/Util.h"
 
-#include <QApplication>
-#include <QDesktopWidget>
+#include <QtGui/QApplication>
+#include <QtGui/QDesktopWidget>
 #include <QtGui/QCursor>
-#include <QIcon>
-#include <QGraphicsScene>
-#include <QGraphicsView>
-#include <QGraphicsSceneContextMenuEvent>
-#include <QGraphicsSceneDragDropEvent>
-#include <QGraphicsSceneMouseEvent>
-#include <QGraphicsSceneHoverEvent>
-#include <QGraphicsSceneWheelEvent>
-#include <QGraphicsSceneResizeEvent>
-#include <QStyleOptionGraphicsItem>
+#include <QtGui/QIcon>
+#include <QtGui/QX11Info>
+#include <QtGui/QGraphicsScene>
+#include <QtGui/QGraphicsView>
+#include <QtGui/QGraphicsSceneContextMenuEvent>
+#include <QtGui/QGraphicsSceneDragDropEvent>
+#include <QtGui/QGraphicsSceneMouseEvent>
+#include <QtGui/QGraphicsSceneHoverEvent>
+#include <QtGui/QGraphicsSceneWheelEvent>
+#include <QtGui/QGraphicsSceneResizeEvent>
+#include <QtGui/QStyleOptionGraphicsItem>
 #include <QPaintEngine>
-#include <QMimeData>
 
 #include <QtCore/QDebug>
 #include <QtCore/QEvent>
@@ -80,6 +80,7 @@ using namespace QtMobility;
 #endif // QT version check 4.6
 
 #ifdef MOZ_X11
+#include <QX11Info>
 #include <X11/Xlib.h>
 #endif //MOZ_X11
 
@@ -257,13 +258,12 @@ nsWindow::nsWindow()
     mMoveEvent.needDispatch = false;
     
     if (!gGlobalsInitialized) {
-        gfxPlatform::GetPlatform();
         gGlobalsInitialized = true;
 
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
         // This cannot be called on non-main thread
         if (QThread::currentThread() == qApp->thread()) {
-            sPluginIMEAtom = XInternAtom(mozilla::DefaultXDisplay(), PLUGIN_VKB_REQUEST_PROP, False);
+            sPluginIMEAtom = XInternAtom(QX11Info::display(), PLUGIN_VKB_REQUEST_PROP, False);
         }
 #endif
         // It's OK if either of these fail, but it may not be one day.
@@ -344,9 +344,8 @@ UpdateOffScreenBuffers(int aDepth, QSize aSize, QWidget* aWidget = nsnull)
     if (aWidget) {
         if (gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType() ==
             gfxASurface::SurfaceTypeImage) {
-            Display* dpy = mozilla::DefaultXDisplay();
             gShmImage = nsShmImage::Create(gBufferMaxSize,
-                                           DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aWidget)),
+                                           (Visual*)aWidget->x11Info().visual(),
                                            aDepth);
             gBufferSurface = gShmImage->AsSurface();
             return true;
@@ -801,7 +800,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_DISPLAY:
         {
 #ifdef MOZ_X11
-            return gfxQtPlatform::GetXDisplay(GetViewWidget());
+            QWidget *widget = GetViewWidget();
+            return widget ? widget->x11Info().display() : nsnull;
 #else
             return nsnull;
 #endif
@@ -1018,23 +1018,15 @@ static already_AddRefed<gfxASurface>
 GetSurfaceForQWidget(QWidget* aDrawable)
 {
     gfxASurface* result =
-        new gfxXlibSurface(gfxQtPlatform::GetXDisplay(aDrawable),
-                           aDrawable->winId(),
-                           DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aDrawable)),
+        new gfxXlibSurface(aDrawable->x11Info().display(),
+                           aDrawable->handle(),
+                           (Visual*)aDrawable->x11Info().visual(),
                            gfxIntSize(aDrawable->size().width(),
                            aDrawable->size().height()));
     NS_IF_ADDREF(result);
     return result;
 }
 #endif
-
-static void
-DispatchDidPaint(nsIWidget* aWidget)
-{
-    nsEventStatus status;
-    nsPaintEvent didPaintEvent(true, NS_DID_PAINT, aWidget);
-    aWidget->DispatchEvent(&didPaintEvent, status);
-}
 
 nsEventStatus
 nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget)
@@ -1043,15 +1035,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         LOG(("Expose event on destroyed window [%p] window %p\n",
              (void *)this, mWidget));
         return nsEventStatus_eIgnore;
-    }
-
-    // Dispatch WILL_PAINT to allow scripts etc. to run before we
-    // dispatch PAINT
-    {
-        nsEventStatus status;
-        nsPaintEvent willPaintEvent(true, NS_WILL_PAINT, this);
-        willPaintEvent.willSendDidPaint = true;
-        DispatchEvent(&willPaintEvent, status);
     }
 
     if (!mWidget)
@@ -1078,9 +1061,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     }
 
     if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-        aPainter->beginNativePainting();
         nsPaintEvent event(true, NS_PAINT, this);
-        event.willSendDidPaint = true;
         event.refPoint.x = r.x();
         event.refPoint.y = r.y();
         event.region = nsIntRegion(rect);
@@ -1097,10 +1078,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
             SetWorldTransform(matr);
 #endif //MOZ_ENABLE_QTMOBILITY
 
-        status = DispatchEvent(&event);
-        aPainter->endNativePainting();
-        DispatchDidPaint(this);
-        return status;
+        return DispatchEvent(&event);
     }
 
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
@@ -1150,7 +1128,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     }
 
     nsPaintEvent event(true, NS_PAINT, this);
-    event.willSendDidPaint = true;
     event.refPoint.x = rect.x;
     event.refPoint.y = rect.y;
     event.region = nsIntRegion(rect);
@@ -1172,7 +1149,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     // Handle buffered painting mode
     if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
-#if defined(MOZ_X11) && defined(Q_WS_X11)
+#ifdef MOZ_X11
         if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
             // Paint offscreen pixmap to QPainter
             static QPixmap gBufferPixmap;
@@ -1229,7 +1206,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     ctx = nsnull;
     targetSurface = nsnull;
-    DispatchDidPaint(this);
 
     // check the return value!
     return status;
@@ -1574,7 +1550,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     PRUint32 domKeyCode = QtKeyCodeToDOMKeyCode(aEvent->key());
 
     // get keymap and modifier map from the Xserver
-    Display *display = mozilla::DefaultXDisplay();
+    Display *display = QX11Info::display();
     int x_min_keycode = 0, x_max_keycode = 0, xkeysyms_per_keycode;
     XDisplayKeycodes(display, &x_min_keycode, &x_max_keycode);
     XModifierKeymap *xmodmap = XGetModifierMapping(display);
@@ -1932,7 +1908,7 @@ nsWindow::OnKeyReleaseEvent(QKeyEvent *aEvent)
 #ifdef MOZ_X11
     if (!domKeyCode) {
         // get keymap from the Xserver
-        Display *display = mozilla::DefaultXDisplay();
+        Display *display = QX11Info::display();
         int x_min_keycode = 0, x_max_keycode = 0, xkeysyms_per_keycode;
         XDisplayKeycodes(display, &x_min_keycode, &x_max_keycode);
         KeySym *xkeymap = XGetKeyboardMapping(display, x_min_keycode, x_max_keycode - x_min_keycode,
@@ -2370,9 +2346,9 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
 
     QWidget *widget = GetViewWidget();
     // If widget not show, handle might be null
-    if (widget && widget->winId())
-        XSetClassHint(gfxQtPlatform::GetXDisplay(widget),
-                      widget->winId(),
+    if (widget && widget->handle())
+        XSetClassHint(widget->x11Info().display(),
+                      widget->handle(),
                       class_hint);
 
     nsMemory::Free(class_hint->res_class);
@@ -2570,7 +2546,7 @@ nsWindow::HideWindowChrome(bool aShouldHide)
     QWidget *widget = GetViewWidget();
     NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
 #ifdef MOZ_X11
-    XSync(gfxQtPlatform::GetXDisplay(widget), False);
+    XSync(widget->x11Info().display(), False);
 #endif
 
     return NS_OK;
@@ -2720,7 +2696,7 @@ nsWindow::createQWidget(MozQWidget *parent,
 
         if (gfxQtPlatform::GetPlatform()->GetRenderMode() == gfxQtPlatform::RENDER_DIRECT) {
             // Disable double buffer and system background rendering
-#if defined(MOZ_X11) && (QT_VERSION < QT_VERSION_CHECK(5,0,0))
+#ifdef MOZ_X11
             newView->viewport()->setAttribute(Qt::WA_PaintOnScreen, true);
 #endif
             newView->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
@@ -2749,7 +2725,7 @@ nsWindow::createQWidget(MozQWidget *parent,
 
 #ifdef MOZ_X11
         if (newView->effectiveWinId()) {
-            XSetWindowBackgroundPixmap(mozilla::DefaultXDisplay(),
+            XSetWindowBackgroundPixmap(QX11Info::display(),
                                        newView->effectiveWinId(), None);
         }
 #endif
@@ -3170,7 +3146,7 @@ GetPluginVKBState(Window aWinId)
 {
     // Set default value as unexpected error
     PluginVKBState imeState = VKBUndefined;
-    Display *display = mozilla::DefaultXDisplay();
+    Display *display = QX11Info::display();
 
     Atom actualType;
     int actualFormat;
@@ -3200,7 +3176,7 @@ GetPluginVKBState(Window aWinId)
 static void
 SetVKBState(Window aWinId, PluginVKBState aState)
 {
-    Display *display = mozilla::DefaultXDisplay();
+    Display *display = QX11Info::display();
     if (aState != VKBUndefined) {
         unsigned long isOpen = aState == VKBOpen ? 1 : 0;
         XChangeProperty(display, aWinId, sPluginIMEAtom, XA_CARDINAL, 32,

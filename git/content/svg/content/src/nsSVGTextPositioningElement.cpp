@@ -36,7 +36,6 @@
 #include "mozilla/Util.h"
 
 #include "nsSVGTextPositioningElement.h"
-#include "nsSVGUtils.h"
 #include "SVGAnimatedLengthList.h"
 #include "DOMSVGAnimatedLengthList.h"
 #include "SVGLengthList.h"

@@ -62,10 +62,7 @@
 #include "jsfriendapi.h"
 #include "jstypedarray.h"
 
-#include "mozilla/dom/bindings/Utils.h"
-
 using namespace mozilla;
-using namespace mozilla::dom;
 
 //#define STRICT_CHECK_OF_UNICODE
 #ifdef STRICT_CHECK_OF_UNICODE
@@ -109,11 +106,6 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
         (jsclass->flags & JSCLASS_HAS_PRIVATE) &&
         (jsclass->flags & JSCLASS_PRIVATE_IS_NSISUPPORTS)) {
         *iface = (nsISupports*) xpc_GetJSPrivate(obj);
-        return true;
-    }
-    if (jsclass && (jsclass->flags & JSCLASS_IS_DOMJSCLASS) &&
-        bindings::DOMJSClass::FromJSClass(jsclass)->mDOMObjectIsISupports) {
-        *iface = bindings::UnwrapDOMObject<nsISupports>(obj, jsclass);
         return true;
     }
     return false;
@@ -920,7 +912,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     JSObject *flat;
     if (cache) {
         flat = cache->GetWrapper();
-        if (cache->IsDOMBinding()) {
+        if (cache->IsProxy()) {
             XPCCallContext &ccx = lccx.GetXPCCallContext();
             if (!ccx.IsValid())
                 return false;
@@ -1493,7 +1485,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
         if (report && report->ucmessage) {
             bestMessage = (const PRUnichar *)report->ucmessage;
         } else if (message) {
-            CopyASCIItoUTF16(message, bestMessage);
+            bestMessage.AssignWithConversion(message);
         } else {
             bestMessage.AssignLiteral("JavaScript Error");
         }

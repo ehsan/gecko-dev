@@ -263,7 +263,6 @@ private:
   nsCOMPtr<mozIStorageStatement>  mStatement_FindClient;
   nsCOMPtr<mozIStorageStatement>  mStatement_FindClientByNamespace;
   nsCOMPtr<mozIStorageStatement>  mStatement_EnumerateGroups;
-  nsCOMPtr<mozIStorageStatement>  mStatement_EnumerateGroupsTimeOrder;
 
   nsCOMPtr<nsILocalFile>          mCacheDirectory;
   PRUint32                        mCacheCapacity; // in bytes

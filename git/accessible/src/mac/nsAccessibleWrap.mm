@@ -110,6 +110,9 @@ nsAccessibleWrap::GetNativeType ()
     case roles::CHECKBUTTON:
       return [mozCheckboxAccessible class];
       
+    case roles::AUTOCOMPLETE:
+      return [mozComboboxAccessible class];
+
     case roles::HEADING:
       return [mozHeadingAccessible class];
 
@@ -179,12 +182,9 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 
   PRUint32 eventType = aEvent->GetEventType();
 
-  // ignore everything but focus-changed, value-changed, caret and selection
-  // events for now.
+  // ignore everything but focus-changed and value-changed events for now.
   if (eventType != nsIAccessibleEvent::EVENT_FOCUS &&
-      eventType != nsIAccessibleEvent::EVENT_VALUE_CHANGE &&
-      eventType != nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED &&
-      eventType != nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED)
+      eventType != nsIAccessibleEvent::EVENT_VALUE_CHANGE)
     return NS_OK;
 
   nsAccessible *accessible = aEvent->GetAccessible();
@@ -201,10 +201,6 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
       break;
     case nsIAccessibleEvent::EVENT_VALUE_CHANGE:
       [nativeAcc valueDidChange];
-      break;
-    case nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED:
-    case nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED:
-      [nativeAcc selectedTextDidChange];
       break;
   }
 
@@ -261,7 +257,7 @@ nsAccessibleWrap::IsIgnored()
 }
 
 void
-nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray)
+nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aChildrenArray)
 {
   // we're flat; there are no children.
   if (nsAccUtils::MustPrune(this))
@@ -272,25 +268,37 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray)
     nsAccessibleWrap *childAcc =
       static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
 
-    // If element is ignored, then add its children as substitutes.
     if (childAcc->IsIgnored()) {
-      childAcc->GetUnignoredChildren(aChildrenArray);
-      continue;
-    }
-
-    aChildrenArray->AppendElement(childAcc);
+      // element is ignored, so try adding its children as substitutes, if it has any.
+      if (!nsAccUtils::MustPrune(childAcc)) {
+        nsTArray<nsRefPtr<nsAccessibleWrap> > children;
+        childAcc->GetUnignoredChildren(children);
+        if (!children.IsEmpty()) {
+          // add the found unignored descendants to the array.
+          aChildrenArray.AppendElements(children);
+        }
+      }
+    } else
+      // simply add the element, since it's not ignored.
+      aChildrenArray.AppendElement(childAcc);
   }
 }
 
-nsAccessible*
-nsAccessibleWrap::GetUnignoredParent() const
+already_AddRefed<nsIAccessible>
+nsAccessibleWrap::GetUnignoredParent()
 {
-  // Go up the chain to find a parent that is not ignored.
   nsAccessibleWrap* parentWrap = static_cast<nsAccessibleWrap*>(Parent());
-  while (parentWrap && parentWrap->IsIgnored()) 
-    parentWrap = static_cast<nsAccessibleWrap*>(parentWrap->Parent());
+  if (!parentWrap)
+    return nsnull;
     
-  return parentWrap;
+  // recursively return the parent, until we find one that is not ignored.
+  if (parentWrap->IsIgnored())
+    return parentWrap->GetUnignoredParent();
+  
+  nsIAccessible *outValue = nsnull;
+  NS_IF_ADDREF(outValue = parentWrap);
+  
+  return outValue;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -74,6 +74,20 @@
 
 using namespace mozilla;
 
+class nsAutoEditorKeypressOperation {
+public:
+  nsAutoEditorKeypressOperation(nsEditor *aEditor, nsIDOMNSEvent *aEvent)
+    : mEditor(aEditor) {
+    mEditor->BeginKeypressHandling(aEvent);
+  }
+  ~nsAutoEditorKeypressOperation() {
+    mEditor->EndKeypressHandling();
+  }
+
+private:
+  nsEditor *mEditor;
+};
+
 nsEditorEventListener::nsEditorEventListener() :
   mEditor(nsnull), mCommitText(false),
   mInTransaction(false)
@@ -467,7 +481,7 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
   // Transfer the event's trusted-ness to our editor
   nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aKeyEvent);
-  nsEditor::HandlingTrustedAction operation(mEditor, NSEvent);
+  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
 
   // DOM event handling happens in two passes, the client pass and the system
   // pass.  We do all of our processing in the system pass, to allow client
@@ -622,7 +636,7 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
 
   // Transfer the event's trusted-ness to our editor
   nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aTextEvent);
-  nsEditor::HandlingTrustedAction operation(mEditor, NSEvent);
+  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
 
   return mEditor->UpdateIMEComposition(composedText, textRangeList);
 }
@@ -662,7 +676,11 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
   nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
   NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
 
-  if (dropParent->IsEditable() && CanDrop(aDragEvent)) {
+  if (!dropParent->IsEditable()) {
+    return NS_OK;
+  }
+
+  if (CanDrop(aDragEvent)) {
     aDragEvent->PreventDefault(); // consumed
 
     if (mCaret) {
@@ -736,7 +754,11 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
   nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
   NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
 
-  if (!dropParent->IsEditable() || !CanDrop(aMouseEvent)) {
+  if (!dropParent->IsEditable()) {
+    return NS_OK;
+  }
+
+  if (!CanDrop(aMouseEvent)) {
     // was it because we're read-only?
     if (mEditor->IsReadonly() || mEditor->IsDisabled())
     {
@@ -797,11 +819,12 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
   // There is a source node, so compare the source documents and this document.
   // Disallow drops on the same document.
 
-  nsCOMPtr<nsIDOMDocument> domdoc = mEditor->GetDOMDocument();
-  NS_ENSURE_TRUE(domdoc, false);
+  nsCOMPtr<nsIDOMDocument> domdoc;
+  nsresult rv = mEditor->GetDocument(getter_AddRefs(domdoc));
+  NS_ENSURE_SUCCESS(rv, false);
 
   nsCOMPtr<nsIDOMDocument> sourceDoc;
-  nsresult rv = sourceNode->GetOwnerDocument(getter_AddRefs(sourceDoc));
+  rv = sourceNode->GetOwnerDocument(getter_AddRefs(sourceDoc));
   NS_ENSURE_SUCCESS(rv, false);
   if (domdoc == sourceDoc)      // source and dest are the same document; disallow drops within the selection
   {
@@ -867,7 +890,7 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 
   // Transfer the event's trusted-ness to our editor
   nsCOMPtr<nsIDOMNSEvent> NSEvent = do_QueryInterface(aCompositionEvent);
-  nsEditor::HandlingTrustedAction operation(mEditor, NSEvent);
+  nsAutoEditorKeypressOperation operation(mEditor, NSEvent);
 
   return mEditor->EndIMEComposition();
 }
@@ -882,9 +905,17 @@ nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
   if (mEditor->IsDisabled()) {
     return NS_OK;
   }
-
-  // Spell check a textarea the first time that it is focused.
-  SpellCheckIfNeeded();
+  
+  // If the spell check skip flag is still enabled from creation time,
+  // disable it because focused editors are allowed to spell check.
+  PRUint32 currentFlags = 0;
+  mEditor->GetFlags(&currentFlags);
+  if(currentFlags & nsIPlaintextEditor::eEditorSkipSpellCheck)
+  {
+    currentFlags ^= nsIPlaintextEditor::eEditorSkipSpellCheck;
+    mEditor->SetFlags(currentFlags);
+  }
+  
 
   nsCOMPtr<nsIDOMEventTarget> target;
   aEvent->GetTarget(getter_AddRefs(target));
@@ -980,18 +1011,5 @@ nsEditorEventListener::Blur(nsIDOMEvent* aEvent)
   }
 
   return NS_OK;
-}
-
-void
-nsEditorEventListener::SpellCheckIfNeeded() {
-  // If the spell check skip flag is still enabled from creation time,
-  // disable it because focused editors are allowed to spell check.
-  PRUint32 currentFlags = 0;
-  mEditor->GetFlags(&currentFlags);
-  if(currentFlags & nsIPlaintextEditor::eEditorSkipSpellCheck)
-  {
-    currentFlags ^= nsIPlaintextEditor::eEditorSkipSpellCheck;
-    mEditor->SetFlags(currentFlags);
-  }
 }
 

@@ -425,7 +425,7 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
 #endif
 
 #ifdef MOZ_MEMORY_DARWIN
-static const bool isthreaded = true;
+static const bool __isthreaded = true;
 #endif
 
 #if defined(MOZ_MEMORY_SOLARIS) && defined(MAP_ALIGN) && !defined(JEMALLOC_NEVER_USES_MAP_ALIGN)
@@ -461,7 +461,7 @@ static const bool isthreaded = true;
 #endif
 #define PIC
 #ifndef MOZ_MEMORY_DARWIN
-static const bool isthreaded = true;
+static const bool __isthreaded = true;
 #else
 #  define NO_TLS
 #endif
@@ -1419,8 +1419,13 @@ static
 #endif
 bool		malloc_init_hard(void);
 
+#ifdef MOZ_MEMORY_ANDROID
+void	_malloc_prefork(void);
+void	_malloc_postfork(void);
+#else
 static void	_malloc_prefork(void);
 static void	_malloc_postfork(void);
+#endif
 
 #ifdef MOZ_MEMORY_DARWIN
 /*
@@ -1561,7 +1566,7 @@ static bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
 #if defined(MOZ_MEMORY_WINDOWS)
-	if (isthreaded)
+	if (__isthreaded)
 		if (! __crtInitCritSecAndSpinCount(mutex, _CRT_SPINCOUNT))
 			return (true);
 #elif defined(MOZ_MEMORY_DARWIN)
@@ -1598,7 +1603,7 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 #elif defined(MOZ_MEMORY)
 	pthread_mutex_lock(mutex);
 #else
-	if (isthreaded)
+	if (__isthreaded)
 		_SPINLOCK(&mutex->lock);
 #endif
 }
@@ -1614,7 +1619,7 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 #elif defined(MOZ_MEMORY)
 	pthread_mutex_unlock(mutex);
 #else
-	if (isthreaded)
+	if (__isthreaded)
 		_SPINUNLOCK(&mutex->lock);
 #endif
 }
@@ -1623,7 +1628,7 @@ static bool
 malloc_spin_init(malloc_spinlock_t *lock)
 {
 #if defined(MOZ_MEMORY_WINDOWS)
-	if (isthreaded)
+	if (__isthreaded)
 		if (! __crtInitCritSecAndSpinCount(lock, _CRT_SPINCOUNT))
 			return (true);
 #elif defined(MOZ_MEMORY_DARWIN)
@@ -1658,7 +1663,7 @@ malloc_spin_lock(malloc_spinlock_t *lock)
 #elif defined(MOZ_MEMORY)
 	pthread_mutex_lock(lock);
 #else
-	if (isthreaded)
+	if (__isthreaded)
 		_SPINLOCK(&lock->lock);
 #endif
 }
@@ -1673,7 +1678,7 @@ malloc_spin_unlock(malloc_spinlock_t *lock)
 #elif defined(MOZ_MEMORY)
 	pthread_mutex_unlock(lock);
 #else
-	if (isthreaded)
+	if (__isthreaded)
 		_SPINUNLOCK(&lock->lock);
 #endif
 }
@@ -1728,7 +1733,7 @@ malloc_spin_lock(pthread_mutex_t *lock)
 {
 	unsigned ret = 0;
 
-	if (isthreaded) {
+	if (__isthreaded) {
 		if (_pthread_mutex_trylock(lock) != 0) {
 			unsigned i;
 			volatile unsigned j;
@@ -1761,7 +1766,7 @@ static inline void
 malloc_spin_unlock(pthread_mutex_t *lock)
 {
 
-	if (isthreaded)
+	if (__isthreaded)
 		_pthread_mutex_unlock(lock);
 }
 #endif
@@ -2958,7 +2963,7 @@ choose_arena(void)
 	 * introduces a bootstrapping issue.
 	 */
 #ifndef NO_TLS
-	if (isthreaded == false) {
+	if (__isthreaded == false) {
 	    /* Avoid the overhead of TLS for single-threaded operation. */
 	    return (arenas[0]);
 	}
@@ -2974,7 +2979,7 @@ choose_arena(void)
 		assert(ret != NULL);
 	}
 #else
-	if (isthreaded && narenas > 1) {
+	if (__isthreaded && narenas > 1) {
 		unsigned long ind;
 
 		/*
@@ -3031,7 +3036,7 @@ choose_arena_hard(void)
 {
 	arena_t *ret;
 
-	assert(isthreaded);
+	assert(__isthreaded);
 
 #ifdef MALLOC_BALANCE
 	/* Seed the PRNG used for arena load balancing. */
@@ -5918,8 +5923,10 @@ MALLOC_OUT:
 #endif
 	}
 
-#if !defined(MOZ_MEMORY_WINDOWS)
+#if (!defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN) && !defined(MOZ_MEMORY_ANDROID))
 	/* Prevent potential deadlock on malloc locks after fork. */
+	/* XXX on Android there is no pthread_atfork, so we specifically
+	   call _malloc_prefork and _malloc_postfork in process_util_linux.cc */
 	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
 #endif
 
@@ -6204,6 +6211,17 @@ malloc_shutdown()
  * names it is given with __wrap_.
  */
 #define wrap(a) __wrap_ ## a
+
+/* Extra wrappers for NSPR alloc functions */
+void *
+__wrap_PR_Malloc(size_t size) __attribute__((alias("__wrap_malloc")));
+void *
+__wrap_PR_Calloc(size_t num, size_t size) __attribute__((alias("__wrap_calloc")));
+void *
+__wrap_PR_Realloc(void *ptr, size_t size) __attribute__((alias("__wrap_realloc")));
+void
+__wrap_PR_Free(void *ptr) __attribute__((alias("__wrap_free")));
+
 #else
 #define wrap(a) je_ ## a
 #endif
@@ -6216,6 +6234,22 @@ malloc_shutdown()
 #define realloc(a, b)           wrap(realloc)(a, b)
 #define free(a)                 wrap(free)(a)
 #define malloc_usable_size(a)   wrap(malloc_usable_size)(a)
+
+void *malloc(size_t size);
+
+char *
+wrap(strndup)(const char *src, size_t len) {
+	char* dst = (char*) malloc(len + 1);
+	if (dst)
+		strncpy(dst, src, len + 1);
+	return dst;
+}
+
+char *
+wrap(strdup)(const char *src) {
+	size_t len = strlen(src);
+	return wrap(strndup)(src, len);
+}
 #endif
 
 /*
@@ -6826,7 +6860,11 @@ _msize(const void *ptr)
  * is threaded here.
  */
 
+#ifdef MOZ_MEMORY_ANDROID
+void
+#else
 static void
+#endif
 _malloc_prefork(void)
 {
 	unsigned i;
@@ -6844,7 +6882,11 @@ _malloc_prefork(void)
 	malloc_mutex_lock(&huge_mtx);
 }
 
+#ifdef MOZ_MEMORY_ANDROID
+void
+#else
 static void
+#endif
 _malloc_postfork(void)
 {
 	unsigned i;

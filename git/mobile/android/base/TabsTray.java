@@ -14,7 +14,6 @@ import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Build;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
@@ -31,7 +30,7 @@ import android.widget.TextView;
 
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
-public class TabsTray extends GeckoActivity implements Tabs.OnTabsChangedListener {
+public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
 
     private static int sPreferredHeight;
     private static int sMaxHeight;
@@ -47,13 +46,9 @@ public class TabsTray extends GeckoActivity implements Tabs.OnTabsChangedListene
     private static final int TABS_LIST_ITEM_HEIGHT = 102;
     private static final int TABS_ADD_TAB_HEIGHT = 50;
 
-    private static final String ABOUT_HOME = "about:home";
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        LayoutInflater.from(this).setFactory(GeckoViewsFactory.getInstance());
 
         setContentView(R.layout.tabs_tray);
 
@@ -271,8 +266,6 @@ public class TabsTray extends GeckoActivity implements Tabs.OnTabsChangedListene
             Drawable thumbnailImage = tab.getThumbnail();
             if (thumbnailImage != null)
                 thumbnail.setImageDrawable(thumbnailImage);
-            else if (TextUtils.equals(tab.getURL(), ABOUT_HOME))
-                thumbnail.setImageResource(R.drawable.abouthome_thumbnail);
             else
                 thumbnail.setImageResource(R.drawable.tab_thumbnail_default);
 

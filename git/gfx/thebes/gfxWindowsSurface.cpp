@@ -104,11 +104,9 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& realSize, gfxImag
 
     Init(surf);
 
-    if (mSurfaceValid) {
-        // DDBs will generally only use 3 bytes per pixel when RGB24
-        int bytesPerPixel = ((imageFormat == gfxASurface::ImageFormatRGB24) ? 3 : 4);
-        RecordMemoryUsed(size.width * size.height * bytesPerPixel + sizeof(gfxWindowsSurface));
-    }
+    // DDBs will generally only use 3 bytes per pixel when RGB24
+    int bytesPerPixel = ((imageFormat == gfxASurface::ImageFormatRGB24) ? 3 : 4);
+    RecordMemoryUsed(size.width * size.height * bytesPerPixel + sizeof(gfxWindowsSurface));
 
     if (CairoStatus() == 0)
         mDC = cairo_win32_surface_get_dc(CairoSurface());

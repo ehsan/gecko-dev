@@ -98,6 +98,7 @@
 
 #include "nsIDTD.h"
 #include "nsISupports.h"
+#include "nsIParser.h"
 #include "nsHTMLTags.h"
 #include "nsDeque.h"
 #include "nsParserCIID.h"

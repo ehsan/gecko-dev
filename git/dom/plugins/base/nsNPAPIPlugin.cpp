@@ -36,6 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_WIDGET_QT
+#include <QX11Info>
+#endif
+
 #include "base/basictypes.h"
 
 /* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
@@ -55,11 +59,12 @@
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
 #include "nsIPrivateBrowsingService.h"
-#include "mozilla/Preferences.h"
 
 #include "nsIPluginStreamListener.h"
 #include "nsPluginsDir.h"
 #include "nsPluginSafety.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsPluginLogging.h"
 
 #include "nsIJSContextStack.h"
@@ -351,7 +356,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   }
 #endif
 
-  nsIPrefBranch* prefs = Preferences::GetRootBranch();
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (!prefs) {
     return false;
   }
@@ -384,7 +389,8 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // so use the mime type (mIsJavaPlugin) and a special pref.
   bool javaIsEnabled;
   if (aPluginTag->mIsJavaPlugin &&
-      !Preferences::GetBool("dom.ipc.plugins.java.enabled", true)) {
+      NS_SUCCEEDED(prefs->GetBoolPref("dom.ipc.plugins.java.enabled", &javaIsEnabled)) &&
+      !javaIsEnabled) {
     return false;
   }
 
@@ -415,8 +421,8 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
         match = (NS_WildCardMatch(prefFile.get(), maskStart, 0) == MATCH);
       }
 
-      if (match && NS_SUCCEEDED(Preferences::GetBool(prefNames[currentPref],
-                                                     &oopPluginsEnabled))) {
+      if (match && NS_SUCCEEDED(prefs->GetBoolPref(prefNames[currentPref],
+                                                   &oopPluginsEnabled))) {
         prefSet = true;
         break;
       }
@@ -425,17 +431,17 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   }
 
   if (!prefSet) {
-    oopPluginsEnabled =
+    oopPluginsEnabled = false;
 #ifdef XP_MACOSX
 #if defined(__i386__)
-    Preferences::GetBool("dom.ipc.plugins.enabled.i386", false);
+    prefs->GetBoolPref("dom.ipc.plugins.enabled.i386", &oopPluginsEnabled);
 #elif defined(__x86_64__)
-    Preferences::GetBool("dom.ipc.plugins.enabled.x86_64", false);
+    prefs->GetBoolPref("dom.ipc.plugins.enabled.x86_64", &oopPluginsEnabled);
 #elif defined(__ppc__)
-    Preferences::GetBool("dom.ipc.plugins.enabled.ppc", false);
+    prefs->GetBoolPref("dom.ipc.plugins.enabled.ppc", &oopPluginsEnabled);
 #endif
 #else
-    Preferences::GetBool("dom.ipc.plugins.enabled", false);
+    prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
 #endif
   }
 
@@ -536,6 +542,23 @@ NPPluginFuncs*
 nsNPAPIPlugin::PluginFuncs()
 {
   return &mPluginFuncs;
+}
+
+nsresult
+nsNPAPIPlugin::CreatePluginInstance(nsNPAPIPluginInstance **aResult)
+{
+  if (!aResult)
+    return NS_ERROR_NULL_POINTER;
+
+  *aResult = NULL;
+
+  nsRefPtr<nsNPAPIPluginInstance> inst = new nsNPAPIPluginInstance(this);
+  if (!inst)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  *aResult = inst;
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }
 
 nsresult
@@ -2059,10 +2082,12 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
   case NPNVjavascriptEnabledBool: {
     *(NPBool*)result = false;
-    bool js = false;
-    res = Preferences::GetBool("javascript.enabled", &js);
-    if (NS_SUCCEEDED(res)) {
-      *(NPBool*)result = js;
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefs) {
+      bool js = false;;
+      res = prefs->GetBoolPref("javascript.enabled", &js);
+      if (NS_SUCCEEDED(res))
+        *(NPBool*)result = js;
     }
     return NPERR_NO_ERROR;
   }

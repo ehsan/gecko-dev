@@ -142,9 +142,7 @@ public:
    * nsICanvasElementExternal -- for use outside of content/layout
    */
   NS_IMETHOD_(nsIntSize) GetSizeExternal();
-  NS_IMETHOD RenderContextsExternal(gfxContext *aContext,
-                                    gfxPattern::GraphicsFilter aFilter,
-                                    PRUint32 aFlags = RenderFlagPremultAlpha);
+  NS_IMETHOD RenderContextsExternal(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter);
 
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,

@@ -87,23 +87,21 @@ public class TabsRecord extends Record {
   private static final String LOG_TAG = "TabsRecord";
 
   public static final String COLLECTION_NAME = "tabs";
-  public static final long TABS_TTL = 7 * 24 * 60 * 60; // 7 days in seconds.
 
   public TabsRecord(String guid, String collection, long lastModified, boolean deleted) {
     super(guid, collection, lastModified, deleted);
-    this.ttl = TABS_TTL;
   }
   public TabsRecord(String guid, String collection, long lastModified) {
-    this(guid, collection, lastModified, false);
+    super(guid, collection, lastModified, false);
   }
   public TabsRecord(String guid, String collection) {
-    this(guid, collection, 0, false);
+    super(guid, collection, 0, false);
   }
   public TabsRecord(String guid) {
-    this(guid, COLLECTION_NAME, 0, false);
+    super(guid, COLLECTION_NAME, 0, false);
   }
   public TabsRecord() {
-    this(Utils.generateGuid(), COLLECTION_NAME, 0, false);
+    super(Utils.generateGuid(), COLLECTION_NAME, 0, false);
   }
 
   public String clientName;
@@ -155,7 +153,6 @@ public class TabsRecord extends Record {
     TabsRecord out = new TabsRecord(guid, this.collection, this.lastModified, this.deleted);
     out.androidID = androidID;
     out.sortIndex = this.sortIndex;
-    out.ttl       = this.ttl;
 
     out.clientName = this.clientName;
     out.tabs = new ArrayList<Tab>(this.tabs);

@@ -36,13 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
-#include "nsSVGTSpanFrame.h"
-
-// Keep others in (case-insensitive) order:
 #include "nsIDOMSVGTSpanElement.h"
 #include "nsIDOMSVGAltGlyphElement.h"
+#include "nsSVGTSpanFrame.h"
 #include "nsSVGUtils.h"
+#include "nsSVGTextFrame.h"
+#include "nsSVGOuterSVGFrame.h"
 
 //----------------------------------------------------------------------
 // Implementation

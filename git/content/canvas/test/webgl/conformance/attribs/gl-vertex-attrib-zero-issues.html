@@ -37,11 +37,15 @@
 description("Test some of the issues of the difference between attrib 0 on OpenGL vs WebGL");
 debug("");
 var wtu = WebGLTestUtils;
-var gl = wtu.create3DContext("example");
+var canvas = document.getElementById("example");
+var gl = wtu.create3DContext(canvas);
 
 function setup(numVerts, attribIndex) {
   var program = wtu.setupProgram(
-      gl, ['vshader', 'fshader'], ['vPosition'], [attribIndex]);
+      gl,
+      [wtu.loadShaderFromScript(gl, 'vshader', gl.VERTEX_SHADER),
+       wtu.loadShaderFromScript(gl, 'fshader', gl.FRAGMENT_SHADER)],
+      ['vPosition'], [attribIndex]);
   // draw with something on attrib zero with a small number of vertices
   var vertexObject = gl.createBuffer();
   g_program = program;

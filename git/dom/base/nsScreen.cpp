@@ -42,88 +42,65 @@
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfoID.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsLayoutUtils.h"
-#include "nsDOMEvent.h"
+#include "nsContentUtils.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
-namespace {
+/* static */ bool nsScreen::sInitialized = false;
+/* static */ bool nsScreen::sAllowScreenEnabledProperty = false;
+/* static */ bool nsScreen::sAllowScreenBrightnessProperty = false;
 
-bool
-IsChromeType(nsIDocShell *aDocShell)
+/* static */ void
+nsScreen::Initialize()
 {
-  nsCOMPtr<nsIDocShellTreeItem> ds = do_QueryInterface(aDocShell);
-  if (!ds) {
-    return false;
-  }
-
-  PRInt32 itemType;
-  ds->GetItemType(&itemType);
-  return itemType == nsIDocShellTreeItem::typeChrome;
+  MOZ_ASSERT(!sInitialized);
+  sInitialized = true;
+  Preferences::AddBoolVarCache(&sAllowScreenEnabledProperty,
+                               "dom.screenEnabledProperty.enabled");
+  Preferences::AddBoolVarCache(&sAllowScreenBrightnessProperty,
+                               "dom.screenBrightnessProperty.enabled");
 }
 
-} // anonymous namespace
-
-/* static */ already_AddRefed<nsScreen>
-nsScreen::Create(nsPIDOMWindow* aWindow)
+//
+//  Screen class implementation
+//
+nsScreen::nsScreen(nsIDocShell* aDocShell)
+  : mDocShell(aDocShell)
 {
-  MOZ_ASSERT(aWindow);
-
-  if (!aWindow->GetDocShell()) {
-    return nsnull;
+  if (!sInitialized) {
+    Initialize();
   }
-
-  nsCOMPtr<nsIScriptGlobalObject> sgo =
-    do_QueryInterface(static_cast<nsPIDOMWindow*>(aWindow));
-  NS_ENSURE_TRUE(sgo, nsnull);
-
-  nsRefPtr<nsScreen> screen = new nsScreen();
-  screen->BindToOwner(aWindow);
-
-  hal::RegisterScreenOrientationObserver(screen);
-  hal::GetCurrentScreenOrientation(&(screen->mOrientation));
-
-  return screen.forget();
-}
-
-nsScreen::nsScreen()
-  : mEventListener(nsnull)
-{
 }
 
 nsScreen::~nsScreen()
 {
-  hal::UnregisterScreenOrientationObserver(this);
 }
 
 
 DOMCI_DATA(Screen, nsScreen)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsScreen)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsScreen,
-                                                  nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(mozorientationchange)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsScreen,
-                                                nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(mozorientationchange)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
 // QueryInterface implementation for nsScreen
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsScreen)
+NS_INTERFACE_MAP_BEGIN(nsScreen)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsIDOMScreen)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMScreen)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Screen)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF_INHERITED(nsScreen, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsScreen, nsDOMEventTargetHelper)
 
-NS_IMPL_EVENT_HANDLER(nsScreen, mozorientationchange)
+NS_IMPL_ADDREF(nsScreen)
+NS_IMPL_RELEASE(nsScreen)
+
+
+NS_IMETHODIMP
+nsScreen::SetDocShell(nsIDocShell* aDocShell)
+{
+   mDocShell = aDocShell; // Weak Reference
+   return NS_OK;
+}
 
 NS_IMETHODIMP
 nsScreen::GetTop(PRInt32* aTop)
@@ -243,7 +220,7 @@ nsScreen::GetAvailTop(PRInt32* aAvailTop)
 nsDeviceContext*
 nsScreen::GetDeviceContext()
 {
-  return nsLayoutUtils::GetDeviceContextForScreenInfo(GetOwner());
+  return nsLayoutUtils::GetDeviceContextForScreenInfo(mDocShell);
 }
 
 nsresult
@@ -284,145 +261,80 @@ nsScreen::GetAvailRect(nsRect& aRect)
   return NS_OK;
 }
 
-void
-nsScreen::Notify(const ScreenOrientationWrapper& aOrientation)
-{
-  ScreenOrientation previousOrientation = mOrientation;
-  mOrientation = aOrientation.orientation;
+namespace {
 
-  NS_ASSERTION(mOrientation != eScreenOrientation_None &&
-               mOrientation != eScreenOrientation_EndGuard &&
-               mOrientation != eScreenOrientation_Portrait &&
-               mOrientation != eScreenOrientation_Landscape,
-               "Invalid orientation value passed to notify method!");
-
-  if (mOrientation != previousOrientation) {
-    // TODO: use an helper method, see bug 720768.
-    nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nsnull, nsnull);
-    nsresult rv = event->InitEvent(NS_LITERAL_STRING("mozorientationchange"), false, false);
-    if (NS_FAILED(rv)) {
-      return;
-    }
-
-    rv = event->SetTrusted(true);
-    if (NS_FAILED(rv)) {
-      return;
-    }
-
-    bool dummy;
-    rv = DispatchEvent(event, &dummy);
-    if (NS_FAILED(rv)) {
-      return;
-    }
-  }
-}
-
-NS_IMETHODIMP
-nsScreen::GetMozOrientation(nsAString& aOrientation)
-{
-  switch (mOrientation) {
-    case eScreenOrientation_None:
-    case eScreenOrientation_EndGuard:
-    case eScreenOrientation_Portrait:
-    case eScreenOrientation_Landscape:
-      NS_ASSERTION(false, "Shouldn't be used when getting value!");
-      return NS_ERROR_FAILURE;
-    case eScreenOrientation_PortraitPrimary:
-      aOrientation.AssignLiteral("portrait-primary");
-      break;
-    case eScreenOrientation_PortraitSecondary:
-      aOrientation.AssignLiteral("portrait-secondary");
-      break;
-    case eScreenOrientation_LandscapePrimary:
-      aOrientation.AssignLiteral("landscape-primary");
-      break;
-    case eScreenOrientation_LandscapeSecondary:
-      aOrientation.AssignLiteral("landscape-secondary");
-      break;
+bool IsWhiteListed(nsIDocShell *aDocShell) {
+  nsCOMPtr<nsIDocShellTreeItem> ds = do_QueryInterface(aDocShell);
+  if (!ds) {
+    return false;
   }
 
-  return NS_OK;
+  PRInt32 itemType;
+  ds->GetItemType(&itemType);
+  if (itemType == nsIDocShellTreeItem::typeChrome) {
+    return true;
+  }
+
+  nsCOMPtr<nsIDocument> doc = do_GetInterface(aDocShell);
+  nsIPrincipal *principal = doc->NodePrincipal();
+
+  nsCOMPtr<nsIURI> principalURI;
+  principal->GetURI(getter_AddRefs(principalURI));
+  if (nsContentUtils::URIIsChromeOrInPref(principalURI,
+                                          "dom.mozScreenWhitelist")) {
+    return true;
+  }
+
+  return false;
 }
 
-NS_IMETHODIMP
-nsScreen::MozLockOrientation(const nsAString& aOrientation, bool* aReturn)
-{
-  ScreenOrientation orientation;
+} // anonymous namespace
 
-  if (aOrientation.EqualsLiteral("portrait")) {
-    orientation = eScreenOrientation_Portrait;
-  } else if (aOrientation.EqualsLiteral("portrait-primary")) {
-    orientation = eScreenOrientation_PortraitPrimary;
-  } else if (aOrientation.EqualsLiteral("portrait-secondary")) {
-    orientation = eScreenOrientation_PortraitSecondary;
-  } else if (aOrientation.EqualsLiteral("landscape")) {
-    orientation = eScreenOrientation_Landscape;
-  } else if (aOrientation.EqualsLiteral("landscape-primary")) {
-    orientation = eScreenOrientation_LandscapePrimary;
-  } else if (aOrientation.EqualsLiteral("landscape-secondary")) {
-    orientation = eScreenOrientation_LandscapeSecondary;
-  } else {
-    *aReturn = false;
+nsresult
+nsScreen::GetMozEnabled(bool *aEnabled)
+{
+  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
+    *aEnabled = true;
     return NS_OK;
   }
 
-  if (!GetOwner()) {
-    *aReturn = false;
+  *aEnabled = hal::GetScreenEnabled();
+  return NS_OK;
+}
+
+nsresult
+nsScreen::SetMozEnabled(bool aEnabled)
+{
+  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
     return NS_OK;
   }
 
-  if (!IsChromeType(GetOwner()->GetDocShell())) {
-    bool fullscreen;
-    GetOwner()->GetFullScreen(&fullscreen);
-    if (!fullscreen) {
-      *aReturn = false;
-      return NS_OK;
-    }
+  // TODO bug 707589: When the screen's state changes, all visible windows
+  // should fire a visibility change event.
+  hal::SetScreenEnabled(aEnabled);
+  return NS_OK;
+}
 
-    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
-    if (!target) {
-      *aReturn = false;
-      return NS_OK;
-    }
-
-    if (!mEventListener) {
-      mEventListener = new FullScreenEventListener();
-    }
-
-    target->AddSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                   mEventListener, true);
+nsresult
+nsScreen::GetMozBrightness(double *aBrightness)
+{
+  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
+    *aBrightness = 1;
+    return NS_OK;
   }
 
-  *aReturn = hal::LockScreenOrientation(orientation);
+  *aBrightness = hal::GetScreenBrightness();
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsScreen::MozUnlockOrientation()
+nsresult
+nsScreen::SetMozBrightness(double aBrightness)
 {
-  hal::UnlockScreenOrientation();
-  return NS_OK;
-}
+  if (!sAllowScreenEnabledProperty || !IsWhiteListed(mDocShell)) {
+    return NS_OK;
+  }
 
-NS_IMPL_ISUPPORTS1(nsScreen::FullScreenEventListener, nsIDOMEventListener)
-
-NS_IMETHODIMP
-nsScreen::FullScreenEventListener::HandleEvent(nsIDOMEvent* aEvent)
-{
-#ifdef DEBUG
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
-  MOZ_ASSERT(eventType.EqualsLiteral("mozfullscreenchange"));
-#endif
-
-  nsCOMPtr<nsIDOMEventTarget> target;
-  aEvent->GetCurrentTarget(getter_AddRefs(target));
-
-  target->RemoveSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                    this, true);
-
-  hal::UnlockScreenOrientation();
-
+  NS_ENSURE_TRUE(0 <= aBrightness && aBrightness <= 1, NS_ERROR_INVALID_ARG);
+  hal::SetScreenBrightness(aBrightness);
   return NS_OK;
 }

@@ -47,10 +47,8 @@
 #include "nsDOMJSUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsNullPrincipal.h"
-#include "mozilla/dom/bindings/Utils.h"
 
 using namespace mozilla;
-using mozilla::dom::bindings::DestroyProtoOrIfaceCache;
 
 /***************************************************************************/
 
@@ -172,7 +170,6 @@ SafeFinalize(JSContext* cx, JSObject* obj)
     nsIScriptObjectPrincipal* sop =
         static_cast<nsIScriptObjectPrincipal*>(xpc_GetJSPrivate(obj));
     NS_IF_RELEASE(sop);
-    DestroyProtoOrIfaceCache(obj);
 }
 
 static JSClass global_class = {

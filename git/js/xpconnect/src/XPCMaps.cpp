@@ -675,6 +675,32 @@ XPCWrappedNativeProtoMap::~XPCWrappedNativeProtoMap()
 }
 
 /***************************************************************************/
+// implement XPCNativeWrapperMap...
+
+// static
+XPCNativeWrapperMap*
+XPCNativeWrapperMap::newMap(int size)
+{
+    XPCNativeWrapperMap* map = new XPCNativeWrapperMap(size);
+    if (map && map->mTable)
+        return map;
+    delete map;
+    return nsnull;
+}
+
+XPCNativeWrapperMap::XPCNativeWrapperMap(int size)
+{
+    mTable = JS_NewDHashTable(JS_DHashGetStubOps(), nsnull,
+                              sizeof(JSDHashEntryStub), size);
+}
+
+XPCNativeWrapperMap::~XPCNativeWrapperMap()
+{
+    if (mTable)
+        JS_DHashTableDestroy(mTable);
+}
+
+/***************************************************************************/
 // implement WrappedNative2WrapperMap...
 
 struct JSDHashTableOps
@@ -802,5 +828,20 @@ WrappedNative2WrapperMap::AddLink(JSObject* wrappedObject, Link* oldLink)
 
     return true;
 }
+
+/***************************************************************************/
+// implement JSObject2JSObjectMap...
+
+struct JSDHashTableOps
+JSObject2JSObjectMap::sOps = {
+    JS_DHashAllocTable,
+    JS_DHashFreeTable,
+    JS_DHashVoidPtrKeyStub,
+    JS_DHashMatchEntryStub,
+    JS_DHashMoveEntryStub,
+    JS_DHashClearEntryStub,
+    JS_DHashFinalizeStub,
+    nsnull
+};
 
 /***************************************************************************/

@@ -448,20 +448,14 @@ TISInputSourceWrapper::InitByLayoutID(SInt32 aLayoutID,
     case 0:
       InitByInputSourceID("com.apple.keylayout.US");
       break;
-    case 1:
+    case -18944:
       InitByInputSourceID("com.apple.keylayout.Greek");
       break;
-    case 2:
+    case 3:
       InitByInputSourceID("com.apple.keylayout.German");
       break;
-    case 3:
+    case 224:
       InitByInputSourceID("com.apple.keylayout.Swedish-Pro");
-      break;
-    case 4:
-      InitByInputSourceID("com.apple.keylayout.DVORAK-QWERTYCMD");
-      break;
-    case 5:
-      InitByInputSourceID("com.apple.keylayout.Thai");
       break;
     default:
       Clear();
@@ -882,12 +876,8 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
 
   // If the current keyboard layout is switched by the Cmd key,
   // we should append cmdedChar and shiftedCmdChar that are
-  // Latin char for the key.
-  // If the keyboard layout is Dvorak-QWERTY, we should append them only when
-  // command key is pressed because when command key isn't pressed, uncmded
-  // chars have been appended already.
-  if ((cmdedChar || cmdedShiftChar) && isCmdSwitchLayout &&
-      (aKeyEvent.isMeta || !isDvorakQWERTY)) {
+  // Latin char for the key. But don't append at Dvorak-QWERTY.
+  if ((cmdedChar || cmdedShiftChar) && isCmdSwitchLayout && !isDvorakQWERTY) {
     nsAlternativeCharCode altCharCodes(cmdedChar, cmdedShiftChar);
     aKeyEvent.alternativeCharCodes.AppendElement(altCharCodes);
   }

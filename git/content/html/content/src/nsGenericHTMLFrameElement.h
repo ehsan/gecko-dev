@@ -9,13 +9,15 @@
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIDOMEventListener.h"
+#include "nsIWebProgressListener.h"
 
 /**
  * A helper class for frame elements
  */
 class nsGenericHTMLFrameElement : public nsGenericHTMLElement,
                                   public nsIFrameLoaderOwner,
-                                  public nsIMozBrowserFrame
+                                  public nsIMozBrowserFrame,
+                                  public nsIWebProgressListener
 {
 public:
   nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -32,6 +34,7 @@ public:
   NS_DECL_NSIFRAMELOADEROWNER
   NS_DECL_NSIDOMMOZBROWSERFRAME
   NS_DECL_NSIMOZBROWSERFRAME
+  NS_DECL_NSIWEBPROGRESSLISTENER
 
   // nsIContent
   virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
@@ -58,6 +61,9 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGenericHTMLFrameElement,
                                                      nsGenericHTMLElement)
+
+  // Non-COM version of nsIMozBrowserFrame::GetReallyIsBrowser.
+  bool GetReallyIsBrowser();
 
 protected:
   /**
@@ -89,7 +95,13 @@ protected:
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
   nsresult GetContentWindow(nsIDOMWindow** aContentWindow);
 
+  void MaybeEnsureBrowserFrameListenersRegistered();
+  nsresult MaybeFireBrowserEvent(const nsAString &aEventName,
+                                 const nsAString &aEventType,
+                                 const nsAString &aValue = EmptyString());
+
   nsRefPtr<nsFrameLoader> mFrameLoader;
+  nsRefPtr<TitleChangedListener> mTitleChangedListener;
 
   // True when the element is created by the parser
   // using NS_FROM_PARSER_NETWORK flag.

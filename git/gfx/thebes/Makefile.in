@@ -173,6 +173,8 @@ EXPORTS	+= \
 	gfxGDIFont.h \
 	gfxGDIFontList.h \
 	gfxPlatformFontList.h \
+	gfxAtoms.h \
+	gfxAtomList.h \
 	$(NULL)
 endif
 
@@ -189,6 +191,7 @@ CPPSRCS	= \
 	gfxFontMissingGlyphs.cpp \
 	gfxFontTest.cpp \
 	gfxFontUtils.cpp \
+	gfxAtoms.cpp \
 	gfxMatrix.cpp \
 	gfxPath.cpp \
 	gfxPattern.cpp \

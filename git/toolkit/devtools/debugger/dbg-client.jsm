@@ -541,16 +541,12 @@ ThreadClient.prototype = {
   },
 
   /**
-   * Resume a paused thread. If the optional aLimit parameter is present, then
-   * the thread will also pause when that limit is reached.
+   * Resume a paused thread.
    *
    * @param function aOnResponse
    *        Called with the response packet.
-   * @param [optional] object aLimit
-   *        An object with a type property set to the appropriate limit (next,
-   *        step, or finish) per the remote debugging protocol specification.
    */
-  resume: function TC_resume(aOnResponse, aLimit) {
+  resume: function TC_resume(aOnResponse) {
     this._assertPaused("resume");
 
     // Put the client in a tentative "resuming" state so we can prevent
@@ -558,8 +554,7 @@ ThreadClient.prototype = {
     this._state = "resuming";
 
     let self = this;
-    let packet = { to: this._actor, type: DebugProtocolTypes.resume,
-                   resumeLimit: aLimit };
+    let packet = { to: this._actor, type: DebugProtocolTypes.resume };
     this._client.request(packet, function(aResponse) {
       if (aResponse.error) {
         // There was an error resuming, back to paused state.
@@ -569,36 +564,6 @@ ThreadClient.prototype = {
         aOnResponse(aResponse);
       }
     });
-  },
-
-  /**
-   * Step over a function call.
-   *
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  stepOver: function TC_stepOver(aOnResponse) {
-    this.resume(aOnResponse, { type: "next" });
-  },
-
-  /**
-   * Step into a function call.
-   *
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  stepIn: function TC_stepIn(aOnResponse) {
-    this.resume(aOnResponse, { type: "step" });
-  },
-
-  /**
-   * Step out of a function call.
-   *
-   * @param function aOnResponse
-   *        Called with the response packet.
-   */
-  stepOut: function TC_stepOut(aOnResponse) {
-    this.resume(aOnResponse, { type: "finish" });
   },
 
   /**

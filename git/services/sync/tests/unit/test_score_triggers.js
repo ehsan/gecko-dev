@@ -43,7 +43,12 @@ function sync_httpd_setup() {
 }
 
 function setUp() {
-  new SyncTestingInfrastructure("johndoe", "ilovejane", "sekrit");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "sekrit";
+  Service.serverURL = TEST_SERVER_URL;
+  Service.clusterURL = TEST_CLUSTER_URL;
+  new FakeCryptoService();
 }
 
 function run_test() {

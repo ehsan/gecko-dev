@@ -39,7 +39,6 @@
 
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
-#include "nsIScriptGlobalObject.h"
 #include "nsCOMPtr.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -74,10 +73,8 @@ public:
 
   virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
 
-  virtual void SetGlobalObject(nsIScriptGlobalObject* aGlobalObject)
-  {
-    mGlobalObjectRef = aGlobalObject;
-  }
+  virtual PRUint32 GetScriptTypeID()
+    { return nsIProgrammingLanguage::JAVASCRIPT; }
 
   virtual nsresult EvaluateString(const nsAString& aScript,
                                   JSObject* aScopeObject,
@@ -85,7 +82,7 @@ public:
                                   nsIPrincipal *originPrincipal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
-                                  JSVersion aVersion,
+                                  PRUint32 aVersion,
                                   nsAString *aRetValue,
                                   bool* aIsUndefined);
   virtual nsresult EvaluateStringWithValue(const nsAString& aScript,
@@ -143,7 +140,12 @@ public:
                                       nsIPrincipal *aPrincipal,
                                       JSObject** aNativeGlobal,
                                       nsISupports **aHolder);
+  virtual nsresult ConnectToInner(nsIScriptGlobalObject *aNewInner,
+                                  JSObject *aOuterGlobal);
   virtual nsresult InitContext();
+  virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
+                                     nsIScriptGlobalObject *aCurrentInner);
+  virtual nsresult SetOuterObject(JSObject* aOuterObject);
   virtual nsresult InitOuterWindow();
   virtual bool IsContextInitialized();
 
@@ -325,6 +327,10 @@ public:
 public:
   // nsISupports
   NS_DECL_ISUPPORTS
+
+  virtual PRUint32 GetScriptTypeID() {
+    return nsIProgrammingLanguage::JAVASCRIPT;
+  }
 
   virtual already_AddRefed<nsIScriptContext> CreateContext();
 

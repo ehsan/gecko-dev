@@ -14,6 +14,7 @@ function test() {
     return;
   }
 
+  requestLongerTimeout(10);
   waitForExplicitFinish();
 
   createTab(function() {
@@ -43,7 +44,6 @@ function whenHighlighting() {
     "Highlighting a node that's not already visible should trigger a reset!");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
     Services.obs.addObserver(whenUnhighlighting, UNHIGHLIGHTING, false);
     presenter.highlightNode(null);
   });
@@ -56,13 +56,14 @@ function whenUnhighlighting() {
     "After unhighlighting a node, it shouldn't be highlighted anymore. D'oh.");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
     Services.obs.addObserver(cleanup, DESTROYED, false);
     InspectorUI.closeInspectorUI();
   });
 }
 
 function cleanup() {
+  Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
+  Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
   Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();

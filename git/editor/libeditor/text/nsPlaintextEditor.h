@@ -147,8 +147,6 @@ public:
   virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
                                         nsIPrivateTextRangeList *aTextRange);
 
-  virtual already_AddRefed<nsIContent> GetInputEventTargetContent();
-
   /* ------------ Utility Routines, not part of public API -------------- */
   NS_IMETHOD TypedText(const nsAString& aString, PRInt32 aAction);
 

@@ -127,7 +127,7 @@ WeakMapBase::restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector)
 
 } /* namespace js */
 
-typedef WeakMap<HeapPtrObject, HeapValue> ObjectValueMap;
+typedef WeakMap<HeapPtr<JSObject>, HeapValue> ObjectValueMap;
 
 static ObjectValueMap *
 GetObjectMap(JSObject *obj)
@@ -398,7 +398,7 @@ js_InitWeakMapClass(JSContext *cx, JSObject *obj)
     if (!weakMapProto)
         return NULL;
 
-    JSFunction *ctor = global->createConstructor(cx, WeakMap_construct,
+    JSFunction *ctor = global->createConstructor(cx, WeakMap_construct, &WeakMapClass,
                                                  CLASS_ATOM(cx, WeakMap), 0);
     if (!ctor)
         return NULL;

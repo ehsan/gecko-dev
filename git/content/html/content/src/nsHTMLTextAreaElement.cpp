@@ -1293,7 +1293,6 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     if (aName == nsGkAtoms::readonly) {
       UpdateEditableState(aNotify);
-      mState->UpdateEditableState(aNotify);
     }
     UpdateState(aNotify);
   }

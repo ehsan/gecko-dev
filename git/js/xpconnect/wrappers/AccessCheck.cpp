@@ -49,6 +49,7 @@
 #include "XPCWrapper.h"
 #include "XrayWrapper.h"
 #include "FilteringWrapper.h"
+#include "WrapperFactory.h"
 
 #include "jsfriendapi.h"
 
@@ -88,9 +89,6 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
 bool
 AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
 {
-    // The caller must ensure that the given wrapper wraps a Location object.
-    MOZ_ASSERT(WrapperFactory::IsLocationObject(js::UnwrapObject(wrapper)));
-
     // Location objects are parented to the outer window for which they
     // were created. This gives us an easy way to determine whether our
     // object is same origin with the current inner window:
@@ -233,10 +231,6 @@ static nsIPrincipal *
 GetPrincipal(JSObject *obj)
 {
     NS_ASSERTION(!IS_SLIM_WRAPPER(obj), "global object is a slim wrapper?");
-    NS_ASSERTION(js::GetObjectClass(obj)->flags & JSCLASS_IS_GLOBAL,
-                 "Not a global object?");
-    NS_ASSERTION(!(js::GetObjectClass(obj)->flags & JSCLASS_IS_DOMJSCLASS),
-                 "Not sure what we should do with these yet!");
     if (!IS_WN_WRAPPER(obj)) {
         NS_ASSERTION(!(~js::GetObjectClass(obj)->flags &
                        (JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_HAS_PRIVATE)),
@@ -310,15 +304,6 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
 
     JSObject *obj = Wrapper::wrappedObject(wrapper);
 
-    // LocationPolicy checks PUNCTURE first, so we should never get here for
-    // Location wrappers. For all other wrappers interested in cross-origin
-    // semantics, we want to allow puncturing only for the same-origin
-    // document.domain case.
-    if (act == Wrapper::PUNCTURE) {
-        MOZ_ASSERT(!WrapperFactory::IsLocationObject(obj));
-        return documentDomainMakesSameOrigin(cx, obj);
-    }
-
     const char *name;
     js::Class *clasp = js::GetObjectClass(obj);
     NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
@@ -335,13 +320,8 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
     if (IsWindow(name) && IsFrameId(cx, obj, id))
         return true;
 
-    // Do the dynamic document.domain check.
-    //
-    // Location also needs a dynamic access check, but it's a different one, and
-    // we do it in LocationPolicy::check. Before LocationPolicy::check does that
-    // though, it first calls this function to check whether the property is
-    // accessible to anyone regardless of origin. So make sure not to do the
-    // document.domain check in that case.
+    // We only reach this point for cross origin location objects (see
+    // SameOriginOrCrossOriginAccessiblePropertiesOnly::check).
     if (!IsLocation(name) && documentDomainMakesSameOrigin(cx, obj))
         return true;
 
@@ -510,10 +490,6 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
     if (act == Wrapper::CALL) {
         perm = PermitObjectAccess;
         return true;
-    }
-    if (act == Wrapper::PUNCTURE) {
-        perm = DenyAccess;
-        return false;
     }
 
     perm = DenyAccess;

@@ -35,11 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QGraphicsSceneHoverEvent>
-#include <QGraphicsSceneMouseEvent>
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
-#include <QInputContext>
-#endif
+#include <QtGui/QInputContext>
+#include <QtGui/QGraphicsSceneHoverEvent>
+#include <QtGui/QGraphicsSceneMouseEvent>
 #include <QtCore/QTimer>
 
 #include "mozqwidget.h"
@@ -586,7 +584,7 @@ void MozQWidget::showVKB()
 
     gPendingVKBOpen = false;
 
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0)) && (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     QWidget* focusWidget = qApp->focusWidget();
 
     if (focusWidget) {
@@ -624,7 +622,7 @@ void MozQWidget::hideVKB()
         return;
     }
 
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0)) && (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     QInputContext *inputContext = qApp->inputContext();
     if (!inputContext) {
         NS_WARNING("Closing SIP: but no input context");

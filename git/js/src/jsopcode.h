@@ -521,10 +521,10 @@ FlowsIntoNext(JSOp op)
 
 /*
  * Counts accumulated for a single opcode in a script. The counts tracked vary
- * between opcodes, and this structure ensures that counts are accessed in a
- * coherent fashion.
+ * between opcodes, and this structure ensures that counts are accessed in
+ * a coherent fashion.
  */
-class PCCounts
+class OpcodeCounts
 {
     friend struct ::JSScript;
     double *counts;
@@ -542,11 +542,11 @@ class PCCounts
         BASE_METHODJIT_CODE,
         BASE_METHODJIT_PICS,
 
-        BASE_LIMIT
+        BASE_COUNT
     };
 
     enum AccessCounts {
-        ACCESS_MONOMORPHIC = BASE_LIMIT,
+        ACCESS_MONOMORPHIC = BASE_COUNT,
         ACCESS_DIMORPHIC,
         ACCESS_POLYMORPHIC,
 
@@ -561,7 +561,7 @@ class PCCounts
         ACCESS_STRING,
         ACCESS_OBJECT,
 
-        ACCESS_LIMIT
+        ACCESS_COUNT
     };
 
     static bool accessOp(JSOp op) {
@@ -569,7 +569,7 @@ class PCCounts
          * Access ops include all name, element and property reads, as well as
          * SETELEM and SETPROP (for ElementCounts/PropertyCounts alignment).
          */
-        if (op == JSOP_SETELEM || op == JSOP_SETPROP)
+        if (op == JSOP_SETELEM || op == JSOP_SETPROP || op == JSOP_SETMETHOD)
             return true;
         int format = js_CodeSpec[op].format;
         return !!(format & (JOF_NAME | JOF_GNAME | JOF_ELEM | JOF_PROP))
@@ -577,7 +577,7 @@ class PCCounts
     }
 
     enum ElementCounts {
-        ELEM_ID_INT = ACCESS_LIMIT,
+        ELEM_ID_INT = ACCESS_COUNT,
         ELEM_ID_DOUBLE,
         ELEM_ID_OTHER,
         ELEM_ID_UNKNOWN,
@@ -587,7 +587,7 @@ class PCCounts
         ELEM_OBJECT_DENSE,
         ELEM_OBJECT_OTHER,
 
-        ELEM_LIMIT
+        ELEM_COUNT
     };
 
     static bool elementOp(JSOp op) {
@@ -595,11 +595,11 @@ class PCCounts
     }
 
     enum PropertyCounts {
-        PROP_STATIC = ACCESS_LIMIT,
+        PROP_STATIC = ACCESS_COUNT,
         PROP_DEFINITE,
         PROP_OTHER,
 
-        PROP_LIMIT
+        PROP_COUNT
     };
 
     static bool propertyOp(JSOp op) {
@@ -607,12 +607,12 @@ class PCCounts
     }
 
     enum ArithCounts {
-        ARITH_INT = BASE_LIMIT,
+        ARITH_INT = BASE_COUNT,
         ARITH_DOUBLE,
         ARITH_OTHER,
         ARITH_UNKNOWN,
 
-        ARITH_LIMIT
+        ARITH_COUNT
     };
 
     static bool arithOp(JSOp op) {
@@ -623,14 +623,14 @@ class PCCounts
     {
         if (accessOp(op)) {
             if (elementOp(op))
-                return ELEM_LIMIT;
+                return ELEM_COUNT;
             if (propertyOp(op))
-                return PROP_LIMIT;
-            return ACCESS_LIMIT;
+                return PROP_COUNT;
+            return ACCESS_COUNT;
         }
         if (arithOp(op))
-            return ARITH_LIMIT;
-        return BASE_LIMIT;
+            return ARITH_COUNT;
+        return BASE_COUNT;
     }
 
     static const char *countName(JSOp op, size_t which);

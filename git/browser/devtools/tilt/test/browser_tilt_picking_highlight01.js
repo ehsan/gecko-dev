@@ -23,7 +23,7 @@ function test() {
         presenter = instance.presenter;
         Services.obs.addObserver(whenHighlighting, HIGHLIGHTING, false);
 
-        presenter._onInitializationFinished = function() {
+        presenter._onSetupMesh = function() {
           let contentDocument = presenter.contentWindow.document;
           let div = contentDocument.getElementById("first-law");
 
@@ -43,7 +43,6 @@ function whenHighlighting() {
     "Highlighting a node that's already visible shouldn't trigger a reset.");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
     Services.obs.addObserver(whenUnhighlighting, UNHIGHLIGHTING, false);
     presenter.highlightNode(null);
   });
@@ -56,13 +55,14 @@ function whenUnhighlighting() {
     "After unhighlighting a node, it shouldn't be highlighted anymore. D'oh.");
 
   executeSoon(function() {
-    Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
     Services.obs.addObserver(cleanup, DESTROYED, false);
     InspectorUI.closeInspectorUI();
   });
 }
 
 function cleanup() {
+  Services.obs.removeObserver(whenHighlighting, HIGHLIGHTING);
+  Services.obs.removeObserver(whenUnhighlighting, UNHIGHLIGHTING);
   Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();

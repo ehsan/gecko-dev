@@ -99,7 +99,7 @@ ic::GetGlobalName(VMFrame &f, ic::GetGlobalNameIC *ic)
     }
 
     if (!shape ||
-        !shape->hasDefaultGetter() ||
+        !shape->hasDefaultGetterOrIsMethod() ||
         !shape->hasSlot())
     {
         if (shape)
@@ -165,7 +165,8 @@ UpdateSetGlobalName(VMFrame &f, ic::SetGlobalNameIC *ic, JSObject *obj, const Sh
     if (!shape)
         return Lookup_Uncacheable;
 
-    if (!shape->hasDefaultSetter() ||
+    if (shape->isMethod() ||
+        !shape->hasDefaultSetter() ||
         !shape->writable() ||
         !shape->hasSlot() ||
         obj->watched())
@@ -626,7 +627,7 @@ class CallCompiler : public BaseCompiler
         masm.storePtr(ImmPtr((void *) ic.frameSize.rejoinState(f.pc(), false)),
                       FrameAddress(offsetof(VMFrame, stubRejoin)));
 
-        masm.bumpStubCount(f.script(), f.pc(), Registers::tempCallReg());
+        masm.bumpStubCounter(f.script(), f.pc(), Registers::tempCallReg());
 
         /* Try and compile. On success we get back the nmap pointer. */
         void *compilePtr = JS_FUNC_TO_DATA_PTR(void *, stubs::CompileFunction);
@@ -801,7 +802,7 @@ class CallCompiler : public BaseCompiler
 
         RecompilationMonitor monitor(cx);
 
-        if (!CallJSNative(cx, fun->native(), args))
+        if (!CallJSNative(cx, fun->u.n.native, args))
             THROWV(true);
 
         types::TypeScript::Monitor(f.cx, f.script(), f.pc(), args.rval());
@@ -850,7 +851,7 @@ class CallCompiler : public BaseCompiler
 
         /* N.B. After this call, the frame will have a dynamic frame size. */
         if (ic.frameSize.isDynamic()) {
-            masm.bumpStubCount(f.script(), f.pc(), Registers::tempCallReg());
+            masm.bumpStubCounter(f.script(), f.pc(), Registers::tempCallReg());
             masm.fallibleVMCall(cx->typeInferenceEnabled(),
                                 JS_FUNC_TO_DATA_PTR(void *, ic::SplatApplyArgs),
                                 f.regs.pc, NULL, initialFrameDepth);
@@ -858,7 +859,7 @@ class CallCompiler : public BaseCompiler
 
         Registers tempRegs = Registers::tempCallRegMask();
         RegisterID t0 = tempRegs.takeAnyReg().reg();
-        masm.bumpStubCount(f.script(), f.pc(), t0);
+        masm.bumpStubCounter(f.script(), f.pc(), t0);
 
         int32_t storeFrameDepth = ic.frameSize.isStatic() ? initialFrameDepth : -1;
         masm.setupFallibleABICall(cx->typeInferenceEnabled(), f.regs.pc, storeFrameDepth);
@@ -904,7 +905,7 @@ class CallCompiler : public BaseCompiler
             masm.storeArg(1, argcReg.reg());
         masm.storeArg(0, cxReg);
 
-        js::Native native = fun->native();
+        js::Native native = fun->u.n.native;
 
         /*
          * Call RegExp.test instead of exec if the result will not be used or
@@ -1092,7 +1093,7 @@ ic::SplatApplyArgs(VMFrame &f)
     }
 
     Value *vp = f.regs.sp - 4;
-    JS_ASSERT(JS_CALLEE(cx, vp).toObject().toFunction()->native() == js_fun_apply);
+    JS_ASSERT(JS_CALLEE(cx, vp).toObject().toFunction()->u.n.native == js_fun_apply);
 
     /*
      * This stub should mimic the steps taken by js_fun_apply. Step 1 and part

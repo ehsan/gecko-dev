@@ -62,6 +62,9 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#if JS_HAS_XDR
+#include "jsxdrapi.h"
+#endif
 
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
@@ -69,7 +72,6 @@
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Retcon.h"
 #include "vm/Debugger.h"
-#include "vm/Xdr.h"
 
 #include "jsinferinlines.h"
 #include "jsinterpinlines.h"
@@ -294,11 +296,10 @@ Bindings::trace(JSTracer *trc)
         MarkShape(trc, &lastBinding, "shape");
 }
 
-} /* namespace js */
+#if JS_HAS_XDR
 
-template<XDRMode mode>
 static bool
-XDRScriptConst(XDRState<mode> *xdr, HeapValue *vp)
+XDRScriptConst(JSXDRState *xdr, HeapValue *vp)
 {
     /*
      * A script constant can be an arbitrary primitive value as they are used
@@ -316,7 +317,7 @@ XDRScriptConst(XDRState<mode> *xdr, HeapValue *vp)
     };
 
     uint32_t tag;
-    if (mode == XDR_ENCODE) {
+    if (xdr->mode == JSXDR_ENCODE) {
         if (vp->isInt32()) {
             tag = SCRIPT_INT;
         } else if (vp->isDouble()) {
@@ -335,63 +336,65 @@ XDRScriptConst(XDRState<mode> *xdr, HeapValue *vp)
         }
     }
 
-    if (!xdr->codeUint32(&tag))
+    if (!JS_XDRUint32(xdr, &tag))
         return false;
 
     switch (tag) {
       case SCRIPT_INT: {
         uint32_t i;
-        if (mode == XDR_ENCODE)
+        if (xdr->mode == JSXDR_ENCODE)
             i = uint32_t(vp->toInt32());
-        if (!xdr->codeUint32(&i))
+        if (!JS_XDRUint32(xdr, &i))
             return JS_FALSE;
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(Int32Value(int32_t(i)));
         break;
       }
       case SCRIPT_DOUBLE: {
         double d;
-        if (mode == XDR_ENCODE)
+        if (xdr->mode == JSXDR_ENCODE)
             d = vp->toDouble();
-        if (!xdr->codeDouble(&d))
+        if (!JS_XDRDouble(xdr, &d))
             return false;
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(DoubleValue(d));
         break;
       }
       case SCRIPT_STRING: {
         JSString *str;
-        if (mode == XDR_ENCODE)
+        if (xdr->mode == JSXDR_ENCODE)
             str = vp->toString();
-        if (!xdr->codeString(&str))
+        if (!JS_XDRString(xdr, &str))
             return false;
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(StringValue(str));
         break;
       }
       case SCRIPT_TRUE:
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(BooleanValue(true));
         break;
       case SCRIPT_FALSE:
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(BooleanValue(false));
         break;
       case SCRIPT_NULL:
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(NullValue());
         break;
       case SCRIPT_VOID:
-        if (mode == XDR_DECODE)
+        if (xdr->mode == JSXDR_DECODE)
             vp->init(UndefinedValue());
         break;
     }
     return true;
 }
 
-template<XDRMode mode>
-bool
-js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
+static const char *
+SaveScriptFilename(JSContext *cx, const char *filename);
+
+JSBool
+XDRScript(JSXDRState *xdr, JSScript **scriptp)
 {
     enum ScriptBits {
         NoScriptRval,
@@ -401,18 +404,19 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         MayNeedArgsObj,
         NeedsArgsObj,
         OwnFilename,
-        ParentFilename
+        SharedFilename
     };
 
     uint32_t length, lineno, nslots;
-    uint32_t natoms, nsrcnotes, ntrynotes, nobjects, nregexps, nconsts, nClosedArgs, nClosedVars, i;
-    uint32_t prologLength, version;
+    uint32_t natoms, nsrcnotes, ntrynotes, nobjects, nregexps, nconsts, i;
+    uint32_t prologLength, version, encodedClosedCount;
+    uint16_t nClosedArgs = 0, nClosedVars = 0;
     uint32_t nTypeSets = 0;
     uint32_t scriptBits = 0;
 
-    JSContext *cx = xdr->cx();
+    JSContext *cx = xdr->cx;
     JSScript *script;
-    nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = nClosedArgs = nClosedVars = 0;
+    nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = 0;
     jssrcnote *notes = NULL;
 
     /* XDR arguments, local vars, and upvars. */
@@ -422,10 +426,9 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     nargs = nvars = Bindings::BINDING_COUNT_LIMIT;
 #endif
     uint32_t argsVars;
-    if (mode == XDR_ENCODE) {
+    if (xdr->mode == JSXDR_ENCODE) {
         script = *scriptp;
-        JS_ASSERT_IF(parentScript, parentScript->compartment() == script->compartment());
-    
+
         /* Should not XDR scripts optimized for a single global object. */
         JS_ASSERT(!JSScript::isValidOffset(script->globalsOffset));
 
@@ -433,9 +436,9 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         nvars = script->bindings.countVars();
         argsVars = (nargs << 16) | nvars;
     }
-    if (!xdr->codeUint32(&argsVars))
+    if (!JS_XDRUint32(xdr, &argsVars))
         return false;
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
         nargs = argsVars >> 16;
         nvars = argsVars & 0xFFFF;
     }
@@ -463,7 +466,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         }
 
         Vector<JSAtom *> names(cx);
-        if (mode == XDR_ENCODE) {
+        if (xdr->mode == JSXDR_ENCODE) {
             if (!script->bindings.getLocalNameArray(cx, &names))
                 return false;
             PodZero(bitmap, bitmapLength);
@@ -473,7 +476,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             }
         }
         for (unsigned i = 0; i < bitmapLength; ++i) {
-            if (!xdr->codeUint32(&bitmap[i]))
+            if (!JS_XDRUint32(xdr, &bitmap[i]))
                 return false;
         }
 
@@ -481,7 +484,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             if (i < nargs &&
                 !(bitmap[i >> JS_BITS_PER_UINT32_LOG2] & JS_BIT(i & (JS_BITS_PER_UINT32 - 1))))
             {
-                if (mode == XDR_DECODE) {
+                if (xdr->mode == JSXDR_DECODE) {
                     uint16_t dummy;
                     if (!bindings.addDestructuring(cx, &dummy))
                         return false;
@@ -492,11 +495,11 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             }
 
             JSAtom *name;
-            if (mode == XDR_ENCODE)
+            if (xdr->mode == JSXDR_ENCODE)
                 name = names[i];
-            if (!XDRAtom(xdr, &name))
+            if (!js_XDRAtom(xdr, &name))
                 return false;
-            if (mode == XDR_DECODE) {
+            if (xdr->mode == JSXDR_DECODE) {
                 BindingKind kind = (i < nargs)
                                    ? ARGUMENT
                                    : (bitmap[i >> JS_BITS_PER_UINT32_LOG2] &
@@ -509,22 +512,22 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         }
     }
 
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
         if (!bindings.ensureShape(cx))
             return false;
         bindings.makeImmutable();
     }
 
-    if (mode == XDR_ENCODE)
+    if (xdr->mode == JSXDR_ENCODE)
         length = script->length;
-    if (!xdr->codeUint32(&length))
+    if (!JS_XDRUint32(xdr, &length))
         return JS_FALSE;
 
-    if (mode == XDR_ENCODE) {
+    if (xdr->mode == JSXDR_ENCODE) {
         prologLength = script->mainOffset;
         JS_ASSERT(script->getVersion() != JSVERSION_UNKNOWN);
         version = (uint32_t)script->getVersion() | (script->nfixed << 16);
-        lineno = script->lineno;
+        lineno = (uint32_t)script->lineno;
         nslots = (uint32_t)script->nslots;
         nslots = (uint32_t)((script->staticLevel << 16) | script->nslots);
         natoms = script->natoms;
@@ -532,17 +535,18 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         notes = script->notes();
         nsrcnotes = script->numNotes();
 
-        if (JSScript::isValidOffset(script->constsOffset))
-            nconsts = script->consts()->length;
         if (JSScript::isValidOffset(script->objectsOffset))
             nobjects = script->objects()->length;
         if (JSScript::isValidOffset(script->regexpsOffset))
             nregexps = script->regexps()->length;
         if (JSScript::isValidOffset(script->trynotesOffset))
             ntrynotes = script->trynotes()->length;
-        /* no globals when encoding;  see assertion above */
-        nClosedArgs = script->nClosedArgs();
-        nClosedVars = script->nClosedVars();
+        if (JSScript::isValidOffset(script->constOffset))
+            nconsts = script->consts()->length;
+
+        nClosedArgs = script->nClosedArgs;
+        nClosedVars = script->nClosedVars;
+        encodedClosedCount = (nClosedArgs << 16) | nClosedVars;
 
         nTypeSets = script->nTypeSets;
 
@@ -565,46 +569,47 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
                 scriptBits |= (1 << NeedsArgsObj);
         }
         if (script->filename) {
-            scriptBits |= (parentScript && parentScript->filename == script->filename)
-                          ? (1 << ParentFilename)
-                          : (1 << OwnFilename);
+            scriptBits |= (script->filename != xdr->sharedFilename)
+                          ? (1 << OwnFilename)
+                          : (1 << SharedFilename);
         }
 
         JS_ASSERT(!script->compileAndGo);
         JS_ASSERT(!script->hasSingletons);
     }
 
-    if (!xdr->codeUint32(&prologLength))
+    if (!JS_XDRUint32(xdr, &prologLength))
         return JS_FALSE;
-    if (!xdr->codeUint32(&version))
+    if (!JS_XDRUint32(xdr, &version))
         return JS_FALSE;
 
     /*
      * To fuse allocations, we need srcnote, atom, objects, regexp, and trynote
      * counts early.
      */
-    if (!xdr->codeUint32(&natoms))
+    if (!JS_XDRUint32(xdr, &natoms))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nsrcnotes))
+    if (!JS_XDRUint32(xdr, &nsrcnotes))
         return JS_FALSE;
-    if (!xdr->codeUint32(&ntrynotes))
+    if (!JS_XDRUint32(xdr, &ntrynotes))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nobjects))
+    if (!JS_XDRUint32(xdr, &nobjects))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nregexps))
+    if (!JS_XDRUint32(xdr, &nregexps))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nconsts))
+    if (!JS_XDRUint32(xdr, &nconsts))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nClosedArgs))
+    if (!JS_XDRUint32(xdr, &encodedClosedCount))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nClosedVars))
+    if (!JS_XDRUint32(xdr, &nTypeSets))
         return JS_FALSE;
-    if (!xdr->codeUint32(&nTypeSets))
-        return JS_FALSE;
-    if (!xdr->codeUint32(&scriptBits))
+    if (!JS_XDRUint32(xdr, &scriptBits))
         return JS_FALSE;
 
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
+        nClosedArgs = encodedClosedCount >> 16;
+        nClosedVars = encodedClosedCount & 0xFFFF;
+
         /* Note: version is packed into the 32b space with another 16b value. */
         JSVersion version_ = JSVersion(version & JS_BITMASK(16));
         JS_ASSERT((version_ & VersionFlags::FULL_MASK) == unsigned(version_));
@@ -632,7 +637,7 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         if (scriptBits & (1 << UsesEval))
             script->usesEval = true;
         if (scriptBits & (1 << MayNeedArgsObj)) {
-            script->setMayNeedArgsObj();
+            script->mayNeedArgsObj_ = true;
             if (scriptBits & (1 << NeedsArgsObj))
                 script->setNeedsArgsObj(true);
         } else {
@@ -640,41 +645,59 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         }
     }
 
-    JS_STATIC_ASSERT(sizeof(jsbytecode) == 1);
-    JS_STATIC_ASSERT(sizeof(jssrcnote) == 1);
-    if (!xdr->codeBytes(script->code, length) ||
-        !xdr->codeBytes(notes, nsrcnotes) ||
-        !xdr->codeUint32(&lineno) ||
-        !xdr->codeUint32(&nslots)) {
+    if (!JS_XDRBytes(xdr, (char *)script->code, length * sizeof(jsbytecode)))
+        return false;
+
+    if (!JS_XDRBytes(xdr, (char *)notes, nsrcnotes * sizeof(jssrcnote)) ||
+        !JS_XDRUint32(xdr, &lineno) ||
+        !JS_XDRUint32(xdr, &nslots)) {
         return false;
     }
 
     if (scriptBits & (1 << OwnFilename)) {
-        const char *filename;
-        if (mode == XDR_ENCODE)
-            filename = script->filename;
-        if (!xdr->codeCString(&filename))
+        char *filename;
+        if (xdr->mode == JSXDR_ENCODE)
+            filename = const_cast<char *>(script->filename);
+        if (!JS_XDRCString(xdr, &filename))
             return false;
-        if (mode == XDR_DECODE) {
-            script->filename = SaveScriptFilename(cx, filename);
+        if (xdr->mode == JSXDR_DECODE) {
+            script->filename = SaveScriptFilename(xdr->cx, filename);
+            Foreground::free_(filename);
             if (!script->filename)
                 return false;
+            if (!xdr->sharedFilename)
+                xdr->sharedFilename = script->filename;
         }
-    } else if (scriptBits & (1 << ParentFilename)) {
-        JS_ASSERT(parentScript);
-        if (mode == XDR_DECODE)
-            script->filename = parentScript->filename;
+    } else if (scriptBits & (1 << SharedFilename)) {
+        JS_ASSERT(xdr->sharedFilename);
+        if (xdr->mode == JSXDR_DECODE)
+            script->filename = xdr->sharedFilename;
     }
 
-    if (mode == XDR_DECODE) {
-        script->lineno = lineno;
+    if (xdr->mode == JSXDR_DECODE) {
+        JS_ASSERT(!script->principals);
+        JS_ASSERT(!script->originPrincipals);
+
+        /* The origin principals must be normalized at this point. */ 
+        JS_ASSERT_IF(script->principals, script->originPrincipals);
+        if (xdr->principals) {
+            script->principals = xdr->principals;
+            JS_HoldPrincipals(xdr->principals);
+        }
+        if (xdr->originPrincipals) {
+            script->originPrincipals = xdr->originPrincipals;
+            JS_HoldPrincipals(xdr->originPrincipals);
+        }
+    }
+
+    if (xdr->mode == JSXDR_DECODE) {
+        script->lineno = (unsigned)lineno;
         script->nslots = uint16_t(nslots);
         script->staticLevel = uint16_t(nslots >> 16);
-        xdr->initScriptPrincipals(script);
     }
 
     for (i = 0; i != natoms; ++i) {
-        if (!XDRAtom(xdr, &script->atoms[i]))
+        if (!js_XDRAtom(xdr, &script->atoms[i]))
             return false;
     }
 
@@ -687,16 +710,16 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
     for (i = 0; i != nobjects; ++i) {
         HeapPtr<JSObject> *objp = &script->objects()->vector[i];
         uint32_t isBlock;
-        if (mode == XDR_ENCODE) {
+        if (xdr->mode == JSXDR_ENCODE) {
             JSObject *obj = *objp;
             JS_ASSERT(obj->isFunction() || obj->isStaticBlock());
             isBlock = obj->isBlock() ? 1 : 0;
         }
-        if (!xdr->codeUint32(&isBlock))
+        if (!JS_XDRUint32(xdr, &isBlock))
             return false;
         if (isBlock == 0) {
             JSObject *tmp = *objp;
-            if (!XDRInterpretedFunction(xdr, &tmp, parentScript))
+            if (!XDRFunctionObject(xdr, &tmp))
                 return false;
             *objp = tmp;
         } else {
@@ -712,11 +735,11 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             return false;
     }
     for (i = 0; i != nClosedArgs; ++i) {
-        if (!xdr->codeUint32(&script->closedArgs()->vector[i]))
+        if (!JS_XDRUint32(xdr, &script->closedSlots[i]))
             return false;
     }
     for (i = 0; i != nClosedVars; ++i) {
-        if (!xdr->codeUint32(&script->closedVars()->vector[i]))
+        if (!JS_XDRUint32(xdr, &script->closedSlots[nClosedArgs + i]))
             return false;
     }
 
@@ -735,16 +758,16 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         tn = tnfirst + ntrynotes;
         do {
             --tn;
-            if (mode == XDR_ENCODE) {
+            if (xdr->mode == JSXDR_ENCODE) {
                 kindAndDepth = (uint32_t(tn->kind) << 16)
                                | uint32_t(tn->stackDepth);
             }
-            if (!xdr->codeUint32(&kindAndDepth) ||
-                !xdr->codeUint32(&tn->start) ||
-                !xdr->codeUint32(&tn->length)) {
+            if (!JS_XDRUint32(xdr, &kindAndDepth) ||
+                !JS_XDRUint32(xdr, &tn->start) ||
+                !JS_XDRUint32(xdr, &tn->length)) {
                 return false;
             }
-            if (mode == XDR_DECODE) {
+            if (xdr->mode == JSXDR_DECODE) {
                 tn->kind = uint8_t(kindAndDepth >> 16);
                 tn->stackDepth = uint16_t(kindAndDepth);
             }
@@ -759,49 +782,47 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         }
     }
 
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
         if (cx->hasRunOption(JSOPTION_PCCOUNT))
-            (void) script->initScriptCounts(cx);
+            (void) script->initCounts(cx);
         *scriptp = script;
     }
 
     return true;
 }
 
-template bool
-js::XDRScript(XDRState<XDR_ENCODE> *xdr, JSScript **scriptp, JSScript *parentScript);
+#endif /* JS_HAS_XDR */
 
-template bool
-js::XDRScript(XDRState<XDR_DECODE> *xdr, JSScript **scriptp, JSScript *parentScript);
+} /* namespace js */
 
 bool
-JSScript::initScriptCounts(JSContext *cx)
+JSScript::initCounts(JSContext *cx)
 {
-    JS_ASSERT(!scriptCounts);
+    JS_ASSERT(!pcCounters);
 
-    size_t n = 0;
+    size_t count = 0;
 
     jsbytecode *pc, *next;
     for (pc = code; pc < code + length; pc = next) {
-        n += PCCounts::numCounts(JSOp(*pc));
+        count += OpcodeCounts::numCounts(JSOp(*pc));
         next = pc + GetBytecodeLength(pc);
     }
 
-    size_t bytes = (length * sizeof(PCCounts)) + (n * sizeof(double));
+    size_t bytes = (length * sizeof(OpcodeCounts)) + (count * sizeof(double));
     char *cursor = (char *) cx->calloc_(bytes);
     if (!cursor)
         return false;
 
     DebugOnly<char *> base = cursor;
 
-    scriptCounts.pcCountsVector = (PCCounts *) cursor;
-    cursor += length * sizeof(PCCounts);
+    pcCounters.counts = (OpcodeCounts *) cursor;
+    cursor += length * sizeof(OpcodeCounts);
 
     for (pc = code; pc < code + length; pc = next) {
-        scriptCounts.pcCountsVector[pc - code].counts = (double *) cursor;
-        size_t capacity = PCCounts::numCounts(JSOp(*pc));
+        pcCounters.counts[pc - code].counts = (double *) cursor;
+        size_t capacity = OpcodeCounts::numCounts(JSOp(*pc));
 #ifdef DEBUG
-        scriptCounts.pcCountsVector[pc - code].capacity = capacity;
+        pcCounters.counts[pc - code].capacity = capacity;
 #endif
         cursor += capacity * sizeof(double);
         next = pc + GetBytecodeLength(pc);
@@ -818,20 +839,22 @@ JSScript::initScriptCounts(JSContext *cx)
 }
 
 void
-JSScript::destroyScriptCounts(JSContext *cx)
+JSScript::destroyCounts(JSContext *cx)
 {
-    if (scriptCounts) {
-        cx->free_(scriptCounts.pcCountsVector);
-        scriptCounts.pcCountsVector = NULL;
+    if (pcCounters) {
+        cx->free_(pcCounters.counts);
+        pcCounters.counts = NULL;
     }
 }
+
+namespace js {
 
 /*
  * Shared script filename management.
  */
 
-const char *
-js::SaveScriptFilename(JSContext *cx, const char *filename)
+static const char *
+SaveScriptFilename(JSContext *cx, const char *filename)
 {
     JSCompartment *comp = cx->compartment;
 
@@ -866,6 +889,8 @@ js::SaveScriptFilename(JSContext *cx, const char *filename)
     return sfe->filename;
 }
 
+} /* namespace js */
+
 /*
  * Back up from a saved filename by its offset within its hash table entry.
  */
@@ -873,14 +898,14 @@ js::SaveScriptFilename(JSContext *cx, const char *filename)
     ((ScriptFilenameEntry *) ((fn) - offsetof(ScriptFilenameEntry, filename)))
 
 void
-js::MarkScriptFilename(const char *filename)
+js_MarkScriptFilename(const char *filename)
 {
     ScriptFilenameEntry *sfe = FILENAME_TO_SFE(filename);
     sfe->marked = true;
 }
 
 void
-js::SweepScriptFilenames(JSCompartment *comp)
+js_SweepScriptFilenames(JSCompartment *comp)
 {
     ScriptFilenameTable &table = comp->scriptFilenameTable;
     for (ScriptFilenameTable::Enum e(table); !e.empty(); e.popFront()) {
@@ -894,113 +919,54 @@ js::SweepScriptFilenames(JSCompartment *comp)
     }
 }
 
-void
-js::FreeScriptFilenames(JSCompartment *comp)
-{
-    ScriptFilenameTable &table = comp->scriptFilenameTable;
-    for (ScriptFilenameTable::Enum e(table); !e.empty(); e.popFront())
-        Foreground::free_(e.front());
-
-    table.clear();
-}
-
 /*
- * JSScript::data has a complex, manually-controlled, memory layout.
+ * JSScript data structures memory alignment:
  *
- * First are some optional array headers.  They are optional because they
- * often aren't needed, i.e. the corresponding arrays often have zero elements.
- * Each header has an offset in JSScript that indicates its location within
- * |data|; that offset is INVALID_OFFSET if the array header is not present.
- * Each header also has an accessor function in JSScript.
+ * JSScript
+ * JSObjectArray    script objects' descriptor if JSScript.objectsOffset != 0,
+ *                    use script->objects() to access it.
+ * JSObjectArray    script regexps' descriptor if JSScript.regexpsOffset != 0,
+ *                    use script->regexps() to access it.
+ * JSTryNoteArray   script try notes' descriptor if JSScript.tryNotesOffset
+ *                    != 0, use script->trynotes() to access it.
+ * JSAtom *a[]      array of JSScript.natoms atoms pointed by
+ *                    JSScript.atoms if any.
+ * JSObject *o[]    array of script->objects()->length objects if any
+ *                    pointed by script->objects()->vector.
+ * JSObject *r[]    array of script->regexps()->length regexps if any
+ *                    pointed by script->regexps()->vector.
+ * JSTryNote t[]    array of script->trynotes()->length try notes if any
+ *                    pointed by script->trynotes()->vector.
+ * jsbytecode b[]   script bytecode pointed by JSScript.code.
+ * jssrcnote  s[]   script source notes, use script->notes() to access it
  *
- * Array type       Array elements  Offset            Accessor
- * ----------       --------------  ------            --------
- * JSConstArray     Consts          constsOffset      consts()
- * JSObjectArray    Objects         objectsOffset     objects()
- * JSObjectArray    Regexps         regexpsOffset     regexps()
- * JSTryNoteArray   Try notes       tryNotesOffset    trynotes()
- * GlobalSlotArray  Globals         globalsOffset     globals()
- * ClosedSlotArray  ClosedArgs      closedArgsOffset  closedArgs()
- * ClosedSlotArray  ClosedVars      closedVarsOffset  closedVars()
+ * The alignment avoids gaps between entries as alignment requirement for each
+ * subsequent structure or array is the same or divides the alignment
+ * requirement for the previous one.
  *
- * Then are the elements of several arrays.  
- * - Most of these arrays have headers listed above (if present).  For each of
- *   these, the array pointer and the array length is stored in the header.  
- * - The remaining arrays have pointers and lengths that are stored directly in
- *   JSScript.  This is because, unlike the others, they are nearly always
- *   non-zero length and so the optional-header space optimization isn't
- *   worthwhile.
- *
- * Array elements   Pointed to by         Length
- * --------------   -------------         ------
- * Consts           consts()->vector      consts()->length
- * Atoms            atoms                 natoms
- * Objects          objects()->vector     objects()->length
- * Regexps          regexps()->vector     regexps()->length
- * Try notes        trynotes()->vector    trynotes()->length
- * Globals          globals()->vector     globals()->length
- * Closed args      closedArgs()->vector  closedArgs()->length
- * Closed vars      closedVars()->vector  closedVars()->length
- * Bytecodes        code                  length
- * Source notes     notes()               numNotes() * sizeof(jssrcnote)  
- *
- * IMPORTANT: This layout has two key properties.
- * - It ensures that everything has sufficient alignment;  in particular, the
- *   consts() elements need jsval alignment.
- * - It ensures there are no gaps between elements, which saves space and makes
- *   manual layout easy.  In particular, in the second part, arrays with larger
- *   elements precede arrays with smaller elements.
- *
- * The following static assertions check these properties.
+ * The followings asserts checks that assuming that the alignment requirement
+ * for JSObjectArray and JSTryNoteArray are sizeof(void *) and for JSTryNote
+ * it is sizeof(uint32_t) as the structure consists of 3 uint32_t fields.
  */
-
-#define KEEPS_JSVAL_ALIGNMENT(T) \
-    (JS_ALIGNMENT_OF(jsval) % JS_ALIGNMENT_OF(T) == 0 && \
-     sizeof(T) % sizeof(jsval) == 0)
-
-#define HAS_JSVAL_ALIGNMENT(T) \
-    (JS_ALIGNMENT_OF(jsval) == JS_ALIGNMENT_OF(T) && \
-     sizeof(T) == sizeof(jsval))
-
-#define NO_PADDING_BETWEEN_ENTRIES(T1, T2) \
-    (JS_ALIGNMENT_OF(T1) % JS_ALIGNMENT_OF(T2) == 0)
-
-/*
- * These assertions ensure that there is no padding between the array headers,
- * and also that the consts() elements (which follow immediately afterward) are
- * jsval-aligned.  (There is an assumption that |data| itself is jsval-aligned;
- * we check this below).
- */
-JS_STATIC_ASSERT(KEEPS_JSVAL_ALIGNMENT(JSConstArray));
-JS_STATIC_ASSERT(KEEPS_JSVAL_ALIGNMENT(JSObjectArray));     /* there are two of these */
-JS_STATIC_ASSERT(KEEPS_JSVAL_ALIGNMENT(JSTryNoteArray));
-JS_STATIC_ASSERT(KEEPS_JSVAL_ALIGNMENT(GlobalSlotArray));
-JS_STATIC_ASSERT(KEEPS_JSVAL_ALIGNMENT(ClosedSlotArray));   /* there are two of these */
-
-/* These assertions ensure there is no padding required between array elements. */
-JS_STATIC_ASSERT(HAS_JSVAL_ALIGNMENT(HeapValue));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(HeapValue, JSAtom *));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(JSAtom *, HeapPtrObject));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(HeapPtrObject, HeapPtrObject));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(HeapPtrObject, JSTryNote));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(JSTryNote, GlobalSlotArray::Entry));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(GlobalSlotArray::Entry, uint32_t));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(uint32_t, uint32_t));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(uint32_t, jsbytecode));
-JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(jsbytecode, jssrcnote));
+JS_STATIC_ASSERT(sizeof(JSScript) % sizeof(void *) == 0);
+JS_STATIC_ASSERT(sizeof(JSObjectArray) % sizeof(void *) == 0);
+JS_STATIC_ASSERT(sizeof(JSTryNoteArray) == sizeof(JSObjectArray));
+JS_STATIC_ASSERT(sizeof(JSAtom *) == sizeof(JSObject *));
+JS_STATIC_ASSERT(sizeof(JSObject *) % sizeof(uint32_t) == 0);
+JS_STATIC_ASSERT(sizeof(JSTryNote) == 3 * sizeof(uint32_t));
+JS_STATIC_ASSERT(sizeof(uint32_t) % sizeof(jsbytecode) == 0);
+JS_STATIC_ASSERT(sizeof(jsbytecode) % sizeof(jssrcnote) == 0);
 
 /*
  * Check that uint8_t offsets is enough to reach any optional array allocated
- * within |data|. For that we check that the maximum possible offset for the
- * closedVars array -- the last optional array -- still fits in 1 byte and does
- * not coincide with INVALID_OFFSET.
+ * after JSScript. For that we check that the maximum possible offset for
+ * JSConstArray, that last optional array, still fits 1 byte and do not
+ * coincide with INVALID_OFFSET.
  */
-JS_STATIC_ASSERT(sizeof(JSConstArray) +
-                 sizeof(JSObjectArray) +
+JS_STATIC_ASSERT(sizeof(JSObjectArray) +
                  sizeof(JSObjectArray) +
                  sizeof(JSTryNoteArray) +
-                 sizeof(js::GlobalSlotArray) +
-                 sizeof(js::ClosedSlotArray)
+                 sizeof(js::GlobalSlotArray)
                  < JSScript::INVALID_OFFSET);
 JS_STATIC_ASSERT(JSScript::INVALID_OFFSET <= 255);
 
@@ -1010,11 +976,7 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
                     uint32_t ntrynotes, uint32_t nconsts, uint32_t nglobals,
                     uint16_t nClosedArgs, uint16_t nClosedVars, uint32_t nTypeSets, JSVersion version)
 {
-    size_t size = 0;
-
-    if (nconsts != 0)
-        size += sizeof(JSConstArray) + nconsts * sizeof(Value);
-    size += sizeof(JSAtom *) * natoms;
+    size_t size = sizeof(JSAtom *) * natoms;
     if (nobjects != 0)
         size += sizeof(JSObjectArray) + nobjects * sizeof(JSObject *);
     if (nregexps != 0)
@@ -1023,22 +985,48 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
         size += sizeof(JSTryNoteArray) + ntrynotes * sizeof(JSTryNote);
     if (nglobals != 0)
         size += sizeof(GlobalSlotArray) + nglobals * sizeof(GlobalSlotArray::Entry);
-    if (nClosedArgs != 0)
-        size += sizeof(ClosedSlotArray) + nClosedArgs * sizeof(uint32_t);
-    if (nClosedVars != 0)
-        size += sizeof(ClosedSlotArray) + nClosedVars * sizeof(uint32_t);
-
-    size += length * sizeof(jsbytecode);
-    size += nsrcnotes * sizeof(jssrcnote);
+    uint32_t totalClosed = nClosedArgs + nClosedVars;
+    if (totalClosed != 0)
+        size += totalClosed * sizeof(uint32_t);
 
     /*
-     * We assume that calloc aligns on sizeof(Value) if the size we ask to
-     * allocate divides sizeof(Value).
+     * To esnure jsval alignment for the const array we place it immediately
+     * after JSSomethingArray structs as their sizes all divide sizeof(jsval).
+     * This works as long as the data itself is allocated with proper
+     * alignment which we ensure below.
      */
-    JS_STATIC_ASSERT(sizeof(Value) == sizeof(double));
-    uint8_t *data = static_cast<uint8_t *>(cx->calloc_(JS_ROUNDUP(size, sizeof(Value))));
-    if (!data)
-        return NULL;
+    JS_STATIC_ASSERT(sizeof(JSObjectArray) % sizeof(jsval) == 0);
+    JS_STATIC_ASSERT(sizeof(JSTryNoteArray) % sizeof(jsval) == 0);
+    JS_STATIC_ASSERT(sizeof(GlobalSlotArray) % sizeof(jsval) == 0);
+    JS_STATIC_ASSERT(sizeof(JSConstArray) % sizeof(jsval) == 0);
+    if (nconsts != 0)
+        size += sizeof(JSConstArray) + nconsts * sizeof(Value);
+
+    size += length * sizeof(jsbytecode) + nsrcnotes * sizeof(jssrcnote);
+
+    uint8_t *data = NULL;
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+    if (size <= JS_SCRIPT_INLINE_DATA_LIMIT) {
+        /*
+         * Check that if inlineData is big enough to store const values, we
+         * can do that without any special alignment requirements given that
+         * the script as a GC thing is always aligned on Cell::CellSize.
+         */
+        JS_STATIC_ASSERT(Cell::CellSize % sizeof(Value) == 0);
+        JS_STATIC_ASSERT(JS_SCRIPT_INLINE_DATA_LIMIT < sizeof(Value) ||
+                         offsetof(JSScript, inlineData) % sizeof(Value) == 0);
+    } else
+#endif
+    {
+        /*
+         * We assume that calloc aligns on sizeof(Value) if the size we ask to
+         * allocate divides sizeof(Value).
+         */
+        JS_STATIC_ASSERT(sizeof(Value) == sizeof(double));
+        data = static_cast<uint8_t *>(cx->calloc_(JS_ROUNDUP(size, sizeof(Value))));
+        if (!data)
+            return NULL;
+    }
 
     JSScript *script = js_NewGCScript(cx);
     if (!script) {
@@ -1047,18 +1035,19 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
     }
 
     PodZero(script);
+#ifdef JS_CRASH_DIAGNOSTICS
+    script->cookie1[0] = script->cookie2[0] = JS_SCRIPT_COOKIE;
+#endif
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+    if (!data)
+        data = script->inlineData;
+#endif
     script->data  = data;
     script->length = length;
     script->version = version;
     new (&script->bindings) Bindings(cx);
 
     uint8_t *cursor = data;
-    if (nconsts != 0) {
-        script->constsOffset = uint8_t(cursor - data);
-        cursor += sizeof(JSConstArray);
-    } else {
-        script->constsOffset = JSScript::INVALID_OFFSET;
-    }
     if (nobjects != 0) {
         script->objectsOffset = uint8_t(cursor - data);
         cursor += sizeof(JSObjectArray);
@@ -1083,19 +1072,19 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
     } else {
         script->globalsOffset = JSScript::INVALID_OFFSET;
     }
-    if (nClosedArgs != 0) {
-        script->closedArgsOffset = uint8_t(cursor - data);
-        cursor += sizeof(ClosedSlotArray);
-    } else {
-        script->closedArgsOffset = JSScript::INVALID_OFFSET;
-    }
     JS_ASSERT(cursor - data < 0xFF);
-    if (nClosedVars != 0) {
-        script->closedVarsOffset = uint8_t(cursor - data);
-        cursor += sizeof(ClosedSlotArray);
+    if (nconsts != 0) {
+        script->constOffset = uint8_t(cursor - data);
+        cursor += sizeof(JSConstArray);
     } else {
-        script->closedVarsOffset = JSScript::INVALID_OFFSET;
+        script->constOffset = JSScript::INVALID_OFFSET;
     }
+
+    JS_STATIC_ASSERT(sizeof(JSObjectArray) +
+                     sizeof(JSObjectArray) +
+                     sizeof(JSTryNoteArray) +
+                     sizeof(GlobalSlotArray) < 0xFF);
+
 
     if (nconsts != 0) {
         JS_ASSERT(reinterpret_cast<uintptr_t>(cursor) % sizeof(jsval) == 0);
@@ -1138,16 +1127,11 @@ JSScript::NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t
         cursor += nglobals * sizeof(script->globals()->vector[0]);
     }
 
-    if (nClosedArgs != 0) {
-        script->closedArgs()->length = nClosedArgs;
-        script->closedArgs()->vector = reinterpret_cast<uint32_t *>(cursor);
-        cursor += nClosedArgs * sizeof(script->closedArgs()->vector[0]);
-    }
-
-    if (nClosedVars != 0) {
-        script->closedVars()->length = nClosedVars;
-        script->closedVars()->vector = reinterpret_cast<uint32_t *>(cursor);
-        cursor += nClosedVars * sizeof(script->closedVars()->vector[0]);
+    if (totalClosed != 0) {
+        script->nClosedArgs = nClosedArgs;
+        script->nClosedVars = nClosedVars;
+        script->closedSlots = reinterpret_cast<uint32_t *>(cursor);
+        cursor += totalClosed * sizeof(uint32_t);
     }
 
     JS_ASSERT(nTypeSets <= UINT16_MAX);
@@ -1268,7 +1252,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (bce->inFunction()) {
         bool needsArgsObj = bce->mayOverwriteArguments() || bce->needsEagerArguments();
         if (needsArgsObj || bce->usesArguments()) {
-            script->setMayNeedArgsObj();
+            script->mayNeedArgsObj_ = true;
             if (needsArgsObj)
                 script->setNeedsArgsObj(true);
         }
@@ -1279,10 +1263,12 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
                                         bce->globalUses.length());
     }
 
-    if (nClosedArgs)
-        PodCopy<uint32_t>(script->closedArgs()->vector, &bce->closedArgs[0], nClosedArgs);
-    if (nClosedVars)
-        PodCopy<uint32_t>(script->closedVars()->vector, &bce->closedVars[0], nClosedVars);
+    if (script->nClosedArgs)
+        PodCopy<uint32_t>(script->closedSlots, &bce->closedArgs[0], script->nClosedArgs);
+    if (script->nClosedVars) {
+        PodCopy<uint32_t>(&script->closedSlots[script->nClosedArgs], &bce->closedVars[0],
+                          script->nClosedVars);
+    }
 
     script->bindings.transfer(cx, &bce->bindings);
 
@@ -1334,7 +1320,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     }
 
     if (cx->hasRunOption(JSOPTION_PCCOUNT))
-        (void) script->initScriptCounts(cx);
+        (void) script->initCounts(cx);
 
     return script;
 }
@@ -1342,6 +1328,11 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
 size_t
 JSScript::computedSizeOfData()
 {
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+    if (data == inlineData)
+        return 0;
+#endif
+
     uint8_t *dataEnd = code + length * sizeof(jsbytecode) + numNotes() * sizeof(jssrcnote);
     JS_ASSERT(dataEnd >= data);
     return dataEnd - data;
@@ -1350,6 +1341,11 @@ JSScript::computedSizeOfData()
 size_t
 JSScript::sizeOfData(JSMallocSizeOfFun mallocSizeOf)
 {
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+    if (data == inlineData)
+        return 0;
+#endif
+
     return mallocSizeOf(data);
 }
 
@@ -1391,9 +1387,25 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
     JS_ClearScriptTraps(cx, script);
 }
 
+#ifdef JS_CRASH_DIAGNOSTICS
+
+void
+JSScript::CheckScript(JSScript *prev)
+{
+    if (cookie1[0] != JS_SCRIPT_COOKIE || cookie2[0] != JS_SCRIPT_COOKIE) {
+        crash::StackBuffer<sizeof(JSScript), 0x87> buf1(this);
+        crash::StackBuffer<sizeof(JSScript), 0x88> buf2(prev);
+        JS_OPT_ASSERT(false);
+    }
+}
+
+#endif /* JS_CRASH_DIAGNOSTICS */
+
 void
 JSScript::finalize(JSContext *cx, bool background)
 {
+    CheckScript(NULL);
+
     js_CallDestroyScriptHook(cx, this);
 
     JS_ASSERT_IF(principals, originPrincipals);
@@ -1409,7 +1421,7 @@ JSScript::finalize(JSContext *cx, bool background)
     mjit::ReleaseScriptCode(cx, this);
 #endif
 
-    destroyScriptCounts(cx);
+    destroyCounts(cx);
 
     if (sourceMap)
         cx->free_(sourceMap);
@@ -1427,8 +1439,13 @@ JSScript::finalize(JSContext *cx, bool background)
         cx->free_(debug);
     }
 
-    JS_POISON(data, 0xdb, computedSizeOfData());
-    cx->free_(data);
+#if JS_SCRIPT_INLINE_DATA_LIMIT
+    if (data != inlineData)
+#endif
+    {
+        JS_POISON(data, 0xdb, computedSizeOfData());
+        cx->free_(data);
+    }
 }
 
 namespace js {
@@ -1636,30 +1653,80 @@ CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *line
     *origin = script->originPrincipals;
 }
 
-}  /* namespace js */
+class AutoJSXDRState {
+  public:
+    AutoJSXDRState(JSXDRState *x
+                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : xdr(x)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+    ~AutoJSXDRState()
+    {
+        JS_XDRDestroy(xdr);
+    }
+
+    operator JSXDRState*() const
+    {
+        return xdr;
+    }
+
+    JSXDRState* operator->() const
+    {
+        return xdr;
+    }
+
+  private:
+    JSXDRState *const xdr;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
 
 JSScript *
-js::CloneScript(JSContext *cx, JSScript *script)
+CloneScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(cx->compartment != script->compartment());
 
     /* Serialize script. */
-    XDREncoder encoder(cx);
+    AutoJSXDRState w(JS_XDRNewMem(cx, JSXDR_ENCODE));
+    if (!w)
+        return NULL;
 
-    if (!XDRScript(&encoder, &script, NULL))
+    if (!XDRScript(w, &script))
         return NULL;
 
     uint32_t nbytes;
-    const void *p = encoder.getData(&nbytes);
+    void *p = JS_XDRMemGetData(w, &nbytes);
+    if (!p)
+        return NULL;
 
     /* De-serialize script. */
-    XDRDecoder decoder(cx, p, nbytes, cx->compartment->principals, script->originPrincipals);
+    AutoJSXDRState r(JS_XDRNewMem(cx, JSXDR_DECODE));
+    if (!r)
+        return NULL;
 
-    JSScript *newScript;
-    if (!XDRScript(&decoder, &newScript, NULL))
+    /*
+     * Hand p off from w to r.  Don't want them to share the data mem, lest
+     * they both try to free it in JS_XDRDestroy.
+     */
+    JS_XDRMemSetData(r, p, nbytes);
+    JS_XDRMemSetData(w, NULL, 0);
+
+    r->principals = cx->compartment->principals;
+    r->originPrincipals = JSScript::normalizeOriginPrincipals(cx->compartment->principals,
+                                                              script->originPrincipals);
+    JSScript *newScript = NULL;
+    if (!XDRScript(r, &newScript))
         return NULL;
 
     return newScript;
+}
+
+}  /* namespace js */
+
+void
+JSScript::copyClosedSlotsTo(JSScript *other)
+{
+    js_memcpy(other->closedSlots, closedSlots, nClosedArgs + nClosedVars);
 }
 
 bool
@@ -1828,7 +1895,10 @@ JSScript::clearTraps(JSContext *cx)
 void
 JSScript::markChildren(JSTracer *trc)
 {
-    JS_ASSERT_IF(trc->runtime->gcStrictCompartmentChecking, compartment()->isCollecting());
+    CheckScript(NULL);
+
+    JS_ASSERT_IF(trc->runtime->gcCheckCompartment,
+                 compartment() == trc->runtime->gcCheckCompartment);
 
     for (uint32_t i = 0; i < natoms; ++i) {
         if (atoms[i])
@@ -1845,7 +1915,7 @@ JSScript::markChildren(JSTracer *trc)
         MarkObjectRange(trc, objarray->length, objarray->vector, "objects");
     }
 
-    if (JSScript::isValidOffset(constsOffset)) {
+    if (JSScript::isValidOffset(constOffset)) {
         JSConstArray *constarray = consts();
         MarkValueRange(trc, constarray->length, constarray->vector, "consts");
     }
@@ -1857,7 +1927,7 @@ JSScript::markChildren(JSTracer *trc)
         MarkObject(trc, &globalObject, "object");
 
     if (IS_GC_MARKING_TRACER(trc) && filename)
-        MarkScriptFilename(filename);
+        js_MarkScriptFilename(filename);
 
     bindings.trace(trc);
 

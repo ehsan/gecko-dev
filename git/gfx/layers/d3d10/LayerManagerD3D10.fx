@@ -41,15 +41,6 @@ BlendState NonPremul
   RenderTargetWriteMask[0] = 0x0F; // All
 };
 
-BlendState NoBlendDual
-{
-  AlphaToCoverageEnable = FALSE;
-  BlendEnable[0] = FALSE;
-  BlendEnable[1] = FALSE;
-  RenderTargetWriteMask[0] = 0x0F; // All
-  RenderTargetWriteMask[1] = 0x0F; // All
-};
-
 BlendState ComponentAlphaBlend
 {
   AlphaToCoverageEnable = FALSE;
@@ -101,11 +92,6 @@ struct VS_OUTPUT {
 struct PS_OUTPUT {
   float4 vSrc;
   float4 vAlpha;
-};
-
-struct PS_DUAL_OUTPUT {
-  float4 vOutput1 : SV_Target0;
-  float4 vOutput2 : SV_Target1;
 };
 
 VS_OUTPUT LayerQuadVS(const VS_INPUT aVertex)
@@ -197,14 +183,6 @@ PS_OUTPUT ComponentAlphaShader(const VS_OUTPUT aVertex) : SV_Target
 float4 SolidColorShader(const VS_OUTPUT aVertex) : SV_Target
 {
   return fLayerColor;
-}
-
-PS_DUAL_OUTPUT AlphaExtractionPrepareShader(const VS_OUTPUT aVertex)
-{
-  PS_DUAL_OUTPUT result;
-  result.vOutput1 = float4(0, 0, 0, 1);
-  result.vOutput2 = float4(1, 1, 1, 1);
-  return result;
 }
 
 technique10 RenderRGBLayerPremul
@@ -313,17 +291,5 @@ technique10 RenderSolidColorLayer
         SetVertexShader( CompileShader( vs_4_0_level_9_3, LayerQuadVS() ) );
         SetGeometryShader( NULL );
         SetPixelShader( CompileShader( ps_4_0_level_9_3, SolidColorShader() ) );
-    }
-}
-
-technique10 PrepareAlphaExtractionTextures
-{
-    pass P0
-    {
-        SetRasterizerState( LayerRast );
-        SetBlendState( NoBlendDual, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-        SetVertexShader( CompileShader( vs_4_0_level_9_3, LayerQuadVS() ) );
-        SetGeometryShader( NULL );
-        SetPixelShader( CompileShader( ps_4_0_level_9_3, AlphaExtractionPrepareShader() ) );
     }
 }

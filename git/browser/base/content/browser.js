@@ -156,9 +156,6 @@ __defineSetter__("PluralForm", function (val) {
   return this.PluralForm = val;
 });
 
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-                                  "resource:///modules/TelemetryStopwatch.jsm");
-
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
   let tmp = {};
@@ -2306,7 +2303,7 @@ function BrowserOpenFileWindow()
           gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
       } catch(e) {
       }
-      openUILinkIn(fp.fileURL.spec, "current");
+      openTopWin(fp.fileURL.spec);
     }
   } catch (ex) {
   }
@@ -2624,7 +2621,6 @@ function UpdateUrlbarSearchSplitterState()
       splitter.id = "urlbar-search-splitter";
       splitter.setAttribute("resizebefore", "flex");
       splitter.setAttribute("resizeafter", "flex");
-      splitter.setAttribute("skipintoolbarset", "true");
       splitter.className = "chromeclass-toolbar-additional";
     }
     urlbar.parentNode.insertBefore(splitter, ibefore);
@@ -2708,10 +2704,6 @@ function PageProxyClickHandler(aEvent)
  */
 function BrowserOnAboutPageLoad(document) {
   if (/^about:home$/i.test(document.documentURI)) {
-    // XXX bug 738646 - when Marketplace is launched, remove this statement and
-    // the hidden attribute set on the apps button in aboutHome.xhtml
-    if (getBoolPref("browser.aboutHome.apps", false))
-      document.getElementById("apps").removeAttribute("hidden");
     let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
              getService(Components.interfaces.nsISessionStore);
     if (!ss.canRestoreLastSession)
@@ -2854,26 +2846,23 @@ function BrowserOnClick(event) {
           ss.restoreLastSession();
         ownerDoc.getElementById("launcher").removeAttribute("session");
       }
-      else if (ot == ownerDoc.getElementById("downloads")) {
-        BrowserDownloadsUI();
-      }
       else if (ot == ownerDoc.getElementById("bookmarks")) {
         PlacesCommandHook.showPlacesOrganizer("AllBookmarks");
       }
       else if (ot == ownerDoc.getElementById("history")) {
         PlacesCommandHook.showPlacesOrganizer("History");
       }
-      else if (ot == ownerDoc.getElementById("apps")) {
-        openUILinkIn("https://marketplace.mozilla.org/", "tab");
+      else if (ot == ownerDoc.getElementById("settings")) {
+        openPreferences();
       }
       else if (ot == ownerDoc.getElementById("addons")) {
         BrowserOpenAddonsMgr();
       }
+      else if (ot == ownerDoc.getElementById("downloads")) {
+        BrowserDownloadsUI();
+      }
       else if (ot == ownerDoc.getElementById("sync")) {
         openPreferences("paneSync");
-      }
-      else if (ot == ownerDoc.getElementById("settings")) {
-        openPreferences();
       }
     }
 }
@@ -3655,19 +3644,6 @@ function toOpenWindowByType(inType, uri, features)
 
 function OpenBrowserWindow()
 {
-  var telemetryObj = {};
-  TelemetryStopwatch.start("FX_NEW_WINDOW_MS", telemetryObj);
-
-  function newDocumentShown(doc, topic, data) {
-    if (topic == "document-shown" &&
-        doc != document &&
-        doc.defaultView == win) {
-      Services.obs.removeObserver(newDocumentShown, "document-shown");
-      TelemetryStopwatch.finish("FX_NEW_WINDOW_MS", telemetryObj);
-    }
-  };
-  Services.obs.addObserver(newDocumentShown, "document-shown", false);
-
   var charsetArg = new String();
   var handler = Components.classes["@mozilla.org/browser/clh;1"]
                           .getService(Components.interfaces.nsIBrowserHandler);
@@ -3924,22 +3900,9 @@ var FullScreen = {
     if (event && event.type == "fullscreen")
       enterFS = !enterFS;
 
-    // Toggle the View:FullScreen command, which controls elements like the
-    // fullscreen menuitem, menubars, and the appmenu.
-    document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
-
-    // On OS X Lion we don't want to hide toolbars when entering fullscreen, unless
-    // we're entering DOM fullscreen, in which case we should hide the toolbars.
-    // If we're leaving fullscreen, then we'll go through the exit code below to
-    // make sure toolbars are made visible in the case of DOM fullscreen.
-    if (enterFS && this.useLionFullScreen) {
-      if (document.mozFullScreen)
-        this.showXULChrome("toolbar", false);
-      return;
-    }
-
-    // show/hide menubars, toolbars (except the full screen toolbar)
+    // show/hide all menubars, toolbars (except the full screen toolbar)
     this.showXULChrome("toolbar", !enterFS);
+    document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
 
     if (enterFS) {
       // Add a tiny toolbar to receive mouseover and dragenter events, and provide affordance.
@@ -4047,8 +4010,7 @@ var FullScreen = {
     gBrowser.tabContainer.addEventListener("TabSelect", this.exitDomFullScreen);
 
     // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
-    if (!this.useLionFullScreen &&
-        gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
+    if (gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
       window.addEventListener("deactivate", this);
     }
 
@@ -4084,9 +4046,7 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      if (!this.useLionFullScreen) {
-        window.removeEventListener("deactivate", this);
-      }
+      window.removeEventListener("deactivate", this);
     }
   },
 
@@ -4413,6 +4373,7 @@ var FullScreen = {
     // and in tabs-on-bottom mode, move them back to the navigation toolbar.
     // When there is a chance the tab bar may be collapsed, put window
     // controls on nav bar.
+    var fullscreenflex = document.getElementById("fullscreenflex");
     var fullscreenctls = document.getElementById("window-controls");
     var navbar = document.getElementById("nav-bar");
     var ctlsOnTabbar = window.toolbar.visible &&
@@ -4420,12 +4381,14 @@ var FullScreen = {
                           (TabsOnTop.enabled &&
                            !gPrefService.getBoolPref("browser.tabs.autoHide")));
     if (fullscreenctls.parentNode == navbar && ctlsOnTabbar) {
-      fullscreenctls.removeAttribute("flex");
       document.getElementById("TabsToolbar").appendChild(fullscreenctls);
+      // we don't need this space in tabs-on-top mode, so prevent it from 
+      // being shown
+      fullscreenflex.removeAttribute("fullscreencontrol");
     }
     else if (fullscreenctls.parentNode.id == "TabsToolbar" && !ctlsOnTabbar) {
-      fullscreenctls.setAttribute("flex", "1");
       navbar.appendChild(fullscreenctls);
+      fullscreenflex.setAttribute("fullscreencontrol", "true");
     }
 
     var controls = document.getElementsByAttribute("fullscreencontrol", "true");
@@ -4433,18 +4396,6 @@ var FullScreen = {
       controls[i].hidden = aShow;
   }
 };
-XPCOMUtils.defineLazyGetter(FullScreen, "useLionFullScreen", function() {
-  // We'll only use OS X Lion full screen if we're
-  // * on OS X
-  // * on Lion (Darwin 11.x) -- this will need to be updated for OS X 10.8
-  // * have fullscreenbutton="true"
-#ifdef XP_MACOSX
-  return /^11\./.test(Services.sysinfo.getProperty("version")) &&
-         document.documentElement.getAttribute("fullscreenbutton") == "true";
-#else
-  return false;
-#endif
-});
 
 /**
  * Returns true if |aMimeType| is text-based, false otherwise.
@@ -5415,7 +5366,6 @@ var TabsOnTop = {
     document.documentElement.setAttribute("tabsontop", enabled);
     document.getElementById("navigator-toolbox").setAttribute("tabsontop", enabled);
     document.getElementById("TabsToolbar").setAttribute("tabsontop", enabled);
-    document.getElementById("nav-bar").setAttribute("tabsontop", enabled);
     gBrowser.tabContainer.setAttribute("tabsontop", enabled);
     TabsInTitlebar.allowedBy("tabs-on-top", enabled);
   },
@@ -6206,7 +6156,6 @@ var gPageStyleMenu = {
         menuItem.setAttribute("label", currentStyleSheet.title);
         menuItem.setAttribute("data", currentStyleSheet.title);
         menuItem.setAttribute("checked", !currentStyleSheet.disabled && !styleDisabled);
-        menuItem.setAttribute("oncommand", "gPageStyleMenu.switchStyleSheet(this.getAttribute('data'));");
         menuPopup.appendChild(menuItem);
         currentStyleSheets[currentStyleSheet.title] = menuItem;
       } else if (currentStyleSheet.disabled) {
@@ -6218,6 +6167,7 @@ var gPageStyleMenu = {
     persistentOnly.setAttribute("checked", !altStyleSelected && !styleDisabled);
     persistentOnly.hidden = (window.content.document.preferredStyleSheetSet) ? haveAltSheets : false;
     sep.hidden = (noStyle.hidden && persistentOnly.hidden) || !haveAltSheets;
+    return true;
   },
 
   _stylesheetInFrame: function (frame, title) {
@@ -6231,7 +6181,9 @@ var gPageStyleMenu = {
     for (let i = 0; i < docStyleSheets.length; ++i) {
       let docStyleSheet = docStyleSheets[i];
 
-      if (docStyleSheet.title)
+      if (title == "_nostyle")
+        docStyleSheet.disabled = true;
+      else if (docStyleSheet.title)
         docStyleSheet.disabled = (docStyleSheet.title != title);
       else if (docStyleSheet.disabled)
         docStyleSheet.disabled = false;
@@ -6239,7 +6191,7 @@ var gPageStyleMenu = {
   },
 
   _stylesheetSwitchAll: function (frameset, title) {
-    if (!title || this._stylesheetInFrame(frameset, title))
+    if (!title || title == "_nostyle" || this._stylesheetInFrame(frameset, title))
       this._stylesheetSwitchFrame(frameset, title);
 
     for (let i = 0; i < frameset.frames.length; i++)
@@ -7825,20 +7777,13 @@ function undoCloseWindow(aIndex) {
  * if it's ok to close the tab.
  */
 function isTabEmpty(aTab) {
-  if (aTab.hasAttribute("busy"))
-    return false;
-
   let browser = aTab.linkedBrowser;
-  if (!isBlankPageURL(browser.currentURI.spec))
-    return false;
-
-  if (browser.contentWindow.opener)
-    return false;
-
-  if (browser.sessionHistory && browser.sessionHistory.count >= 2)
-    return false;
-
-  return true;
+  let uri = browser.currentURI.spec;
+  let body = browser.contentDocument.body;
+  return browser.sessionHistory.count < 2 &&
+         isBlankPageURL(uri) &&
+         (!body || !body.hasChildNodes()) &&
+         !aTab.hasAttribute("busy");
 }
 
 #ifdef MOZ_SERVICES_SYNC
@@ -8671,31 +8616,6 @@ let gPrivateBrowsingUI = {
 
   get privateBrowsingEnabled() {
     return this._privateBrowsingService.privateBrowsingEnabled;
-  },
-
-  /**
-   * These accessors are used to support per-window Private Browsing mode.
-   * For now the getter returns nsIPrivateBrowsingService.privateBrowsingEnabled,
-   * and the setter should only be used in tests.
-   */
-  get privateWindow() {
-    return window.getInterface(Ci.nsIWebNavigation)
-                 .QueryInterface(Ci.nsIDocShellTreeItem)
-                 .treeOwner
-                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIXULWindow)
-                 .docShell.QueryInterface(Ci.nsILoadContext)
-                 .usePrivateBrowsing;
-  },
-
-  set privateWindow(val) {
-    return window.getInterface(Ci.nsIWebNavigation)
-                 .QueryInterface(Ci.nsIDocShellTreeItem)
-                 .treeOwner
-                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIXULWindow)
-                 .docShell.QueryInterface(Ci.nsILoadContext)
-                 .usePrivateBrowsing = val;
   }
 };
 

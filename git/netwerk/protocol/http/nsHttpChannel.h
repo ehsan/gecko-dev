@@ -182,7 +182,6 @@ private:
     nsresult ContinueProcessFallback(nsresult);
     bool     ResponseWouldVary();
     void     HandleAsyncAbort();
-    nsresult EnsureAssocReq();
 
     nsresult ContinueOnStartRequest1(nsresult);
     nsresult ContinueOnStartRequest2(nsresult);
@@ -211,19 +210,14 @@ private:
     nsresult OpenCacheEntry();
     nsresult OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
                                           nsCacheAccessMode aAccess,
-                                          nsresult aResult);
-    nsresult OpenNormalCacheEntry();
+                                          nsresult aResult,
+                                          bool aSync);
+    nsresult OpenNormalCacheEntry(bool aSync);
     nsresult OnNormalCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
                                          nsCacheAccessMode aAccess,
-                                         nsresult aResult);
+                                         nsresult aResult,
+                                         bool aSync);
     nsresult OpenOfflineCacheEntryForWriting();
-    nsresult OnOfflineCacheEntryForWritingAvailable(
-        nsICacheEntryDescriptor *aEntry,
-        nsCacheAccessMode aAccess,
-        nsresult aResult);
-    nsresult OnCacheEntryAvailableInternal(nsICacheEntryDescriptor *entry,
-                                           nsCacheAccessMode access,
-                                           nsresult status);
     nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
     nsresult UpdateExpirationTime();
     nsresult CheckCache();
@@ -305,8 +299,9 @@ private:
     PRUint32                          mRequestTime;
 
     typedef nsresult (nsHttpChannel:: *nsOnCacheEntryAvailableCallback)(
-        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult);
+        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult, bool);
     nsOnCacheEntryAvailableCallback   mOnCacheEntryAvailableCallback;
+    bool                              mAsyncCacheOpen;
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;

@@ -56,8 +56,7 @@ enum SurfaceType
   SURFACE_CAIRO_IMAGE, /* Data surface wrapping a cairo image surface */
   SURFACE_COREGRAPHICS_IMAGE, /* Surface wrapping a CoreGraphics Image */
   SURFACE_COREGRAPHICS_CGCONTEXT, /* Surface wrapping a CG context */
-  SURFACE_SKIA, /* Surface wrapping a Skia bitmap */
-  SURFACE_DUAL_DT /* Snapshot of a dual drawtarget */
+  SURFACE_SKIA /* Surface wrapping a Skia bitmap */
 };
 
 enum SurfaceFormat

@@ -3,7 +3,6 @@
 
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/policies.js");
 Cu.import("resource://services-sync/status.js");
 
@@ -53,7 +52,8 @@ function run_test() {
 function generateCredentialsChangedFailure() {
   // Make sync fail due to changed credentials. We simply re-encrypt
   // the keys with a different Sync Key, without changing the local one.
-  let newSyncKeyBundle = new SyncKeyBundle("johndoe", "23456234562345623456234562");
+  let newSyncKeyBundle = new SyncKeyBundle(PWDMGR_PASSPHRASE_REALM, Service.username);
+  newSyncKeyBundle.keyStr = "23456234562345623456234562";
   let keys = CollectionKeys.asWBO();
   keys.encrypt(newSyncKeyBundle);
   keys.upload(Service.cryptoKeysURL);
@@ -118,7 +118,9 @@ function sync_httpd_setup() {
 }
 
 function setUp() {
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
@@ -128,7 +130,7 @@ function setUp() {
 function generateAndUploadKeys() {
   generateNewKeys();
   let serverKeys = CollectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Identity.syncKeyBundle);
+  serverKeys.encrypt(Service.syncKeyBundle);
   return serverKeys.upload(Service.cryptoKeysURL).success;
 }
 
@@ -170,8 +172,7 @@ add_test(function test_401_logout() {
   }
 
   // Make sync fail due to login rejected.
-  setBasicCredentials("janedoe", "irrelevant", "irrelevant");
-  Service._updateCachedURLs();
+  Service.username = "janedoe";
 
   _("Starting first sync.");
   Service.sync();
@@ -424,7 +425,7 @@ add_test(function test_login_syncAndReportErrors_non_network_error() {
   // when calling syncAndReportErrors
   let server = sync_httpd_setup();
   setUp();
-  Identity.basicPassword = null;
+  Service.password = "";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -468,7 +469,7 @@ add_test(function test_login_syncAndReportErrors_prolonged_non_network_error() {
   // reported when calling syncAndReportErrors.
   let server = sync_httpd_setup();
   setUp();
-  Identity.basicPassword = null;
+  Service.password = "";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -509,7 +510,9 @@ add_test(function test_sync_syncAndReportErrors_prolonged_non_network_error() {
 
 add_test(function test_login_syncAndReportErrors_network_error() {
   // Test network errors are reported when calling syncAndReportErrors.
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
@@ -546,7 +549,9 @@ add_test(function test_sync_syncAndReportErrors_network_error() {
 add_test(function test_login_syncAndReportErrors_prolonged_network_error() {
   // Test prolonged, network errors are reported
   // when calling syncAndReportErrors.
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
@@ -584,7 +589,7 @@ add_test(function test_login_prolonged_non_network_error() {
   // Test prolonged, non-network errors are reported
   let server = sync_httpd_setup();
   setUp();
-  Identity.basicPassword = null;
+  Service.password = "";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -624,7 +629,9 @@ add_test(function test_sync_prolonged_non_network_error() {
 
 add_test(function test_login_prolonged_network_error() {
   // Test prolonged, network errors are reported
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
@@ -661,7 +668,7 @@ add_test(function test_login_non_network_error() {
   // Test non-network errors are reported
   let server = sync_httpd_setup();
   setUp();
-  Identity.basicPassword = null;
+  Service.password = "";
 
   Svc.Obs.add("weave:ui:login:error", function onSyncError() {
     Svc.Obs.remove("weave:ui:login:error", onSyncError);
@@ -700,7 +707,9 @@ add_test(function test_sync_non_network_error() {
 });
 
 add_test(function test_login_network_error() {
-  setBasicCredentials("johndoe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL  = TEST_SERVER_URL;
   Service.clusterURL = TEST_CLUSTER_URL;
 
@@ -775,7 +784,6 @@ add_test(function test_info_collections_login_server_maintenance_error() {
   setUp();
 
   Service.username = "broken.info";
-  setBasicCredentials("broken.info", "irrelevant", "irrelevant");
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -786,7 +794,7 @@ add_test(function test_info_collections_login_server_maintenance_error() {
   });
 
   function onUIUpdate() {
-    do_throw("Shouldn't experience UI update!");
+    do_throw("Shouldn't get here!");
   }
   Svc.Obs.add("weave:ui:login:error", onUIUpdate);
 
@@ -815,7 +823,7 @@ add_test(function test_meta_global_login_server_maintenance_error() {
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.meta", "irrelevant", "irrelevant");
+  Service.username = "broken.meta";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -855,10 +863,9 @@ add_test(function test_crypto_keys_login_server_maintenance_error() {
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.keys", "irrelevant", "irrelevant");
+  Service.username = "broken.keys";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
-
   // Force re-download of keys
   CollectionKeys.clear();
 
@@ -924,7 +931,7 @@ add_test(function test_info_collections_login_prolonged_server_maintenance_error
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.info", "irrelevant", "irrelevant");
+  Service.username = "broken.info";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -957,7 +964,7 @@ add_test(function test_meta_global_login_prolonged_server_maintenance_error(){
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.meta", "irrelevant", "irrelevant");
+  Service.username = "broken.meta";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -990,7 +997,7 @@ add_test(function test_download_crypto_keys_login_prolonged_server_maintenance_e
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.keys", "irrelevant", "irrelevant");
+  Service.username = "broken.keys";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
@@ -1025,7 +1032,9 @@ add_test(function test_upload_crypto_keys_login_prolonged_server_maintenance_err
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.keys", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.keys";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1059,7 +1068,9 @@ add_test(function test_wipeServer_login_prolonged_server_maintenance_error(){
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.wipe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1092,8 +1103,9 @@ add_test(function test_wipeRemote_prolonged_server_maintenance_error(){
   // wiping all remote devices.
   let server = sync_httpd_setup();
 
-  server.registerPathHandler("/1.1/broken.wipe/storage/catapult", service_unavailable);
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.wipe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   generateAndUploadKeys();
@@ -1161,7 +1173,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_server_mainten
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.info", "irrelevant", "irrelevant");
+  Service.username = "broken.info";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1195,7 +1207,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_server_maintenance_
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.meta", "irrelevant", "irrelevant");
+  Service.username = "broken.meta";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1229,7 +1241,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_server_mai
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.keys", "irrelevant", "irrelevant");
+  Service.username = "broken.keys";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
@@ -1265,7 +1277,9 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_server_maint
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.keys", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.keys";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1299,7 +1313,9 @@ add_test(function test_wipeServer_login_syncAndReportErrors_server_maintenance_e
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.wipe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1332,7 +1348,9 @@ add_test(function test_wipeRemote_syncAndReportErrors_server_maintenance_error()
   // wiping all remote devices.
   let server = sync_httpd_setup();
 
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.wipe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   generateAndUploadKeys();
@@ -1400,7 +1418,7 @@ add_test(function test_info_collections_login_syncAndReportErrors_prolonged_serv
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.info", "irrelevant", "irrelevant");
+  Service.username = "broken.info";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1434,7 +1452,7 @@ add_test(function test_meta_global_login_syncAndReportErrors_prolonged_server_ma
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.meta", "irrelevant", "irrelevant");
+  Service.username = "broken.meta";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1468,7 +1486,7 @@ add_test(function test_download_crypto_keys_login_syncAndReportErrors_prolonged_
   let server = sync_httpd_setup();
   setUp();
 
-  setBasicCredentials("broken.keys", "irrelevant", "irrelevant");
+  Service.username = "broken.keys";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
   // Force re-download of keys
@@ -1504,7 +1522,9 @@ add_test(function test_upload_crypto_keys_login_syncAndReportErrors_prolonged_se
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.keys", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.keys";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 
@@ -1538,7 +1558,9 @@ add_test(function test_wipeServer_login_syncAndReportErrors_prolonged_server_mai
   let server = sync_httpd_setup();
 
   // Start off with an empty account, do not upload a key.
-  setBasicCredentials("broken.wipe", "ilovejane", "abcdeabcdeabcdeabcdeabcdea");
+  Service.username = "broken.wipe";
+  Service.password = "ilovejane";
+  Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
   Service.serverURL = TEST_MAINTENANCE_URL;
   Service.clusterURL = TEST_MAINTENANCE_URL;
 

@@ -2695,8 +2695,7 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
                                   nsMouseScrollEvent* aMouseEvent,
                                   nsIScrollableFrame::ScrollUnit aScrollQuantity,
                                   bool aAllowScrollSpeedOverride,
-                                  nsQueryContentEvent* aQueryEvent,
-                                  nsIAtom *aOrigin)
+                                  nsQueryContentEvent* aQueryEvent)
 {
   nsIScrollableFrame* frameToScroll = nsnull;
   nsIFrame* scrollFrame = aTargetFrame;
@@ -2858,7 +2857,7 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
 
     nsIntPoint overflow;
     frameToScroll->ScrollBy(nsIntPoint(scrollX, scrollY), aScrollQuantity,
-                            mode, &overflow, aOrigin);
+                            mode, &overflow);
     aMouseEvent->scrollOverflow = isHorizontal ? overflow.x : overflow.y;
     return NS_OK;
   }
@@ -2868,7 +2867,7 @@ nsEventStateManager::DoScrollText(nsIFrame* aTargetFrame,
         aTargetFrame->PresContext()->FrameManager()->GetRootFrame());
     if (newFrame)
       return DoScrollText(newFrame, aMouseEvent, aScrollQuantity,
-                          aAllowScrollSpeedOverride, aQueryEvent, aOrigin);
+                          aAllowScrollSpeedOverride, aQueryEvent);
   }
 
   aMouseEvent->scrollOverflow = numLines;
@@ -3214,7 +3213,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         switch (action) {
         case MOUSE_SCROLL_N_LINES:
           DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::LINES,
-                       useSysNumLines, nsnull, nsGkAtoms::mouseWheel);
+                       useSysNumLines);
           break;
 
         case MOUSE_SCROLL_PAGE:
@@ -3223,11 +3222,8 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
           break;
 
         case MOUSE_SCROLL_PIXELS:
-          {
-            bool fromLines = msEvent->scrollFlags & nsMouseScrollEvent::kFromLines;
-            DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::DEVICE_PIXELS,
-                         false, nsnull, (fromLines ? nsGkAtoms::mouseWheel : nsnull));
-          }
+          DoScrollText(aTargetFrame, msEvent, nsIScrollableFrame::DEVICE_PIXELS,
+                       false);
           break;
 
         case MOUSE_SCROLL_HISTORY:

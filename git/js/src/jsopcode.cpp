@@ -229,7 +229,7 @@ static const char * countBaseNames[] = {
     "mjit_pics"
 };
 
-JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) == PCCounts::BASE_LIMIT);
+JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) == OpcodeCounts::BASE_COUNT);
 
 static const char * countAccessNames[] = {
     "infer_mono",
@@ -247,7 +247,7 @@ static const char * countAccessNames[] = {
 };
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
-                 JS_ARRAY_LENGTH(countAccessNames) == PCCounts::ACCESS_LIMIT);
+                 JS_ARRAY_LENGTH(countAccessNames) == OpcodeCounts::ACCESS_COUNT);
 
 static const char * countElementNames[] = {
     "id_int",
@@ -262,7 +262,7 @@ static const char * countElementNames[] = {
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
-                 JS_ARRAY_LENGTH(countElementNames) == PCCounts::ELEM_LIMIT);
+                 JS_ARRAY_LENGTH(countElementNames) == OpcodeCounts::ELEM_COUNT);
 
 static const char * countPropertyNames[] = {
     "prop_static",
@@ -272,7 +272,7 @@ static const char * countPropertyNames[] = {
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
-                 JS_ARRAY_LENGTH(countPropertyNames) == PCCounts::PROP_LIMIT);
+                 JS_ARRAY_LENGTH(countPropertyNames) == OpcodeCounts::PROP_COUNT);
 
 static const char * countArithNames[] = {
     "arith_int",
@@ -282,29 +282,29 @@ static const char * countArithNames[] = {
 };
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
-                 JS_ARRAY_LENGTH(countArithNames) == PCCounts::ARITH_LIMIT);
+                 JS_ARRAY_LENGTH(countArithNames) == OpcodeCounts::ARITH_COUNT);
 
 /* static */ const char *
-PCCounts::countName(JSOp op, size_t which)
+OpcodeCounts::countName(JSOp op, size_t which)
 {
     JS_ASSERT(which < numCounts(op));
 
-    if (which < BASE_LIMIT)
+    if (which < BASE_COUNT)
         return countBaseNames[which];
 
     if (accessOp(op)) {
-        if (which < ACCESS_LIMIT)
-            return countAccessNames[which - BASE_LIMIT];
+        if (which < ACCESS_COUNT)
+            return countAccessNames[which - BASE_COUNT];
         if (elementOp(op))
-            return countElementNames[which - ACCESS_LIMIT];
+            return countElementNames[which - ACCESS_COUNT];
         if (propertyOp(op))
-            return countPropertyNames[which - ACCESS_LIMIT];
+            return countPropertyNames[which - ACCESS_COUNT];
         JS_NOT_REACHED("bad op");
         return NULL;
     }
 
     if (arithOp(op))
-        return countArithNames[which - BASE_LIMIT];
+        return countArithNames[which - BASE_COUNT];
 
     JS_NOT_REACHED("bad op");
     return NULL;
@@ -315,7 +315,7 @@ PCCounts::countName(JSOp op, size_t which)
 JS_FRIEND_API(void)
 js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
 {
-    JS_ASSERT(script->scriptCounts);
+    JS_ASSERT(script->pcCounters);
 
     jsbytecode *pc = script->code;
     while (pc < script->code + script->length) {
@@ -327,8 +327,8 @@ js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
         if (!js_Disassemble1(cx, script, pc, pc - script->code, true, sp))
             return;
 
-        size_t total = PCCounts::numCounts(op);
-        double *raw = script->getPCCounts(pc).rawCounts();
+        size_t total = OpcodeCounts::numCounts(op);
+        double *raw = script->getCounts(pc).rawCounts();
 
         Sprint(sp, "                  {");
         bool printed = false;
@@ -337,7 +337,7 @@ js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
             if (val) {
                 if (printed)
                     Sprint(sp, ", ");
-                Sprint(sp, "\"%s\": %.0f", PCCounts::countName(op, i), val);
+                Sprint(sp, "\"%s\": %.0f", OpcodeCounts::countName(op, i), val);
                 printed = true;
             }
         }
@@ -1980,6 +1980,9 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
       case JSOP_SETLOCAL:
         LOCAL_ASSERT(!letNames);
         LOCAL_ASSERT(pc[oplen] == JSOP_POP || pc[oplen] == JSOP_POPN);
+        /* FALL THROUGH */
+      case JSOP_SETLOCALPOP:
+        LOCAL_ASSERT(!letNames);
         if (op == JSOP_SETARG) {
             atom = GetArgOrVarAtom(jp, GET_SLOTNO(pc));
             LOCAL_ASSERT(atom);
@@ -1995,13 +1998,15 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
             if (!lval || ss->sprinter.put(lval) < 0)
                 return NULL;
         }
-        pc += oplen;
-        if (pc == endpc)
-            return pc;
-        LOAD_OP_DATA(pc);
-        if (op == JSOP_POPN)
-            return pc;
-        LOCAL_ASSERT(op == JSOP_POP);
+        if (op != JSOP_SETLOCALPOP) {
+            pc += oplen;
+            if (pc == endpc)
+                return pc;
+            LOAD_OP_DATA(pc);
+            if (op == JSOP_POPN)
+                return pc;
+            LOCAL_ASSERT(op == JSOP_POP);
+        }
         break;
 
       default: {
@@ -3277,10 +3282,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                         js_puts(jp, lval);
                     } else {
 #endif
-                        LOCAL_ASSERT(*pc == JSOP_SETLOCAL);
-                        pc += JSOP_SETLOCAL_LENGTH;
-                        LOCAL_ASSERT(*pc == JSOP_POP);
-                        pc += JSOP_POP_LENGTH;
+                        LOCAL_ASSERT(*pc == JSOP_SETLOCALPOP);
+                        pc += JSOP_SETLOCALPOP_LENGTH;
                         LOCAL_ASSERT(blockObj.slotCount() >= 1);
                         if (!QuoteString(&jp->sprinter, atoms[0], 0))
                             return NULL;
@@ -3547,6 +3550,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 
               case JSOP_SETLOCAL:
+              case JSOP_SETLOCALPOP:
                 if (IsVarSlot(jp, pc, &i)) {
                     atom = GetArgOrVarAtom(jp, i);
                     LOCAL_ASSERT(atom);
@@ -4091,13 +4095,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                         if (!pc)
                             return NULL;
 
-                        /* Left-hand side never needs parens. */
-                        JS_ASSERT(js_CodeSpec[JSOP_POP].prec <= 3);
-                        lval = PopStr(ss, JSOP_POP);
-
-                        /* Make sure comma-expression on rhs gets parens. */
-                        JS_ASSERT(js_CodeSpec[JSOP_SETNAME].prec > js_CodeSpec[JSOP_POP].prec);
-                        rval = PopStr(ss, JSOP_SETNAME);
+                        lval = POP_STR();  /* Pop the decompiler result. */
+                        rval = POP_STR();  /* Pop the initializer expression. */
 
                         if (strcmp(rval, forelem_cookie) == 0) {
                             todo = Sprint(&ss->sprinter, ss_format,
@@ -4241,6 +4240,14 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     const char *prefix = VarPrefix(sn);
                     Sprint(&ss->sprinter, "%s%s = ", prefix, lval);
                     SprintOpcode(ss, rval, rvalpc, pc, todo);
+                }
+                if (op == JSOP_SETLOCALPOP) {
+                    if (!PushOff(ss, todo, saveop))
+                        return NULL;
+                    rval = POP_STR();
+                    LOCAL_ASSERT(*rval != '\0');
+                    js_printf(jp, "\t%s;\n", rval);
+                    todo = -2;
                 }
                 break;
 
@@ -4508,6 +4515,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 
               case JSOP_SETPROP:
+              case JSOP_SETMETHOD:
               {
                 LOAD_ATOM(0);
                 GET_QUOTE_AND_FMT("[%s] %s= ", ".%s %s= ", xval);
@@ -4778,22 +4786,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     break;
                 }
 #endif /* JS_HAS_GENERATOR_EXPRS */
-                else if (sn && SN_TYPE(sn) == SRC_CONTINUE) {
-                    /*
-                     * Local function definitions have a lambda;setlocal;pop
-                     * triple (annotated with SRC_CONTINUE) in the function
-                     * prologue and a nop (annotated with SRC_FUNCDEF) at the
-                     * actual position where the function definition should
-                     * syntactically appear.
-                     */
-                    LOCAL_ASSERT(pc[JSOP_LAMBDA_LENGTH] == JSOP_SETLOCAL);
-                    LOCAL_ASSERT(pc[JSOP_LAMBDA_LENGTH + JSOP_SETLOCAL_LENGTH] == JSOP_POP);
-                    len = JSOP_LAMBDA_LENGTH + JSOP_SETLOCAL_LENGTH + JSOP_POP_LENGTH;
-                    todo = -2;
-                    break;
-                }
+                /* FALL THROUGH */
 
-                /* Otherwise, this is a lambda expression. */
                 fun = jp->script->getFunction(GET_UINT32_INDEX(pc));
                 {
                     /*
@@ -5112,6 +5106,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 
               case JSOP_INITPROP:
+              case JSOP_INITMETHOD:
                 LOAD_ATOM(0);
                 xval = QuoteString(&ss->sprinter, atom, jschar(IsIdentifier(atom) ? 0 : '\''));
                 if (!xval)
@@ -5997,10 +5992,10 @@ GetPCCountScriptCount(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
 
-    if (!rt->scriptAndCountsVector)
+    if (!rt->scriptPCCounters)
         return 0;
 
-    return rt->scriptAndCountsVector->length();
+    return rt->scriptPCCounters->length();
 }
 
 enum MaybeComma {NO_COMMA, COMMA};
@@ -6034,12 +6029,12 @@ GetPCCountScriptSummary(JSContext *cx, size_t index)
 {
     JSRuntime *rt = cx->runtime;
 
-    if (!rt->scriptAndCountsVector || index >= rt->scriptAndCountsVector->length()) {
+    if (!rt->scriptPCCounters || index >= rt->scriptPCCounters->length()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BUFFER_TOO_SMALL);
         return NULL;
     }
 
-    ScriptAndCounts info = (*rt->scriptAndCountsVector)[index];
+    ScriptOpcodeCountsPair info = (*rt->scriptPCCounters)[index];
     JSScript *script = info.script;
 
     /*
@@ -6070,35 +6065,35 @@ GetPCCountScriptSummary(JSContext *cx, size_t index)
         }
     }
 
-    double baseTotals[PCCounts::BASE_LIMIT] = {0.0};
-    double accessTotals[PCCounts::ACCESS_LIMIT - PCCounts::BASE_LIMIT] = {0.0};
-    double elementTotals[PCCounts::ELEM_LIMIT - PCCounts::ACCESS_LIMIT] = {0.0};
-    double propertyTotals[PCCounts::PROP_LIMIT - PCCounts::ACCESS_LIMIT] = {0.0};
-    double arithTotals[PCCounts::ARITH_LIMIT - PCCounts::BASE_LIMIT] = {0.0};
+    double baseTotals[OpcodeCounts::BASE_COUNT] = {0.0};
+    double accessTotals[OpcodeCounts::ACCESS_COUNT - OpcodeCounts::BASE_COUNT] = {0.0};
+    double elementTotals[OpcodeCounts::ELEM_COUNT - OpcodeCounts::ACCESS_COUNT] = {0.0};
+    double propertyTotals[OpcodeCounts::PROP_COUNT - OpcodeCounts::ACCESS_COUNT] = {0.0};
+    double arithTotals[OpcodeCounts::ARITH_COUNT - OpcodeCounts::BASE_COUNT] = {0.0};
 
     for (unsigned i = 0; i < script->length; i++) {
-        PCCounts &counts = info.getPCCounts(script->code + i);
+        OpcodeCounts &counts = info.getCounts(script->code + i);
         if (!counts)
             continue;
 
         JSOp op = (JSOp)script->code[i];
-        unsigned numCounts = PCCounts::numCounts(op);
+        unsigned numCounts = OpcodeCounts::numCounts(op);
 
         for (unsigned j = 0; j < numCounts; j++) {
             double value = counts.get(j);
-            if (j < PCCounts::BASE_LIMIT) {
+            if (j < OpcodeCounts::BASE_COUNT) {
                 baseTotals[j] += value;
-            } else if (PCCounts::accessOp(op)) {
-                if (j < PCCounts::ACCESS_LIMIT)
-                    accessTotals[j - PCCounts::BASE_LIMIT] += value;
-                else if (PCCounts::elementOp(op))
-                    elementTotals[j - PCCounts::ACCESS_LIMIT] += value;
-                else if (PCCounts::propertyOp(op))
-                    propertyTotals[j - PCCounts::ACCESS_LIMIT] += value;
+            } else if (OpcodeCounts::accessOp(op)) {
+                if (j < OpcodeCounts::ACCESS_COUNT)
+                    accessTotals[j - OpcodeCounts::BASE_COUNT] += value;
+                else if (OpcodeCounts::elementOp(op))
+                    elementTotals[j - OpcodeCounts::ACCESS_COUNT] += value;
+                else if (OpcodeCounts::propertyOp(op))
+                    propertyTotals[j - OpcodeCounts::ACCESS_COUNT] += value;
                 else
                     JS_NOT_REACHED("Bad opcode");
-            } else if (PCCounts::arithOp(op)) {
-                arithTotals[j - PCCounts::BASE_LIMIT] += value;
+            } else if (OpcodeCounts::arithOp(op)) {
+                arithTotals[j - OpcodeCounts::BASE_COUNT] += value;
             } else {
                 JS_NOT_REACHED("Bad opcode");
             }
@@ -6138,7 +6133,7 @@ struct AutoDestroyPrinter
 };
 
 static bool
-GetPCCountJSON(JSContext *cx, const ScriptAndCounts &info, StringBuffer &buf)
+GetPCCountJSON(JSContext *cx, const ScriptOpcodeCountsPair &info, StringBuffer &buf)
 {
     JSScript *script = info.script;
 
@@ -6236,8 +6231,8 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &info, StringBuffer &buf)
             buf.append(str);
         }
 
-        PCCounts &counts = info.getPCCounts(pc);
-        unsigned numCounts = PCCounts::numCounts(op);
+        OpcodeCounts &counts = info.getCounts(pc);
+        unsigned numCounts = OpcodeCounts::numCounts(op);
 
         AppendJSONProperty(buf, "counts");
         buf.append('{');
@@ -6246,7 +6241,7 @@ GetPCCountJSON(JSContext *cx, const ScriptAndCounts &info, StringBuffer &buf)
         for (unsigned i = 0; i < numCounts; i++) {
             double value = counts.get(i);
             if (value > 0) {
-                AppendJSONProperty(buf, PCCounts::countName(op, i), comma);
+                AppendJSONProperty(buf, OpcodeCounts::countName(op, i), comma);
                 comma = COMMA;
                 NumberValueToStringBuffer(cx, DoubleValue(value), buf);
             }
@@ -6267,12 +6262,12 @@ GetPCCountScriptContents(JSContext *cx, size_t index)
 {
     JSRuntime *rt = cx->runtime;
 
-    if (!rt->scriptAndCountsVector || index >= rt->scriptAndCountsVector->length()) {
+    if (!rt->scriptPCCounters || index >= rt->scriptPCCounters->length()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BUFFER_TOO_SMALL);
         return NULL;
     }
 
-    const ScriptAndCounts &info = (*rt->scriptAndCountsVector)[index];
+    const ScriptOpcodeCountsPair &info = (*rt->scriptPCCounters)[index];
     JSScript *script = info.script;
 
     StringBuffer buf(cx);

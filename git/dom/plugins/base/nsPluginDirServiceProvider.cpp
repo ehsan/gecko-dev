@@ -41,15 +41,15 @@
 
 #include "nsCRT.h"
 #include "nsILocalFile.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsDependentString.h"
+#include "nsXPIDLString.h"
 #include "prmem.h"
 #include "nsArrayEnumerator.h"
-#include "mozilla/Preferences.h"
 
 #include <windows.h>
 #include "nsIWindowsRegKey.h"
-
-using namespace mozilla;
 
 typedef struct structVer
 {
@@ -231,15 +231,18 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
   *_retval = nsnull;
   *persistant = false;
 
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefs)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIWindowsRegKey> regKey =
     do_CreateInstance("@mozilla.org/windows-registry-key;1");
   NS_ENSURE_TRUE(regKey, NS_ERROR_FAILURE);
 
   if (nsCRT::strcmp(charProp, NS_WIN_JRE_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -329,10 +332,9 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_QUICKTIME_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -369,10 +371,9 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_WMP_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -408,8 +409,8 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_ACROBAT_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer)))) {
       return NS_ERROR_FAILURE;
     }
 

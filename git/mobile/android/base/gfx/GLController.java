@@ -87,6 +87,40 @@ public class GLController {
         mGLVersion = version;
     }
 
+    /** You must call this on the same thread you intend to use OpenGL on. */
+    public void initGLContext() {
+        initEGLContext();
+        createEGLSurface();
+    }
+
+    public void disposeGLContext() {
+        if (mEGL == null) {
+            return;
+        }
+
+        if (!mEGL.eglMakeCurrent(mEGLDisplay, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE,
+                                 EGL10.EGL_NO_CONTEXT)) {
+            throw new GLControllerException("EGL context could not be released!");
+        }
+
+        if (mEGLSurface != null) {
+            if (!mEGL.eglDestroySurface(mEGLDisplay, mEGLSurface)) {
+                throw new GLControllerException("EGL surface could not be destroyed!");
+            }
+
+            mEGLSurface = null;
+        }
+
+        if (mEGLContext != null) {
+            if (!mEGL.eglDestroyContext(mEGLDisplay, mEGLContext)) {
+                throw new GLControllerException("EGL context could not be destroyed!");
+            }
+
+            mGL = null;
+            mEGLContext = null;
+        }
+    }
+
     public GL getGL()                       { return mEGLContext.getGL(); }
     public EGLDisplay getEGLDisplay()       { return mEGLDisplay;         }
     public EGLConfig getEGLConfig()         { return mEGLConfig;          }
@@ -115,8 +149,6 @@ public class GLController {
         return true;
     }
 
-    // Wait until we are allowed to use EGL functions on the Surface backing
-    // this window.
     public synchronized void waitForValidSurface() {
         while (!mSurfaceValid) {
             try {
@@ -148,9 +180,6 @@ public class GLController {
     synchronized void sizeChanged(int newWidth, int newHeight) {
         mWidth = newWidth;
         mHeight = newHeight;
-        if (mGL != null) {
-          mView.getRenderer().onSurfaceChanged((GL10)mGL, mWidth, mHeight);
-        }
     }
 
     private void initEGL() {
@@ -161,21 +190,22 @@ public class GLController {
             throw new GLControllerException("eglGetDisplay() failed");
         }
 
+        int[] version = new int[2];
+        if (!mEGL.eglInitialize(mEGLDisplay, version)) {
+            throw new GLControllerException("eglInitialize() failed");
+        }
+
         mEGLConfig = chooseConfig();
+    }
+
+    private void initEGLContext() {
+        initEGL();
 
         int[] attribList = { EGL_CONTEXT_CLIENT_VERSION, mGLVersion, EGL10.EGL_NONE };
         mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig, EGL10.EGL_NO_CONTEXT,
                                             attribList);
         if (mEGLContext == null || mEGLContext == EGL10.EGL_NO_CONTEXT) {
-            throw new GLControllerException("createContext() failed " +
-                                            getEGLError());
-        }
-
-        mGL = mEGLContext.getGL();
-
-        if (mView.getRenderer() != null) {
-            mView.getRenderer().onSurfaceCreated((GL10)mGL, mEGLConfig);
-            mView.getRenderer().onSurfaceChanged((GL10)mGL, mView.getWidth(), mView.getHeight());
+            throw new GLControllerException("createContext() failed");
         }
     }
 
@@ -183,14 +213,12 @@ public class GLController {
         int[] numConfigs = new int[1];
         if (!mEGL.eglChooseConfig(mEGLDisplay, CONFIG_SPEC, null, 0, numConfigs) ||
                 numConfigs[0] <= 0) {
-            throw new GLControllerException("No available EGL configurations " +
-                                            getEGLError());
+            throw new GLControllerException("No available EGL configurations");
         }
 
         EGLConfig[] configs = new EGLConfig[numConfigs[0]];
         if (!mEGL.eglChooseConfig(mEGLDisplay, CONFIG_SPEC, configs, numConfigs[0], numConfigs)) {
-            throw new GLControllerException("No EGL configuration for that specification " +
-                                            getEGLError());
+            throw new GLControllerException("No EGL configuration for that specification");
         }
 
         // Select the first 565 RGB configuration.
@@ -207,6 +235,26 @@ public class GLController {
         throw new GLControllerException("No suitable EGL configuration found");
     }
 
+    private void createEGLSurface() {
+        SurfaceHolder surfaceHolder = mView.getHolder();
+        mEGLSurface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, surfaceHolder, null);
+        if (mEGLSurface == null || mEGLSurface == EGL10.EGL_NO_SURFACE) {
+            throw new GLControllerException("EGL window surface could not be created!");
+        }
+
+        if (!mEGL.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
+            throw new GLControllerException("EGL surface could not be made into the current " +
+                                            "surface!");
+        }
+
+        mGL = mEGLContext.getGL();
+
+        if (mView.getRenderer() != null) {
+            mView.getRenderer().onSurfaceCreated((GL10)mGL, mEGLConfig);
+            mView.getRenderer().onSurfaceChanged((GL10)mGL, mView.getWidth(), mView.getHeight());
+        }
+    }
+
     /**
      * Provides an EGLSurface without assuming ownership of this surface.
      * This class does not keep a reference to the provided EGL surface; the
@@ -220,15 +268,10 @@ public class GLController {
         SurfaceHolder surfaceHolder = mView.getHolder();
         EGLSurface surface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, surfaceHolder, null);
         if (surface == null || surface == EGL10.EGL_NO_SURFACE) {
-            throw new GLControllerException("EGL window surface could not be created! " +
-                                            getEGLError());
+            throw new GLControllerException("EGL window surface could not be created!");
         }
 
         return surface;
-    }
-
-    private String getEGLError() {
-        return "Error " + mEGL.eglGetError();
     }
 
     public static class GLControllerException extends RuntimeException {

@@ -62,6 +62,7 @@
 #include "nsHTMLStyleSheet.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
+#include "nsIParser.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
@@ -803,7 +804,7 @@ XULContentSinkImpl::SetElementScriptType(nsXULPrototypeElement* element,
                 nsCOMPtr<nsIScriptRuntime> runtime;
                 rv = NS_GetScriptRuntime(value, getter_AddRefs(runtime));
                 if (NS_SUCCEEDED(rv))
-                    element->mScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
+                    element->mScriptTypeID = runtime->GetScriptTypeID();
                 else {
                     // probably just a bad language name (typo, etc)
                     NS_WARNING("Failed to load the node's script language!");
@@ -1030,7 +1031,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
                   NS_WARNING("Failed to find a scripting language");
                   langID = nsIProgrammingLanguage::UNKNOWN;
               } else
-                  langID = nsIProgrammingLanguage::JAVASCRIPT;
+                  langID = runtime->GetScriptTypeID();
           }
 
           if (langID != nsIProgrammingLanguage::UNKNOWN) {
