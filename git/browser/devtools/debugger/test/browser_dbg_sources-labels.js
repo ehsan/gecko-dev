@@ -85,7 +85,7 @@ function test() {
       let url = href + leaf;
       let label = gUtils.getSourceLabel(url);
       let trimmedLabel = gUtils.trimUrlLength(label);
-      gSources.push([trimmedLabel, url], { attachment: {}});
+      gSources.push([trimmedLabel, url]);
     }
 
     info("Source labels:");
