@@ -98,9 +98,6 @@ public class ProfileMigrator {
     private File mProfileDir;
     private ContentResolver mCr;
     private Context mContext;
-    private Runnable mLongOperationStartCallback;
-    private boolean mLongOperationStartRun;
-    private Runnable mLongOperationStopCallback;
 
     // Default number of history entries to migrate in one run.
     private static final int DEFAULT_HISTORY_MIGRATE_COUNT = 2000;
@@ -263,17 +260,6 @@ public class ProfileMigrator {
         mProfileDir = profileDir;
         mContext = context;
         mCr = mContext.getContentResolver();
-        mLongOperationStartCallback = null;
-        mLongOperationStopCallback = null;
-    }
-
-    // Define callbacks to run if the operation will take a while.
-    // Stop callback is only run if there was a start callback that was run.
-    public void setLongOperationCallbacks(Runnable start,
-                                          Runnable stop) {
-        mLongOperationStartCallback = start;
-        mLongOperationStopCallback = stop;
-        mLongOperationStartRun = false;
     }
 
     public void launchPlaces() {
@@ -290,7 +276,6 @@ public class ProfileMigrator {
     }
 
     public void launchPlaces(int maxEntries) {
-        mLongOperationStartRun = false;
         // Places migration is heavy on the phone, allow it to block
         // other processing.
         new PlacesRunnable(maxEntries).run();
@@ -475,22 +460,22 @@ public class ProfileMigrator {
             final String clientName = mSyncSettingsMap.get("services.sync.client.name");
             final String clientGuid = mSyncSettingsMap.get("services.sync.client.GUID");
 
-            GeckoAppShell.getHandler().post(new Runnable() {
-                public void run() {
-                    if (userName == null || syncKey == null || syncPass == null) {
-                        // This isn't going to work. Give up.
-                        Log.e(LOGTAG, "Profile has incomplete Sync config. Not migrating.");
-                        setMigratedSync();
-                        return;
-                    }
+            if (userName == null || syncKey == null || syncPass == null) {
+                // This isn't going to work. Give up.
+                Log.e(LOGTAG, "Profile has incomplete Sync config. Not migrating.");
+                setMigratedSync();
+                return;
+            }
 
-                    final SyncAccountParameters params =
-                        new SyncAccountParameters(mContext, null,
-                                                  userName, syncKey,
-                                                  syncPass, serverURL, clusterURL,
-                                                  clientName, clientGuid);
+            final SyncAccountParameters params =
+                new SyncAccountParameters(mContext, null,
+                                          userName, syncKey,
+                                          syncPass, serverURL, clusterURL,
+                                          clientName, clientGuid);
 
-                    final Account account = SyncAccounts.createSyncAccount(params);
+            new SyncAccounts.CreateSyncAccountTask() {
+                @Override
+                protected void onPostExecute(Account account) {
                     if (account == null) {
                         Log.e(LOGTAG, "Failed to migrate Sync account.");
                     } else {
@@ -498,7 +483,7 @@ public class ProfileMigrator {
                     }
                     setMigratedSync();
                 }
-            });
+            }.execute(params);
         }
 
         protected void registerAndRequest() {
@@ -518,12 +503,8 @@ public class ProfileMigrator {
                 @Override
                 protected void onPostExecute(Boolean result) {
                     if (result.booleanValue()) {
-                        GeckoAppShell.getHandler().post(new Runnable() {
-                            public void run() {
-                                Log.i(LOGTAG, "Sync account already configured, skipping.");
-                                setMigratedSync();
-                            }
-                        });
+                        Log.i(LOGTAG, "Sync account already configured, skipping.");
+                        setMigratedSync();
                     } else {
                         // No account configured, fire up.
                         registerAndRequest();
@@ -1186,11 +1167,6 @@ public class ProfileMigrator {
                     setMigratedHistory();
                 } else {
                     // Compatible schema. Let's go.
-                    if (mLongOperationStartCallback != null) {
-                        mLongOperationStartCallback.run();
-                        mLongOperationStartRun = true;
-                    }
-
                     calculateReroot(db);
 
                     if (!areBookmarksMigrated()) {
@@ -1225,12 +1201,7 @@ public class ProfileMigrator {
                     db.close();
                 }
                 Log.e(LOGTAG, "Error on places database:", e);
-            } finally {
-                if (mLongOperationStopCallback != null) {
-                    if (mLongOperationStartRun) {
-                        mLongOperationStopCallback.run();
-                    }
-                }
+                return;
             }
         }
 

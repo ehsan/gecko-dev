@@ -194,9 +194,9 @@ public class PanZoomController
                     }
                 });
             } else if (MESSAGE_ZOOM_PAGE.equals(event)) {
-                FloatSize pageSize = mController.getCssPageSize();
+                FloatSize pageSize = mController.getPageSize();
 
-                RectF viewableRect = mController.getCssViewport();
+                RectF viewableRect = mController.getViewport();
                 float y = viewableRect.top;
                 // attempt to keep zoom keep focused on the center of the viewport
                 float newHeight = viewableRect.height() * pageSize.width / viewableRect.width();
@@ -979,12 +979,6 @@ public class PanZoomController
         GeckoAppShell.sendEventToGecko(e);
     }
 
-    /**
-     * Zoom to a specified rect IN CSS PIXELS.
-     *
-     * While we usually use device pixels, @zoomToRect must be specified in CSS
-     * pixels.
-     */
     private boolean animatedZoomTo(RectF zoomToRect) {
         GeckoApp.mFormAssistPopup.hide();
 
@@ -1012,11 +1006,10 @@ public class PanZoomController
             zoomToRect.right = zoomToRect.left + newWidth;
         }
 
-        float finalZoom = viewport.width() / zoomToRect.width();
+        float finalZoom = viewport.width() * startZoom / zoomToRect.width();
 
         ViewportMetrics finalMetrics = new ViewportMetrics(mController.getViewportMetrics());
-        finalMetrics.setOrigin(new PointF(zoomToRect.left * finalMetrics.getZoomFactor(),
-                                          zoomToRect.top * finalMetrics.getZoomFactor()));
+        finalMetrics.setOrigin(new PointF(zoomToRect.left, zoomToRect.top));
         finalMetrics.scaleTo(finalZoom, new PointF(0.0f, 0.0f));
 
         // 2. now run getValidViewportMetrics on it, so that the target viewport is

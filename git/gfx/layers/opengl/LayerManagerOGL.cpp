@@ -85,16 +85,13 @@ int LayerManagerOGLProgram::sCurrentProgramKey = 0;
 /**
  * LayerManagerOGL
  */
-LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth, int aSurfaceHeight,
-                                 bool aIsRenderingToEGLSurface)
+LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mWidgetSize(-1, -1)
-  , mSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mBackBufferFBO(0)
   , mBackBufferTexture(0)
   , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
-  , mIsRenderingToEGLSurface(aIsRenderingToEGLSurface)
 {
 }
 
@@ -768,11 +765,7 @@ LayerManagerOGL::Render()
   }
 
   nsIntRect rect;
-  if (mIsRenderingToEGLSurface) {
-    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-  } else {
-    mWidget->GetClientBounds(rect);
-  }
+  mWidget->GetClientBounds(rect);
   WorldTransformRect(rect);
 
   GLint width = rect.width;
@@ -832,11 +825,7 @@ LayerManagerOGL::Render()
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     nsIntRect rect;
-    if (mIsRenderingToEGLSurface) {
-      rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-    } else {
-      mWidget->GetBounds(rect);
-    }
+    mWidget->GetBounds(rect);
     nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     CopyToTarget(ctx);
@@ -972,13 +961,6 @@ LayerManagerOGL::WorldTransformRect(nsIntRect& aRect)
 }
 
 void
-LayerManagerOGL::SetSurfaceSize(int width, int height)
-{
-  mSurfaceSize.width = width;
-  mSurfaceSize.height = height;
-}
-
-void
 LayerManagerOGL::SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTransformPolicy)
 {
   // Set the viewport correctly. 
@@ -1062,11 +1044,7 @@ void
 LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
 {
   nsIntRect rect;
-  if (mIsRenderingToEGLSurface) {
-    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-  } else {
-    mWidget->GetBounds(rect);
-  }
+  mWidget->GetBounds(rect);
   GLint width = rect.width;
   GLint height = rect.height;
 

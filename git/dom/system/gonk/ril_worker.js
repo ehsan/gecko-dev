@@ -1352,8 +1352,8 @@ let RIL = {
     }
 
     if (stateChanged) {
-      rs.type = "voiceregistrationstatechange";
-      this.sendDOMMessage(rs);
+      this.sendDOMMessage({type: "voiceregistrationstatechange",
+                           voiceRegistrationState: rs});
     }
   },
 
@@ -1374,8 +1374,8 @@ let RIL = {
     }
 
     if (stateChanged) {
-      rs.type = "dataregistrationstatechange";
-      this.sendDOMMessage(rs);
+      this.sendDOMMessage({type: "dataregistrationstatechange",
+                           dataRegistrationState: rs});
     }
   },
 
@@ -1430,13 +1430,16 @@ let RIL = {
 
   _handleChangedCallState: function _handleChangedCallState(changedCall) {
     let message = {type: "callStateChange",
-                   call: changedCall};
+                   call: {callIndex: changedCall.callIndex,
+                          state: changedCall.state,
+                          number: changedCall.number,
+                          name: changedCall.name}};
     this.sendDOMMessage(message);
   },
 
   _handleDisconnectedCall: function _handleDisconnectedCall(disconnectedCall) {
     let message = {type: "callDisconnected",
-                   call: disconnectedCall};
+                   call: {callIndex: disconnectedCall.callIndex}};
     this.sendDOMMessage(message);
   },
 
@@ -1921,27 +1924,16 @@ RIL[REQUEST_SIGNAL_STRENGTH] = function REQUEST_SIGNAL_STRENGTH(length, options)
 
   // GSM
   // Valid values are (0-31, 99) as defined in TS 27.007 8.5.
-  let gsmSignalStrength = Buf.readUint32();
-  obj.gsmSignalStrength = gsmSignalStrength & 0xff;
+  obj.gsmSignalStrength = Buf.readUint32();
+  // The SGS2 seems to compute the number of bars for us and expose those
+  // instead of the actual signal strength.
+  obj.bars = obj.gsmSignalStrength >> 8; //TODO remove this, see bug 729173
+  obj.gsmSignalStrength = obj.gsmSignalStrength & 0xff;
   // GSM bit error rate (0-7, 99) as defined in TS 27.007 8.5.
   obj.gsmBitErrorRate = Buf.readUint32();
 
-  obj.gsmDBM = null;
-  obj.gsmRelative = null;
-  if (obj.gsmSignalStrength >= 0 && obj.gsmSignalStrength <= 31) {
-    obj.gsmDBM = -113 + obj.gsmSignalStrength * 2;
-    obj.gsmRelative = Math.floor(obj.gsmSignalStrength * 100 / 31);
-  }
-
-  // The SGS2 seems to compute the number of bars (0-4) for us and
-  // expose those instead of the actual signal strength. Since the RIL
-  // needs to be "warmed up" first for the quirk detection to work,
-  // we're detecting this ad-hoc and not upfront.
-  if (obj.gsmSignalStrength == 99) {
-    obj.gsmRelative = (gsmSignalStrength >> 8) * 25;
-  }
-
   // CDMA
+  // The CDMA RSSI value.
   obj.cdmaDBM = Buf.readUint32();
   // The CDMA EC/IO.
   obj.cdmaECIO = Buf.readUint32();
@@ -1972,8 +1964,8 @@ RIL[REQUEST_SIGNAL_STRENGTH] = function REQUEST_SIGNAL_STRENGTH(length, options)
   }
 
   if (DEBUG) debug("Signal strength " + JSON.stringify(obj));
-  obj.type = "signalstrengthchange";
-  this.sendDOMMessage(obj);
+  this.sendDOMMessage({type: "signalstrengthchange",
+                       signalStrength: obj});
 };
 RIL[REQUEST_VOICE_REGISTRATION_STATE] = function REQUEST_VOICE_REGISTRATION_STATE(length, options) {
   if (options.rilRequestError) {
@@ -2006,11 +1998,11 @@ RIL[REQUEST_OPERATOR] = function REQUEST_OPERATOR(length, options) {
       this.operator.alphaLong  != operator[0] ||
       this.operator.alphaShort != operator[1] ||
       this.operator.numeric    != operator[2]) {
-    this.operator = {type: "operatorchange",
-                     alphaLong:  operator[0],
+    this.operator = {alphaLong:  operator[0],
                      alphaShort: operator[1],
                      numeric:    operator[2]};
-    this.sendDOMMessage(this.operator);
+    this.sendDOMMessage({type: "operatorchange",
+                         operator: this.operator});
   }
 };
 RIL[REQUEST_RADIO_POWER] = null;

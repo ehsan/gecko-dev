@@ -233,8 +233,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
     nsSize contentSize =
       scrollableFrame->GetScrollRange().Size() +
       scrollableFrame->GetScrollPortRect().Size();
-    metrics.mCSSContentSize = gfx::Size(nsPresContext::AppUnitsToFloatCSSPixels(contentSize.width),
-                                        nsPresContext::AppUnitsToFloatCSSPixels(contentSize.height));
     metrics.mContentSize = contentSize.ScaleToNearestPixels(
       aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
     metrics.mViewportScrollOffset = scrollableFrame->GetScrollPosition().ScaleToNearestPixels(
@@ -242,8 +240,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   }
   else {
     nsSize contentSize = aForFrame->GetSize();
-    metrics.mCSSContentSize = gfx::Size(nsPresContext::AppUnitsToFloatCSSPixels(contentSize.width),
-                                        nsPresContext::AppUnitsToFloatCSSPixels(contentSize.height));
     metrics.mContentSize = contentSize.ScaleToNearestPixels(
       aContainerParameters.mXScale, aContainerParameters.mYScale, auPerDevPixel);
   }

@@ -148,13 +148,6 @@ CompositorParent::ResumeComposition()
 }
 
 void
-CompositorParent::ResumeCompositionAndResize(int width, int height)
-{
-  static_cast<LayerManagerOGL*>(mLayerManager.get())->SetSurfaceSize(width, height);
-  ResumeComposition();
-}
-
-void
 CompositorParent::SchedulePauseOnCompositorThread()
 {
   CancelableTask *pauseTask = NewRunnableMethod(this,
@@ -163,10 +156,10 @@ CompositorParent::SchedulePauseOnCompositorThread()
 }
 
 void
-CompositorParent::ScheduleResumeOnCompositorThread(int width, int height)
+CompositorParent::ScheduleResumeOnCompositorThread()
 {
-  CancelableTask *resumeTask =
-    NewRunnableMethod(this, &CompositorParent::ResumeCompositionAndResize, width, height);
+  CancelableTask *resumeTask = NewRunnableMethod(this,
+                                                 &CompositorParent::ResumeComposition);
   mCompositorThread->message_loop()->PostTask(FROM_HERE, resumeTask);
 }
 
@@ -307,18 +300,13 @@ CompositorParent::TransformShadowTree()
     nsIntPoint scrollOffset = metrics->mViewportScrollOffset;
     mContentSize = metrics->mContentSize;
     mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(scrollOffset.x, scrollOffset.y,
-                                                            1/rootScaleX,
-                                                            mContentSize.width,
-                                                            mContentSize.height,
-                                                            metrics->mCSSContentSize.width,
-                                                            metrics->mCSSContentSize.height);
+                                                            1/rootScaleX, mContentSize.width,
+                                                            mContentSize.height);
     mIsFirstPaint = false;
   } else if (metrics && (metrics->mContentSize != mContentSize)) {
     mContentSize = metrics->mContentSize;
     mozilla::AndroidBridge::Bridge()->SetPageSize(1/rootScaleX, mContentSize.width,
-                                                  mContentSize.height,
-                                                  metrics->mCSSContentSize.width,
-                                                  metrics->mCSSContentSize.height);
+                                                  mContentSize.height);
   }
 
   // We synchronise the viewport information with Java after sending the above
@@ -379,14 +367,7 @@ PLayersParent*
 CompositorParent::AllocPLayers(const LayersBackend &backendType)
 {
   if (backendType == LayerManager::LAYERS_OPENGL) {
-#ifdef MOZ_JAVA_COMPOSITOR
-    nsIntRect rect;
-    mWidget->GetBounds(rect);
-    nsRefPtr<LayerManagerOGL> layerManager =
-      new LayerManagerOGL(mWidget, rect.width, rect.height, true);
-#else
     nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(mWidget);
-#endif
     mWidget = NULL;
     mLayerManager = layerManager;
 

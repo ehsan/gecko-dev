@@ -91,7 +91,7 @@ js::UnwrapObjectChecked(JSContext *cx, JSObject *obj)
 {
     while (obj->isWrapper()) {
         JSObject *wrapper = obj;
-        AbstractWrapper *handler = AbstractWrapper::wrapperHandler(obj);
+        Wrapper *handler = Wrapper::wrapperHandler(obj);
         bool rvOnFailure;
         if (!handler->enter(cx, wrapper, JSID_VOID,
                             Wrapper::PUNCTURE, &rvOnFailure))
@@ -112,13 +112,11 @@ js::IsCrossCompartmentWrapper(const JSObject *wrapper)
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
 }
 
-AbstractWrapper::AbstractWrapper(unsigned flags) :
-    ProxyHandler(&sWrapperFamily),
-    mFlags(flags)
+AbstractWrapper::AbstractWrapper() : ProxyHandler(&sWrapperFamily)
 {
 }
 
-Wrapper::Wrapper(unsigned flags) : AbstractWrapper(flags)
+Wrapper::Wrapper(unsigned flags) : mFlags(flags)
 {
 }
 
@@ -396,11 +394,10 @@ AbstractWrapper::wrappedObject(const JSObject *wrapper)
     return GetProxyPrivate(wrapper).toObjectOrNull();
 }
 
-AbstractWrapper *
+Wrapper *
 AbstractWrapper::wrapperHandler(const JSObject *wrapper)
 {
-    JS_ASSERT(wrapper->isWrapper());
-    return static_cast<AbstractWrapper *>(GetProxyHandler(wrapper));
+    return static_cast<Wrapper *>(GetProxyHandler(wrapper));
 }
 
 bool

@@ -1870,24 +1870,23 @@ AndroidBridge::IsTablet()
 }
 
 void
-AndroidBridge::SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight,
-                                     float aCssPageWidth, float aCssPageHeight)
+AndroidBridge::SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return;
 
-    client->SetFirstPaintViewport(aOffsetX, aOffsetY, aZoom, aPageWidth, aPageHeight, aCssPageWidth, aCssPageHeight);
+    client->SetFirstPaintViewport(aOffsetX, aOffsetY, aZoom, aPageWidth, aPageHeight);
 }
 
 void
-AndroidBridge::SetPageSize(float aZoom, float aPageWidth, float aPageHeight, float aCssPageWidth, float aCssPageHeight)
+AndroidBridge::SetPageSize(float aZoom, float aPageWidth, float aPageHeight)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return;
 
-    client->SetPageSize(aZoom, aPageWidth, aPageHeight, aCssPageWidth, aCssPageHeight);
+    client->SetPageSize(aZoom, aPageWidth, aPageHeight);
 }
 
 void

@@ -63,7 +63,6 @@
 
 #include "mozilla/dom/ScreenOrientation.h"
 
-#include "sampler.h"
 #ifdef MOZ_ANDROID_HISTORY
 #include "nsAndroidHistory.h"
 #endif
@@ -221,19 +220,18 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
     EVLOG("nsAppShell::ProcessNextNativeEvent %d", mayWait);
 
-    SAMPLE_LABEL("nsAppShell", "ProcessNextNativeEvent");
     nsAutoPtr<AndroidGeckoEvent> curEvent;
     {
         MutexAutoLock lock(mCondLock);
 
         curEvent = PopNextEvent();
         if (!curEvent && mayWait) {
-            SAMPLE_LABEL("nsAppShell::ProcessNextNativeEvent", "Wait");
             // hmm, should we really hardcode this 10s?
 #if defined(DEBUG_ANDROID_EVENTS)
             PRTime t0, t1;
             EVLOG("nsAppShell: waiting on mQueueCond");
             t0 = PR_Now();
+
             mQueueCond.Wait(PR_MillisecondsToInterval(10000));
             t1 = PR_Now();
             EVLOG("nsAppShell: wait done, waited %d ms", (int)(t1-t0)/1000);
