@@ -536,7 +536,7 @@ private:
   PRBool SetupXShm();
   void ReleaseXShm();
   void NativeImageDraw(NPRect* invalidRect = nsnull);
-  PRBool UpdateVisibility(PRBool aVisible);
+  PRBool UpdateVisibility();
 
 #endif
 };
@@ -5604,7 +5604,7 @@ void nsPluginInstanceOwner::SetPluginHost(nsIPluginHost* aHost)
 }
 
 #if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_WIDGET_GTK2)
-PRBool nsPluginInstanceOwner::UpdateVisibility(PRBool aVisible)
+PRBool nsPluginInstanceOwner::UpdateVisibility()
 {
   if (!mInstance)
     return PR_TRUE;
@@ -5614,7 +5614,7 @@ PRBool nsPluginInstanceOwner::UpdateVisibility(PRBool aVisible)
   XVisibilityEvent& visibilityEvent = pluginEvent.xvisibility;
   visibilityEvent.type = VisibilityNotify;
   visibilityEvent.display = 0;
-  visibilityEvent.state = aVisible ? VisibilityUnobscured : VisibilityFullyObscured;
+  visibilityEvent.state = VisibilityUnobscured;
   mInstance->HandleEvent(&pluginEvent, &handled);
 
   mWidgetVisible = PR_TRUE;
@@ -5789,7 +5789,7 @@ nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
 
   mBlitParentElement = element;
     
-  UpdateVisibility(!(width == 0 && height == 0));
+  UpdateVisibility();
 
   if (!mInstance)
     return NS_OK;

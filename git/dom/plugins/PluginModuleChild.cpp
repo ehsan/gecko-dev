@@ -1268,35 +1268,14 @@ _poppopupsenabledstate(NPP aNPP)
     return false;
 }
 
-class AsyncCallRunnable : public nsRunnable
-{
-public:
-    AsyncCallRunnable(PluginThreadCallback aFunc, void* aUserData)
-        : mFunc(aFunc)
-        , mData(aUserData)
-    { }
-
-    NS_IMETHOD Run() {
-        mFunc(mData);
-        return NS_OK;
-    }
-
-private:
-    PluginThreadCallback mFunc;
-    void* mData;
-};
-
 void NP_CALLBACK
 _pluginthreadasynccall(NPP aNPP,
                        PluginThreadCallback aFunc,
                        void* aUserData)
 {
     _MOZ_LOG(__FUNCTION__);
-    if (!aFunc)
-        return;
-
-    nsCOMPtr<nsIRunnable> e(new AsyncCallRunnable(aFunc, aUserData));
-    NS_DispatchToMainThread(e);
+    AssertPluginThread();
+    NS_NOTYETIMPLEMENTED("Implement me!");
 }
 
 NPError NP_CALLBACK

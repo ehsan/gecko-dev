@@ -66,10 +66,6 @@ def main():
                       action="store",
                       dest="product",
                       help="[Required] This option is used to generate the URL to download the MAR file.")
-    parser.add_option("--platform",
-                      action="store",
-                      dest="platform",
-                      help="[Required] This option is used to indicate which target platform.")
     parser.add_option("--download-base-URL",
                       action="store",
                       dest="downloadBaseURL",
@@ -84,8 +80,7 @@ def main():
     for req, msg in (('marPath', "the absolute path to the where the MAR file is"),
                      ('applicationIniFile', "the absolute path to the application.ini file."),
                      ('locale', "a locale."),
-                     ('product', "specify a product."),
-                     ('platform', "specify the platform.")):
+                     ('product', "specify a product.")):
         if not hasattr(options, req):
             parser.error('You must specify %s' % msg)
 
@@ -96,8 +91,7 @@ def main():
                               options.applicationIniFile,
                               options.locale,
                               options.downloadBaseURL,
-                              options.product,
-                              options.platform)
+                              options.product)
     f = open(os.path.join(options.marPath, 'complete.update.snippet'), 'wb')
     f.write(snippet)
     f.close()
@@ -107,7 +101,7 @@ def main():
         print snippet
 
 def generateSnippet(abstDistDir, applicationIniFile, locale,
-                    downloadBaseURL, product, platform):
+                    downloadBaseURL, product):
     # Let's extract information from application.ini
     c = ConfigParser()
     try:
@@ -122,7 +116,7 @@ def generateSnippet(abstDistDir, applicationIniFile, locale,
         product,
         appVersion,
         locale,
-        platform)
+        getPlatform())
     # Let's determine the hash and the size of the MAR file
     # This function exits the script if the file does not exist
     (completeMarHash, completeMarSize) = getFileHashAndSize(
@@ -153,6 +147,14 @@ sha1
             appVersion=appVersion)
 
     return snippet
+
+def getPlatform():
+    if platform.system() == "Linux":
+        return "linux-i686"
+    elif platform.system() in ("Windows", "Microsoft"):
+        return "win32"
+    elif platform.system() == "Darwin":
+        return "mac"
 
 def getFileHashAndSize(filepath):
     sha1Hash = 'UNKNOWN'
