@@ -500,25 +500,13 @@ static btrc_callbacks_t sBtAvrcpCallbacks = {
  */
 // static
 void
-BluetoothA2dpManager::InitA2dpInterface(BluetoothProfileResultHandler* aRes)
+BluetoothA2dpManager::InitA2dpInterface()
 {
   BluetoothInterface* btInf = BluetoothInterface::GetInstance();
-  if (!btInf) {
-    BT_LOGR("Error: Bluetooth interface not available");
-    if (aRes) {
-      aRes->OnError(NS_ERROR_FAILURE);
-    }
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(btInf);
 
   sBtA2dpInterface = btInf->GetBluetoothA2dpInterface();
-  if (!sBtA2dpInterface) {
-    BT_LOGR("Error: Bluetooth A2DP interface not available");
-    if (aRes) {
-      aRes->OnError(NS_ERROR_FAILURE);
-    }
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(sBtA2dpInterface);
 
   int ret = sBtA2dpInterface->Init(&sBtA2dpCallbacks);
   if (ret != BT_STATUS_SUCCESS) {
@@ -527,23 +515,13 @@ BluetoothA2dpManager::InitA2dpInterface(BluetoothProfileResultHandler* aRes)
 
 #if ANDROID_VERSION > 17
   sBtAvrcpInterface = btInf->GetBluetoothAvrcpInterface();
-  if (!sBtAvrcpInterface) {
-    BT_LOGR("Error: Bluetooth AVRCP interface not available");
-    if (aRes) {
-      aRes->OnError(NS_ERROR_FAILURE);
-    }
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(sBtAvrcpInterface);
 
   ret = sBtAvrcpInterface->Init(&sBtAvrcpCallbacks);
   if (ret != BT_STATUS_SUCCESS) {
     BT_LOGR("Warning: failed to init avrcp module");
   }
 #endif
-
-  if (aRes) {
-    aRes->Init();
-  }
 }
 
 BluetoothA2dpManager::~BluetoothA2dpManager()
@@ -619,7 +597,7 @@ BluetoothA2dpManager::Get()
 
 // static
 void
-BluetoothA2dpManager::DeinitA2dpInterface(BluetoothProfileResultHandler* aRes)
+BluetoothA2dpManager::DeinitA2dpInterface()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -633,9 +611,6 @@ BluetoothA2dpManager::DeinitA2dpInterface(BluetoothProfileResultHandler* aRes)
     sBtAvrcpInterface = nullptr;
   }
 #endif
-  if (aRes) {
-    aRes->Deinit();
-  }
 }
 
 void

@@ -1,3 +1,6 @@
+if (!isLatin1("foo")) //TODO: remove this when removing latin1 flag
+    quit();
+
 function assertLatin1(s) {
     assertEq(isLatin1(s), true, "String: " + s);
 }

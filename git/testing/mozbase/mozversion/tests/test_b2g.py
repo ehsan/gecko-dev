@@ -29,38 +29,27 @@ class SourcesTest(unittest.TestCase):
     def tearDown(self):
         mozfile.remove(self.tempdir)
 
-    def _create_zip(self, revision=None, date=None):
+    def _create_zip(self, revision, date='date'):
         zip_path = os.path.join(
             self.tempdir, 'gaia', 'profile', 'webapps',
             'settings.gaiamobile.org', 'application.zip')
         os.makedirs(os.path.dirname(zip_path))
         app_zip = zipfile.ZipFile(zip_path, 'w')
-        if revision or date:
-            app_zip.writestr('resources/gaia_commit.txt',
-                             '%s\n%s' % (revision, date))
+        app_zip.writestr('resources/gaia_commit.txt', revision + '\n' + date)
         app_zip.close()
 
     def test_gaia_commit(self):
-        revision, date = ('a' * 40, 'date')
-        self._create_zip(revision, date)
+        self._create_zip('a' * 40, 'date')
         v = get_version(self.binary)
-        self.assertEqual(v.get('gaia_changeset'), revision)
-        self.assertEqual(v.get('gaia_date'), date)
+        self.assertEqual(v.get('gaia_changeset'), 'a' * 40)
+        self.assertEqual(v.get('gaia_date'), 'date')
 
     def test_invalid_gaia_commit(self):
-        revision, date = ('a' * 41, 'date')
-        self._create_zip(revision, date)
+        self._create_zip('a' * 41)
         v = get_version(self.binary)
         self.assertIsNone(v.get('gaia_changeset'))
-        self.assertEqual(v.get('gaia_date'), date)
-
-    def test_missing_zip_file(self):
-        v = get_version(self.binary)
-        self.assertIsNone(v.get('gaia_changeset'))
-        self.assertIsNone(v.get('gaia_date'))
 
     def test_missing_gaia_commit(self):
-        self._create_zip()
         v = get_version(self.binary)
         self.assertIsNone(v.get('gaia_changeset'))
         self.assertIsNone(v.get('gaia_date'))

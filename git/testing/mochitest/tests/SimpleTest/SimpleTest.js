@@ -362,8 +362,7 @@ SimpleTest._logResult = function (test, passInfo, failInfo) {
                                                  result.expected,
                                                  diagnostic);
     } else if (typeof dump === "function") {
-        var diagMessage = test.name + (test.diag ? " - " + test.diag : "");
-        var debugMsg = [result.message, url, diagMessage].join(' | ');
+        var debugMsg = [url, result.message, diagnostic].join(' | ');
         dump(debugMsg + "\n");
     } else {
         // Non-Mozilla browser?  Just do nothing.
@@ -371,7 +370,7 @@ SimpleTest._logResult = function (test, passInfo, failInfo) {
 };
 
 SimpleTest.info = function(name, message) {
-    var log = message ? name + ' | ' + message : name;
+    var log = name + ' | ' + message;
     if (parentRunner) {
         parentRunner.structuredLogger.info(log);
     } else {

@@ -1428,31 +1428,21 @@ this.DOMApplicationRegistry = {
     }
 
     let manifest = new ManifestHelper(json, app.manifestURL);
-    let newApp = {
-      manifestURL: aManifestURL,
-      origin: app.origin,
-      installOrigin: app.installOrigin,
-      downloadSize: app.downloadSize
-    };
-
-    let newManifest, newId;
-
-    try {
-      [newId, newManifest] = yield this.downloadPackage(id, app, manifest, newApp, isUpdate);
-    } catch (ex) {
-      this.revertDownloadPackage(id, app, newApp, isUpdate, ex);
-      throw ex;
-    }
+    let [aId, aManifest] = yield this.downloadPackage(manifest, {
+        manifestURL: aManifestURL,
+        origin: app.origin,
+        installOrigin: app.installOrigin,
+        downloadSize: app.downloadSize
+      }, isUpdate);
 
     // Success! Keep the zip in of TmpD, we'll move it out when
     // applyDownload() will be called.
     // Save the manifest in TmpD also
-    let manFile = OS.Path.join(OS.Constants.Path.tmpDir, "webapps", newId,
+    let manFile = OS.Path.join(OS.Constants.Path.tmpDir, "webapps", aId,
                                "manifest.webapp");
-    yield this._writeFile(manFile, JSON.stringify(newManifest));
+    yield this._writeFile(manFile, JSON.stringify(aManifest));
 
-    app = this.webapps[id];
-
+    app = this.webapps[aId];
     // Set state and fire events.
     app.downloading = false;
     app.downloadAvailable = false;
@@ -2291,7 +2281,7 @@ this.DOMApplicationRegistry = {
   queuedDownload: {},
   queuedPackageDownload: {},
 
-  onInstallSuccessAck: Task.async(function*(aManifestURL, aDontNeedNetwork) {
+  onInstallSuccessAck: function(aManifestURL, aDontNeedNetwork) {
     // If we are offline, register to run when we'll be online.
     if ((Services.io.offline) && !aDontNeedNetwork) {
       let onlineWrapper = {
@@ -2324,18 +2314,11 @@ this.DOMApplicationRegistry = {
 
       delete this.queuedPackageDownload[aManifestURL];
 
-      let id = this._appIdForManifestURL(newApp.manifestURL);
-      let oldApp = this.webapps[id];
-      let newManifest, newId;
-      try {
-        [newId, newManifest] = yield this.downloadPackage(id, oldApp, manifest, newApp, false);
-
-        yield this._onDownloadPackage(newApp, installSuccessCallback, newId, newManifest);
-      } catch (ex) {
-        this.revertDownloadPackage(id, oldApp, newApp, false, ex);
-      }
+      this.downloadPackage(manifest, newApp, false).then(
+        this._onDownloadPackage.bind(this, newApp, installSuccessCallback)
+      );
     }
-  }),
+  },
 
   _setupApp: function(aData, aId) {
     let app = aData.app;
@@ -2620,7 +2603,7 @@ this.DOMApplicationRegistry = {
    * @param aManifest {Object} The manifest of the application
    */
   _onDownloadPackage: Task.async(function*(aNewApp, aInstallSuccessCallback,
-                                           aId, aManifest) {
+                               [aId, aManifest]) {
     debug("_onDownloadPackage");
     // Success! Move the zip out of TmpD.
     let app = this.webapps[aId];
@@ -2754,7 +2737,7 @@ this.DOMApplicationRegistry = {
     }.bind(this)).then(null, Cu.reportError);
   },
 
-  downloadPackage: Task.async(function*(aId, aOldApp, aManifest, aNewApp, aIsUpdate) {
+  downloadPackage: function(aManifest, aNewApp, aIsUpdate, aOnSuccess) {
     // Here are the steps when installing a package:
     // - create a temp directory where to store the app.
     // - download the zip in this directory.
@@ -2762,80 +2745,91 @@ this.DOMApplicationRegistry = {
     // - extract the manifest from the zip and check it.
     // - ask confirmation to the user.
     // - add the new app to the registry.
-    yield this._ensureSufficientStorage(aNewApp);
+    // If we fail at any step, we revert the previous ones and return an error.
 
-    let fullPackagePath = aManifest.fullPackagePath();
-    // Check if it's a local file install (we've downloaded/sideloaded the
-    // package already, it existed on the build, or it came with an APK).
-    // Note that this variable also controls whether files signed with expired
-    // certificates are accepted or not. If isLocalFileInstall is true and the
-    // device date is earlier than the build generation date, then the signature
-    // will be accepted even if the certificate is expired.
-    let isLocalFileInstall =
-      Services.io.extractScheme(fullPackagePath) === 'file';
+    // We define these outside the task to use them in its reject handler.
+    let id = this._appIdForManifestURL(aNewApp.manifestURL);
+    let oldApp = this.webapps[id];
 
-    debug("About to download " + fullPackagePath);
+    return Task.spawn((function*() {
+      yield this._ensureSufficientStorage(aNewApp);
 
-    let requestChannel = this._getRequestChannel(fullPackagePath,
-                                                 isLocalFileInstall,
-                                                 aOldApp,
-                                                 aNewApp);
+      let fullPackagePath = aManifest.fullPackagePath();
 
-    AppDownloadManager.add(
-      aNewApp.manifestURL,
-      {
-        channel: requestChannel,
-        appId: aId,
-        previousState: aIsUpdate ? "installed" : "pending"
-      }
-    );
+      // Check if it's a local file install (we've downloaded/sideloaded the
+      // package already, it existed on the build, or it came with an APK).
+      // Note that this variable also controls whether files signed with expired
+      // certificates are accepted or not. If isLocalFileInstall is true and the
+      // device date is earlier than the build generation date, then the signature
+      // will be accepted even if the certificate is expired.
+      let isLocalFileInstall =
+        Services.io.extractScheme(fullPackagePath) === 'file';
 
-    // We set the 'downloading' flag to true right before starting the fetch.
-    aOldApp.downloading = true;
+      debug("About to download " + fullPackagePath);
 
-    // We determine the app's 'installState' according to its previous
-    // state. Cancelled download should remain as 'pending'. Successfully
-    // installed apps should morph to 'updating'.
-    aOldApp.installState = aIsUpdate ? "updating" : "pending";
+      let requestChannel = this._getRequestChannel(fullPackagePath,
+                                                   isLocalFileInstall,
+                                                   oldApp,
+                                                   aNewApp);
 
-    // initialize the progress to 0 right now
-    aOldApp.progress = 0;
+      AppDownloadManager.add(
+        aNewApp.manifestURL,
+        {
+          channel: requestChannel,
+          appId: id,
+          previousState: aIsUpdate ? "installed" : "pending"
+        }
+      );
 
-    // Save the current state of the app to handle cases where we may be
-    // retrying a past download.
-    yield DOMApplicationRegistry._saveApps();
+      // We set the 'downloading' flag to true right before starting the fetch.
+      oldApp.downloading = true;
 
-    DOMApplicationRegistry.broadcastMessage("Webapps:UpdateState", {
+      // We determine the app's 'installState' according to its previous
+      // state. Cancelled download should remain as 'pending'. Successfully
+      // installed apps should morph to 'updating'.
+      oldApp.installState = aIsUpdate ? "updating" : "pending";
+
+      // initialize the progress to 0 right now
+      oldApp.progress = 0;
+
+      // Save the current state of the app to handle cases where we may be
+      // retrying a past download.
+      yield DOMApplicationRegistry._saveApps();
+      DOMApplicationRegistry.broadcastMessage("Webapps:UpdateState", {
         // Clear any previous download errors.
         error: null,
-        app: aOldApp,
+        app: oldApp,
         manifestURL: aNewApp.manifestURL
-    });
+      });
 
-    let zipFile = yield this._getPackage(requestChannel, aId, aOldApp, aNewApp);
-    let hash = yield this._computeFileHash(zipFile.path);
+      let zipFile = yield this._getPackage(requestChannel, id, oldApp, aNewApp);
+      let hash = yield this._computeFileHash(zipFile.path);
 
-    let responseStatus = requestChannel.responseStatus;
-    let oldPackage = (responseStatus == 304 || hash == aOldApp.packageHash);
+      let responseStatus = requestChannel.responseStatus;
+      let oldPackage = (responseStatus == 304 || hash == oldApp.packageHash);
 
-    if (oldPackage) {
-      debug("package's etag or hash unchanged; sending 'applied' event");
-      // The package's Etag or hash has not changed.
-      // We send an "applied" event right away so code awaiting that event
-      // can proceed to access the app. We also throw an error to alert
-      // the caller that the package wasn't downloaded.
-      this._sendAppliedEvent(aNewApp, aOldApp, aId);
-      throw new Error("PACKAGE_UNCHANGED");
-    }
+      if (oldPackage) {
+        debug("package's etag or hash unchanged; sending 'applied' event");
+        // The package's Etag or hash has not changed.
+        // We send an "applied" event right away so code awaiting that event
+        // can proceed to access the app.  We also throw an error to alert
+        // the caller that the package wasn't downloaded.
+        this._sendAppliedEvent(aNewApp, oldApp, id);
+        throw new Error("PACKAGE_UNCHANGED");
+      }
 
-    let newManifest = yield this._openAndReadPackage(zipFile, aOldApp, aNewApp,
-            isLocalFileInstall, aIsUpdate, aManifest, requestChannel, hash);
+      let newManifest = yield this._openAndReadPackage(zipFile, oldApp, aNewApp,
+              isLocalFileInstall, aIsUpdate, aManifest, requestChannel, hash);
 
-    AppDownloadManager.remove(aNewApp.manifestURL);
+      AppDownloadManager.remove(aNewApp.manifestURL);
 
-    return [aOldApp.id, newManifest];
+      return [oldApp.id, newManifest];
 
-  }),
+    }).bind(this)).then(
+      aOnSuccess,
+      this._revertDownloadPackage.bind(this, id, oldApp, aNewApp, aIsUpdate)
+    );
+  },
 
   _ensureSufficientStorage: function(aNewApp) {
     let deferred = Promise.defer();
@@ -3500,8 +3494,8 @@ this.DOMApplicationRegistry = {
   },
 
   // Removes the directory we created, and sends an error to the DOM side.
-  revertDownloadPackage: function(aId, aOldApp, aNewApp, aIsUpdate, aError) {
-    debug("Error downloading package: " + aError);
+  _revertDownloadPackage: function(aId, aOldApp, aNewApp, aIsUpdate, aError) {
+    debug("Cleanup: " + aError + "\n" + aError.stack);
     let dir = FileUtils.getDir("TmpD", ["webapps", aId], true, true);
     try {
       dir.remove(true);
@@ -3542,6 +3536,8 @@ this.DOMApplicationRegistry = {
       });
     });
     AppDownloadManager.remove(aNewApp.manifestURL);
+
+    throw aError;
   },
 
   doUninstall: function(aData, aMm) {

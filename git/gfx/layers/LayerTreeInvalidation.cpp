@@ -114,7 +114,7 @@ struct LayerPropertiesBase : public LayerProperties
     if (mUseClipRect) {
       mClipRect = *aLayer->GetClipRect();
     }
-    mTransform = gfx::To3DMatrix(aLayer->GetTransform());
+    gfx::To3DMatrix(aLayer->GetTransform(), mTransform);
   }
   LayerPropertiesBase()
     : mLayer(nullptr)
@@ -136,7 +136,8 @@ struct LayerPropertiesBase : public LayerProperties
   nsIntRegion ComputeChange(NotifySubDocInvalidationFunc aCallback,
                             bool& aGeometryChanged)
   {
-    gfx3DMatrix transform = gfx::To3DMatrix(mLayer->GetTransform());
+    gfx3DMatrix transform;
+    gfx::To3DMatrix(mLayer->GetTransform(), transform);
     bool transformChanged = !mTransform.FuzzyEqual(transform) ||
                             mLayer->GetPostXScale() != mPostXScale ||
                             mLayer->GetPostYScale() != mPostYScale;
@@ -184,8 +185,9 @@ struct LayerPropertiesBase : public LayerProperties
 
   nsIntRect NewTransformedBounds()
   {
-    return TransformRect(mLayer->GetVisibleRegion().GetBounds(),
-                         gfx::To3DMatrix(mLayer->GetTransform()));
+    gfx3DMatrix transform;
+    gfx::To3DMatrix(mLayer->GetTransform(), transform);
+    return TransformRect(mLayer->GetVisibleRegion().GetBounds(), transform);
   }
 
   nsIntRect OldTransformedBounds()
@@ -292,8 +294,9 @@ struct ContainerLayerProperties : public LayerPropertiesBase
       }
       if (invalidateChildsCurrentArea) {
         aGeometryChanged = true;
-        AddTransformedRegion(result, child->GetVisibleRegion(),
-                             gfx::To3DMatrix(child->GetTransform()));
+        gfx3DMatrix transform;
+        gfx::To3DMatrix(child->GetTransform(), transform);
+        AddTransformedRegion(result, child->GetVisibleRegion(), transform);
         if (aCallback) {
           NotifySubdocumentInvalidationRecursive(child, aCallback);
         } else {
@@ -312,7 +315,9 @@ struct ContainerLayerProperties : public LayerPropertiesBase
       aCallback(container, result);
     }
 
-    result.Transform(gfx::To3DMatrix(mLayer->GetTransform()));
+    gfx3DMatrix transform;
+    gfx::To3DMatrix(mLayer->GetTransform(), transform);
+    result.Transform(transform);
     return result;
   }
 
@@ -442,7 +447,8 @@ LayerPropertiesBase::ComputeDifferences(Layer* aRoot, NotifySubDocInvalidationFu
     } else {
       ClearInvalidations(aRoot);
     }
-    gfx3DMatrix transform = gfx::To3DMatrix(aRoot->GetTransform());
+    gfx3DMatrix transform;
+    gfx::To3DMatrix(aRoot->GetTransform(), transform);
     nsIntRect result = TransformRect(aRoot->GetVisibleRegion().GetBounds(), transform);
     result = result.Union(OldTransformedBounds());
     if (aGeometryChanged != nullptr) {

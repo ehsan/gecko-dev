@@ -131,9 +131,8 @@ public:
 
   TemporaryRef<BufferTextureClient>
   CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
-                            gfx::IntSize aSize,
-                            gfx::BackendType aMoz2dBackend = gfx::BackendType::NONE,
-                            TextureFlags aFlags = TextureFlags::DEFAULT);
+                            TextureFlags aFlags = TextureFlags::DEFAULT,
+                            gfx::BackendType aMoz2dBackend = gfx::BackendType::NONE);
 
   TemporaryRef<TextureClient>
   CreateTextureClientForDrawing(gfx::SurfaceFormat aFormat,

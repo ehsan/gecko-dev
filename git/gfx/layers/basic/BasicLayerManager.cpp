@@ -897,7 +897,8 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       temp->Paint();
     }
 #endif
-    gfx3DMatrix effectiveTransform = gfx::To3DMatrix(aLayer->GetEffectiveTransform());
+    gfx3DMatrix effectiveTransform;
+    gfx::To3DMatrix(aLayer->GetEffectiveTransform(), effectiveTransform);
     nsRefPtr<gfxASurface> result =
       Transform3D(untransformedDT->Snapshot(), aTarget, bounds,
                   effectiveTransform, destRect);

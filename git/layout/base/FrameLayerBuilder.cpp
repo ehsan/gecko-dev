@@ -1711,7 +1711,8 @@ static void
 SetOuterVisibleRegion(Layer* aLayer, nsIntRegion* aOuterVisibleRegion,
                       const nsIntRect* aLayerContentsVisibleRect = nullptr)
 {
-  gfx3DMatrix transform = To3DMatrix(aLayer->GetTransform());
+  gfx3DMatrix transform;
+  To3DMatrix(aLayer->GetTransform(), transform);
   gfxMatrix transform2D;
   if (transform.Is2D(&transform2D) && !transform2D.HasNonIntegerTranslation()) {
     aOuterVisibleRegion->MoveBy(-int(transform2D._31), -int(transform2D._32));
@@ -3646,7 +3647,9 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   }
 
   // Store the inverse of our resolution-scale on the layer
-  aLayer->SetBaseTransform(ToMatrix4x4(transform));
+  Matrix4x4 baseTransform;
+  ToMatrix4x4(transform, baseTransform);
+  aLayer->SetBaseTransform(baseTransform);
   aLayer->SetPreScale(1.0f/float(scale.width),
                       1.0f/float(scale.height));
   aLayer->SetInheritedScale(aIncomingScale.mXScale,

@@ -79,10 +79,8 @@ bool
 SharedRGBImage::Allocate(gfx::IntSize aSize, gfx::SurfaceFormat aFormat)
 {
   mSize = aSize;
-  mTextureClient = mCompositable->CreateBufferTextureClient(aFormat, aSize,
-                                                            gfx::BackendType::NONE,
-                                                            TextureFlags::DEFAULT);
-  return !!mTextureClient;
+  mTextureClient = mCompositable->CreateBufferTextureClient(aFormat);
+  return mTextureClient->AllocateForSurface(aSize);
 }
 
 uint8_t*

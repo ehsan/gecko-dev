@@ -32,9 +32,11 @@ if not CONFIG['MOZ_NATIVE_HUNSPELL']:
 FINAL_LIBRARY = 'spellchecker'
 
 LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/editor/libeditor/base',
     '/extensions/spellcheck/src',
+]
+
+LOCAL_INCLUDES += [
+    '/editor/libeditor/base',
 ]
 
 # Suppress warnings in third-party code.

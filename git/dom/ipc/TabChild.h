@@ -555,9 +555,6 @@ private:
 
     bool HasValidInnerSize();
 
-    void SendPendingTouchPreventedResponse(bool aPreventDefault,
-                                           const ScrollableLayerGuid& aGuid);
-
     class CachedFileDescriptorInfo;
     class CachedFileDescriptorCallbackRunnable;
 

@@ -87,7 +87,7 @@ private:
 };
 
 
-#include "gfxASurface.h"
+class gfxASurface;
 class ProfilerMarkerImagePayload : public ProfilerMarkerPayload
 {
 public:

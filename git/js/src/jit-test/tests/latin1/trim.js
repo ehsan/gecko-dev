@@ -1,7 +1,6 @@
 function test() {
     // Latin1
-    var s = "  \r\t\n\u00A0foo 123\t \r\n\u00A0";
-    assertEq(isLatin1(s), true);
+    var s = toLatin1("  \r\t\n\u00A0foo 123\t \r\n\u00A0");
 
     var res = s.trim();
     assertEq(isLatin1(res), true);
@@ -15,7 +14,7 @@ function test() {
     assertEq(isLatin1(res), true);
     assertEq(res, "  \r\t\n\u00A0foo 123");
 
-    res = "foo 1234".trim();
+    res = toLatin1("foo 1234").trim();
     assertEq(isLatin1(res), true);
     assertEq(res, "foo 1234");
 

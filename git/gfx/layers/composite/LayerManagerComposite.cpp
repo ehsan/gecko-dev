@@ -587,7 +587,7 @@ LayerManagerComposite::ComputeRenderIntegrityInternal(Layer* aLayer,
     // Accumulate the transform of intermediate surfaces
     gfx3DMatrix transform = aTransform;
     if (container->UseIntermediateSurface()) {
-      transform = gfx::To3DMatrix(aLayer->GetEffectiveTransform());
+      gfx::To3DMatrix(aLayer->GetEffectiveTransform(), transform);
       transform.PreMultiply(aTransform);
     }
     for (Layer* child = aLayer->GetFirstChild(); child;
@@ -609,7 +609,8 @@ LayerManagerComposite::ComputeRenderIntegrityInternal(Layer* aLayer,
 
   if (!incompleteRegion.IsEmpty()) {
     // Calculate the transform to get between screen and layer space
-    gfx3DMatrix transformToScreen = To3DMatrix(aLayer->GetEffectiveTransform());
+    gfx3DMatrix transformToScreen;
+    To3DMatrix(aLayer->GetEffectiveTransform(), transformToScreen);
     transformToScreen.PreMultiply(aTransform);
 
     SubtractTransformedRegion(aScreenRegion, incompleteRegion, transformToScreen);
@@ -688,7 +689,8 @@ LayerManagerComposite::ComputeRenderIntegrity()
     // This is derived from the code in
     // AsyncCompositionManager::TransformScrollableLayer
     const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
-    gfx3DMatrix transform = gfx::To3DMatrix(primaryScrollable->GetEffectiveTransform());
+    gfx3DMatrix transform;
+    gfx::To3DMatrix(primaryScrollable->GetEffectiveTransform(), transform);
     transform.ScalePost(metrics.mResolution.scale, metrics.mResolution.scale, 1);
 
     // Clip the screen rect to the document bounds
