@@ -32,14 +32,6 @@
    fun:__tls_get_addr
    ...
 }
-{
-   See bug 793611
-   Memcheck:Leak
-   fun:memalign
-   fun:tls_get_addr_tail
-   fun:___tls_get_addr
-   ...
-}
 
 #################
 #  Other leaks  #
@@ -52,14 +44,15 @@
    fun:_ZN8JSObject25allocateSlowArrayElementsEP9JSContext
    ...
 }
-{
-   Bug 793533
-   Memcheck:Leak
-   fun:malloc
-   fun:moz_xmalloc
-   fun:_Z22xpc_CreateGlobalObjectP9JSContextP7JSClassP12nsIPrincipalP11nsISupportsbPP8JSObjectPP13JSCompartment
-   ...
-}
+# Suppressing the suppression(s) to get Valgrind stacks with line numbers
+#{
+#   Bug 793533
+#   Memcheck:Leak
+#   fun:malloc
+#   fun:moz_xmalloc
+#   fun:_Z22xpc_CreateGlobalObjectP9JSContextP7JSClassP12nsIPrincipalP11nsISupportsbPP8JSObjectPP13JSCompartment
+#   ...
+#}
 {
    Bug 793536 (all 64-bit systems)
    Memcheck:Leak
@@ -86,7 +79,6 @@
    fun:_ZN13CrashReporter14SetupExtraDataEP7nsIFileRK19nsACString_internal
    ...
 }
-# Suppressing the suppression(s) to get Valgrind stacks with line numbers
 #{
 #   Bug 793601
 #   Memcheck:Leak
@@ -148,18 +140,14 @@
    fun:clone
 }
 {
-   Bug 793608 variant
+   Bug 793615
    Memcheck:Leak
    fun:malloc
-   fun:__libc_res_nsend
-   fun:__libc_res_nquery
-   fun:__libc_res_nquerydomain
-   fun:__libc_res_nsearch
-   obj:*
+   fun:sqlite3MemMalloc
    ...
 }
 {
-   Bug 793608 variant 2
+   Bug 793616
    Memcheck:Leak
    fun:malloc
    fun:make_request
@@ -170,13 +158,6 @@
    fun:_pt_root
    fun:start_thread
    fun:clone
-}
-{
-   Bug 793615
-   Memcheck:Leak
-   fun:malloc
-   fun:sqlite3MemMalloc
-   ...
 }
 {
    Bug 794350
@@ -215,6 +196,13 @@
    fun:_ZN2js4mjit2ic12GetElementIC13attachGetPropERNS_7VMFrameEN2JS6HandleIP8JSObjectEENS6_INS5_5ValueEEENS6_IPNS_12PropertyNameEEENS5_13MutableHandleISA_EE
    fun:_ZN2js4mjit2ic12GetElementIC6updateERNS_7VMFrameEN2JS6HandleIP8JSObjectEENS6_INS5_5ValueEEENS6_IlEENS5_13MutableHandleISA_EE
    fun:_ZN2js4mjit2ic10GetElementERNS_7VMFrameEPNS1_12GetElementICE
+   ...
+}
+{
+   Bug 794365
+   Memcheck:Leak
+   fun:malloc
+   fun:_ZN14JSInlineString8uninlineEP9JSContext
    ...
 }
 {
