@@ -1,31 +1,86 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * vim: set ts=8 sw=4 et tw=99:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is JSAPI tests.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *     Jason Orendorff
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsapi_tests_tests_h
-#define jsapi_tests_tests_h
-
-#include "mozilla/TypeTraits.h"
-
+#include "jsapi.h"
+#include "jsprvtd.h"
+#include "jsvector.h"
 #include <errno.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-#include "jsalloc.h"
-#include "jscntxt.h"
-#include "jsgc.h"
+class jsvalRoot
+{
+  public:
+    explicit jsvalRoot(JSContext *context, jsval value = JSVAL_NULL)
+        : cx(context), v(value)
+    {
+        if (!JS_AddValueRoot(cx, &v)) {
+            fprintf(stderr, "Out of memory in jsvalRoot constructor, aborting\n");
+            abort();
+        }
+    }
 
-#include "js/Vector.h"
+    ~jsvalRoot() { JS_RemoveValueRoot(cx, &v); }
+
+    operator jsval() const { return value(); }
+
+    jsvalRoot & operator=(jsval value) {
+        v = value;
+        return *this;
+    }
+
+    jsval * addr() { return &v; }
+    jsval value() const { return v; }
+
+  private:
+    JSContext *cx;
+    jsval v;
+};
 
 /* Note: Aborts on OOM. */
 class JSAPITestString {
     js::Vector<char, 0, js::SystemAllocPolicy> chars;
   public:
     JSAPITestString() {}
-    explicit JSAPITestString(const char *s) { *this += s; }
+    JSAPITestString(const char *s) { *this += s; }
     JSAPITestString(const JSAPITestString &s) { *this += s; }
 
     const char *begin() const { return chars.begin(); }
@@ -56,38 +111,68 @@ class JSAPITest
 
     JSRuntime *rt;
     JSContext *cx;
-    JS::Heap<JSObject *> global;
+    JSObject *global;
     bool knownFail;
     JSAPITestString msgs;
-    JSCompartment *oldCompartment;
+    JSCrossCompartmentCall *call;
 
-    JSAPITest() : rt(nullptr), cx(nullptr), global(nullptr),
-                  knownFail(false), oldCompartment(nullptr) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), call(NULL) {
         next = list;
         list = this;
     }
 
-    virtual ~JSAPITest() {
-        MOZ_RELEASE_ASSERT(!rt);
-        MOZ_RELEASE_ASSERT(!cx);
-        MOZ_RELEASE_ASSERT(!global);
+    virtual ~JSAPITest() { uninit(); }
+
+    virtual bool init() {
+        rt = createRuntime();
+        if (!rt)
+            return false;
+        cx = createContext();
+        if (!cx)
+            return false;
+        JS_BeginRequest(cx);
+        global = createGlobal();
+        if (!global)
+            return false;
+        call = JS_EnterCrossCompartmentCall(cx, global);
+        return call != NULL;
     }
 
-    virtual bool init();
-    virtual void uninit();
+    virtual void uninit() {
+        if (call) {
+            JS_LeaveCrossCompartmentCall(call);
+            call = NULL;
+        }
+        if (cx) {
+            JS_EndRequest(cx);
+            JS_DestroyContext(cx);
+            cx = NULL;
+        }
+        if (rt) {
+            destroyRuntime();
+            rt = NULL;
+        }
+    }
 
     virtual const char * name() = 0;
-    virtual bool run(JS::HandleObject global) = 0;
+    virtual bool run() = 0;
 
 #define EXEC(s) do { if (!exec(s, __FILE__, __LINE__)) return false; } while (false)
 
-    bool exec(const char *bytes, const char *filename, int lineno);
+    bool exec(const char *bytes, const char *filename, int lineno) {
+        jsvalRoot v(cx);
+        return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, v.addr()) ||
+               fail(bytes, filename, lineno);
+    }
 
 #define EVAL(s, vp) do { if (!evaluate(s, __FILE__, __LINE__, vp)) return false; } while (false)
 
-    bool evaluate(const char *bytes, const char *filename, int lineno, JS::MutableHandleValue vp);
+    bool evaluate(const char *bytes, const char *filename, int lineno, jsval *vp) {
+        return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, vp) ||
+               fail(bytes, filename, lineno);
+    }
 
-    JSAPITestString jsvalToSource(JS::HandleValue v) {
+    JSAPITestString toSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
         if (str) {
             JSAutoByteString bytes(cx, str);
@@ -98,120 +183,34 @@ class JSAPITest
         return JSAPITestString("<<error converting value to string>>");
     }
 
-    JSAPITestString toSource(long v) {
-        char buf[40];
-        sprintf(buf, "%ld", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned long v) {
-        char buf[40];
-        sprintf(buf, "%lu", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(long long v) {
-        char buf[40];
-        sprintf(buf, "%lld", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned long long v) {
-        char buf[40];
-        sprintf(buf, "%llu", v);
-        return JSAPITestString(buf);
-    }
-
-    JSAPITestString toSource(unsigned int v) {
-        return toSource((unsigned long)v);
-    }
-
-    JSAPITestString toSource(int v) {
-        return toSource((long)v);
-    }
-
-    JSAPITestString toSource(bool v) {
-        return JSAPITestString(v ? "true" : "false");
-    }
-
-    JSAPITestString toSource(JSAtom *v) {
-        JS::RootedValue val(cx, JS::StringValue((JSString *)v));
-        return jsvalToSource(val);
-    }
-
-    JSAPITestString toSource(JSVersion v) {
-        return JSAPITestString(JS_VersionToString(v));
-    }
-
-    // Note that in some still-supported GCC versions (we think anything before
-    // GCC 4.6), this template does not work when the second argument is
-    // nullptr. It infers type U = long int. Use CHECK_NULL instead.
-    template <typename T, typename U>
-    bool checkEqual(const T &actual, const U &expected,
-                    const char *actualExpr, const char *expectedExpr,
-                    const char *filename, int lineno)
-    {
-        static_assert(mozilla::IsSigned<T>::value == mozilla::IsSigned<U>::value,
-                      "using CHECK_EQUAL with different-signed inputs triggers compiler warnings");
-        static_assert(mozilla::IsUnsigned<T>::value == mozilla::IsUnsigned<U>::value,
-                      "using CHECK_EQUAL with different-signed inputs triggers compiler warnings");
-        return (actual == expected) ||
-            fail(JSAPITestString("CHECK_EQUAL failed: expected (") +
-                 expectedExpr + ") = " + toSource(expected) +
-                 ", got (" + actualExpr + ") = " + toSource(actual), filename, lineno);
-    }
-
-#define CHECK_EQUAL(actual, expected) \
-    do { \
-        if (!checkEqual(actual, expected, #actual, #expected, __FILE__, __LINE__)) \
-            return false; \
-    } while (false)
-
-    template <typename T>
-    bool checkNull(const T *actual, const char *actualExpr,
-                   const char *filename, int lineno) {
-        return (actual == nullptr) ||
-            fail(JSAPITestString("CHECK_NULL failed: expected nullptr, got (") +
-                 actualExpr + ") = " + toSource(actual),
-                 filename, lineno);
-    }
-
-#define CHECK_NULL(actual) \
-    do { \
-        if (!checkNull(actual, #actual, __FILE__, __LINE__)) \
-            return false; \
-    } while (false)
-
-    bool checkSame(jsval actualArg, jsval expectedArg,
-                   const char *actualExpr, const char *expectedExpr,
-                   const char *filename, int lineno) {
-        bool same;
-        JS::RootedValue actual(cx, actualArg), expected(cx, expectedArg);
-        return (JS_SameValue(cx, actual, expected, &same) && same) ||
-               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
-                    actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
-                    jsvalToSource(actual) + ", " + jsvalToSource(expected) + ")", filename, lineno);
-    }
-
 #define CHECK_SAME(actual, expected) \
     do { \
         if (!checkSame(actual, expected, #actual, #expected, __FILE__, __LINE__)) \
             return false; \
     } while (false)
 
+    bool checkSame(jsval actual, jsval expected,
+                   const char *actualExpr, const char *expectedExpr,
+                   const char *filename, int lineno) {
+        JSBool same;
+        return (JS_SameValue(cx, actual, expected, &same) && same) ||
+               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
+                    actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
+                    toSource(actual) + ", " + toSource(expected) + ")", filename, lineno);
+    }
+
 #define CHECK(expr) \
     do { \
         if (!(expr)) \
-            return fail(JSAPITestString("CHECK failed: " #expr), __FILE__, __LINE__); \
+            return fail("CHECK failed: " #expr, __FILE__, __LINE__); \
     } while (false)
 
     bool fail(JSAPITestString msg = JSAPITestString(), const char *filename = "-", int lineno = 0) {
         if (JS_IsExceptionPending(cx)) {
-            js::gc::AutoSuppressGC gcoff(cx);
-            JS::RootedValue v(cx);
-            JS_GetPendingException(cx, &v);
+            jsvalRoot v(cx);
+            JS_GetPendingException(cx, v.addr());
             JS_ClearPendingException(cx);
-            JSString *s = JS::ToString(cx, v);
+            JSString *s = JS_ValueToString(cx, v);
             if (s) {
                 JSAutoByteString bytes(cx, s);
                 if (!!bytes)
@@ -225,75 +224,50 @@ class JSAPITest
 
     JSAPITestString messages() const { return msgs; }
 
-    static const JSClass * basicGlobalClass() {
-        static const JSClass c = {
+    static JSClass * basicGlobalClass() {
+        static JSClass c = {
             "global", JSCLASS_GLOBAL_FLAGS,
-            nullptr, nullptr, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr,
-            nullptr, nullptr, nullptr,
-            JS_GlobalObjectTraceHook
+            JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+            JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
+            JSCLASS_NO_OPTIONAL_MEMBERS
         };
         return &c;
     }
 
   protected:
-    static bool
-    print(JSContext *cx, unsigned argc, jsval *vp)
+    static JSBool
+    print(JSContext *cx, uintN argc, jsval *vp)
     {
-        JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-
-        for (unsigned i = 0; i < args.length(); i++) {
-            JSString *str = JS::ToString(cx, args[i]);
+        jsval *argv = JS_ARGV(cx, vp);
+        for (uintN i = 0; i < argc; i++) {
+            JSString *str = JS_ValueToString(cx, argv[i]);
             if (!str)
-                return false;
+                return JS_FALSE;
             char *bytes = JS_EncodeString(cx, str);
             if (!bytes)
-                return false;
+                return JS_FALSE;
             printf("%s%s", i ? " " : "", bytes);
             JS_free(cx, bytes);
         }
 
         putchar('\n');
         fflush(stdout);
-        args.rval().setUndefined();
-        return true;
+        JS_SET_RVAL(cx, vp, JSVAL_VOID);
+        return JS_TRUE;
     }
 
-    bool definePrint();
-
-    static void setNativeStackQuota(JSRuntime *rt)
-    {
-        const size_t MAX_STACK_SIZE =
-/* Assume we can't use more than 5e5 bytes of C stack by default. */
-#if (defined(DEBUG) && defined(__SUNPRO_CC))  || defined(JS_CPU_SPARC)
-            /*
-             * Sun compiler uses a larger stack space for js::Interpret() with
-             * debug.  Use a bigger gMaxStackSize to make "make check" happy.
-             */
-            5000000
-#else
-            500000
-#endif
-        ;
-
-        JS_SetNativeStackQuota(rt, MAX_STACK_SIZE);
+    bool definePrint() {
+        return JS_DefineFunction(cx, global, "print", (JSNative) print, 0, 0);
     }
 
     virtual JSRuntime * createRuntime() {
-        JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024);
-        if (!rt)
-            return nullptr;
-        JS_SetErrorReporter(rt, &reportError);
-        setNativeStackQuota(rt);
-        JS::RuntimeOptionsRef(rt).setVarObjFix(true);
-        return rt;
+        return JS_NewRuntime(8L * 1024 * 1024);
     }
 
     virtual void destroyRuntime() {
-        MOZ_RELEASE_ASSERT(!cx);
-        MOZ_RELEASE_ASSERT(rt);
+        JS_ASSERT(!cx);
+        JS_ASSERT(rt);
         JS_DestroyRuntime(rt);
-        rt = nullptr;
     }
 
     static void reportError(JSContext *cx, const char *message, JSErrorReport *report) {
@@ -304,21 +278,42 @@ class JSAPITest
     }
 
     virtual JSContext * createContext() {
-        return JS_NewContext(rt, 8192);
+        JSContext *cx = JS_NewContext(rt, 8192);
+        if (!cx)
+            return NULL;
+        JS_SetOptions(cx, JSOPTION_VAROBJFIX | JSOPTION_JIT);
+        JS_SetVersion(cx, JSVERSION_LATEST);
+        JS_SetErrorReporter(cx, &reportError);
+        return cx;
     }
 
-    virtual const JSClass * getGlobalClass() {
+    virtual JSClass * getGlobalClass() {
         return basicGlobalClass();
     }
 
-    virtual JSObject * createGlobal(JSPrincipals *principals = nullptr);
+    virtual JSObject * createGlobal() {
+        /* Create the global object. */
+        JSObject *global = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
+        if (!global)
+            return NULL;
+
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, global))
+            return NULL;
+
+        /* Populate the global object with the standard globals,
+           like Object and Array. */
+        if (!JS_InitStandardClasses(cx, global))
+            return NULL;
+        return global;
+    }
 };
 
 #define BEGIN_TEST(testname)                                            \
     class cls_##testname : public JSAPITest {                           \
       public:                                                           \
         virtual const char * name() { return #testname; }               \
-        virtual bool run(JS::HandleObject global)
+        virtual bool run()
 
 #define END_TEST(testname)                                              \
     };                                                                  \
@@ -336,7 +331,7 @@ class JSAPITest
     class cls_##testname : public fixture {                             \
       public:                                                           \
         virtual const char * name() { return #testname; }               \
-        virtual bool run(JS::HandleObject global)
+        virtual bool run()
 
 #define END_FIXTURE_TEST(fixture, testname)                             \
     };                                                                  \
@@ -344,7 +339,7 @@ class JSAPITest
 
 /*
  * A class for creating and managing one temporary file.
- *
+ * 
  * We could use the ISO C temporary file functions here, but those try to
  * create files in the root directory on Windows, which fails for users
  * without Administrator privileges.
@@ -375,7 +370,7 @@ class TempFile {
             fprintf(stderr, "error opening temporary file '%s': %s\n",
                     fileName, strerror(errno));
             exit(1);
-        }
+        }            
         name = fileName;
         return stream;
     }
@@ -387,7 +382,7 @@ class TempFile {
                     name, strerror(errno));
             exit(1);
         }
-        stream = nullptr;
+        stream = NULL;
     }
 
     /* Delete the temporary file. */
@@ -397,44 +392,6 @@ class TempFile {
                     name, strerror(errno));
             exit(1);
         }
-        name = nullptr;
+        name = NULL;
     }
 };
-
-// Just a wrapper around JSPrincipals that allows static construction.
-class TestJSPrincipals : public JSPrincipals
-{
-  public:
-    explicit TestJSPrincipals(int rc = 0)
-      : JSPrincipals()
-    {
-        refcount = rc;
-    }
-};
-
-#ifdef JS_GC_ZEAL
-/*
- * Temporarily disable the GC zeal setting. This is only useful in tests that
- * need very explicit GC behavior and should not be used elsewhere.
- */
-class AutoLeaveZeal
-{
-    JSContext *cx_;
-    uint8_t zeal_;
-    uint32_t frequency_;
-
-  public:
-    explicit AutoLeaveZeal(JSContext *cx) : cx_(cx) {
-        uint32_t dummy;
-        JS_GetGCZeal(cx_, &zeal_, &frequency_, &dummy);
-        JS_SetGCZeal(cx_, 0, 0);
-        JS::PrepareForFullGC(JS_GetRuntime(cx_));
-        JS::GCForReason(JS_GetRuntime(cx_), GC_SHRINK, JS::gcreason::DEBUG_GC);
-    }
-    ~AutoLeaveZeal() {
-        JS_SetGCZeal(cx_, zeal_, frequency_);
-    }
-};
-#endif /* JS_GC_ZEAL */
-
-#endif /* jsapi_tests_tests_h */

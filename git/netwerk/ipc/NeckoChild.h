@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Duell <jduell.mcbugs@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_net_NeckoChild_h
 #define mozilla_net_NeckoChild_h
@@ -26,56 +59,14 @@ public:
   static void DestroyNeckoChild();
 
 protected:
-  virtual PHttpChannelChild*
-    AllocPHttpChannelChild(const PBrowserOrId&, const SerializedLoadContext&,
-                           const HttpChannelCreationArgs& aOpenArgs) MOZ_OVERRIDE;
-  virtual bool DeallocPHttpChannelChild(PHttpChannelChild*) MOZ_OVERRIDE;
-  virtual PCookieServiceChild* AllocPCookieServiceChild() MOZ_OVERRIDE;
-  virtual bool DeallocPCookieServiceChild(PCookieServiceChild*) MOZ_OVERRIDE;
-  virtual PWyciwygChannelChild* AllocPWyciwygChannelChild() MOZ_OVERRIDE;
-  virtual bool DeallocPWyciwygChannelChild(PWyciwygChannelChild*) MOZ_OVERRIDE;
-  virtual PFTPChannelChild*
-    AllocPFTPChannelChild(const PBrowserOrId& aBrowser,
-                          const SerializedLoadContext& aSerialized,
-                          const FTPChannelCreationArgs& aOpenArgs) MOZ_OVERRIDE;
-  virtual bool DeallocPFTPChannelChild(PFTPChannelChild*) MOZ_OVERRIDE;
-  virtual PWebSocketChild*
-    AllocPWebSocketChild(const PBrowserOrId&,
-                         const SerializedLoadContext&) MOZ_OVERRIDE;
-  virtual bool DeallocPWebSocketChild(PWebSocketChild*) MOZ_OVERRIDE;
-  virtual PTCPSocketChild* AllocPTCPSocketChild(const nsString& host,
-                                                const uint16_t& port) MOZ_OVERRIDE;
-  virtual bool DeallocPTCPSocketChild(PTCPSocketChild*) MOZ_OVERRIDE;
-  virtual PTCPServerSocketChild*
-    AllocPTCPServerSocketChild(const uint16_t& aLocalPort,
-                               const uint16_t& aBacklog,
-                               const nsString& aBinaryType) MOZ_OVERRIDE;
-  virtual bool DeallocPTCPServerSocketChild(PTCPServerSocketChild*) MOZ_OVERRIDE;
-  virtual PUDPSocketChild* AllocPUDPSocketChild(const nsCString& aFilter) MOZ_OVERRIDE;
-  virtual bool DeallocPUDPSocketChild(PUDPSocketChild*) MOZ_OVERRIDE;
-  virtual PDNSRequestChild* AllocPDNSRequestChild(const nsCString& aHost,
-                                                  const uint32_t& aFlags) MOZ_OVERRIDE;
-  virtual bool DeallocPDNSRequestChild(PDNSRequestChild*) MOZ_OVERRIDE;
-  virtual PRemoteOpenFileChild*
-    AllocPRemoteOpenFileChild(const SerializedLoadContext& aSerialized,
-                              const URIParams&,
-                              const OptionalURIParams&) MOZ_OVERRIDE;
-  virtual bool DeallocPRemoteOpenFileChild(PRemoteOpenFileChild*) MOZ_OVERRIDE;
-  virtual PRtspControllerChild* AllocPRtspControllerChild() MOZ_OVERRIDE;
-  virtual bool DeallocPRtspControllerChild(PRtspControllerChild*) MOZ_OVERRIDE;
-  virtual PRtspChannelChild*
-    AllocPRtspChannelChild(const RtspChannelConnectArgs& aArgs)
-                           MOZ_OVERRIDE;
-  virtual bool DeallocPRtspChannelChild(PRtspChannelChild*) MOZ_OVERRIDE;
-  virtual PChannelDiverterChild*
-  AllocPChannelDiverterChild(const ChannelDiverterArgs& channel) MOZ_OVERRIDE;
-  virtual bool
-  DeallocPChannelDiverterChild(PChannelDiverterChild* actor) MOZ_OVERRIDE;
-  virtual bool RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
-                                                 const nsCString& aUri,
-                                                 const nsString& aRealm,
-                                                 const uint64_t& aCallbackId) MOZ_OVERRIDE;
-  virtual bool RecvAppOfflineStatus(const uint32_t& aId, const bool& aOffline) MOZ_OVERRIDE;
+  virtual PHttpChannelChild* AllocPHttpChannel(PBrowserChild* iframeEmbedding);
+  virtual bool DeallocPHttpChannel(PHttpChannelChild*);
+  virtual PCookieServiceChild* AllocPCookieService();
+  virtual bool DeallocPCookieService(PCookieServiceChild*);
+  virtual PWyciwygChannelChild* AllocPWyciwygChannel();
+  virtual bool DeallocPWyciwygChannel(PWyciwygChannelChild*);
+  virtual PFTPChannelChild* AllocPFTPChannel();
+  virtual bool DeallocPFTPChannel(PFTPChannelChild*);
 };
 
 /**

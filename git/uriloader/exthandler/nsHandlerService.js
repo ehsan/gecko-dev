@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Myk Melez <myk@mozilla.org>
+ *   Dan Mosedale <dmose@mozilla.org>
+ *   Florian Queze <florian@queze.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -81,28 +115,12 @@ function HandlerService() {
   this._init();
 }
 
-const HandlerServiceFactory = {
-  _instance: null,
-  createInstance: function (outer, iid) {
-    if (this._instance)
-      return this._instance;
-
-    let processType = Cc["@mozilla.org/xre/runtime;1"].
-      getService(Ci.nsIXULRuntime).processType;
-    if (processType != Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT)
-      return Cr.NS_ERROR_NOT_IMPLEMENTED;
-
-    return (this._instance = new HandlerService());
-  }
-};
-
 HandlerService.prototype = {
   //**************************************************************************//
   // XPCOM Plumbing
 
   classID:          Components.ID("{32314cc8-22f7-4f7f-a645-1a45453ba6a6}"),
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIHandlerService]),
-  _xpcom_factory: HandlerServiceFactory,
 
   //**************************************************************************//
   // Initialization & Destruction
@@ -457,14 +475,6 @@ HandlerService.prototype = {
     var fileExtension = aFileExtension.toLowerCase();
     var typeID;
 
-    // See bug 1100069 for why we want to fail gracefully and silently here.
-    try {
-      this._ds;
-    } catch (ex) {
-      Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE;
-      return;
-    }
-
     if (this._existsLiteralTarget(NC_FILE_EXTENSIONS, fileExtension))
       typeID = this._getSourceForLiteral(NC_FILE_EXTENSIONS, fileExtension);
 
@@ -497,7 +507,7 @@ HandlerService.prototype = {
       return Ci.nsIHandlerInfo.useSystemDefault;
     
     if (this._getValue(aInfoID, NC_HANDLE_INTERNALLY) == "true")
-      return Ci.nsIHandlerInfo.handleInternally;
+      return Ci.nsIHandlerInfo.handleInternal;
 
     return Ci.nsIHandlerInfo.useHelperApp;
   },
@@ -577,8 +587,8 @@ HandlerService.prototype = {
       if (!objpath)
         return null;
       
-      let iface = this._getValue(aHandlerAppID, NC_INTERFACE);
-      if (!iface)
+      let interface = this._getValue(aHandlerAppID, NC_INTERFACE);
+      if (!interface)
         return null;
       
       handlerApp = Cc["@mozilla.org/uriloader/dbus-handler-app;1"].
@@ -586,7 +596,7 @@ HandlerService.prototype = {
       handlerApp.service   = service;
       handlerApp.method    = method;
       handlerApp.objectPath   = objpath;
-      handlerApp.dBusInterface = iface;
+      handlerApp.dBusInterface = interface;
       
     }
     else
@@ -1412,4 +1422,4 @@ HandlerService.prototype = {
 //****************************************************************************//
 // More XPCOM Plumbing
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);
+NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);

@@ -1,185 +1,80 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_idbkeyrange_h__
 #define mozilla_dom_indexeddb_idbkeyrange_h__
 
-#include "js/RootingAPI.h"
-#include "js/Value.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/indexedDB/Key.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsISupports.h"
-#include "nsString.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-class mozIStorageStatement;
-struct PRThread;
+#include "nsIIDBKeyRange.h"
+#include "nsIVariant.h"
 
-namespace mozilla {
+BEGIN_INDEXEDDB_NAMESPACE
 
-class ErrorResult;
-
-namespace dom {
-
-class GlobalObject;
-
-namespace indexedDB {
-
-class SerializedKeyRange;
-
-class IDBKeyRange MOZ_FINAL
-  : public nsISupports
+class IDBKeyRange : public nsIIDBKeyRange
 {
-  nsCOMPtr<nsISupports> mGlobal;
-  Key mLower;
-  Key mUpper;
-  JS::Heap<JS::Value> mCachedLowerVal;
-  JS::Heap<JS::Value> mCachedUpperVal;
-
-  const bool mLowerOpen : 1;
-  const bool mUpperOpen : 1;
-  const bool mIsOnly : 1;
-  bool mHaveCachedLowerVal : 1;
-  bool mHaveCachedUpperVal : 1;
-  bool mRooted : 1;
-
-#ifdef DEBUG
-  PRThread* mOwningThread;
-#endif
-
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBKeyRange)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIIDBKEYRANGE
 
-  static nsresult
-  FromJSVal(JSContext* aCx,
-            JS::Handle<JS::Value> aVal,
-            IDBKeyRange** aKeyRange);
+  static JSBool DefineConstructors(JSContext* aCx,
+                                   JSObject* aObject);
 
-  static already_AddRefed<IDBKeyRange>
-  FromSerialized(const SerializedKeyRange& aKeyRange);
+  static
+  already_AddRefed<IDBKeyRange> Create(nsIVariant* aLower,
+                                       nsIVariant* aUpper,
+                                       PRBool aLowerOpen,
+                                       PRBool aUpperOpen);
 
-  static already_AddRefed<IDBKeyRange>
-  Only(const GlobalObject& aGlobal,
-       JS::Handle<JS::Value> aValue,
-       ErrorResult& aRv);
-
-  static already_AddRefed<IDBKeyRange>
-  LowerBound(const GlobalObject& aGlobal,
-             JS::Handle<JS::Value> aValue,
-             bool aOpen,
-             ErrorResult& aRv);
-
-  static already_AddRefed<IDBKeyRange>
-  UpperBound(const GlobalObject& aGlobal,
-             JS::Handle<JS::Value> aValue,
-             bool aOpen,
-             ErrorResult& aRv);
-
-  static already_AddRefed<IDBKeyRange>
-  Bound(const GlobalObject& aGlobal,
-        JS::Handle<JS::Value> aLower,
-        JS::Handle<JS::Value> aUpper,
-        bool aLowerOpen,
-        bool aUpperOpen,
-        ErrorResult& aRv);
-
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
+protected:
+  IDBKeyRange()
+  : mLowerOpen(PR_FALSE), mUpperOpen(PR_FALSE)
   { }
-#endif
 
-  void
-  ToSerialized(SerializedKeyRange& aKeyRange) const;
+  ~IDBKeyRange() { }
 
-  const Key&
-  Lower() const
-  {
-    return mLower;
-  }
-
-  Key&
-  Lower()
-  {
-    return mLower;
-  }
-
-  const Key&
-  Upper() const
-  {
-    return mIsOnly ? mLower : mUpper;
-  }
-
-  Key&
-  Upper()
-  {
-    return mIsOnly ? mLower : mUpper;
-  }
-
-  bool
-  IsOnly() const
-  {
-    return mIsOnly;
-  }
-
-  void
-  GetBindingClause(const nsACString& aKeyColumnName,
-                   nsACString& _retval) const;
-
-  nsresult
-  BindToStatement(mozIStorageStatement* aStatement) const;
-
-  void
-  DropJSObjects();
-
-  // WebIDL
-  JSObject*
-  WrapObject(JSContext* aCx);
-
-  nsISupports*
-  GetParentObject() const
-  {
-    return mGlobal;
-  }
-
-  void
-  GetLower(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
-
-  void
-  GetUpper(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
-
-  bool
-  LowerOpen() const
-  {
-    return mLowerOpen;
-  }
-
-  bool
-  UpperOpen() const
-  {
-    return mUpperOpen;
-  }
-
-private:
-  IDBKeyRange(nsISupports* aGlobal,
-              bool aLowerOpen,
-              bool aUpperOpen,
-              bool aIsOnly);
-
-  ~IDBKeyRange();
+  nsCOMPtr<nsIVariant> mLower;
+  nsCOMPtr<nsIVariant> mUpper;
+  PRPackedBool mLowerOpen;
+  PRPackedBool mUpperOpen;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbkeyrange_h__

@@ -1,323 +1,244 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_idbtransaction_h__
 #define mozilla_dom_indexeddb_idbtransaction_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/IDBTransactionBinding.h"
-#include "mozilla/dom/indexedDB/IDBWrapperCache.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBDatabase.h"
+
+#include "nsIIDBTransaction.h"
 #include "nsIRunnable.h"
-#include "nsString.h"
-#include "nsTArray.h"
+#include "nsIThreadInternal.h"
 
-class nsPIDOMWindow;
+#include "nsDOMEventTargetHelper.h"
+#include "nsCycleCollectionParticipant.h"
 
-namespace mozilla {
+#include "nsAutoPtr.h"
+#include "nsHashKeys.h"
+#include "nsInterfaceHashtable.h"
 
-class ErrorResult;
-class EventChainPreVisitor;
+class mozIStorageConnection;
+class mozIStorageStatement;
+class nsIThread;
 
-namespace dom {
+BEGIN_INDEXEDDB_NAMESPACE
 
-class DOMError;
-class DOMStringList;
-class PBlobChild;
+class AsyncConnectionHelper;
+class CommitHelper;
+struct ObjectStoreInfo;
+class TransactionThreadPool;
 
-namespace indexedDB {
-
-class BackgroundCursorChild;
-class BackgroundRequestChild;
-class BackgroundTransactionChild;
-class BackgroundVersionChangeTransactionChild;
-class IDBDatabase;
-class IDBObjectStore;
-class IDBOpenDBRequest;
-class IDBRequest;
-class IndexMetadata;
-class ObjectStoreSpec;
-class OpenCursorParams;
-class PBackgroundIDBDatabaseFileChild;
-class RequestParams;
-
-class IDBTransaction MOZ_FINAL
-  : public IDBWrapperCache
-  , public nsIRunnable
+class IDBTransaction : public nsDOMEventTargetHelper,
+                       public nsIIDBTransaction,
+                       public nsIThreadObserver
 {
-  class WorkerFeature;
-  friend class WorkerFeature;
+  friend class AsyncConnectionHelper;
+  friend class CommitHelper;
+  friend class ThreadObserver;
+  friend class TransactionThreadPool;
 
 public:
-  enum Mode
-  {
-    READ_ONLY = 0,
-    READ_WRITE,
-    VERSION_CHANGE,
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIIDBTRANSACTION
+  NS_DECL_NSITHREADOBSERVER
 
-    // Only needed for IPC serialization helper, should never be used in code.
-    MODE_INVALID
-  };
-
-  enum ReadyState
-  {
-    INITIAL = 0,
-    LOADING,
-    COMMITTING,
-    DONE
-  };
-
-private:
-  nsRefPtr<IDBDatabase> mDatabase;
-  nsRefPtr<DOMError> mError;
-  nsTArray<nsString> mObjectStoreNames;
-  nsTArray<nsRefPtr<IDBObjectStore>> mObjectStores;
-  nsTArray<nsRefPtr<IDBObjectStore>> mDeletedObjectStores;
-  nsAutoPtr<WorkerFeature> mWorkerFeature;
-
-  // Tagged with mMode. If mMode is VERSION_CHANGE then mBackgroundActor will be
-  // a BackgroundVersionChangeTransactionChild. Otherwise it will be a
-  // BackgroundTransactionChild.
-  union {
-    BackgroundTransactionChild* mNormalBackgroundActor;
-    BackgroundVersionChangeTransactionChild* mVersionChangeBackgroundActor;
-  } mBackgroundActor;
-
-  const int64_t mLoggingSerialNumber;
-
-  // Only used for VERSION_CHANGE transactions.
-  int64_t mNextObjectStoreId;
-  int64_t mNextIndexId;
-
-  nsresult mAbortCode;
-  uint32_t mPendingRequestCount;
-
-  nsString mFilename;
-  uint32_t mLineNo;
-
-  ReadyState mReadyState;
-  Mode mMode;
-
-  bool mCreating;
-  bool mRegistered;
-  bool mAbortedByScript;
-
-#ifdef DEBUG
-  bool mSentCommitOrAbort;
-  bool mFiredCompleteOrAbort;
-#endif
-
-public:
-  static already_AddRefed<IDBTransaction>
-  CreateVersionChange(IDBDatabase* aDatabase,
-                      BackgroundVersionChangeTransactionChild* aActor,
-                      IDBOpenDBRequest* aOpenRequest,
-                      int64_t aNextObjectStoreId,
-                      int64_t aNextIndexId);
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBTransaction,
+                                           nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBTransaction>
   Create(IDBDatabase* aDatabase,
-         const nsTArray<nsString>& aObjectStoreNames,
-         Mode aMode);
+         nsTArray<nsString>& aObjectStoreNames,
+         PRUint16 aMode,
+         PRUint32 aTimeout,
+         bool aDispatchDelayed = false);
 
-  static IDBTransaction*
-  GetCurrent();
+  // nsPIDOMEventTarget
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
+  void OnNewRequest();
+  void OnRequestFinished();
 
-  void
-  SetBackgroundActor(BackgroundTransactionChild* aBackgroundActor);
+  bool StartSavepoint();
+  nsresult ReleaseSavepoint();
+  void RollbackSavepoint();
 
-  void
-  ClearBackgroundActor()
+  // Only meant to be called on mStorageThread!
+  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
+
+  already_AddRefed<mozIStorageStatement>
+  AddStatement(bool aCreate,
+               bool aOverwrite,
+               bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  DeleteStatement(bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  GetStatement(bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexGetStatement(bool aUnique,
+                    bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexGetObjectStatement(bool aUnique,
+                          bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexUpdateStatement(bool aAutoIncrement,
+                       bool aUnique,
+                       bool aOverwrite);
+
+  already_AddRefed<mozIStorageStatement>
+  GetCachedStatement(const nsACString& aQuery);
+
+  template<int N>
+  already_AddRefed<mozIStorageStatement>
+  GetCachedStatement(const char (&aQuery)[N])
   {
-    AssertIsOnOwningThread();
-
-    if (mMode == VERSION_CHANGE) {
-      mBackgroundActor.mVersionChangeBackgroundActor = nullptr;
-    } else {
-      mBackgroundActor.mNormalBackgroundActor = nullptr;
-    }
+    nsCString query;
+    query.AssignLiteral(aQuery);
+    return GetCachedStatement(query);
   }
 
-  void
-  StartRequest(BackgroundRequestChild* aBackgroundActor,
-               const RequestParams& aParams);
+  bool IsOpen() const;
 
-  void
-  OpenCursor(BackgroundCursorChild* aBackgroundActor,
-             const OpenCursorParams& aParams);
-
-  void
-  RefreshSpec(bool aMayDelete);
-
-  void
-  OnNewRequest();
-
-  void
-  OnRequestFinished();
-
-  bool
-  IsOpen() const;
-
-  bool
-  IsFinished() const
+  bool IsWriteAllowed() const
   {
-    AssertIsOnOwningThread();
-    return mReadyState > LOADING;
+    return mMode == nsIIDBTransaction::READ_WRITE ||
+           mMode == nsIIDBTransaction::VERSION_CHANGE;
   }
 
-  bool
-  IsWriteAllowed() const
+  bool IsAborted() const
   {
-    AssertIsOnOwningThread();
-    return mMode == READ_WRITE || mMode == VERSION_CHANGE;
+    return mAborted;
   }
 
-  bool
-  IsAborted() const
+  PRUint16 Mode()
   {
-    AssertIsOnOwningThread();
-    return NS_FAILED(mAbortCode);
-  }
-
-  nsresult
-  AbortCode() const
-  {
-    AssertIsOnOwningThread();
-    return mAbortCode;
-  }
-
-  void
-  GetCallerLocation(nsAString& aFilename, uint32_t* aLineNo) const;
-
-  // 'Get' prefix is to avoid name collisions with the enum
-  Mode
-  GetMode() const
-  {
-    AssertIsOnOwningThread();
     return mMode;
   }
 
-  IDBDatabase*
-  Database() const
+  IDBDatabase* Database()
   {
-    AssertIsOnOwningThread();
+    NS_ASSERTION(mDatabase, "This should never be null!");
     return mDatabase;
   }
 
-  IDBDatabase*
-  Db() const
-  {
-    return Database();
-  }
-
-  const nsTArray<nsString>&
-  ObjectStoreNamesInternal() const
-  {
-    AssertIsOnOwningThread();
-    return mObjectStoreNames;
-  }
-
   already_AddRefed<IDBObjectStore>
-  CreateObjectStore(const ObjectStoreSpec& aSpec);
-
-  void
-  DeleteObjectStore(int64_t aObjectStoreId);
-
-  void
-  CreateIndex(IDBObjectStore* aObjectStore, const IndexMetadata& aMetadata);
-
-  void
-  DeleteIndex(IDBObjectStore* aObjectStore, int64_t aIndexId);
-
-  void
-  Abort(IDBRequest* aRequest);
-
-  void
-  Abort(nsresult aAbortCode);
-
-  int64_t
-  LoggingSerialNumber() const
-  {
-    AssertIsOnOwningThread();
-
-    return mLoggingSerialNumber;
-  }
-
-  nsPIDOMWindow*
-  GetParentObject() const;
-
-  IDBTransactionMode
-  GetMode(ErrorResult& aRv) const;
-
-  DOMError*
-  GetError() const;
-
-  already_AddRefed<IDBObjectStore>
-  ObjectStore(const nsAString& aName, ErrorResult& aRv);
-
-  void
-  Abort(ErrorResult& aRv);
-
-  IMPL_EVENT_HANDLER(abort)
-  IMPL_EVENT_HANDLER(complete)
-  IMPL_EVENT_HANDLER(error)
-
-  already_AddRefed<DOMStringList>
-  ObjectStoreNames();
-
-  void
-  FireCompleteOrAbortEvents(nsresult aResult);
-
-  // Only for VERSION_CHANGE transactions.
-  int64_t
-  NextObjectStoreId();
-
-  // Only for VERSION_CHANGE transactions.
-  int64_t
-  NextIndexId();
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIRUNNABLE
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBTransaction, IDBWrapperCache)
-
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  // nsIDOMEventTarget
-  virtual nsresult
-  PreHandleEvent(EventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  GetOrCreateObjectStore(const nsAString& aName,
+                         ObjectStoreInfo* aObjectStoreInfo);
 
 private:
-  IDBTransaction(IDBDatabase* aDatabase,
-                 const nsTArray<nsString>& aObjectStoreNames,
-                 Mode aMode);
+  IDBTransaction();
   ~IDBTransaction();
 
-  void
-  AbortInternal(nsresult aAbortCode, already_AddRefed<DOMError> aError);
+  nsresult CommitOrRollback();
 
-  void
-  SendCommit();
+  nsRefPtr<IDBDatabase> mDatabase;
+  nsTArray<nsString> mObjectStoreNames;
+  PRUint16 mReadyState;
+  PRUint16 mMode;
+  PRUint32 mTimeout;
+  PRUint32 mPendingRequests;
+  PRUint32 mCreatedRecursionDepth;
 
-  void
-  SendAbort(nsresult aResultCode);
+  // Only touched on the main thread.
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
+
+  nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
+    mCachedStatements;
+
+  // Only touched on the database thread.
+  nsCOMPtr<mozIStorageConnection> mConnection;
+
+  // Only touched on the database thread.
+  PRUint32 mSavepointCount;
+
+  nsTArray<nsRefPtr<IDBObjectStore> > mCreatedObjectStores;
+
+  bool mAborted;
+  bool mCreating;
+
+#ifdef DEBUG
+  bool mFiredCompleteOrAbort;
+#endif
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+class CommitHelper : public nsIRunnable
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIRUNNABLE
+
+  CommitHelper(IDBTransaction* aTransaction);
+  ~CommitHelper();
+
+  template<class T>
+  bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)
+  {
+    if (aCOMPtr) {
+      if (!mDoomedObjects.AppendElement(do_QueryInterface(aCOMPtr))) {
+        NS_ERROR("Out of memory!");
+        return false;
+      }
+      aCOMPtr = nsnull;
+    }
+    return true;
+  }
+
+private:
+  nsRefPtr<IDBTransaction> mTransaction;
+  nsCOMPtr<mozIStorageConnection> mConnection;
+  nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
+
+  nsString mOldVersion;
+  nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
+
+  bool mAborted;
+  bool mHaveMetadata;
+};
+
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbtransaction_h__

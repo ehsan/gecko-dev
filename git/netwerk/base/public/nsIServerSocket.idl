@@ -1,42 +1,56 @@
 /* vim:set ts=4 sw=4 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
-interface nsIFile;
 interface nsIServerSocketListener;
 interface nsISocketTransport;
 
 native PRNetAddr(union PRNetAddr);
 [ptr] native PRNetAddrPtr(union PRNetAddr);
 
-typedef unsigned long nsServerSocketFlag;
-
 /**
  * nsIServerSocket
  *
  * An interface to a server socket that can accept incoming connections.
  */
-[scriptable, uuid(7a9c39cb-a13f-4eef-9bdf-a74301628742)]
+[scriptable, uuid(a5b64be0-d563-46bb-ae95-132e46fcd42f)]
 interface nsIServerSocket : nsISupports
 {
-    /**
-     * @name Server Socket Flags
-     * These flags define various socket options.
-     * @{
-     */
-    /// The server socket will only respond to connections on the
-    /// local loopback interface.  Otherwise, it will accept connections
-    /// from any interface.  To specify a particular network interface,
-    /// use initWithAddress.
-    const nsServerSocketFlag LoopbackOnly = 0x00000001;
-    /// The server socket will not be closed when Gecko is set
-    /// offline.
-    const nsServerSocketFlag KeepWhenOffline = 0x00000002;
-    /** @} */
-
     /**
      * init
      *
@@ -55,30 +69,7 @@ interface nsIServerSocket : nsISupports
      *        This parameter may be silently limited by the operating system.
      *        Pass -1 to use the default value.
      */
-    void init(in long aPort,
-              in boolean aLoopbackOnly,
-              in long aBackLog);
-
-    /**
-     * initSpecialConnection
-     *
-     * This method initializes a server socket and offers the ability to have
-     * that socket not get terminated if Gecko is set offline.
-     *
-     * @param aPort
-     *        The port of the server socket.  Pass -1 to indicate no preference,
-     *        and a port will be selected automatically.
-     * @param aFlags
-     *        Flags for the socket.
-     * @param aBackLog
-     *        The maximum length the queue of pending connections may grow to.
-     *        This parameter may be silently limited by the operating system.
-     *        Pass -1 to use the default value.
-     */
-    void initSpecialConnection(in long aPort,
-                               in nsServerSocketFlag aFlags,
-                               in long aBackLog);
-
+    void init(in long aPort, in boolean aLoopbackOnly, in long aBackLog);
 
     /**
      * initWithAddress
@@ -94,61 +85,6 @@ interface nsIServerSocket : nsISupports
      *        Pass -1 to use the default value.
      */
     [noscript] void initWithAddress([const] in PRNetAddrPtr aAddr, in long aBackLog);
-
-    /**
-     * initWithFilename
-     *
-     * This method initializes a Unix domain or "local" server socket. Such
-     * a socket has a name in the filesystem, like an ordinary file. To
-     * connect, a client supplies the socket's filename, and the usual
-     * permission checks on socket apply.
-     *
-     * This makes Unix domain sockets useful for communication between the
-     * programs being run by a specific user on a single machine: the
-     * operating system takes care of authentication, and the user's home
-     * directory or profile directory provide natural per-user rendezvous
-     * points.
-     *
-     * Since Unix domain sockets are always local to the machine, they are
-     * not affected by the nsIIOService's 'offline' flag.
-     *
-     * The system-level socket API may impose restrictions on the length of
-     * the filename that are stricter than those of the underlying
-     * filesystem. If the file name is too long, this returns
-     * NS_ERROR_FILE_NAME_TOO_LONG.
-     *
-     * All components of the path prefix of |aPath| must name directories;
-     * otherwise, this returns NS_ERROR_FILE_NOT_DIRECTORY.
-     *
-     * This call requires execute permission on all directories containing
-     * the one in which the socket is to be created, and write and execute
-     * permission on the directory itself. Otherwise, this returns
-     * NS_ERROR_CONNECTION_REFUSED.
-     *
-     * This call creates the socket's directory entry. There must not be
-     * any existing entry with the given name. If there is, this returns
-     * NS_ERROR_SOCKET_ADDRESS_IN_USE.
-     *
-     * On systems that don't support Unix domain sockets at all, this
-     * returns NS_ERROR_SOCKET_ADDRESS_NOT_SUPPORTED.
-     *
-     * @param aPath nsIFile
-     *        The file name at which the socket should be created.
-     *
-     * @param aPermissions unsigned long
-     *        Unix-style permission bits to be applied to the new socket.
-     *
-     * Note about permissions: Linux's unix(7) man page claims that some
-     * BSD-derived systems ignore permissions on UNIX-domain sockets;
-     * NetBSD's bind(2) man page agrees, but says it does check now (dated
-     * 2005). POSIX has required 'connect' to fail if write permission on
-     * the socket itself is not granted since 2003 (Issue 6). NetBSD says
-     * that the permissions on the containing directory (execute) have
-     * always applied, so creating sockets in appropriately protected
-     * directories should be secure on both old and new systems.
-     */
-    void initWithFilename(in nsIFile aPath, in unsigned long aPermissions,
-                          in long aBacklog);
 
     /**
      * close

@@ -1,11 +1,6 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var testpath = "/simple";
 var httpbody = "<?xml version='1.0' ?><root>0123456789</root>";
 
@@ -13,7 +8,7 @@ function syncXHR()
 {
   var xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
             .createInstance(Ci.nsIXMLHttpRequest);
-  xhr.open("GET", URL + testpath, false);
+  xhr.open("GET", "http://localhost:4444" + testpath, false);
   xhr.send(null);    
 }
 
@@ -46,7 +41,7 @@ var listener = {
         break;
       case 2:
         do_execute_soon(function() request.suspend());
-        do_execute_soon(function() request.resume());
+	do_execute_soon(function() request.resume());
         syncXHR();
         break;
     }
@@ -78,20 +73,13 @@ var listener = {
 
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel2(url,
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER).QueryInterface(Ci.nsIHttpChannel);
+  var chan = ios.newChannel(url, null, null).QueryInterface(Ci.nsIHttpChannel);
   return chan;
 }
 
 function next_test()
 {
-  var chan = makeChan(URL + testpath);
+  var chan = makeChan("http://localhost:4444" + testpath);
   chan.QueryInterface(Ci.nsIRequest);
   chan.asyncOpen(listener, null);
 }
@@ -99,7 +87,7 @@ function next_test()
 function run_test()
 {
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   next_test();
 

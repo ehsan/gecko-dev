@@ -1,259 +1,236 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Kai Engert <kengert@redhat.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSSLStatus.h"
 #include "plstr.h"
 #include "nsIClassInfoImpl.h"
-#include "nsIIdentityInfo.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIObjectInputStream.h"
-#include "ssl.h"
 
 NS_IMETHODIMP
-nsSSLStatus::GetServerCert(nsIX509Cert** aServerCert)
+nsSSLStatus::GetServerCert(nsIX509Cert** _result)
 {
-  NS_ENSURE_ARG_POINTER(aServerCert);
+  NS_ASSERTION(_result, "non-NULL destination required");
 
-  nsCOMPtr<nsIX509Cert> cert = mServerCert;
-  cert.forget(aServerCert);
+  *_result = mServerCert;
+  NS_IF_ADDREF(*_result);
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetKeyLength(uint32_t* aKeyLength)
+nsSSLStatus::GetKeyLength(PRUint32* _result)
 {
-  NS_ENSURE_ARG_POINTER(aKeyLength);
-  if (!mHaveCipherSuiteAndProtocol) {
+  NS_ASSERTION(_result, "non-NULL destination required");
+  if (!mHaveKeyLengthAndCipher)
     return NS_ERROR_NOT_AVAILABLE;
-  }
 
-  SSLCipherSuiteInfo cipherInfo;
-  if (SSL_GetCipherSuiteInfo(mCipherSuite, &cipherInfo,
-                             sizeof(cipherInfo)) != SECSuccess) {
-    return NS_ERROR_FAILURE;
-  }
+  *_result = mKeyLength;
 
-  *aKeyLength = cipherInfo.symKeyBits;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetSecretKeyLength(uint32_t* aSecretKeyLength)
+nsSSLStatus::GetSecretKeyLength(PRUint32* _result)
 {
-  NS_ENSURE_ARG_POINTER(aSecretKeyLength);
-  if (!mHaveCipherSuiteAndProtocol) {
+  NS_ASSERTION(_result, "non-NULL destination required");
+  if (!mHaveKeyLengthAndCipher)
     return NS_ERROR_NOT_AVAILABLE;
-  }
 
-  SSLCipherSuiteInfo cipherInfo;
-  if (SSL_GetCipherSuiteInfo(mCipherSuite, &cipherInfo,
-                             sizeof(cipherInfo)) != SECSuccess) {
-    return NS_ERROR_FAILURE;
-  }
+  *_result = mSecretKeyLength;
 
-  *aSecretKeyLength = cipherInfo.effectiveKeyBits;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetCipherName(nsACString& aCipherName)
+nsSSLStatus::GetCipherName(char** _result)
 {
-  if (!mHaveCipherSuiteAndProtocol) {
+  NS_ASSERTION(_result, "non-NULL destination required");
+  if (!mHaveKeyLengthAndCipher)
     return NS_ERROR_NOT_AVAILABLE;
-  }
 
-  SSLCipherSuiteInfo cipherInfo;
-  if (SSL_GetCipherSuiteInfo(mCipherSuite, &cipherInfo,
-                             sizeof(cipherInfo)) != SECSuccess) {
-    return NS_ERROR_FAILURE;
-  }
+  *_result = ToNewCString(mCipherName);
 
-  aCipherName.Assign(cipherInfo.cipherSuiteName);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetProtocolVersion(uint16_t* aProtocolVersion)
+nsSSLStatus::GetIsDomainMismatch(PRBool* _result)
 {
-  NS_ENSURE_ARG_POINTER(aProtocolVersion);
-  if (!mHaveCipherSuiteAndProtocol) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
+  NS_ASSERTION(_result, "non-NULL destination required");
 
-  *aProtocolVersion = mProtocolVersion;
+  *_result = mHaveCertErrorBits && mIsDomainMismatch;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetIsDomainMismatch(bool* aIsDomainMismatch)
+nsSSLStatus::GetIsNotValidAtThisTime(PRBool* _result)
 {
-  NS_ENSURE_ARG_POINTER(aIsDomainMismatch);
+  NS_ASSERTION(_result, "non-NULL destination required");
 
-  *aIsDomainMismatch = mHaveCertErrorBits && mIsDomainMismatch;
+  *_result = mHaveCertErrorBits && mIsNotValidAtThisTime;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetIsNotValidAtThisTime(bool* aIsNotValidAtThisTime)
+nsSSLStatus::GetIsUntrusted(PRBool* _result)
 {
-  NS_ENSURE_ARG_POINTER(aIsNotValidAtThisTime);
+  NS_ASSERTION(_result, "non-NULL destination required");
 
-  *aIsNotValidAtThisTime = mHaveCertErrorBits && mIsNotValidAtThisTime;
+  *_result = mHaveCertErrorBits && mIsUntrusted;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetIsUntrusted(bool* aIsUntrusted)
-{
-  NS_ENSURE_ARG_POINTER(aIsUntrusted);
-
-  *aIsUntrusted = mHaveCertErrorBits && mIsUntrusted;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSSLStatus::GetIsExtendedValidation(bool* aIsEV)
-{
-  NS_ENSURE_ARG_POINTER(aIsEV);
-  *aIsEV = false;
-
-  // Never allow bad certs for EV, regardless of overrides.
-  if (mHaveCertErrorBits) {
-    return NS_OK;
-  }
-
-  if (mHasIsEVStatus) {
-    *aIsEV = mIsEV;
-    return NS_OK;
-  }
-
-#ifdef MOZ_NO_EV_CERTS
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
-}
-
-NS_IMETHODIMP
-nsSSLStatus::Read(nsIObjectInputStream* aStream)
+nsSSLStatus::Read(nsIObjectInputStream* stream)
 {
   nsCOMPtr<nsISupports> cert;
-  nsresult rv = aStream->ReadObject(true, getter_AddRefs(cert));
+  nsresult rv = stream->ReadObject(PR_TRUE, getter_AddRefs(cert));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mServerCert = do_QueryInterface(cert);
-  if (!mServerCert) {
+  if (!mServerCert)
     return NS_NOINTERFACE;
-  }
 
-  rv = aStream->Read16(&mCipherSuite);
+  rv = stream->Read32(&mKeyLength);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read16(&mProtocolVersion);
+  rv = stream->Read32(&mSecretKeyLength);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->ReadBoolean(&mIsDomainMismatch);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->ReadBoolean(&mIsNotValidAtThisTime);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->ReadBoolean(&mIsUntrusted);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->ReadBoolean(&mIsEV);
+  rv = stream->ReadCString(mCipherName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aStream->ReadBoolean(&mHasIsEVStatus);
+  rv = stream->ReadBoolean(&mIsDomainMismatch);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->ReadBoolean(&mHaveCipherSuiteAndProtocol);
+  rv = stream->ReadBoolean(&mIsNotValidAtThisTime);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->ReadBoolean(&mHaveCertErrorBits);
+  rv = stream->ReadBoolean(&mIsUntrusted);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = stream->ReadBoolean(&mHaveKeyLengthAndCipher);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stream->ReadBoolean(&mHaveCertErrorBits);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::Write(nsIObjectOutputStream* aStream)
+nsSSLStatus::Write(nsIObjectOutputStream* stream)
 {
-  nsresult rv = aStream->WriteCompoundObject(mServerCert,
-                                             NS_GET_IID(nsIX509Cert),
-                                             true);
+  nsresult rv = stream->WriteCompoundObject(mServerCert,
+                                            NS_GET_IID(nsIX509Cert),
+                                            PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aStream->Write16(mCipherSuite);
+  rv = stream->Write32(mKeyLength);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write16(mProtocolVersion);
+  rv = stream->Write32(mSecretKeyLength);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->WriteBoolean(mIsDomainMismatch);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->WriteBoolean(mIsNotValidAtThisTime);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->WriteBoolean(mIsUntrusted);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->WriteBoolean(mIsEV);
+  rv = stream->WriteStringZ(mCipherName.get());
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aStream->WriteBoolean(mHasIsEVStatus);
+  rv = stream->WriteBoolean(mIsDomainMismatch);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->WriteBoolean(mHaveCipherSuiteAndProtocol);
+  rv = stream->WriteBoolean(mIsNotValidAtThisTime);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->WriteBoolean(mHaveCertErrorBits);
+  rv = stream->WriteBoolean(mIsUntrusted);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = stream->WriteBoolean(mHaveKeyLengthAndCipher);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stream->WriteBoolean(mHaveCertErrorBits);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetInterfaces(uint32_t* aCount, nsIID*** aArray)
+nsSSLStatus::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
-  *aCount = 0;
-  *aArray = nullptr;
+  *count = 0;
+  *array = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetHelperForLanguage(uint32_t aLanguage, nsISupports** aHelper)
+nsSSLStatus::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
-  *aHelper = nullptr;
+  *_retval = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetContractID(char** aContractID)
+nsSSLStatus::GetContractID(char * *aContractID)
 {
-  *aContractID = nullptr;
+  *aContractID = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetClassDescription(char** aClassDescription)
+nsSSLStatus::GetClassDescription(char * *aClassDescription)
 {
-  *aClassDescription = nullptr;
+  *aClassDescription = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetClassID(nsCID** aClassID)
+nsSSLStatus::GetClassID(nsCID * *aClassID)
 {
   *aClassID = (nsCID*) nsMemory::Alloc(sizeof(nsCID));
-  if (!*aClassID) {
+  if (!*aClassID)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
   return GetClassIDNoAlloc(*aClassID);
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetImplementationLanguage(uint32_t* aImplementationLanguage)
+nsSSLStatus::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
 {
   *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSSLStatus::GetFlags(uint32_t* aFlags)
+nsSSLStatus::GetFlags(PRUint32 *aFlags)
 {
   *aFlags = 0;
   return NS_OK;
@@ -262,50 +239,27 @@ nsSSLStatus::GetFlags(uint32_t* aFlags)
 static NS_DEFINE_CID(kSSLStatusCID, NS_SSLSTATUS_CID);
 
 NS_IMETHODIMP
-nsSSLStatus::GetClassIDNoAlloc(nsCID* aClassIDNoAlloc)
+nsSSLStatus::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 {
   *aClassIDNoAlloc = kSSLStatusCID;
   return NS_OK;
 }
 
+
+
 nsSSLStatus::nsSSLStatus()
-: mCipherSuite(0)
-, mProtocolVersion(0)
-, mIsDomainMismatch(false)
-, mIsNotValidAtThisTime(false)
-, mIsUntrusted(false)
-, mIsEV(false)
-, mHasIsEVStatus(false)
-, mHaveCipherSuiteAndProtocol(false)
-, mHaveCertErrorBits(false)
+: mKeyLength(0), mSecretKeyLength(0)
+, mIsDomainMismatch(PR_FALSE)
+, mIsNotValidAtThisTime(PR_FALSE)
+, mIsUntrusted(PR_FALSE)
+, mHaveKeyLengthAndCipher(PR_FALSE)
+, mHaveCertErrorBits(PR_FALSE)
 {
+  mCipherName = "";
 }
 
-NS_IMPL_ISUPPORTS(nsSSLStatus, nsISSLStatus, nsISerializable, nsIClassInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsSSLStatus, nsISSLStatus, nsISerializable, nsIClassInfo)
 
 nsSSLStatus::~nsSSLStatus()
 {
-}
-
-void
-nsSSLStatus::SetServerCert(nsIX509Cert* aServerCert, nsNSSCertificate::EVStatus aEVStatus)
-{
-  mServerCert = aServerCert;
-
-  if (aEVStatus != nsNSSCertificate::ev_status_unknown) {
-    mIsEV = (aEVStatus == nsNSSCertificate::ev_status_valid);
-    mHasIsEVStatus = true;
-    return;
-  }
-
-#ifndef MOZ_NO_EV_CERTS
-  nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(mServerCert);
-  if (idinfo) {
-    nsresult rv = idinfo->GetIsExtendedValidation(&mIsEV);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return;
-    }
-    mHasIsEVStatus = true;
-  }
-#endif
 }

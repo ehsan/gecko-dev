@@ -34,7 +34,7 @@
   'targets': [
     {
       'target_name': 'crash_generation_server',
-      'type': 'static_library',
+      'type': '<(library)',
       'sources': [
         'client_info.cc',
         'crash_generation_server.cc',
@@ -50,7 +50,7 @@
     },
     {
       'target_name': 'crash_generation_client',
-      'type': 'static_library',
+      'type': '<(library)',
       'include_dirs': [
         '<(DEPTH)',
       ],

@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="toolbarBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -71,8 +67,6 @@
         <parameter name="aCurrentSet"/>
         <body>
           <![CDATA[            
-            if (!this.toolbarset)
-              return null;
             var toolbar = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
                                                   "toolbar");
             toolbar.id = "__customToolbar_" + aName.replace(" ", "_");
@@ -93,9 +87,14 @@
     </implementation>
   </binding>
   
-  <binding id="toolbar" role="xul:toolbar"
-           extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
-    <implementation>
+  <binding id="toolbar" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULToolbar;
+        </getter>
+      </property>
+      
       <property name="toolbarName"
                 onget="return this.getAttribute('toolbarname');"
                 onset="this.setAttribute('toolbarname', val); return val;"/>
@@ -109,18 +108,10 @@
           let toolboxId = this.getAttribute("toolboxid");
           if (toolboxId) {
             let toolbox = document.getElementById(toolboxId);
-            if (!toolbox) {
-              let tbName = this.toolbarName;
-              if (tbName)
-                tbName = " (" + tbName + ")";
-              else
-                tbName = "";
-              throw("toolbar ID " + this.id + tbName + ": toolboxid attribute '" + toolboxId + "' points to a toolbox that doesn't exist");
-            }
+            if (!toolbox)
+              throw("toolboxid attribute points to a toolbox which doesn't exist");
 
-            if (toolbox.externalToolbars.indexOf(this) == -1)
-              toolbox.externalToolbars.push(this);
-
+            toolbox.externalToolbars.push(this);
             return this._toolbox = toolbox;
           }
 
@@ -187,9 +178,6 @@
         <parameter name="aNode"/>
         <body>
         <![CDATA[
-          if (aNode.getAttribute("skipintoolbarset") == "true")
-            return "";
-
           switch (aNode.localName) {
             case "toolbarseparator":
               return "separator";
@@ -223,9 +211,6 @@
 
         <setter>
           <![CDATA[
-            if (val == this.currentSet)
-              return val;
-
             var ids = (val == "__empty") ? [] : val.split(",");
 
             var nodeidx = 0;
@@ -323,9 +308,7 @@
                 // look for an item with the same id, as the item may be
                 // in a different toolbar.
                 var item = document.getElementById(aId);
-                if (item && item.parentNode && 
-                    item.parentNode.localName == "toolbar" && 
-                    item.parentNode.toolbox == toolbox) {
+                if (item && item.parentNode && item.parentNode.parentNode == toolbox) {
                   newItem = item;
                   break;
                 }
@@ -404,9 +387,6 @@
       <constructor>
         this._setInactive();
       </constructor>
-      <destructor>
-        this._setActive();
-      </destructor>
 
       <field name="_inactiveTimeout">null</field>
 
@@ -502,7 +482,7 @@
           try {
             let tmp = {};
             Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
-            let draggableThis = new tmp.WindowDraggingElement(this);
+            let draggableThis = new tmp.WindowDraggingElement(this, window);
             draggableThis.mouseDownCheck = function(e) {
               // Don't move while customizing.
               return this._dragBindingAlive &&
@@ -514,9 +494,15 @@
     </implementation>
   </binding>
 
-  <binding id="menubar" role="xul:menubar" 
-           extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:menubar">
-    <implementation>
+  <binding id="menubar" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:menubar">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULMenubar;
+          ]]>
+        </getter>
+       </property>
        <field name="_active">false</field>
        <field name="_statusbar">null</field>
        <field name="_originalStatusText">null</field>
@@ -559,7 +545,14 @@
     </handlers>
   </binding>
 
-  <binding id="toolbardecoration" role="xul:toolbarseparator" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+  <binding id="toolbardecoration" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base">
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULToolbarSeparator;
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
   <binding id="toolbarpaletteitem" extends="chrome://global/content/bindings/toolbar.xml#toolbar-base" display="xul:button">

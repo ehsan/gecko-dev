@@ -1,19 +1,52 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Firefox Preferences System.
+#
+# The Initial Developer of the Original Code is
+# Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2005
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#   Blake Ross <firefox@blakeross.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
 const nsICookiePermission = Components.interfaces.nsICookiePermission;
 
-const NOTIFICATION_FLUSH_PERMISSIONS = "flush-pending-permissions";
-
-function Permission(host, rawHost, type, capability) 
+function Permission(host, rawHost, type, capability, perm) 
 {
   this.host = host;
   this.rawHost = rawHost;
   this.type = type;
   this.capability = capability;
+  this.perm = perm;
 }
 
 var gPermissionManager = {
@@ -47,13 +80,11 @@ var gPermissionManager = {
     getProgressMode: function(aRow, aColumn) {},
     getCellValue: function(aRow, aColumn) {},
     cycleHeader: function(column) {},
-    getRowProperties: function(row){ return ""; },
-    getColumnProperties: function(column){ return ""; },
-    getCellProperties: function(row,column){
+    getRowProperties: function(row,prop){},
+    getColumnProperties: function(column,prop){},
+    getCellProperties: function(row,column,prop){
       if (column.element.getAttribute("id") == "siteCol")
-        return "ltr";
-
-      return "";
+        prop.AppendElement(this._ltrAtom);
     }
   },
   
@@ -66,9 +97,6 @@ var gPermissionManager = {
       break;
     case nsIPermissionManager.DENY_ACTION:
       stringKey = "cannot";
-      break;
-    case nsICookiePermission.ACCESS_ALLOW_FIRST_PARTY_ONLY:
-      stringKey = "canAccessFirstParty";
       break;
     case nsICookiePermission.ACCESS_SESSION:
       stringKey = "canSession";
@@ -104,7 +132,7 @@ var gPermissionManager = {
         // Avoid calling the permission manager if the capability settings are
         // the same. Otherwise allow the call to the permissions manager to
         // update the listbox for us.
-        exists = this._permissions[i].capability == capabilityString;
+        exists = this._permissions[i].perm == aCapability;
         break;
       }
     }
@@ -131,12 +159,6 @@ var gPermissionManager = {
     document.getElementById("btnAllow").disabled = !aSiteField.value;
   },
   
-  onWindowKeyPress: function (aEvent)
-  {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
-      window.close();
-  },
-
   onHostKeyPress: function (aEvent)
   {
     if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN)
@@ -184,12 +206,15 @@ var gPermissionManager = {
 
     var os = Components.classes["@mozilla.org/observer-service;1"]
                        .getService(Components.interfaces.nsIObserverService);
-    os.notifyObservers(null, NOTIFICATION_FLUSH_PERMISSIONS, this._type);
     os.addObserver(this, "perm-changed", false);
 
     this._loadPermissions();
     
     urlField.focus();
+
+    this._ltrAtom = Components.classes["@mozilla.org/atom-service;1"]
+                              .getService(Components.interfaces.nsIAtomService)
+                              .getAtom("ltr");
   },
   
   uninit: function ()
@@ -203,18 +228,12 @@ var gPermissionManager = {
   {
     if (aTopic == "perm-changed") {
       var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
-
-      // Ignore unrelated permission types.
-      if (permission.type != this._type)
-        return;
-
       if (aData == "added") {
         this._addPermissionToList(permission);
         ++this._view._rowCount;
         this._tree.treeBoxObject.rowCountChanged(this._view.rowCount - 1, 1);        
         // Re-do the sort, since we inserted this new item at the end. 
-        gTreeUtils.sort(this._tree, this._view, this._permissions,
-                        this._permissionsComparator,
+        gTreeUtils.sort(this._tree, this._view, this._permissions, 
                         this._lastPermissionSortColumn, 
                         this._lastPermissionSortAscending);        
       }
@@ -229,24 +248,16 @@ var gPermissionManager = {
         // or vice versa, since if we're sorted on status, we may no
         // longer be in order. 
         if (this._lastPermissionSortColumn.id == "statusCol") {
-          gTreeUtils.sort(this._tree, this._view, this._permissions,
-                          this._permissionsComparator,
+          gTreeUtils.sort(this._tree, this._view, this._permissions, 
                           this._lastPermissionSortColumn, 
                           this._lastPermissionSortAscending);
         }
         this._tree.treeBoxObject.invalidate();
       }
-      else if (aData == "deleted") {
-        for (var i = 0; i < this._permissions.length; i++) {
-          if (this._permissions[i].host == permission.host) {
-            this._permissions.splice(i, 1);
-            this._view._rowCount--;
-            this._tree.treeBoxObject.rowCountChanged(this._view.rowCount - 1, -1);
-            this._tree.treeBoxObject.invalidate();
-            break;
-          }
-        }
-      }
+      // No UI other than this window causes this method to be sent a "deleted"
+      // notification, so we don't need to implement it since Delete is handled
+      // directly by the Permission Removal handlers. If that ever changes, those
+      // implementations will have to move into here. 
     }
   },
   
@@ -288,29 +299,19 @@ var gPermissionManager = {
   
   onPermissionKeyPress: function (aEvent)
   {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_DELETE
-#ifdef XP_MACOSX
-        || aEvent.keyCode == KeyEvent.DOM_VK_BACK_SPACE
-#endif
-       )
+    if (aEvent.keyCode == 46)
       this.onPermissionDeleted();
   },
   
   _lastPermissionSortColumn: "",
   _lastPermissionSortAscending: false,
-  _permissionsComparator : function (a, b)
-  {
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  },
-
   
   onPermissionSort: function (aColumn)
   {
     this._lastPermissionSortAscending = gTreeUtils.sort(this._tree, 
                                                         this._view, 
                                                         this._permissions,
-                                                        aColumn,
-                                                        this._permissionsComparator,
+                                                        aColumn, 
                                                         this._lastPermissionSortColumn, 
                                                         this._lastPermissionSortAscending);
     this._lastPermissionSortColumn = aColumn;
@@ -332,7 +333,7 @@ var gPermissionManager = {
     this._view._rowCount = this._permissions.length;
 
     // sort and display the table
-    this._tree.view = this._view;
+    this._tree.treeBoxObject.view = this._view;
     this.onPermissionSort("rawHost", false);
 
     // disable "remove all" button if there are none
@@ -350,7 +351,8 @@ var gPermissionManager = {
       var p = new Permission(host,
                              (host.charAt(0) == ".") ? host.substring(1,host.length) : host,
                              aPermission.type,
-                             capabilityString);
+                             capabilityString, 
+                             aPermission.capability);
       this._permissions.push(p);
     }  
   },
@@ -370,3 +372,4 @@ function initWithParams(aParams)
 {
   gPermissionManager.init(aParams);
 }
+

@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "prtypes.h"
 #include "prtime.h"
@@ -26,7 +58,7 @@ static const PRTime January1st10000 = LL_INIT(0x0384440c, 0xcc736000);
 
 /* gmttime must contains UTC time in micro-seconds unit */
 SECStatus
-DER_TimeToUTCTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmttime)
+DER_TimeToUTCTimeArena(PRArenaPool* arenaOpt, SECItem *dst, int64 gmttime)
 {
     PRExplodedTime printableTime;
     unsigned char *d;
@@ -47,7 +79,7 @@ DER_TimeToUTCTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmttime)
 	return SECFailure;
     }
 
-    /* Convert a PRTime to a printable format.  */
+    /* Convert an int64 time to a printable format.  */
     PR_ExplodeTime(gmttime, PR_GMTParameters, &printableTime);
 
     /* The month in UTC time is base one */
@@ -74,7 +106,7 @@ DER_TimeToUTCTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmttime)
 }
 
 SECStatus
-DER_TimeToUTCTime(SECItem *dst, PRTime gmttime)
+DER_TimeToUTCTime(SECItem *dst, int64 gmttime)
 {
     return DER_TimeToUTCTimeArena(NULL, dst, gmttime);
 }
@@ -95,13 +127,13 @@ der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
 ** It suffices to ensure that the input "string" is at least 17 bytes long.
 */
 SECStatus
-DER_AsciiToTime(PRTime *dst, const char *string)
+DER_AsciiToTime(int64 *dst, const char *string)
 {
     return der_TimeStringToTime(dst, string, UTC_STRING, NULL);
 }
 
 SECStatus
-DER_UTCTimeToTime(PRTime *dst, const SECItem *time)
+DER_UTCTimeToTime(int64 *dst, const SECItem *time)
 {
     /* Minimum valid UTCTime is yymmddhhmmZ       which is 11 bytes. 
     ** Maximum valid UTCTime is yymmddhhmmss+0000 which is 17 bytes.
@@ -143,7 +175,7 @@ DER_UTCTimeToTime(PRTime *dst, const SECItem *time)
    certificate extension, which does not have this restriction. 
  */
 SECStatus
-DER_TimeToGeneralizedTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmttime)
+DER_TimeToGeneralizedTimeArena(PRArenaPool* arenaOpt, SECItem *dst, int64 gmttime)
 {
     PRExplodedTime printableTime;
     unsigned char *d;
@@ -163,7 +195,7 @@ DER_TimeToGeneralizedTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmtti
 	return SECFailure;
     }
 
-    /* Convert a PRTime to a printable format.  */
+    /* Convert an int64 time to a printable format.  */
     PR_ExplodeTime(gmttime, PR_GMTParameters, &printableTime);
 
     /* The month in Generalized time is base one */
@@ -188,14 +220,14 @@ DER_TimeToGeneralizedTimeArena(PLArenaPool* arenaOpt, SECItem *dst, PRTime gmtti
 }
 
 SECStatus
-DER_TimeToGeneralizedTime(SECItem *dst, PRTime gmttime)
+DER_TimeToGeneralizedTime(SECItem *dst, int64 gmttime)
 {
     return DER_TimeToGeneralizedTimeArena(NULL, dst, gmttime);
 }
 
 
 SECStatus
-DER_GeneralizedTimeToTime(PRTime *dst, const SECItem *time)
+DER_GeneralizedTimeToTime(int64 *dst, const SECItem *time)
 {
     /* Minimum valid GeneralizedTime is ccyymmddhhmmZ       which is 13 bytes.
     ** Maximum valid GeneralizedTime is ccyymmddhhmmss+0000 which is 19 bytes.
@@ -234,7 +266,7 @@ der_TimeStringToTime(PRTime *dst, const char *string, int generalized,
 {
     PRExplodedTime genTime;
     long hourOff = 0, minOff = 0;
-    PRUint16 century;
+    uint16 century;
     char signum;
 
     if (string == NULL || dst == NULL) {

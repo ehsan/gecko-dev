@@ -1,8 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-"use strict";
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -11,7 +42,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/SharedPromptUtils.jsm");
 
 function Prompter() {
     // Note that EmbedPrompter clones this implementation.
@@ -22,7 +52,7 @@ Prompter.prototype = {
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIPromptFactory, Ci.nsIPromptService, Ci.nsIPromptService2]),
 
 
-    /* ----------  private members  ---------- */
+    /* ----------  private memebers  ---------- */
 
     pickPrompter : function (domWin) {
         return new ModalPrompter(domWin);
@@ -117,8 +147,7 @@ Prompter.prototype = {
 
 
 // Common utils not specific to a particular prompter style.
-let PromptUtilsTemp = {
-    __proto__ : PromptUtils,
+let PromptUtils = {
 
     getLocalizedString : function (key, formatArgs) {
         if (formatArgs)
@@ -173,6 +202,16 @@ let PromptUtilsTemp = {
         return [buttonLabels[0], buttonLabels[1], buttonLabels[2], defaultButtonNum, isDelayEnabled];
     },
 
+    // Fire a dialog open/close event. Used by tabbrowser to focus the
+    // tab which is triggering a prompt.
+    //
+    // Bug 611553 - should make these notifications instead of events.
+    fireDialogEvent : function (domWin, eventName) {
+        let event = domWin.document.createEvent("Events");
+        event.initEvent(eventName, true, true);
+        domWin.dispatchEvent(event);
+    },
+
     getAuthInfo : function (authInfo) {
         let username, password;
 
@@ -211,7 +250,7 @@ let PromptUtilsTemp = {
 
         // If the URI explicitly specified a port, only include it when
         // it's not the default. (We never want "http://foo.com:80")
-        let port = uri.port;
+        port = uri.port;
         if (port != -1) {
             let handler = Services.io.getProtocolHandler(scheme);
             if (port != handler.defaultPort)
@@ -293,8 +332,37 @@ let PromptUtilsTemp = {
         return text;
     },
 
+    objectToPropBag : function (obj) {
+        let bag = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag2);
+        bag.QueryInterface(Ci.nsIWritablePropertyBag);
+
+        for (let propName in obj)
+            bag.setProperty(propName, obj[propName]);
+
+        return bag;
+    },
+
+    propBagToObject : function (propBag, obj) {
+        // Here we iterate over the object's original properties, not the bag
+        // (ie, the prompt can't return more/different properties than were
+        // passed in). This just helps ensure that the caller provides default
+        // values, lest the prompt forget to set them.
+        for (let propName in obj)
+            obj[propName] = propBag.getProperty(propName);
+    },
+
     getTabModalPrompt : function (domWin) {
         var promptBox = null;
+
+        // Given a content DOM window, returns the chrome window it's in.
+        function getChromeWindow(aWindow) {
+            var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                   .getInterface(Ci.nsIWebNavigation)
+                                   .QueryInterface(Ci.nsIDocShell)
+                                   .chromeEventHandler.ownerDocument.defaultView;
+            return chromeWin;
+        }
 
         try {
             // Get the topmost window, in case we're in a frame.
@@ -302,11 +370,7 @@ let PromptUtilsTemp = {
 
             // Get the chrome window for the content window we're using.
             // (Unwrap because we need a non-IDL property below.)
-            var chromeWin = promptWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                                     .getInterface(Ci.nsIWebNavigation)
-                                     .QueryInterface(Ci.nsIDocShell)
-                                     .chromeEventHandler.ownerDocument
-                                     .defaultView.wrappedJSObject;
+            var chromeWin = getChromeWindow(promptWin).wrappedJSObject;
 
             if (chromeWin.getTabModalPromptBox)
                 promptBox = chromeWin.getTabModalPromptBox(promptWin);
@@ -317,8 +381,6 @@ let PromptUtilsTemp = {
         return promptBox;
     },
 };
-
-PromptUtils = PromptUtilsTemp;
 
 XPCOMUtils.defineLazyGetter(PromptUtils, "strBundle", function () {
     let bunService = Cc["@mozilla.org/intl/stringbundle;1"].
@@ -340,31 +402,15 @@ XPCOMUtils.defineLazyGetter(PromptUtils, "ellipsis", function () {
 
 
 function openModalWindow(domWin, uri, args) {
-    // There's an implied contract that says modal prompts should still work
-    // when no "parent" window is passed for the dialog (eg, the "Master
-    // Password" dialog does this).  These prompts must be shown even if there
-    // are *no* visible windows at all.
-    // There's also a requirement for prompts to be blocked if a window is
-    // passed and that window is hidden (eg, auth prompts are supressed if the
-    // passed window is the hidden window).
-    // See bug 875157 comment 30 for more...
-    if (domWin) {
-        // a domWin was passed, so we can apply the check for it being hidden.
-        let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindowUtils);
-
-        if (winUtils && !winUtils.isParentWindowMainWidgetVisible) {
-            throw Components.Exception("Cannot call openModalWindow on a hidden window",
-                                       Cr.NS_ERROR_NOT_AVAILABLE);
-        }
-    } else {
-        // We try and find a window to use as the parent, but don't consider
-        // if that is visible before showing the prompt.
+    // XXX Investigate supressing modal state when we're called without a
+    // window? Seems odd to affect whatever window happens to be active.
+    if (!domWin)
         domWin = Services.ww.activeWindow;
-        // domWin may still be null here if there are _no_ windows open.
-    }
+
+    // domWin may still be null here if there are _no_ windows open.
+
     // Note that we don't need to fire DOMWillOpenModalDialog and
-    // DOMModalDialogClosed events here, wwatcher's OpenWindowInternal
+    // DOMModalDialogClosed events here, wwatcher's OpenWindowJSInternal
     // will do that. Similarly for enterModalState / leaveModalState.
 
     Services.ww.openWindow(domWin, uri, "_blank", "centerscreen,chrome,modal,titlebar", args);
@@ -374,15 +420,14 @@ function openTabPrompt(domWin, tabPrompt, args) {
     PromptUtils.fireDialogEvent(domWin, "DOMWillOpenModalDialog");
 
     let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIDOMWindowUtils);
-    winUtils.enterModalState();
+                         .getInterface(Ci.nsIDOMWindowUtils_MOZILLA_2_0_BRANCH);
+    let callerWin = winUtils.enterModalStateWithWindow();
 
     // We provide a callback so the prompt can close itself. We don't want to
     // wait for this event loop to return... Otherwise the presence of other
     // prompts on the call stack would in this dialog appearing unresponsive
     // until the other prompts had been closed.
     let callbackInvoked = false;
-    let newPrompt;
     function onPromptClose(forceCleanup) {
         if (!newPrompt && !forceCleanup)
             return;
@@ -390,32 +435,28 @@ function openTabPrompt(domWin, tabPrompt, args) {
         if (newPrompt)
             tabPrompt.removePrompt(newPrompt);
 
-        domWin.removeEventListener("pagehide", pagehide);
-
-        winUtils.leaveModalState();
+        winUtils.leaveModalStateWithWindow(callerWin);
 
         PromptUtils.fireDialogEvent(domWin, "DOMModalDialogClosed");
+
+        // Restore focus to the previously focused element within tab.
+        let fm = Cc["@mozilla.org/focus-manager;1"].
+                 getService(Ci.nsIFocusManager);
+        let e = fm.getFocusedElementForWindow(domWin.top, false, {});
+        fm.setFocus(e, fm.FLAG_NOSCROLL);
     }
 
-    domWin.addEventListener("pagehide", pagehide);
-    function pagehide() {
-        domWin.removeEventListener("pagehide", pagehide);
-
-        if (newPrompt) {
-            newPrompt.abortPrompt();
-        }
-    }
-
+    let newPrompt;
     try {
-        let topPrincipal = domWin.top.document.nodePrincipal;
-        let promptPrincipal = domWin.document.nodePrincipal;
-        args.showAlertOrigin = topPrincipal.equals(promptPrincipal);
+        // tab-modal prompts need to watch for navigation changes, give it the
+        // domWindow to watch for pagehide events.
+        args.domWindow = domWin;
         args.promptActive = true;
 
         newPrompt = tabPrompt.appendPrompt(args, onPromptClose);
 
         // TODO since we don't actually open a window, need to check if
-        // there's other stuff in nsWindowWatcher::OpenWindowInternal
+        // there's other stuff in nsWindowWatcher::OpenWindowJSInternal
         // that we might need to do here as well.
 
         let thread = Services.tm.currentThread;
@@ -432,69 +473,6 @@ function openTabPrompt(domWin, tabPrompt, args) {
     }
 }
 
-function openRemotePrompt(domWin, args, tabPrompt) {
-    let messageManager = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIWebNavigation)
-                         .QueryInterface(Ci.nsIDocShell)
-                         .QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsITabChild)
-                         .messageManager;
-
-    PromptUtils.fireDialogEvent(domWin, "DOMWillOpenModalDialog");
-
-    let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIDOMWindowUtils);
-    winUtils.enterModalState();
-    let closed = false;
-
-    // It should be hard or impossible to cause a window to create multiple
-    // prompts, but just in case, give our prompt an ID.
-    let id = "id" + Cc["@mozilla.org/uuid-generator;1"]
-                      .getService(Ci.nsIUUIDGenerator).generateUUID().toString();
-
-    messageManager.addMessageListener("Prompt:Close", function listener(message) {
-        if (message.data._remoteId !== id) {
-            return;
-        }
-
-        messageManager.removeMessageListener("Prompt:Close", listener);
-        domWin.removeEventListener("pagehide", pagehide);
-
-        winUtils.leaveModalState();
-        PromptUtils.fireDialogEvent(domWin, "DOMModalDialogClosed");
-
-        // Copy the response from the closed prompt into our args, it will be
-        // read by our caller.
-        if (message.data) {
-            for (let key in message.data) {
-                args[key] = message.data[key];
-            }
-        }
-
-        // Exit our nested event loop when we unwind.
-        closed = true;
-    });
-
-    domWin.addEventListener("pagehide", pagehide);
-    function pagehide() {
-        domWin.removeEventListener("pagehide", pagehide);
-        messageManager.sendAsyncMessage("Prompt:ForceClose", { _remoteId: id });
-    }
-
-    let topPrincipal = domWin.top.document.nodePrincipal;
-    let promptPrincipal = domWin.document.nodePrincipal;
-    args.showAlertOrigin = topPrincipal.equals(promptPrincipal);
-
-    args._remoteId = id;
-
-    messageManager.sendAsyncMessage("Prompt:Open", args, {});
-
-    let thread = Services.tm.currentThread;
-    while (!closed) {
-        thread.processNextEvent(true);
-    }
-}
-
 function ModalPrompter(domWin) {
     this.domWin = domWin;
 }
@@ -508,8 +486,7 @@ ModalPrompter.prototype = {
     allowTabModal : false,
 
     QueryInterface : XPCOMUtils.generateQI([Ci.nsIPrompt, Ci.nsIAuthPrompt,
-                                            Ci.nsIAuthPrompt2,
-                                            Ci.nsIWritablePropertyBag2]),
+Ci.nsIAuthPrompt2, Ci.nsIWritablePropertyBag2]),
 
 
     /* ---------- internal methods ---------- */
@@ -525,11 +502,6 @@ ModalPrompter.prototype = {
         let allowTabModal = this.allowTabModal && prefValue;
 
         if (allowTabModal && this.domWin) {
-            if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
-                openRemotePrompt(this.domWin, args, true);
-                return;
-            }
-
             let tabPrompt = PromptUtils.getTabModalPrompt(this.domWin);
             if (tabPrompt) {
                 openTabPrompt(this.domWin, tabPrompt, args);
@@ -542,12 +514,6 @@ ModalPrompter.prototype = {
         const SELECT_DIALOG = "chrome://global/content/selectDialog.xul";
 
         let uri = (args.promptType == "select") ? SELECT_DIALOG : COMMON_DIALOG;
-
-        if (Services.appinfo.processType === Services.appinfo.PROCESS_TYPE_CONTENT) {
-            args.uri = uri;
-            openRemotePrompt(this.domWin, args);
-            return;
-        }
 
         let propBag = PromptUtils.objectToPropBag(args);
         openModalWindow(this.domWin, uri, propBag);
@@ -932,4 +898,4 @@ EmbedPrompter.prototype = new Prompter();
 EmbedPrompter.prototype.classID          = Components.ID("{7ad1b327-6dfa-46ec-9234-f2a620ea7e00}");
 
 var component = [Prompter, EmbedPrompter, AuthPromptAdapterFactory];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

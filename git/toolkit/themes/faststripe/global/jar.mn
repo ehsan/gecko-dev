@@ -1,10 +1,6 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 toolkit.jar:
 % skin global classic/1.0 %skin/classic/global/
-# These are the CSS files that have been changed from windows
+# These are the CSS files that have been changed from winstripe
 +  skin/classic/global/button.css
 +  skin/classic/global/checkbox.css
 +  skin/classic/global/dropmarker.css

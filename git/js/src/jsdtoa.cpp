@@ -1,20 +1,57 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Portable double to alphanumeric string and back converters.
  */
-
-#include "jsdtoa.h"
-
-#include "jsprf.h"
 #include "jstypes.h"
-#include "jsutil.h"
+#include "jsstdint.h"
+#include "jsdtoa.h"
+#include "jsprf.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
+#include "jsnum.h"
+#include "jsbit.h"
+#include "jslibmath.h"
+#include "jscntxt.h"
 
-using namespace js;
+#include "jsobjinlines.h"
 
 #ifdef IS_LITTLE_ENDIAN
 #define IEEE_8087
@@ -23,38 +60,30 @@ using namespace js;
 #endif
 
 #ifndef Long
-#define Long int32_t
+#define Long int32
 #endif
 
 #ifndef ULong
-#define ULong uint32_t
+#define ULong uint32
 #endif
 
 /*
 #ifndef Llong
-#define Llong int64_t
+#define Llong JSInt64
 #endif
 
 #ifndef ULlong
-#define ULlong uint64_t
+#define ULlong JSUint64
 #endif
 */
 
-/*
- * MALLOC gets declared external, and that doesn't work for class members, so
- * wrap.
- */
-static inline void* dtoa_malloc(size_t size) { return js_malloc(size); }
-static inline void dtoa_free(void* p) { return js_free(p); }
-
 #define NO_GLOBAL_STATE
-#define NO_ERRNO
-#define MALLOC dtoa_malloc
-#define FREE dtoa_free
+#define MALLOC js_malloc
+#define FREE js_free
 #include "dtoa.c"
 
 /* Mapping of JSDToStrMode -> js_dtoa mode */
-static const uint8_t dtoaModes[] = {
+static const uint8 dtoaModes[] = {
     0,   /* DTOSTR_STANDARD */
     0,   /* DTOSTR_STANDARD_EXPONENTIAL, */
     3,   /* DTOSTR_FIXED, */
@@ -82,9 +111,9 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
     char *numBegin;   /* Pointer to the digits returned by js_dtoa */
     char *numEnd = 0; /* Pointer past the digits returned by js_dtoa */
 
-    MOZ_ASSERT(bufferSize >= (size_t)(mode <= DTOSTR_STANDARD_EXPONENTIAL
-                                     ? DTOSTR_STANDARD_BUFFER_SIZE
-                                     : DTOSTR_VARIABLE_BUFFER_SIZE(precision)));
+    JS_ASSERT(bufferSize >= (size_t)(mode <= DTOSTR_STANDARD_EXPONENTIAL
+                                    ? DTOSTR_STANDARD_BUFFER_SIZE
+                                    : DTOSTR_VARIABLE_BUFFER_SIZE(precision)));
 
     /*
      * Change mode here rather than below because the buffer may not be large
@@ -96,16 +125,16 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
     dval(d) = dinput;
     numBegin = dtoa(PASS_STATE d, dtoaModes[mode], precision, &decPt, &sign, &numEnd);
     if (!numBegin) {
-        return nullptr;
+        return NULL;
     }
 
     nDigits = numEnd - numBegin;
-    MOZ_ASSERT((size_t) nDigits <= bufferSize - 2);
+    JS_ASSERT((size_t) nDigits <= bufferSize - 2);
     if ((size_t) nDigits > bufferSize - 2) {
-        return nullptr;
+        return NULL;
     }
 
-    js_memcpy(buffer + 2, numBegin, nDigits);
+    memcpy(buffer + 2, numBegin, nDigits);
     freedtoa(PASS_STATE numBegin);
     numBegin = buffer + 2; /* +2 leaves space for sign and/or decimal point */
     numEnd = numBegin + nDigits;
@@ -113,7 +142,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
 
     /* If Infinity, -Infinity, or NaN, return the string regardless of mode. */
     if (decPt != 9999) {
-        bool exponentialNotation = false;
+        JSBool exponentialNotation = JS_FALSE;
         int minNDigits = 0;  /* Min number of significant digits required */
         char *p;
         char *q;
@@ -121,7 +150,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
         switch (mode) {
             case DTOSTR_STANDARD:
                 if (decPt < -5 || decPt > 21)
-                    exponentialNotation = true;
+                    exponentialNotation = JS_TRUE;
                 else
                     minNDigits = decPt;
                 break;
@@ -134,18 +163,18 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
                 break;
 
             case DTOSTR_EXPONENTIAL:
-                MOZ_ASSERT(precision > 0);
+                JS_ASSERT(precision > 0);
                 minNDigits = precision;
                 /* Fall through */
             case DTOSTR_STANDARD_EXPONENTIAL:
-                exponentialNotation = true;
+                exponentialNotation = JS_TRUE;
                 break;
 
             case DTOSTR_PRECISION:
-                MOZ_ASSERT(precision > 0);
+                JS_ASSERT(precision > 0);
                 minNDigits = precision;
                 if (decPt < -5 || decPt > precision)
-                    exponentialNotation = true;
+                    exponentialNotation = JS_TRUE;
                 break;
         }
 
@@ -169,7 +198,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
             JS_snprintf(numEnd, bufferSize - (numEnd - buffer), "e%+d", decPt-1);
         } else if (decPt != nDigits) {
             /* Some kind of a fraction in fixed notation */
-            MOZ_ASSERT(decPt <= nDigits);
+            JS_ASSERT(decPt <= nDigits);
             if (decPt > 0) {
                 /* dd...dd . dd...dd */
                 p = --numBegin;
@@ -183,7 +212,7 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
                 p = numEnd;
                 numEnd += 1 - decPt;
                 q = numEnd;
-                MOZ_ASSERT(numEnd < buffer + bufferSize);
+                JS_ASSERT(numEnd < buffer + bufferSize);
                 *numEnd = '\0';
                 while (p != numBegin)
                     *--q = *--p;
@@ -209,15 +238,15 @@ js_dtostr(DtoaState *state, char *buffer, size_t bufferSize, JSDToStrMode mode, 
 /* Let b = floor(b / divisor), and return the remainder.  b must be nonnegative.
  * divisor must be between 1 and 65536.
  * This function cannot run out of memory. */
-static uint32_t
-divrem(Bigint *b, uint32_t divisor)
+static uint32
+divrem(Bigint *b, uint32 divisor)
 {
-    int32_t n = b->wds;
-    uint32_t remainder = 0;
+    int32 n = b->wds;
+    uint32 remainder = 0;
     ULong *bx;
     ULong *bp;
 
-    MOZ_ASSERT(divisor > 0 && divisor <= 65536);
+    JS_ASSERT(divisor > 0 && divisor <= 65536);
 
     if (!n)
         return 0; /* b is zero */
@@ -230,11 +259,11 @@ divrem(Bigint *b, uint32_t divisor)
         ULong quotientLo;
 
         remainder = dividend - quotientHi*divisor;
-        MOZ_ASSERT(quotientHi <= 0xFFFF && remainder < divisor);
+        JS_ASSERT(quotientHi <= 0xFFFF && remainder < divisor);
         dividend = remainder << 16 | (a & 0xFFFF);
         quotientLo = dividend / divisor;
         remainder = dividend - quotientLo*divisor;
-        MOZ_ASSERT(quotientLo <= 0xFFFF && remainder < divisor);
+        JS_ASSERT(quotientLo <= 0xFFFF && remainder < divisor);
         *bp = quotientHi << 16 | quotientLo;
     } while (bp != bx);
     /* Decrease the size of the number if its most significant word is now zero. */
@@ -244,26 +273,26 @@ divrem(Bigint *b, uint32_t divisor)
 }
 
 /* Return floor(b/2^k) and set b to be the remainder.  The returned quotient must be less than 2^32. */
-static uint32_t quorem2(Bigint *b, int32_t k)
+static uint32 quorem2(Bigint *b, int32 k)
 {
     ULong mask;
     ULong result;
     ULong *bx, *bxe;
-    int32_t w;
-    int32_t n = k >> 5;
+    int32 w;
+    int32 n = k >> 5;
     k &= 0x1F;
     mask = (1<<k) - 1;
 
     w = b->wds - n;
     if (w <= 0)
         return 0;
-    MOZ_ASSERT(w <= 2);
+    JS_ASSERT(w <= 2);
     bx = b->x;
     bxe = bx + n;
     result = *bxe >> k;
     *bxe &= mask;
     if (w == 2) {
-        MOZ_ASSERT(!(bxe[1] & ~mask));
+        JS_ASSERT(!(bxe[1] & ~mask));
         if (k)
             result |= bxe[1] << (32 - k);
     }
@@ -291,20 +320,20 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
     char *p;             /* Pointer to current position in the buffer */
     char *pInt;          /* Pointer to the beginning of the integer part of the string */
     char *q;
-    uint32_t digit;
+    uint32 digit;
     U di;                /* d truncated to an integer */
     U df;                /* The fractional part of d */
 
-    MOZ_ASSERT(base >= 2 && base <= 36);
+    JS_ASSERT(base >= 2 && base <= 36);
 
     dval(d) = dinput;
     buffer = (char*) js_malloc(DTOBASESTR_BUFFER_SIZE);
     if (!buffer)
-        return nullptr;
+        return NULL;
     p = buffer;
 
     if (dval(d) < 0.0
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
         && !((word0(d) & Exp_mask) == Exp_mask && ((word0(d) & Frac_mask) || word1(d))) /* Visual C++ doesn't know how to compare against NaN */
 #endif
        ) {
@@ -322,13 +351,13 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
     pInt = p;
     dval(di) = floor(dval(d));
     if (dval(di) <= 4294967295.0) {
-        uint32_t n = (uint32_t)dval(di);
+        uint32 n = (uint32)dval(di);
         if (n)
             do {
-                uint32_t m = n / base;
+                uint32 m = n / base;
                 digit = n - m*base;
                 n = m;
-                MOZ_ASSERT(digit < (uint32_t)base);
+                JS_ASSERT(digit < (uint32)base);
                 *p++ = BASEDIGIT(digit);
             } while (n);
         else *p++ = '0';
@@ -343,11 +372,11 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
           nomem1:
             Bfree(PASS_STATE b);
             js_free(buffer);
-            return nullptr;
+            return NULL;
         }
         do {
             digit = divrem(b, base);
-            MOZ_ASSERT(digit < (uint32_t)base);
+            JS_ASSERT(digit < (uint32)base);
             *p++ = BASEDIGIT(digit);
         } while (b->wds);
         Bfree(PASS_STATE b);
@@ -364,10 +393,10 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
     if (dval(df) != 0.0) {
         /* We have a fraction. */
         int e, bbits;
-        int32_t s2, done;
+        int32 s2, done;
         Bigint *b, *s, *mlo, *mhi;
 
-        b = s = mlo = mhi = nullptr;
+        b = s = mlo = mhi = NULL;
 
         *p++ = '.';
         b = d2b(PASS_STATE df, &e, &bbits);
@@ -379,19 +408,19 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                 Bfree(PASS_STATE mlo);
             Bfree(PASS_STATE mhi);
             js_free(buffer);
-            return nullptr;
+            return NULL;
         }
-        MOZ_ASSERT(e < 0);
+        JS_ASSERT(e < 0);
         /* At this point df = b * 2^e.  e must be less than zero because 0 < df < 1. */
 
-        s2 = -(int32_t)(word0(d) >> Exp_shift1 & Exp_mask>>Exp_shift1);
+        s2 = -(int32)(word0(d) >> Exp_shift1 & Exp_mask>>Exp_shift1);
 #ifndef Sudden_Underflow
         if (!s2)
             s2 = -1;
 #endif
         s2 += Bias + P;
         /* 1/2^s2 = (nextDouble(d) - d)/2 */
-        MOZ_ASSERT(-s2 < e);
+        JS_ASSERT(-s2 < e);
         mlo = i2b(PASS_STATE 1);
         if (!mlo)
             goto nomem2;
@@ -423,9 +452,9 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
          *   (d - prevDouble(d))/2 = mlo/2^s2;
          *   (nextDouble(d) - d)/2 = mhi/2^s2. */
 
-        done = false;
+        done = JS_FALSE;
         do {
-            int32_t j, j1;
+            int32 j, j1;
             Bigint *delta;
 
             b = multadd(PASS_STATE b, base, 0);
@@ -460,7 +489,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             if (j1 == 0 && !(word1(d) & 1)) {
                 if (j > 0)
                     digit++;
-                done = true;
+                done = JS_TRUE;
             } else
 #endif
             if (j < 0 || (j == 0
@@ -479,12 +508,12 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
                                  * such as 3.5 in base 3.  */
                         digit++;
                 }
-                done = true;
+                done = JS_TRUE;
             } else if (j1 > 0) {
                 digit++;
-                done = true;
+                done = JS_TRUE;
             }
-            MOZ_ASSERT(digit < (uint32_t)base);
+            JS_ASSERT(digit < (uint32)base);
             *p++ = BASEDIGIT(digit);
         } while (!done);
         Bfree(PASS_STATE b);
@@ -493,7 +522,7 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
             Bfree(PASS_STATE mlo);
         Bfree(PASS_STATE mhi);
     }
-    MOZ_ASSERT(p < buffer + DTOBASESTR_BUFFER_SIZE);
+    JS_ASSERT(p < buffer + DTOBASESTR_BUFFER_SIZE);
     *p = '\0';
     return buffer;
 }

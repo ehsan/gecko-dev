@@ -5,28 +5,7 @@
 #ifndef OPENTYPE_SANITISER_H_
 #define OPENTYPE_SANITISER_H_
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-  #define OTS_DLL_IMPORT __declspec(dllimport)
-  #define OTS_DLL_EXPORT __declspec(dllexport)
-#else
-  #if __GNUC__ >= 4
-    #define OTS_DLL_IMPORT __attribute__((visibility ("default")))
-    #define OTS_DLL_EXPORT __attribute__((visibility ("default")))
-  #endif
-#endif
-
-#ifdef OTS_DLL
-  #ifdef OTS_DLL_EXPORTS
-    #define OTS_API OTS_DLL_EXPORT
-  #else
-    #define OTS_API OTS_DLL_IMPORT
-  #endif
-#else
-  #define OTS_API
-#endif
-
-#if defined(_WIN32)
-#include <stdlib.h>
+#if defined(_MSC_VER)
 typedef signed char int8_t;
 typedef unsigned char uint8_t;
 typedef short int16_t;
@@ -35,18 +14,20 @@ typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef __int64 int64_t;
 typedef unsigned __int64 uint64_t;
-#define ntohl(x) _byteswap_ulong (x)
-#define ntohs(x) _byteswap_ushort (x)
-#define htonl(x) _byteswap_ulong (x)
-#define htons(x) _byteswap_ushort (x)
 #else
-#include <arpa/inet.h>
 #include <stdint.h>
 #endif
 
-#include <algorithm>
+#ifdef _WIN32
+#include <winsock2.h>  // for htons/ntohs
+#undef min
+#undef max
+#else
+#include <arpa/inet.h>
+#endif
+
+#include <algorithm>  // for std::min
 #include <cassert>
-#include <cstddef>
 #include <cstring>
 
 namespace ots {
@@ -81,17 +62,14 @@ class OTSStream {
     }
 
     if (chksum_buffer_offset_ == 4) {
-      uint32_t tmp;
-      std::memcpy(&tmp, chksum_buffer_, 4);
-      chksum_ += ntohl(tmp);
+      // TODO(yusukes): This cast breaks the strict-aliasing rule.
+      chksum_ += ntohl(*reinterpret_cast<const uint32_t*>(chksum_buffer_));
       chksum_buffer_offset_ = 0;
     }
 
     while (length >= 4) {
-      uint32_t tmp;
-      std::memcpy(&tmp, reinterpret_cast<const uint8_t *>(data) + offset,
-        sizeof(uint32_t));
-      chksum_ += ntohl(tmp);
+      chksum_ += ntohl(*reinterpret_cast<const uint32_t*>(
+          reinterpret_cast<const uint8_t*>(data) + offset));
       length -= 4;
       offset += 4;
     }
@@ -124,10 +102,6 @@ class OTSStream {
     return true;
   }
 
-  bool WriteU8(uint8_t v) {
-    return Write(&v, sizeof(v));
-  }
-
   bool WriteU16(uint16_t v) {
     v = htons(v);
     return Write(&v, sizeof(v));
@@ -136,11 +110,6 @@ class OTSStream {
   bool WriteS16(int16_t v) {
     v = htons(v);
     return Write(&v, sizeof(v));
-  }
-
-  bool WriteU24(uint32_t v) {
-    v = htonl(v);
-    return Write(reinterpret_cast<uint8_t*>(&v)+1, 3);
   }
 
   bool WriteU32(uint32_t v) {
@@ -199,55 +168,22 @@ class OTSStream {
   unsigned chksum_buffer_offset_;
 };
 
-#ifdef __GCC__
-#define MSGFUNC_FMT_ATTR __attribute__((format(printf, 2, 3)))
-#else
-#define MSGFUNC_FMT_ATTR
-#endif
-
-enum TableAction {
-  TABLE_ACTION_DEFAULT,  // Use OTS's default action for that table
-  TABLE_ACTION_SANITIZE, // Sanitize the table, potentially droping it
-  TABLE_ACTION_PASSTHRU, // Serialize the table unchanged
-  TABLE_ACTION_DROP      // Drop the table
-};
-
-class OTS_API OTSContext {
-  public:
-    OTSContext() {}
-    virtual ~OTSContext() {}
-
-    // Process a given OpenType file and write out a sanitised version
-    //   output: a pointer to an object implementing the OTSStream interface. The
-    //     sanitisied output will be written to this. In the even of a failure,
-    //     partial output may have been written.
-    //   input: the OpenType file
-    //   length: the size, in bytes, of |input|
-    //   context: optional context that holds various OTS settings like user callbacks
-    bool Process(OTSStream *output, const uint8_t *input, size_t length);
-
-    // This function will be called when OTS is reporting an error.
-    //   level: the severity of the generated message:
-    //     0: error messages in case OTS fails to sanitize the font.
-    //     1: warning messages about issue OTS fixed in the sanitized font.
-    virtual void Message(int level, const char *format, ...) MSGFUNC_FMT_ATTR {}
-
-    // This function will be called when OTS needs to decide what to do for a
-    // font table.
-    //   tag: table tag as an integer in big-endian byte order, independent of
-    //   platform endianness
-    virtual TableAction GetTableAction(uint32_t tag) { return ots::TABLE_ACTION_DEFAULT; }
-};
-
-// For backward compatibility - remove once Chrome switches over to the new API.
-bool Process(OTSStream *output, const uint8_t *input, size_t length);
+// -----------------------------------------------------------------------------
+// Process a given OpenType file and write out a sanitised version
+//   output: a pointer to an object implementing the OTSStream interface. The
+//     sanitisied output will be written to this. In the even of a failure,
+//     partial output may have been written.
+//   input: the OpenType file
+//   length: the size, in bytes, of |input|
+//   preserve_otl_tables: whether to preserve OpenType Layout tables
+//                        (GDEF/GPOS/GSUB) without verification
+// -----------------------------------------------------------------------------
+bool Process(OTSStream *output, const uint8_t *input, size_t length,
+             bool preserve_otl_tables = false);
 
 // Force to disable debug output even when the library is compiled with
 // -DOTS_DEBUG.
 void DisableDebugOutput();
-
-// Enable WOFF2 support(experimental).
-void OTS_API EnableWOFF2();
 
 }  // namespace ots
 

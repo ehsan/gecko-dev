@@ -1,43 +1,68 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mats Palmgren <mats.palmgren@bredband.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsPrintPreviewListener.h"
-
-#include "mozilla/TextEvents.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
+#include "nsIContent.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMEvent.h"
+#include "nsIDOMNSEvent.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
+#include "nsIEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsLiteralString.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-NS_IMPL_ISUPPORTS(nsPrintPreviewListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS1(nsPrintPreviewListener, nsIDOMEventListener)
 
 
 //
 // nsPrintPreviewListener ctor
 //
-nsPrintPreviewListener::nsPrintPreviewListener(EventTarget* aTarget)
+nsPrintPreviewListener::nsPrintPreviewListener (nsIDOMEventTarget* aTarget)
   : mEventTarget(aTarget)
 {
   NS_ADDREF_THIS();
 } // ctor
 
-nsPrintPreviewListener::~nsPrintPreviewListener()
-{
-}
 
 //-------------------------------------------------------
 //
@@ -59,9 +84,6 @@ nsPrintPreviewListener::AddListeners()
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseup"), this, true);
-
-    mEventTarget->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
-                                         this, true);
   }
 
   return NS_OK;
@@ -88,9 +110,6 @@ nsPrintPreviewListener::RemoveListeners()
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseover"), this, true);
     mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseup"), this, true);
-
-    mEventTarget->RemoveSystemEventListener(NS_LITERAL_STRING("keydown"),
-                                            this, true);
   }
 
   return NS_OK;
@@ -104,64 +123,57 @@ nsPrintPreviewListener::RemoveListeners()
 //
 enum eEventAction {
   eEventAction_Tab,       eEventAction_ShiftTab,
-  eEventAction_Propagate, eEventAction_Suppress,
-  eEventAction_StopPropagation
+  eEventAction_Propagate, eEventAction_Suppress
 };
 
 static eEventAction
 GetActionForEvent(nsIDOMEvent* aEvent)
 {
-  WidgetKeyboardEvent* keyEvent =
-    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
-  if (!keyEvent) {
-    return eEventAction_Suppress;
-  }
-
-  if (keyEvent->mFlags.mInSystemGroup) {
-    NS_ASSERTION(keyEvent->message == NS_KEY_DOWN,
-      "Assuming we're listening only keydown event in system group");
-    return eEventAction_StopPropagation;
-  }
-
-  if (keyEvent->IsAlt() || keyEvent->IsControl() || keyEvent->IsMeta()) {
-    // Don't consume keydown event because following keypress event may be
-    // handled as access key or shortcut key.
-    return (keyEvent->message == NS_KEY_DOWN) ? eEventAction_StopPropagation :
-                                                eEventAction_Suppress;
-  }
-
-  static const uint32_t kOKKeyCodes[] = {
+  static const PRUint32 kOKKeyCodes[] = {
     nsIDOMKeyEvent::DOM_VK_PAGE_UP, nsIDOMKeyEvent::DOM_VK_PAGE_DOWN,
     nsIDOMKeyEvent::DOM_VK_UP,      nsIDOMKeyEvent::DOM_VK_DOWN, 
     nsIDOMKeyEvent::DOM_VK_HOME,    nsIDOMKeyEvent::DOM_VK_END 
   };
 
-  if (keyEvent->keyCode == nsIDOMKeyEvent::DOM_VK_TAB) {
-    return keyEvent->IsShift() ? eEventAction_ShiftTab : eEventAction_Tab;
-  }
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  if (keyEvent) {
+    PRBool b;
+    keyEvent->GetAltKey(&b);
+    if (b) return eEventAction_Suppress;
+    keyEvent->GetCtrlKey(&b);
+    if (b) return eEventAction_Suppress;
 
-  if (keyEvent->charCode == ' ' || keyEvent->keyCode == NS_VK_SPACE) {
-    return eEventAction_Propagate;
-  }
+    keyEvent->GetShiftKey(&b);
 
-  if (keyEvent->IsShift()) {
-    return eEventAction_Suppress;
-  }
+    PRUint32 keyCode;
+    keyEvent->GetKeyCode(&keyCode);
+    if (keyCode == nsIDOMKeyEvent::DOM_VK_TAB)
+      return b ? eEventAction_ShiftTab : eEventAction_Tab;
 
-  for (uint32_t i = 0; i < ArrayLength(kOKKeyCodes); ++i) {
-    if (keyEvent->keyCode == kOKKeyCodes[i]) {
+    PRUint32 charCode;
+    keyEvent->GetCharCode(&charCode);
+    if (charCode == ' ' || keyCode == nsIDOMKeyEvent::DOM_VK_SPACE)
       return eEventAction_Propagate;
+
+    if (b) return eEventAction_Suppress;
+
+    for (PRUint32 i = 0; i < sizeof(kOKKeyCodes)/sizeof(kOKKeyCodes[0]); ++i) {
+      if (keyCode == kOKKeyCodes[i]) {
+        return eEventAction_Propagate;
+      }
     }
   }
-
   return eEventAction_Suppress;
 }
 
 NS_IMETHODIMP
 nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  nsCOMPtr<nsIContent> content = do_QueryInterface(
-    aEvent ? aEvent->InternalDOMEvent()->GetOriginalTarget() : nullptr);
+  nsCOMPtr<nsIDOMEventTarget> target;
+  nsCOMPtr<nsIDOMNSEvent> nsEvent = do_QueryInterface(aEvent);
+  if (nsEvent)
+    nsEvent->GetOriginalTarget(getter_AddRefs(target));
+  nsCOMPtr<nsIContent> content(do_QueryInterface(target));
   if (content && !content->IsXUL()) {
     eEventAction action = ::GetActionForEvent(aEvent);
     switch (action) {
@@ -170,7 +182,7 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
       {
         nsAutoString eventString;
         aEvent->GetType(eventString);
-        if (eventString.EqualsLiteral("keydown")) {
+        if (eventString == NS_LITERAL_STRING("keydown")) {
           // Handle tabbing explicitly here since we don't want focus ending up
           // inside the content document, bug 244128.
           nsIDocument* doc = content->GetCurrentDoc();
@@ -183,10 +195,10 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
 
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm && win) {
-            dom::Element* fromElement = parentDoc->FindContentForSubDocument(doc);
-            nsCOMPtr<nsIDOMElement> from = do_QueryInterface(fromElement);
+            nsIContent* fromContent = parentDoc->FindContentForSubDocument(doc);
+            nsCOMPtr<nsIDOMElement> from = do_QueryInterface(fromContent);
 
-            bool forward = (action == eEventAction_Tab);
+            PRBool forward = (action == eEventAction_Tab);
             nsCOMPtr<nsIDOMElement> result;
             fm->MoveFocus(win, from,
                           forward ? nsIFocusManager::MOVEFOCUS_FORWARD :
@@ -200,13 +212,10 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
         aEvent->StopPropagation();
         aEvent->PreventDefault();
         break;
-      case eEventAction_StopPropagation:
-        aEvent->StopPropagation();
-        break;
       case eEventAction_Propagate:
         // intentionally empty
         break;
     }
   }
-  return NS_OK;
+  return NS_OK; 
 }

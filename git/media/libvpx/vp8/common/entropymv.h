@@ -9,21 +9,15 @@
  */
 
 
-#ifndef VP8_COMMON_ENTROPYMV_H_
-#define VP8_COMMON_ENTROPYMV_H_
+#ifndef __INC_ENTROPYMV_H
+#define __INC_ENTROPYMV_H
 
 #include "treecoder.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 enum
 {
     mv_max  = 1023,              /* max absolute value of a MV component */
     MVvals = (2 * mv_max) + 1,   /* # possible values "" */
-    mvfp_max  = 255,              /* max absolute value of a full pixel MV component */
-    MVfpvals = (2 * mvfp_max) +1, /* # possible full pixel MV values */
 
     mvlong_width = 10,       /* Large MVs have 9 bit magnitudes */
     mvnum_short = 8,         /* magnitudes 0 through 7 */
@@ -45,8 +39,4 @@ typedef struct mv_context
 
 extern const MV_CONTEXT vp8_mv_update_probs[2], vp8_default_mv_context[2];
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_ENTROPYMV_H_

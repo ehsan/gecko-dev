@@ -14,7 +14,8 @@
  */
 function check_invariants(aGuid)
 {
-  do_print("Checking guid '" + aGuid + "'");
+  print("TEST-INFO | " + gRunningTest.name + " | Checking guid '" +
+        aGuid + "'");
 
   do_check_valid_places_guid(aGuid);
 }
@@ -97,10 +98,10 @@ function test_guid_on_background()
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
-[
+let gTests = [
   test_guid_invariants,
   test_guid_on_background,
-].forEach(add_test);
+];
 
 function run_test()
 {

@@ -1,8 +1,40 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsTWeakRef_h__
 #define nsTWeakRef_h__
@@ -59,67 +91,58 @@
  * multiple instances of B, such that it is not possible for A and B to simply
  * have pointers to one another.
  */
-template<class Type>
-class nsTWeakRef
-{
+template <class Type>
+class nsTWeakRef {
 public:
-  ~nsTWeakRef()
-  {
-    if (mRef) {
+  ~nsTWeakRef() {
+    if (mRef)
       mRef->Release();
-    }
   }
 
   /**
    * Construct from an object pointer (may be null).
    */
-  explicit nsTWeakRef(Type* aObj = nullptr)
-  {
-    if (aObj) {
-      mRef = new Inner(aObj);
+  explicit
+  nsTWeakRef(Type *obj = nsnull) {
+    if (obj) {
+      mRef = new Inner(obj);
     } else {
-      mRef = nullptr;
+      mRef = nsnull;
     }
   }
 
   /**
    * Construct from another weak reference object.
    */
-  explicit nsTWeakRef(const nsTWeakRef<Type>& aOther) : mRef(aOther.mRef)
-  {
-    if (mRef) {
+  explicit
+  nsTWeakRef(const nsTWeakRef<Type> &other) : mRef(other.mRef) {
+    if (mRef)
       mRef->AddRef();
-    }
   }
 
   /**
    * Assign from an object pointer.
    */
-  nsTWeakRef<Type>& operator=(Type* aObj)
-  {
-    if (mRef) {
+  nsTWeakRef<Type> &operator=(Type *obj) {
+    if (mRef)  
       mRef->Release();
-    }
-    if (aObj) {
-      mRef = new Inner(aObj);
+    if (obj) {
+      mRef = new Inner(obj);
     } else {
-      mRef = nullptr;
+      mRef = nsnull;
     }
     return *this;
   }
 
   /**
    * Assign from another weak reference object.
-   */
-  nsTWeakRef<Type>& operator=(const nsTWeakRef<Type>& aOther)
-  {
-    if (mRef) {
+   */ 
+  nsTWeakRef<Type> &operator=(const nsTWeakRef<Type> &other) {
+    if (mRef)  
       mRef->Release();
-    }
-    mRef = aOther.mRef;
-    if (mRef) {
+    mRef = other.mRef;
+    if (mRef)
       mRef->AddRef();
-    }
     return *this;
   }
 
@@ -127,23 +150,24 @@ public:
    * Get the referenced object.  This method may return null if the reference
    * has been cleared or if an out-of-memory error occurred at assignment.
    */
-  Type* get() const { return mRef ? mRef->mObj : nullptr; }
+  Type *get() const {
+    return mRef ? mRef->mObj : nsnull;
+  }
 
   /**
    * Called to "null out" the weak reference.  Typically, the object referenced
    * by this weak reference calls this method when it is being destroyed.
    * @returns The former referenced object.
    */
-  Type* forget()
-  {
-    Type* obj;
+  Type *forget() {
+    Type *obj;
     if (mRef) {
       obj = mRef->mObj;
-      mRef->mObj = nullptr;
+      mRef->mObj = nsnull;
       mRef->Release();
-      mRef = nullptr;
+      mRef = nsnull;
     } else {
-      obj = nullptr;
+      obj = nsnull;
     }
     return obj;
   }
@@ -151,44 +175,32 @@ public:
   /**
    * Allow |*this| to be treated as a |Type*| for convenience.
    */
-  operator Type*() const { return get(); }
+  operator Type *() const {
+    return get();
+  }
 
   /**
    * Allow |*this| to be treated as a |Type*| for convenience.  Use with
    * caution since this method will crash if the referenced object is null.
    */
-  Type* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
-  {
+  Type *operator->() const {
     NS_ASSERTION(mRef && mRef->mObj,
-                 "You can't dereference a null weak reference with operator->().");
+        "You can't dereference a null weak reference with operator->().");
     return get();
   }
 
 private:
 
-  struct Inner
-  {
+  struct Inner {
     int     mCnt;
-    Type*   mObj;
+    Type   *mObj;
 
-    explicit Inner(Type* aObj)
-      : mCnt(1)
-      , mObj(aObj)
-    {
-    }
-    void AddRef()
-    {
-      ++mCnt;
-    }
-    void Release()
-    {
-      if (--mCnt == 0) {
-        delete this;
-      }
-    }
+    Inner(Type *obj) : mCnt(1), mObj(obj) {}
+    void AddRef() { ++mCnt; }
+    void Release() { if (--mCnt == 0) delete this; }
   };
 
-  Inner* mRef;
+  Inner *mRef;
 };
 
 #endif  // nsTWeakRef_h__

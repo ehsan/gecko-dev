@@ -1,148 +1,91 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Doug Turner <dougt@mozilla.com>  (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsContentPermissionHelper_h
 #define nsContentPermissionHelper_h
 
+#include "base/basictypes.h"
+
 #include "nsIContentPermissionPrompt.h"
-#include "nsTArray.h"
-#include "nsIMutableArray.h"
-#include "mozilla/dom/PContentPermissionRequestChild.h"
-// Microsoft's API Name hackery sucks
-// XXXbz Doing this in a header is a gigantic footgun. See
-// https://bugzilla.mozilla.org/show_bug.cgi?id=932421#c3 for why.
-#undef LoadImage
+#include "nsString.h"
+#include "nsIDOMElement.h"
 
-class nsPIDOMWindow;
+#include "mozilla/dom/PContentPermissionRequestParent.h"
+
 class nsContentPermissionRequestProxy;
-
-// Forward declare IPC::Principal here which is defined in
-// PermissionMessageUtils.h. Include this file will transitively includes
-// "windows.h" and it defines
-//   #define CreateEvent CreateEventW
-//   #define LoadImage LoadImageW
-// That will mess up windows build.
-namespace IPC {
-class Principal;
-}
 
 namespace mozilla {
 namespace dom {
 
-class Element;
-class PermissionRequest;
-class ContentPermissionRequestParent;
-class PContentPermissionRequestParent;
-
-class ContentPermissionType : public nsIContentPermissionType
+class ContentPermissionRequestParent : public PContentPermissionRequestParent
 {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICONTENTPERMISSIONTYPE
-
-  ContentPermissionType(const nsACString& aType,
-                        const nsACString& aAccess,
-                        const nsTArray<nsString>& aOptions);
-
-protected:
-  virtual ~ContentPermissionType();
-
+ public:
+  ContentPermissionRequestParent(const nsACString& type, nsIDOMElement *element, const IPC::URI& principal);
+  virtual ~ContentPermissionRequestParent();
+  
+  nsCOMPtr<nsIURI>           mURI;
+  nsCOMPtr<nsIDOMElement>    mElement;
+  nsCOMPtr<nsContentPermissionRequestProxy> mProxy;
   nsCString mType;
-  nsCString mAccess;
-  nsTArray<nsString> mOptions;
+
+ private:  
+  virtual bool Recvprompt();
+  virtual void ActorDestroy(ActorDestroyReason why);
 };
-
-class nsContentPermissionUtils
-{
-public:
-  static uint32_t
-  ConvertPermissionRequestToArray(nsTArray<PermissionRequest>& aSrcArray,
-                                  nsIMutableArray* aDesArray);
-
-  static uint32_t
-  ConvertArrayToPermissionRequest(nsIArray* aSrcArray,
-                                  nsTArray<PermissionRequest>& aDesArray);
-
-  static nsresult
-  CreatePermissionArray(const nsACString& aType,
-                        const nsACString& aAccess,
-                        const nsTArray<nsString>& aOptions,
-                        nsIArray** aTypesArray);
-
-  static PContentPermissionRequestParent*
-  CreateContentPermissionRequestParent(const nsTArray<PermissionRequest>& aRequests,
-                                       Element* element,
-                                       const IPC::Principal& principal);
-
-  static nsresult
-  AskPermission(nsIContentPermissionRequest* aRequest, nsPIDOMWindow* aWindow);
-};
-
+  
 } // namespace dom
 } // namespace mozilla
 
 class nsContentPermissionRequestProxy : public nsIContentPermissionRequest
 {
  public:
+  nsContentPermissionRequestProxy();
+  virtual ~nsContentPermissionRequestProxy();
+  
+  nsresult Init(const nsACString& type, mozilla::dom::ContentPermissionRequestParent* parent);
+  void OnParentDestroyed();
+  
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPERMISSIONREQUEST
 
-  nsContentPermissionRequestProxy();
-
-  nsresult Init(const nsTArray<mozilla::dom::PermissionRequest>& requests,
-                mozilla::dom::ContentPermissionRequestParent* parent);
-
-  void OnParentDestroyed();
-
  private:
-  virtual ~nsContentPermissionRequestProxy();
-
   // Non-owning pointer to the ContentPermissionRequestParent object which owns this proxy.
   mozilla::dom::ContentPermissionRequestParent* mParent;
-  nsTArray<mozilla::dom::PermissionRequest> mPermissionRequests;
+  nsCString mType;
 };
-
-/**
- * RemotePermissionRequest will send a prompt ipdl request to b2g process.
- */
-class RemotePermissionRequest MOZ_FINAL : public nsISupports
-                                        , public mozilla::dom::PContentPermissionRequestChild
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  RemotePermissionRequest(nsIContentPermissionRequest* aRequest,
-                          nsPIDOMWindow* aWindow);
-
-  // It will be called when prompt dismissed.
-  virtual bool Recv__delete__(const bool &aAllow,
-                              const nsTArray<PermissionChoice>& aChoices) MOZ_OVERRIDE;
-
-  void IPDLAddRef()
-  {
-    mIPCOpen = true;
-    AddRef();
-  }
-
-  void IPDLRelease()
-  {
-    mIPCOpen = false;
-    Release();
-  }
-
-private:
-  virtual ~RemotePermissionRequest()
-  {
-    MOZ_ASSERT(!mIPCOpen, "Protocol must not be open when RemotePermissionRequest is destroyed.");
-  }
-
-  void DoAllow(JS::HandleValue aChoices);
-  void DoCancel();
-
-  nsCOMPtr<nsIContentPermissionRequest> mRequest;
-  nsCOMPtr<nsPIDOMWindow>               mWindow;
-  bool                                  mIPCOpen;
-};
-
 #endif // nsContentPermissionHelper_h
+

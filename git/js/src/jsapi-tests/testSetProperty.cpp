@@ -1,23 +1,31 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsxdrapi.h"
+
+static JSBool
+nativeGet(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+{
+    *vp = INT_TO_JSVAL(17);
+    return JS_TRUE;
+}
 
 BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
 {
-    JS::RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+    jsvalRoot vobj(cx);
+    JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
     CHECK(obj);
+    vobj = OBJECT_TO_JSVAL(obj);
 
-    CHECK(JS_DefineProperty(cx, global, "globalProp", obj, JSPROP_ENUMERATE,
-                            JS_STUBGETTER, JS_STUBSETTER));
+    CHECK(JS_DefineProperty(cx, global, "globalProp", vobj,
+                            JS_PropertyStub, JS_StrictPropertyStub,
+                            JSPROP_ENUMERATE));
 
-    CHECK(JS_DefineProperty(cx, obj, "prop", JS::UndefinedHandleValue,
-                            JSPROP_SHARED | JSPROP_PROPOP_ACCESSORS,
-                            JS_PROPERTYOP_GETTER(NativeGet), JS_STUBSETTER));
+    CHECK(JS_DefineProperty(cx, obj, "prop", JSVAL_VOID,
+                            nativeGet, JS_StrictPropertyStub,
+                            JSPROP_SHARED));
 
     EXEC("'use strict';                                     \n"
          "var error, passed = false;                        \n"
@@ -55,12 +63,6 @@ BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
 
     return true;
 }
-static bool
-NativeGet(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp)
-{
-    vp.set(INT_TO_JSVAL(17));
-    return true;
-}
 END_TEST(testSetProperty_NativeGetterStubSetter)
 
 BEGIN_TEST(testSetProperty_InheritedGlobalSetter)
@@ -68,9 +70,9 @@ BEGIN_TEST(testSetProperty_InheritedGlobalSetter)
     // This is a JSAPI test because jsapi-test globals do not have a resolve
     // hook and therefore can use the property cache in some cases where the
     // shell can't.
-    MOZ_RELEASE_ASSERT(!JS_GetClass(global)->resolve);
+    JS_ASSERT(JS_GET_CLASS(cx, global)->resolve == &JS_ResolveStub);
 
-    CHECK(JS_DefineProperty(cx, global, "HOTLOOP", 8, 0));
+    CHECK(JS_DefineProperty(cx, global, "HOTLOOP", INT_TO_JSVAL(8), NULL, NULL, 0));
     EXEC("var n = 0;\n"
          "var global = this;\n"
          "function f() { n++; }\n"
@@ -82,3 +84,4 @@ BEGIN_TEST(testSetProperty_InheritedGlobalSetter)
     return true;
 }
 END_TEST(testSetProperty_InheritedGlobalSetter)
+

@@ -1,35 +1,72 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David W. Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
-#include "mozilla/EventListenerManager.h"
-#include "mozilla/dom/WindowRootBinding.h"
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMWindow.h"
+#include "nsIDOMDocument.h"
+#include "nsIDocument.h"
+#include "nsIEventListenerManager.h"
 #include "nsPresContext.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
+#include "nsIEventStateManager.h"
+#include "nsIPrivateDOMEvent.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsString.h"
+#include "nsEventDispatcher.h"
+#include "nsIProgrammingLanguage.h"
+#include "nsGUIEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
-#include "nsIContent.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIControllers.h"
-#include "nsIController.h"
-#include "xpcpublic.h"
+
 #include "nsCycleCollectionParticipant.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #endif
 
-using namespace mozilla;
-using namespace mozilla::dom;
+static NS_DEFINE_CID(kEventListenerManagerCID,    NS_EVENTLISTENERMANAGER_CID);
 
 nsWindowRoot::nsWindowRoot(nsPIDOMWindow* aWindow)
 {
@@ -43,136 +80,162 @@ nsWindowRoot::~nsWindowRoot()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsWindowRoot,
-                                      mWindow,
-                                      mListenerManager,
-                                      mPopupNode,
-                                      mParent)
+NS_IMPL_CYCLE_COLLECTION_3(nsWindowRoot, mListenerManager, mPopupNode,
+                           mParent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsWindowRoot)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEventTarget)
+  NS_INTERFACE_MAP_ENTRY(nsPIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsPIWindowRoot)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
+  NS_INTERFACE_MAP_ENTRY(nsIDOM3EventTarget)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNSEventTarget)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsWindowRoot)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsWindowRoot)
-
-NS_IMPL_DOMTARGET_DEFAULTS(nsWindowRoot)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsWindowRoot, nsIDOMEventTarget)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsWindowRoot, nsIDOMEventTarget)
 
 NS_IMETHODIMP
-nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* aListener, bool aUseCapture)
+nsWindowRoot::AddEventListener(const nsAString& aType, nsIDOMEventListener* aListener, PRBool aUseCapture)
 {
-  if (nsRefPtr<EventListenerManager> elm = GetExistingListenerManager()) {
-    elm->RemoveEventListener(aType, aListener, aUseCapture);
-  }
-  return NS_OK;
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
 }
 
-NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsWindowRoot)
+NS_IMETHODIMP
+nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* aListener, PRBool aUseCapture)
+{
+  return RemoveGroupedEventListener(aType, aListener, aUseCapture, nsnull);
+}
 
 NS_IMETHODIMP
-nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
+nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, PRBool *_retval)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsresult rv =  EventDispatcher::DispatchDOMEvent(
-    static_cast<EventTarget*>(this), nullptr, aEvt, nullptr, &status);
-  *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
+  nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
+    static_cast<nsPIDOMEventTarget*>(this), nsnull, aEvt, nsnull, &status);
+  *_retval = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
 
 nsresult
-nsWindowRoot::DispatchDOMEvent(WidgetEvent* aEvent,
+nsWindowRoot::DispatchDOMEvent(nsEvent* aEvent,
                                nsIDOMEvent* aDOMEvent,
                                nsPresContext* aPresContext,
                                nsEventStatus* aEventStatus)
 {
-  return EventDispatcher::DispatchDOMEvent(static_cast<EventTarget*>(this),
-                                           aEvent, aDOMEvent,
-                                           aPresContext, aEventStatus);
+  return nsEventDispatcher::DispatchDOMEvent(static_cast<nsPIDOMEventTarget*>(this),
+                                             aEvent, aDOMEvent,
+                                             aPresContext, aEventStatus);
+}
+
+NS_IMETHODIMP
+nsWindowRoot::AddGroupedEventListener(const nsAString & aType, nsIDOMEventListener *aListener, 
+                                          PRBool aUseCapture, nsIDOMEventGroup *aEvtGrp)
+{
+  nsCOMPtr<nsIEventListenerManager> manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
+  PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+  return manager->AddEventListenerByType(aListener, aType, flags, aEvtGrp);
+}
+
+NS_IMETHODIMP
+nsWindowRoot::RemoveGroupedEventListener(const nsAString & aType, nsIDOMEventListener *aListener, 
+                                             PRBool aUseCapture, nsIDOMEventGroup *aEvtGrp)
+{
+  if (mListenerManager) {
+    PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+    return mListenerManager->RemoveEventListenerByType(aListener, aType, flags,
+                                                       aEvtGrp);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowRoot::CanTrigger(const nsAString & type, PRBool *_retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsWindowRoot::IsRegisteredHere(const nsAString & type, PRBool *_retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsWindowRoot::AddEventListener(const nsAString& aType,
                                nsIDOMEventListener *aListener,
-                               bool aUseCapture, bool aWantsUntrusted,
-                               uint8_t aOptionalArgc)
+                               PRBool aUseCapture, PRBool aWantsUntrusted,
+                               PRUint8 optional_argc)
 {
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
+  NS_ASSERTION(!aWantsUntrusted || optional_argc > 0,
                "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
+               "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
 
-  EventListenerManager* elm = GetOrCreateListenerManager();
-  NS_ENSURE_STATE(elm);
-  elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
-  return NS_OK;
-}
+  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
 
-void
-nsWindowRoot::AddEventListener(const nsAString& aType,
-                                EventListener* aListener,
-                                bool aUseCapture,
-                                const Nullable<bool>& aWantsUntrusted,
-                                ErrorResult& aRv)
-{
-  bool wantsUntrusted = !aWantsUntrusted.IsNull() && aWantsUntrusted.Value();
-  EventListenerManager* elm = GetOrCreateListenerManager();
-  if (!elm) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-  elm->AddEventListener(aType, aListener, aUseCapture, wantsUntrusted);
-}
+  PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
 
-
-NS_IMETHODIMP
-nsWindowRoot::AddSystemEventListener(const nsAString& aType,
-                                     nsIDOMEventListener *aListener,
-                                     bool aUseCapture,
-                                     bool aWantsUntrusted,
-                                     uint8_t aOptionalArgc)
-{
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
-               "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
-               "explicit by making optional_argc non-zero.");
-
-  return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
-                                   aWantsUntrusted);
-}
-
-EventListenerManager*
-nsWindowRoot::GetOrCreateListenerManager()
-{
-  if (!mListenerManager) {
-    mListenerManager =
-      new EventListenerManager(static_cast<EventTarget*>(this));
+  if (aWantsUntrusted) {
+    flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
   }
 
-  return mListenerManager;
-}
-
-EventListenerManager*
-nsWindowRoot::GetExistingListenerManager() const
-{
-  return mListenerManager;
-}
-
-nsIScriptContext*
-nsWindowRoot::GetContextForEventHandlers(nsresult* aRv)
-{
-  *aRv = NS_OK;
-  return nullptr;
+  return manager->AddEventListenerByType(aListener, aType, flags, nsnull);
 }
 
 nsresult
-nsWindowRoot::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsWindowRoot::AddEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
 {
-  aVisitor.mCanHandle = true;
-  aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
+  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
+  return manager->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+  
+nsresult
+nsWindowRoot::RemoveEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
+{
+  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  if (manager) {
+    return manager->RemoveEventListenerByIID(aListener, aIID,
+                                             NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
+}
+
+nsIEventListenerManager*
+nsWindowRoot::GetListenerManager(PRBool aCreateIfNotFound)
+{
+  if (!mListenerManager) {
+    if (!aCreateIfNotFound) {
+      return nsnull;
+    }
+
+    mListenerManager = do_CreateInstance(kEventListenerManagerCID);
+    if (mListenerManager) {
+      mListenerManager->SetListenerTarget(
+        static_cast<nsPIDOMEventTarget*>(this));
+    }
+  }
+
+  return mListenerManager;
+}
+
+nsresult
+nsWindowRoot::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
+{
+  nsIEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
+  return manager->GetSystemEventGroupLM(aGroup);
+}
+
+
+nsresult
+nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
+{
+  aVisitor.mCanHandle = PR_TRUE;
+  aVisitor.mForceContentDispatch = PR_TRUE; //FIXME! Bug 329119
   // To keep mWindow alive
   aVisitor.mItemData = static_cast<nsISupports *>(mWindow);
   aVisitor.mParentTarget = mParent;
@@ -180,15 +243,9 @@ nsWindowRoot::PreHandleEvent(EventChainPreVisitor& aVisitor)
 }
 
 nsresult
-nsWindowRoot::PostHandleEvent(EventChainPostVisitor& aVisitor)
+nsWindowRoot::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   return NS_OK;
-}
-
-nsIDOMWindow*
-nsWindowRoot::GetOwnerGlobal()
-{
-  return GetWindow();
 }
 
 nsPIDOMWindow*
@@ -197,10 +254,24 @@ nsWindowRoot::GetWindow()
   return mWindow;
 }
 
+NS_IMETHODIMP
+nsWindowRoot::GetScriptTypeID(PRUint32 *aScriptType)
+{
+    NS_ERROR("No default script type here - ask some element");
+    return nsIProgrammingLanguage::UNKNOWN;
+}
+
+NS_IMETHODIMP
+nsWindowRoot::SetScriptTypeID(PRUint32 aScriptType)
+{
+    NS_ERROR("Can't change default script type for a document");
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 nsresult
 nsWindowRoot::GetControllers(nsIControllers** aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   // XXX: we should fix this so there's a generic interface that
   // describes controllers, so this code would have no special
@@ -208,7 +279,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
 
   nsCOMPtr<nsPIDOMWindow> focusedWindow;
   nsIContent* focusedContent =
-    nsFocusManager::GetFocusedDescendant(mWindow, true, getter_AddRefs(focusedWindow));
+    nsFocusManager::GetFocusedDescendant(mWindow, PR_TRUE, getter_AddRefs(focusedWindow));
   if (focusedContent) {
 #ifdef MOZ_XUL
     nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(focusedContent));
@@ -216,7 +287,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
       return xulElement->GetControllers(aResult);
 #endif
 
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> htmlTextArea =
+    nsCOMPtr<nsIDOMNSHTMLTextAreaElement> htmlTextArea =
       do_QueryInterface(focusedContent);
     if (htmlTextArea)
       return htmlTextArea->GetControllers(aResult);
@@ -230,7 +301,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
       return focusedWindow->GetControllers(aResult);
   }
   else {
-    nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(focusedWindow);
+    nsCOMPtr<nsIDOMWindowInternal> domWindow = do_QueryInterface(focusedWindow);
     if (domWindow)
       return domWindow->GetControllers(aResult);
   }
@@ -243,111 +314,45 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
                                       nsIController** _retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = nullptr;
+  *_retval = nsnull;
 
-  {
-    nsCOMPtr<nsIControllers> controllers;
-    GetControllers(getter_AddRefs(controllers));
-    if (controllers) {
-      nsCOMPtr<nsIController> controller;
-      controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-      if (controller) {
-        controller.forget(_retval);
-        return NS_OK;
-      }
+  nsCOMPtr<nsIControllers> controllers;
+  nsCOMPtr<nsIController> controller;
+
+  GetControllers(getter_AddRefs(controllers));
+  if (controllers) {
+    controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
+    if (controller) {
+      controller.swap(*_retval);
+      return NS_OK;
     }
   }
 
   nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsFocusManager::GetFocusedDescendant(mWindow, true, getter_AddRefs(focusedWindow));
+  nsFocusManager::GetFocusedDescendant(mWindow, PR_TRUE, getter_AddRefs(focusedWindow));
   while (focusedWindow) {
-    nsCOMPtr<nsIControllers> controllers;
-    focusedWindow->GetControllers(getter_AddRefs(controllers));
-    if (controllers) {
-      nsCOMPtr<nsIController> controller;
-      controllers->GetControllerForCommand(aCommand,
-                                           getter_AddRefs(controller));
+    nsCOMPtr<nsIDOMWindowInternal> domWindow(do_QueryInterface(focusedWindow));
+
+    nsCOMPtr<nsIControllers> controllers2;
+    domWindow->GetControllers(getter_AddRefs(controllers2));
+    if (controllers2) {
+      controllers2->GetControllerForCommand(aCommand,
+                                            getter_AddRefs(controller));
       if (controller) {
-        controller.forget(_retval);
+        controller.swap(*_retval);
         return NS_OK;
       }
     }
 
     // XXXndeakin P3 is this casting safe?
-    nsGlobalWindow *win = static_cast<nsGlobalWindow*>(focusedWindow.get());
+    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(focusedWindow); 
+    nsGlobalWindow *win =
+      static_cast<nsGlobalWindow *>
+                 (static_cast<nsIDOMWindowInternal *>(piWindow));
     focusedWindow = win->GetPrivateParent();
   }
   
   return NS_OK;
-}
-
-void
-nsWindowRoot::GetEnabledDisabledCommandsForControllers(nsIControllers* aControllers,
-                                                       nsTHashtable<nsCharPtrHashKey>& aCommandsHandled,
-                                                       nsTArray<nsCString>& aEnabledCommands,
-                                                       nsTArray<nsCString>& aDisabledCommands)
-{
-  uint32_t controllerCount;
-  aControllers->GetControllerCount(&controllerCount);
-  for (uint32_t c = 0; c < controllerCount; c++) {
-    nsCOMPtr<nsIController> controller;
-    aControllers->GetControllerAt(c, getter_AddRefs(controller));
-
-    nsCOMPtr<nsICommandController> commandController(do_QueryInterface(controller));
-    if (commandController) {
-      uint32_t commandsCount;
-      char** commands;
-      if (NS_SUCCEEDED(commandController->GetSupportedCommands(&commandsCount, &commands))) {
-        for (uint32_t e = 0; e < commandsCount; e++) {
-          // Use a hash to determine which commands have already been handled by
-          // earlier controllers, as the earlier controller's result should get
-          // priority.
-          if (!aCommandsHandled.Contains(commands[e])) {
-            aCommandsHandled.PutEntry(commands[e]);
-
-            bool enabled = false;
-            controller->IsCommandEnabled(commands[e], &enabled);
-
-            const nsDependentCSubstring commandStr(commands[e], strlen(commands[e]));
-            if (enabled) {
-              aEnabledCommands.AppendElement(commandStr);
-            } else {
-              aDisabledCommands.AppendElement(commandStr);
-            }
-          }
-        }
-
-        NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(commandsCount, commands);
-      }
-    }
-  }
-}
-
-void
-nsWindowRoot::GetEnabledDisabledCommands(nsTArray<nsCString>& aEnabledCommands,
-                                         nsTArray<nsCString>& aDisabledCommands)
-{
-  nsTHashtable<nsCharPtrHashKey> commandsHandled;
-
-  nsCOMPtr<nsIControllers> controllers;
-  GetControllers(getter_AddRefs(controllers));
-  if (controllers) {
-    GetEnabledDisabledCommandsForControllers(controllers, commandsHandled,
-                                             aEnabledCommands, aDisabledCommands);
-  }
-
-  nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsFocusManager::GetFocusedDescendant(mWindow, true, getter_AddRefs(focusedWindow));
-  while (focusedWindow) {
-    focusedWindow->GetControllers(getter_AddRefs(controllers));
-    if (controllers) {
-      GetEnabledDisabledCommandsForControllers(controllers, commandsHandled,
-                                               aEnabledCommands, aDisabledCommands);
-    }
-
-    nsGlobalWindow* win = static_cast<nsGlobalWindow*>(focusedWindow.get());
-    focusedWindow = win->GetPrivateParent();
-  }
 }
 
 nsIDOMNode*
@@ -362,23 +367,14 @@ nsWindowRoot::SetPopupNode(nsIDOMNode* aNode)
   mPopupNode = aNode;
 }
 
-nsIGlobalObject*
-nsWindowRoot::GetParentObject()
-{
-  return xpc::NativeGlobal(xpc::PrivilegedJunkScope());
-}
-
-JSObject*
-nsWindowRoot::WrapObject(JSContext* aCx)
-{
-  return mozilla::dom::WindowRootBinding::Wrap(aCx, this);
-}
-
 ///////////////////////////////////////////////////////////////////////////////////
 
-already_AddRefed<EventTarget>
-NS_NewWindowRoot(nsPIDOMWindow* aWindow)
+nsresult
+NS_NewWindowRoot(nsPIDOMWindow* aWindow, nsPIDOMEventTarget** aResult)
 {
-  nsCOMPtr<EventTarget> result = new nsWindowRoot(aWindow);
-  return result.forget();
+  *aResult = new nsWindowRoot(aWindow);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }

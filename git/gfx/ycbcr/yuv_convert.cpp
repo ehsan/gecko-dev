@@ -22,6 +22,10 @@
 #include "yuv_row.h"
 #include "mozilla/SSE.h"
 
+#ifdef HAVE_YCBCR_TO_RGB565
+void __attribute((noinline)) yv12_to_rgb565_neon(uint16 *dst, const uint8 *y, const uint8 *u, const uint8 *v, int n, int oddflag);
+#endif
+
 namespace mozilla {
 
 namespace gfx {
@@ -31,20 +35,31 @@ const int kFractionBits = 16;
 const int kFractionMax = 1 << kFractionBits;
 const int kFractionMask = ((1 << kFractionBits) - 1);
 
-NS_GFX_(YUVType) TypeFromSize(int ywidth, 
-                              int yheight, 
-                              int cbcrwidth, 
-                              int cbcrheight)
+
+// Convert a frame of YUV to 16 bit RGB565.
+NS_GFX_(void) ConvertYCbCrToRGB565(const uint8* y_buf,
+                                  const uint8* u_buf,
+                                  const uint8* v_buf,
+                                  uint8* rgb_buf,
+                                  int pic_x,
+                                  int pic_y,
+                                  int pic_width,
+                                  int pic_height,
+                                  int y_pitch,
+                                  int uv_pitch,
+                                  int rgb_pitch,
+                                  YUVType yuv_type)
 {
-  if (ywidth == cbcrwidth && yheight == cbcrheight) {
-    return YV24;
+#ifdef HAVE_YCBCR_TO_RGB565
+  for (int i = 0; i < pic_height; i++) {
+    yv12_to_rgb565_neon((uint16*)rgb_buf + pic_width * i,
+                         y_buf + y_pitch * i,
+                         u_buf + uv_pitch * (i / 2),
+                         v_buf + uv_pitch * (i / 2),
+                         pic_width,
+                         0);
   }
-  else if (ywidth / 2 == cbcrwidth && yheight == cbcrheight) {
-    return YV16;
-  }
-  else {
-    return YV12;
-  }
+#endif
 }
 
 // Convert a frame of YUV to 32 bit ARGB.
@@ -252,7 +267,7 @@ NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* y_buf,
   // after the end for SSE2 version.
   uint8 yuvbuf[16 + kFilterBufferSize * 3 + 16];
   uint8* ybuf =
-      reinterpret_cast<uint8*>(reinterpret_cast<uintptr_t>(yuvbuf + 15) & ~15);
+      reinterpret_cast<uint8*>(reinterpret_cast<PRUptrdiff>(yuvbuf + 15) & ~15);
   uint8* ubuf = ybuf + kFilterBufferSize;
   uint8* vbuf = ubuf + kFilterBufferSize;
   // TODO(fbarchard): Fixed point math is off by 1 on negatives.
@@ -342,7 +357,6 @@ NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* y_buf,
                              dest_pixel, width, source_dx);
       }
 #else
-      (void)source_dx_uv;
       ScaleYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
                          dest_pixel, width, source_dx);
 #endif

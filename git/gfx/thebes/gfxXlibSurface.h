@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is Oracle Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_XLIBSURFACE_H
 #define GFX_XLIBSURFACE_H
@@ -11,13 +44,7 @@
 #include <X11/extensions/Xrender.h>
 #include <X11/Xlib.h>
 
-#if defined(GL_PROVIDER_GLX)
-#include "GLXLibrary.h"
-#endif
-
-#include "nsSize.h"
-
-class gfxXlibSurface MOZ_FINAL : public gfxASurface {
+class THEBES_API gfxXlibSurface : public gfxASurface {
 public:
     // construct a wrapper around the specified drawable with dpy/visual.
     // Will use XGetGeometry to query the window/pixmap size.
@@ -32,7 +59,7 @@ public:
     gfxXlibSurface(Screen *screen, Drawable drawable, XRenderPictFormat *format,
                    const gfxIntSize& size);
 
-    explicit gfxXlibSurface(cairo_surface_t *csurf);
+    gfxXlibSurface(cairo_surface_t *csurf);
 
     // create a new Pixmap and wrapper surface.
     // |relatedDrawable| provides a hint to the server for determining whether
@@ -41,9 +68,6 @@ public:
     static already_AddRefed<gfxXlibSurface>
     Create(Screen *screen, Visual *visual, const gfxIntSize& size,
            Drawable relatedDrawable = None);
-    static cairo_surface_t *
-    CreateCairoSurface(Screen *screen, Visual *visual, const gfxIntSize& size,
-                       Drawable relatedDrawable = None);
     static already_AddRefed<gfxXlibSurface>
     Create(Screen* screen, XRenderPictFormat *format, const gfxIntSize& size,
            Drawable relatedDrawable = None);
@@ -52,9 +76,8 @@ public:
 
     virtual already_AddRefed<gfxASurface>
     CreateSimilarSurface(gfxContentType aType, const gfxIntSize& aSize);
-    virtual void Finish() MOZ_OVERRIDE;
 
-    virtual const gfxIntSize GetSize() const;
+    virtual const gfxIntSize GetSize() const { return mSize; }
 
     Display* XDisplay() { return mDisplay; }
     Screen* XScreen();
@@ -64,52 +87,36 @@ public:
     static int DepthOfVisual(const Screen* screen, const Visual* visual);
     static Visual* FindVisual(Screen* screen, gfxImageFormat format);
     static XRenderPictFormat *FindRenderFormat(Display *dpy, gfxImageFormat format);
-    static bool GetColormapAndVisual(cairo_surface_t* aXlibSurface, Colormap* colormap, Visual **visual);
 
     // take ownership of a passed-in Pixmap, calling XFreePixmap on it
     // when the gfxXlibSurface is destroyed.
-    void TakePixmap();
+    void TakePixmap() {
+        NS_ASSERTION(!mPixmapTaken, "I already own the Pixmap!");
+        mPixmapTaken = PR_TRUE;
+    }
 
     // Release ownership of this surface's Pixmap.  This is only valid
     // on gfxXlibSurfaces for which the user called TakePixmap(), or
     // on those created by a Create() factory method.
-    Drawable ReleasePixmap();
+    Drawable ReleasePixmap() {
+        NS_ASSERTION(mPixmapTaken, "I don't own the Pixmap!");
+        mPixmapTaken = PR_FALSE;
+        return mDrawable;
+    }
 
     // Find a visual and colormap pair suitable for rendering to this surface.
-    bool GetColormapAndVisual(Colormap* colormap, Visual **visual);
-
-    // This surface is a wrapper around X pixmaps, which are stored in the X
-    // server, not the main application.
-    virtual gfxMemoryLocation GetMemoryLocation() const;
-
-#if defined(GL_PROVIDER_GLX)
-    GLXPixmap GetGLXPixmap();
-#endif
-
-    // Return true if cairo will take its slow path when this surface is used
-    // in a pattern with EXTEND_PAD.  As a workaround for XRender's RepeatPad
-    // not being implemented correctly on old X servers, cairo avoids XRender
-    // and instead reads back to perform EXTEND_PAD with pixman.  Cairo does
-    // this for servers older than xorg-server 1.7.
-    bool IsPadSlow() {
-        // The test here matches that for buggy_pad_reflect in
-        // _cairo_xlib_device_create.
-        return VendorRelease(mDisplay) >= 60700000 ||
-            VendorRelease(mDisplay) < 10699000;
-    }
+    PRBool GetColormapAndVisual(Colormap* colormap, Visual **visual);
 
 protected:
     // if TakePixmap() has been called on this
-    bool mPixmapTaken;
+    PRBool mPixmapTaken;
     
     Display *mDisplay;
     Drawable mDrawable;
 
-    const gfxIntSize DoSizeQuery();
+    void DoSizeQuery();
 
-#if defined(GL_PROVIDER_GLX)
-    GLXPixmap mGLXPixmap;
-#endif
+    gfxIntSize mSize;
 };
 
 #endif /* GFX_XLIBSURFACE_H */

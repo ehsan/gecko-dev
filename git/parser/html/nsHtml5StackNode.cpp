@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2007-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -28,20 +28,24 @@
 
 #define nsHtml5StackNode_cpp__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
-#include "nsIContentHandle.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -55,38 +59,38 @@
 
 #include "nsHtml5StackNode.h"
 
-int32_t 
+PRInt32 
 nsHtml5StackNode::getGroup()
 {
   return flags & NS_HTML5ELEMENT_NAME_GROUP_MASK;
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isScoping()
 {
   return (flags & NS_HTML5ELEMENT_NAME_SCOPING);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isSpecial()
 {
   return (flags & NS_HTML5ELEMENT_NAME_SPECIAL);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isFosterParenting()
 {
   return (flags & NS_HTML5ELEMENT_NAME_FOSTER_PARENTING);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isHtmlIntegrationPoint()
 {
   return (flags & NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
   : flags(flags),
     name(name),
     popName(popName),
@@ -99,21 +103,21 @@ nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsI
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node)
   : flags(elementName->getFlags()),
     name(elementName->name),
     popName(elementName->name),
     ns(kNameSpaceID_XHTML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-  MOZ_ASSERT(!elementName->isCustom(), "Don't use this constructor for custom elements.");
+
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsHtml5HtmlAttributes* attributes)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes)
   : flags(elementName->getFlags()),
     name(elementName->name),
     popName(elementName->name),
@@ -123,62 +127,62 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHa
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-  MOZ_ASSERT(!elementName->isCustom(), "Don't use this constructor for custom elements.");
+
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName)
   : flags(elementName->getFlags()),
     name(elementName->name),
     popName(popName),
     ns(kNameSpaceID_XHTML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContentHandle* node)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContent** node)
   : flags(prepareSvgFlags(elementName->getFlags())),
     name(elementName->name),
     popName(popName),
     ns(kNameSpaceID_SVG),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName, bool markAsIntegrationPoint)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool markAsIntegrationPoint)
   : flags(prepareMathFlags(elementName->getFlags(), markAsIntegrationPoint)),
     name(elementName->name),
     popName(popName),
     ns(kNameSpaceID_MathML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
-int32_t 
-nsHtml5StackNode::prepareSvgFlags(int32_t flags)
+PRInt32 
+nsHtml5StackNode::prepareSvgFlags(PRInt32 flags)
 {
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
+  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_SVG)) {
     flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
   }
   return flags;
 }
 
-int32_t 
-nsHtml5StackNode::prepareMathFlags(int32_t flags, bool markAsIntegrationPoint)
+PRInt32 
+nsHtml5StackNode::prepareMathFlags(PRInt32 flags, PRBool markAsIntegrationPoint)
 {
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
+  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_MATHML)) {
     flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL);
   }
@@ -198,7 +202,7 @@ nsHtml5StackNode::~nsHtml5StackNode()
 void 
 nsHtml5StackNode::dropAttributes()
 {
-  attributes = nullptr;
+  attributes = nsnull;
 }
 
 void 

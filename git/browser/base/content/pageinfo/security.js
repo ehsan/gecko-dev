@@ -1,7 +1,42 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corp.
+# Portions created by the Initial Developer are Copyright (C) 2001
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Terry Hayes <thayes@netscape.com>
+#   Florian QUEZE <f.qu@queze.net>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK ***** */
 
 var security = {
   // Display the server certificate (static)
@@ -52,35 +87,17 @@ var security = {
         cAName : issuerName,
         encryptionAlgorithm : undefined,
         encryptionStrength : undefined,
-        version: undefined,
         isBroken : isBroken,
         isEV : isEV,
         cert : cert,
         fullLocation : gWindow.location
       };
 
-      var version;
       try {
         retval.encryptionAlgorithm = status.cipherName;
         retval.encryptionStrength = status.secretKeyLength;
-        version = status.protocolVersion;
       }
       catch (e) {
-      }
-
-      switch (version) {
-        case nsISSLStatus.SSL_VERSION_3:
-          retval.version = "SSL 3";
-          break;
-        case nsISSLStatus.TLS_VERSION_1:
-          retval.version = "TLS 1.0";
-          break;
-        case nsISSLStatus.TLS_VERSION_1_1:
-          retval.version = "TLS 1.1";
-          break;
-        case nsISSLStatus.TLS_VERSION_1_2:
-          retval.version = "TLS 1.2"
-          break;
       }
 
       return retval;
@@ -90,11 +107,10 @@ var security = {
         cAName : "",
         encryptionAlgorithm : "",
         encryptionStrength : 0,
-        version: "",
         isBroken : isBroken,
         isEV : isEV,
         cert : null,
-        fullLocation : gWindow.location
+        fullLocation : gWindow.location        
       };
     }
   },
@@ -147,7 +163,7 @@ var security = {
       window.openDialog("chrome://browser/content/preferences/cookies.xul",
                         "Browser:Cookies", "", {filterString : eTLD});
   },
-
+  
   /**
    * Open the login manager window
    */
@@ -162,7 +178,7 @@ var security = {
     }
     else
       window.openDialog("chrome://passwordmgr/content/passwordManager.xul",
-                        "Toolkit:PasswordManager", "",
+                        "Toolkit:PasswordManager", "", 
                         {filterString : this._getSecurityInfo().hostName});
   },
 
@@ -173,10 +189,12 @@ function securityOnLoad() {
   var info = security._getSecurityInfo();
   if (!info) {
     document.getElementById("securityTab").hidden = true;
+    document.getElementById("securityBox").collapsed = true;
     return;
   }
   else {
     document.getElementById("securityTab").hidden = false;
+    document.getElementById("securityBox").collapsed = false;
   }
 
   const pageInfoBundle = document.getElementById("pageinfobundle");
@@ -184,7 +202,7 @@ function securityOnLoad() {
   /* Set Identity section text */
   setText("security-identity-domain-value", info.hostName);
   
-  var owner, verifier;
+  var owner, verifier, generalPageIdentityString;
   if (info.cert && !info.isBroken) {
     // Try to pull out meaningful values.  Technically these fields are optional
     // so we'll employ fallbacks where appropriate.  The EV spec states that Org
@@ -192,6 +210,8 @@ function securityOnLoad() {
     if (info.isEV) {
       owner = info.cert.organization;
       verifier = security.mapIssuerOrganization(info.cAName);
+      generalPageIdentityString = pageInfoBundle.getFormattedString("generalSiteIdentity",
+                                                                    [owner, verifier]);
     }
     else {
       // Technically, a non-EV cert might specify an owner in the O field or not,
@@ -203,16 +223,19 @@ function securityOnLoad() {
       verifier = security.mapIssuerOrganization(info.cAName ||
                                                 info.cert.issuerCommonName ||
                                                 info.cert.issuerName);
+      generalPageIdentityString = owner;
     }
   }
   else {
     // We don't have valid identity credentials.
     owner = pageInfoBundle.getString("securityNoOwner");
     verifier = pageInfoBundle.getString("notset");
+    generalPageIdentityString = owner;
   }
 
   setText("security-identity-owner-value", owner);
   setText("security-identity-verifier-value", verifier);
+  setText("general-security-identity", generalPageIdentityString);
 
   /* Manage the View Cert button*/
   var viewCert = document.getElementById("security-view-cert");
@@ -254,17 +277,21 @@ function securityOnLoad() {
 
   if (info.isBroken) {
     hdr = pkiBundle.getString("pageInfo_MixedContent");
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Broken1");
+    msg1 = pkiBundle.getString("pageInfo_Privacy_Mixed1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }
-  else if (info.encryptionStrength > 0) {
-    hdr = pkiBundle.getFormattedString("pageInfo_EncryptionWithBitsAndProtocol",
-                                       [info.encryptionAlgorithm,
-                                        info.encryptionStrength + "",
-                                        info.version]);
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Encrypted1");
-    msg2 = pkiBundle.getString("pageInfo_Privacy_Encrypted2");
+  else if (info.encryptionStrength >= 90) {
+    hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryptionWithBits",
+                                       [info.encryptionAlgorithm, info.encryptionStrength + ""]);
+    msg1 = pkiBundle.getString("pageInfo_Privacy_Strong1");
+    msg2 = pkiBundle.getString("pageInfo_Privacy_Strong2");
     security._cert = info.cert;
+  }
+  else if (info.encryptionStrength > 0) {
+    hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryptionWithBits",
+                                        [info.encryptionAlgorithm, info.encryptionStrength + ""]);
+    msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_Weak1", [info.hostName]);
+    msg2 = pkiBundle.getString("pageInfo_Privacy_Weak2");
   }
   else {
     hdr = pkiBundle.getString("pageInfo_NoEncryption");
@@ -277,6 +304,7 @@ function securityOnLoad() {
   setText("security-technical-shortform", hdr);
   setText("security-technical-longform1", msg1);
   setText("security-technical-longform2", msg2); 
+  setText("general-security-privacy", hdr);
 }
 
 function setText(id, value)
@@ -346,7 +374,5 @@ function previousVisitCount(host, endTimeReference) {
 
   var result = historyService.executeQuery(query, options);
   result.root.containerOpen = true;
-  var cc = result.root.childCount;
-  result.root.containerOpen = false;
-  return cc;
+  return result.root.childCount;
 }

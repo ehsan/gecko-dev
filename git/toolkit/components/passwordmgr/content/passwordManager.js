@@ -1,18 +1,49 @@
-// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
-
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+#
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla Communicator client code, released
+# March 31, 1998.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben "Count XULula" Goodger
+#   Brian Ryner <bryner@brianryner.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Ronny Perinke <ronny.perinke@gmx.de>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 /*** =================== SAVED SIGNONS CODE =================== ***/
 
 var kSignonBundle;
-var showingPasswords = false;
-var dateFormatter = new Intl.DateTimeFormat(undefined,
-                      { day: "numeric", month: "short", year: "numeric" });
-var dateAndTimeFormatter = new Intl.DateTimeFormat(undefined,
-                             { day: "numeric", month: "short", year: "numeric",
-                               hour: "numeric", minute: "numeric" });
 
 function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
@@ -46,7 +77,6 @@ var signonsTreeView = {
   getProgressMode : function(row,column) {},
   getCellValue : function(row,column) {},
   getCellText : function(row,column) {
-    var time;
     var signon = this._filterSet.length ? this._filterSet[row] : signons[row];
     switch (column.id) {
       case "siteCol":
@@ -57,17 +87,6 @@ var signonsTreeView = {
         return signon.username || "";
       case "passwordCol":
         return signon.password || "";
-      case "timeCreatedCol":
-        time = new Date(signon.timeCreated);
-        return dateFormatter.format(time);
-      case "timeLastUsedCol":
-        time = new Date(signon.timeLastUsed);
-        return dateAndTimeFormatter.format(time);
-      case "timePasswordChangedCol":
-        time = new Date(signon.timePasswordChanged);
-        return dateFormatter.format(time);
-      case "timesUsedCol":
-        return signon.timesUsed;
       default:
         return "";
     }
@@ -76,15 +95,13 @@ var signonsTreeView = {
   isSorted : function() { return false; },
   isContainer : function(index) { return false; },
   cycleHeader : function(column) {},
-  getRowProperties : function(row) { return ""; },
-  getColumnProperties : function(column) { return ""; },
-  getCellProperties : function(row,column) {
+  getRowProperties : function(row,prop) {},
+  getColumnProperties : function(column,prop) {},
+  getCellProperties : function(row,column,prop) {
     if (column.element.getAttribute("id") == "siteCol")
-      return "ltr";
-
-    return "";
+      prop.AppendElement(kLTRAtom);
   }
-};
+ };
 
 
 function LoadSignons() {
@@ -94,11 +111,10 @@ function LoadSignons() {
   } catch (e) {
     signons = [];
   }
-  signons.forEach(login => login.QueryInterface(Components.interfaces.nsILoginMetaInfo));
   signonsTreeView.rowCount = signons.length;
 
   // sort and display the table
-  signonsTree.view = signonsTreeView;
+  signonsTree.treeBoxObject.view = signonsTreeView;
   // The sort column didn't change. SortTree (called by
   // SignonColumnSort) assumes we want to toggle the sort
   // direction but here we don't so we have to trick it
@@ -108,7 +124,7 @@ function LoadSignons() {
   // disable "remove all signons" button if there are no signons
   var element = document.getElementById("removeAllSignons");
   var toggle = document.getElementById("togglePasswords");
-  if (signons.length == 0) {
+  if (signons.length == 0 || gSelectUserInUse) {
     element.setAttribute("disabled","true");
     toggle.setAttribute("disabled","true");
   } else {
@@ -121,7 +137,7 @@ function LoadSignons() {
 
 function SignonSelected() {
   var selections = GetTreeSelections(signonsTree);
-  if (selections.length) {
+  if (selections.length && !gSelectUserInUse) {
     document.getElementById("removeSignon").removeAttribute("disabled");
   }
 }
@@ -155,7 +171,7 @@ function DeleteAllSignons() {
 }
 
 function TogglePasswordVisible() {
-  if (showingPasswords || masterPasswordLogin(AskUserShowPasswords)) {
+  if (showingPasswords || ConfirmShowPasswords()) {
     showingPasswords = !showingPasswords;
     document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
     document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
@@ -181,6 +197,29 @@ function AskUserShowPasswords() {
           null, null, null, null, dummy) == 0;    // 0=="Yes" button
 }
 
+function ConfirmShowPasswords() {
+  // This doesn't harm if passwords are not encrypted
+  var tokendb = Components.classes["@mozilla.org/security/pk11tokendb;1"]
+                    .createInstance(Components.interfaces.nsIPK11TokenDB);
+  var token = tokendb.getInternalKeyToken();
+
+  // If there is no master password, still give the user a chance to opt-out of displaying passwords
+  if (token.checkPassword(""))
+    return AskUserShowPasswords();
+
+  // So there's a master password. But since checkPassword didn't succeed, we're logged out (per nsIPK11Token.idl).
+  try {
+    // Relogin and ask for the master password.
+    token.login(true);  // 'true' means always prompt for token password. User will be prompted until
+                        // clicking 'Cancel' or entering the correct password.
+  } catch (e) {
+    // An exception will be thrown if the user cancels the login prompt dialog.
+    // User is also logged out of Software Security Device.
+  }
+
+  return token.isLoggedIn();
+}
+
 function FinalizeSignonDeletions(syncNeeded) {
   for (var s=0; s<deletedSignons.length; s++) {
     passwordmanager.removeLogin(deletedSignons[s]);
@@ -198,11 +237,7 @@ function FinalizeSignonDeletions(syncNeeded) {
 }
 
 function HandleSignonKeyPress(e) {
-  if (e.keyCode == KeyEvent.DOM_VK_DELETE
-#ifdef XP_MACOSX
-      || e.keyCode == KeyEvent.DOM_VK_BACK_SPACE
-#endif
-     ) {
+  if (e.keyCode == 46) {
     DeleteSignon();
   }
 }
@@ -215,14 +250,6 @@ function getColumnByName(column) {
       return document.getElementById("userCol");
     case "password":
       return document.getElementById("passwordCol");
-    case "timeCreated":
-      return document.getElementById("timeCreatedCol");
-    case "timeLastUsed":
-      return document.getElementById("timeLastUsedCol");
-    case "timePasswordChanged":
-      return document.getElementById("timePasswordChangedCol");
-    case "timesUsed":
-      return document.getElementById("timesUsedCol");
   }
 }
 
@@ -345,59 +372,19 @@ function _filterPasswords()
 }
 
 function CopyPassword() {
-  // Don't copy passwords if we aren't already showing the passwords & a master
-  // password hasn't been entered.
-  if (!showingPasswords && !masterPasswordLogin())
-    return;
   // Copy selected signon's password to clipboard
   var clipboard = Components.classes["@mozilla.org/widget/clipboardhelper;1"].
                   getService(Components.interfaces.nsIClipboardHelper);
   var row = document.getElementById("signonsTree").currentIndex;
   var password = signonsTreeView.getCellText(row, {id : "passwordCol" });
-  clipboard.copyString(password, document);
-}
-
-function CopyUsername() {
-  // Copy selected signon's username to clipboard
-  var clipboard = Components.classes["@mozilla.org/widget/clipboardhelper;1"].
-                  getService(Components.interfaces.nsIClipboardHelper);
-  var row = document.getElementById("signonsTree").currentIndex;
-  var username = signonsTreeView.getCellText(row, {id : "userCol" });
-  clipboard.copyString(username);
+  clipboard.copyString(password);
 }
 
 function UpdateCopyPassword() {
   var singleSelection = (signonsTreeView.selection.count == 1);
-  var passwordMenuitem = document.getElementById("context-copypassword");
-  var usernameMenuitem = document.getElementById("context-copyusername");
-  if (singleSelection) {
-    usernameMenuitem.removeAttribute("disabled");
-    passwordMenuitem.removeAttribute("disabled");
-  } else {
-    usernameMenuitem.setAttribute("disabled", "true");
-    passwordMenuitem.setAttribute("disabled", "true");
-  }
-}
-
-function masterPasswordLogin(noPasswordCallback) {
-  // This doesn't harm if passwords are not encrypted
-  var tokendb = Components.classes["@mozilla.org/security/pk11tokendb;1"]
-                    .createInstance(Components.interfaces.nsIPK11TokenDB);
-  var token = tokendb.getInternalKeyToken();
-
-  // If there is no master password, still give the user a chance to opt-out of displaying passwords
-  if (token.checkPassword(""))
-    return noPasswordCallback ? noPasswordCallback() : true;
-
-  // So there's a master password. But since checkPassword didn't succeed, we're logged out (per nsIPK11Token.idl).
-  try {
-    // Relogin and ask for the master password.
-    token.login(true);  // 'true' means always prompt for token password. User will be prompted until
-                        // clicking 'Cancel' or entering the correct password.
-  } catch (e) {
-    // An exception will be thrown if the user cancels the login prompt dialog.
-    // User is also logged out of Software Security Device.
-  }
-
-  return token.isLoggedIn();
+  var menuitem = document.getElementById("context-copypassword");
+  if (singleSelection)
+    menuitem.removeAttribute("disabled");
+  else
+    menuitem.setAttribute("disabled", "true");
 }

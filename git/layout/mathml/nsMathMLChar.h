@@ -1,29 +1,51 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *   Shyjan Mahamud <mahamud@cs.cmu.edu>
+ *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
+ *   Frederic Wang <fred.wang@free.fr>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsMathMLChar_h___
 #define nsMathMLChar_h___
 
-#include "nsAutoPtr.h"
-#include "nsColor.h"
 #include "nsMathMLOperators.h"
-#include "nsPoint.h"
-#include "nsRect.h"
-#include "nsString.h"
-#include "nsBoundingMetrics.h"
-#include "gfxFont.h"
+#include "nsMathMLFrame.h"
 
 class nsGlyphTable;
-class nsIFrame;
-class nsDisplayListBuilder;
-class nsDisplayListSet;
-class nsPresContext;
-class nsRenderingContext;
-struct nsBoundingMetrics;
-class nsStyleContext;
-struct nsFont;
 
 // Hints for Stretch() to indicate criteria for stretching
 enum {
@@ -44,83 +66,85 @@ enum {
   NS_STRETCH_MAXWIDTH = 0x40
 };
 
-// A single glyph in our internal representation is either
-// 1) a 'code@font' pair from the mathfontFONTFAMILY.properties table. The
-// 'code' is interpreted as a Unicode point. The 'font' is a numeric
-// identifier given to the font to which the glyph belongs, which is 0 for the
-// FONTFAMILY and > 0 for 'external' fonts.
-// 2) a glyph index from the Open Type MATH table. In that case, all the glyphs
-// come from the font containing that table and 'font' is just set to -1.
+// A single glyph in our internal representation is characterized by a 'code@font' 
+// pair. The 'code' is interpreted as a Unicode point or as the direct glyph index
+// (depending on the type of nsGlyphTable where this comes from). The 'font' is a
+// numeric identifier given to the font to which the glyph belongs.
 struct nsGlyphCode {
-  union {
-    char16_t code[2];
-    uint32_t glyphID;
-  };
-  int8_t   font;
+  PRUnichar code; 
+  PRInt32   font;
 
-  bool IsGlyphID() const { return font == -1; }
-
-  int32_t Length() const {
-    return (IsGlyphID() || code[1] == PRUnichar('\0') ? 1 : 2);
-  }
-  bool Exists() const
+  PRBool Exists() const
   {
-    return IsGlyphID() ? glyphID != 0 : code[0] != 0;
+    return (code != 0);
   }
-  bool operator==(const nsGlyphCode& other) const
+  PRBool operator==(const nsGlyphCode& other) const
   {
-    return (other.font == font &&
-            ((IsGlyphID() && other.glyphID == glyphID) ||
-             (!IsGlyphID() && other.code[0] == code[0] &&
-              other.code[1] == code[1])));
+    return other.code == code && other.font == font;
   }
-  bool operator!=(const nsGlyphCode& other) const
+  PRBool operator!=(const nsGlyphCode& other) const
   {
     return ! operator==(other);
   }
 };
 
-// Class used to handle stretchy symbols (accent, delimiter and boundary
-// symbols).
+// Class used to handle stretchy symbols (accent, delimiter and boundary symbols).
+// There are composite characters that need to be built recursively from other
+// characters. Since these are rare we use a light-weight mechanism to handle
+// them. Specifically, as need arises we append a singly-linked list of child
+// chars with their mParent pointing to the first element in the list, except in
+// the originating first element itself where it points to null. mSibling points
+// to the next element in the list. Since the originating first element is the
+// parent of the others, we call it the "root" char of the list. Testing !mParent
+// tells whether you are that "root" during the recursion. The parent delegates
+// most of the tasks to the children.
 class nsMathMLChar
 {
 public:
   // constructor and destructor
-  nsMathMLChar() {
+  nsMathMLChar(nsMathMLChar* aParent = nsnull) {
     MOZ_COUNT_CTOR(nsMathMLChar);
-    mStyleContext = nullptr;
+    mStyleContext = nsnull;
+    mSibling = nsnull;
+    mParent = aParent;
     mUnscaledAscent = 0;
     mScaleX = mScaleY = 1.0;
-    mDraw = DRAW_NORMAL;
-    mMirrored = false;
+    mDrawNormal = PR_TRUE;
   }
 
-  // not a virtual destructor: this class is not intended to be subclassed
-  ~nsMathMLChar();
+  ~nsMathMLChar() { // not a virtual destructor: this class is not intended to be subclassed
+    MOZ_COUNT_DTOR(nsMathMLChar);
+    // there is only one style context owned by the "root" char
+    // and it may be used by child chars as well
+    if (!mParent && mStyleContext) { // only the "root" need to release it
+      mStyleContext->Release();
+    }
+    if (mSibling) {
+      delete mSibling;
+    }
+  }
 
-  void Display(nsDisplayListBuilder*   aBuilder,
-               nsIFrame*               aForFrame,
-               const nsDisplayListSet& aLists,
-               uint32_t                aIndex,
-               const nsRect*           aSelectedRect = nullptr);
+  nsresult
+  Display(nsDisplayListBuilder*   aBuilder,
+          nsIFrame*               aForFrame,
+          const nsDisplayListSet& aLists,
+          const nsRect*           aSelectedRect = nsnull);
           
   void PaintForeground(nsPresContext* aPresContext,
-                       nsRenderingContext& aRenderingContext,
+                       nsIRenderingContext& aRenderingContext,
                        nsPoint aPt,
-                       bool aIsSelected);
+                       PRBool aIsSelected);
 
   // This is the method called to ask the char to stretch itself.
   // @param aContainerSize - IN - suggested size for the stretched char
   // @param aDesiredStretchSize - OUT - the size that the char wants
   nsresult
   Stretch(nsPresContext*           aPresContext,
-          nsRenderingContext&     aRenderingContext,
-          float                    aFontSizeInflation,
+          nsIRenderingContext&     aRenderingContext,
           nsStretchDirection       aStretchDirection,
           const nsBoundingMetrics& aContainerSize,
           nsBoundingMetrics&       aDesiredStretchSize,
-          uint32_t                 aStretchHint,
-          bool                     aRTL);
+          PRUint32                 aStretchHint = NS_STRETCH_NORMAL);
 
   void
   SetData(nsPresContext* aPresContext,
@@ -131,7 +155,7 @@ public:
     aData = mData;
   }
 
-  int32_t
+  PRInt32
   Length() {
     return mData.Length();
   }
@@ -143,7 +167,7 @@ public:
 
   // Sometimes we only want to pass the data to another routine,
   // this function helps to avoid copying
-  const char16_t*
+  const PRUnichar*
   get() {
     return mData.get();
   }
@@ -156,6 +180,15 @@ public:
   void
   SetRect(const nsRect& aRect) {
     mRect = aRect;
+    // shift the orgins of child chars if any 
+    if (!mParent && mSibling) { // only a "root" having child chars can enter here
+      for (nsMathMLChar* child = mSibling; child; child = child->mSibling) {
+        nsRect rect; 
+        child->GetRect(rect);
+        rect.MoveBy(mRect.x, mRect.y);
+        child->SetRect(rect);
+      }
+    }
   }
 
   // Get the maximum width that the character might have after a vertical
@@ -165,17 +198,16 @@ public:
   // It is used to determine whether the operator is stretchy or a largeop.
   // @param aMaxSize is the value of the "maxsize" attribute.
   // @param aMaxSizeIsAbsolute indicates whether the aMaxSize is an absolute
-  // value in app units (true) or a multiplier of the base size (false).
+  // value in app units (PR_TRUE) or a multiplier of the base size (PR_FALSE).
   nscoord
   GetMaxWidth(nsPresContext* aPresContext,
-              nsRenderingContext& aRenderingContext,
-              float aFontSizeInflation,
-              uint32_t aStretchHint = NS_STRETCH_NORMAL,
+              nsIRenderingContext& aRenderingContext,
+              PRUint32 aStretchHint = NS_STRETCH_NORMAL,
               float aMaxSize = NS_MATHML_OPERATOR_SIZE_INFINITY,
               // Perhaps just nsOperatorFlags aFlags.
               // But need DisplayStyle for largeOp,
               // or remove the largeop bit from flags.
-              bool aMaxSizeIsAbsolute = false);
+              PRBool aMaxSizeIsAbsolute = PR_FALSE);
 
   // Metrics that _exactly_ enclose the char. The char *must* have *already*
   // being stretched before you can call the GetBoundingMetrics() method.
@@ -202,75 +234,69 @@ public:
 
 protected:
   friend class nsGlyphTable;
-  friend class nsPropertiesTable;
-  friend class nsOpenTypeTable;
   nsString           mData;
+
+  // support for handling composite stretchy chars like TeX over/under braces
+  nsMathMLChar*      mSibling;
+  nsMathMLChar*      mParent;
 
 private:
   nsRect             mRect;
   nsStretchDirection mDirection;
   nsBoundingMetrics  mBoundingMetrics;
   nsStyleContext*    mStyleContext;
-  // mGlyphs/mBmData are arrays describing the glyphs used to draw the operator.
-  // See the drawing methods below.
-  nsAutoPtr<gfxTextRun> mGlyphs[4];
-  nsBoundingMetrics     mBmData[4];
+  nsGlyphTable*      mGlyphTable;
+  nsGlyphCode        mGlyph;
+  // mFamily is non-empty when the family for the current size is different
+  // from the family in the nsStyleContext.
+  nsString           mFamily;
   // mUnscaledAscent is the actual ascent of the char.
   nscoord            mUnscaledAscent;
   // mScaleX, mScaleY are the factors by which we scale the char.
   float              mScaleX, mScaleY;
-
-  // mDraw indicates how we draw the stretchy operator:
-  // - DRAW_NORMAL: we render the mData string normally.
-  // - DRAW_VARIANT: we draw a larger size variant given by mGlyphs[0].
-  // - DRAW_PARTS: we assemble several parts given by mGlyphs[0], ... mGlyphs[4]
-  // XXXfredw: the MATH table can have any numbers of parts and extenders.
-  enum DrawingMethod {
-    DRAW_NORMAL, DRAW_VARIANT, DRAW_PARTS
-  };
-  DrawingMethod mDraw;
-
-  // mMirrored indicates whether the character is mirrored. 
-  bool               mMirrored;
+  // mDrawNormal indicates whether we use special glyphs or not.
+  PRPackedBool       mDrawNormal;
 
   class StretchEnumContext;
   friend class StretchEnumContext;
 
   // helper methods
-  bool
-  SetFontFamily(nsPresContext*          aPresContext,
-                const nsGlyphTable*     aGlyphTable,
-                const nsGlyphCode&      aGlyphCode,
-                const mozilla::FontFamilyList& aDefaultFamily,
-                nsFont&                 aFont,
-                nsRefPtr<gfxFontGroup>* aFontGroup);
-
   nsresult
   StretchInternal(nsPresContext*           aPresContext,
-                  gfxContext*              aThebesContext,
-                  float                    aFontSizeInflation,
+                  nsIRenderingContext&     aRenderingContext,
                   nsStretchDirection&      aStretchDirection,
                   const nsBoundingMetrics& aContainerSize,
                   nsBoundingMetrics&       aDesiredStretchSize,
-                  uint32_t                 aStretchHint,
+                  PRUint32                 aStretchHint,
                   float           aMaxSize = NS_MATHML_OPERATOR_SIZE_INFINITY,
-                  bool            aMaxSizeIsAbsolute = false);
+                  PRBool          aMaxSizeIsAbsolute = PR_FALSE);
 
   nsresult
-  PaintVertically(nsPresContext* aPresContext,
-                  gfxContext*    aThebesContext,
-                  nsRect&        aRect,
-                  nscolor        aColor);
+  ComposeChildren(nsPresContext*       aPresContext,
+                  nsIRenderingContext& aRenderingContext,
+                  nsGlyphTable*        aGlyphTable,
+                  nscoord              aTargetSize,
+                  nsBoundingMetrics&   aCompositeSize,
+                  PRUint32             aStretchHint);
 
   nsresult
-  PaintHorizontally(nsPresContext* aPresContext,
-                    gfxContext*    aThebesContext,
-                    nsRect&        aRect,
-                    nscolor        aColor);
+  PaintVertically(nsPresContext*       aPresContext,
+                  nsIRenderingContext& aRenderingContext,
+                  nsFont&              aFont,
+                  nsStyleContext*      aStyleContext,
+                  nsGlyphTable*        aGlyphTable,
+                  nsRect&              aRect);
+
+  nsresult
+  PaintHorizontally(nsPresContext*       aPresContext,
+                    nsIRenderingContext& aRenderingContext,
+                    nsFont&              aFont,
+                    nsStyleContext*      aStyleContext,
+                    nsGlyphTable*        aGlyphTable,
+                    nsRect&              aRect);
 
   void
-  ApplyTransforms(gfxContext* aThebesContext, int32_t aAppUnitsPerGfxUnit,
-                  nsRect &r);
+  ApplyTransforms(nsIRenderingContext& aRenderingContext, nsRect &r);
 };
 
 #endif /* nsMathMLChar_h___ */

@@ -23,8 +23,6 @@ var openTwoWindows = false;
 var testPage = "";
 // Assign a function to this variable to have a clean up at the end
 var testCleanUp = null;
-// Contains mixed active content that needs to load to run the test
-var hasMixedActiveContent = false;
 
 
 // Internal variables
@@ -66,12 +64,6 @@ window.onload = function onLoad()
     }
     secureTestLocation += "?runtest";
 
-    if (hasMixedActiveContent)
-    {
-      SpecialPowers.pushPrefEnv(
-        {"set": [["security.mixed_content.block_active_content", false]]},
-        null);
-    }
     if (openTwoWindows)
     {
       _windowCount = 2;
@@ -96,10 +88,7 @@ function onMessageReceived(event)
       {
         if (testCleanUp)
           testCleanUp();
-        if (hasMixedActiveContent) {
-          SpecialPowers.popPrefEnv(null);
-        }
-
+          
         SimpleTest.finish();
       }
       break;
@@ -128,8 +117,8 @@ function finish()
     window.setTimeout(function()
     {
       window.location.assign(navigateToInsecure ?
-        "http://example.com/tests/security/manager/ssl/tests/mochitest/mixedcontent/backward.html" :
-        "https://example.com/tests/security/manager/ssl/tests/mochitest/mixedcontent/backward.html");
+        "http://example.com/tests/security/ssl/mixedcontent/backward.html" :
+        "https://example.com/tests/security/ssl/mixedcontent/backward.html");
     }, 0);
   }
   else
@@ -163,24 +152,31 @@ function todo(a, message)
     postMsg("TODO: " + message);
 }
 
+function todoSecurityState(expectedState, message)
+{
+  isSecurityState(expectedState, message, todo);
+}
+
 function isSecurityState(expectedState, message, test)
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  
   if (!test)
     test = ok;
 
   // Quit nasty but working :)
-  var ui = SpecialPowers.wrap(window)
-    .QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
-    .getInterface(SpecialPowers.Ci.nsIWebNavigation)
-    .QueryInterface(SpecialPowers.Ci.nsIDocShell)
+  var ui = window
+    .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+    .getInterface(Components.interfaces.nsIWebNavigation)
+    .QueryInterface(Components.interfaces.nsIDocShell)
     .securityUI;
 
   var isInsecure = !ui ||
-    (ui.state & SpecialPowers.Ci.nsIWebProgressListener.STATE_IS_INSECURE);
+    (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_INSECURE);
   var isBroken = ui &&
-    (ui.state & SpecialPowers.Ci.nsIWebProgressListener.STATE_IS_BROKEN);
+    (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_BROKEN);
   var isEV = ui &&
-    (ui.state & SpecialPowers.Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
+    (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
 
   var gotState;
   if (isInsecure)

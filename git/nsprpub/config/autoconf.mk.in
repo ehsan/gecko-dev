@@ -1,8 +1,4 @@
 # -*- Mode: Makefile -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 
 INCLUDED_AUTOCONF_MK = 1
 USE_AUTOCONF	= 1
@@ -14,7 +10,6 @@ exec_prefix	= @exec_prefix@
 bindir		= @bindir@
 includedir	= @includedir@
 libdir		= @libdir@
-datarootdir	= @datarootdir@
 datadir		= @datadir@
 
 dist_prefix	= @dist_prefix@
@@ -27,10 +22,7 @@ DIST		= $(dist_prefix)
 RELEASE_OBJDIR_NAME = @RELEASE_OBJDIR_NAME@
 OBJDIR_NAME	= @OBJDIR_NAME@
 OBJDIR		= @OBJDIR@
-# We do magic with OBJ_SUFFIX in config.mk, the following ensures we don't
-# manually use it before config.mk inclusion
-OBJ_SUFFIX	= $(error config/config.mk needs to be included before using OBJ_SUFFIX)
-_OBJ_SUFFIX	= @OBJ_SUFFIX@
+OBJ_SUFFIX	= @OBJ_SUFFIX@
 LIB_SUFFIX	= @LIB_SUFFIX@
 DLL_SUFFIX	= @DLL_SUFFIX@
 ASM_SUFFIX	= @ASM_SUFFIX@
@@ -51,7 +43,6 @@ MOZ_DEBUG_SYMBOLS = @MOZ_DEBUG_SYMBOLS@
 USE_CPLUS	= @USE_CPLUS@
 USE_IPV6	= @USE_IPV6@
 USE_N32		= @USE_N32@
-USE_X32		= @USE_X32@
 USE_64		= @USE_64@
 ENABLE_STRIP	= @ENABLE_STRIP@
 
@@ -97,7 +88,8 @@ PROFILE_USE_CFLAGS  = @PROFILE_USE_CFLAGS@
 PROFILE_USE_LDFLAGS = @PROFILE_USE_LDFLAGS@
 
 MKSHLIB		= @MKSHLIB@
-WRAP_LDFLAGS	= @WRAP_LDFLAGS@
+WRAP_MALLOC_LIB = @WRAP_MALLOC_LIB@
+WRAP_MALLOC_CFLAGS = @WRAP_MALLOC_CFLAGS@
 DSO_CFLAGS	= @DSO_CFLAGS@
 DSO_LDOPTS	= @DSO_LDOPTS@
 

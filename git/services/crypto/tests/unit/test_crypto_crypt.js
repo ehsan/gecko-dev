@@ -1,6 +1,12 @@
-Cu.import("resource://services-crypto/WeaveCrypto.js");
-
-let cryptoSvc = new WeaveCrypto();
+let cryptoSvc;
+try {
+  Components.utils.import("resource://services-crypto/WeaveCrypto.js");
+  cryptoSvc = new WeaveCrypto();
+} catch (ex) {
+  // Fallback to binary WeaveCrypto
+  cryptoSvc = Cc["@labs.mozilla.com/Weave/Crypto;1"]
+                .getService(Ci.IWeaveCrypto);
+}
 
 function run_test() {
   
@@ -38,7 +44,7 @@ function test_key_memoization() {
   do_check_eq(c, 0);
   let cipherText = cryptoSvc.encrypt("Hello, world.", key, iv);
   do_check_eq(c, 1);
-  cipherText = cryptoSvc.encrypt("Hello, world.", key, iv);
+  let cipherText = cryptoSvc.encrypt("Hello, world.", key, iv);
   do_check_eq(c, 1);
 
   // ... as should decryption.
@@ -97,8 +103,8 @@ function test_SECItem_byteCompressInts() {
 
   // Fill it too short.
   cryptoSvc.byteCompressInts("MMM", intData, 8);
-  for (let i = 0; i < 3; ++i)
-    do_check_eq(intData[i], [77, 77, 77][i]);
+  for (let i = 0; i < 8; ++i)
+    do_check_eq(intData[i], [77, 77, 77, 0, 0, 0, 0, 0, 0][i]);
 
   // Fill it too much. Doesn't buffer overrun.
   cryptoSvc.byteCompressInts("NNNNNNNNNNNNNNNN", intData, 8);
@@ -131,17 +137,6 @@ function test_encrypt_decrypt() {
   // Do some more tests with a fixed key/iv, to check for reproducable results.
   key = "St1tFCor7vQEJNug/465dQ==";
   iv  = "oLjkfrLIOnK2bDRvW4kXYA==";
-
-  _("Testing small IV.");
-  mySecret = "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=";
-  shortiv  = "YWJj";           // "abc": Less than 16.
-  let err;
-  try {
-    cryptoSvc.encrypt(mySecret, key, shortiv);
-  } catch (ex) {
-    err = ex;
-  }
-  do_check_true(!!err);
 
   // Test small input sizes
   mySecret = "";

@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /* 
  *  The following code handles the storage of PKCS 11 modules used by the
  * NSS. For the rest of NSS, only one kind of database handle exists:
@@ -23,9 +55,10 @@
 #include "pkcs11i.h"
 #include "sdb.h"
 #include "prprf.h" 
+#include "secmodt.h"
 #include "pratom.h"
 #include "lgglue.h"
-#include "utilpars.h"
+#include "sftkpars.h"
 #include "secerr.h"
 #include "softoken.h"
 
@@ -569,7 +602,7 @@ loser:
 }
 
 static CK_RV
-sftkdb_CreateObject(PLArenaPool *arena, SFTKDBHandle *handle,
+sftkdb_CreateObject(PRArenaPool *arena, SFTKDBHandle *handle, 
 	SDB *db, CK_OBJECT_HANDLE *objectID,
         CK_ATTRIBUTE *template, CK_ULONG count)
 {
@@ -1016,7 +1049,7 @@ loser:
  *
  */
 static CK_RV
-sftkdb_resolveConflicts(PLArenaPool *arena, CK_OBJECT_CLASS objectType,
+sftkdb_resolveConflicts(PRArenaPool *arena, CK_OBJECT_CLASS objectType, 
 			CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
 {
     CK_ATTRIBUTE *attr;
@@ -1088,7 +1121,7 @@ sftkdb_resolveConflicts(PLArenaPool *arena, CK_OBJECT_CLASS objectType,
  * set an attribute and sign it if necessary
  */
 static CK_RV
-sftkdb_setAttributeValue(PLArenaPool *arena, SFTKDBHandle *handle,
+sftkdb_setAttributeValue(PRArenaPool *arena, SFTKDBHandle *handle, 
 	SDB *db, CK_OBJECT_HANDLE objectID, const CK_ATTRIBUTE *template, 
 	CK_ULONG count)
 {
@@ -1462,9 +1495,6 @@ sftkdb_CloseDB(SFTKDBHandle *handle)
         }
 	(*handle->db->sdb_Close)(handle->db);
     }
-    if (handle->passwordKey.data) {
-	PORT_ZFree(handle->passwordKey.data, handle->passwordKey.len);
-    }
     if (handle->passwordLock) {
 	SKIP_AFTER_FORK(PZ_DestroyLock(handle->passwordLock));
     }
@@ -1735,7 +1765,7 @@ sftkdb_getULongFromTemplate(CK_ATTRIBUTE_TYPE type,
  *    CKA_ID the it has returned in the passed.
  */
 static CK_RV
-sftkdb_incrementCKAID(PLArenaPool *arena, CK_ATTRIBUTE *ptemplate)
+sftkdb_incrementCKAID(PRArenaPool *arena, CK_ATTRIBUTE *ptemplate)
 {
     unsigned char *buf = ptemplate->pValue;
     CK_ULONG len = ptemplate->ulValueLen;
@@ -1829,7 +1859,7 @@ typedef enum {
  *   any SFTKDB_MODIFY_OBJECT returns.
  */
 sftkdbUpdateStatus
-sftkdb_reconcileTrustEntry(PLArenaPool *arena, CK_ATTRIBUTE *target,
+sftkdb_reconcileTrustEntry(PRArenaPool *arena, CK_ATTRIBUTE *target, 
 			   CK_ATTRIBUTE *source)
 {
     CK_ULONG targetTrust = sftkdb_getULongFromTemplate(target->type,
@@ -1884,15 +1914,17 @@ sftkdb_reconcileTrustEntry(PLArenaPool *arena, CK_ATTRIBUTE *target,
      * trust attribute should be, and neither agree exactly. 
      * At this point, we prefer 'hard' attributes over 'soft' ones. 
      * 'hard' ones are CKT_NSS_TRUSTED, CKT_NSS_TRUSTED_DELEGATOR, and
-     * CKT_NSS_NOT_TRUTED. Soft ones are ones which don't change the
-     * actual trust of the cert (CKT_MUST_VERIFY_TRUST, 
+     * CKT_NSS_UNTRUTED. Soft ones are ones which don't change the
+     * actual trust of the cert (CKT_MUST_VERIFY, CKT_NSS_VALID,
      * CKT_NSS_VALID_DELEGATOR).
      */
-    if ((sourceTrust == CKT_NSS_MUST_VERIFY_TRUST) 
+    if ((sourceTrust == CKT_NSS_MUST_VERIFY) 
+	|| (sourceTrust == CKT_NSS_VALID)
 	|| (sourceTrust == CKT_NSS_VALID_DELEGATOR)) {
 	return SFTKDB_DROP_ATTRIBUTE;
     }
-    if ((targetTrust == CKT_NSS_MUST_VERIFY_TRUST) 
+    if ((targetTrust == CKT_NSS_MUST_VERIFY) 
+	|| (targetTrust == CKT_NSS_VALID)
 	|| (targetTrust == CKT_NSS_VALID_DELEGATOR)) {
 	/* again, overwriting the target in this case is OK */
 	return SFTKDB_MODIFY_OBJECT;
@@ -1916,7 +1948,7 @@ const CK_ATTRIBUTE_TYPE sftkdb_trustList[] =
  * trust object (overwriting the existing one).
  */
 static sftkdbUpdateStatus
-sftkdb_reconcileTrust(PLArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id,
+sftkdb_reconcileTrust(PRArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id, 
 		      CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
 {
     CK_ATTRIBUTE trustTemplate[SFTK_TRUST_TEMPLATE_COUNT];
@@ -2002,7 +2034,7 @@ done:
 }
 
 static sftkdbUpdateStatus
-sftkdb_handleIDAndName(PLArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id,
+sftkdb_handleIDAndName(PRArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id, 
 		      CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
 {
     sftkdbUpdateStatus update = SFTKDB_DO_NOTHING;
@@ -2081,7 +2113,7 @@ sftkdb_handleIDAndName(PLArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id,
  * as SFTK_DONT_UPDATE and SFTK_UPDATE respectively.
  */
 static PRBool
-sftkdb_updateObjectTemplate(PLArenaPool *arena, SDB *db,
+sftkdb_updateObjectTemplate(PRArenaPool *arena, SDB *db, 
 		    CK_OBJECT_CLASS objectType, 
 		    CK_ATTRIBUTE *ptemplate, CK_ULONG *plen,
 		    CK_OBJECT_HANDLE *targetID)
@@ -2392,7 +2424,7 @@ sftk_freeDB(SFTKDBHandle *handle)
     PRInt32 ref;
 
     if (!handle) return;
-    ref = PR_ATOMIC_DECREMENT(&handle->ref);
+    ref = PR_AtomicDecrement(&handle->ref);
     if (ref == 0) {
 	sftkdb_CloseDB(handle);
     }
@@ -2412,7 +2444,7 @@ sftk_getCertDB(SFTKSlot *slot)
     PZ_Lock(slot->slotLock);
     dbHandle = slot->certDB;
     if (dbHandle) {
-        PR_ATOMIC_INCREMENT(&dbHandle->ref);
+        PR_AtomicIncrement(&dbHandle->ref);
     }
     PZ_Unlock(slot->slotLock);
     return dbHandle;
@@ -2430,7 +2462,7 @@ sftk_getKeyDB(SFTKSlot *slot)
     SKIP_AFTER_FORK(PZ_Lock(slot->slotLock));
     dbHandle = slot->keyDB;
     if (dbHandle) {
-        PR_ATOMIC_INCREMENT(&dbHandle->ref);
+        PR_AtomicIncrement(&dbHandle->ref);
     }
     SKIP_AFTER_FORK(PZ_Unlock(slot->slotLock));
     return dbHandle;
@@ -2448,7 +2480,7 @@ sftk_getDBForTokenObject(SFTKSlot *slot, CK_OBJECT_HANDLE objectID)
     PZ_Lock(slot->slotLock);
     dbHandle = objectID & SFTK_KEYDB_TYPE ? slot->keyDB : slot->certDB;
     if (dbHandle) {
-        PR_ATOMIC_INCREMENT(&dbHandle->ref);
+        PR_AtomicIncrement(&dbHandle->ref);
     }
     PZ_Unlock(slot->slotLock);
     return dbHandle;
@@ -2574,7 +2606,7 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
                 SFTKDBHandle **certDB, SFTKDBHandle **keyDB)
 {
     const char *confdir;
-    NSSDBType dbType = NSS_DB_TYPE_NONE;
+    SDBType dbType;
     char *appName = NULL;
     SDB *keySDB, *certSDB;
     CK_RV crv = CKR_OK;
@@ -2592,22 +2624,22 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
     if (noKeyDB && noCertDB) {
 	return CKR_OK;
     }
-    confdir = _NSSUTIL_EvaluateConfigDir(configdir, &dbType, &appName);
+    confdir = sftk_EvaluateConfigDir(configdir, &dbType, &appName);
 
     /*
      * now initialize the appropriate database
      */
     switch (dbType) {
-    case NSS_DB_TYPE_LEGACY:
+    case SDB_LEGACY:
 	crv = sftkdbCall_open(confdir, certPrefix, keyPrefix, 8, 3, flags,
 		 isFIPS, noCertDB? NULL : &certSDB, noKeyDB ? NULL: &keySDB);
 	break;
-    case NSS_DB_TYPE_MULTIACCESS:
+    case SDB_MULTIACCESS:
 	crv = sftkdbCall_open(configdir, certPrefix, keyPrefix, 8, 3, flags,
 		isFIPS, noCertDB? NULL : &certSDB, noKeyDB ? NULL: &keySDB);
 	break;
-    case NSS_DB_TYPE_SQL:
-    case NSS_DB_TYPE_EXTERN: /* SHOULD open a loadable db */
+    case SDB_SQL:
+    case SDB_EXTERN: /* SHOULD open a loadable db */
 	crv = s_open(confdir, certPrefix, keyPrefix, 9, 4, flags, 
 		noCertDB? NULL : &certSDB, noKeyDB ? NULL : &keySDB, &newInit);
 

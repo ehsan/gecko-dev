@@ -1,8 +1,41 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places Test Code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Marco Bonardo <mak77@bonardo.net> (Original Author)
+ *   Drew Willcoxon <adw@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 var tests = [];
 
@@ -43,7 +76,7 @@ tests.push({
     this._sortedData = this._unsortedData;
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -116,7 +149,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -124,7 +157,7 @@ tests.push({
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
     query.onlyBookmarked = true;
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -216,7 +249,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -280,7 +313,7 @@ tests.push({
       // if URIs are equal, should fall back to date
       { isBookmark: true,
         isDetails: true,
-        lastVisit: timeInMicroseconds + 1000,
+        lastVisit: timeInMicroseconds + 1,
         uri: "http://example.com/c",
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 3,
@@ -297,7 +330,7 @@ tests.push({
       // if URIs and dates are equal, should fall back to bookmark index
       { isBookmark: true,
         isDetails: true,
-        lastVisit: timeInMicroseconds + 1000,
+        lastVisit: timeInMicroseconds + 1,
         uri: "http://example.com/c",
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 5,
@@ -323,14 +356,14 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
     // Query
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -387,7 +420,7 @@ tests.push({
       // if visitCounts are equal, should fall back to date
       { isBookmark: true,
         uri: "http://example.com/b2",
-        lastVisit: timeInMicroseconds + 1000,
+        lastVisit: timeInMicroseconds + 1,
         title: "y2a",
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 3,
@@ -396,7 +429,7 @@ tests.push({
       // if visitCounts and dates are equal, should fall back to bookmark index
       { isBookmark: true,
         uri: "http://example.com/b2",
-        lastVisit: timeInMicroseconds + 1000,
+        lastVisit: timeInMicroseconds + 1,
         title: "y2b",
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 4,
@@ -412,18 +445,24 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
     // add visits to increase visit count
-    yield promiseAddVisits([
-      { uri: uri("http://example.com/a"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-      { uri: uri("http://example.com/b1"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-      { uri: uri("http://example.com/b1"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-      { uri: uri("http://example.com/b2"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds + 1000 },
-      { uri: uri("http://example.com/b2"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds + 1000 },
-      { uri: uri("http://example.com/c"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-      { uri: uri("http://example.com/c"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-      { uri: uri("http://example.com/c"), transition: TRANSITION_TYPED, visitDate: timeInMicroseconds },
-    ]);
+    PlacesUtils.history.addVisit(uri("http://example.com/a"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/b1"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/b1"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/b2"), timeInMicroseconds + 1, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/b2"), timeInMicroseconds + 1, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/c"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/c"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
+    PlacesUtils.history.addVisit(uri("http://example.com/c"), timeInMicroseconds, null,
+                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
   },
 
   check: function() {
@@ -522,7 +561,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -530,7 +569,7 @@ tests.push({
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
     query.onlyBookmarked = true;
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -565,7 +604,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 0,
         title: "y1",
-        dateAdded: timeInMicroseconds - 1000,
+        dateAdded: timeInMicroseconds -1,
         isInQuery: true },
 
       { isBookmark: true,
@@ -573,7 +612,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 1,
         title: "z",
-        dateAdded: timeInMicroseconds - 2000,
+        dateAdded: timeInMicroseconds - 2,
         isInQuery: true },
 
       { isBookmark: true,
@@ -590,7 +629,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 3,
         title: "y2",
-        dateAdded: timeInMicroseconds - 1000,
+        dateAdded: timeInMicroseconds - 1,
         isInQuery: true },
 
       // if dateAddeds and titles are equal, should fall back to bookmark index
@@ -599,7 +638,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 4,
         title: "y3",
-        dateAdded: timeInMicroseconds - 1000,
+        dateAdded: timeInMicroseconds - 1,
         isInQuery: true },
     ];
 
@@ -612,7 +651,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -620,7 +659,7 @@ tests.push({
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
     query.onlyBookmarked = true;
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -655,7 +694,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 0,
         title: "y1",
-        lastModified: timeInMicroseconds - 1000,
+        lastModified: timeInMicroseconds -1,
         isInQuery: true },
 
       { isBookmark: true,
@@ -663,7 +702,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 1,
         title: "z",
-        lastModified: timeInMicroseconds - 2000,
+        lastModified: timeInMicroseconds - 2,
         isInQuery: true },
 
       { isBookmark: true,
@@ -680,7 +719,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 3,
         title: "y2",
-        lastModified: timeInMicroseconds - 1000,
+        lastModified: timeInMicroseconds - 1,
         isInQuery: true },
 
       // if lastModifieds and titles are equal, should fall back to bookmark
@@ -690,7 +729,7 @@ tests.push({
         parentFolder: PlacesUtils.bookmarks.toolbarFolder,
         index: 4,
         title: "y3",
-        lastModified: timeInMicroseconds - 1000,
+        lastModified: timeInMicroseconds - 1,
         isInQuery: true },
     ];
 
@@ -703,7 +742,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -711,7 +750,7 @@ tests.push({
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
     query.onlyBookmarked = true;
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -803,7 +842,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);
   },
 
   check: function() {
@@ -811,7 +850,7 @@ tests.push({
     var query = PlacesUtils.history.getNewQuery();
     query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
     query.onlyBookmarked = true;
-
+    
     // query options
     var options = PlacesUtils.history.getNewQueryOptions();
     options.sortingMode = this._sortingMode;
@@ -900,7 +939,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);                  
   },
 
   check: function() {
@@ -982,7 +1021,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);                  
   },
 
   check: function() {
@@ -1064,7 +1103,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);                  
   },
 
   check: function() {
@@ -1146,7 +1185,7 @@ tests.push({
     ];
 
     // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
+    populateDB(this._unsortedData);                  
   },
 
   check: function() {
@@ -1174,104 +1213,33 @@ tests.push({
 });
 
 ////////////////////////////////////////////////////////////////////////////////
-// SORT_BY_FRECENCY_*
 
-tests.push({
-  _sortingMode: Ci.nsINavHistoryQueryOptions.SORT_BY_FRECENCY_ASCENDING,
-
-  setup: function() {
-    LOG("Sorting test 13: SORT BY FRECENCY ");
-
-    var timeInMicroseconds = Date.now() * 1000;
-    this._unsortedData = [
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://moz.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "I",
-        isInQuery: true },
-
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://moz.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "I",
-        isInQuery: true },
-
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://moz.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "I",
-        isInQuery: true },
-
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://is.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "love",
-        isInQuery: true },
-
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://best.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "moz",
-        isInQuery: true },
-
-      { isVisit: true,
-        isDetails: true,
-        uri: "http://best.com/",
-        lastVisit: timeInMicroseconds++,
-        title: "moz",
-        isInQuery: true },
-    ];
-
-    this._sortedData = [
-      this._unsortedData[3],
-      this._unsortedData[5],
-      this._unsortedData[2],
-    ];
-
-    // This function in head_queries.js creates our database with the above data
-    yield task_populateDB(this._unsortedData);
-  },
-
-  check: function() {
-    var query = PlacesUtils.history.getNewQuery();
-    var options = PlacesUtils.history.getNewQueryOptions();
-    options.sortingMode = this._sortingMode;
-
-    var root = PlacesUtils.history.executeQuery(query, options).root;
-    root.containerOpen = true;
-    compareArrayToResult(this._sortedData, root);
-    root.containerOpen = false;
-  },
-
-  check_reverse: function() {
-    this._sortingMode = Ci.nsINavHistoryQueryOptions.SORT_BY_FRECENCY_DESCENDING;
-    this._sortedData.reverse();
-    this.check();
-  }
-});
-
-////////////////////////////////////////////////////////////////////////////////
-
-function run_test()
-{
-  run_next_test();
+function prepare_and_run_next_test(aTest) {
+  aTest.setup();
+  aTest.check();
+  // sorting reversed, usually SORT_BY have ASC and DESC
+  aTest.check_reverse();
+  // Execute cleanup tasks
+  remove_all_bookmarks();
+  waitForClearHistory(runNextTest);
 }
 
-add_task(function test_sorting()
-{
-  for (let [, test] in Iterator(tests)) {
-    yield test.setup();
-    yield promiseAsyncUpdates();
-    test.check();
-    // sorting reversed, usually SORT_BY have ASC and DESC
-    test.check_reverse();
-    // Execute cleanup tasks
-    remove_all_bookmarks();
-    yield promiseClearHistory();
+/**
+ * run_test is where the magic happens.  This is automatically run by the test
+ * harness.  It is where you do the work of creating the query, running it, and
+ * playing with the result set.
+ */
+function run_test() {
+  do_test_pending();
+  runNextTest();
+}
+
+function runNextTest() {
+  if (tests.length) {
+    let test = tests.shift();
+    prepare_and_run_next_test(test);
   }
-});
+  else {
+    do_test_finished();
+  }
+}

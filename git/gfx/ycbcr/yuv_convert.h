@@ -8,6 +8,10 @@
 #include "chromium_types.h"
 #include "gfxCore.h"
 
+#ifdef HAVE_ARM_NEON
+#define HAVE_YCBCR_TO_RGB565 1
+#endif
+ 
 namespace mozilla {
 
 namespace gfx {
@@ -41,7 +45,20 @@ enum ScaleFilter {
   FILTER_BILINEAR = 3     // Bilinear filter.
 };
 
-NS_GFX_(YUVType) TypeFromSize(int ywidth, int yheight, int cbcrwidth, int cbcrheight);
+// Convert a frame of YUV to 16 bit RGB565.
+// Pass in YV12 formats
+NS_GFX_(void) ConvertYCbCrToRGB565(const uint8* yplane,
+                                  const uint8* uplane,
+                                  const uint8* vplane,
+                                  uint8* rgbframe,
+                                  int pic_x,
+                                  int pic_y,
+                                  int pic_width,
+                                  int pic_height,
+                                  int ystride,
+                                  int uvstride,
+                                  int rgbstride,
+                                  YUVType yuv_type);
 
 // Convert a frame of YUV to 32 bit ARGB.
 // Pass in YV16/YV12 depending on source format

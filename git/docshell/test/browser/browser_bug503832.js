@@ -33,6 +33,7 @@ function test() {
                 finish();
             }
         },
+        onBeforeDeleteURI: function(aURI) {},
         onDeleteURI: function(aURI) {},
         onClearHistory: function() {},
         onPageChanged: function(aURI, aWhat, aValue) {},
@@ -66,9 +67,7 @@ function test() {
         if (!result.root.childCount) {
             return null;
         }
-        var node = result.root.getChild(0);
-        result.root.containerOpen = false;
-        return node;
+        return result.root.getChild(0);
     }
 
 

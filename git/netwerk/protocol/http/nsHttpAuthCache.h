@@ -1,22 +1,55 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gagan Saksena <gagan@netscape.com> (original author)
+ *   Darin Fisher <darin@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHttpAuthCache_h__
 #define nsHttpAuthCache_h__
 
+#include "nsHttp.h"
 #include "nsError.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsAString.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
 #include "plhash.h"
-#include "nsIObserver.h"
+#include "nsCRT.h"
 
-class nsCString;
-
-namespace mozilla {
-namespace net {
 
 struct nsHttpAuthPath {
     struct nsHttpAuthPath *mNext;
@@ -31,15 +64,15 @@ class nsHttpAuthIdentity
 {
 public:
     nsHttpAuthIdentity()
-        : mUser(nullptr)
-        , mPass(nullptr)
-        , mDomain(nullptr)
+        : mUser(nsnull)
+        , mPass(nsnull)
+        , mDomain(nsnull)
     {
     }
-    nsHttpAuthIdentity(const char16_t *domain,
-                       const char16_t *user,
-                       const char16_t *password)
-        : mUser(nullptr)
+    nsHttpAuthIdentity(const PRUnichar *domain,
+                       const PRUnichar *user,
+                       const PRUnichar *password)
+        : mUser(nsnull)
     {
         Set(domain, user, password);
     }
@@ -48,24 +81,24 @@ public:
         Clear();
     }
 
-    const char16_t *Domain()   const { return mDomain; }
-    const char16_t *User()     const { return mUser; }
-    const char16_t *Password() const { return mPass; }
+    const PRUnichar *Domain()   const { return mDomain; }
+    const PRUnichar *User()     const { return mUser; }
+    const PRUnichar *Password() const { return mPass; }
 
-    nsresult Set(const char16_t *domain,
-                 const char16_t *user,
-                 const char16_t *password);
+    nsresult Set(const PRUnichar *domain,
+                 const PRUnichar *user,
+                 const PRUnichar *password);
     nsresult Set(const nsHttpAuthIdentity &other) { return Set(other.mDomain, other.mUser, other.mPass); }
     void Clear();
 
-    bool Equals(const nsHttpAuthIdentity &other) const;
-    bool IsEmpty() const { return !mUser; }
+    PRBool Equals(const nsHttpAuthIdentity &other) const;
+    PRBool IsEmpty() const { return !mUser; }
 
 private:
     // allocated as one contiguous blob, starting at mUser.
-    char16_t *mUser;
-    char16_t *mPass;
-    char16_t *mDomain;
+    PRUnichar *mUser;
+    PRUnichar *mPass;
+    PRUnichar *mDomain;
 };
 
 //-----------------------------------------------------------------------------
@@ -78,15 +111,15 @@ public:
     const char *Realm()       const { return mRealm; }
     const char *Creds()       const { return mCreds; }
     const char *Challenge()   const { return mChallenge; }
-    const char16_t *Domain() const { return mIdent.Domain(); }
-    const char16_t *User()   const { return mIdent.User(); }
-    const char16_t *Pass()   const { return mIdent.Password(); }
+    const PRUnichar *Domain() const { return mIdent.Domain(); }
+    const PRUnichar *User()   const { return mIdent.User(); }
+    const PRUnichar *Pass()   const { return mIdent.Password(); }
     nsHttpAuthPath *RootPath()      { return mRoot; }
 
     const nsHttpAuthIdentity &Identity() const { return mIdent; }
-
+            
     nsresult AddPath(const char *aPath);
-
+            
     nsCOMPtr<nsISupports> mMetaData;
 
 private:
@@ -96,9 +129,9 @@ private:
                     const char *challenge,
                     const nsHttpAuthIdentity *ident,
                     nsISupports *metadata)
-        : mRoot(nullptr)
-        , mTail(nullptr)
-        , mRealm(nullptr)
+        : mRoot(nsnull)
+        , mTail(nsnull)
+        , mRealm(nsnull)
     {
         Set(path, realm, creds, challenge, ident, metadata);
     }
@@ -153,7 +186,7 @@ private:
 
     void ClearAuthEntry(const char *realm);
 
-    uint32_t EntryCount() { return mList.Length(); }
+    PRUint32 EntryCount() { return mList.Length(); }
 
 private:
     nsTArray<nsAutoPtr<nsHttpAuthEntry> > mList;
@@ -179,10 +212,8 @@ public:
     // |entry| is either null or a weak reference
     nsresult GetAuthEntryForPath(const char *scheme,
                                  const char *host,
-                                 int32_t     port,
+                                 PRInt32     port,
                                  const char *path,
-                                 uint32_t    appId,
-                                 bool        inBrowserElement,
                                  nsHttpAuthEntry **entry);
 
     // |scheme|, |host|, and |port| are required
@@ -190,10 +221,8 @@ public:
     // |entry| is either null or a weak reference
     nsresult GetAuthEntryForDomain(const char *scheme,
                                    const char *host,
-                                   int32_t     port,
+                                   PRInt32     port,
                                    const char *realm,
-                                   uint32_t    appId,
-                                   bool        inBrowserElement,
                                    nsHttpAuthEntry **entry);
 
     // |scheme|, |host|, and |port| are required
@@ -203,58 +232,38 @@ public:
     // null, then the entry is deleted.
     nsresult SetAuthEntry(const char *scheme,
                           const char *host,
-                          int32_t     port,
+                          PRInt32     port,
                           const char *directory,
                           const char *realm,
                           const char *credentials,
                           const char *challenge,
-                          uint32_t    appId,
-                          bool        inBrowserElement,
                           const nsHttpAuthIdentity *ident,
                           nsISupports *metadata);
 
     void ClearAuthEntry(const char *scheme,
                         const char *host,
-                        int32_t     port,
-                        const char *realm,
-                        uint32_t    appId,
-                        bool        inBrowserElement);
+                        PRInt32     port,
+                        const char *realm);
 
-    // expire all existing auth list entries including proxy auths.
+    // expire all existing auth list entries including proxy auths. 
     nsresult ClearAll();
 
 private:
     nsHttpAuthNode *LookupAuthNode(const char *scheme,
                                    const char *host,
-                                   int32_t     port,
-                                   uint32_t    appId,
-                                   bool        inBrowserElement,
+                                   PRInt32     port,
                                    nsCString  &key);
 
     // hash table allocation functions
-    static void*        AllocTable(void *, size_t size);
+    static void*        AllocTable(void *, PRSize size);
     static void         FreeTable(void *, void *item);
     static PLHashEntry* AllocEntry(void *, const void *key);
-    static void         FreeEntry(void *, PLHashEntry *he, unsigned flag);
+    static void         FreeEntry(void *, PLHashEntry *he, PRUintn flag);
 
     static PLHashAllocOps gHashAllocOps;
-
-    class AppDataClearObserver : public nsIObserver {
-      virtual ~AppDataClearObserver() {}
-    public:
-      NS_DECL_ISUPPORTS
-      NS_DECL_NSIOBSERVER
-      explicit AppDataClearObserver(nsHttpAuthCache* aOwner) : mOwner(aOwner) {}
-      nsHttpAuthCache* mOwner;
-    };
-
-    void ClearAppData(uint32_t appId, bool browserOnly);
-
+    
 private:
     PLHashTable *mDB; // "host:port" --> nsHttpAuthNode
-    nsRefPtr<AppDataClearObserver> mObserver;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpAuthCache_h__

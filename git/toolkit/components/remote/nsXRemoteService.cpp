@@ -1,11 +1,44 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:expandtab:shiftwidth=2:tabstop=8:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/ArrayUtils.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Christopher Blizzard.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Christopher Blizzard <blizzard@mozilla.org>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *   Miika Jarvinen <mjarvin@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsXRemoteService.h"
 #include "nsIObserverService.h"
@@ -16,7 +49,7 @@
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIServiceManager.h"
 #include "nsIWeakReference.h"
 #include "nsIWidget.h"
@@ -36,10 +69,10 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 
-using namespace mozilla;
 
 #define MOZILLA_VERSION_PROP   "_MOZILLA_VERSION"
 #define MOZILLA_LOCK_PROP      "_MOZILLA_LOCK"
+#define MOZILLA_COMMAND_PROP   "_MOZILLA_COMMAND"
 #define MOZILLA_RESPONSE_PROP  "_MOZILLA_RESPONSE"
 #define MOZILLA_USER_PROP      "_MOZILLA_USER"
 #define MOZILLA_PROFILE_PROP   "_MOZILLA_PROFILE"
@@ -57,19 +90,21 @@ const unsigned char kRemoteVersion[] = "5.1";
 #endif
 
 // Minimize the roundtrips to the X server by getting all the atoms at once
-static const char *XAtomNames[] = {
+static char *XAtomNames[] = {
   MOZILLA_VERSION_PROP,
   MOZILLA_LOCK_PROP,
+  MOZILLA_COMMAND_PROP,
   MOZILLA_RESPONSE_PROP,
   MOZILLA_USER_PROP,
   MOZILLA_PROFILE_PROP,
   MOZILLA_PROGRAM_PROP,
   MOZILLA_COMMANDLINE_PROP
 };
-static Atom XAtoms[MOZ_ARRAY_LENGTH(XAtomNames)];
+static Atom XAtoms[NS_ARRAY_LENGTH(XAtomNames)];
 
 Atom nsXRemoteService::sMozVersionAtom;
 Atom nsXRemoteService::sMozLockAtom;
+Atom nsXRemoteService::sMozCommandAtom;
 Atom nsXRemoteService::sMozResponseAtom;
 Atom nsXRemoteService::sMozUserAtom;
 Atom nsXRemoteService::sMozProfileAtom;
@@ -79,13 +114,13 @@ Atom nsXRemoteService::sMozCommandLineAtom;
 nsXRemoteService * nsXRemoteService::sRemoteImplementation = 0;
 
 
-static bool
+static PRBool
 FindExtensionParameterInCommand(const char* aParameterName,
                                 const nsACString& aCommand,
                                 char aSeparator,
                                 nsACString* aValue)
 {
-  nsAutoCString searchFor;
+  nsCAutoString searchFor;
   searchFor.Append(aSeparator);
   searchFor.Append(aParameterName);
   searchFor.Append('=');
@@ -94,7 +129,7 @@ FindExtensionParameterInCommand(const char* aParameterName,
   aCommand.BeginReading(start);
   aCommand.EndReading(end);
   if (!FindInReadable(searchFor, start, end))
-    return false;
+    return PR_FALSE;
 
   nsACString::const_iterator charStart, charEnd;
   charStart = end;
@@ -106,7 +141,7 @@ FindExtensionParameterInCommand(const char* aParameterName,
     idEnd = charEnd;
   }
   *aValue = nsDependentCSubstring(idStart, idEnd);
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -126,8 +161,8 @@ nsXRemoteService::XRemoteBaseStartup(const char *aAppName, const char *aProfileN
 
     nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
     if (obs) {
-      obs->AddObserver(this, "xpcom-shutdown", false);
-      obs->AddObserver(this, "quit-application", false);
+      obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+      obs->AddObserver(this, "quit-application", PR_FALSE);
     }
 }
 
@@ -162,7 +197,7 @@ nsXRemoteService::HandleCommandsFor(Window aWindowId)
 NS_IMETHODIMP
 nsXRemoteService::Observe(nsISupports* aSubject,
                           const char *aTopic,
-                          const char16_t *aData)
+                          const PRUnichar *aData)
 {
   // This can be xpcom-shutdown or quit-application, but it's the same either
   // way.
@@ -170,7 +205,7 @@ nsXRemoteService::Observe(nsISupports* aSubject,
   return NS_OK;
 }
 
-bool
+PRBool
 nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
                                     Time aEventTime,
                                     Atom aChangedAtom,
@@ -179,7 +214,7 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
 
   nsCOMPtr<nsIDOMWindow> window (do_QueryReferent(aDomWindow));
 
-  if (aChangedAtom == sMozCommandLineAtom) {
+  if (aChangedAtom == sMozCommandAtom || aChangedAtom == sMozCommandLineAtom) {
     // We got a new command atom.
     int result;
     Atom actual_type;
@@ -204,14 +239,18 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
 
     // Failed to get property off the window?
     if (result != Success)
-      return false;
+      return PR_FALSE;
 
     // Failed to get the data off the window or it was the wrong type?
-    if (!data || !TO_LITTLE_ENDIAN32(*reinterpret_cast<int32_t*>(data)))
-      return false;
+    if (!data || !TO_LITTLE_ENDIAN32(*reinterpret_cast<PRInt32*>(data)))
+      return PR_FALSE;
 
     // cool, we got the property data.
-    const char *response = HandleCommandLine(data, window, aEventTime);
+    const char *response = NULL;
+    if (aChangedAtom == sMozCommandAtom)
+      response = HandleCommand(data, window, aEventTime);
+    else if (aChangedAtom == sMozCommandLineAtom)
+      response = HandleCommandLine(data, window, aEventTime);
 
     // put the property onto the window as the response
     XChangeProperty (aDisplay, aWindowId,
@@ -220,25 +259,25 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
                      (const unsigned char *)response,
                      strlen (response));
     XFree(data);
-    return true;
+    return PR_TRUE;
   }
 
   else if (aChangedAtom == sMozResponseAtom) {
     // client accepted the response.  party on wayne.
-    return true;
+    return PR_TRUE;
   }
 
   else if (aChangedAtom == sMozLockAtom) {
     // someone locked the window
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 const char*
-nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
-                                    uint32_t aTimestamp)
+nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
+                                PRUint32 aTimestamp)
 {
   nsresult rv;
 
@@ -247,27 +286,82 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
   if (NS_FAILED(rv))
     return "509 internal error";
 
-  // the commandline property is constructed as an array of int32_t
+  // 1) Make sure that it looks remotely valid with parens
+  // 2) Treat ping() immediately and specially
+
+  nsCAutoString command(aCommand);
+  PRInt32 p1, p2;
+  p1 = command.FindChar('(');
+  p2 = command.FindChar(')');
+
+  if (p1 == kNotFound || p2 == kNotFound || p1 == 0 || p2 < p1) {
+    return "500 command not parseable";
+  }
+
+  command.Truncate(p1);
+  command.Trim(" ", PR_TRUE, PR_TRUE);
+  ToLowerCase(command);
+
+  if (!command.EqualsLiteral("ping")) {
+    nsCAutoString desktopStartupID;
+    nsDependentCString cmd(aCommand);
+    FindExtensionParameterInCommand("DESKTOP_STARTUP_ID",
+                                    cmd, '\n',
+                                    &desktopStartupID);
+
+    char* argv[3] = {"dummyappname", "-remote", aCommand};
+    rv = cmdline->Init(3, argv, nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
+    if (NS_FAILED(rv))
+      return "509 internal error";
+
+    if (aWindow)
+      cmdline->SetWindowContext(aWindow);
+
+    if (sRemoteImplementation)
+      sRemoteImplementation->SetDesktopStartupIDOrTimestamp(desktopStartupID, aTimestamp);
+
+    rv = cmdline->Run();
+    if (NS_ERROR_ABORT == rv)
+      return "500 command not parseable";
+    if (NS_FAILED(rv))
+      return "509 internal error";
+  }
+
+  return "200 executed command";
+}
+
+const char*
+nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
+                                    PRUint32 aTimestamp)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICommandLineRunner> cmdline
+    (do_CreateInstance("@mozilla.org/toolkit/command-line;1", &rv));
+  if (NS_FAILED(rv))
+    return "509 internal error";
+
+  // the commandline property is constructed as an array of PRInt32
   // followed by a series of null-terminated strings:
   //
   // [argc][offsetargv0][offsetargv1...]<workingdir>\0<argv[0]>\0argv[1]...\0
   // (offset is from the beginning of the buffer)
 
-  int32_t argc = TO_LITTLE_ENDIAN32(*reinterpret_cast<int32_t*>(aBuffer));
-  char *wd   = aBuffer + ((argc + 1) * sizeof(int32_t));
+  PRInt32 argc = TO_LITTLE_ENDIAN32(*reinterpret_cast<PRInt32*>(aBuffer));
+  char *wd   = aBuffer + ((argc + 1) * sizeof(PRInt32));
 
-  nsCOMPtr<nsIFile> lf;
-  rv = NS_NewNativeLocalFile(nsDependentCString(wd), true,
+  nsCOMPtr<nsILocalFile> lf;
+  rv = NS_NewNativeLocalFile(nsDependentCString(wd), PR_TRUE,
                              getter_AddRefs(lf));
   if (NS_FAILED(rv))
     return "509 internal error";
 
-  nsAutoCString desktopStartupID;
+  nsCAutoString desktopStartupID;
 
   char **argv = (char**) malloc(sizeof(char*) * argc);
   if (!argv) return "509 internal error";
 
-  int32_t  *offset = reinterpret_cast<int32_t*>(aBuffer) + 1;
+  PRInt32  *offset = reinterpret_cast<PRInt32*>(aBuffer) + 1;
 
   for (int i = 0; i < argc; ++i) {
     argv[i] = aBuffer + TO_LITTLE_ENDIAN32(offset[i]);
@@ -310,12 +404,13 @@ nsXRemoteService::EnsureAtoms(void)
   if (sMozVersionAtom)
     return;
 
-  XInternAtoms(mozilla::DefaultXDisplay(), const_cast<char**>(XAtomNames),
-               ArrayLength(XAtomNames), False, XAtoms);
+  XInternAtoms(mozilla::DefaultXDisplay(), XAtomNames, NS_ARRAY_LENGTH(XAtomNames),
+               False, XAtoms);
 
   int i = 0;
   sMozVersionAtom     = XAtoms[i++];
   sMozLockAtom        = XAtoms[i++];
+  sMozCommandAtom     = XAtoms[i++];
   sMozResponseAtom    = XAtoms[i++];
   sMozUserAtom        = XAtoms[i++];
   sMozProfileAtom     = XAtoms[i++];

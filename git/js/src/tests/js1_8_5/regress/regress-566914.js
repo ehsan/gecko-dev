@@ -2,7 +2,7 @@ function f(code) {
 	    code.replace(/s/, "")
 	    eval(code)
 	}
-	this.__defineGetter__("x", function() { return /x/.exec('x'); })
+	this.__defineGetter__("x", /x/)
 	f("function a() {\
 	    x = Proxy.createFunction((function () {\
 	        return {\

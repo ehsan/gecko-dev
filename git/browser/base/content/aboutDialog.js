@@ -1,11 +1,44 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla Firebird about dialog.
+#
+# The Initial Developer of the Original Code is
+# Blake Ross (blaker@netscape.com).
+# Portions created by the Initial Developer are Copyright (C) 2002
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Margaret Leibovic <margaret.leibovic@gmail.com>
+#   Robert Strong <robert.bugzilla@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the LGPL or the GPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK ***** -->
 
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
-
-const PREF_EM_HOTFIX_ID = "extensions.hotfix.id";
 
 function init(aEvent)
 {
@@ -16,48 +49,43 @@ function init(aEvent)
     var distroId = Services.prefs.getCharPref("distribution.id");
     if (distroId) {
       var distroVersion = Services.prefs.getCharPref("distribution.version");
+      var distroAbout = Services.prefs.getComplexValue("distribution.about",
+        Components.interfaces.nsISupportsString);
+
+      var distroField = document.getElementById("distribution");
+      distroField.value = distroAbout;
+      distroField.style.display = "block";
 
       var distroIdField = document.getElementById("distributionId");
       distroIdField.value = distroId + " - " + distroVersion;
       distroIdField.style.display = "block";
-
-      try {
-        // This is in its own try catch due to bug 895473 and bug 900925.
-        var distroAbout = Services.prefs.getComplexValue("distribution.about",
-          Components.interfaces.nsISupportsString);
-        var distroField = document.getElementById("distribution");
-        distroField.value = distroAbout;
-        distroField.style.display = "block";
-      }
-      catch (ex) {
-        // Pref is unset
-        Components.utils.reportError(ex);
-      }
     }
   }
   catch (e) {
     // Pref is unset
   }
 
-  // Include the build ID and display warning if this is an "a#" (nightly or aurora) build
+  // Include the build ID if this is a "pre" (i.e. non-release) build
   let version = Services.appinfo.version;
-  if (/a\d+$/.test(version)) {
+  if (version.indexOf("pre") != -1) {
     let buildID = Services.appinfo.appBuildID;
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
-    document.getElementById("version").textContent += " (" + buildDate + ")";
-    document.getElementById("experimental").hidden = false;
-    document.getElementById("communityDesc").hidden = true;
+    document.getElementById("version").value += " (" + buildDate + ")";
   }
+
+#ifdef MOZ_OFFICIAL_BRANDING
+  // Hide the Charlton trademark attribution for non-en-US/en-GB
+  // DO NOT REMOVE without consulting people involved with bug 616193
+  let chromeRegistry = Components.classes["@mozilla.org/chrome/chrome-registry;1"].
+                       getService(Components.interfaces.nsIXULChromeRegistry);
+  let currentLocale = chromeRegistry.getSelectedLocale("global");
+  if (currentLocale != "en-US" && currentLocale != "en-GB") {
+    document.getElementById("extra-trademark").hidden = true;
+  }
+#endif
 
 #ifdef MOZ_UPDATER
   gAppUpdater = new appUpdater();
-
-  let defaults = Services.prefs.getDefaultBranch("");
-  let channelLabel = document.getElementById("currentChannel");
-  let currentChannelText = document.getElementById("currentChannelText");
-  channelLabel.value = UpdateChannel.get();
-  if (/^release($|\-)/.test(channelLabel.value))
-      currentChannelText.hidden = true;
 #endif
 
 #ifdef XP_MACOSX
@@ -71,9 +99,6 @@ function init(aEvent)
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
 
 var gAppUpdater;
 
@@ -106,9 +131,17 @@ function appUpdater()
   XPCOMUtils.defineLazyServiceGetter(this, "um",
                                      "@mozilla.org/updates/update-manager;1",
                                      "nsIUpdateManager");
+  XPCOMUtils.defineLazyServiceGetter(this, "bs",
+                                     "@mozilla.org/extensions/blocklist;1",
+                                     "nsIBlocklistService");
 
   this.bundle = Services.strings.
                 createBundle("chrome://browser/locale/browser.properties");
+
+  this.updateBtn = document.getElementById("updateButton");
+
+  // The button label value must be set so its height is correct.
+  this.setupUpdateButton("update.checkInsideButton");
 
   let manualURL = Services.urlFormatter.formatURLPref("app.update.url.manual");
   let manualLink = document.getElementById("manualLink");
@@ -121,37 +154,23 @@ function appUpdater()
     return;
   }
 
-  if (this.isPending || this.isApplied) {
-    this.selectPanel("apply");
-    return;
-  }
-
-  if (this.aus.isOtherInstanceHandlingUpdates) {
-    this.selectPanel("otherInstanceHandlingUpdates");
+  if (this.isPending) {
+    this.setupUpdateButton("update.restart." +
+                           (this.isMajor ? "upgradeButton" : "applyButton"));
     return;
   }
 
   if (this.isDownloading) {
     this.startDownload();
-    // selectPanel("downloading") is called from setupDownloadingUI().
     return;
   }
 
-  // Honor the "Never check for updates" option by not only disabling background
-  // update checks, but also in the About dialog, by presenting a
-  // "Check for updates" button.
-  // If updates are found, the user is then asked if he wants to "Update to <version>".
-  if (!this.updateEnabled) {
-    this.selectPanel("checkForUpdates");
+  if (this.updateEnabled && this.updateAuto) {
+    this.selectPanel("checkingForUpdates");
+    this.isChecking = true;
+    this.checker.checkForUpdates(this.updateCheckListener, true);
     return;
   }
-
-  // That leaves the options
-  // "Check for updates, but let me choose whether to install them", and
-  // "Automatically install updates".
-  // In both cases, we check for updates without asking.
-  // In the "let me choose" case, we ask before downloading though, in onCheckComplete.
-  this.checkForUpdates();
 }
 
 appUpdater.prototype =
@@ -161,23 +180,9 @@ appUpdater.prototype =
 
   // true when there is an update already staged / ready to be applied.
   get isPending() {
-    if (this.update) {
-      return this.update.state == "pending" ||
-             this.update.state == "pending-service";
-    }
-    return this.um.activeUpdate &&
-           (this.um.activeUpdate.state == "pending" ||
-            this.um.activeUpdate.state == "pending-service");
-  },
-
-  // true when there is an update already installed in the background.
-  get isApplied() {
     if (this.update)
-      return this.update.state == "applied" ||
-             this.update.state == "applied-service";
-    return this.um.activeUpdate &&
-           (this.um.activeUpdate.state == "applied" ||
-            this.um.activeUpdate.state == "applied-service");
+      return this.update.state == "pending";
+    return this.um.activeUpdate && this.um.activeUpdate.state == "pending";
   },
 
   // true when there is an update download in progress.
@@ -186,6 +191,13 @@ appUpdater.prototype =
       return this.update.state == "downloading";
     return this.um.activeUpdate &&
            this.um.activeUpdate.state == "downloading";
+  },
+
+  // true when the update type is major.
+  get isMajor() {
+    if (this.update)
+      return this.update.type == "major";
+    return this.um.activeUpdate.type == "major";
   },
 
   // true when updating is disabled by an administrator.
@@ -203,12 +215,6 @@ appUpdater.prototype =
     return true; // Firefox default is true
   },
 
-  // true when updating in background is enabled.
-  get backgroundUpdateEnabled() {
-    return this.updateEnabled &&
-           gAppUpdater.aus.canStageUpdates;
-  },
-
   // true when updating is automatic.
   get updateAuto() {
     try {
@@ -219,64 +225,36 @@ appUpdater.prototype =
   },
 
   /**
-   * Sets the panel of the updateDeck.
+   * Sets the deck's selected panel.
    *
    * @param  aChildID
-   *         The id of the deck's child to select, e.g. "apply".
+   *         The id of the deck's child to select.
    */
   selectPanel: function(aChildID) {
-    let panel = document.getElementById(aChildID);
-
-    let button = panel.querySelector("button");
-    if (button) {
-      if (aChildID == "downloadAndInstall") {
-        let updateVersion = gAppUpdater.update.displayVersion;
-        button.label = this.bundle.formatStringFromName("update.downloadAndInstallButton.label", [updateVersion], 1);
-        button.accessKey = this.bundle.GetStringFromName("update.downloadAndInstallButton.accesskey");
-      }
-      this.updateDeck.selectedPanel = panel;
-      if (!document.commandDispatcher.focusedElement || // don't steal the focus
-          document.commandDispatcher.focusedElement.localName == "button") // except from the other buttons
-        button.focus();
-
-    } else {
-      this.updateDeck.selectedPanel = panel;
-    }
+    this.updateDeck.selectedPanel = document.getElementById(aChildID);
+    this.updateBtn.disabled = (aChildID != "updateButtonBox");
   },
 
   /**
-   * Check for updates
+   * Sets the update button's label and accesskey.
+   *
+   * @param  aKeyPrefix
+   *         The prefix for the properties file entry to use for setting the
+   *         label and accesskey.
    */
-  checkForUpdates: function() {
-    this.selectPanel("checkingForUpdates");
-    this.isChecking = true;
-    this.checker.checkForUpdates(this.updateCheckListener, true);
-    // after checking, onCheckComplete() is called
+  setupUpdateButton: function(aKeyPrefix) {
+    this.updateBtn.label = this.bundle.GetStringFromName(aKeyPrefix + ".label");
+    this.updateBtn.accessKey = this.bundle.GetStringFromName(aKeyPrefix + ".accesskey");
+    if (!document.commandDispatcher.focusedElement ||
+        document.commandDispatcher.focusedElement.isSameNode(this.updateBtn))
+      this.updateBtn.focus();
   },
 
   /**
-   * Check for addon compat, or start the download right away
+   * Handles oncommand for the update button.
    */
-  doUpdate: function() {
-    // skip the compatibility check if the update doesn't provide appVersion,
-    // or the appVersion is unchanged, e.g. nightly update
-    if (!this.update.appVersion ||
-        Services.vc.compare(gAppUpdater.update.appVersion,
-                            Services.appinfo.version) == 0) {
-      this.startDownload();
-    } else {
-      this.checkAddonCompatibility();
-    }
-  },
-
-  /**
-   * Handles oncommand for the "Restart to Update" button
-   * which is presented after the download has been downloaded.
-   */
-  buttonRestartAfterDownload: function() {
-    if (!this.isPending && !this.isApplied)
-      return;
-
+  buttonOnCommand: function() {
+    if (this.isPending) {
       // Notify all windows that an application quit has been requested.
       let cancelQuit = Components.classes["@mozilla.org/supports-PRBool;1"].
                        createInstance(Components.interfaces.nsISupportsPRBool);
@@ -286,40 +264,53 @@ appUpdater.prototype =
       if (cancelQuit.data)
         return;
 
-      let appStartup = Components.classes["@mozilla.org/toolkit/app-startup;1"].
-                       getService(Components.interfaces.nsIAppStartup);
-
       // If already in safe mode restart in safe mode (bug 327119)
       if (Services.appinfo.inSafeMode) {
-        appStartup.restartInSafeMode(Components.interfaces.nsIAppStartup.eAttemptQuit);
-        return;
+        let env = Components.classes["@mozilla.org/process/environment;1"].
+                  getService(Components.interfaces.nsIEnvironment);
+        env.set("MOZ_SAFE_MODE_RESTART", "1");
       }
 
-      appStartup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                      Components.interfaces.nsIAppStartup.eRestart);
-    },
+      Components.classes["@mozilla.org/toolkit/app-startup;1"].
+      getService(Components.interfaces.nsIAppStartup).
+      quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
+           Components.interfaces.nsIAppStartup.eRestart);
+      return;
+    }
 
-  /**
-   * Handles oncommand for the "Apply Update…" button
-   * which is presented if we need to show the billboard or license.
-   */
-  buttonApplyBillboard: function() {
     const URI_UPDATE_PROMPT_DIALOG = "chrome://mozapps/content/update/updates.xul";
-    var ary = null;
-    ary = Components.classes["@mozilla.org/supports-array;1"].
-          createInstance(Components.interfaces.nsISupportsArray);
-    ary.AppendElement(this.update);
-    var openFeatures = "chrome,centerscreen,dialog=no,resizable=no,titlebar,toolbar=no";
-    Services.ww.openWindow(null, URI_UPDATE_PROMPT_DIALOG, "", openFeatures, ary);
-    window.close(); // close the "About" window; updates.xul takes over.
+    // Firefox no longer displays a license for updates and the licenseURL check
+    // is just in case a distibution does.
+    if (this.update && (this.update.billboardURL || this.update.licenseURL ||
+        this.addons.length != 0)) {
+      var ary = null;
+      ary = Components.classes["@mozilla.org/supports-array;1"].
+            createInstance(Components.interfaces.nsISupportsArray);
+      ary.AppendElement(this.update);
+      var openFeatures = "chrome,centerscreen,dialog=no,resizable=no,titlebar,toolbar=no";
+      Services.ww.openWindow(null, URI_UPDATE_PROMPT_DIALOG, "", openFeatures, ary);
+      window.close();
+      return;
+    }
+
+    this.selectPanel("checkingForUpdates");
+    this.isChecking = true;
+    this.checker.checkForUpdates(this.updateCheckListener, true);
   },
 
   /**
    * Implements nsIUpdateCheckListener. The methods implemented by
-   * nsIUpdateCheckListener are in a different scope from nsIIncrementalDownload
-   * to make it clear which are used by each interface.
+   * nsIUpdateCheckListener have to be in a different scope from
+   * nsIIncrementalDownload because both nsIUpdateCheckListener and
+   * nsIIncrementalDownload implement onProgress.
    */
   updateCheckListener: {
+    /**
+     * See nsIUpdateService.idl
+     */
+    onProgress: function(aRequest, aPosition, aTotalSize) {
+    },
+
     /**
      * See nsIUpdateService.idl
      */
@@ -332,15 +323,6 @@ appUpdater.prototype =
         return;
       }
 
-      if (gAppUpdater.update.unsupported) {
-        if (gAppUpdater.update.detailsURL) {
-          let unsupportedLink = document.getElementById("unsupportedLink");
-          unsupportedLink.href = gAppUpdater.update.detailsURL;
-        }
-        gAppUpdater.selectPanel("unsupportedSystem");
-        return;
-      }
-
       if (!gAppUpdater.aus.canApplyUpdates) {
         gAppUpdater.selectPanel("manualUpdate");
         return;
@@ -349,14 +331,21 @@ appUpdater.prototype =
       // Firefox no longer displays a license for updates and the licenseURL
       // check is just in case a distibution does.
       if (gAppUpdater.update.billboardURL || gAppUpdater.update.licenseURL) {
-        gAppUpdater.selectPanel("applyBillboard");
+        gAppUpdater.selectPanel("updateButtonBox");
+        gAppUpdater.setupUpdateButton("update.openUpdateUI." +
+                                      (this.isMajor ? "upgradeButton"
+                                                    : "applyButton"));
         return;
       }
 
-      if (gAppUpdater.updateAuto) // automatically download and install
-        gAppUpdater.doUpdate();
-      else // ask
-        gAppUpdater.selectPanel("downloadAndInstall");
+      if (!gAppUpdater.update.appVersion ||
+          Services.vc.compare(gAppUpdater.update.appVersion,
+                              Services.appinfo.version) == 0) {
+        gAppUpdater.startDownload();
+        return;
+      }
+
+      gAppUpdater.checkAddonCompatibility();
     },
 
     /**
@@ -368,6 +357,7 @@ appUpdater.prototype =
       // notified with the normal app update user interface so this is safe.
       gAppUpdater.isChecking = false;
       gAppUpdater.selectPanel("noUpdatesFound");
+      return;
     },
 
     /**
@@ -385,11 +375,6 @@ appUpdater.prototype =
    * Checks the compatibility of add-ons for the application update.
    */
   checkAddonCompatibility: function() {
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     var self = this;
     AddonManager.getAllAddons(function(aAddons) {
       self.addons = [];
@@ -414,10 +399,9 @@ appUpdater.prototype =
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (aAddon.type != "plugin" && aAddon.id != hotfixID &&
+          if (aAddon.type != "plugin" &&
               !aAddon.appDisabled && !aAddon.userDisabled &&
               aAddon.scope != AddonManager.SCOPE_APPLICATION &&
               aAddon.isCompatible &&
@@ -467,9 +451,9 @@ appUpdater.prototype =
    * See XPIProvider.jsm
    */
   onUpdateAvailable: function(aAddon, aInstall) {
-    if (!Services.blocklist.isAddonBlocklisted(aAddon,
-                                               this.update.appVersion,
-                                               this.update.platformVersion)) {
+    if (!this.bs.isAddonBlocklisted(aAddon.id, aInstall.version,
+                                    this.update.appVersion,
+                                    this.update.platformVersion)) {
       // Compatibility or new version updates mean the same thing here.
       this.onCompatibilityUpdateAvailable(aAddon);
     }
@@ -490,7 +474,9 @@ appUpdater.prototype =
       return;
     }
 
-    this.selectPanel("applyBillboard");
+    this.selectPanel("updateButtonBox");
+    this.setupUpdateButton("update.openUpdateUI." +
+                           (this.isMajor ? "upgradeButton" : "applyButton"));
   },
 
   /**
@@ -505,17 +491,10 @@ appUpdater.prototype =
     this.aus.pauseDownload();
     let state = this.aus.downloadUpdate(this.update, false);
     if (state == "failed") {
-      this.selectPanel("downloadFailed");
+      this.selectPanel("downloadFailed");      
       return;
     }
 
-    this.setupDownloadingUI();
-  },
-
-  /**
-   * Switches to the UI responsible for tracking the download.
-   */
-  setupDownloadingUI: function() {
     this.downloadStatus = document.getElementById("downloadStatus");
     this.downloadStatus.value =
       DownloadUtils.getTransferTotal(0, this.update.selectedPatch.size);
@@ -524,9 +503,7 @@ appUpdater.prototype =
   },
 
   removeDownloadListener: function() {
-    if (this.aus) {
-      this.aus.removeDownloadListener(this);
-    }
+    this.aus.removeDownloadListener(this);
   },
 
   /**
@@ -557,41 +534,16 @@ appUpdater.prototype =
       break;
     case Components.results.NS_OK:
       this.removeDownloadListener();
-      if (this.backgroundUpdateEnabled) {
-        this.selectPanel("applying");
-        let update = this.um.activeUpdate;
-        let self = this;
-        Services.obs.addObserver(function (aSubject, aTopic, aData) {
-          // Update the UI when the background updater is finished
-          let status = aData;
-          if (status == "applied" || status == "applied-service" ||
-              status == "pending" || status == "pending-service") {
-            // If the update is successfully applied, or if the updater has
-            // fallen back to non-staged updates, show the "Restart to Update"
-            // button.
-            self.selectPanel("apply");
-          } else if (status == "failed") {
-            // Background update has failed, let's show the UI responsible for
-            // prompting the user to update manually.
-            self.selectPanel("downloadFailed");
-          } else if (status == "downloading") {
-            // We've fallen back to downloading the full update because the
-            // partial update failed to get staged in the background.
-            // Therefore we need to keep our observer.
-            self.setupDownloadingUI();
-            return;
-          }
-          Services.obs.removeObserver(arguments.callee, "update-staged");
-        }, "update-staged", false);
-      } else {
-        this.selectPanel("apply");
-      }
+      this.selectPanel("updateButtonBox");
+      this.setupUpdateButton("update.restart." +
+                             (this.isMajor ? "upgradeButton" : "applyButton"));
       break;
     default:
       this.removeDownloadListener();
       this.selectPanel("downloadFailed");
       break;
     }
+
   },
 
   /**

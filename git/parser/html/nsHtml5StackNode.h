@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2007-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -26,23 +26,27 @@
  * Please edit StackNode.java instead and regenerate.
  */
 
-#ifndef nsHtml5StackNode_h
-#define nsHtml5StackNode_h
+#ifndef nsHtml5StackNode_h__
+#define nsHtml5StackNode_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
-#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -60,34 +64,34 @@ class nsHtml5Portability;
 class nsHtml5StackNode
 {
   public:
-    int32_t flags;
+    PRInt32 flags;
     nsIAtom* name;
     nsIAtom* popName;
-    int32_t ns;
-    nsIContentHandle* node;
+    PRInt32 ns;
+    nsIContent** node;
     nsHtml5HtmlAttributes* attributes;
   private:
-    int32_t refcount;
+    PRInt32 refcount;
   public:
-    inline int32_t getFlags()
+    inline PRInt32 getFlags()
     {
       return flags;
     }
 
-    int32_t getGroup();
-    bool isScoping();
-    bool isSpecial();
-    bool isFosterParenting();
-    bool isHtmlIntegrationPoint();
-    nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
-    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node);
-    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsHtml5HtmlAttributes* attributes);
-    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName);
-    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContentHandle* node);
-    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName, bool markAsIntegrationPoint);
+    PRInt32 getGroup();
+    PRBool isScoping();
+    PRBool isSpecial();
+    PRBool isFosterParenting();
+    PRBool isHtmlIntegrationPoint();
+    nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
+    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node);
+    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes);
+    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName);
+    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContent** node);
+    nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool markAsIntegrationPoint);
   private:
-    static int32_t prepareSvgFlags(int32_t flags);
-    static int32_t prepareMathFlags(int32_t flags, bool markAsIntegrationPoint);
+    static PRInt32 prepareSvgFlags(PRInt32 flags);
+    static PRInt32 prepareMathFlags(PRInt32 flags, PRBool markAsIntegrationPoint);
   public:
     ~nsHtml5StackNode();
     void dropAttributes();

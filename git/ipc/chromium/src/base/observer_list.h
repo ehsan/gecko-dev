@@ -12,12 +12,6 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 
-#if defined(ANDROID) && defined(_STLP_STD_NAME)
-using _STLP_STD_NAME::find;
-#endif
-
-namespace base {
-
 ///////////////////////////////////////////////////////////////////////////////
 //
 // OVERVIEW:
@@ -77,7 +71,7 @@ class ObserverList {
   };
 
   ObserverList() : notify_depth_(0), type_(NOTIFY_ALL) {}
-  explicit ObserverList(NotificationType type) : notify_depth_(0), type_(type) {}
+  ObserverList(NotificationType type) : notify_depth_(0), type_(type) {}
   ~ObserverList() {
     // When check_empty is true, assert that the list is empty on destruction.
     if (check_empty) {
@@ -118,7 +112,7 @@ class ObserverList {
   // also the FOREACH_OBSERVER macro defined below.
   class Iterator {
    public:
-    explicit Iterator(const ObserverList<ObserverType>& list)
+    Iterator(const ObserverList<ObserverType>& list)
         : list_(list),
           index_(0),
           max_index_(list.type_ == NOTIFY_ALL ?
@@ -171,14 +165,12 @@ class ObserverList {
   DISALLOW_EVIL_CONSTRUCTORS(ObserverList);
 };
 
-} // namespace base
-
-#define FOR_EACH_OBSERVER(ObserverType, observer_list, func)		\
-  do {									\
-    base::ObserverList<ObserverType>::Iterator it(observer_list);	\
-    ObserverType* obs;							\
-    while ((obs = it.GetNext()) != NULL)				\
-      obs->func;							\
+#define FOR_EACH_OBSERVER(ObserverType, observer_list, func)  \
+  do {                                                        \
+    ObserverList<ObserverType>::Iterator it(observer_list);   \
+    ObserverType* obs;                                        \
+    while ((obs = it.GetNext()) != NULL)                      \
+      obs->func;                                              \
   } while (0)
 
 #endif  // BASE_OBSERVER_LIST_H__

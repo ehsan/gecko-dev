@@ -29,27 +29,13 @@ function do_run_test() {
   var spec2 = "http://bar.com/bar.html";
   var uri1 = NetUtil.newURI(spec1);
   var uri2 = NetUtil.newURI(spec2);
-  var channel1 = NetUtil.newChannel2(uri1,
-                                     null,
-                                     null,
-                                     null,      // aLoadingNode
-                                     Services.scriptSecurityManager.getSystemPrincipal(),
-                                     null,      // aTriggeringPrincipal
-                                     Ci.nsILoadInfo.SEC_NORMAL,
-                                     Ci.nsIContentPolicy.TYPE_OTHER);
-  var channel2 = NetUtil.newChannel2(uri2,
-                                     null,
-                                     null,
-                                     null,      // aLoadingNode
-                                     Services.scriptSecurityManager.getSystemPrincipal(),
-                                     null,      // aTriggeringPrincipal
-                                     Ci.nsILoadInfo.SEC_NORMAL,
-                                     Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel1 = NetUtil.newChannel(uri1);
+  var channel2 = NetUtil.newChannel(uri2);
 
   // Force the channel URI to be used when determining the originating URI of
   // the channel.
   var httpchannel1 = channel1.QueryInterface(Ci.nsIHttpChannelInternal);
-  var httpchannel2 = channel2.QueryInterface(Ci.nsIHttpChannelInternal);
+  var httpchannel2 = channel1.QueryInterface(Ci.nsIHttpChannelInternal);
   httpchannel1.forceAllowThirdPartyCookie = true;
   httpchannel2.forceAllowThirdPartyCookie = true;
 
@@ -66,9 +52,15 @@ function do_run_test() {
   do_check_eq(Services.cookies.countCookiesFromHost(uri1.host), 4);
   do_check_eq(Services.cookies.countCookiesFromHost(uri2.host), 0);
 
+  // cleanse them
+  do_close_profile(test_generator, "shutdown-cleanse");
+  yield;
+  do_load_profile();
+  do_check_eq(Services.cookies.countCookiesFromHost(uri1.host), 0);
+  do_check_eq(Services.cookies.countCookiesFromHost(uri2.host), 0);
+
   // test with third party cookies for session only.
   Services.prefs.setBoolPref("network.cookie.thirdparty.sessionOnly", true);
-  Services.cookies.removeAll();
   do_set_cookies(uri1, channel2, false, [1, 2, 3, 4]);
   do_set_cookies(uri2, channel1, true, [1, 2, 3, 4]);
 
@@ -81,3 +73,4 @@ function do_run_test() {
 
   finish_test();
 }
+

@@ -1,86 +1,46 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
-// Log on level :5, instead of default :4.
-#undef LOG
-#define LOG(args) LOG5(args)
-#undef LOG_ENABLED
-#define LOG_ENABLED() LOG5_ENABLED()
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHttpConnectionInfo.h"
-#include "mozilla/net/DNS.h"
-#include "prnetdb.h"
-
-namespace mozilla {
-namespace net {
-
-nsHttpConnectionInfo::nsHttpConnectionInfo(const nsACString &physicalHost,
-                                           int32_t physicalPort,
-                                           const nsACString &npnToken,
-                                           const nsACString &username,
-                                           nsProxyInfo *proxyInfo,
-                                           bool endToEndSSL)
-    : mAuthenticationPort(443)
-{
-    Init(physicalHost, physicalPort, npnToken, username, proxyInfo, endToEndSSL);
-}
-
-nsHttpConnectionInfo::nsHttpConnectionInfo(const nsACString &physicalHost,
-                                           int32_t physicalPort,
-                                           const nsACString &npnToken,
-                                           const nsACString &username,
-                                           nsProxyInfo *proxyInfo,
-                                           const nsACString &logicalHost,
-                                           int32_t logicalPort)
-
-{
-    mEndToEndSSL = true; // so DefaultPort() works
-    mAuthenticationPort = logicalPort == -1 ? DefaultPort() : logicalPort;
-
-    if (!physicalHost.Equals(logicalHost) || (physicalPort != logicalPort)) {
-        mAuthenticationHost = logicalHost;
-    }
-    Init(physicalHost, physicalPort, npnToken, username, proxyInfo, true);
-}
+#include "nsPrintfCString.h"
 
 void
-nsHttpConnectionInfo::Init(const nsACString &host, int32_t port,
-                           const nsACString &npnToken,
-                           const nsACString &username,
-                           nsProxyInfo* proxyInfo,
-                           bool e2eSSL)
-{
-    LOG(("Init nsHttpConnectionInfo @%p\n", this));
-
-    mUsername = username;
-    mProxyInfo = proxyInfo;
-    mEndToEndSSL = e2eSSL;
-    mUsingConnect = false;
-    mNPNToken = npnToken;
-
-    mUsingHttpsProxy = (proxyInfo && proxyInfo->IsHTTPS());
-    mUsingHttpProxy = mUsingHttpsProxy || (proxyInfo && proxyInfo->IsHTTP());
-
-    if (mUsingHttpProxy) {
-        mUsingConnect = mEndToEndSSL;  // SSL always uses CONNECT
-        uint32_t resolveFlags = 0;
-        if (NS_SUCCEEDED(mProxyInfo->GetResolveFlags(&resolveFlags)) &&
-            resolveFlags & nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL) {
-            mUsingConnect = true;
-        }
-    }
-
-    SetOriginServer(host, port);
-}
-
-void
-nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
+nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
 {
     mHost = host;
     mPort = port == -1 ? DefaultPort() : port;
@@ -96,166 +56,46 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
     //
 
     const char *keyHost;
-    int32_t keyPort;
+    PRInt32 keyPort;
 
-    if (mUsingHttpProxy && !mUsingConnect) {
+    if (mUsingHttpProxy && !mUsingSSL) {
         keyHost = ProxyHost();
         keyPort = ProxyPort();
-    } else {
+    }
+    else {
         keyHost = Host();
         keyPort = Port();
     }
 
-    // The hashkey has 4 fields followed by host connection info
-    // byte 0 is P/T/. {P,T} for Plaintext/TLS Proxy over HTTP
-    // byte 1 is S/. S is for end to end ssl such as https:// uris
-    // byte 2 is A/. A is for an anonymous channel (no cookies, etc..)
-    // byte 3 is P/. P is for a private browising channel
-    // byte 4 is R/. R is for 'relaxed' unauthed TLS for http:// uris
-    // byte 5 is X/. X is for disallow_spdy flag
-
-    mHashKey.AssignLiteral("......");
+    mHashKey.AssignLiteral("...");
     mHashKey.Append(keyHost);
     mHashKey.Append(':');
     mHashKey.AppendInt(keyPort);
-    if (!mUsername.IsEmpty()) {
-        mHashKey.Append('[');
-        mHashKey.Append(mUsername);
-        mHashKey.Append(']');
-    }
 
-    if (mUsingHttpsProxy) {
-        mHashKey.SetCharAt('T', 0);
-    } else if (mUsingHttpProxy) {
+    if (mUsingHttpProxy)
         mHashKey.SetCharAt('P', 0);
-    }
-    if (mEndToEndSSL) {
+    if (mUsingSSL)
         mHashKey.SetCharAt('S', 1);
-    }
 
     // NOTE: for transparent proxies (e.g., SOCKS) we need to encode the proxy
-    // info in the hash key (this ensures that we will continue to speak the
+    // type in the hash key (this ensures that we will continue to speak the
     // right protocol even if our proxy preferences change).
-    //
-    // NOTE: for SSL tunnels add the proxy information to the cache key.
-    // We cannot use the proxy as the host parameter (as we do for non SSL)
-    // because this is a single host tunnel, but we need to include the proxy
-    // information so that a change in proxy config will mean this connection
-    // is not reused
-
-    if ((!mUsingHttpProxy && ProxyHost()) ||
-        (mUsingHttpProxy && mUsingConnect)) {
+    if (!mUsingHttpProxy && ProxyHost()) {
         mHashKey.AppendLiteral(" (");
         mHashKey.Append(ProxyType());
-        mHashKey.Append(':');
-        mHashKey.Append(ProxyHost());
-        mHashKey.Append(':');
-        mHashKey.AppendInt(ProxyPort());
         mHashKey.Append(')');
-    }
-
-    if(!mAuthenticationHost.IsEmpty()) {
-        mHashKey.AppendLiteral(" <TLS-LOGIC ");
-        mHashKey.Append(mAuthenticationHost);
-        mHashKey.Append(':');
-        mHashKey.AppendInt(mAuthenticationPort);
-        mHashKey.Append('>');
-    }
-
-    if (!mNPNToken.IsEmpty()) {
-        mHashKey.AppendLiteral(" {NPN-TOKEN ");
-        mHashKey.Append(mNPNToken);
-        mHashKey.AppendLiteral("}");
     }
 }
 
 nsHttpConnectionInfo*
 nsHttpConnectionInfo::Clone() const
 {
-    nsHttpConnectionInfo *clone;
-    if (mAuthenticationHost.IsEmpty()) {
-        clone = new nsHttpConnectionInfo(mHost, mPort, mNPNToken, mUsername, mProxyInfo, mEndToEndSSL);
-    } else {
-        MOZ_ASSERT(mEndToEndSSL);
-        clone = new nsHttpConnectionInfo(mHost, mPort, mNPNToken, mUsername, mProxyInfo,
-                                         mAuthenticationHost,
-                                         mAuthenticationPort);
-    }
+    nsHttpConnectionInfo* clone = new nsHttpConnectionInfo(mHost, mPort, mProxyInfo, mUsingSSL);
+    if (!clone)
+        return nsnull;
 
-    // Make sure the anonymous, relaxed, and private flags are transferred
-    clone->SetAnonymous(GetAnonymous());
-    clone->SetPrivate(GetPrivate());
-    clone->SetRelaxed(GetRelaxed());
-    clone->SetNoSpdy(GetNoSpdy());
-    MOZ_ASSERT(clone->Equals(this));
-
+    // Make sure the anonymous flag is transferred!
+    clone->SetAnonymous(mHashKey.CharAt(2) == 'A');
+    
     return clone;
 }
-
-void
-nsHttpConnectionInfo::CloneAsDirectRoute(nsHttpConnectionInfo **outCI)
-{
-    if (mAuthenticationHost.IsEmpty()) {
-        *outCI = Clone();
-        return;
-    }
-
-    nsRefPtr<nsHttpConnectionInfo> clone =
-        new nsHttpConnectionInfo(mAuthenticationHost, mAuthenticationPort,
-                                 EmptyCString(), mUsername, mProxyInfo, mEndToEndSSL);
-    // Make sure the anonymous, relaxed, and private flags are transferred
-    clone->SetAnonymous(GetAnonymous());
-    clone->SetPrivate(GetPrivate());
-    clone->SetRelaxed(GetRelaxed());
-    clone->SetNoSpdy(GetNoSpdy());
-    clone.forget(outCI);
-}
-
-nsresult
-nsHttpConnectionInfo::CreateWildCard(nsHttpConnectionInfo **outParam)
-{
-    // T???mozilla.org:443 (https:proxy.ducksong.com:3128) [specifc form]
-    // TS??*:0 (https:proxy.ducksong.com:3128)   [wildcard form]
-
-    if (!mUsingHttpsProxy) {
-        MOZ_ASSERT(false);
-        return NS_ERROR_NOT_IMPLEMENTED;
-    }
-
-    nsRefPtr<nsHttpConnectionInfo> clone;
-    clone = new nsHttpConnectionInfo(NS_LITERAL_CSTRING("*"), 0,
-                                     mNPNToken, mUsername, mProxyInfo, true);
-    // Make sure the anonymous and private flags are transferred!
-    clone->SetAnonymous(GetAnonymous());
-    clone->SetPrivate(GetPrivate());
-    clone.forget(outParam);
-    return NS_OK;
-}
-
-bool
-nsHttpConnectionInfo::UsingProxy()
-{
-    if (!mProxyInfo)
-        return false;
-    return !mProxyInfo->IsDirect();
-}
-
-bool
-nsHttpConnectionInfo::HostIsLocalIPLiteral() const
-{
-    PRNetAddr prAddr;
-    // If the host/proxy host is not an IP address literal, return false.
-    if (ProxyHost()) {
-        if (PR_StringToNetAddr(ProxyHost(), &prAddr) != PR_SUCCESS) {
-          return false;
-        }
-    } else if (PR_StringToNetAddr(Host(), &prAddr) != PR_SUCCESS) {
-        return false;
-    }
-    NetAddr netAddr;
-    PRNetAddrToNetAddr(&prAddr, &netAddr);
-    return IsIPAddrLocal(&netAddr);
-}
-
-} // namespace mozilla::net
-} // namespace mozilla

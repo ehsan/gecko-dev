@@ -1,8 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original author)
+ *  Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ["WeaveCrypto"];
+const EXPORTED_SYMBOLS = ["WeaveCrypto"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -12,25 +45,17 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/ctypes.jsm");
 
-/**
- * Shortcuts for some algorithm SEC OIDs.  Full list available here:
- * http://lxr.mozilla.org/seamonkey/source/security/nss/lib/util/secoidt.h
- */
-const DES_EDE3_CBC = 156;
-const AES_128_CBC  = 184;
-const AES_192_CBC  = 186;
-const AES_256_CBC  = 188;
-
-const ALGORITHM                 = AES_256_CBC;
+const ALGORITHM                 = Ci.IWeaveCrypto.AES_256_CBC;
 const KEYSIZE_AES_256           = 32;
 const KEY_DERIVATION_ITERATIONS = 4096;   // PKCS#5 recommends at least 1000.
-const INITIAL_BUFFER_SIZE       = 1024;
 
-this.WeaveCrypto = function WeaveCrypto() {
+function WeaveCrypto() {
     this.init();
 }
 
 WeaveCrypto.prototype = {
+    QueryInterface: XPCOMUtils.generateQI([Ci.IWeaveCrypto]),
+
     prefBranch : null,
     debug      : true,  // services.sync.log.cryptoDebug
     nss        : null,
@@ -55,38 +80,18 @@ WeaveCrypto.prototype = {
         try {
             // Preferences. Add observer so we get notified of changes.
             this.prefBranch = Services.prefs.getBranch("services.sync.log.");
+            this.prefBranch.QueryInterface(Ci.nsIPrefBranch2);
             this.prefBranch.addObserver("cryptoDebug", this.observer, false);
             this.observer._self = this;
-            try {
-              this.debug = this.prefBranch.getBoolPref("cryptoDebug");
-            } catch (x) {
-              this.debug = false;
-            }
+            this.debug = this.prefBranch.getBoolPref("cryptoDebug");
 
             this.initNSS();
             this.initAlgorithmSettings();   // Depends on NSS.
             this.initIVSECItem();
-            this.initSharedInts();
-            this.initBuffers(INITIAL_BUFFER_SIZE);
         } catch (e) {
             this.log("init failed: " + e);
             throw e;
         }
-    },
-
-    // Avoid allocating new temporary ints on every run of _commonCrypt.
-    _commonCryptSignedOutputSize:       null,
-    _commonCryptSignedOutputSizeAddr:   null,
-    _commonCryptUnsignedOutputSize:     null,
-    _commonCryptUnsignedOutputSizeAddr: null,
-
-    initSharedInts: function initSharedInts() {
-        let signed   = new ctypes.int();
-        let unsigned = new ctypes.unsigned_int();
-        this._commonCryptSignedOutputSize       = signed;
-        this._commonCryptUnsignedOutputSize     = unsigned;
-        this._commonCryptSignedOutputSizeAddr   = signed.address();
-        this._commonCryptUnsignedOutputSizeAddr = unsigned.address();
     },
 
     /**
@@ -132,16 +137,17 @@ WeaveCrypto.prototype = {
 
         // XXX really want to be able to pass specific dlopen flags here.
         var nsslib;
-#ifdef MOZ_NATIVE_NSS
-        // Search platform-dependent library paths for system NSS.
-        this.log("Trying NSS library without path");
-        nsslib = ctypes.open(path);
-#else
-        let file = Services.dirsvc.get("GreBinD", Ci.nsILocalFile);
-        file.append(path);
-        this.log("Trying NSS library with path " + file.path);
-        nsslib = ctypes.open(file.path);
-#endif
+        try {
+            this.log("Trying NSS library without path");
+            nsslib = ctypes.open(path);
+        } catch(e) {
+            // In case opening the library without a full path fails,
+            // try again with a full path.
+            let file = Services.dirsvc.get("GreD", Ci.nsILocalFile);
+            file.append(path);
+            this.log("Trying again with path " + file.path);
+            nsslib = ctypes.open(file.path);
+        }
 
         this.log("Initializing NSS types and function declarations...");
 
@@ -355,68 +361,25 @@ WeaveCrypto.prototype = {
     },
 
 
-    _sharedInputBuffer:      null,
-    _sharedInputBufferInts:  null,
-    _sharedInputBufferSize:  0,
-    _sharedOutputBuffer:     null,
-    _sharedOutputBufferSize: 0,
-    _randomByteBuffer:       null,
-    _randomByteBufferAddr:   null,
-    _randomByteBufferSize:   0,
-
-    _getInputBuffer: function _getInputBuffer(size) {
-      if (size > this._sharedInputBufferSize) {
-        let b = new ctypes.ArrayType(ctypes.unsigned_char, size)();
-        this._sharedInputBuffer     = b;
-        this._sharedInputBufferInts = ctypes.cast(b, ctypes.uint8_t.array(size));
-        this._sharedInputBufferSize = size;
-      }
-      return this._sharedInputBuffer;
-    },
-
-    _getOutputBuffer: function _getOutputBuffer(size) {
-      if (size > this._sharedOutputBufferSize) {
-        let b = new ctypes.ArrayType(ctypes.unsigned_char, size)();
-        this._sharedOutputBuffer     = b;
-        this._sharedOutputBufferSize = size;
-      }
-      return this._sharedOutputBuffer;
-    },
-
-    _getRandomByteBuffer: function _getRandomByteBuffer(size) {
-        if (size > this._randomByteBufferSize) {
-          let b = new ctypes.ArrayType(ctypes.unsigned_char, size)();
-          this._randomByteBuffer     = b;
-          this._randomByteBufferAddr = b.address();
-          this._randomByteBufferSize = size;
-        }
-        return this._randomByteBuffer;
-    },
-
-    initBuffers: function initBuffers(initialSize) {
-        this._getInputBuffer(initialSize);
-        this._getOutputBuffer(initialSize);
-
-        this._getRandomByteBuffer(this.ivLength);
-    },
+    //
+    // IWeaveCrypto interfaces
+    //
 
     encrypt : function(clearTextUCS2, symmetricKey, iv) {
         this.log("encrypt() called");
 
         // js-ctypes autoconverts to a UTF8 buffer, but also includes a null
-        // at the end which we don't want. Decrement length to skip it.
+        // at the end which we don't want. Cast to make the length 1 byte shorter.
         let inputBuffer = new ctypes.ArrayType(ctypes.unsigned_char)(clearTextUCS2);
-        let inputBufferSize = inputBuffer.length - 1;
+        inputBuffer = ctypes.cast(inputBuffer, ctypes.unsigned_char.array(inputBuffer.length - 1));
 
         // When using CBC padding, the output size is the input size rounded
         // up to the nearest block. If the input size is exactly on a block
         // boundary, the output is 1 extra block long.
-        let outputBufferSize = inputBufferSize + this.blockSize;
-        let outputBuffer = this._getOutputBuffer(outputBufferSize);
+        let outputBufferSize = inputBuffer.length + this.blockSize;
+        let outputBuffer = new ctypes.ArrayType(ctypes.unsigned_char, outputBufferSize)();
 
-        outputBuffer = this._commonCrypt(inputBuffer, inputBufferSize,
-                                         outputBuffer, outputBufferSize,
-                                         symmetricKey, iv, this.nss.CKA_ENCRYPT);
+        outputBuffer = this._commonCrypt(inputBuffer, outputBuffer, symmetricKey, iv, this.nss.CKA_ENCRYPT);
 
         return this.encodeBase64(outputBuffer.address(), outputBuffer.length);
     },
@@ -432,15 +395,16 @@ WeaveCrypto.prototype = {
         // We can't have js-ctypes create the buffer directly from the string
         // (as in encrypt()), because we do _not_ want it to do UTF8
         // conversion... We've got random binary data in the input's low byte.
-        //
+        // 
         // Compress a JS string (2-byte chars) into a normal C string (1-byte chars).
         let len   = inputUCS2.length;
-        let input = this._getInputBuffer(len);
-        this.byteCompressInts(inputUCS2, this._sharedInputBufferInts, len);
+        let input = new ctypes.ArrayType(ctypes.unsigned_char, len)();
+        let ints  = ctypes.cast(input, ctypes.uint8_t.array(len));
+        this.byteCompressInts(inputUCS2, ints, len);
 
-        let outputBuffer = this._commonCrypt(input, len,
-                                             this._getOutputBuffer(len), len,
-                                             symmetricKey, iv, this.nss.CKA_DECRYPT);
+        let outputBuffer = new ctypes.ArrayType(ctypes.unsigned_char, input.length)();
+
+        outputBuffer = this._commonCrypt(input, outputBuffer, symmetricKey, iv, this.nss.CKA_DECRYPT);
 
         // outputBuffer contains UTF-8 data, let js-ctypes autoconvert that to a JS string.
         // XXX Bug 573842: wrap the string from ctypes to get a new string, so
@@ -448,14 +412,13 @@ WeaveCrypto.prototype = {
         return "" + outputBuffer.readString() + "";
     },
 
-    _commonCrypt : function (input, inputLength, output, outputLength, symmetricKey, iv, operation) {
+
+    _commonCrypt : function (input, output, symmetricKey, iv, operation) {
         this.log("_commonCrypt() called");
         iv = atob(iv);
 
         // We never want an IV longer than the block size, which is 16 bytes
-        // for AES. Neither do we want one smaller; throw in that case.
-        if (iv.length < this.blockSize)
-            throw "IV too short; must be " + this.blockSize + " bytes.";
+        // for AES.
         if (iv.length > this.blockSize)
             iv = iv.slice(0, this.blockSize);
 
@@ -473,21 +436,24 @@ WeaveCrypto.prototype = {
             if (ctx.isNull())
                 throw Components.Exception("couldn't create context for symkey", Cr.NS_ERROR_FAILURE);
 
-            let maxOutputSize = outputLength;
-            if (this.nss.PK11_CipherOp(ctx, output, this._commonCryptSignedOutputSize.address(), maxOutputSize, input, inputLength))
+            let maxOutputSize = output.length;
+            let tmpOutputSize = new ctypes.int(); // Note 1: NSS uses a signed int here...
+
+            if (this.nss.PK11_CipherOp(ctx, output, tmpOutputSize.address(), maxOutputSize, input, input.length))
                 throw Components.Exception("cipher operation failed", Cr.NS_ERROR_FAILURE);
 
-            let actualOutputSize = this._commonCryptSignedOutputSize.value;
+            let actualOutputSize = tmpOutputSize.value;
             let finalOutput = output.addressOfElement(actualOutputSize);
             maxOutputSize -= actualOutputSize;
 
             // PK11_DigestFinal sure sounds like the last step for *hashing*, but it
             // just seems to be an odd name -- NSS uses this to finish the current
             // cipher operation. You'd think it would be called PK11_CipherOpFinal...
-            if (this.nss.PK11_DigestFinal(ctx, finalOutput, this._commonCryptUnsignedOutputSizeAddr, maxOutputSize))
+            let tmpOutputSize2 = new ctypes.unsigned_int(); // Note 2: ...but an unsigned here!
+            if (this.nss.PK11_DigestFinal(ctx, finalOutput, tmpOutputSize2.address(), maxOutputSize))
                 throw Components.Exception("cipher finalize failed", Cr.NS_ERROR_FAILURE);
 
-            actualOutputSize += this._commonCryptUnsignedOutputSize.value;
+            actualOutputSize += tmpOutputSize2.value;
             let newOutput = ctypes.cast(output, ctypes.unsigned_char.array(actualOutputSize));
             return newOutput;
         } catch (e) {
@@ -544,11 +510,11 @@ WeaveCrypto.prototype = {
         this.log("generateRandomBytes() called");
 
         // Temporary buffer to hold the generated data.
-        let scratch = this._getRandomByteBuffer(byteCount);
+        let scratch = new ctypes.ArrayType(ctypes.unsigned_char, byteCount)();
         if (this.nss.PK11_GenerateRandom(scratch, byteCount))
             throw Components.Exception("PK11_GenrateRandom failed", Cr.NS_ERROR_FAILURE);
 
-        return this.encodeBase64(this._randomByteBufferAddr, byteCount);
+        return this.encodeBase64(scratch.address(), scratch.length);
     },
 
     //
@@ -611,13 +577,18 @@ WeaveCrypto.prototype = {
      * Compress a JS string into a C uint8 array. count is the number of
      * elements in the destination array. If the array is smaller than the
      * string, the string is effectively truncated. If the string is smaller
-     * than the array, the array is not 0-padded.
+     * than the array, the array is 0-padded.
      */
     byteCompressInts : function byteCompressInts (jsString, intArray, count) {
         let len = jsString.length;
         let end = Math.min(len, count);
+
         for (let i = 0; i < end; i++)
-            intArray[i] = jsString.charCodeAt(i) & 0xFF;  // convert to bytes.
+            intArray[i] = jsString.charCodeAt(i) % 256; // convert to bytes
+
+        // Must zero-pad.
+        for (let i = len; i < count; i++)
+            intArray[i] = 0;
     },
 
     // Expand a normal C string (1-byte chars) into a JS string (2-byte chars)
@@ -708,7 +679,7 @@ WeaveCrypto.prototype = {
         // Callee picks if SEC_OID_UNKNOWN, but only SHA1 is supported.
         let prfAlg    = this.nss.SEC_OID_HMAC_SHA1;
 
-        keyLength  = keyLength || 0;    // 0 = Callee will pick.
+        let keyLength  = keyLength || 0;    // 0 = Callee will pick.
         let iterations = KEY_DERIVATION_ITERATIONS;
 
         let algid, slot, symKey, keyData;

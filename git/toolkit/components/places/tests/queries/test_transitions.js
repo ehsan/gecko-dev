@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
   Any copyright is dedicated to the Public Domain.
@@ -88,21 +88,16 @@ var testDataBookmark = [3, 8, 11];
  * harness.  It is where you do the work of creating the query, running it, and
  * playing with the result set.
  */
-function run_test()
-{
-  run_next_test();
-}
+function run_test() {
 
-add_task(function test_transitions()
-{
   let timeNow = Date.now();
   for each (let item in testData) {
-    yield promiseAddVisits({
-      uri: uri(item.uri),
-      transition: item.transType,
-      visitDate: timeNow++ * 1000,
-      title: item.title
-    });
+    PlacesUtils.history.addVisit(uri(item.uri), timeNow++ * 1000, null,
+      item.transType, false, 0);
+  }
+
+  for (let i in testData) {
+    testData[i].title = null;
   }
 
   //dump_table("moz_places");
@@ -150,13 +145,15 @@ add_task(function test_transitions()
   var root = result.root;
   root.containerOpen = true;
   do_check_eq(testDataDownload.length, root.childCount);
-  yield promiseAddVisits({
-    uri: uri("http://getfirefox.com"),
-    transition: TRANSITION_DOWNLOAD
-  });
+  PlacesUtils.history
+      .addVisit(PlacesUtils._uri("http://getfirefox.com"),
+                Date.now() * 1000, null,
+                Ci.nsINavHistoryService.TRANSITION_DOWNLOAD, false, 0);
   do_check_eq(testDataDownload.length + 1, root.childCount);
   root.containerOpen = false;
-});
+
+  PlacesUtils.bhistory.removeAllPages();
+}
 
 /*
  * Takes a query and a set of indices. The indices correspond to elements

@@ -1,8 +1,41 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mike Shaver <shaver@mozilla.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Implementation of nsIFile for ``Unixy'' systems.
@@ -20,119 +53,111 @@
 #include "nsReadableUtils.h"
 #include "nsIHashable.h"
 #include "nsIClassInfoImpl.h"
-#include "mozilla/Attributes.h"
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #endif
 
-/**
+/** 
  *  we need these for statfs()
  */
 #ifdef HAVE_SYS_STATVFS_H
-  #if defined(__osf__) && defined(__DECCXX)
-    extern "C" int statvfs(const char *, struct statvfs *);
-  #endif
-  #include <sys/statvfs.h>
+    #if defined(__osf__) && defined(__DECCXX)
+        extern "C" int statvfs(const char *, struct statvfs *);
+    #endif
+    #include <sys/statvfs.h>
 #endif
 
 #ifdef HAVE_SYS_STATFS_H
-  #include <sys/statfs.h>
+    #include <sys/statfs.h>
 #endif
 
-#ifdef HAVE_SYS_VFS_H
-  #include <sys/vfs.h>
+#if defined(XP_MACOSX) && (defined(HAVE_STATVFS64) || !defined(HAVE_STATVFS))
+#error "Double-check which members of the 'STATFS' struct we're using!"
 #endif
 
-#ifdef HAVE_SYS_MOUNT_H
-  #include <sys/param.h>
-  #include <sys/mount.h>
-#endif
-
-#if defined(HAVE_STATVFS64) && (!defined(LINUX) && !defined(__osf__))
-  #define STATFS statvfs64
-  #define F_BSIZE f_frsize
-#elif defined(HAVE_STATVFS) && (!defined(LINUX) && !defined(__osf__))
-  #define STATFS statvfs
-  #define F_BSIZE f_frsize
-#elif defined(HAVE_STATFS64)
-  #define STATFS statfs64
-  #define F_BSIZE f_bsize
-#elif defined(HAVE_STATFS)
-  #define STATFS statfs
-  #define F_BSIZE f_bsize
-#endif
-
-// stat64 and lstat64 are deprecated on OS X. Normal stat and lstat are
-// 64-bit by default on OS X 10.6+.
-#if defined(HAVE_STAT64) && defined(HAVE_LSTAT64) && !defined(XP_MACOSX)
-  #if defined (AIX)
-    #if defined STAT
-      #undef STAT
+#ifdef HAVE_STATVFS64
+    #define STATFS statvfs64
+#else
+    #ifdef HAVE_STATVFS
+        #define STATFS statvfs
+    #else
+        #define STATFS statfs
     #endif
-  #endif
-  #define STAT stat64
-  #define LSTAT lstat64
-  #define HAVE_STATS64 1
+#endif
+
+// so we can statfs on freebsd
+#if defined(__FreeBSD__)
+    #define HAVE_SYS_STATFS_H
+    #define STATFS statfs
+    #include <sys/param.h>
+    #include <sys/mount.h>
+#endif
+
+#if defined(HAVE_STAT64) && defined(HAVE_LSTAT64)
+    #if defined (AIX)
+        #if defined STAT
+            #undef STAT
+        #endif
+    #endif
+    #define STAT stat64
+    #define LSTAT lstat64
+    #define HAVE_STATS64 1
 #else
-  #define STAT stat
-  #define LSTAT lstat
+    #define STAT stat
+    #define LSTAT lstat
 #endif
 
 
-class nsLocalFile MOZ_FINAL
-#ifdef MOZ_WIDGET_COCOA
-  : public nsILocalFileMac
+class NS_COM nsLocalFile :
+#ifdef XP_MACOSX
+                           public nsILocalFileMac,
 #else
-  : public nsILocalFile
+                           public nsILocalFile,
 #endif
-  , public nsIHashable
+                           public nsIHashable
 {
 public:
-  NS_DEFINE_STATIC_CID_ACCESSOR(NS_LOCAL_FILE_CID)
+    NS_DEFINE_STATIC_CID_ACCESSOR(NS_LOCAL_FILE_CID)
+    
+    nsLocalFile();
 
-  nsLocalFile();
+    static nsresult nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
 
-  static nsresult nsLocalFileConstructor(nsISupports* aOuter,
-                                         const nsIID& aIID,
-                                         void** aInstancePtr);
-
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIFILE
-  NS_DECL_NSILOCALFILE
-#ifdef MOZ_WIDGET_COCOA
-  NS_DECL_NSILOCALFILEMAC
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIFILE
+    NS_DECL_NSILOCALFILE
+#ifdef XP_MACOSX
+    NS_DECL_NSILOCALFILEMAC
 #endif
-  NS_DECL_NSIHASHABLE
+    NS_DECL_NSIHASHABLE
 
 public:
-  static void GlobalInit();
-  static void GlobalShutdown();
+    static void GlobalInit();
+    static void GlobalShutdown();
 
 private:
-  nsLocalFile(const nsLocalFile& aOther);
-  ~nsLocalFile()
-  {
-  }
+    nsLocalFile(const nsLocalFile& other);
+    ~nsLocalFile() {}
 
 protected:
-  // This stat cache holds the *last stat* - it does not invalidate.
-  // Call "FillStatCache" whenever you want to stat our file.
-  struct STAT  mCachedStat;
-  nsCString    mPath;
+    // This stat cache holds the *last stat* - it does not invalidate.
+    // Call "FillStatCache" whenever you want to stat our file.
+    struct STAT  mCachedStat;
+    nsCString    mPath;
 
-  void LocateNativeLeafName(nsACString::const_iterator&,
-                            nsACString::const_iterator&);
+    void LocateNativeLeafName(nsACString::const_iterator &,
+                              nsACString::const_iterator &);
 
-  nsresult CopyDirectoryTo(nsIFile* aNewParent);
-  nsresult CreateAllAncestors(uint32_t aPermissions);
-  nsresult GetNativeTargetPathName(nsIFile* aNewParent,
-                                   const nsACString& aNewName,
-                                   nsACString& aResult);
+    nsresult CopyDirectoryTo(nsIFile *newParent);
+    nsresult CreateAllAncestors(PRUint32 permissions);
+    nsresult GetNativeTargetPathName(nsIFile *newParent,
+                                     const nsACString &newName,
+                                     nsACString &_retval);
 
-  bool FillStatCache();
+    PRBool FillStatCache();
 
-  nsresult CreateAndKeepOpen(uint32_t aType, int aFlags,
-                             uint32_t aPermissions, PRFileDesc** aResult);
+    nsresult CreateAndKeepOpen(PRUint32 type, PRIntn flags,
+                               PRUint32 permissions, PRFileDesc **_retval);
 };
 
 #endif /* _nsLocalFileUNIX_H_ */

@@ -1,42 +1,41 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 var gPageCompleted;
 var GLOBAL = this + '';
-
-// Variables local to jstests harness.
-var jstestsTestPassesUnlessItThrows = false;
-var jstestsRestoreFunction;
-var jstestsOptions;
-
-/*
- * Signals to this script that the current test case should be considered to
- * have passed if it doesn't throw an exception.
- *
- * Overrides the same-named function in shell.js.
- */
-function testPassesUnlessItThrows() {
-  jstestsTestPassesUnlessItThrows = true;
-}
-
-/*
- * Requests to load the given JavaScript file before the file containing the
- * test case.
- */
-function include(file) {
-  outputscripttag(file, {language: "type", mimetype: "text/javascript"});
-}
-
-/*
- * Sets a restore function which restores the standard built-in ECMAScript
- * properties after a destructive test case, and which will be called after
- * the test case terminates.
- */
-function setRestoreFunction(restore) {
-  jstestsRestoreFunction = restore;
-}
 
 function htmlesc(str) {
   if (str == '<')
@@ -64,7 +63,7 @@ function DocumentWrite(s)
 }
 
 function print() {
-  var s = 'TEST-INFO | ';
+  var s = '';
   var a;
   for (var i = 0; i < arguments.length; i++)
   {
@@ -108,7 +107,7 @@ function writeFormattedResult( expect, actual, string, passed ) {
   var s = "<tt>"+ string ;
   s += "<b>" ;
   s += ( passed ) ? "<font color=#009900> &nbsp;" + PASSED
-    : "<font color=#aa0000>&nbsp;" +  FAILED + expect;
+    : "<font color=#aa0000>&nbsp;" +  FAILED + expect + "</tt>";
 
   DocumentWrite( s + "</font></b></tt><br>" );
   return passed;
@@ -116,16 +115,6 @@ function writeFormattedResult( expect, actual, string, passed ) {
 
 window.onerror = function (msg, page, line)
 {
-  jstestsTestPassesUnlessItThrows = false;
-
-  // Restore options in case a test case used this common variable name.
-  options = jstestsOptions;
-
-  // Restore the ECMAScript environment after potentially destructive tests.
-  if (typeof jstestsRestoreFunction === "function") {
-    jstestsRestoreFunction();
-  }
-
   optionsPush();
 
   if (typeof DESCRIPTION == 'undefined')
@@ -154,19 +143,368 @@ window.onerror = function (msg, page, line)
 
 function gc()
 {
+  // Thanks to igor.bukanov@gmail.com
+  for (var i = 0; i != 4e6; ++i)
+  {
+    var tmp = i + 0.1;
+  }
+}
+
+function jsdgc()
+{
   try
   {
-    SpecialPowers.forceGC();
+    // Thanks to dveditz
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    var jsdIDebuggerService = Components.interfaces.jsdIDebuggerService;
+    var service = Components.classes['@mozilla.org/js/jsd/debugger-service;1'].
+      getService(jsdIDebuggerService);
+    service.GC();
   }
   catch(ex)
   {
-    print('gc: ' + ex);
+    print('jsdgc: ' + ex);
   }
 }
 
 function quit()
 {
 }
+
+function Preferences(aPrefRoot)
+{
+  try
+  {
+    this.orig = {};
+    this.privs = 'UniversalXPConnect UniversalPreferencesRead ' +
+      'UniversalPreferencesWrite';
+
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      var nsIPrefService = Components.interfaces.nsIPrefService;
+      var nsIPrefBranch = Components.interfaces.nsIPrefBranch;
+      var nsPrefService_CONTRACTID = "@mozilla.org/preferences-service;1";
+
+      this.prefRoot    = aPrefRoot;
+      this.prefService = Components.classes[nsPrefService_CONTRACTID].
+        getService(nsIPrefService);
+      this.prefBranch = this.prefService.getBranch(aPrefRoot).
+        QueryInterface(Components.interfaces.nsIPrefBranch2);
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences: ' + ex);
+  }
+
+}
+
+function Preferences_getPrefRoot()
+{
+  var root;
+
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+    }
+
+    root = this.prefBranch.root;
+  }
+  catch(ex)
+  {
+    print('Preferences_getPrefRoot: ' + ex);
+  }
+  return root;
+}
+
+function Preferences_getPref(aPrefName)
+{
+  var value;
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      value = this.prefBranch.getBoolPref(aPrefName);
+    }
+  }
+  catch(ex)
+  {
+    //print('Preferences_getPref: ' + ex);
+  }
+  return value;
+}
+
+function Preferences_getBoolPref(aPrefName)
+{
+  var value;
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      value = this.prefBranch.getBoolPref(aPrefName);
+    }
+  }
+  catch(ex)
+  {
+    //print('Preferences_getBoolPref: ' + ex);
+  }
+  return value;
+}
+
+function Preferences_getIntPref(aPrefName)
+{
+  var value;
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      value = this.prefBranch.getIntPref(aPrefName);
+    }
+  }
+  catch(ex)
+  {
+    //print('Preferences_getIntPref: ' + ex);
+  }
+  return value;
+}
+
+function Preferences_getCharPref(aPrefName)
+{
+  var value;
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      value = this.prefBranch.getCharPref(aPrefName);
+    }
+  }
+  catch(ex)
+  {
+    //print('Preferences_getCharPref: ' + ex);
+  }
+  return value;
+}
+
+function Preferences_setPref(aPrefName, aPrefValue)
+{
+  var value;
+
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      if (typeof this.orig[aPrefName] == 'undefined')
+      {
+        this.orig[aPrefName] = this.getPref(aPrefName);
+      }
+
+      value = this.prefBranch.setBoolPref(aPrefName, Boolean(aPrefValue));
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_setCharPref: ' + ex);
+  }
+}
+
+function Preferences_setBoolPref(aPrefName, aPrefValue)
+{
+  var value;
+
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      if (typeof this.orig[aPrefName] == 'undefined')
+      {
+        this.orig[aPrefName] = this.getBoolPref(aPrefName);
+      }
+
+      value = this.prefBranch.setBoolPref(aPrefName, Boolean(aPrefValue));
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_setBoolPref: ' + ex);
+  }
+}
+
+function Preferences_setIntPref(aPrefName, aPrefValue)
+{
+  var value;
+
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      if (typeof this.orig[aPrefName] == 'undefined')
+      {
+        this.orig[aPrefName] = this.getIntPref(aPrefName);
+      }
+
+      value = this.prefBranch.setIntPref(aPrefName, Number(aPrefValue));
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_setIntPref: ' + ex);
+  }
+}
+
+function Preferences_setCharPref(aPrefName, aPrefValue)
+{
+  var value;
+
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      if (typeof this.orig[aPrefName] == 'undefined')
+      {
+        this.orig[aPrefName] = this.getCharPref(aPrefName);
+      }
+
+      value = this.prefBranch.setCharPref(aPrefName, String(aPrefValue));
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_setCharPref: ' + ex);
+  }
+}
+
+function Preferences_resetPref(aPrefName)
+{
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+
+      if (aPrefName in this.orig)
+      {
+        if (typeof this.orig[aPrefName] == 'undefined')
+        {
+          this.clearPref(aPrefName);
+        }
+        else
+        {
+          this.setPref(aPrefName, this.orig[aPrefName]);
+        }
+      }
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_resetPref: ' + ex);
+  }
+}
+
+function Preferences_resetAllPrefs()
+{
+  try
+  {
+    var prefName;
+    var prefValue;
+
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      for (prefName in this.orig)
+      {
+        this.setPref(prefName, this.orig[prefName]);
+      }
+    }
+  }
+  catch(ex)
+  {
+    print('Preferences_resetAllPrefs: ' + ex);
+  }
+}
+
+function Preferences_clearPref(aPrefName)
+{
+  try
+  {
+    if (typeof netscape != 'undefined' &&
+        'security' in netscape &&
+        'PrivilegeManager' in netscape.security &&
+        'enablePrivilege' in netscape.security.PrivilegeManager)
+    {
+      netscape.security.PrivilegeManager.enablePrivilege(this.privs);
+      this.prefBranch.clearUserPref(aPrefName);
+    }
+  }
+  catch(ex)
+  {
+    //print('Preferences_clearPref: ' + ex);
+  }
+}
+
+Preferences.prototype.getPrefRoot    = Preferences_getPrefRoot;
+Preferences.prototype.getPref        = Preferences_getPref;
+Preferences.prototype.getBoolPref    = Preferences_getBoolPref;
+Preferences.prototype.getIntPref     = Preferences_getIntPref;
+Preferences.prototype.getCharPref    = Preferences_getCharPref;
+Preferences.prototype.setPref        = Preferences_setPref;
+Preferences.prototype.setBoolPref    = Preferences_setBoolPref;
+Preferences.prototype.setIntPref     = Preferences_setIntPref;
+Preferences.prototype.setCharPref    = Preferences_setCharPref;
+Preferences.prototype.resetAllPrefs  = Preferences_resetAllPrefs;
+Preferences.prototype.resetPref      = Preferences_resetPref;
+Preferences.prototype.clearPref      = Preferences_clearPref;
 
 function options(aOptionName)
 {
@@ -183,40 +521,35 @@ function options(aOptionName)
     value = value.substring(0, value.length-1);
   }
 
-  if (aOptionName) {
-    if (!(aOptionName in SpecialPowers.Cu)) {
-      // This test is trying to flip an unsupported option, so it's
-      // likely no longer testing what it was supposed to.  Fail it
-      // hard.
-      throw "Unsupported JSContext option '"+ aOptionName +"'";
-    }
-
+  if (aOptionName)
+  {
     if (options.currvalues.hasOwnProperty(aOptionName))
+    {
       // option is set, toggle it to unset
       delete options.currvalues[aOptionName];
+      options.preferences.setPref(aOptionName, false);
+    }
     else
+    {
       // option is not set, toggle it to set
       options.currvalues[aOptionName] = true;
-
-    SpecialPowers.Cu[aOptionName] =
-      options.currvalues.hasOwnProperty(aOptionName);
+      options.preferences.setPref(aOptionName, true);
+    }
   }
 
   return value;
 }
 
-// Keep a reference to options around so that we can restore it after running
-// a test case, which may have used this common name for one of its own
-// variables.
-jstestsOptions = options;
-
 function optionsInit() {
 
-  // hash containing the set options.
+  // hash containing the set options
   options.currvalues = {
     strict:     true,
     werror:     true,
-    strict_mode: true
+    atline:     true,
+    xml:        true,
+    relimit:    true,
+    anonfunfix: true,
   };
 
   // record initial values to support resetting
@@ -227,15 +560,11 @@ function optionsInit() {
   // and popping options
   options.stackvalues = [];
 
+  options.preferences = new Preferences('javascript.options.');
+
   for (var optionName in options.currvalues)
   {
-    var propName = optionName;
-
-    if (!(propName in SpecialPowers.Cu))
-    {
-      throw "options.currvalues is out of sync with Components.utils";
-    }
-    if (!SpecialPowers.Cu[propName])
+    if (!options.preferences.getPref(optionName))
     {
       delete options.currvalues[optionName];
     }
@@ -248,11 +577,32 @@ function optionsInit() {
 
 function gczeal(z)
 {
-  SpecialPowers.setGCZeal(z);
+  var javascriptoptions = new Preferences('javascript.options.');
+  javascriptoptions.setIntPref('gczeal', Number(z));
 }
+
+var gJit = { content: undefined, chrome: undefined };
 
 function jit(on)
 {
+  var jitoptions = new Preferences('javascript.options.jit.');
+
+  if (typeof gJit.content == 'undefined')
+  {
+    gJit.content = jitoptions.getBoolPref('content');
+    gJit.chrome  = jitoptions.getBoolPref('chrome');
+  }
+
+  if (on)
+  {
+    jitoptions.setBoolPref('content', true);
+    jitoptions.setBoolPref('chrome', true);
+  }
+  else
+  {
+    jitoptions.setBoolPref('content', false);
+    jitoptions.setBoolPref('chrome', false);
+  }
 }
 
 function jsTestDriverBrowserInit()
@@ -308,27 +658,16 @@ function jsTestDriverBrowserInit()
     // If the version is not specified, and the browser is Gecko,
     // use the default version corresponding to the shell's version(0).
     // See https://bugzilla.mozilla.org/show_bug.cgi?id=522760#c11
-    // Otherwise adjust the version to match the suite version for 1.6,
-    // and later due to the use of for-each, let, yield, etc.
-    //
-    // The logic to upgrade the JS version in the shell lives in the
-    // corresponding shell.js.
+    // Otherwise adjust the version to match the suite version for 1.7,
+    // and later due to the use of let, yield, etc.
     //
     // Note that js1_8, js1_8_1, and js1_8_5 are treated identically in
     // the browser.
-    if (properties.test.match(/^js1_6/))
-    {
-      properties.version = '1.6';
-    }
-    else if (properties.test.match(/^js1_7/))
+    if (properties.test.match(/^js1_7/))
     {
       properties.version = '1.7';
     }
     else if (properties.test.match(/^js1_8/))
-    {
-      properties.version = '1.8';
-    }
-    else if (properties.test.match(/^ecma_6\/LexicalEnvironment/))
     {
       properties.version = '1.8';
     }
@@ -353,8 +692,8 @@ function jsTestDriverBrowserInit()
    * since the default setting of jit changed from false to true
    * in http://hg.mozilla.org/tracemonkey/rev/685e00e68be9
    * bisections which depend upon jit settings can be thrown off.
-   * default jit(false) when not running jsreftests to make bisections
-   * depending upon jit settings consistent over time. This is not needed
+   * default jit(false) when not running jsreftests to make bisections 
+   * depending upon jit settings consistent over time. This is not needed 
    * in shell tests as the default jit setting has not changed there.
    */
 
@@ -368,39 +707,40 @@ function jsTestDriverBrowserInit()
     // must have at least suitepath/subsuite/testcase.js
     return;
   }
+  var suitepath = testpathparts.slice(0,testpathparts.length-2).join('/');
+  var subsuite = testpathparts[testpathparts.length - 2];
+  var test     = testpathparts[testpathparts.length - 1];
 
-  document.write('<title>' + properties.test + '<\/title>');
+  document.write('<title>' + suitepath + '/' + subsuite + '/' + test + '<\/title>');
 
   // XXX bc - the first document.written script is ignored if the protocol
   // is file:. insert an empty script tag, to work around it.
   document.write('<script></script>');
 
-  // Output script tags for shell.js, then browser.js, at each level of the
-  // test path hierarchy.
-  var prepath = "";
-  var i = 0;
-  for (end = testpathparts.length - 1; i < end; i++) {
-    prepath += testpathparts[i] + "/";
-    outputscripttag(prepath + "shell.js", properties);
-    outputscripttag(prepath + "browser.js", properties);
-  }
-
-  // Output the test script itself.
-  outputscripttag(prepath + testpathparts[i], properties);
-
-  // Finally output the driver-end script to advance to the next test.
+  outputscripttag(suitepath + '/shell.js', properties);
+  outputscripttag(suitepath + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/shell.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/' + test, properties,
+  	properties.e4x || /e4x\//.test(properties.test));
   outputscripttag('js-test-driver-end.js', properties);
   return;
 }
 
-function outputscripttag(src, properties)
+function outputscripttag(src, properties, e4x)
 {
   if (!src)
   {
     return;
   }
 
-  var s = '<script src="' +  src + '" charset="utf-8" ';
+  if (e4x)
+  {
+    // e4x requires type=mimetype;e4x=1
+    properties.language = 'type';
+  }
+
+  var s = '<script src="' +  src + '" ';
 
   if (properties.language != 'type')
   {
@@ -417,11 +757,26 @@ function outputscripttag(src, properties)
     {
       s += ';version=' + properties.version;
     }
+    if (e4x)
+    {
+      s += ';e4x=1';
+    }
   }
   s += '"><\/script>';
 
   document.write(s);
 }
+
+var JSTest = {
+  waitForExplicitFinish: function () {
+    gDelayTestDriverEnd = true;
+  },
+
+  testFinished: function () {
+    gDelayTestDriverEnd = false;
+    jsTestDriverEnd();
+  }
+};
 
 function jsTestDriverEnd()
 {
@@ -440,22 +795,22 @@ function jsTestDriverEnd()
 
   window.onerror = null;
 
-  // Restore options in case a test case used this common variable name.
-  options = jstestsOptions;
-
-  // Restore the ECMAScript environment after potentially destructive tests.
-  if (typeof jstestsRestoreFunction === "function") {
-    jstestsRestoreFunction();
-  }
-
-  if (jstestsTestPassesUnlessItThrows) {
-    var testcase = new TestCase("unknown-test-name", "", true, true);
-    print(PASSED);
-    jstestsTestPassesUnlessItThrows = false;
-  }
-
   try
   {
+    var javascriptoptions = new Preferences('javascript.options.');
+    javascriptoptions.clearPref('gczeal');
+
+    var jitoptions = new Preferences('javascript.options.jit.');
+    if (typeof gJit.content != 'undefined')
+    {
+      jitoptions.setBoolPref('content', gJit.content);
+    }
+
+    if (typeof gJit.chrome != 'undefined')
+    {
+      jitoptions.setBoolPref('chrome', gJit.chrome);
+    }
+
     optionsReset();
   }
   catch(ex)
@@ -495,21 +850,47 @@ var gDialogCloserObserver;
 
 function registerDialogCloser()
 {
-  gDialogCloser = SpecialPowers.
-    Cc['@mozilla.org/embedcomp/window-watcher;1'].
-    getService(SpecialPowers.Ci.nsIWindowWatcher);
+  dlog('registerDialogCloser: start');
+  try
+  {
+    netscape.security.PrivilegeManager.
+      enablePrivilege('UniversalXPConnect');
+  }
+  catch(excp)
+  {
+    print('registerDialogCloser: ' + excp);
+    return;
+  }
+
+  gDialogCloser = Components.
+    classes['@mozilla.org/embedcomp/window-watcher;1'].
+    getService(Components.interfaces.nsIWindowWatcher);
 
   gDialogCloserObserver = {observe: dialogCloser_observe};
 
   gDialogCloser.registerNotification(gDialogCloserObserver);
+
+  dlog('registerDialogCloser: complete');
 }
 
 function unregisterDialogCloser()
 {
+  dlog('unregisterDialogCloser: start');
+
   gczeal(0);
 
   if (!gDialogCloserObserver || !gDialogCloser)
   {
+    return;
+  }
+  try
+  {
+    netscape.security.PrivilegeManager.
+      enablePrivilege('UniversalXPConnect');
+  }
+  catch(excp)
+  {
+    print('unregisterDialogCloser: ' + excp);
     return;
   }
 
@@ -517,6 +898,8 @@ function unregisterDialogCloser()
 
   gDialogCloserObserver = null;
   gDialogCloser = null;
+
+  dlog('unregisterDialogCloser: stop');
 }
 
 // use an array to handle the case where multiple dialogs
@@ -525,41 +908,58 @@ var gDialogCloserSubjects = [];
 
 function dialogCloser_observe(subject, topic, data)
 {
+  try
+  {
+    netscape.security.PrivilegeManager.
+      enablePrivilege('UniversalXPConnect');
+
+    dlog('dialogCloser_observe: ' +
+         'subject: ' + subject + 
+         ', topic=' + topic + 
+         ', data=' + data + 
+         ', subject.document.documentURI=' + subject.document.documentURI +
+         ', subjects pending=' + gDialogCloserSubjects.length);
+  }
+  catch(excp)
+  {
+    print('dialogCloser_observe: ' + excp);
+    return;
+  }
+
   if (subject instanceof ChromeWindow && topic == 'domwindowopened' )
   {
     gDialogCloserSubjects.push(subject);
     // timeout of 0 needed when running under reftest framework.
     subject.setTimeout(closeDialog, 0);
   }
+  dlog('dialogCloser_observe: subjects pending: ' + gDialogCloserSubjects.length);
 }
 
 function closeDialog()
 {
   var subject;
+  dlog('closeDialog: subjects pending: ' + gDialogCloserSubjects.length);
 
   while ( (subject = gDialogCloserSubjects.pop()) != null)
   {
-    if (subject.document instanceof XULDocument &&
+    dlog('closeDialog: subject=' + subject);
+
+    dlog('closeDialog: subject.document instanceof XULDocument: ' + (subject.document instanceof XULDocument));
+    dlog('closeDialog: subject.document.documentURI: ' + subject.document.documentURI);
+
+    if (subject.document instanceof XULDocument && 
         subject.document.documentURI == 'chrome://global/content/commonDialog.xul')
     {
+      dlog('closeDialog: close XULDocument dialog?');
       subject.close();
     }
     else
     {
       // alerts inside of reftest framework are not XULDocument dialogs.
+      dlog('closeDialog: close chrome dialog?');
       subject.close();
     }
   }
-}
-
-function newGlobal() {
-  var iframe = document.createElement("iframe");
-  document.documentElement.appendChild(iframe);
-  var win = iframe.contentWindow;
-  iframe.remove();
-  // Shim in "evaluate"
-  win.evaluate = win.eval;
-  return win;
 }
 
 registerDialogCloser();

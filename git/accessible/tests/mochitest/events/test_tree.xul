@@ -3,9 +3,16 @@
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
                  type="text/css"?>
 
-<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        title="DOM TreeRowCountChanged and a11y name change events.">
+<!--
+  Bug 368835 - fire TreeViewChanged/TreeRowCountChanged events.
+  Bug 308564 - no accessibility events when data in a tree row changes.
+-->
 
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        title="DOM TreeViewChanged/TreeRowCountChanged and a11y name change events.">
+
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -24,6 +31,20 @@
     // Invoker's checkers
 
     /**
+     * Check TreeViewChanged event and run through accessible tree to ensure
+     * it's created.
+     */
+    function treeViewChangedChecker(aMsg)
+    {
+      this.type = "TreeViewChanged";
+      this.target = gTree;
+      this.getID = function getID()
+      {
+        return "TreeViewChanged";
+      }
+    }
+
+    /**
      * Check TreeRowCountChanged event.
      */
     function rowCountChangedChecker(aMsg, aIdx, aCount)
@@ -32,11 +53,10 @@
       this.target = gTree;
       this.check = function check(aEvent)
       {
-        var propBag = aEvent.detail.QueryInterface(Components.interfaces.nsIPropertyBag2);
-        var index = propBag.getPropertyAsInt32("index");
+        var index = aEvent.getData("index");
         is(index, aIdx, "Wrong 'index' data of 'treeRowCountChanged' event.");
 
-        var count = propBag.getPropertyAsInt32("count");
+        var count = aEvent.getData("count");
         is(count, aCount, "Wrong 'count' data of 'treeRowCountChanged' event.");
       }
       this.getID = function getID()
@@ -54,36 +74,19 @@
       this.target = gTree;
       this.check = function check(aEvent)
       {
-        var propBag = aEvent.detail.QueryInterface(Components.interfaces.nsIPropertyBag2);
-        try {
-          var startRow = propBag.getPropertyAsInt32("startrow");
-        } catch (e if e.name == 'NS_ERROR_NOT_AVAILABLE') {
-          startRow = null;
-        }
+        var startRow = aEvent.getData("startrow");
         is(startRow, aStartRow,
            "Wrong 'startrow' of 'treeInvalidated' event on " + aMsg);
 
-        try {
-          var endRow = propBag.getPropertyAsInt32("endrow");
-        } catch (e if e.name == 'NS_ERROR_NOT_AVAILABLE') {
-          endRow = null;
-        }
+        var endRow = aEvent.getData("endrow");
         is(endRow, aEndRow,
            "Wrong 'endrow' of 'treeInvalidated' event on " + aMsg);
 
-        try {
-          var startCol = propBag.getPropertyAsInt32("startcolumn");
-        } catch (e if e.name == 'NS_ERROR_NOT_AVAILABLE') {
-          startCol = null;
-        }
+        var startCol = aEvent.getData("startcolumn");
         is(startCol, aStartCol,
            "Wrong 'startcolumn' of 'treeInvalidated' event on " + aMsg);
 
-        try {
-          var endCol = propBag.getPropertyAsInt32("endcolumn");
-        } catch (e if e.name == 'NS_ERROR_NOT_AVAILABLE') {
-          startCol = null;
-        }
+        var endCol = aEvent.getData("endcolumn");
         is(endCol, aEndCol,
            "Wrong 'endcolumn' of 'treeInvalidated' event on " + aMsg);
       }
@@ -100,35 +103,13 @@
     {
       this.type = EVENT_NAME_CHANGE;
 
-      function targetGetter()
+      this.target getter = function()
       {
         var acc = getAccessible(gTree);
 
         var tableAcc = getAccessible(acc, [nsIAccessibleTable]);
         return tableAcc.getCellAt(aRow, aCol);
       }
-      Object.defineProperty(this, "target", { get: targetGetter });
-
-      this.getID = function getID()
-      {
-        return aMsg + "name changed";
-      }
-    }
-
-    /**
-     * Check name changed a11y event for a row.
-     */
-    function rowNameChangeChecker(aMsg, aRow)
-    {
-      this.type = EVENT_NAME_CHANGE;
-
-      function targetGetter()
-      {
-        var acc = getAccessible(gTree);
-        return acc.getChildAt(aRow + 1);
-      }
-      Object.defineProperty(this, "target", { get: targetGetter });
-
       this.getID = function getID()
       {
         return aMsg + "name changed";
@@ -139,7 +120,7 @@
     // Invokers
 
     /**
-     * Set tree view.
+     * Set tree view and process TreeViewChanged handler.
      */
     function setTreeView()
     {
@@ -148,9 +129,15 @@
         gTreeBox.view = gView;
       }
 
+      this.finalCheck = function setTreeView_finalCheck(aEvent)
+      {
+        ensureAccessibleTree(gTree);
+      }
+
       this.getID = function setTreeView_getID() { return "set tree view"; }
 
       this.eventSeq = [
+        new treeViewChangedChecker(),
         new invokerChecker(EVENT_REORDER, gTree)
       ];
     };
@@ -172,11 +159,6 @@
         new rowCountChangedChecker("insertRow: ", 0, 1),
         new treeInvalidatedChecker("insertRow", 0, 5, null, null)
       ];
-
-      this.getID = function insertRow_getID()
-      {
-        return "insert row";
-      }
     }
 
     /**
@@ -185,32 +167,13 @@
      */
     function invalidateColumn()
     {
-      this.invoke = function invalidateColumn_invoke()
+      this.invoke = function()
       {
-        // Make sure accessible subtree of XUL tree is created otherwise no
-        // name change events for cell accessibles are emitted.
-        var tree = getAccessible(gTree);
-        var child = tree.firstChild;
-        var walkDown = true;
-        while (child != tree) {
-          if (walkDown) {
-            var grandChild = child.firstChild;
-            if (grandChild) {
-              child = grandChild;
-              continue;
-            }
-          }
-
-          var sibling = child.nextSibling;
-          if (sibling) {
-            child = sibling;
-            walkDown = true;
-            continue;
-          }
-
-          child = child.parent;
-          walkDown = false;
-        }
+        // Make sure accessibles for the tree is created because it makes
+        // sure accessible events will be fired.
+        // Make sure tree children accessibles are created otherwise they won't
+        // be a cause of name changed events.
+        ensureAccessibleTree(gTree);
 
         // Fire 'TreeInvalidated' event by InvalidateColumn()
         var firstCol = gTree.columns.getFirstColumn();
@@ -230,11 +193,6 @@
         new nameChangeChecker("invalidateColumn: ", 5, 0),
         new treeInvalidatedChecker("invalidateColumn", null, null, 0, 0)
       ];
-
-      this.getID = function invalidateColumn_getID()
-      {
-        return "invalidate column";
-      }
     }
 
     /**
@@ -244,7 +202,7 @@
      */
     function invalidateRow()
     {
-      this.invoke = function invalidateRow_invoke()
+      this.invoke = function()
       {
         // Fire 'TreeInvalidated' event by InvalidateRow()
         var colCount = gTree.columns.count;
@@ -259,16 +217,10 @@
 
       this.eventSeq =
       [
-        new nameChangeChecker("invalidateRow: ", 1, 0),
-        new nameChangeChecker("invalidateRow: ", 1, 1),
-        new rowNameChangeChecker("invalidateRow: ", 1),
-        new treeInvalidatedChecker("invalidateRow", 1, 1, null, null)
+        new nameChangeChecker("invalidateColumn: ", 1, 0),
+        new nameChangeChecker("invalidateColumn: ", 1, 1),
+        new treeInvalidatedChecker("invalidateColumn", 1, 1, null, null)
       ];
-
-      this.getID = function invalidateRow_getID()
-      {
-        return "invalidate row";
-      }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -280,7 +232,6 @@
     var gQueue = null;
 
     // gA11yEventDumpID = "debug";
-    gA11yEventDumpToConsole = true; // debuggin
 
     function doTest()
     {
@@ -316,16 +267,6 @@
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=308564"
          title="No accessibility events when data in a tree row changes.">
         Mozilla Bug 308564
-      </a><br/>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=739524"
-         title="replace TreeViewChanged DOM event on direct call from XUL tree.">
-        Mozilla Bug 739524
-      </a><br/>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=743568"
-         title="Thunderbird message list tree emitting incorrect focus signals after message deleted.">
-        Mozilla Bug 743568
       </a>
       <p id="display"></p>
       <div id="content" style="display: none">

@@ -18,6 +18,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418464
 -->
 <head>
   <title>Test for Bug 418464</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -31,8 +32,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418464
 <script class="testbody" type="text/javascript">
 
 /** Test for Bug 418464 **/
-  is(form1 instanceof HTMLFormElement, true,
-     "Should have a form here");
+  // Commented out until the HTML5 parser is on by default
+  // is(form1 instanceof HTMLFormElement, true,
+  //    "Should have a form here");
   is(form2 instanceof HTMLFormElement, true,
      "Should have a form here");
 

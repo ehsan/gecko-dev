@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  *
  *
  * This Original Code has been modified by IBM Corporation.
@@ -17,21 +49,27 @@
  *                               use in OS2
  */
 
+#ifdef MOZ_IPC
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/net/FTPChannelChild.h"
-using namespace mozilla;
 using namespace mozilla::net;
+#endif
 
 #include "nsFtpProtocolHandler.h"
 #include "nsFTPChannel.h"
+#include "nsIURL.h"
 #include "nsIStandardURL.h"
+#include "nsCRT.h"
+#include "nsIComponentManager.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIProgressEventSink.h"
 #include "prlog.h"
+#include "nsNetUtil.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIObserverService.h"
 #include "nsEscape.h"
-#include "nsAlgorithm.h"
-#include "nsICacheSession.h"
 
 //-----------------------------------------------------------------------------
 
@@ -47,7 +85,7 @@ using namespace mozilla::net;
 // this enables PR_LOG_DEBUG level information and places all output in
 // the file nspr.log
 //
-PRLogModuleInfo* gFTPLog = nullptr;
+PRLogModuleInfo* gFTPLog = nsnull;
 #endif
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -60,7 +98,7 @@ PRLogModuleInfo* gFTPLog = nullptr;
 #define QOS_DATA_PREF         "network.ftp.data.qos"
 #define QOS_CONTROL_PREF      "network.ftp.control.qos"
 
-nsFtpProtocolHandler *gFtpHandler = nullptr;
+nsFtpProtocolHandler *gFtpHandler = nsnull;
 
 //-----------------------------------------------------------------------------
 
@@ -85,46 +123,48 @@ nsFtpProtocolHandler::~nsFtpProtocolHandler()
 
     NS_ASSERTION(mRootConnectionList.Length() == 0, "why wasn't Observe called?");
 
-    gFtpHandler = nullptr;
+    gFtpHandler = nsnull;
 }
 
-NS_IMPL_ISUPPORTS(nsFtpProtocolHandler,
-                  nsIProtocolHandler,
-                  nsIProxiedProtocolHandler,
-                  nsIObserver,
-                  nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsFtpProtocolHandler,
+                              nsIProtocolHandler,
+                              nsIProxiedProtocolHandler,
+                              nsIObserver,
+                              nsISupportsWeakReference)
 
 nsresult
 nsFtpProtocolHandler::Init()
 {
+#ifdef MOZ_IPC
     if (IsNeckoChild())
         NeckoChild::InitNeckoChild();
+#endif // MOZ_IPC
 
     if (mIdleTimeout == -1) {
         nsresult rv;
-        nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+        nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
         if (NS_FAILED(rv)) return rv;
 
         rv = branch->GetIntPref(IDLE_TIMEOUT_PREF, &mIdleTimeout);
         if (NS_FAILED(rv))
             mIdleTimeout = 5*60; // 5 minute default
 
-        rv = branch->AddObserver(IDLE_TIMEOUT_PREF, this, true);
+        rv = branch->AddObserver(IDLE_TIMEOUT_PREF, this, PR_TRUE);
         if (NS_FAILED(rv)) return rv;
 
-	int32_t val;
+	PRInt32 val;
 	rv = branch->GetIntPref(QOS_DATA_PREF, &val);
 	if (NS_SUCCEEDED(rv))
-	    mDataQoSBits = (uint8_t) clamped(val, 0, 0xff);
+	    mDataQoSBits = (PRUint8) NS_CLAMP(val, 0, 0xff);
 
-	rv = branch->AddObserver(QOS_DATA_PREF, this, true);
+	rv = branch->AddObserver(QOS_DATA_PREF, this, PR_TRUE);
 	if (NS_FAILED(rv)) return rv;
 
 	rv = branch->GetIntPref(QOS_CONTROL_PREF, &val);
 	if (NS_SUCCEEDED(rv))
-	    mControlQoSBits = (uint8_t) clamped(val, 0, 0xff);
+	    mControlQoSBits = (PRUint8) NS_CLAMP(val, 0, 0xff);
 
-	rv = branch->AddObserver(QOS_CONTROL_PREF, this, true);
+	rv = branch->AddObserver(QOS_CONTROL_PREF, this, PR_TRUE);
 	if (NS_FAILED(rv)) return rv;
     }
 
@@ -133,11 +173,11 @@ nsFtpProtocolHandler::Init()
     if (observerService) {
         observerService->AddObserver(this,
                                      "network:offline-about-to-go-offline",
-                                     true);
+                                     PR_TRUE);
 
         observerService->AddObserver(this,
                                      "net:clear-active-logins",
-                                     true);
+                                     PR_TRUE);
     }
 
     return NS_OK;
@@ -155,14 +195,14 @@ nsFtpProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::GetDefaultPort(int32_t *result)
+nsFtpProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = 21; 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsFtpProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     *result = URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP |
         URI_LOADABLE_BY_ANYONE; 
@@ -175,14 +215,14 @@ nsFtpProtocolHandler::NewURI(const nsACString &aSpec,
                              nsIURI *aBaseURI,
                              nsIURI **result)
 {
-    nsAutoCString spec(aSpec);
+    nsCAutoString spec(aSpec);
     spec.Trim(" \t\n\r"); // Match NS_IsAsciiWhitespace instead of HTML5
 
     char *fwdPtr = spec.BeginWriting();
 
     // now unescape it... %xx reduced inline to resulting character
 
-    int32_t len = NS_UnescapeURL(fwdPtr);
+    PRInt32 len = NS_UnescapeURL(fwdPtr);
 
     // NS_UnescapeURL() modified spec's buffer, truncate to ensure
     // spec knows its new length.
@@ -203,61 +243,35 @@ nsFtpProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::NewChannel2(nsIURI* url,
-                                  nsILoadInfo* aLoadInfo,
-                                  nsIChannel** result)
-{
-    return NewProxiedChannel2(url, nullptr, 0, nullptr, aLoadInfo, result);
-}
-
-NS_IMETHODIMP
 nsFtpProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
 {
-    return NewChannel2(url, nullptr, result);
+    return NewProxiedChannel(url, nsnull, result);
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::NewProxiedChannel2(nsIURI* uri, nsIProxyInfo* proxyInfo,
-                                         uint32_t proxyResolveFlags,
-                                         nsIURI *proxyURI,
-                                         nsILoadInfo* aLoadInfo,
-                                         nsIChannel* *result)
+nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
+                                        nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsRefPtr<nsBaseChannel> channel;
+#ifdef MOZ_IPC
     if (IsNeckoChild())
         channel = new FTPChannelChild(uri);
     else
+#endif
         channel = new nsFtpChannel(uri, proxyInfo);
 
     nsresult rv = channel->Init();
     if (NS_FAILED(rv)) {
         return rv;
     }
-
-    // set the loadInfo on the new channel
-    rv = channel->SetLoadInfo(aLoadInfo);
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
-
+    
     channel.forget(result);
     return rv;
 }
 
-NS_IMETHODIMP
-nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
-                                        uint32_t proxyResolveFlags,
-                                        nsIURI *proxyURI,
-                                        nsIChannel* *result)
-{
-  return NewProxiedChannel2(uri, proxyInfo, proxyResolveFlags,
-                            proxyURI, nullptr /*loadinfo*/,
-                            result);
-}
-
 NS_IMETHODIMP 
-nsFtpProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsFtpProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     *_retval = (port == 21 || port == 22);
     return NS_OK;
@@ -270,7 +284,7 @@ nsFtpProtocolHandler::Timeout(nsITimer *aTimer, void *aClosure)
 {
     LOG(("FTP:timeout reached for %p\n", aClosure));
 
-    bool found = gFtpHandler->mRootConnectionList.RemoveElement(aClosure);
+    PRBool found = gFtpHandler->mRootConnectionList.RemoveElement(aClosure);
     if (!found) {
         NS_ERROR("timerStruct not found");
         return;
@@ -286,21 +300,21 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
     NS_ASSERTION(_retval, "null pointer");
     NS_ASSERTION(aKey, "null pointer");
     
-    *_retval = nullptr;
+    *_retval = nsnull;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     aKey->GetPrePath(spec);
     
     LOG(("FTP:removing connection for %s\n", spec.get()));
    
-    timerStruct* ts = nullptr;
-    uint32_t i;
-    bool found = false;
+    timerStruct* ts = nsnull;
+    PRUint32 i;
+    PRBool found = PR_FALSE;
     
     for (i=0;i<mRootConnectionList.Length();++i) {
         ts = mRootConnectionList[i];
         if (strcmp(spec.get(), ts->key) == 0) {
-            found = true;
+            found = PR_TRUE;
             mRootConnectionList.RemoveElementAt(i);
             break;
         }
@@ -311,7 +325,7 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
 
     // swap connection ownership
     *_retval = ts->conn;
-    ts->conn = nullptr;
+    ts->conn = nsnull;
     delete ts;
 
     return NS_OK;
@@ -326,7 +340,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
     if (aConn->mSessionId != mSessionId)
         return NS_ERROR_FAILURE;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     aKey->GetPrePath(spec);
 
     LOG(("FTP:inserting connection for %s\n", spec.get()));
@@ -364,7 +378,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
     // eldest connection.
     //
     if (mRootConnectionList.Length() == IDLE_CONNECTION_LIMIT) {
-        uint32_t i;
+        PRUint32 i;
         for (i=0;i<mRootConnectionList.Length();++i) {
             timerStruct *candidate = mRootConnectionList[i];
             if (strcmp(candidate->key, ts->key) == 0) {
@@ -390,7 +404,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
 NS_IMETHODIMP
 nsFtpProtocolHandler::Observe(nsISupports *aSubject,
                               const char *aTopic,
-                              const char16_t *aData)
+                              const PRUnichar *aData)
 {
     LOG(("FTP:observing [%s]\n", aTopic));
 
@@ -400,18 +414,18 @@ nsFtpProtocolHandler::Observe(nsISupports *aSubject,
             NS_ERROR("no prefbranch");
             return NS_ERROR_UNEXPECTED;
         }
-        int32_t val;
+        PRInt32 val;
         nsresult rv = branch->GetIntPref(IDLE_TIMEOUT_PREF, &val);
         if (NS_SUCCEEDED(rv))
             mIdleTimeout = val;
 
 	rv = branch->GetIntPref(QOS_DATA_PREF, &val);
 	if (NS_SUCCEEDED(rv))
-	    mDataQoSBits = (uint8_t) clamped(val, 0, 0xff);
+	    mDataQoSBits = (PRUint8) NS_CLAMP(val, 0, 0xff);
 
 	rv = branch->GetIntPref(QOS_CONTROL_PREF, &val);
 	if (NS_SUCCEEDED(rv))
-	    mControlQoSBits = (uint8_t) clamped(val, 0, 0xff);
+	    mControlQoSBits = (PRUint8) NS_CLAMP(val, 0, 0xff);
     } else if (!strcmp(aTopic, "network:offline-about-to-go-offline")) {
         ClearAllConnections();
     } else if (!strcmp(aTopic, "net:clear-active-logins")) {
@@ -427,7 +441,7 @@ nsFtpProtocolHandler::Observe(nsISupports *aSubject,
 void
 nsFtpProtocolHandler::ClearAllConnections()
 {
-    uint32_t i;
+    PRUint32 i;
     for (i=0;i<mRootConnectionList.Length();++i)
         delete mRootConnectionList[i];
     mRootConnectionList.Clear();

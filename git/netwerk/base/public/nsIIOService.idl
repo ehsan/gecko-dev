@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
@@ -9,9 +41,6 @@ interface nsIProtocolHandler;
 interface nsIChannel;
 interface nsIURI;
 interface nsIFile;
-interface nsIDOMNode;
-interface nsIPrincipal;
-interface nsILoadInfo;
 
 /**
  * nsIIOService provides a set of network utility functions.  This interface
@@ -22,7 +51,7 @@ interface nsILoadInfo;
  * as a convenience to the programmer and in some cases to improve performance
  * by eliminating intermediate data structures and interfaces.
  */
-[scriptable, uuid(b1c3c61d-2df9-4240-ae16-0355b51a2770)]
+[scriptable, uuid(bddeda3f-9020-4d12-8c70-984ee9f7935e)]
 interface nsIIOService : nsISupports
 {
     /**
@@ -68,96 +97,10 @@ interface nsIIOService : nsISupports
     /**
      * Creates a channel for a given URI.
      *
-     * @param aURI
-     *        nsIURI from which to make a channel
-     * @param aLoadingNode
-     *        The loadingDocument of the channel.
-     *        The element or document where the result of this request will be
-     *        used. This is the document/element that will get access to the
-     *        result of this request. For example for an image load, it's the
-     *        document in which the image will be loaded. And for a CSS
-     *        stylesheet it's the document whose rendering will be affected by
-     *        the stylesheet.
-     *        If possible, pass in the element which is performing the load. But
-     *        if the load is coming from a JS API (such as XMLHttpRequest) or if
-     *        the load might be coalesced across multiple elements (such as
-     *        for <img>) then pass in the Document node instead.
-     *        For loads that are not related to any document, such as loads coming
-     *        from addons or internal browser features, use null here.
-     * @param aLoadingPrincipal
-     *        The loadingPrincipal of the channel.
-     *        The principal of the document where the result of this request will
-     *        be used.
-     *        This is generally the principal of the aLoadingNode. However for
-     *        loads where aLoadingNode is null this argument still needs to be
-     *        passed. For example for loads from a WebWorker, pass the principal
-     *        of that worker. For loads from an addon or from internal browser
-     *        features, pass the system principal.
-     *        This principal should almost always be the system principal if
-     *        aLoadingNode is null. The only exception to this is for loads
-     *        from WebWorkers since they don't have any nodes to be passed as
-     *        aLoadingNode.
-     *        Please note, aLoadingPrincipal is *not* the principal of the
-     *        resource being loaded. But rather the principal of the context
-     *        where the resource will be used.
-     * @param aTriggeringPrincipal
-     *        The triggeringPrincipal of the load.
-     *        The triggeringPrincipal is the principal of the resource that caused
-     *        this particular URL to be loaded.
-     *        Most likely the triggeringPrincipal and the loadingPrincipal are
-     *        identical, in which case the triggeringPrincipal can be left out.
-     *        In some cases the loadingPrincipal and the triggeringPrincipal are
-     *        different however, e.g. a stylesheet may import a subresource. In
-     *        that case the principal of the stylesheet which contains the
-     *        import command is the triggeringPrincipal, and the principal of
-     *        the document whose rendering is affected is the loadingPrincipal.
-     * @param aSecurityFlags
-     *        The securityFlags of the channel.
-     *        Any of the securityflags defined in nsILoadInfo.idl
-     * @param aContentPolicyType
-     *        The contentPolicyType of the channel.
-     *        Any of the content types defined in nsIContentPolicy.idl
-     * @return reference to the new nsIChannel object
-     *
-     * Please note, if you provide both a loadingNode and a loadingPrincipal,
-     * then loadingPrincipal must be equal to loadingNode->NodePrincipal().
-     * But less error prone is to just supply a loadingNode.
-     *
-     * Keep in mind that URIs coming from a webpage should *never* use the
-     * systemPrincipal as the loadingPrincipal.
-     */
-    nsIChannel newChannelFromURI2(in nsIURI aURI,
-                                  in nsIDOMNode aLoadingNode,
-                                  in nsIPrincipal aLoadingPrincipal,
-                                  in nsIPrincipal aTriggeringPrincipal,
-                                  in unsigned long aSecurityFlags,
-                                  in unsigned long aContentPolicyType);
-
-    /**
-     * Equivalent to newChannelFromURI2(aURI, aLoadingNode, ...)
-     */
-    nsIChannel newChannelFromURIWithLoadInfo(in nsIURI aURI,
-                                             in nsILoadInfo aLoadInfo);
-
-    /**
-     * Creates a channel for a given URI.
-     *
      * @param aURI nsIURI from which to make a channel
      * @return reference to the new nsIChannel object
      */
     nsIChannel newChannelFromURI(in nsIURI aURI);
-
-    /**
-     * Equivalent to newChannelFromURI2(newURI(...))
-     */
-    nsIChannel newChannel2(in AUTF8String aSpec,
-                           in string aOriginCharset,
-                           in nsIURI aBaseURI,
-                           in nsIDOMNode aLoadingNode,
-                           in nsIPrincipal aLoadingPrincipal,
-                           in nsIPrincipal aTriggeringPrincipal,
-                           in unsigned long aSecurityFlags,
-                           in unsigned long aContentPolicyType);
 
     /**
      * Equivalent to newChannelFromURI(newURI(...))
@@ -176,30 +119,6 @@ interface nsIIOService : nsISupports
      * Changing this fires observer notifications ... see below.
      */
     attribute boolean offline;
-
-    /**
-     * Set whether network appears to be offline for network connections from
-     * a given appID.
-     *
-     * Calling this function may fire the "network:app-offline-status-changed"
-     * notification, which is also sent to child processes containing this appId.
-     * 'state' must one of nsIAppOfflineInfo::{ONLINE|OFFLINE|WIFI_ONLY}.
-     */
-    void setAppOffline(in uint32_t appId, in long state);
-
-    /**
-     * Returns true if given appId is currently not allowed to make network
-     * connections. It will return true if the app is in the wifi-only state
-     * and we are currently on a 3G connection.
-     * The returned value does not depend on the offline state of the browser.
-     */
-    boolean isAppOffline(in uint32_t appId);
-
-    /**
-     * Returns the state of the app with the given appId.
-     * returns nsIAppOfflineInfo::{ONLINE,OFFLINE,WIFI_ONLY}
-     */
-    long getAppOfflineState(in uint32_t appId);
 
     /**
      * Checks if a port number is banned. This involves consulting a list of
@@ -230,18 +149,6 @@ interface nsIIOService : nsISupports
     ACString extractScheme(in AUTF8String urlString);
 };
 
-[scriptable, uuid(4ac296a0-ca1b-44f4-8787-117a88cb70fb)]
-interface nsIAppOfflineInfo : nsISupports
-{
-    readonly attribute unsigned long appId;
-
-    const long ONLINE = 1;
-    const long OFFLINE = 2;
-    const long WIFI_ONLY = 3;
-
-    readonly attribute long mode;
-};
-
 %{C++
 /**
  * We send notifications through nsIObserverService with topic
@@ -261,10 +168,4 @@ interface nsIAppOfflineInfo : nsISupports
 #define NS_IOSERVICE_OFFLINE_STATUS_TOPIC "network:offline-status-changed"
 #define NS_IOSERVICE_OFFLINE              "offline"
 #define NS_IOSERVICE_ONLINE               "online"
-
-/**
- * When network:app-offline-status-changed is fired,
- * the 'Subject' argument is a nsIOfflineAppInfo.
- */
-#define NS_IOSERVICE_APP_OFFLINE_STATUS_TOPIC "network:app-offline-status-changed"
 %}

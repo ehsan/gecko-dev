@@ -1,23 +1,12 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 var httpserver = null;
-
-XPCOMUtils.defineLazyGetter(this, "uri", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + "/multipart";
-});
+var uri = "http://localhost:4444/multipart";
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel2(url,
-                         "",
-                         null,
-                         null,      // aLoadingNode
-                         Services.scriptSecurityManager.getSystemPrincipal(),
-                         null,      // aTriggeringPrincipal
-                         Ci.nsILoadInfo.SEC_NORMAL,
-                         Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannel(url, "", null);
 }
 
 var multipartBody = "--boundary\r\n\r\nSome text\r\n--boundary\r\n\r\n<?xml version='1.0'?><root/>\r\n--boundary--";
@@ -25,14 +14,7 @@ var multipartBody = "--boundary\r\n\r\nSome text\r\n--boundary\r\n\r\n<?xml vers
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel2(url,
-                         "",
-                         null,
-                         null,      // aLoadingNode
-                         Services.scriptSecurityManager.getSystemPrincipal(),
-                         null,      // aTriggeringPrincipal
-                         Ci.nsILoadInfo.SEC_NORMAL,
-                         Ci.nsIContentPolicy.TYPE_OTHER);
+  return ios.newChannel(url, "", null);
 }
 
 function contentHandler(metadata, response)
@@ -89,14 +71,14 @@ var multipartListener = {
     } catch (ex) {
       do_throw("Error in closure function: " + ex);
     }
-  }
+  }  
 };
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/multipart", contentHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   var streamConv = Cc["@mozilla.org/streamConverters;1"]
                      .getService(Ci.nsIStreamConverterService);

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html class="reftest-wait">
   <head>
+    <script type="text/javascript" src="/MochiKit/packed.js"></script>
     <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   </head>
   <body>
-    <iframe src="data:text/html,<body spellcheck=false></body>"></iframe>
+    <iframe src="data:text/html,<body></body>"></iframe>
     <script>
       onload = function() {
         var i = document.querySelector("iframe");

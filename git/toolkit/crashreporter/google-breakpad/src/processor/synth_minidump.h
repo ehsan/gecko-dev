@@ -114,7 +114,6 @@
 #include <string>
 
 #include "common/test_assembler.h"
-#include "common/using_std_string.h"
 #include "google_breakpad/common/breakpad_types.h"
 #include "google_breakpad/common/minidump_format.h"
 
@@ -122,6 +121,7 @@ namespace google_breakpad {
 
 namespace SynthMinidump {
 
+using std::string;
 using test_assembler::Endianness;
 using test_assembler::kBigEndian;
 using test_assembler::kLittleEndian;
@@ -166,14 +166,14 @@ class Stream: public Section {
  public:
   // Create a stream of type TYPE.  You can append whatever contents
   // you like to this stream using the test_assembler::Section methods.
-  Stream(const Dump &dump, uint32_t type) : Section(dump), type_(type) { }
+  Stream(const Dump &dump, u_int32_t type) : Section(dump), type_(type) { }
 
   // Append an MDRawDirectory referring to this stream to SECTION.
   void CiteStreamIn(test_assembler::Section *section) const;
 
  private:
   // The type of this stream.
-  uint32_t type_;
+  u_int32_t type_;
 };
 
 class SystemInfo: public Stream {
@@ -196,7 +196,7 @@ class SystemInfo: public Stream {
   static const string windows_x86_csd_version;
 };
 
-// An MDString: a string preceded by a 32-bit length.
+// An MDString: a string predeced by a 32-bit length.
 class String: public Section {
  public:
   String(const Dump &dump, const string &value);
@@ -211,7 +211,7 @@ class String: public Section {
 // to memory addresses.
 class Memory: public Section {
  public:
-  Memory(const Dump &dump, uint64_t address)
+  Memory(const Dump &dump, u_int64_t address)
       : Section(dump), address_(address) { start() = address; }
 
   // Append an MDMemoryDescriptor referring to this memory range to SECTION.
@@ -220,16 +220,13 @@ class Memory: public Section {
  private:
   // The process address from which these memory contents were taken.
   // Shouldn't this be a Label?
-  uint64_t address_;
+  u_int64_t address_;
 };
 
 class Context: public Section {
  public:
   // Create a context belonging to DUMP whose contents are a copy of CONTEXT.
   Context(const Dump &dump, const MDRawContextX86 &context);
-  Context(const Dump &dump, const MDRawContextARM &context);
-  // Add an empty context to the dump.
-  Context(const Dump &dump) : Section(dump) {}
   // Add constructors for other architectures here. Remember to byteswap.
 };
 
@@ -238,13 +235,13 @@ class Thread: public Section {
   // Create a thread belonging to DUMP with the given values, citing
   // STACK and CONTEXT (which you must Add to the dump separately).
   Thread(const Dump &dump,
-         uint32_t thread_id,
+         u_int32_t thread_id,
          const Memory &stack,
          const Context &context,
-         uint32_t suspend_count = 0,
-         uint32_t priority_class = 0,
-         uint32_t priority = 0,
-         uint64_t teb = 0);
+         u_int32_t suspend_count = 0,
+         u_int32_t priority_class = 0,
+         u_int32_t priority = 0,
+         u_int64_t teb = 0);
 };
 
 class Module: public Section {
@@ -253,11 +250,11 @@ class Module: public Section {
   // MISC_RECORD can be NULL, in which case the corresponding location
   // descriptior in the minidump will have a length of zero.
   Module(const Dump &dump,
-         uint64_t base_of_image,
-         uint32_t size_of_image,
+         u_int64_t base_of_image,
+         u_int32_t size_of_image,
          const String &name,
-         uint32_t time_date_stamp = 1262805309,
-         uint32_t checksum = 0,
+         u_int32_t time_date_stamp = 1262805309,
+         u_int32_t checksum = 0,
          const MDVSFixedFileInfo &version_info = Module::stock_version_info,
          const Section *cv_record = NULL,
          const Section *misc_record = NULL);
@@ -269,22 +266,12 @@ class Module: public Section {
   static const MDVSFixedFileInfo stock_version_info;
 };
 
-class Exception : public Stream {
-public:
-  Exception(const Dump &dump,
-            const Context &context,
-            uint32_t thread_id = 0,
-            uint32_t exception_code = 0,
-            uint32_t exception_flags = 0,
-            uint64_t exception_address = 0);
-};
-
 // A list of entries starting with a 32-bit count, like a memory list
 // or a thread list.
 template<typename Element>
 class List: public Stream {
  public:
-  List(const Dump &dump, uint32_t type) : Stream(dump, type), count_(0) {
+  List(const Dump &dump, u_int32_t type) : Stream(dump, type), count_(0) {
     D32(count_label_);
   }
 
@@ -317,10 +304,10 @@ class Dump: public test_assembler::Section {
   // header uses the given values. ENDIANNESS determines the
   // endianness of the signature; we set this section's default
   // endianness by this.
-  Dump(uint64_t flags,
+  Dump(u_int64_t flags,
        Endianness endianness = kLittleEndian,
-       uint32_t version = MD_HEADER_VERSION,
-       uint32_t date_time_stamp = 1262805309);
+       u_int32_t version = MD_HEADER_VERSION,
+       u_int32_t date_time_stamp = 1262805309);
 
   // The following functions call OBJECT->Finish(), and append the
   // contents of OBJECT to this minidump. They also record OBJECT in

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsJSUtils_h__
 #define nsJSUtils_h__
@@ -13,210 +45,87 @@
  * the generated code itself.
  */
 
-#include "mozilla/Assertions.h"
-
+#include "nsISupports.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsString.h"
 
+class nsIDOMEventListener;
 class nsIScriptContext;
 class nsIScriptGlobalObject;
-
-namespace mozilla {
-namespace dom {
-class AutoJSAPI;
-class Element;
-}
-}
+class nsIPrincipal;
 
 class nsJSUtils
 {
 public:
-  static bool GetCallingLocation(JSContext* aContext, nsACString& aFilename,
-                                 uint32_t* aLineno);
-  static bool GetCallingLocation(JSContext* aContext, nsAString& aFilename,
-                                 uint32_t* aLineno);
+  static JSBool GetCallingLocation(JSContext* aContext, const char* *aFilename,
+                                   PRUint32* aLineno, nsIPrincipal* aPrincipal);
 
-  static nsIScriptGlobalObject *GetStaticScriptGlobal(JSObject* aObj);
+  static nsIScriptGlobalObject *GetStaticScriptGlobal(JSContext* aContext,
+                                                      JSObject* aObj);
 
-  static nsIScriptContext *GetStaticScriptContext(JSObject* aObj);
+  static nsIScriptContext *GetStaticScriptContext(JSContext* aContext,
+                                                  JSObject* aObj);
+
+  static nsIScriptGlobalObject *GetDynamicScriptGlobal(JSContext *aContext);
+
+  static nsIScriptContext *GetDynamicScriptContext(JSContext *aContext);
 
   /**
-   * Retrieve the inner window ID based on the given JSContext.
+   * Retrieve the outer window ID based on the given JSContext.
    *
    * @param JSContext aContext
-   *        The JSContext from which you want to find the inner window ID.
+   *        The JSContext from which you want to find the outer window ID.
    *
-   * @returns uint64_t the inner window ID.
+   * @returns PRUint64 the outer window ID.
    */
-  static uint64_t GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext);
-
-  /**
-   * Report a pending exception on aContext, if any.  Note that this
-   * can be called when the context has a JS stack.  If that's the
-   * case, the stack will be set aside before reporting the exception.
-   */
-  static void ReportPendingException(JSContext *aContext);
-
-  static nsresult CompileFunction(mozilla::dom::AutoJSAPI& jsapi,
-                                  JS::AutoObjectVector& aScopeChain,
-                                  JS::CompileOptions& aOptions,
-                                  const nsACString& aName,
-                                  uint32_t aArgCount,
-                                  const char** aArgArray,
-                                  const nsAString& aBody,
-                                  JSObject** aFunctionObject);
-
-  struct MOZ_STACK_CLASS EvaluateOptions {
-    bool coerceToString;
-    bool reportUncaught;
-    JS::AutoObjectVector scopeChain;
-
-    explicit EvaluateOptions(JSContext* cx)
-      : coerceToString(false)
-      , reportUncaught(true)
-      , scopeChain(cx)
-    {}
-
-    EvaluateOptions& setCoerceToString(bool aCoerce) {
-      coerceToString = aCoerce;
-      return *this;
-    }
-
-    EvaluateOptions& setReportUncaught(bool aReport) {
-      reportUncaught = aReport;
-      return *this;
-    }
-  };
-
-  // aEvaluationGlobal is the global to evaluate in.  The return value
-  // will then be wrapped back into the compartment aCx is in when
-  // this function is called.
-  static nsresult EvaluateString(JSContext* aCx,
-                                 const nsAString& aScript,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions &aCompileOptions,
-                                 const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue);
-
-  static nsresult EvaluateString(JSContext* aCx,
-                                 JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions &aCompileOptions,
-                                 const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue);
-
-
-  static nsresult EvaluateString(JSContext* aCx,
-                                 const nsAString& aScript,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions &aCompileOptions);
-
-  static nsresult EvaluateString(JSContext* aCx,
-                                 JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions &aCompileOptions,
-                                 void **aOffThreadToken);
-
-  // Returns false if an exception got thrown on aCx.  Passing a null
-  // aElement is allowed; that wil produce an empty aScopeChain.
-  static bool GetScopeChainForElement(JSContext* aCx,
-                                      mozilla::dom::Element* aElement,
-                                      JS::AutoObjectVector& aScopeChain);
-private:
-  // Implementation for our EvaluateString bits
-  static nsresult EvaluateString(JSContext* aCx,
-                                 JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions& aCompileOptions,
-                                 const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue,
-                                 void **aOffThreadToken);
+  static PRUint64 GetCurrentlyRunningCodeWindowID(JSContext *aContext);
 };
 
-class MOZ_STACK_CLASS AutoDontReportUncaught {
-  JSContext* mContext;
-  bool mWasSet;
 
-public:
-  explicit AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
-    MOZ_ASSERT(aContext);
-    mWasSet = JS::ContextOptionsRef(mContext).dontReportUncaught();
-    if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(true);
-    }
-  }
-  ~AutoDontReportUncaught() {
-    if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(false);
-    }
-  }
-};
-
-template<typename T>
-inline bool
-AssignJSString(JSContext *cx, T &dest, JSString *s)
-{
-  size_t len = js::GetStringLength(s);
-  static_assert(js::MaxStringLength < (1 << 28),
-                "Shouldn't overflow here or in SetCapacity");
-  if (MOZ_UNLIKELY(!dest.SetLength(len, mozilla::fallible_t()))) {
-    JS_ReportOutOfMemory(cx);
-    return false;
-  }
-  return js::CopyStringChars(cx, dest.BeginWriting(), s, len);
-}
-
-inline void
-AssignJSFlatString(nsAString &dest, JSFlatString *s)
-{
-  size_t len = js::GetFlatStringLength(s);
-  static_assert(js::MaxStringLength < (1 << 28),
-                "Shouldn't overflow here or in SetCapacity");
-  dest.SetLength(len);
-  js::CopyFlatStringChars(dest.BeginWriting(), s, len);
-}
-
-class nsAutoJSString : public nsAutoString
+class nsDependentJSString : public nsDependentString
 {
 public:
+  /**
+   * In the case of string ids, getting the string's chars is infallible, so
+   * the dependent string can be constructed directly.
+   */
+  explicit nsDependentJSString(jsid id)
+    : nsDependentString(JS_GetInternedStringChars(JSID_TO_STRING(id)),
+                        JS_GetStringLength(JSID_TO_STRING(id)))
+  {
+  }
 
   /**
-   * nsAutoJSString should be default constructed, which leaves it empty
-   * (this->IsEmpty()), and initialized with one of the init() methods below.
+   * For all other strings, the nsDependentJSString object should be default
+   * constructed, which leaves it empty (this->IsEmpty()), and initialized with
+   * one of the fallible init() methods below.
    */
-  nsAutoJSString() {}
 
-  bool init(JSContext* aContext, JSString* str)
+  nsDependentJSString()
   {
-    return AssignJSString(aContext, *this, str);
   }
 
-  bool init(JSContext* aContext, const JS::Value &v)
+  JSBool init(JSContext* aContext, JSString* str)
   {
-    if (v.isString()) {
-      return init(aContext, v.toString());
-    }
+      size_t length;
+      const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
+      if (!chars)
+          return JS_FALSE;
 
-    // Stringify, making sure not to run script.
-    JS::Rooted<JSString*> str(aContext);
-    if (v.isObject()) {
-      str = JS_NewStringCopyZ(aContext, "[Object]");
-    } else {
-      JS::Rooted<JS::Value> rootedVal(aContext, v);
-      str = JS::ToString(aContext, rootedVal);
-    }
-
-    return str && init(aContext, str);
+      NS_ASSERTION(IsEmpty(), "init() on initialized string");
+      nsDependentString* base = this;
+      new(base) nsDependentString(chars, length);
+      return JS_TRUE;
   }
 
-  bool init(JSContext* aContext, jsid id)
+  JSBool init(JSContext* aContext, const jsval &v)
   {
-    JS::Rooted<JS::Value> v(aContext);
-    return JS_IdToValue(aContext, id, &v) && init(aContext, v);
+      return init(aContext, JSVAL_TO_STRING(v));
   }
 
-  ~nsAutoJSString() {}
+  ~nsDependentJSString()
+  {
+  }
 };
 
 #endif /* nsJSUtils_h__ */

@@ -101,7 +101,7 @@
 // Defines a class member that acts like a mutex. It is used only as a
 // verification tool.
 #define DFAKE_MUTEX(obj) \
-     mutable base::ThreadCollisionWarner obj;
+     mutable base::ThreadCollisionWarner obj
 // Asserts the call is never called simultaneously in two threads. Used at
 // member function scope.
 #define DFAKE_SCOPED_LOCK(obj) \
@@ -142,7 +142,7 @@ struct DCheckAsserter : public AsserterBase {
 class ThreadCollisionWarner {
  public:
   // The parameter asserter is there only for test purpose
-  explicit ThreadCollisionWarner(AsserterBase* asserter = new DCheckAsserter())
+  ThreadCollisionWarner(AsserterBase* asserter = new DCheckAsserter())
       : valid_thread_id_(0),
         counter_(0),
         asserter_(asserter) {}

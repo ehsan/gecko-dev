@@ -2,23 +2,16 @@
 <html>
 <head>
   <title>Test for Login Manager</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="pwmgr_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
 Login Manager test: 227640
-<script>
-commonInit();
-SimpleTest.waitForExplicitFinish();
-
-var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"]
-                         .getService(SpecialPowers.Ci.nsILoginManager);
-</script>
-
 <p id="display"></p>
 <div id="content" style="display: none">
-
+  
   <!-- no autocomplete for password field -->
   <form id="form1" onsubmit="return checkSubmit(1)" method="get">
     <input  type="text"       name="uname" value="">
@@ -155,6 +148,7 @@ var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"]
 
 /** Test for Login Manager: 227640 (password is saved even when the
     password field has autocomplete="off") **/
+commonInit();
 
 // This test ensures that pwmgr does not save a username or password when
 // autocomplete=off is present.
@@ -231,11 +225,30 @@ function getFormSubmitButton(formNum) {
 
 // Counts the number of logins currently stored by password manager.
 function countLogins() {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   var logins = pwmgr.getAllLogins();
 
   return logins.length;
 }
-window.addEventListener("runTests", startTest);
+
+// Get the pwmgr service
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+var Cc_pwmgr = Components.classes["@mozilla.org/login-manager;1"];
+ok(Cc_pwmgr != null, "Access Cc[@mozilla.org/login-manager;1]");
+
+var Ci_pwmgr = Components.interfaces.nsILoginManager;
+ok(Ci_pwmgr != null, "Access Ci.nsILoginManager");
+
+var pwmgr = Cc_pwmgr.getService(Ci_pwmgr);
+ok(pwmgr != null, "pwmgr getService()");
+
+
+window.onload = startTest;
+
+SimpleTest.waitForExplicitFinish();
+
 </script>
 </pre>
 </body>

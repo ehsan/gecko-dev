@@ -7,3 +7,6 @@ function testOwnPropertyWithInOperator()
   return a.join(",");
 }
 assertEq(testOwnPropertyWithInOperator(), "true,true,true,true,true,true,true");
+checkStats({
+  sideExitIntoInterpreter: 1
+});

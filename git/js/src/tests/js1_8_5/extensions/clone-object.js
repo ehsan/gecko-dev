@@ -1,4 +1,3 @@
-// |reftest| skip-if(!xulRuntime.shell)
 // -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
@@ -165,15 +164,15 @@ function test() {
     b.z = 3;
     check(b);
 
-    // Check that cloning does not separate merge points in the tree.
+    // Check that cloning separates merge points in the tree, per spec.
     var same = {};
     b = {one: same, two: same};
     a = check(b);
-    assertEq(a.one === a.two, true);
+    assertEq(a.one === a.two, false);
 
     b = [same, same];
     a = check(b);
-    assertEq(a[0] === a[1], true);
+    assertEq(a[0] === a[1], false);
 
     // Try cloning a deep object. Don't fail with "too much recursion".
     b = {};
@@ -208,7 +207,7 @@ function test() {
     b = [];
     b[255] = 1;
     check(b);
-    assertEq(serialize(b).clonebuffer.length < 255, true);
+    assertEq(serialize(b).length < 255, true);
 
     // Self-modifying object.
     // This should never read through to b's prototype.
@@ -225,8 +224,8 @@ function test() {
     // Ignore properties with object-ids.
     var uri = "http://example.net";
     b = {x: 1, y: 2};
-    Object.defineProperty(b, Array(uri, "x"), {enumerable: true, value: 3});
-    Object.defineProperty(b, Array(uri, "y"), {enumerable: true, value: 5});
+    Object.defineProperty(b, QName(uri, "x"), {enumerable: true, value: 3});
+    Object.defineProperty(b, QName(uri, "y"), {enumerable: true, value: 5});
     check(b);
 }
 

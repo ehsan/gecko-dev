@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *  David Dahl <ddahl@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include <gtk/gtk.h>
@@ -62,12 +95,12 @@ ShowProgressUI()
   if (!sEnableUI)
     return -1;
 
-  // Only show the Progress UI if the process is taking a significant amount of
-  // time where a significant amount of time is defined as .5 seconds after
-  // ShowProgressUI is called sProgress is less than 70.
+  // Only show the Progress UI if the process is taking significant time.
+  // Here we measure significant time as taking more than one second.
+
   usleep(500000);
 
-  if (sQuit || sProgressVal > 70.0f)
+  if (sQuit || sProgressVal > 50.0f)
     return 0;
 
   char ini_path[PATH_MAX];
@@ -86,7 +119,7 @@ ShowProgressUI()
   snprintf(icon_path, sizeof(icon_path), "%s.png", sProgramPath);
 
   g_signal_connect(G_OBJECT(sWin), "delete_event",
-                   G_CALLBACK(OnDeleteEvent), nullptr);
+                   G_CALLBACK(OnDeleteEvent), NULL);
 
   gtk_window_set_title(GTK_WINDOW(sWin), strings.title);
   gtk_window_set_type_hint(GTK_WINDOW(sWin), GDK_WINDOW_TYPE_HINT_DIALOG);
@@ -94,7 +127,7 @@ ShowProgressUI()
   gtk_window_set_resizable(GTK_WINDOW(sWin), FALSE);
   gtk_window_set_decorated(GTK_WINDOW(sWin), TRUE);
   gtk_window_set_deletable(GTK_WINDOW(sWin),FALSE);
-  pixbuf = gdk_pixbuf_new_from_file (icon_path, nullptr);
+  pixbuf = gdk_pixbuf_new_from_file (icon_path, NULL);
   gtk_window_set_icon(GTK_WINDOW(sWin), pixbuf);
   g_object_unref(pixbuf);
 
@@ -106,7 +139,7 @@ ShowProgressUI()
   gtk_box_pack_start(GTK_BOX(vbox), sLabel, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), sProgressBar, TRUE, TRUE, 0);
 
-  sTimerID = g_timeout_add(TIMER_INTERVAL, UpdateDialog, nullptr);
+  sTimerID = g_timeout_add(TIMER_INTERVAL, UpdateDialog, NULL);
 
   gtk_container_set_border_width(GTK_CONTAINER(sWin), 10);
   gtk_container_add(GTK_CONTAINER(sWin), vbox);

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,34 +9,59 @@
 // functionality. [OpenGL ES 2.0.24] section 2.10 page 24 and section 3.8 page 84.
 
 #include "libGLESv2/Shader.h"
-#include "libGLESv2/renderer/Renderer.h"
-#include "libGLESv2/renderer/ShaderImpl.h"
-#include "libGLESv2/Constants.h"
-#include "libGLESv2/ResourceManager.h"
 
-#include "common/utilities.h"
+#include <string>
 
-#include "GLSLANG/ShaderLang.h"
-
-#include <sstream>
+#include "GLSLANG/Shaderlang.h"
+#include "libGLESv2/main.h"
+#include "libGLESv2/utilities.h"
 
 namespace gl
 {
+void *Shader::mFragmentCompiler = NULL;
+void *Shader::mVertexCompiler = NULL;
 
-Shader::Shader(ResourceManager *manager, rx::ShaderImpl *impl, GLenum type, GLuint handle)
-    : mShader(impl),
-      mType(type),
-      mHandle(handle),
-      mResourceManager(manager),
-      mRefCount(0),
-      mDeleteStatus(false),
-      mCompiled(false)
+Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mResourceManager(manager)
 {
-    ASSERT(impl);
+    mSource = NULL;
+    mHlsl = NULL;
+    mInfoLog = NULL;
+
+    // Perform a one-time initialization of the shader compiler (or after being destructed by releaseCompiler)
+    if (!mFragmentCompiler)
+    {
+        int result = ShInitialize();
+
+        if (result)
+        {
+            ShBuiltInResources resources;
+            ShInitBuiltInResources(&resources);
+            Context *context = getContext();            
+
+            resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
+            resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
+            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
+            resources.MaxVertexTextureImageUnits = MAX_VERTEX_TEXTURE_IMAGE_UNITS;
+            resources.MaxCombinedTextureImageUnits = MAX_COMBINED_TEXTURE_IMAGE_UNITS;
+            resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
+            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
+            resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
+            resources.OES_standard_derivatives = 1;
+
+            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, &resources);
+            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, &resources);
+        }
+    }
+
+    mRefCount = 0;
+    mDeleteStatus = false;
 }
 
 Shader::~Shader()
 {
+    delete[] mSource;
+    delete[] mHlsl;
+    delete[] mInfoLog;
 }
 
 GLuint Shader::getHandle() const
@@ -44,32 +69,73 @@ GLuint Shader::getHandle() const
     return mHandle;
 }
 
-void Shader::setSource(GLsizei count, const char *const *string, const GLint *length)
+void Shader::setSource(GLsizei count, const char **string, const GLint *length)
 {
-    std::ostringstream stream;
+    delete[] mSource;
+    int totalLength = 0;
 
     for (int i = 0; i < count; i++)
     {
-        stream << string[i];
+        if (length && length[i] >= 0)
+        {
+            totalLength += length[i];
+        }
+        else
+        {
+            totalLength += (int)strlen(string[i]);
+        }
     }
 
-    mSource = stream.str();
+    mSource = new char[totalLength + 1];
+    char *code = mSource;
+
+    for (int i = 0; i < count; i++)
+    {
+        int stringLength;
+
+        if (length && length[i] >= 0)
+        {
+            stringLength = length[i];
+        }
+        else
+        {
+            stringLength = (int)strlen(string[i]);
+        }
+
+        strncpy(code, string[i], stringLength);
+        code += stringLength;
+    }
+
+    mSource[totalLength] = '\0';
 }
 
 int Shader::getInfoLogLength() const
 {
-    return  mShader->getInfoLog().empty() ? 0 : (mShader->getInfoLog().length() + 1);
+    if (!mInfoLog)
+    {
+        return 0;
+    }
+    else
+    {
+       return strlen(mInfoLog) + 1;
+    }
 }
 
-void Shader::getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog) const
+void Shader::getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog)
 {
     int index = 0;
 
-    if (bufSize > 0)
+    if (mInfoLog)
     {
-        index = std::min(bufSize - 1, static_cast<GLsizei>(mShader->getInfoLog().length()));
-        memcpy(infoLog, mShader->getInfoLog().c_str(), index);
+        while (index < bufSize - 1 && index < (int)strlen(mInfoLog))
+        {
+            infoLog[index] = mInfoLog[index];
+            index++;
+        }
+    }
 
+    if (bufSize)
+    {
         infoLog[index] = '\0';
     }
 
@@ -81,24 +147,32 @@ void Shader::getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog) const
 
 int Shader::getSourceLength() const
 {
-    return mSource.empty() ? 0 : (mSource.length() + 1);
+    if (!mSource)
+    {
+        return 0;
+    }
+    else
+    {
+       return strlen(mSource) + 1;
+    }
 }
 
-int Shader::getTranslatedSourceLength() const
-{
-    return mShader->getTranslatedSource().empty() ? 0 : (mShader->getTranslatedSource().length() + 1);
-}
-
-void Shader::getSourceImpl(const std::string &source, GLsizei bufSize, GLsizei *length, char *buffer)
+void Shader::getSource(GLsizei bufSize, GLsizei *length, char *source)
 {
     int index = 0;
 
-    if (bufSize > 0)
+    if (mSource)
     {
-        index = std::min(bufSize - 1, static_cast<GLsizei>(source.length()));
-        memcpy(buffer, source.c_str(), index);
+        while (index < bufSize - 1 && index < (int)strlen(mSource))
+        {
+            source[index] = mSource[index];
+            index++;
+        }
+    }
 
-        buffer[index] = '\0';
+    if (bufSize)
+    {
+        source[index] = '\0';
     }
 
     if (length)
@@ -107,19 +181,14 @@ void Shader::getSourceImpl(const std::string &source, GLsizei bufSize, GLsizei *
     }
 }
 
-void Shader::getSource(GLsizei bufSize, GLsizei *length, char *buffer) const
+bool Shader::isCompiled()
 {
-    getSourceImpl(mSource, bufSize, length, buffer);
+    return mHlsl != NULL;
 }
 
-void Shader::getTranslatedSource(GLsizei bufSize, GLsizei *length, char *buffer) const
+const char *Shader::getHLSL()
 {
-    getSourceImpl(mShader->getTranslatedSource(), bufSize, length, buffer);
-}
-
-void Shader::compile()
-{
-    mCompiled = mShader->compile(mSource);
+    return mHlsl;
 }
 
 void Shader::addRef()
@@ -152,54 +221,308 @@ void Shader::flagForDeletion()
     mDeleteStatus = true;
 }
 
-const std::vector<gl::PackedVarying> &Shader::getVaryings() const
+void Shader::releaseCompiler()
 {
-    return mShader->getVaryings();
+    ShDestruct(mFragmentCompiler);
+    ShDestruct(mVertexCompiler);
+
+    mFragmentCompiler = NULL;
+    mVertexCompiler = NULL;
+
+    ShFinalize();
 }
 
-const std::vector<sh::Uniform> &Shader::getUniforms() const
+void Shader::parseVaryings()
 {
-    return mShader->getUniforms();
+    if (mHlsl)
+    {
+        const char *input = strstr(mHlsl, "// Varyings") + 12;
+
+        while(true)
+        {
+            char varyingType[256];
+            char varyingName[256];
+
+            int matches = sscanf(input, "static %255s %255s", varyingType, varyingName);
+
+            if (matches != 2)
+            {
+                break;
+            }
+
+            char *array = strstr(varyingName, "[");
+            int size = 1;
+
+            if (array)
+            {
+                size = atoi(array + 1);
+                *array = '\0';
+            }
+
+            varyings.push_back(Varying(parseType(varyingType), varyingName, size, array != NULL));
+
+            input = strstr(input, ";") + 2;
+        }
+
+        mUsesFragCoord = strstr(mHlsl, "GL_USES_FRAG_COORD") != NULL;
+        mUsesFrontFacing = strstr(mHlsl, "GL_USES_FRONT_FACING") != NULL;
+        mUsesPointSize = strstr(mHlsl, "GL_USES_POINT_SIZE") != NULL;
+        mUsesPointCoord = strstr(mHlsl, "GL_USES_POINT_COORD") != NULL;
+    }
 }
 
-const std::vector<sh::InterfaceBlock> &Shader::getInterfaceBlocks() const
+void Shader::compileToHLSL(void *compiler)
 {
-    return mShader->getInterfaceBlocks();
+    if (isCompiled() || !mSource)
+    {
+        return;
+    }
+
+    delete[] mInfoLog;
+    mInfoLog = NULL;
+
+    int compileOptions = SH_OBJECT_CODE;
+    std::string sourcePath;
+    if (perfActive())
+    {
+        sourcePath = getTempPath();
+        writeFile(sourcePath.c_str(), mSource, strlen(mSource));
+        compileOptions |= SH_LINE_DIRECTIVES;
+    }
+
+    int result;
+    if (sourcePath.empty())
+    {
+        result = ShCompile(compiler, &mSource, 1, compileOptions);
+    }
+    else
+    {
+        const char* sourceStrings[2] =
+        {
+            sourcePath.c_str(),
+            mSource
+        };
+
+        result = ShCompile(compiler, sourceStrings, 2, compileOptions | SH_SOURCE_PATH);
+    }
+
+    if (result)
+    {
+        int objCodeLen = 0;
+        ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &objCodeLen);
+        mHlsl = new char[objCodeLen];
+        ShGetObjectCode(compiler, mHlsl);
+    }
+    else
+    {
+        int infoLogLen = 0;
+        ShGetInfo(compiler, SH_INFO_LOG_LENGTH, &infoLogLen);
+        mInfoLog = new char[infoLogLen];
+        ShGetInfoLog(compiler, mInfoLog);
+
+        TRACE("\n%s", mInfoLog);
+    }
 }
 
-const std::vector<sh::Attribute> &Shader::getActiveAttributes() const
+GLenum Shader::parseType(const std::string &type)
 {
-    return mShader->getActiveAttributes();
+    if (type == "float")
+    {
+        return GL_FLOAT;
+    }
+    else if (type == "float2")
+    {
+        return GL_FLOAT_VEC2;
+    }
+    else if (type == "float3")
+    {
+        return GL_FLOAT_VEC3;
+    }
+    else if (type == "float4")
+    {
+        return GL_FLOAT_VEC4;
+    }
+    else if (type == "float2x2")
+    {
+        return GL_FLOAT_MAT2;
+    }
+    else if (type == "float3x3")
+    {
+        return GL_FLOAT_MAT3;
+    }
+    else if (type == "float4x4")
+    {
+        return GL_FLOAT_MAT4;
+    }
+    else UNREACHABLE();
+
+    return GL_NONE;
 }
 
-const std::vector<sh::Attribute> &Shader::getActiveOutputVariables() const
+// true if varying x has a higher priority in packing than y
+bool Shader::compareVarying(const Varying &x, const Varying &y)
 {
-    return mShader->getActiveOutputVariables();
+    if(x.type == y.type)
+    {
+        return x.size > y.size;
+    }
+
+    switch (x.type)
+    {
+      case GL_FLOAT_MAT4: return true;
+      case GL_FLOAT_MAT2:
+        switch(y.type)
+        {
+          case GL_FLOAT_MAT4: return false;
+          case GL_FLOAT_MAT2: return true;
+          case GL_FLOAT_VEC4: return true;
+          case GL_FLOAT_MAT3: return true;
+          case GL_FLOAT_VEC3: return true;
+          case GL_FLOAT_VEC2: return true;
+          case GL_FLOAT:      return true;
+          default: UNREACHABLE();
+        }
+        break;
+      case GL_FLOAT_VEC4:
+        switch(y.type)
+        {
+          case GL_FLOAT_MAT4: return false;
+          case GL_FLOAT_MAT2: return false;
+          case GL_FLOAT_VEC4: return true;
+          case GL_FLOAT_MAT3: return true;
+          case GL_FLOAT_VEC3: return true;
+          case GL_FLOAT_VEC2: return true;
+          case GL_FLOAT:      return true;
+          default: UNREACHABLE();
+        }
+        break;
+      case GL_FLOAT_MAT3:
+        switch(y.type)
+        {
+          case GL_FLOAT_MAT4: return false;
+          case GL_FLOAT_MAT2: return false;
+          case GL_FLOAT_VEC4: return false;
+          case GL_FLOAT_MAT3: return true;
+          case GL_FLOAT_VEC3: return true;
+          case GL_FLOAT_VEC2: return true;
+          case GL_FLOAT:      return true;
+          default: UNREACHABLE();
+        }
+        break;
+      case GL_FLOAT_VEC3:
+        switch(y.type)
+        {
+          case GL_FLOAT_MAT4: return false;
+          case GL_FLOAT_MAT2: return false;
+          case GL_FLOAT_VEC4: return false;
+          case GL_FLOAT_MAT3: return false;
+          case GL_FLOAT_VEC3: return true;
+          case GL_FLOAT_VEC2: return true;
+          case GL_FLOAT:      return true;
+          default: UNREACHABLE();
+        }
+        break;
+      case GL_FLOAT_VEC2:
+        switch(y.type)
+        {
+          case GL_FLOAT_MAT4: return false;
+          case GL_FLOAT_MAT2: return false;
+          case GL_FLOAT_VEC4: return false;
+          case GL_FLOAT_MAT3: return false;
+          case GL_FLOAT_VEC3: return false;
+          case GL_FLOAT_VEC2: return true;
+          case GL_FLOAT:      return true;
+          default: UNREACHABLE();
+        }
+        break;
+      case GL_FLOAT: return false;
+      default: UNREACHABLE();
+    }
+
+    return false;
 }
 
-std::vector<gl::PackedVarying> &Shader::getVaryings()
+VertexShader::VertexShader(ResourceManager *manager, GLuint handle) : Shader(manager, handle)
 {
-    return mShader->getVaryings();
 }
 
-std::vector<sh::Uniform> &Shader::getUniforms()
+VertexShader::~VertexShader()
 {
-    return mShader->getUniforms();
 }
 
-std::vector<sh::InterfaceBlock> &Shader::getInterfaceBlocks()
+GLenum VertexShader::getType()
 {
-    return mShader->getInterfaceBlocks();
+    return GL_VERTEX_SHADER;
 }
 
-std::vector<sh::Attribute> &Shader::getActiveAttributes()
+void VertexShader::compile()
 {
-    return mShader->getActiveAttributes();
+    compileToHLSL(mVertexCompiler);
+    parseAttributes();
+    parseVaryings();
 }
 
-std::vector<sh::Attribute> &Shader::getActiveOutputVariables()
+int VertexShader::getSemanticIndex(const std::string &attributeName)
 {
-    return mShader->getActiveOutputVariables();
+    if (!attributeName.empty())
+    {
+        int semanticIndex = 0;
+        for (AttributeArray::iterator attribute = mAttributes.begin(); attribute != mAttributes.end(); attribute++)
+        {
+            if (attribute->name == attributeName)
+            {
+                return semanticIndex;
+            }
+
+            semanticIndex += VariableRowCount(attribute->type);
+        }
+    }
+
+    return -1;
 }
 
+void VertexShader::parseAttributes()
+{
+    if (mHlsl)
+    {
+        const char *input = strstr(mHlsl, "// Attributes") + 14;
+
+        while(true)
+        {
+            char attributeType[256];
+            char attributeName[256];
+
+            int matches = sscanf(input, "static %255s _%255s", attributeType, attributeName);
+
+            if (matches != 2)
+            {
+                break;
+            }
+
+            mAttributes.push_back(Attribute(parseType(attributeType), attributeName));
+
+            input = strstr(input, ";") + 2;
+        }
+    }
+}
+
+FragmentShader::FragmentShader(ResourceManager *manager, GLuint handle) : Shader(manager, handle)
+{
+}
+
+FragmentShader::~FragmentShader()
+{
+}
+
+GLenum FragmentShader::getType()
+{
+    return GL_FRAGMENT_SHADER;
+}
+
+void FragmentShader::compile()
+{
+    compileToHLSL(mFragmentCompiler);
+    parseVaryings();
+    varyings.sort(compareVarying);
+}
 }

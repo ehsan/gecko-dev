@@ -1,10 +1,50 @@
 # vim:set ts=8 sw=8 sts=8 noet:
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2005
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Darin Fisher <darin@meer.net>
+#   Chase Phillips <chase@mozilla.org>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-STANDALONE_MAKEFILE := 1
+DEPTH		= ../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 # input location for the build, usually $(DIST)
 # set this to $(DIST)/l10n-stage per override for L10n builds
@@ -16,12 +56,12 @@ STAGE_DIR	= $(DIST)/$(PKG_UPDATE_PATH)
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 ifdef UNIVERSAL_BINARY
 ifneq (,$(filter %/l10n-stage,$(PACKAGE_BASE_DIR)))
-PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/$(MOZ_PKG_DIR)/$(MOZ_MACBUNDLE_NAME)
+PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/$(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app
 else
-PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/universal/$(MOZ_PKG_DIR)/$(MOZ_MACBUNDLE_NAME)
+PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/universal/$(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app
 endif
 else
-PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/$(MOZ_PKG_DIR)/$(MOZ_MACBUNDLE_NAME)
+PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/$(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app
 endif
 else
 PACKAGE_DIR	= $(PACKAGE_BASE_DIR)/$(MOZ_PKG_DIR)
@@ -30,72 +70,22 @@ endif
 MAR_BIN	= $(LIBXUL_DIST)/host/bin/mar$(HOST_BIN_SUFFIX)
 MBSDIFF_BIN	= $(LIBXUL_DIST)/host/bin/mbsdiff$(HOST_BIN_SUFFIX)
 
-OVERRIDE_DEFAULT_GOAL := full-update
-full-update:: complete-patch $(if $(MOZ_AUTOMATION_UPDATE_PACKAGING),automation-partial-patch)
+full-update:: complete-patch
 
-ifeq ($(OS_TARGET), WINNT)
-MOZ_PKG_FORMAT	:= SFX7Z
-UNPACKAGE	= '$(subst $(DIST),$(_ABS_DIST),$(INSTALLER_PACKAGE))'
-ifdef AB_CD
-UNPACKAGE	= '$(PACKAGE_BASE_DIR)/$(PACKAGE)'
-endif
-endif
-
-include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/toolkit/mozapps/installer/signing.mk
-include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
-
-ifdef MOZ_EXTERNAL_SIGNING_FORMAT
-# We can't use signcode on mar files
-MOZ_EXTERNAL_SIGNING_FORMAT := $(filter-out osslsigncode signcode,$(MOZ_EXTERNAL_SIGNING_FORMAT))
-MOZ_EXTERNAL_SIGNING_FORMAT := mar $(MOZ_EXTERNAL_SIGNING_FORMAT)
-endif
-
-dir-stage := $(call mkdir_deps,$(STAGE_DIR))
-
-complete-patch:: $(dir-stage)
-ifeq ($(OS_TARGET), WINNT)
-	test -f $(UNPACKAGE)
-	$(RM) -rf '$(PACKAGE_DIR)'
-	cd $(PACKAGE_BASE_DIR) && $(INNER_UNMAKE_PACKAGE)
-endif
+complete-patch::
+	mkdir -p $(STAGE_DIR)
 	MAR=$(MAR_BIN) \
 	  $(srcdir)/make_full_update.sh \
-	  '$(DIST)/$(COMPLETE_MAR)' \
-	  '$(PACKAGE_DIR)'
-ifdef MOZ_SIGN_CMD
-	$(MOZ_SIGN_CMD) -f mar '$(DIST)/$(COMPLETE_MAR)'
-endif
+	  "$(STAGE_DIR)/$(PKG_UPDATE_BASENAME).complete.mar" \
+	  "$(PACKAGE_DIR)"
 
-partial-patch:: $(dir-stage)
+partial-patch::
+	mkdir -p $(STAGE_DIR)
 	MAR=$(MAR_BIN) \
 	MBSDIFF=$(MBSDIFF_BIN) \
 	  $(srcdir)/make_incremental_update.sh \
-	  '$(STAGE_DIR)/$(PKG_UPDATE_BASENAME).partial.$(SRC_BUILD_ID)-$(DST_BUILD_ID).mar' \
-	  '$(SRC_BUILD)' \
-	  '$(DST_BUILD)'
-ifdef MOZ_SIGN_CMD
-	$(MOZ_SIGN_CMD) -f mar '$(STAGE_DIR)/$(PKG_UPDATE_BASENAME).partial.$(SRC_BUILD_ID)-$(DST_BUILD_ID).mar'
-endif
+	  "$(STAGE_DIR)/$(PKG_UPDATE_BASENAME).partial.$(SRC_BUILD_ID)-$(DST_BUILD_ID).mar" \
+	  "$(SRC_BUILD)" \
+	  "$(DST_BUILD)"
 
-automation-partial-patch: complete-patch
-	rm -rf current current.work previous
-	mkdir current previous
-	latestmar=$$(ssh -l $(UPLOAD_USER) -i $(UPLOAD_SSH_KEY) $(UPLOAD_HOST) 'ls -1t $(LATEST_MAR_DIR) | grep $(MOZ_PKG_PLATFORM).complete.mar$$ | head -n 1'); \
-	  if test -n "$$latestmar"; then \
-	    wget -O $(STAGE_DIR)/previous.mar http://$(UPLOAD_HOST)/$(LATEST_MAR_DIR)/$$latestmar && \
-	    (cd previous; \
-	      MAR=$(MAR_BIN) perl $(topsrcdir)/tools/update-packaging/unwrap_full_update.pl '../$(STAGE_DIR)/previous.mar') && \
-	    (cd current; \
-	      MAR=$(MAR_BIN) perl $(topsrcdir)/tools/update-packaging/unwrap_full_update.pl '../$(DIST)/$(COMPLETE_MAR)') && \
-	    find current -name \*.pgc -print -delete && \
-	    find previous -name \*.pgc -print -delete && \
-	    rm -f $(STAGE_DIR)/*.partial.*.mar && \
-	    SRC_BUILD_ID=$$(python $(topsrcdir)/config/printconfigsetting.py $$(find previous -maxdepth 4 -type f -name application.ini) App BuildID) \
-	    DST_BUILD_ID=$$(cat $(DEPTH)/config/buildid) \
-	    SRC_BUILD=previous DST_BUILD=current \
-	      $(MAKE) partial-patch && \
-	    rm -f $(STAGE_DIR)/previous.mar; \
-	  else \
-	    echo "No previous MAR found; not creating a partial MAR"; \
-	  fi
+include $(topsrcdir)/config/rules.mk

@@ -49,7 +49,7 @@ typedef char ICHAR;
 
 #endif
 
-/* BEGIN MOZILLA CHANGE (typedef XML_Char to char16_t) */
+/* BEGIN MOZILLA CHANGE (typedef XML_Char to PRUnichar) */
 #if 0
 
 #ifdef XML_UNICODE
@@ -136,9 +136,7 @@ typedef struct {
 #define INIT_DATA_BUF_SIZE 1024
 #define INIT_ATTS_SIZE 16
 #define INIT_ATTS_VERSION 0xFFFFFFFF
-/* BEGIN MOZILLA CHANGE (Avoid slop in poolGrow() allocations) */
-#define INIT_BLOCK_SIZE ((int)(1024 - (offsetof(BLOCK, s) / sizeof(XML_Char))))
-/* END MOZILLA CHANGE */
+#define INIT_BLOCK_SIZE 1024
 #define INIT_BUFFER_SIZE 1024
 
 #define EXPAND_SPARE 24
@@ -665,6 +663,14 @@ struct XML_ParserStruct {
 /* END MOZILLA CHANGE */
 
 /* BEGIN MOZILLA CHANGE (unused API) */
+#ifdef TX_EXE
+XML_Parser XMLCALL
+XML_ParserCreate(const XML_Char *encodingName)
+{
+  return XML_ParserCreate_MM(encodingName, NULL, NULL);
+}
+#endif
+
 #if 0
 XML_Parser XMLCALL
 XML_ParserCreateNS(const XML_Char *encodingName, XML_Char nsSep)
@@ -1514,9 +1520,7 @@ XML_Parse(XML_Parser parser, const char *s, int len, int isFinal)
   else if (bufferPtr == bufferEnd) {
     const char *end;
     int nLeftOver;
-/* BEGIN MOZILLA CHANGE (|result| has type XML_Status, not XML_Error) */
-    enum XML_Status result;
-/* END MOZILLA CHANGE */
+    enum XML_Error result;
     parseEndByteIndex += len;
     positionPtr = s;
     ps_finalBuffer = (XML_Bool)isFinal;
@@ -1535,23 +1539,11 @@ XML_Parse(XML_Parser parser, const char *s, int len, int isFinal)
         break;
       case XML_INITIALIZED:
       case XML_PARSING:
-/* BEGIN MOZILLA CHANGE (always initialize result) */
-#if 0
         result = XML_STATUS_OK;
         if (isFinal) {
           ps_parsing = XML_FINISHED;
           return result;
         }
-#else
-        if (isFinal) {
-          ps_parsing = XML_FINISHED;
-          return XML_STATUS_OK;
-        }
-      /* fall through */
-      default:
-        result = XML_STATUS_OK;
-#endif
-/* END MOZILLA CHANGE */
       }
     }
 
@@ -1912,7 +1904,62 @@ XML_DefaultCurrent(XML_Parser parser)
       reportDefault(parser, encoding, eventPtr, eventEndPtr);
   }
 }
+#endif
 
+#ifdef TX_EXE
+const XML_LChar * XMLCALL
+XML_ErrorString(enum XML_Error code)
+{
+  static const XML_LChar* const message[] = {
+    0,
+    XML_L("out of memory"),
+    XML_L("syntax error"),
+    XML_L("no element found"),
+    XML_L("not well-formed (invalid token)"),
+    XML_L("unclosed token"),
+    XML_L("partial character"),
+    XML_L("mismatched tag"),
+    XML_L("duplicate attribute"),
+    XML_L("junk after document element"),
+    XML_L("illegal parameter entity reference"),
+    XML_L("undefined entity"),
+    XML_L("recursive entity reference"),
+    XML_L("asynchronous entity"),
+    XML_L("reference to invalid character number"),
+    XML_L("reference to binary entity"),
+    XML_L("reference to external entity in attribute"),
+    XML_L("XML or text declaration not at start of entity"),
+    XML_L("unknown encoding"),
+    XML_L("encoding specified in XML declaration is incorrect"),
+    XML_L("unclosed CDATA section"),
+    XML_L("error in processing external entity reference"),
+    XML_L("document is not standalone"),
+    XML_L("unexpected parser state - please send a bug report"),
+    XML_L("entity declared in parameter entity"),
+    XML_L("requested feature requires XML_DTD support in Expat"),
+    XML_L("cannot change setting once parsing has begun"),
+    XML_L("unbound prefix"),
+    XML_L("must not undeclare prefix"),
+    XML_L("incomplete markup in parameter entity"),
+    XML_L("XML declaration not well-formed"),
+    XML_L("text declaration not well-formed"),
+    XML_L("illegal character(s) in public id"),
+    XML_L("parser suspended"),
+    XML_L("parser not suspended"),
+    XML_L("parsing aborted"),
+    XML_L("parsing finished"),
+    XML_L("cannot suspend in external parameter entity"),
+    XML_L("reserved prefix (xml) must not be undeclared or bound to another namespace name"),
+    XML_L("reserved prefix (xmlns) must not be declared or undeclared"),
+    XML_L("prefix must not be bound to one of the reserved namespace names")
+  };
+  if (code > 0 && code < sizeof(message)/sizeof(message[0]))
+    return message[code];
+  return NULL;
+}
+#endif
+
+#if 0
 const XML_LChar * XMLCALL
 XML_ExpatVersion(void) {
 

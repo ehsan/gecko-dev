@@ -1,43 +1,40 @@
 <!DOCTYPE html>
-<html class="reftest-wait reftest-snapshot-all">
+<html class="reftest-wait">
   <head>
     <style type="text/css">
       input {
-          -webkit-transition: -webkit-transform 200ms ease-in-out;
-          transition: transform 200ms ease-in-out;
+          -webkit-transition: all 0.5s ease-in-out;
+          -moz-transition: all 0.5s ease-in-out;
+          transition: all 0.5s ease-in-out;
       }
       input:focus {
           -webkit-transform: scale(1.05);
+          -moz-transform: scale(1.05);
           transform: scale(1.05);
       }
     </style>
     <script>
       function boom() {
         var i = document.querySelector("input");
-        i.addEventListener("transitionend", function(aEvent) {
-          if (aEvent.propertyName != 'transform' &&
-              aEvent.propertyName != '-webkit-transform') {
-            return;
-          }
+        i.addEventListener("transitionend", function() {
           i.removeEventListener("transitionend", arguments.callee, true);
-          i.value = "test";
-          i.getClientRects();
-          i.value = "";
-          i.getClientRects();
-          i.addEventListener("transitionend", function(aEvent) {
-            if (aEvent.propertyName != 'transform' &&
-                aEvent.propertyName != '-webkit-transform') {
-              return;
-            }
-            i.removeEventListener("transitionend", arguments.callee, true);
-            i.getClientRects();
-            document.documentElement.setAttribute("class", "reftest-snapshot-all");
-          }, true);
-          i.blur();
-          i.getClientRects();
+          setTimeout(function() {
+            i.value = "test";
+            setTimeout(function() {
+              i.value = "";
+              setTimeout(function() {
+                i.addEventListener("transitionend", function() {
+                  i.removeEventListener("transisionend", arguments.callee, true);
+                  setTimeout(function() {
+                    document.documentElement.removeAttribute("class");
+                  }, 0);
+                }, true);
+                i.blur();
+              }, 0);
+            }, 0);
+          }, 0);
         }, true);
         i.focus();
-        i.getClientRects();
       }
     </script>
   </head>

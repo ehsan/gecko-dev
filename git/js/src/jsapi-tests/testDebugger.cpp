@@ -1,63 +1,102 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
+#include "tests.h"
+#include "jsdbgapi.h"
 
-#include "jsapi-tests/tests.h"
+static int callCount[2] = {0, 0};
 
-using namespace js;
-
-BEGIN_TEST(testDebugger_newScriptHook)
+static void *
+callCountHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
 {
-    // Test that top-level indirect eval fires the newScript hook.
-    CHECK(JS_DefineDebuggerObject(cx, global));
-    JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), nullptr, JS::FireOnNewGlobalHook));
-    CHECK(g);
-    {
-        JSAutoCompartment ae(cx, g);
-        CHECK(JS_InitStandardClasses(cx, g));
-    }
+    callCount[before]++;
 
-    JS::RootedObject gWrapper(cx, g);
-    CHECK(JS_WrapObject(cx, &gWrapper));
-    JS::RootedValue v(cx, JS::ObjectValue(*gWrapper));
-    CHECK(JS_SetProperty(cx, global, "g", v));
+    jsval thisv;
+    JS_GetFrameThis(cx, fp, &thisv);  // assert if fp is incomplete
 
-    EXEC("var dbg = Debugger(g);\n"
-         "var hits = 0;\n"
-         "dbg.onNewScript = function (s) {\n"
-         "    hits += Number(s instanceof Debugger.Script);\n"
-         "};\n");
-
-    // Since g is a debuggee, g.eval should trigger newScript, regardless of
-    // what scope object we use to enter the compartment.
-    //
-    // Scripts are associated with the global where they're compiled, so we
-    // deliver them only to debuggers that are watching that particular global.
-    //
-    return testIndirectEval(g, "Math.abs(0)");
+    return cx;  // any non-null value causes the hook to be called again after
 }
 
-bool testIndirectEval(JS::HandleObject scope, const char *code)
+BEGIN_TEST(testDebugger_bug519719)
 {
-    EXEC("hits = 0;");
-
-    {
-        JSAutoCompartment ae(cx, scope);
-        JSString *codestr = JS_NewStringCopyZ(cx, code);
-        CHECK(codestr);
-        JS::RootedValue arg(cx, JS::StringValue(codestr));
-        JS::RootedValue v(cx);
-        CHECK(JS_CallFunctionName(cx, scope, "eval", HandleValueArray(arg), &v));
-    }
-
-    JS::RootedValue hitsv(cx);
-    EVAL("hits", &hitsv);
-    CHECK_SAME(hitsv, INT_TO_JSVAL(1));
+    JS_SetCallHook(rt, callCountHook, NULL);
+    EXEC("function call(fn) { fn(0); }\n"
+         "function f(g) { for (var i = 0; i < 9; i++) call(g); }\n"
+         "f(Math.sin);\n"    // record loop, starting in f
+         "f(Math.cos);\n");  // side exit in f -> call
+    CHECK(callCount[0] == 20);
+    CHECK(callCount[1] == 20);
     return true;
 }
-END_TEST(testDebugger_newScriptHook)
+END_TEST(testDebugger_bug519719)
+
+static void *
+nonStrictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
+{
+    if (before) {
+        bool *allWrapped = (bool *) closure;
+        jsval thisv;
+        JS_GetFrameThis(cx, fp, &thisv);
+        *allWrapped = *allWrapped && !JSVAL_IS_PRIMITIVE(thisv);
+    }
+    return NULL;
+}
+
+BEGIN_TEST(testDebugger_getThisNonStrict)
+{
+    bool allWrapped = true;
+    JS_SetCallHook(rt, nonStrictThisHook, (void *) &allWrapped);
+    EXEC("function nonstrict() { }\n"
+         "Boolean.prototype.nonstrict = nonstrict;\n"
+         "String.prototype.nonstrict = nonstrict;\n"
+         "Number.prototype.nonstrict = nonstrict;\n"
+         "Object.prototype.nonstrict = nonstrict;\n"
+         "nonstrict.call(true);\n"
+         "true.nonstrict();\n"
+         "nonstrict.call('');\n"
+         "''.nonstrict();\n"
+         "nonstrict.call(42);\n"
+         "(42).nonstrict();\n"
+         // The below don't really get 'wrapped', but it's okay.
+         "nonstrict.call(undefined);\n"
+         "nonstrict.call(null);\n"
+         "nonstrict.call({});\n"
+         "({}).nonstrict();\n");
+    CHECK(allWrapped);
+    return true;
+}
+END_TEST(testDebugger_getThisNonStrict)
+
+static void *
+strictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void *closure)
+{
+    if (before) {
+        bool *anyWrapped = (bool *) closure;
+        jsval thisv;
+        JS_GetFrameThis(cx, fp, &thisv);
+        *anyWrapped = *anyWrapped || !JSVAL_IS_PRIMITIVE(thisv);
+    }
+    return NULL;
+}
+
+BEGIN_TEST(testDebugger_getThisStrict)
+{
+    bool anyWrapped = false;
+    JS_SetCallHook(rt, strictThisHook, (void *) &anyWrapped);
+    EXEC("function strict() { 'use strict'; }\n"
+         "Boolean.prototype.strict = strict;\n"
+         "String.prototype.strict = strict;\n"
+         "Number.prototype.strict = strict;\n"
+         "strict.call(true);\n"
+         "true.strict();\n"
+         "strict.call('');\n"
+         "''.strict();\n"
+         "strict.call(42);\n"
+         "(42).strict();\n"
+         "strict.call(undefined);\n"
+         "strict.call(null);\n");
+    CHECK(!anyWrapped);
+    return true;
+}
+END_TEST(testDebugger_getThisStrict)

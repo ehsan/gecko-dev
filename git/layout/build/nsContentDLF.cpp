@@ -1,20 +1,52 @@
 /* -*- Mode: c++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsContentDLF.h"
-#include "nsDocShell.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
-#include "nsIContentViewer.h"
 #include "nsICategoryManager.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIDocument.h"
+#include "nsIDocumentViewer.h"
 #include "nsIURL.h"
+#include "nsNodeInfo.h"
 #include "nsNodeInfoManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsString.h"
@@ -23,16 +55,18 @@
 #include "nsNetUtil.h"
 #include "nsCRT.h"
 #include "nsIViewSourceChannel.h"
-#include "nsContentUtils.h"
-#include "imgLoader.h"
-#include "nsCharsetSource.h"
-#include "nsMimeTypes.h"
-#include "DecoderTraits.h"
+#ifdef MOZ_MEDIA
+#include "nsHTMLMediaElement.h"
+#endif
 
+#include "imgILoader.h"
+#include "nsIParser.h"
+#include "nsMimeTypes.h"
+
+#include "mozilla/FunctionTimer.h"
 
 // plugins
 #include "nsIPluginHost.h"
-#include "nsPluginHost.h"
 static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
 
 // Factory code for creating variations on html documents
@@ -42,27 +76,29 @@ static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
 static NS_DEFINE_IID(kHTMLDocumentCID, NS_HTMLDOCUMENT_CID);
 static NS_DEFINE_IID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
 static NS_DEFINE_IID(kSVGDocumentCID, NS_SVGDOCUMENT_CID);
+#ifdef MOZ_MEDIA
 static NS_DEFINE_IID(kVideoDocumentCID, NS_VIDEODOCUMENT_CID);
+#endif
 static NS_DEFINE_IID(kImageDocumentCID, NS_IMAGEDOCUMENT_CID);
 static NS_DEFINE_IID(kXULDocumentCID, NS_XULDOCUMENT_CID);
 
-already_AddRefed<nsIContentViewer> NS_NewContentViewer();
+nsresult
+NS_NewDocumentViewer(nsIDocumentViewer** aResult);
 
 // XXXbz if you change the MIME types here, be sure to update
-// nsIParser.h and DetermineParseMode in nsParser.cpp and
-// nsHTMLDocument::StartDocumentLoad accordingly.
+// nsIParser.h and DetermineParseMode in nsParser.cpp accordingly.
 static const char* const gHTMLTypes[] = {
   TEXT_HTML,
   TEXT_PLAIN,
-  TEXT_CACHE_MANIFEST,
   TEXT_CSS,
   TEXT_JAVASCRIPT,
   TEXT_ECMASCRIPT,
   APPLICATION_JAVASCRIPT,
   APPLICATION_ECMASCRIPT,
   APPLICATION_XJAVASCRIPT,
-  APPLICATION_JSON,
+#ifdef MOZ_VIEW_SOURCE
   VIEWSOURCE_CONTENT_TYPE,
+#endif
   APPLICATION_XHTML_XML,
   0
 };
@@ -70,7 +106,9 @@ static const char* const gHTMLTypes[] = {
 static const char* const gXMLTypes[] = {
   TEXT_XML,
   APPLICATION_XML,
+#ifdef MOZ_MATHML
   APPLICATION_MATHML_XML,
+#endif
   APPLICATION_RDF_XML,
   TEXT_RDF,
   0
@@ -110,21 +148,21 @@ nsContentDLF::~nsContentDLF()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsContentDLF,
-                  nsIDocumentLoaderFactory)
+NS_IMPL_ISUPPORTS1(nsContentDLF,
+                   nsIDocumentLoaderFactory)
 
-bool
+PRBool
 MayUseXULXBL(nsIChannel* aChannel)
 {
   nsIScriptSecurityManager *securityManager =
     nsContentUtils::GetSecurityManager();
   if (!securityManager) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetChannelResultPrincipal(aChannel, getter_AddRefs(principal));
-  NS_ENSURE_TRUE(principal, false);
+  securityManager->GetChannelPrincipal(aChannel, getter_AddRefs(principal));
+  NS_ENSURE_TRUE(principal, PR_FALSE);
 
   return nsContentUtils::AllowXULXBLForPrincipal(principal);
 }
@@ -134,17 +172,28 @@ nsContentDLF::CreateInstance(const char* aCommand,
                              nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
                              const char* aContentType, 
-                             nsIDocShell* aContainer,
+                             nsISupports* aContainer,
                              nsISupports* aExtraInfo,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
+#ifdef NS_FUNCTION_TIMER
+  nsCAutoString channelURL__("N/A");
+  nsCOMPtr<nsIURI> url__;
+  if (aChannel && NS_SUCCEEDED(aChannel->GetURI(getter_AddRefs(url__)))) {
+    url__->GetSpec(channelURL__);
+  }
+  NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
+                       __LINE__, channelURL__.get());
+#endif
+
   // Declare "type" here.  This is because although the variable itself only
   // needs limited scope, we need to use the raw string memory -- as returned
   // by "type.get()" farther down in the function.
-  nsAutoCString type;
+  nsCAutoString type;
 
   // Are we viewing source?
+#ifdef MOZ_VIEW_SOURCE
   nsCOMPtr<nsIViewSourceChannel> viewSourceChannel = do_QueryInterface(aChannel);
   if (viewSourceChannel)
   {
@@ -155,30 +204,30 @@ nsContentDLF::CreateInstance(const char* aCommand,
     // type of the data.  If it's known, use it; otherwise use
     // text/plain.
     viewSourceChannel->GetOriginalContentType(type);
-    bool knownType = false;
-    int32_t typeIndex;
+    PRBool knownType = PR_FALSE;
+    PRInt32 typeIndex;
     for (typeIndex = 0; gHTMLTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gHTMLTypes[typeIndex]) &&
           !type.EqualsLiteral(VIEWSOURCE_CONTENT_TYPE)) {
-        knownType = true;
+        knownType = PR_TRUE;
       }
     }
 
     for (typeIndex = 0; gXMLTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gXMLTypes[typeIndex])) {
-        knownType = true;
+        knownType = PR_TRUE;
       }
     }
 
     for (typeIndex = 0; gSVGTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gSVGTypes[typeIndex])) {
-        knownType = true;
+        knownType = PR_TRUE;
       }
     }
 
     for (typeIndex = 0; gXULTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gXULTypes[typeIndex])) {
-        knownType = true;
+        knownType = PR_TRUE;
       }
     }
 
@@ -195,6 +244,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
     aChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
     aContentType = TEXT_PLAIN;
   }
+#endif
   // Try html
   int typeIndex=0;
   while(gHTMLTypes[typeIndex]) {
@@ -243,12 +293,14 @@ nsContentDLF::CreateInstance(const char* aCommand,
     }
   }
 
-  if (mozilla::DecoderTraits::ShouldHandleMediaType(aContentType)) {
+#ifdef MOZ_MEDIA
+  if (nsHTMLMediaElement::ShouldHandleMediaType(aContentType)) {
     return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kVideoDocumentCID,
                           aDocListener, aDocViewer);
   }  
+#endif
 
   // Try image types
   if (IsImageContentType(aContentType)) {
@@ -258,10 +310,8 @@ nsContentDLF::CreateInstance(const char* aCommand,
                           aDocListener, aDocViewer);
   }
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if(pluginHost &&
-     pluginHost->PluginExistsForType(aContentType)) {
+  nsCOMPtr<nsIPluginHost> ph (do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  if(ph && NS_SUCCEEDED(ph->IsPluginEnabledForType(aContentType))) {
     return CreateDocument(aCommand,
                           aChannel, aLoadGroup,
                           aContainer, kPluginDocumentCID,
@@ -277,16 +327,25 @@ NS_IMETHODIMP
 nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
                                         nsIDocument* aDocument,
                                         const char *aCommand,
-                                        nsIContentViewer** aContentViewer)
+                                        nsIContentViewer** aDocViewerResult)
 {
-  MOZ_ASSERT(aDocument);
+  NS_TIME_FUNCTION;
 
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+  nsresult rv = NS_ERROR_FAILURE;  
 
-  // Bind the document to the Content Viewer
-  contentViewer->LoadStart(aDocument);
-  contentViewer.forget(aContentViewer);
-  return NS_OK;
+  do {
+    nsCOMPtr<nsIDocumentViewer> docv;
+    rv = NS_NewDocumentViewer(getter_AddRefs(docv));
+    if (NS_FAILED(rv))
+      break;
+
+    // Bind the document to the Content Viewer
+    nsIContentViewer* cv = static_cast<nsIContentViewer*>(docv.get());
+    rv = cv->LoadStart(aDocument);
+    NS_ADDREF(*aDocViewerResult = cv);
+  } while (PR_FALSE);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -294,7 +353,9 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
                                   nsIPrincipal* aPrincipal,
                                   nsIDocument **aDocument)
 {
-  *aDocument = nullptr;
+  NS_TIME_FUNCTION;
+
+  *aDocument = nsnull;
 
   nsresult rv = NS_ERROR_FAILURE;
 
@@ -317,23 +378,20 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
 
     nsNodeInfoManager *nim = blankDoc->NodeInfoManager();
 
-    nsRefPtr<mozilla::dom::NodeInfo> htmlNodeInfo;
+    nsCOMPtr<nsINodeInfo> htmlNodeInfo;
 
     // generate an html html element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML,
-                                    nsIDOMNode::ELEMENT_NODE);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> htmlElement =
       NS_NewHTMLHtmlElement(htmlNodeInfo.forget());
 
     // generate an html head element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML,
-                                    nsIDOMNode::ELEMENT_NODE);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> headElement =
       NS_NewHTMLHeadElement(htmlNodeInfo.forget());
 
     // generate an html body elemment
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML,
-                                    nsIDOMNode::ELEMENT_NODE);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> bodyElement =
       NS_NewHTMLBodyElement(htmlNodeInfo.forget());
 
@@ -341,13 +399,13 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
     if (htmlElement && headElement && bodyElement) {
       NS_ASSERTION(blankDoc->GetChildCount() == 0,
                    "Shouldn't have children");
-      rv = blankDoc->AppendChildTo(htmlElement, false);
+      rv = blankDoc->AppendChildTo(htmlElement, PR_FALSE);
       if (NS_SUCCEEDED(rv)) {
-        rv = htmlElement->AppendChildTo(headElement, false);
+        rv = htmlElement->AppendChildTo(headElement, PR_FALSE);
 
         if (NS_SUCCEEDED(rv)) {
           // XXXbz Why not notifying here?
-          htmlElement->AppendChildTo(bodyElement, false);
+          htmlElement->AppendChildTo(bodyElement, PR_FALSE);
         }
       }
     }
@@ -369,11 +427,13 @@ nsresult
 nsContentDLF::CreateDocument(const char* aCommand,
                              nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
-                             nsIDocShell* aContainer,
+                             nsISupports* aContainer,
                              const nsCID& aDocumentCID,
                              nsIStreamListener** aDocListener,
-                             nsIContentViewer** aContentViewer)
+                             nsIContentViewer** aDocViewer)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv = NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIURI> aURL;
@@ -381,7 +441,7 @@ nsContentDLF::CreateDocument(const char* aCommand,
   if (NS_FAILED(rv)) return rv;
 
 #ifdef NOISY_CREATE_DOC
-  if (nullptr != aURL) {
+  if (nsnull != aURL) {
     nsAutoString tmp;
     aURL->ToString(tmp);
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), stdout);
@@ -389,25 +449,35 @@ nsContentDLF::CreateDocument(const char* aCommand,
   }
 #endif
 
-  // Create the document
-  nsCOMPtr<nsIDocument> doc = do_CreateInstance(aDocumentCID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc;
+  nsCOMPtr<nsIDocumentViewer> docv;
+  do {
+    // Create the document
+    doc = do_CreateInstance(aDocumentCID, &rv);
+    if (NS_FAILED(rv))
+      break;
 
-  // Create the content viewer  XXX: could reuse content viewer here!
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+    // Create the document viewer  XXX: could reuse document viewer here!
+    rv = NS_NewDocumentViewer(getter_AddRefs(docv));
+    if (NS_FAILED(rv))
+      break;
 
-  doc->SetContainer(static_cast<nsDocShell*>(aContainer));
+    doc->SetContainer(aContainer);
 
-  // Initialize the document to begin loading the data.  An
-  // nsIStreamListener connected to the parser is returned in
-  // aDocListener.
-  rv = doc->StartDocumentLoad(aCommand, aChannel, aLoadGroup, aContainer, aDocListener, true);
-  NS_ENSURE_SUCCESS(rv, rv);
+    // Initialize the document to begin loading the data.  An
+    // nsIStreamListener connected to the parser is returned in
+    // aDocListener.
+    rv = doc->StartDocumentLoad(aCommand, aChannel, aLoadGroup, aContainer, aDocListener, PR_TRUE);
+    if (NS_FAILED(rv))
+      break;
 
-  // Bind the document to the Content Viewer
-  contentViewer->LoadStart(doc);
-  contentViewer.forget(aContentViewer);
-  return NS_OK;
+    // Bind the document to the Content Viewer
+    rv = docv->LoadStart(doc);
+    *aDocViewer = docv;
+    NS_IF_ADDREF(*aDocViewer);
+  } while (PR_FALSE);
+
+  return rv;
 }
 
 nsresult
@@ -415,16 +485,20 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
                                 nsIChannel* aChannel,
                                 nsILoadGroup* aLoadGroup,
                                 const char* aContentType,
-                                nsIDocShell* aContainer,
+                                nsISupports* aContainer,
                                 nsISupports* aExtraInfo,
                                 nsIStreamListener** aDocListener,
-                                nsIContentViewer** aContentViewer)
+                                nsIContentViewer** aDocViewer)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv;
   nsCOMPtr<nsIDocument> doc = do_CreateInstance(kXULDocumentCID, &rv);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsIContentViewer> contentViewer = NS_NewContentViewer();
+  nsCOMPtr<nsIDocumentViewer> docv;
+  rv = NS_NewDocumentViewer(getter_AddRefs(docv));
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsIURI> aURL;
   rv = aChannel->GetURI(getter_AddRefs(aURL));
@@ -437,19 +511,24 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
    * aDocListener.
    */
 
-  doc->SetContainer(static_cast<nsDocShell*>(aContainer));
+  doc->SetContainer(aContainer);
 
-  rv = doc->StartDocumentLoad(aCommand, aChannel, aLoadGroup, aContainer, aDocListener, true);
-  if (NS_FAILED(rv)) return rv;
-
-  /*
-   * Bind the document to the Content Viewer...
-   */
-  contentViewer->LoadStart(doc);
-  contentViewer.forget(aContentViewer);
-  return NS_OK;
+  rv = doc->StartDocumentLoad(aCommand, aChannel, aLoadGroup, aContainer, aDocListener, PR_TRUE);
+  if (NS_SUCCEEDED(rv)) {
+    /*
+     * Bind the document to the Content Viewer...
+     */
+    rv = docv->LoadStart(doc);
+    *aDocViewer = docv;
+    NS_IF_ADDREF(*aDocViewer);
+  }
+   
+  return rv;
 }
 
-bool nsContentDLF::IsImageContentType(const char* aContentType) {
-  return imgLoader::SupportImageWithMimeType(aContentType);
+PRBool nsContentDLF::IsImageContentType(const char* aContentType) {
+  nsCOMPtr<imgILoader> loader(do_GetService("@mozilla.org/image/loader;1"));
+  PRBool isDecoderAvailable = PR_FALSE;
+  loader->SupportImageWithMimeType(aContentType, &isDecoderAvailable);
+  return isDecoderAvailable;
 }

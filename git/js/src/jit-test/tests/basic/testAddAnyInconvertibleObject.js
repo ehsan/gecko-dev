@@ -26,3 +26,8 @@ function testAddAnyInconvertibleObject()
   return "pass";
 }
 assertEq(testAddAnyInconvertibleObject(), "pass");
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0,
+  sideExitIntoInterpreter: 3
+});

@@ -1,8 +1,4 @@
 #!/bin/bash
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 #
 # Code shared by update packaging scripts.
 # Author: Darin Fisher
@@ -19,7 +15,7 @@ MBSDIFF=${MBSDIFF:-mbsdiff}
 # Helper routines
 
 notice() {
-  echo "$*" 1>&2
+  echo $* 1>&2
 }
 
 get_file_size() {
@@ -40,129 +36,56 @@ copy_perm() {
 
 make_add_instruction() {
   f="$1"
-  filev2="$2"
-  # The third param will be an empty string when a file add instruction is only
-  # needed in the version 2 manifest. This only happens when the file has an
-  # add-if-not instruction in the version 3 manifest. This is due to the
-  # precomplete file prior to the version 3 manifest having a remove instruction
-  # for this file so the file is removed before applying a complete update.
-  filev3="$3"
-
-  # Used to log to the console
-  if [ $4 ]; then
-    forced=" (forced)"
-  else
-    forced=
-  fi
-
-  is_extension=$(echo "$f" | grep -c 'distribution/extensions/.*/')
+  is_extension=$(echo "$f" | grep -c 'extensions/.*/')
   if [ $is_extension = "1" ]; then
     # Use the subdirectory of the extensions folder as the file to test
     # before performing this add instruction.
-    testdir=$(echo "$f" | sed 's/\(.*distribution\/extensions\/[^\/]*\)\/.*/\1/')
-    notice "     add-if \"$testdir\" \"$f\""
-    echo "add-if \"$testdir\" \"$f\"" >> $filev2
-    if [ ! $filev3 = "" ]; then
-      echo "add-if \"$testdir\" \"$f\"" >> $filev3
-    fi
+    testdir=$(echo "$f" | sed 's/\(extensions\/[^\/]*\)\/.*/\1/')
+    echo "add-if \"$testdir\" \"$f\""
   else
-    notice "        add \"$f\"$forced"
-    echo "add \"$f\"" >> $filev2
-    if [ ! $filev3 = "" ]; then
-      echo "add \"$f\"" >> $filev3
-    fi
+    echo "add \"$f\""
   fi
-}
-
-check_for_add_if_not_update() {
-  add_if_not_file_chk="$1"
-
-  if [ `basename $add_if_not_file_chk` = "channel-prefs.js" -o \
-       `basename $add_if_not_file_chk` = "update-settings.ini" ]; then
-    ## "true" *giggle*
-    return 0;
-  fi
-  ## 'false'... because this is bash. Oh yay!
-  return 1;
-}
-
-check_for_add_to_manifestv2() {
-  add_if_not_file_chk="$1"
-
-  if [ `basename $add_if_not_file_chk` = "update-settings.ini" ]; then
-    ## "true" *giggle*
-    return 0;
-  fi
-  ## 'false'... because this is bash. Oh yay!
-  return 1;
-}
-
-make_add_if_not_instruction() {
-  f="$1"
-  filev3="$2"
-
-  notice " add-if-not \"$f\" \"$f\""
-  echo "add-if-not \"$f\" \"$f\"" >> $filev3
 }
 
 make_patch_instruction() {
   f="$1"
-  filev2="$2"
-  filev3="$3"
-
-  is_extension=$(echo "$f" | grep -c 'distribution/extensions/.*/')
+  is_extension=$(echo "$f" | grep -c 'extensions/.*/')
+  is_search_plugin=$(echo "$f" | grep -c 'searchplugins/.*')
   if [ $is_extension = "1" ]; then
     # Use the subdirectory of the extensions folder as the file to test
     # before performing this add instruction.
-    testdir=$(echo "$f" | sed 's/\(.*distribution\/extensions\/[^\/]*\)\/.*/\1/')
-    notice "   patch-if \"$testdir\" \"$f.patch\" \"$f\""
-    echo "patch-if \"$testdir\" \"$f.patch\" \"$f\"" >> $filev2
-    echo "patch-if \"$testdir\" \"$f.patch\" \"$f\"" >> $filev3
+    testdir=$(echo "$f" | sed 's/\(extensions\/[^\/]*\)\/.*/\1/')
+    echo "patch-if \"$testdir\" \"$f.patch\" \"$f\""
+  elif [ $is_search_plugin = "1" ]; then
+    echo "patch-if \"$f\" \"$f.patch\" \"$f\""
   else
-    notice "      patch \"$f.patch\" \"$f\""
-    echo "patch \"$f.patch\" \"$f\"" >> $filev2
-    echo "patch \"$f.patch\" \"$f\"" >> $filev3
+    echo "patch \"$f.patch\" \"$f\""
   fi
 }
 
 append_remove_instructions() {
   dir="$1"
-  filev2="$2"
-  filev3="$3"
-
   if [ -f "$dir/removed-files" ]; then
+    prefix=
     listfile="$dir/removed-files"
-  elif [ -f "$dir/Contents/Resources/removed-files" ]; then
-    listfile="$dir/Contents/Resources/removed-files"
+  elif [ -f "$dir/Contents/MacOS/removed-files" ]; then
+    prefix=Contents/MacOS/
+    listfile="$dir/Contents/MacOS/removed-files"
   fi
   if [ -n "$listfile" ]; then
     # Map spaces to pipes so that we correctly handle filenames with spaces.
-    files=($(cat "$listfile" | tr " " "|"  | sort -r))
+    files=($(cat "$listfile" | tr " " "|"))  
     num_files=${#files[*]}
     for ((i=0; $i<$num_files; i=$i+1)); do
-      # Map pipes back to whitespace and remove carriage returns
-      f=$(echo ${files[$i]} | tr "|" " " | tr -d '\r')
-      # Trim whitespace
-      f=$(echo $f)
-      # Exclude blank lines.
+      # Trim whitespace (including trailing carriage returns)
+      f=$(echo ${files[$i]} | tr "|" " " | sed 's/^ *\(.*\) *$/\1/' | tr -d '\r')
+      # Exclude any blank lines or any lines ending with a slash, which indicate
+      # directories.  The updater doesn't know how to remove entire directories.
       if [ -n "$f" ]; then
-        # Exclude comments
-        if [ ! $(echo "$f" | grep -c '^#') = 1 ]; then
-          if [ $(echo "$f" | grep -c '\/$') = 1 ]; then
-            notice "      rmdir \"$f\""
-            echo "rmdir \"$f\"" >> $filev2
-            echo "rmdir \"$f\"" >> $filev3
-          elif [ $(echo "$f" | grep -c '\/\*$') = 1 ]; then
-            # Remove the *
-            f=$(echo "$f" | sed -e 's:\*$::')
-            notice "    rmrfdir \"$f\""
-            echo "rmrfdir \"$f\"" >> $filev2
-            echo "rmrfdir \"$f\"" >> $filev3
-          else
-            notice "     remove \"$f\""
-            echo "remove \"$f\"" >> $filev2
-            echo "remove \"$f\"" >> $filev3
-          fi
+        if [ $(echo "$f" | grep -c '\/$') = 0 ]; then
+          echo "remove \"$prefix$f\""
+        else
+          notice "ignoring remove instruction for directory: $f"
         fi
       fi
     done
@@ -170,33 +93,20 @@ append_remove_instructions() {
 }
 
 # List all files in the current directory, stripping leading "./"
-# Pass a variable name and it will be filled as an array.
+# Skip the channel-prefs.js file as it should not be included in any
+# generated MAR files (see bug 306077). Pass a variable name and it will be
+# filled as an array.
 list_files() {
   count=0
 
-  # Removed the exclusion cases here to allow for generation of testing mars
+  # Schrep - removed the exclusion cases here to allow for generation
+  # of testing mars
   find . -type f \
     | sed 's/\.\/\(.*\)/\1/' \
-    | sort -r > "$workdir/temp-filelist"
+    | sort > "$workdir/temp-filelist"
   while read file; do
     eval "${1}[$count]=\"$file\""
     (( count++ ))
   done < "$workdir/temp-filelist"
   rm "$workdir/temp-filelist"
-}
-
-# List all directories in the current directory, stripping leading "./"
-list_dirs() {
-  count=0
-
-  find . -type d \
-    ! -name "." \
-    ! -name ".." \
-    | sed 's/\.\/\(.*\)/\1/' \
-    | sort -r > "$workdir/temp-dirlist"
-  while read dir; do
-    eval "${1}[$count]=\"$dir\""
-    (( count++ ))
-  done < "$workdir/temp-dirlist"
-  rm "$workdir/temp-dirlist"
 }

@@ -1,54 +1,110 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHttp_h__
 #define nsHttp_h__
 
-#include <stdint.h>
+#if defined(MOZ_LOGGING)
+#define FORCE_PR_LOG
+#endif
+
+#ifdef MOZ_IPC
+// e10s mess: IPDL-generatd headers include chromium which both #includes
+// prlog.h, and #defines LOG in conflict with this file.
+// Solution: (as described in bug 545995)
+// 1) ensure that this file is #included before any IPDL-generated files and
+//    anything else that #includes prlog.h, so that we can make sure prlog.h
+//    sees FORCE_PR_LOG if needed.
+// 2) #include IPDL boilerplate, and then undef LOG so our LOG wins.
+// 3) nsNetModule.cpp does its own crazy stuff with #including prlog.h
+//    multiple times; allow it to define ALLOW_LATE_NSHTTP_H_INCLUDE to bypass
+//    check. 
+#if defined(PR_LOG) && !defined(ALLOW_LATE_NSHTTP_H_INCLUDE)
+#error "If nsHttp.h #included it must come before any IPDL-generated files or other files that #include prlog.h"
+#endif
+#include "mozilla/net/NeckoChild.h"
+#undef LOG
+#endif // MOZ_IPC
+
+#include "plstr.h"
+#include "prlog.h"
 #include "prtime.h"
-#include "nsAutoPtr.h"
-#include "nsString.h"
-#include "nsError.h"
-#include "nsTArray.h"
+#include "nsISupportsUtils.h"
+#include "nsPromiseFlatString.h"
+#include "nsURLHelper.h"
+#include "netCore.h"
+
+#if defined(PR_LOGGING)
+//
+// Log module for HTTP Protocol logging...
+//
+// To enable logging (see prlog.h for full details):
+//
+//    set NSPR_LOG_MODULES=nsHttp:5
+//    set NSPR_LOG_FILE=http.log
+//
+// this enables PR_LOG_ALWAYS level information and places all output in
+// the file http.log
+//
+extern PRLogModuleInfo *gHttpLog;
+#endif
+
+// http logging
+#define LOG1(args) PR_LOG(gHttpLog, 1, args)
+#define LOG2(args) PR_LOG(gHttpLog, 2, args)
+#define LOG3(args) PR_LOG(gHttpLog, 3, args)
+#define LOG4(args) PR_LOG(gHttpLog, 4, args)
+#define LOG(args) LOG4(args)
+
+#define LOG1_ENABLED() PR_LOG_TEST(gHttpLog, 1)
+#define LOG2_ENABLED() PR_LOG_TEST(gHttpLog, 2)
+#define LOG3_ENABLED() PR_LOG_TEST(gHttpLog, 3)
+#define LOG4_ENABLED() PR_LOG_TEST(gHttpLog, 4)
+#define LOG_ENABLED() LOG4_ENABLED()
 
 // http version codes
 #define NS_HTTP_VERSION_UNKNOWN  0
 #define NS_HTTP_VERSION_0_9      9
 #define NS_HTTP_VERSION_1_0     10
 #define NS_HTTP_VERSION_1_1     11
-#define NS_HTTP_VERSION_2_0     20
 
-namespace mozilla {
-
-class Mutex;
-
-namespace net {
-    enum {
-        // SPDY_VERSION_2 = 2, REMOVED
-        // SPDY_VERSION_3 = 3, REMOVED
-        SPDY_VERSION_31 = 4,
-        HTTP_VERSION_2 = 5,
-
-        // leave room for official versions. telem goes to 48
-        // 24 was a internal spdy/3.1
-        // 25 was spdy/4a2
-        // 26 was http/2-draft08 and http/2-draft07 (they were the same)
-        // 27 was http/2-draft09, h2-10, and h2-11
-        // 28 was http/2-draft12
-        // 29 was http/2-draft13
-        // 30 was also h2-14. They're effectively the same, -15 added an
-        // error code. So, we advertise all, but our "default position" is -16.
-        HTTP_VERSION_2_DRAFT_15 = 30,
-        HTTP_VERSION_2_DRAFT_16 = 31
-    };
-
-typedef uint8_t nsHttpVersion;
-
-#define HTTP_VERSION_2_DRAFT_LATEST HTTP_VERSION_2_DRAFT_16
-#define HTTP2_DRAFT_LATEST_TOKEN "h2-16"
+typedef PRUint8 nsHttpVersion;
 
 //-----------------------------------------------------------------------------
 // http connection capabilities
@@ -69,28 +125,12 @@ typedef uint8_t nsHttpVersion;
 // to the server (see bug #466080), but is may also be used for other things
 #define NS_HTTP_LOAD_ANONYMOUS       (1<<4)
 
-// a transaction with this caps flag keeps timing information
-#define NS_HTTP_TIMING_ENABLED       (1<<5)
-
-// a transaction with this flag blocks the initiation of other transactons
-// in the same load group until it is complete
-#define NS_HTTP_LOAD_AS_BLOCKING     (1<<6)
-
-// Disallow the use of the SPDY protocol. This is meant for the contexts
-// such as HTTP upgrade which are nonsensical for SPDY, it is not the
-// SPDY configuration variable.
-#define NS_HTTP_DISALLOW_SPDY        (1<<7)
-
-// a transaction with this flag loads without respect to whether the load
-// group is currently blocking on some resources
-#define NS_HTTP_LOAD_UNBLOCKED       (1<<8)
-
-// This flag indicates the transaction should accept associated pushes
-#define NS_HTTP_ONPUSH_LISTENER      (1<<9)
-
 //-----------------------------------------------------------------------------
 // some default values
 //-----------------------------------------------------------------------------
+
+// hard upper limit on the number of requests that can be pipelined
+#define NS_HTTP_MAX_PIPELINED_REQUESTS 8 
 
 #define NS_HTTP_DEFAULT_PORT  80
 #define NS_HTTPS_DEFAULT_PORT 443
@@ -118,11 +158,6 @@ struct nsHttp
     static nsresult CreateAtomTable();
     static void DestroyAtomTable();
 
-    // The mutex is valid any time the Atom Table is valid
-    // This mutex is used in the unusual case that the network thread and
-    // main thread might access the same data
-    static Mutex *GetLock();
-
     // will dynamically add atoms to the table if they don't already exist
     static nsHttpAtom ResolveAtom(const char *);
     static nsHttpAtom ResolveAtom(const nsACString &s)
@@ -132,16 +167,12 @@ struct nsHttp
 
     // returns true if the specified token [start,end) is valid per RFC 2616
     // section 2.2
-    static bool IsValidToken(const char *start, const char *end);
+    static PRBool IsValidToken(const char *start, const char *end);
 
-    static inline bool IsValidToken(const nsACString &s) {
-        return IsValidToken(s.BeginReading(), s.EndReading());
+    static inline PRBool IsValidToken(const nsCString &s) {
+        const char *start = s.get();
+        return IsValidToken(start, start + s.Length());
     }
-
-    // Returns true if the specified value is reasonable given the defintion
-    // in RFC 2616 section 4.2.  Full strict validation is not performed
-    // currently as it would require full parsing of the value.
-    static bool IsReasonableHeaderValue(const nsACString &s);
 
     // find the first instance (case-insensitive comparison) of the given
     // |token| in the |input| string.  the |token| is bounded by elements of
@@ -152,28 +183,25 @@ struct nsHttp
                                  const char *separators);
 
     // This function parses a string containing a decimal-valued, non-negative
-    // 64-bit integer.  If the value would exceed INT64_MAX, then false is
-    // returned.  Otherwise, this function returns true and stores the
+    // 64-bit integer.  If the value would exceed LL_MAXINT, then PR_FALSE is
+    // returned.  Otherwise, this function returns PR_TRUE and stores the
     // parsed value in |result|.  The next unparsed character in |input| is
     // optionally returned via |next| if |next| is non-null.
     //
     // TODO(darin): Replace this with something generic.
     //
-    static bool ParseInt64(const char *input, const char **next,
-                             int64_t *result);
+    static PRBool ParseInt64(const char *input, const char **next,
+                             PRInt64 *result);
 
     // Variant on ParseInt64 that expects the input string to contain nothing
     // more than the value being parsed.
-    static inline bool ParseInt64(const char *input, int64_t *result) {
+    static inline PRBool ParseInt64(const char *input, PRInt64 *result) {
         const char *next;
         return ParseInt64(input, &next, result) && *next == '\0';
     }
 
-    // Return whether the HTTP status code represents a permanent redirect
-    static bool IsPermanentRedirect(uint32_t httpStatus);
-
     // Declare all atoms
-    //
+    // 
     // The atom names and values are stored in nsHttpAtomList.h and are brought
     // to you by the magic of C preprocessing.  Add new atoms to nsHttpAtomList
     // and all support logic will be auto-generated.
@@ -187,76 +215,22 @@ struct nsHttp
 // utilities...
 //-----------------------------------------------------------------------------
 
-static inline uint32_t
+static inline PRUint32
 PRTimeToSeconds(PRTime t_usec)
 {
-    return uint32_t( t_usec / PR_USEC_PER_SEC );
+    return PRUint32( t_usec / PR_USEC_PER_SEC );
 }
 
 #define NowInSeconds() PRTimeToSeconds(PR_Now())
 
-// Round q-value to 2 decimal places; return 2 most significant digits as uint.
-#define QVAL_TO_UINT(q) ((unsigned int) ((q + 0.005) * 100.0))
+// ripped from glib.h
+#undef  CLAMP
+#define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+
+// round q-value to one decimal place; return most significant digit as uint.
+#define QVAL_TO_UINT(q) ((unsigned int) ((q + 0.05) * 10.0))
 
 #define HTTP_LWS " \t"
 #define HTTP_HEADER_VALUE_SEPS HTTP_LWS ","
-
-void EnsureBuffer(nsAutoArrayPtr<char> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize);
-void EnsureBuffer(nsAutoArrayPtr<uint8_t> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize);
-
-// h2=":443"; ma=60; single
-// results in 3 mValues = {{h2, :443}, {ma, 60}, {single}}
-
-class ParsedHeaderPair
-{
-public:
-    ParsedHeaderPair(const char *name, int32_t nameLen,
-                     const char *val, int32_t valLen)
-    {
-        if (nameLen > 0) {
-            mName.Rebind(name, name + nameLen);
-        }
-        if (valLen > 0) {
-            mValue.Rebind(val, val + valLen);
-        }
-    }
-
-    ParsedHeaderPair(ParsedHeaderPair const &copy)
-        : mName(copy.mName)
-        , mValue(copy.mValue)
-    {
-    }
-
-    nsDependentCSubstring mName;
-    nsDependentCSubstring mValue;
-};
-
-class ParsedHeaderValueList
-{
-public:
-    ParsedHeaderValueList(char *t, uint32_t len);
-    nsTArray<ParsedHeaderPair> mValues;
-
-private:
-    void ParsePair(char *t, uint32_t len);
-    void Tokenize(char *input, uint32_t inputLen, char **token,
-                  uint32_t *tokenLen, bool *foundEquals, char **next);
-};
-
-class ParsedHeaderValueListList
-{
-public:
-    explicit ParsedHeaderValueListList(const nsCString &txt);
-    nsTArray<ParsedHeaderValueList> mValues;
-
-private:
-    nsCString mFull;
-};
-
-
-} // namespace mozilla::net
-} // namespace mozilla
 
 #endif // nsHttp_h__

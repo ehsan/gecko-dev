@@ -35,46 +35,40 @@
 #define COMMON_MAC_MACHO_ID_H__
 
 #include <limits.h>
-#include <mach/machine.h>
 #include <mach-o/loader.h>
+#include <openssl/sha.h>
 
-#include "common/mac/macho_walker.h"
 #include "common/md5.h"
 
 namespace MacFileUtilities {
 
+class MachoWalker;
+
 class MachoID {
  public:
   MachoID(const char *path);
-  MachoID(const char *path, void *memory, size_t size);
   ~MachoID();
 
-  // For the given |cpu_type| and |cpu_subtype|, return a UUID from the LC_UUID
-  // command.
+  // For the given |cpu_type|, return a UUID from the LC_UUID command.
   // Return false if there isn't a LC_UUID command.
-  bool UUIDCommand(cpu_type_t cpu_type,
-                   cpu_subtype_t cpu_subtype,
-                   unsigned char identifier[16]);
+  bool UUIDCommand(int cpu_type, unsigned char identifier[16]);
 
-  // For the given |cpu_type| and |cpu_subtype|, return a UUID from the
-  // LC_ID_DYLIB command.
+  // For the given |cpu_type|, return a UUID from the LC_ID_DYLIB command.
   // Return false if there isn't a LC_ID_DYLIB command.
-  bool IDCommand(cpu_type_t cpu_type,
-                 cpu_subtype_t cpu_subtype,
-                 unsigned char identifier[16]);
+  bool IDCommand(int cpu_type, unsigned char identifier[16]);
 
-  // For the given |cpu_type| and |cpu_subtype|, return the Adler32 CRC for the
-  // mach-o data segment(s).
+  // For the given |cpu_type|, return the Adler32 CRC for the mach-o data
+  // segment(s).
   // Return 0 on error (e.g., if the file is not a mach-o file)
-  uint32_t Adler32(cpu_type_t cpu_type,
-                   cpu_subtype_t cpu_subtype);
+  uint32_t Adler32(int cpu_type);
 
-  // For the given |cpu_type|, and |cpu_subtype| return the MD5 for the mach-o
-  // data segment(s).
+  // For the given |cpu_type|, return the MD5 for the mach-o data segment(s).
   // Return true on success, false otherwise
-  bool MD5(cpu_type_t cpu_type,
-           cpu_subtype_t cpu_subtype,
-           unsigned char identifier[16]);
+  bool MD5(int cpu_type, unsigned char identifier[16]);
+
+  // For the given |cpu_type|, return the SHA1 for the mach-o data segment(s).
+  // Return true on success, false otherwise
+  bool SHA1(int cpu_type, unsigned char identifier[16]);
 
  private:
   // Signature of class member function to be called with data read from file
@@ -88,14 +82,14 @@ class MachoID {
   // to each byte.
   void UpdateMD5(unsigned char *bytes, size_t size);
 
+  // Update the SHA1 value by examining |size| |bytes| and applying the
+  // algorithm to each byte.
+  void UpdateSHA1(unsigned char *bytes, size_t size);
+
   // Bottleneck for update routines
   void Update(MachoWalker *walker, off_t offset, size_t size);
 
-  // Factory for the MachoWalker
-  bool WalkHeader(cpu_type_t cpu_type, cpu_subtype_t cpu_subtype,
-                  MachoWalker::LoadCommandCallback callback, void *context);
-
-  // The callback from the MachoWalker for CRC and MD5
+  // The callback from the MachoWalker for CRC, MD5, and SHA1
   static bool WalkerCB(MachoWalker *walker, load_command *cmd, off_t offset,
                        bool swap, void *context);
 
@@ -110,17 +104,17 @@ class MachoID {
   // File path
   char path_[PATH_MAX];
 
-  // Memory region to read from
-  void *memory_;
-
-  // Size of the memory region
-  size_t memory_size_;
+  // File descriptor
+  int file_;
 
   // The current crc value
   uint32_t crc_;
 
   // The MD5 context
-  google_breakpad::MD5Context md5_context_;
+  MD5Context md5_context_;
+
+  // The SHA1 context
+  SHA_CTX sha1_context_;
 
   // The current update to call from the Update callback
   UpdateFunction update_function_;

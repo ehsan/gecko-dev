@@ -13,7 +13,6 @@ function test_string_compare() {
 
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
-  startupManager();
 
   do_test_pending();
 
@@ -21,6 +20,6 @@ function run_test() {
 
   AddonManager.getAddonByID("foo", function(aAddon) {
     test_string_compare();
-    do_execute_soon(do_test_finished);
+    do_test_finished();
   });
 }

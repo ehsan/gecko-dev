@@ -8,12 +8,14 @@ var gLoads = 0;
 function setupTest(uri, cookies, loads) {
   SimpleTest.waitForExplicitFinish();
 
-  SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-               .getService(SpecialPowers.Ci.nsIPrefBranch)
-               .setIntPref("network.cookie.cookieBehavior", 1);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  var cs = SpecialPowers.Cc["@mozilla.org/cookiemanager;1"]
-                        .getService(SpecialPowers.Ci.nsICookieManager2);
+  Components.classes["@mozilla.org/preferences-service;1"]
+            .getService(Components.interfaces.nsIPrefBranch)
+            .setIntPref("network.cookie.cookieBehavior", 1);
+
+  var cs = Components.classes["@mozilla.org/cookiemanager;1"]
+                     .getService(Components.interfaces.nsICookieManager2);
   cs.removeAll();
 
   gExpectedCookies = cookies;
@@ -29,9 +31,10 @@ function setupTest(uri, cookies, loads) {
 
 function finishTest()
 {
-  SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-               .getService(SpecialPowers.Ci.nsIPrefBranch)
-               .clearUserPref("network.cookie.cookieBehavior");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  Components.classes["@mozilla.org/preferences-service;1"]
+            .getService(Components.interfaces.nsIPrefBranch)
+            .clearUserPref("network.cookie.cookieBehavior");
 
   SimpleTest.finish();
 }
@@ -64,8 +67,10 @@ function runTest() {
   // set a cookie from a domain of "localhost"
   document.cookie = "oh=hai";
 
-  var cs = SpecialPowers.Cc["@mozilla.org/cookiemanager;1"]
-                        .getService(SpecialPowers.Ci.nsICookieManager);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  var cs = Components.classes["@mozilla.org/cookiemanager;1"]
+                     .getService(Components.interfaces.nsICookieManager);
   var count = 0;
   for(var list = cs.enumerator; list.hasMoreElements(); list.getNext())
     ++count;

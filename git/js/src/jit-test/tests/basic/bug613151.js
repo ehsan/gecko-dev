@@ -1,4 +1,4 @@
-// Iterating over a property with an Array id.
+// Iterating over a property with an XML id.
 function n() {}
 function g() {}
 eval("\
@@ -7,7 +7,7 @@ eval("\
     for (w in this) {}\
     Object.defineProperty(\
       this, \
-      new Array, \
+      new QName, \
       ({enumerable: true})\
     )\
   }\

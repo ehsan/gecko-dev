@@ -1,11 +1,42 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-Components.utils.import("resource://gre/modules/Downloads.jsm");
-Components.utils.import("resource://gre/modules/FileUtils.jsm");
-Components.utils.import("resource://gre/modules/Task.jsm");
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Firefox Preferences System.
+#
+# The Initial Developer of the Original Code is
+# Jeff Walden <jwalden+code@mit.edu>.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#   Asaf Romano <mozilla.mano@sent.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 var gMainPane = {
   _pane: null,
@@ -17,130 +48,17 @@ var gMainPane = {
   {
     this._pane = document.getElementById("paneMain");
 
-#ifdef HAVE_SHELL_SERVICE
-    this.updateSetDefaultBrowser();
-#ifdef XP_WIN
-    // In Windows 8 we launch the control panel since it's the only
-    // way to get all file type association prefs. So we don't know
-    // when the user will select the default.  We refresh here periodically
-    // in case the default changes.  On other Windows OS's defaults can also
-    // be set while the prefs are open.
-    window.setInterval(this.updateSetDefaultBrowser, 1000);
-
-#ifdef MOZ_METRO
-    // Pre Windows 8, we should hide the update related settings
-    // for the Metro browser
-    let version = Components.classes["@mozilla.org/system-info;1"].
-                  getService(Components.interfaces.nsIPropertyBag2).
-                  getProperty("version");
-    let preWin8 = parseFloat(version) < 6.2;
-    this._showingWin8Prefs = !preWin8;
-    if (preWin8) {
-      ["autoMetro", "autoMetroIndent"].forEach(
-        function(id) document.getElementById(id).collapsed = true
-      );
-    } else {
-      let brandShortName =
-        document.getElementById("bundleBrand").getString("brandShortName");
-      let bundlePrefs = document.getElementById("bundlePreferences");
-      let autoDesktop = document.getElementById("autoDesktop");
-      autoDesktop.label =
-        bundlePrefs.getFormattedString("updateAutoDesktop.label",
-                                       [brandShortName]);
-      autoDesktop.accessKey =
-        bundlePrefs.getString("updateAutoDesktop.accessKey");
-    }
-#endif
-#endif
-#endif
-
     // set up the "use current page" label-changing listener
     this._updateUseCurrentButton();
-    window.addEventListener("focus", this._updateUseCurrentButton.bind(this), false);
+    window.addEventListener("focus", this._updateUseCurrentButton, false);
 
     this.updateBrowserStartupLastSession();
-
-#ifdef MOZ_DEV_EDITION
-    let separateProfileModeCheckbox = document.getElementById("separateProfileMode");
-    let listener = gMainPane.separateProfileModeChange.bind(gMainPane);
-    separateProfileModeCheckbox.addEventListener("command", listener);
-
-    let getStartedLink = document.getElementById("getStarted");
-    let syncListener = gMainPane.onGetStarted.bind(gMainPane);
-    getStartedLink.addEventListener("click", syncListener);
-
-    Components.utils.import("resource://gre/modules/osfile.jsm");
-    let uAppData = OS.Constants.Path.userApplicationDataDir;
-    let ignoreSeparateProfile = OS.Path.join(uAppData, "ignore-dev-edition-profile");
-
-    OS.File.stat(ignoreSeparateProfile).then(() => separateProfileModeCheckbox.checked = false,
-                                             () => separateProfileModeCheckbox.checked = true);
-#endif
 
     // Notify observers that the UI is now ready
     Components.classes["@mozilla.org/observer-service;1"]
               .getService(Components.interfaces.nsIObserverService)
               .notifyObservers(window, "main-pane-loaded", null);
   },
-
-#ifdef MOZ_DEV_EDITION
-  separateProfileModeChange: function ()
-  {
-    function quitApp() {
-      Services.startup.quit(Components.interfaces.nsIAppStartup.eAttemptQuit |
-                            Components.interfaces.nsIAppStartup.eRestartNotSameProfile);
-    }
-    function revertCheckbox(error) {
-      separateProfileModeCheckbox.checked = !separateProfileModeCheckbox.checked;
-      if (error) {
-        Components.utils.reportError("Failed to toggle separate profile mode: " + error);
-      }
-    }
-
-    let separateProfileModeCheckbox = document.getElementById("separateProfileMode");
-    let brandName = document.getElementById("bundleBrand").getString("brandShortName");
-    let bundle = document.getElementById("bundlePreferences");
-    let msg = bundle.getFormattedString(separateProfileModeCheckbox.checked ?
-                                        "featureEnableRequiresRestart" : "featureDisableRequiresRestart",
-                                        [brandName]);
-    let title = bundle.getFormattedString("shouldRestartTitle", [brandName]);
-    let shouldProceed = Services.prompt.confirm(window, title, msg)
-    if (shouldProceed) {
-      let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                         .createInstance(Components.interfaces.nsISupportsPRBool);
-      Services.obs.notifyObservers(cancelQuit, "quit-application-requested",
-                                   "restart");
-      shouldProceed = !cancelQuit.data;
-
-      if (shouldProceed) {
-        Components.utils.import("resource://gre/modules/osfile.jsm");
-        let uAppData = OS.Constants.Path.userApplicationDataDir;
-        let ignoreSeparateProfile = OS.Path.join(uAppData, "ignore-dev-edition-profile");
-
-        if (separateProfileModeCheckbox.checked) {
-          OS.File.remove(ignoreSeparateProfile).then(quitApp, revertCheckbox);
-        } else {
-          OS.File.writeAtomic(ignoreSeparateProfile, new Uint8Array()).then(quitApp, revertCheckbox);
-        }
-      }
-    }
-
-    // Revert the checkbox in case we didn't quit
-    revertCheckbox();
-  },
-
-  onGetStarted: function (aEvent) {
-    const Cc = Components.classes, Ci = Components.interfaces;
-    let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-               .getService(Components.interfaces.nsIWindowMediator);
-    let win = wm.getMostRecentWindow("navigator:browser");
-
-    if (win) {
-      let accountsTab = win.gBrowser.addTab("about:accounts");
-      win.gBrowser.selectedTab = accountsTab;
-    }
-  },
-#endif
 
   // HOME PAGE
 
@@ -199,13 +117,29 @@ var gMainPane = {
    */
   setHomePageToCurrent: function ()
   {
-    let homePage = document.getElementById("browser.startup.homepage");
-    let tabs = this._getTabsForHomePage();
-    function getTabURI(t) t.linkedBrowser.currentURI.spec;
+    var win;
+    if (document.documentElement.instantApply) {
+      // If we're in instant-apply mode, use the most recent browser window
+      var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                         .getService(Components.interfaces.nsIWindowMediator);
+      win = wm.getMostRecentWindow("navigator:browser");
+    }
+    else
+      win = window.opener;
 
-    // FIXME Bug 244192: using dangerous "|" joiner!
-    if (tabs.length)
-      homePage.value = tabs.map(getTabURI).join("|");
+    if (win) {
+      var homePage = document.getElementById("browser.startup.homepage");
+      var browser = win.document.getElementById("content");
+
+      var newVal = browser.browsers[0].currentURI.spec;
+      if (browser.browsers.length > 1) {
+        // XXX using dangerous "|" joiner!
+        for (var i = 1; i < browser.browsers.length; i++)
+          newVal += "|" + browser.browsers[i].currentURI.spec;
+      }
+
+      homePage.value = newVal;
+    }
   },
 
   /**
@@ -231,44 +165,41 @@ var gMainPane = {
    * forms.
    */
   _updateUseCurrentButton: function () {
-    let useCurrent = document.getElementById("useCurrent");
+    var useCurrent = document.getElementById("useCurrent");
 
-    let tabs = this._getTabsForHomePage();
-    if (tabs.length > 1)
-      useCurrent.label = useCurrent.getAttribute("label2");
+    var windowIsPresent;
+    var win;
+    if (document.documentElement.instantApply) {
+      const Cc = Components.classes, Ci = Components.interfaces;
+      // If we're in instant-apply mode, use the most recent browser window
+      var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
+                 .getService(Ci.nsIWindowMediator);
+      win = wm.getMostRecentWindow("navigator:browser");
+    }
     else
+      win = window.opener;
+
+    if (win && win.document.documentElement
+                  .getAttribute("windowtype") == "navigator:browser") {
+      windowIsPresent = true;
+
+      var tabbrowser = win.document.getElementById("content");
+      if (tabbrowser.browsers.length > 1)
+        useCurrent.label = useCurrent.getAttribute("label2");
+      else
+        useCurrent.label = useCurrent.getAttribute("label1");
+    }
+    else {
+      windowIsPresent = false;
       useCurrent.label = useCurrent.getAttribute("label1");
+    }
 
     // In this case, the button's disabled state is set by preferences.xml.
     if (document.getElementById
         ("pref.browser.homepage.disable_button.current_page").locked)
       return;
 
-    useCurrent.disabled = !tabs.length
-  },
-
-  _getTabsForHomePage: function ()
-  {
-    var win;
-    var tabs = [];
-    if (document.documentElement.instantApply) {
-      const Cc = Components.classes, Ci = Components.interfaces;
-      // If we're in instant-apply mode, use the most recent browser window
-      var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-                 .getService(Components.interfaces.nsIWindowMediator);
-      win = wm.getMostRecentWindow("navigator:browser");
-    }
-    else {
-      win = window.opener;
-    }
-
-    if (win && win.document.documentElement
-                  .getAttribute("windowtype") == "navigator:browser") {
-      // We should only include visible & non-pinned tabs
-      tabs = win.gBrowser.visibleTabs.slice(win.gBrowser._numPinnedTabs);
-    }
-
-    return tabs;
+    useCurrent.disabled = !windowIsPresent;
   },
 
   /**
@@ -285,6 +216,12 @@ var gMainPane = {
   /*
    * Preferences:
    * 
+   * browser.download.showWhenStarting - bool
+   *   True if the Download Manager should be opened when a download is
+   *   started, false if it shouldn't be opened.
+   * browser.download.closeWhenDone - bool
+   *   True if the Download Manager should be closed when all downloads
+   *   complete, false if it should be left open.
    * browser.download.useDownloadDir - bool
    *   True - Save files directly to the folder configured via the
    *   browser.download.folderList preference.
@@ -313,6 +250,30 @@ var gMainPane = {
    */
 
   /**
+   * Updates preferences which depend upon the value of the preference which
+   * determines whether the Downloads manager is opened at the start of a
+   * download.
+   */
+  readShowDownloadsWhenStarting: function ()
+  {
+    this.showDownloadsWhenStartingPrefChanged();
+
+    // don't override the preference's value in UI
+    return undefined;
+  },
+
+  /**
+   * Enables or disables the "close Downloads manager when downloads finished"
+   * preference element, consequently updating the associated UI.
+   */
+  showDownloadsWhenStartingPrefChanged: function ()
+  {
+    var showWhenStartingPref = document.getElementById("browser.download.manager.showWhenStarting");
+    var closeWhenDonePref = document.getElementById("browser.download.manager.closeWhenDone");
+    closeWhenDonePref.disabled = !showWhenStartingPref.value;
+  },
+
+  /**
    * Enables/disables the folder field and Browse button based on whether a
    * default download directory is being used.
    */
@@ -333,19 +294,22 @@ var gMainPane = {
    * downloads are automatically saved, updating preferences and UI in
    * response to the choice, if one is made.
    */
-  chooseFolder() this.chooseFolderTask().catch(Components.utils.reportError),
-  chooseFolderTask: Task.async(function* ()
+  chooseFolder: function ()
   {
-    let bundlePreferences = document.getElementById("bundlePreferences");
-    let title = bundlePreferences.getString("chooseDownloadFolderTitle");
-    let folderListPref = document.getElementById("browser.download.folderList");
-    let currentDirPref = yield this._indexToFolder(folderListPref.value);
-    let defDownloads = yield this._indexToFolder(1);
-    let fp = Components.classes["@mozilla.org/filepicker;1"].
-             createInstance(Components.interfaces.nsIFilePicker);
+    const nsIFilePicker = Components.interfaces.nsIFilePicker;
+    const nsILocalFile = Components.interfaces.nsILocalFile;
 
-    fp.init(window, title, Components.interfaces.nsIFilePicker.modeGetFolder);
-    fp.appendFilters(Components.interfaces.nsIFilePicker.filterAll);
+    var fp = Components.classes["@mozilla.org/filepicker;1"]
+                       .createInstance(nsIFilePicker);
+    var bundlePreferences = document.getElementById("bundlePreferences");
+    var title = bundlePreferences.getString("chooseDownloadFolderTitle");
+    fp.init(window, title, nsIFilePicker.modeGetFolder);
+    fp.appendFilters(nsIFilePicker.filterAll);
+
+    var folderListPref = document.getElementById("browser.download.folderList");
+    var currentDirPref = this._indexToFolder(folderListPref.value); // file
+    var defDownloads = this._indexToFolder(1); // file
+
     // First try to open what's currently configured
     if (currentDirPref && currentDirPref.exists()) {
       fp.displayDirectory = currentDirPref;
@@ -354,41 +318,44 @@ var gMainPane = {
       fp.displayDirectory = defDownloads;
     } // Fall back to Desktop
     else {
-      fp.displayDirectory = yield this._indexToFolder(0);
+      fp.displayDirectory = this._indexToFolder(0);
     }
 
-    let result = yield new Promise(resolve => fp.open(resolve));
-    if (result != Components.interfaces.nsIFilePicker.returnOK) {
-      return;
+    if (fp.show() == nsIFilePicker.returnOK) {
+      var file = fp.file.QueryInterface(nsILocalFile);
+      var currentDirPref = document.getElementById("browser.download.dir");
+      currentDirPref.value = file;
+      var folderListPref = document.getElementById("browser.download.folderList");
+      folderListPref.value = this._folderToIndex(file);
+      // Note, the real prefs will not be updated yet, so dnld manager's
+      // userDownloadsDirectory may not return the right folder after
+      // this code executes. displayDownloadDirPref will be called on
+      // the assignment above to update the UI.
     }
-
-    let downloadDirPref = document.getElementById("browser.download.dir");
-    downloadDirPref.value = fp.file;
-    folderListPref.value = yield this._folderToIndex(fp.file);
-    // Note, the real prefs will not be updated yet, so dnld manager's
-    // userDownloadsDirectory may not return the right folder after
-    // this code executes. displayDownloadDirPref will be called on
-    // the assignment above to update the UI.
-  }),
+  },
 
   /**
    * Initializes the download folder display settings based on the user's 
    * preferences.
    */
-  displayDownloadDirPref()
-  {
-    this.displayDownloadDirPrefTask().catch(Components.utils.reportError);
-
-    // don't override the preference's value in UI
-    return undefined;
-  },
-
-  displayDownloadDirPrefTask: Task.async(function* ()
+  displayDownloadDirPref: function ()
   {
     var folderListPref = document.getElementById("browser.download.folderList");
     var bundlePreferences = document.getElementById("bundlePreferences");
     var downloadFolder = document.getElementById("downloadFolder");
     var currentDirPref = document.getElementById("browser.download.dir");
+
+    // The user's download folder is based on the preferences listed above.
+    // However, if the system does not support a download folder, the
+    // actual path returned will be the system's desktop or home folder.
+    // If this is the case, skip off displaying the Download label and
+    // display Desktop, even though folderList might be 1.
+    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
+                                .getService(Components.interfaces.nsIProperties);
+    var desk = fileLocator.get("Desk", Components.interfaces.nsILocalFile);
+    var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
+                            .getService(Components.interfaces.nsIDownloadManager);
+    var supportDownloadLabel = !dnldMgr.defaultDownloadsDirectory.equals(desk);
 
     // Used in defining the correct path to the folder icon.
     var ios = Components.classes["@mozilla.org/network/io-service;1"]
@@ -402,7 +369,7 @@ var gMainPane = {
       // Custom path selected and is configured
       downloadFolder.label = this._getDisplayNameOfFile(currentDirPref.value);
       iconUrlSpec = fph.getURLSpecFromFile(currentDirPref.value);
-    } else if (folderListPref.value == 1) {
+    } else if (folderListPref.value == 1 && supportDownloadLabel) {
       // 'Downloads'
       // In 1.5, this pointed to a folder we created called 'My Downloads'
       // and was available as an option in the 1.5 drop down. On XP this
@@ -414,14 +381,17 @@ var gMainPane = {
       // platforms and versions that don't support a default system downloads
       // folder. See nsDownloadManager for details. 
       downloadFolder.label = bundlePreferences.getString("downloadsFolderName");
-      iconUrlSpec = fph.getURLSpecFromFile(yield this._indexToFolder(1));
+      iconUrlSpec = fph.getURLSpecFromFile(this._indexToFolder(1));
     } else {
       // 'Desktop'
       downloadFolder.label = bundlePreferences.getString("desktopFolderName");
-      iconUrlSpec = fph.getURLSpecFromFile(yield this._getDownloadsFolder("Desktop"));
+      iconUrlSpec = fph.getURLSpecFromFile(desk);
     }
     downloadFolder.image = "moz-icon://" + iconUrlSpec + "?size=16";
-  }),
+    
+    // don't override the preference's value in UI
+    return undefined;
+  },
 
   /**
    * Returns the textual path of a folder in readable form.
@@ -442,19 +412,22 @@ var gMainPane = {
    *
    * @throws if aFolder is not "Desktop" or "Downloads"
    */
-  _getDownloadsFolder: Task.async(function* (aFolder)
+  _getDownloadsFolder: function (aFolder)
   {
     switch (aFolder) {
       case "Desktop":
         var fileLoc = Components.classes["@mozilla.org/file/directory_service;1"]
                                     .getService(Components.interfaces.nsIProperties);
         return fileLoc.get("Desk", Components.interfaces.nsILocalFile);
+      break;
       case "Downloads":
-        let downloadsDir = yield Downloads.getSystemDownloadsDirectory();
-        return new FileUtils.File(downloadsDir);
+        var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
+                                .getService(Components.interfaces.nsIDownloadManager);
+        return dnldMgr.defaultDownloadsDirectory;
+      break;
     }
     throw "ASSERTION FAILED: folder type should be 'Desktop' or 'Downloads'";
-  }),
+  },
 
   /**
    * Determines the type of the given folder.
@@ -466,14 +439,14 @@ var gMainPane = {
    *          1 if aFolder is the Downloads folder,
    *          2 otherwise
    */
-  _folderToIndex: Task.async(function* (aFolder)
+  _folderToIndex: function (aFolder)
   {
-    if (!aFolder || aFolder.equals(yield this._getDownloadsFolder("Desktop")))
+    if (!aFolder || aFolder.equals(this._getDownloadsFolder("Desktop")))
       return 0;
-    else if (aFolder.equals(yield this._getDownloadsFolder("Downloads")))
+    else if (aFolder.equals(this._getDownloadsFolder("Downloads")))
       return 1;
     return 2;
-  }),
+  },
 
   /**
    * Converts an integer into the corresponding folder.
@@ -484,17 +457,48 @@ var gMainPane = {
    *          the Downloads folder if aIndex == 1,
    *          the folder stored in browser.download.dir
    */
-  _indexToFolder: Task.async(function* (aIndex)
+  _indexToFolder: function (aIndex)
   {
     switch (aIndex) {
       case 0:
-        return yield this._getDownloadsFolder("Desktop");
+        return this._getDownloadsFolder("Desktop");
       case 1:
-        return yield this._getDownloadsFolder("Downloads");
+        return this._getDownloadsFolder("Downloads");
     }
     var currentDirPref = document.getElementById("browser.download.dir");
     return currentDirPref.value;
-  }),
+  },
+
+  /**
+   * Returns the value for the browser.download.folderList preference.
+   */
+  getFolderListPref: function ()
+  {
+    var folderListPref = document.getElementById("browser.download.folderList");
+    switch (folderListPref.value) {
+      case 0: // Desktop
+      case 1: // Downloads
+        return folderListPref.value;
+      break;
+      case 2: // Custom
+        var currentDirPref = document.getElementById("browser.download.dir");
+        if (currentDirPref.value) {
+          // Resolve to a known location if possible. We are writing out
+          // to prefs on this call, so now would be a good time to do it.
+          return this._folderToIndex(currentDirPref.value);
+        }
+        return 0;
+      break;
+    }
+  },
+
+  /**
+   * Displays the Add-ons Manager.
+   */
+  showAddonsMgr: function ()
+  {
+    openUILinkIn("about:addons", "window");
+  },
 
   /**
    * Hide/show the "Show my windows and tabs from last time" option based
@@ -516,51 +520,4 @@ var gMainPane = {
       startupPref.updateElements(); // select the correct index in the startup menulist
     }
   }
-
-#ifdef HAVE_SHELL_SERVICE
-  ,
-  /*
-   * Preferences:
-   *
-   * browser.shell.checkDefault
-   * - true if a default-browser check (and prompt to make it so if necessary)
-   *   occurs at startup, false otherwise
-   */
-
-  /**
-   * Show button for setting browser as default browser or information that
-   * browser is already the default browser.
-   */
-  updateSetDefaultBrowser: function()
-  {
-    let shellSvc = getShellService();
-    let defaultBrowserBox = document.getElementById("defaultBrowserBox");
-    if (!shellSvc) {
-      defaultBrowserBox.hidden = true;
-      return;
-    }
-    let setDefaultPane = document.getElementById("setDefaultPane");
-    let selectedIndex = shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
-    setDefaultPane.selectedIndex = selectedIndex;
-  },
-
-  /**
-   * Set browser as the operating system default browser.
-   */
-  setDefaultBrowser: function()
-  {
-    let shellSvc = getShellService();
-    if (!shellSvc)
-      return;
-    try {
-      shellSvc.setDefaultBrowser(true, false);
-    } catch (ex) {
-      Components.utils.reportError(ex);
-      return;
-    }
-    let selectedIndex =
-      shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
-    document.getElementById("setDefaultPane").selectedIndex = selectedIndex;
-  }
-#endif
 };

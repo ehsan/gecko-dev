@@ -2,6 +2,7 @@
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
   <title>Testing Microformats.js (hCalendar)</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"></link>
@@ -187,13 +188,17 @@ test_Microformats();
 test_hCard();
 
 function test_Microformats() {
-  var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
 
   ok(Microformats, "Check global access to Microformats");
 };
 
 function test_hCard() {
-  var hCalendar = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").hCalendar;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
 
   var hcalendar;
 

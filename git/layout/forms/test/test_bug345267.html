@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=345267
 -->
 <head>
   <title>Test for Bug 345267</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -28,10 +29,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=345267
 <script class="testbody" type="text/javascript">
 
 /** Test for Bug 345267 **/
-
-// Turn off Spatial Navigation to stop if from hijacking "left" keypress event.
-SpecialPowers.setBoolPref('snav.enabled', false);
-
 is($("d1").value, "abcde",
    "Displayed initial value should not be truncated by maxlength");
 is($("u1").value, "abcdef",
@@ -64,13 +61,13 @@ is($("u4").value, "abcdefghijkl",
 // Now start the editing tests
 is($("target").value, "abcdefghijklm", "Test starting state incorrect");
 $("target").focus();
-$("target").selectionStart = $("target").selectionEnd = 13;
 sendKey("back_space");
 is($("target").value, "abcdefghijkl", "Should only delete one char");
 sendKey("back_space");
 is($("target").value, "abcdefghijk", "Should only delete one char again");
 (function () {
-  SpecialPowers.wrap($("target")).controllers.getControllerForCommand('cmd_undo')
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  $("target").controllers.getControllerForCommand('cmd_undo')
                          .doCommand('cmd_undo');
 })();
 is($("target").value, "abcdefghijklm",
@@ -86,7 +83,7 @@ is($("target").value, "abc", "Typing should be limited by maxlength");
 $("target").value = "";
 sendString("ad");
 sendKey("left");
-sendString("bc");
+sendString("bc")
 is($("target").value, "abd", "Typing should be limited by maxlength again");
 
 </script>

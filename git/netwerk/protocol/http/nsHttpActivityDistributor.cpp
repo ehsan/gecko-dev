@@ -1,32 +1,57 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Michal Novotny <michal.novotny@gmail.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHttpActivityDistributor.h"
+#include "nsIChannel.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "nsAutoLock.h"
+#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-
-namespace mozilla {
-namespace net {
-
-typedef nsMainThreadPtrHolder<nsIHttpActivityObserver> ObserverHolder;
-typedef nsMainThreadPtrHandle<nsIHttpActivityObserver> ObserverHandle;
-typedef nsTArray<ObserverHandle> ObserverArray;
 
 class nsHttpActivityEvent : public nsRunnable
 {
 public:
     nsHttpActivityEvent(nsISupports *aHttpChannel,
-                        uint32_t aActivityType,
-                        uint32_t aActivitySubtype,
+                        PRUint32 aActivityType,
+                        PRUint32 aActivitySubtype,
                         PRTime aTimestamp,
-                        uint64_t aExtraSizeData,
+                        PRUint64 aExtraSizeData,
                         const nsACString & aExtraStringData,
-                        ObserverArray *aObservers)
+                        nsCOMArray<nsIHttpActivityObserver> *aObservers)
         : mHttpChannel(aHttpChannel)
         , mActivityType(aActivityType)
         , mActivitySubtype(aActivitySubtype)
@@ -39,7 +64,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        for (size_t i = 0 ; i < mObservers.Length() ; i++)
+        for (PRInt32 i = 0 ; i < mObservers.Count() ; i++)
             mObservers[i]->ObserveActivity(mHttpChannel, mActivityType,
                                            mActivitySubtype, mTimestamp,
                                            mExtraSizeData, mExtraStringData);
@@ -52,41 +77,43 @@ private:
     }
 
     nsCOMPtr<nsISupports> mHttpChannel;
-    uint32_t mActivityType;
-    uint32_t mActivitySubtype;
+    PRUint32 mActivityType;
+    PRUint32 mActivitySubtype;
     PRTime mTimestamp;
-    uint64_t mExtraSizeData;
+    PRUint64 mExtraSizeData;
     nsCString mExtraStringData;
 
-    ObserverArray mObservers;
+    nsCOMArray<nsIHttpActivityObserver> mObservers;
 };
 
-NS_IMPL_ISUPPORTS(nsHttpActivityDistributor,
-                  nsIHttpActivityDistributor,
-                  nsIHttpActivityObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsHttpActivityDistributor,
+                              nsIHttpActivityDistributor,
+                              nsIHttpActivityObserver)
 
 nsHttpActivityDistributor::nsHttpActivityDistributor()
-    : mLock("nsHttpActivityDistributor.mLock")
+    : mLock(nsnull)
 {
 }
 
 nsHttpActivityDistributor::~nsHttpActivityDistributor()
 {
+    if (mLock)
+        PR_DestroyLock(mLock);
 }
 
 NS_IMETHODIMP
 nsHttpActivityDistributor::ObserveActivity(nsISupports *aHttpChannel,
-                                           uint32_t aActivityType,
-                                           uint32_t aActivitySubtype,
+                                           PRUint32 aActivityType,
+                                           PRUint32 aActivitySubtype,
                                            PRTime aTimestamp,
-                                           uint64_t aExtraSizeData,
+                                           PRUint64 aExtraSizeData,
                                            const nsACString & aExtraStringData)
 {
     nsRefPtr<nsIRunnable> event;
     {
-        MutexAutoLock lock(mLock);
+        nsAutoLock lock(mLock);
 
-        if (!mObservers.Length())
+        if (!mObservers.Count())
             return NS_OK;
 
         event = new nsHttpActivityEvent(aHttpChannel, aActivityType,
@@ -99,21 +126,20 @@ nsHttpActivityDistributor::ObserveActivity(nsISupports *aHttpChannel,
 }
 
 NS_IMETHODIMP
-nsHttpActivityDistributor::GetIsActive(bool *isActive)
+nsHttpActivityDistributor::GetIsActive(PRBool *isActive)
 {
     NS_ENSURE_ARG_POINTER(isActive);
-    MutexAutoLock lock(mLock);
-    *isActive = !!mObservers.Length();
+    nsAutoLock lock(mLock);
+    *isActive = !!mObservers.Count();
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHttpActivityDistributor::AddObserver(nsIHttpActivityObserver *aObserver)
 {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
 
-    ObserverHandle observer(new ObserverHolder(aObserver));
-    if (!mObservers.AppendElement(observer))
+    if (!mObservers.AppendObject(aObserver))
         return NS_ERROR_OUT_OF_MEMORY;
 
     return NS_OK;
@@ -122,13 +148,22 @@ nsHttpActivityDistributor::AddObserver(nsIHttpActivityObserver *aObserver)
 NS_IMETHODIMP
 nsHttpActivityDistributor::RemoveObserver(nsIHttpActivityObserver *aObserver)
 {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
 
-    ObserverHandle observer(new ObserverHolder(aObserver));
-    if (!mObservers.RemoveElement(observer))
+    if (!mObservers.RemoveObject(aObserver))
         return NS_ERROR_FAILURE;
 
     return NS_OK;
 }
-} // namespace mozilla::net
-} // namespace mozilla
+
+nsresult
+nsHttpActivityDistributor::Init()
+{
+    NS_ENSURE_TRUE(!mLock, NS_ERROR_ALREADY_INITIALIZED);
+
+    mLock = PR_NewLock();
+    if (!mLock)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    return NS_OK;
+}

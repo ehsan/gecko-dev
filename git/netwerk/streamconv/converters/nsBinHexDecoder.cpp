@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Scott MacGregor <mscott@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIOService.h"
 #include "nsBinHexDecoder.h"
@@ -18,15 +51,19 @@
 
 #include "nsIMIMEService.h"
 #include "nsMimeTypes.h"
-#include <algorithm>
+
+
+// sadly I couldn't find char defintions for CR LF elsehwere in the code (they are defined as strings in nsCRT.h)
+#define CR  '\015'
+#define LF '\012'
 
 nsBinHexDecoder::nsBinHexDecoder() :
   mState(0), mCRC(0), mFileCRC(0), mOctetin(26),
   mDonePos(3), mInCRC(0), mCount(0), mMarker(0), mPosInbuff(0),
   mPosOutputBuff(0)
 {
-  mDataBuffer = nullptr;
-  mOutgoingBuffer = nullptr;
+  mDataBuffer = nsnull;
+  mOutgoingBuffer = nsnull;
 
   mOctetBuf.val = 0;
   mHeader.type = 0;
@@ -57,7 +94,7 @@ NS_INTERFACE_MAP_END
 
 // The binhex 4.0 decoder table....
 
-static const signed char binhex_decode[256] =
+static signed char binhex_decode[256] =
 {
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -116,17 +153,17 @@ NS_IMETHODIMP
 nsBinHexDecoder::OnDataAvailable(nsIRequest* request,
                                  nsISupports *aCtxt,
                                  nsIInputStream *aStream,
-                                 uint64_t aSourceOffset,
-                                 uint32_t aCount)
+                                 PRUint32 aSourceOffset,
+                                 PRUint32 aCount)
 {
   nsresult rv = NS_OK;
 
   if (mOutputStream && mDataBuffer && aCount > 0)
   {
-    uint32_t numBytesRead = 0;
+    PRUint32 numBytesRead = 0;
     while (aCount > 0) // while we still have bytes to copy...
     {
-      aStream->Read(mDataBuffer, std::min(aCount, nsIOService::gDefaultSegmentSize - 1), &numBytesRead);
+      aStream->Read(mDataBuffer, PR_MIN(aCount, nsIOService::gDefaultSegmentSize - 1), &numBytesRead);
       if (aCount >= numBytesRead)
         aCount -= numBytesRead; // subtract off the number of bytes we just read
       else
@@ -143,15 +180,15 @@ nsBinHexDecoder::OnDataAvailable(nsIRequest* request,
 nsresult nsBinHexDecoder::ProcessNextState(nsIRequest * aRequest, nsISupports * aContext)
 {
   nsresult status = NS_OK;
-  uint16_t tmpcrc, cval;
+  PRUint16 tmpcrc, cval;
   unsigned char ctmp, c = mRlebuf;
 
   /* do CRC */
   ctmp = mInCRC ? c : 0;
   cval = mCRC & 0xf000;
-  tmpcrc = ((uint16_t) (mCRC << 4) | (ctmp >> 4)) ^ (cval | (cval >> 7) | (cval >> 12));
+  tmpcrc = ((PRUint16) (mCRC << 4) | (ctmp >> 4)) ^ (cval | (cval >> 7) | (cval >> 12));
   cval = tmpcrc & 0xf000;
-  mCRC = ((uint16_t) (tmpcrc << 4) | (ctmp & 0x0f)) ^ (cval | (cval >> 7) | (cval >> 12));
+  mCRC = ((PRUint16) (tmpcrc << 4) | (ctmp & 0x0f)) ^ (cval | (cval >> 7) | (cval >> 12));
 
   /* handle state */
   switch (mState)
@@ -215,9 +252,9 @@ nsresult nsBinHexDecoder::ProcessNextState(nsIRequest * aRequest, nsISupports * 
         /* only output data fork in the non-mac system.      */
         if (mState == BINHEX_STATE_DFORK)
         {
-          uint32_t numBytesWritten = 0;
+          PRUint32 numBytesWritten = 0;
           mOutputStream->Write(mOutgoingBuffer, mPosOutputBuff, &numBytesWritten);
-          if (int32_t(numBytesWritten) != mPosOutputBuff)
+          if (PRInt32(numBytesWritten) != mPosOutputBuff)
             status = NS_ERROR_FAILURE;
 
           // now propagate the data we just wrote
@@ -235,13 +272,13 @@ nsresult nsBinHexDecoder::ProcessNextState(nsIRequest * aRequest, nsISupports * 
 
         mInCRC = 1;
       }
-      else if (mPosOutputBuff >= (int32_t) nsIOService::gDefaultSegmentSize)
+      else if (mPosOutputBuff >= (PRInt32) nsIOService::gDefaultSegmentSize)
       {
         if (mState == BINHEX_STATE_DFORK)
         {
-          uint32_t numBytesWritten = 0;
+          PRUint32 numBytesWritten = 0;
           mOutputStream->Write(mOutgoingBuffer, mPosOutputBuff, &numBytesWritten);
-          if (int32_t(numBytesWritten) != mPosOutputBuff)
+          if (PRInt32(numBytesWritten) != mPosOutputBuff)
             status = NS_ERROR_FAILURE;
 
           mNextListener->OnDataAvailable(aRequest, aContext, mInputStream, 0, numBytesWritten);
@@ -299,11 +336,11 @@ nsresult nsBinHexDecoder::ProcessNextState(nsIRequest * aRequest, nsISupports * 
   return NS_OK;
 }
 
-nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * aContext, uint32_t numBytesInBuffer)
+nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * aContext, PRUint32 numBytesInBuffer)
 {
-  bool foundStart;
-  int16_t octetpos, c = 0;
-  uint32_t val;
+  PRBool foundStart;
+  PRInt16 octetpos, c = 0;
+  PRUint32 val;
   mPosInDataBuffer = 0; // use member variable.
 
   NS_ENSURE_TRUE(numBytesInBuffer > 0, NS_ERROR_FAILURE);
@@ -311,12 +348,12 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
   //  if it is the first time, seek to the right start place.
   if (mState == BINHEX_STATE_START)
   {
-    foundStart = false;
+    foundStart = PR_FALSE;
     // go through the line, until we get a ':'
     while (mPosInDataBuffer < numBytesInBuffer)
     {
       c = mDataBuffer[mPosInDataBuffer++];
-      while (c == nsCRT::CR || c == nsCRT::LF)
+      while (c == CR || c == LF)
       {
         if (mPosInDataBuffer >= numBytesInBuffer)
           break;
@@ -324,7 +361,7 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
         c = mDataBuffer[mPosInDataBuffer++];
         if (c == ':')
         {
-          foundStart = true;
+          foundStart = PR_TRUE;
           break;
         }
       }
@@ -349,7 +386,7 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
       c = GetNextChar(numBytesInBuffer);
       if (c == 0)  return NS_OK;
 
-      if ((val = BHEXVAL(c)) == uint32_t(-1))
+      if ((val = BHEXVAL(c)) == PRUint32(-1))
       {
         /* we incount an invalid character.  */
         if (c)
@@ -418,17 +455,17 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
   return   NS_OK;
 }
 
-int16_t nsBinHexDecoder::GetNextChar(uint32_t numBytesInBuffer)
+PRInt16 nsBinHexDecoder::GetNextChar(PRUint32 numBytesInBuffer)
 {
   char c = 0;
 
   while (mPosInDataBuffer < numBytesInBuffer)
   {
     c = mDataBuffer[mPosInDataBuffer++];
-    if (c != nsCRT::LF && c != nsCRT::CR)
+    if (c != LF && c != CR)
       break;
   }
-  return (c == nsCRT::LF || c == nsCRT::CR) ? 0 : (int) c;
+  return (c == LF || c == CR) ? 0 : (int) c;
 }
 
 //////////////////////////////////////////////////////
@@ -442,15 +479,15 @@ nsBinHexDecoder::OnStartRequest(nsIRequest* request, nsISupports *aCtxt)
 
   NS_ENSURE_TRUE(mNextListener, NS_ERROR_FAILURE);
 
-  mDataBuffer = (char *) moz_malloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
-  mOutgoingBuffer = (char *) moz_malloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
+  mDataBuffer = (char *) nsMemory::Alloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
+  mOutgoingBuffer = (char *) nsMemory::Alloc((sizeof(char) * nsIOService::gDefaultSegmentSize));
   if (!mDataBuffer || !mOutgoingBuffer) return NS_ERROR_FAILURE; // out of memory;
 
   // now we want to create a pipe which we'll use to write our converted data...
   rv = NS_NewPipe(getter_AddRefs(mInputStream), getter_AddRefs(mOutputStream),
                   nsIOService::gDefaultSegmentSize,
                   nsIOService::gDefaultSegmentSize,
-                  true, true);
+                  PR_TRUE, PR_TRUE);
 
   // don't propagate the on start request to mNextListener until we have determined the content type.
   return rv;
@@ -475,7 +512,7 @@ nsresult nsBinHexDecoder::DetectContentType(nsIRequest* aRequest,
   nsCOMPtr<nsIMIMEService> mimeService(do_GetService("@mozilla.org/mime;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString contentType;
+  nsCAutoString contentType;
 
   // extract the extension from aFilename and look it up.
   const char * fileExt = strrchr(aFilename.get(), '.');

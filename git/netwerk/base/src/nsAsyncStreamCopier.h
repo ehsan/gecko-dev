@@ -1,83 +1,91 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsAsyncStreamCopier_h__
 #define nsAsyncStreamCopier_h__
 
 #include "nsIAsyncStreamCopier.h"
-#include "nsIAsyncStreamCopier2.h"
-#include "mozilla/Mutex.h"
+#include "nsIAsyncInputStream.h"
+#include "nsIAsyncOutputStream.h"
+#include "nsIRequestObserver.h"
 #include "nsStreamUtils.h"
 #include "nsCOMPtr.h"
-
-class nsIRequestObserver;
+#include "prlock.h"
 
 //-----------------------------------------------------------------------------
 
-class nsAsyncStreamCopier MOZ_FINAL : public nsIAsyncStreamCopier,
-                                      nsIAsyncStreamCopier2
+class nsAsyncStreamCopier : public nsIAsyncStreamCopier
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUEST
     NS_DECL_NSIASYNCSTREAMCOPIER
 
-    // nsIAsyncStreamCopier2
-    // We declare it by hand instead of NS_DECL_NSIASYNCSTREAMCOPIER2
-    // as nsIAsyncStreamCopier2 duplicates methods of nsIAsyncStreamCopier
-    NS_IMETHOD Init(nsIInputStream *aSource,
-                    nsIOutputStream *aSink,
-                    nsIEventTarget *aTarget,
-                    uint32_t aChunkSize,
-                    bool aCloseSource,
-                    bool aCloseSink) MOZ_OVERRIDE;
-
     nsAsyncStreamCopier();
+    virtual ~nsAsyncStreamCopier();
 
     //-------------------------------------------------------------------------
     // these methods may be called on any thread
 
-    bool IsComplete(nsresult *status = nullptr);
+    PRBool IsComplete(nsresult *status = nsnull);
     void   Complete(nsresult status);
 
 private:
-    virtual ~nsAsyncStreamCopier();
-
-    nsresult InitInternal(nsIInputStream *source,
-                          nsIOutputStream *sink,
-                          nsIEventTarget *target,
-                          uint32_t chunkSize,
-                          bool closeSource,
-                          bool closeSink);
 
     static void OnAsyncCopyComplete(void *, nsresult);
-
-    void AsyncCopyInternal();
-    nsresult ApplyBufferingPolicy();
-    nsIRequest* AsRequest();
 
     nsCOMPtr<nsIInputStream>       mSource;
     nsCOMPtr<nsIOutputStream>      mSink;
 
     nsCOMPtr<nsIRequestObserver>   mObserver;
+    nsCOMPtr<nsISupports>          mObserverContext;
 
     nsCOMPtr<nsIEventTarget>       mTarget;
 
     nsCOMPtr<nsISupports>          mCopierCtx;
 
-    mozilla::Mutex                 mLock;
+    PRLock                        *mLock;
 
     nsAsyncCopyMode                mMode;
-    uint32_t                       mChunkSize;
+    PRUint32                       mChunkSize;
     nsresult                       mStatus;
-    bool                           mIsPending;
-    bool                           mCloseSource;
-    bool                           mCloseSink;
-    bool                           mShouldSniffBuffering;
-
-    friend class ProceedWithAsyncCopy;
-    friend class AsyncApplyBufferingPolicyEvent;
+    PRPackedBool                   mIsPending;
+    PRPackedBool                   mCloseSource;
+    PRPackedBool                   mCloseSink;
 };
 
 #endif // !nsAsyncStreamCopier_h__

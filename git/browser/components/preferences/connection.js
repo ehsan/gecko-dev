@@ -1,7 +1,40 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Firefox Preferences System.
+#
+# The Initial Developer of the Original Code is
+# Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2005
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 var gConnectionsDialog = {
   beforeAccept: function ()
@@ -18,21 +51,6 @@ var gConnectionsDialog = {
     var httpProxyURLPref = document.getElementById("network.proxy.http");
     var httpProxyPortPref = document.getElementById("network.proxy.http_port");
     var shareProxiesPref = document.getElementById("network.proxy.share_proxy_settings");
-
-    // If the port is 0 and the proxy server is specified, focus on the port and cancel submission.
-    for (let prefName of ["http","ssl","ftp","socks"]) {
-      let proxyPortPref = document.getElementById("network.proxy." + prefName + "_port");
-      let proxyPref = document.getElementById("network.proxy." + prefName);
-      // Only worry about ports which are currently active. If the share option is on, then ignore
-      // all ports except the HTTP port
-      if (proxyPref.value != "" && proxyPortPref.value == 0 &&
-            (prefName == "http" || !shareProxiesPref.value)) {
-        document.getElementById("networkProxy" + prefName.toUpperCase() + "_Port").focus();
-        return false;
-      }
-    }
-
-    // In the case of a shared proxy preference, backup the current values and update with the HTTP value
     if (shareProxiesPref.value) {
       var proxyPrefs = ["ssl", "ftp", "socks"];
       for (var i = 0; i < proxyPrefs.length; ++i) {
@@ -40,14 +58,15 @@ var gConnectionsDialog = {
         var proxyPortPref = document.getElementById("network.proxy." + proxyPrefs[i] + "_port");
         var backupServerURLPref = document.getElementById("network.proxy.backup." + proxyPrefs[i]);
         var backupPortPref = document.getElementById("network.proxy.backup." + proxyPrefs[i] + "_port");
-        backupServerURLPref.value = backupServerURLPref.value || proxyServerURLPref.value;
-        backupPortPref.value = backupPortPref.value || proxyPortPref.value;
+        backupServerURLPref.value = proxyServerURLPref.value;
+        backupPortPref.value = proxyPortPref.value;
         proxyServerURLPref.value = httpProxyURLPref.value;
         proxyPortPref.value = httpProxyPortPref.value;
       }
     }
     
-    this.sanitizeNoProxiesPref();
+    var noProxiesPref = document.getElementById("network.proxy.no_proxies_on");
+    noProxiesPref.value = noProxiesPref.value.replace(/[;]/g,',');
     
     return true;
   },
@@ -61,7 +80,7 @@ var gConnectionsDialog = {
   proxyTypeChanged: function ()
   {
     var proxyTypePref = document.getElementById("network.proxy.type");
-
+    
     // Update http
     var httpProxyURLPref = document.getElementById("network.proxy.http");
     httpProxyURLPref.disabled = proxyTypePref.value != 1;
@@ -73,27 +92,16 @@ var gConnectionsDialog = {
 
     var shareProxiesPref = document.getElementById("network.proxy.share_proxy_settings");
     shareProxiesPref.disabled = proxyTypePref.value != 1;
-    var autologinProxyPref = document.getElementById("signon.autologin.proxy");
-    autologinProxyPref.disabled = proxyTypePref.value == 0;
+    
     var noProxiesPref = document.getElementById("network.proxy.no_proxies_on");
     noProxiesPref.disabled = proxyTypePref.value != 1;
-
+    
     var autoconfigURLPref = document.getElementById("network.proxy.autoconfig_url");
     autoconfigURLPref.disabled = proxyTypePref.value != 2;
 
     this.updateReloadButton();
   },
-  
-  updateDNSPref: function ()
-  {
-    var socksVersionPref = document.getElementById("network.proxy.socks_version");
-    var socksDNSPref = document.getElementById("network.proxy.socks_remote_dns");
-    var proxyTypePref = document.getElementById("network.proxy.type");
-    var isDefinitelySocks4 = !socksVersionPref.disabled && socksVersionPref.value == 4;
-    socksDNSPref.disabled = (isDefinitelySocks4 || proxyTypePref.value == 0);
-    return undefined;
-  },
-  
+
   updateReloadButton: function ()
   {
     // Disable the "Reload PAC" button if the selected proxy type is not PAC or
@@ -152,7 +160,7 @@ var gConnectionsDialog = {
     }
     var socksVersionPref = document.getElementById("network.proxy.socks_version");
     socksVersionPref.disabled = proxyTypePref.value != 1 || shareProxiesPref.value;
-    this.updateDNSPref();
+    
     return undefined;
   },
   
@@ -183,16 +191,6 @@ var gConnectionsDialog = {
     try {
       autoURLPref.value = autoURL.value = URIFixup.createFixupURI(autoURL.value, 0).spec;
     } catch(ex) {}
-  },
-
-  sanitizeNoProxiesPref: function()
-  {
-    var noProxiesPref = document.getElementById("network.proxy.no_proxies_on");
-    // replace substrings of ; and \n with commas if they're neither immediately
-    // preceded nor followed by a valid separator character
-    noProxiesPref.value = noProxiesPref.value.replace(/([^, \n;])[;\n]+(?![,\n;])/g, '$1,');
-    // replace any remaining ; and \n since some may follow commas, etc. 
-    noProxiesPref.value = noProxiesPref.value.replace(/[;\n]/g, '');
   },
   
   readHTTPProxyServer: function ()

@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
+/* -*- Mode: java; tab-width:8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
@@ -24,7 +24,7 @@ function test()
 
   if ("evalcx" in this) {
       // shell
-      let s = evalcx("lazy");
+      let s = evalcx("split");
       s.n = 0;
       evalcx('this.watch("x", function(){ n++; }); this.x = 4; x = 6', s);
       actual = s.n;

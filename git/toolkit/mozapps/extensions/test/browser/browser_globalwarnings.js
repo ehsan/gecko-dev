@@ -16,8 +16,10 @@ function end_test() {
 add_test(function() {
   info("Testing compatibility checking warning");
 
-  info("Setting checkCompatibility to false");
-  AddonManager.checkCompatibility = false;
+  var version = Services.appinfo.version.replace(/^([^\.]+\.[0-9]+[a-z]*).*/gi, "$1");
+  var pref = "extensions.checkCompatibility." + version;
+  info("Setting " + pref + " pref to false")
+  Services.prefs.setBoolPref(pref, false);
 
   open_manager("addons://list/extension", function(aWindow) {
     var hbox = aWindow.document.querySelector("#list-view hbox.global-warning-checkcompatibility");
@@ -27,7 +29,7 @@ add_test(function() {
 
     info("Clicking 'Enable' button");
     EventUtils.synthesizeMouse(button, 2, 2, { }, aWindow);
-    is(AddonManager.checkCompatibility, true, "Check Compatibility pref should be cleared");
+    is(Services.prefs.prefHasUserValue(pref), false, "Check Compatability pref should be cleared");
     is_element_hidden(hbox, "Check Compatibility warning hbox should be hidden");
     is_element_hidden(button, "Check Compatibility warning button should be hidden");
 

@@ -9,6 +9,7 @@
   of a top level window.
 -->
 
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 
@@ -58,11 +59,8 @@ function onMessageReceived(event)
   }
 }
 
-function startTest() {
-  SpecialPowers.pushPrefEnv({"set": [["security.mixed_content.block_display_content", false], ["security.mixed_content.block_active_content", false]]}, test1);
-}
-
-function test1() {
+function startTest()
+{
   shellType = "frame";
   shell = frame;
   shell.location = "http://example.org:80/tests/dom/tests/mochitest/localstorage/frameReplace.html?init&" + shellType;

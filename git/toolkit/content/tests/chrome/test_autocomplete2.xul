@@ -5,6 +5,8 @@
 <window title="Autocomplete Widget Test 2"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
@@ -44,7 +46,6 @@ nsAutoCompleteSimpleResult.prototype = {
  getCommentAt: function() { return null; },
  getStyleAt: function() { return null; },
  getImageAt: function() { return null; },
- getFinalCompleteValueAt: function() { return this.getValueAt(); },
  getLabelAt: function() { return null; },
  removeValueAt: function() {}
 };
@@ -109,9 +110,6 @@ function startTest() {
   is(autocomplete.highlightNonMatches, false,
      "highlight non matches getter returned false correctly");
 
-  ok(!autocomplete.popup.hasAttribute("autocompleteinput"),
-     "autocompleteinput on popup not set by default");
-
   check();
 }
 
@@ -149,9 +147,6 @@ function checkResult() {
     isnot(style.getPropertyCSSValue("color").cssText, "rgb(255, 0, 0)",
           "not nomatch and not highlightNonMatches - should not be red");
 
-    is (autocomplete.popup.getAttribute("autocompleteinput"), "autocomplete",
-      "The popup's autocompleteinput attribute is set to the ID of the textbox");
-
     setTimeout(check, 0);
   }
   else {
@@ -171,12 +166,10 @@ function checkResult() {
     isnot(style.getPropertyCSSValue("color").cssText, "rgb(255, 0, 0)",
           "nomatch and not highlightNonMatches - should not be red");
 
-    ok(!autocomplete.popup.hasAttribute("autocompleteinput"),
-       "autocompleteinput on popup not set when closed");
-
     setTimeout(function() {
       // Unregister the factory so that we don't get in the way of other tests
       componentManager.unregisterFactory(autoCompleteSimpleID, autoCompleteSimple);
+      autocomplete.controller.stopSearch();
       SimpleTest.finish();
     }, 0);
   }

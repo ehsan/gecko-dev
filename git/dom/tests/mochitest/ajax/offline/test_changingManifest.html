@@ -2,6 +2,7 @@
 <head>
 <title>changing manifest test</title>
 
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="text/javascript" src="/tests/dom/tests/mochitest/ajax/offline/offlineTests.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -18,7 +19,8 @@ var gCacheContents = null;
 
 function finish()
 {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function manifestUpdatedAgain()
@@ -104,7 +106,6 @@ if (OfflineTest.setup()) {
 }
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 
 </script>
 

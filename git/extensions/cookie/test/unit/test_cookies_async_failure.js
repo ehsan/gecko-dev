@@ -36,9 +36,6 @@ function do_run_test() {
   // Set up a profile.
   this.profile = do_get_profile();
 
-  // Allow all cookies.
-  Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
-
   // Get the cookie file and the backup file.
   do_check_false(do_get_cookie_file(profile).exists());
   do_check_false(do_get_backup_file(profile).exists());
@@ -352,7 +349,7 @@ function run_test_3(generator)
   // Close the profile.
   do_close_profile(sub_generator);
   yield;
-  db = Services.storage.openDatabase(do_get_cookie_file(profile));
+  let db = Services.storage.openDatabase(do_get_cookie_file(profile));
   do_check_eq(do_count_cookies_in_db(db), 0);
   db.close();
 

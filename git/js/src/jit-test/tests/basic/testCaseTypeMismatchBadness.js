@@ -9,7 +9,7 @@ function testCaseTypeMismatchBadness()
         break;
 
       case "":
-      case {}:
+      case <x/>:
         break;
     }
   }
@@ -17,3 +17,6 @@ function testCaseTypeMismatchBadness()
   return "no crash";
 }
 assertEq(testCaseTypeMismatchBadness(), "no crash");
+checkStats({
+    recorderAborted: 0
+});

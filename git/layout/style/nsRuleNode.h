@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *   L. David Baron <dbaron@dbaron.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * a node in the lexicographic tree of rules that match an element,
@@ -15,51 +49,42 @@
 #include "nsStyleStruct.h"
 
 class nsStyleContext;
+struct PLDHashTable;
+class nsILanguageAtomService;
 struct nsRuleData;
 class nsIStyleRule;
+struct nsCSSStruct;
 struct nsCSSValueList;
+// Copy of typedef that's in nsCSSStruct.h, for compilation speed.
+typedef nsCSSStruct nsRuleDataStruct;
 
+struct nsRuleDataFont;
 class nsCSSValue;
 struct nsCSSRect;
 
 class nsStyleCoord;
-struct nsCSSValuePairList;
-
-template <nsStyleStructID MinIndex, nsStyleStructID Count>
-class FixedStyleStructArray
-{
-private:
-  void* mArray[Count];
-public:
-  void*& operator[](nsStyleStructID aIndex) {
-    NS_ABORT_IF_FALSE(MinIndex <= aIndex && aIndex < (MinIndex + Count),
-                      "out of range");
-    return mArray[aIndex - MinIndex];
-  }
-
-  const void* operator[](nsStyleStructID aIndex) const {
-    NS_ABORT_IF_FALSE(MinIndex <= aIndex && aIndex < (MinIndex + Count),
-                      "out of range");
-    return mArray[aIndex - MinIndex];
-  }
-};
 
 struct nsInheritedStyleData
 {
-  FixedStyleStructArray<nsStyleStructID_Inherited_Start,
-                        nsStyleStructID_Inherited_Count> mStyleStructs;
+
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args) \
+  nsStyle##name * m##name##Data;
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args)
+
+#include "nsStyleStructList.h"
+
+#undef STYLE_STRUCT_INHERITED
+#undef STYLE_STRUCT_RESET
 
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->PresShell()->
-      AllocateByObjectID(nsPresArena::nsInheritedStyleData_id, sz);
+    return aContext->AllocateFromShell(sz);
   }
 
-  void DestroyStructs(uint64_t aBits, nsPresContext* aContext) {
-#define STYLE_STRUCT_INHERITED(name, checkdata_cb) \
-    void *name##Data = mStyleStructs[eStyleStruct_##name]; \
-    if (name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
-      static_cast<nsStyle##name*>(name##Data)->Destroy(aContext);
-#define STYLE_STRUCT_RESET(name, checkdata_cb)
+  void DestroyStructs(PRUint32 aBits, nsPresContext* aContext) {
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args) \
+    if (m##name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
+      m##name##Data->Destroy(aContext);
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args)
 
 #include "nsStyleStructList.h"
 
@@ -67,129 +92,142 @@ struct nsInheritedStyleData
 #undef STYLE_STRUCT_RESET
   }
 
-  void Destroy(uint64_t aBits, nsPresContext* aContext) {
+  void Destroy(PRUint32 aBits, nsPresContext* aContext) {
     DestroyStructs(aBits, aContext);
-    aContext->PresShell()->
-      FreeByObjectID(nsPresArena::nsInheritedStyleData_id, this);
+    aContext->FreeToShell(sizeof(nsInheritedStyleData), this);
   }
 
   nsInheritedStyleData() {
-    for (nsStyleStructID i = nsStyleStructID_Inherited_Start;
-         i < nsStyleStructID_Inherited_Start + nsStyleStructID_Inherited_Count;
-         i = nsStyleStructID(i + 1)) {
-      mStyleStructs[i] = nullptr;
-    }
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args) \
+    m##name##Data = nsnull;
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args)
+
+#include "nsStyleStructList.h"
+
+#undef STYLE_STRUCT_INHERITED
+#undef STYLE_STRUCT_RESET
+
   }
 };
 
 struct nsResetStyleData
 {
-  FixedStyleStructArray<nsStyleStructID_Reset_Start,
-                        nsStyleStructID_Reset_Count> mStyleStructs;
-
   nsResetStyleData()
   {
-    for (nsStyleStructID i = nsStyleStructID_Reset_Start;
-         i < nsStyleStructID_Reset_Start + nsStyleStructID_Reset_Count;
-         i = nsStyleStructID(i + 1)) {
-      mStyleStructs[i] = nullptr;
-    }
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args) \
+    m##name##Data = nsnull;
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args)
+
+#include "nsStyleStructList.h"
+
+#undef STYLE_STRUCT_RESET
+#undef STYLE_STRUCT_INHERITED
   }
 
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->PresShell()->
-      AllocateByObjectID(nsPresArena::nsResetStyleData_id, sz);
+    return aContext->AllocateFromShell(sz);
   }
 
-  void Destroy(uint64_t aBits, nsPresContext* aContext) {
-#define STYLE_STRUCT_RESET(name, checkdata_cb) \
-    void *name##Data = mStyleStructs[eStyleStruct_##name]; \
-    if (name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
-      static_cast<nsStyle##name*>(name##Data)->Destroy(aContext);
-#define STYLE_STRUCT_INHERITED(name, checkdata_cb)
+  void Destroy(PRUint32 aBits, nsPresContext* aContext) {
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args) \
+    if (m##name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
+      m##name##Data->Destroy(aContext);
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args)
 
 #include "nsStyleStructList.h"
 
 #undef STYLE_STRUCT_RESET
 #undef STYLE_STRUCT_INHERITED
 
-    aContext->PresShell()->
-      FreeByObjectID(nsPresArena::nsResetStyleData_id, this);
+    aContext->FreeToShell(sizeof(nsResetStyleData), this);
   }
+
+#define STYLE_STRUCT_RESET(name, checkdata_cb, ctor_args) \
+  nsStyle##name * m##name##Data;
+#define STYLE_STRUCT_INHERITED(name, checkdata_cb, ctor_args)
+
+#include "nsStyleStructList.h"
+
+#undef STYLE_STRUCT_RESET
+#undef STYLE_STRUCT_INHERITED
+
 };
 
 struct nsCachedStyleData
 {
+  struct StyleStructInfo {
+    ptrdiff_t mCachedStyleDataOffset;
+    ptrdiff_t mInheritResetOffset;
+    PRBool    mIsReset;
+  };
+
+  static StyleStructInfo gInfo[];
+
   nsInheritedStyleData* mInheritedData;
   nsResetStyleData* mResetData;
 
-  static bool IsReset(const nsStyleStructID aSID) {
-    NS_ABORT_IF_FALSE(0 <= aSID && aSID < nsStyleStructID_Length,
-                      "must be an inherited or reset SID");
-    return nsStyleStructID_Reset_Start <= aSID;
+  static PRBool IsReset(const nsStyleStructID& aSID) {
+    return gInfo[aSID].mIsReset;
   }
 
-  static bool IsInherited(const nsStyleStructID aSID) {
-    return !IsReset(aSID);
-  }
-
-  static uint32_t GetBitForSID(const nsStyleStructID aSID) {
+  static PRUint32 GetBitForSID(const nsStyleStructID& aSID) {
     return 1 << aSID;
   }
 
-  void* NS_FASTCALL GetStyleData(const nsStyleStructID aSID) {
-    if (IsReset(aSID)) {
-      if (mResetData) {
-        return mResetData->mStyleStructs[aSID];
-      }
-    } else {
-      if (mInheritedData) {
-        return mInheritedData->mStyleStructs[aSID];
-      }
-    }
-    return nullptr;
-  }
+  void* NS_FASTCALL GetStyleData(const nsStyleStructID& aSID) {
+    // Each struct is stored at this.m##type##Data->m##name##Data where
+    // |type| is either Inherit or Reset, and |name| is the name of the
+    // style struct.  The |gInfo| stores the offset of the appropriate
+    // m##type##Data for the struct within nsCachedStyleData (|this|)
+    // and the offset of the appropriate m##name##Data within the
+    // m##type##Data.  Note that if we don't have any reset structs,
+    // then mResetData is null, and likewise for mInheritedData.  This
+    // saves us from having to go through the long if-else cascade into
+    // which most compilers will turn a case statement.
 
-  void NS_FASTCALL SetStyleData(const nsStyleStructID aSID,
-                                nsPresContext *aPresContext, void *aData) {
-    if (IsReset(aSID)) {
-      if (!mResetData) {
-        mResetData = new (aPresContext) nsResetStyleData;
-      }
-      mResetData->mStyleStructs[aSID] = aData;
-    } else {
-      if (!mInheritedData) {
-        mInheritedData = new (aPresContext) nsInheritedStyleData;
-      }
-      mInheritedData->mStyleStructs[aSID] = aData;
+    // NOTE:  nsStyleContext::SetStyle works roughly the same way.
+
+    const StyleStructInfo& info = gInfo[aSID];
+
+    // Get either &mInheritedData or &mResetData.
+    char* resetOrInheritSlot = reinterpret_cast<char*>(this) + info.mCachedStyleDataOffset;
+
+    // Get either mInheritedData or mResetData.
+    char* resetOrInherit = reinterpret_cast<char*>(*reinterpret_cast<void**>(resetOrInheritSlot));
+
+    void* data = nsnull;
+    if (resetOrInherit) {
+      // If we have the mInheritedData or mResetData, then we might have
+      // the struct, so get it.
+      char* dataSlot = resetOrInherit + info.mInheritResetOffset;
+      data = *reinterpret_cast<void**>(dataSlot);
     }
+    return data;
   }
 
   // Typesafe and faster versions of the above
-  #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_)                   \
-    nsStyle##name_ * NS_FASTCALL GetStyle##name_ () {                    \
-      return mInheritedData ? static_cast<nsStyle##name_*>(              \
-        mInheritedData->mStyleStructs[eStyleStruct_##name_]) : nullptr;  \
+  #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)       \
+    nsStyle##name_ * NS_FASTCALL GetStyle##name_ () {        \
+      return mInheritedData ? mInheritedData->m##name_##Data : nsnull;   \
     }
-  #define STYLE_STRUCT_RESET(name_, checkdata_cb_)                       \
-    nsStyle##name_ * NS_FASTCALL GetStyle##name_ () {                    \
-      return mResetData ? static_cast<nsStyle##name_*>(                  \
-        mResetData->mStyleStructs[eStyleStruct_##name_]) : nullptr;      \
+  #define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_)           \
+    nsStyle##name_ * NS_FASTCALL GetStyle##name_ () {        \
+      return mResetData ? mResetData->m##name_##Data : nsnull;           \
     }
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT_RESET
   #undef STYLE_STRUCT_INHERITED
 
-  void Destroy(uint64_t aBits, nsPresContext* aContext) {
+  void Destroy(PRUint32 aBits, nsPresContext* aContext) {
     if (mResetData)
       mResetData->Destroy(aBits, aContext);
     if (mInheritedData)
       mInheritedData->Destroy(aBits, aContext);
-    mResetData = nullptr;
-    mInheritedData = nullptr;
+    mResetData = nsnull;
+    mInheritedData = nsnull;
   }
 
-  nsCachedStyleData() :mInheritedData(nullptr), mResetData(nullptr) {}
+  nsCachedStyleData() :mInheritedData(nsnull), mResetData(nsnull) {}
   ~nsCachedStyleData() {}
 };
 
@@ -236,11 +274,6 @@ struct nsCachedStyleData
  * represented by an nsRuleNode are also immutable.
  */
 
-enum nsFontSizeType {
-  eFontSize_HTML = 1,
-  eFontSize_CSS = 2
-};
-
 class nsRuleNode {
 public:
   enum RuleDetail {
@@ -265,14 +298,14 @@ public:
   };
 
 private:
-  nsPresContext* const mPresContext; // Our pres context.
+  nsPresContext* mPresContext; // Our pres context.
 
-  nsRuleNode* const mParent; // A pointer to the parent node in the tree.
-                             // This enables us to walk backwards from the
-                             // most specific rule matched to the least
-                             // specific rule (which is the optimal order to
-                             // use for lookups of style properties.
-  nsIStyleRule* const mRule; // [STRONG] A pointer to our specific rule.
+  nsRuleNode* mParent; // A pointer to the parent node in the tree.
+                       // This enables us to walk backwards from the
+                       // most specific rule matched to the least
+                       // specific rule (which is the optimal order to
+                       // use for lookups of style properties.
+  nsIStyleRule* mRule; // [STRONG] A pointer to our specific rule.
 
   nsRuleNode* mNextSibling; // This value should be used only by the
                             // parent, since the parent may store
@@ -282,21 +315,21 @@ private:
 
   struct Key {
     nsIStyleRule* mRule;
-    uint8_t mLevel;
-    bool mIsImportantRule;
+    PRUint8 mLevel;
+    PRPackedBool mIsImportantRule;
 
-    Key(nsIStyleRule* aRule, uint8_t aLevel, bool aIsImportantRule)
+    Key(nsIStyleRule* aRule, PRUint8 aLevel, PRPackedBool aIsImportantRule)
       : mRule(aRule), mLevel(aLevel), mIsImportantRule(aIsImportantRule)
     {}
 
-    bool operator==(const Key& aOther) const
+    PRBool operator==(const Key& aOther) const
     {
       return mRule == aOther.mRule &&
              mLevel == aOther.mLevel &&
              mIsImportantRule == aOther.mIsImportantRule;
     }
 
-    bool operator!=(const Key& aOther) const
+    PRBool operator!=(const Key& aOther) const
     {
       return !(*this == aOther);
     }
@@ -305,22 +338,16 @@ private:
   static PLDHashNumber
   ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey);
 
-  static bool
+  static PRBool
   ChildrenHashMatchEntry(PLDHashTable *aTable,
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
-  static PLDHashOperator
-  SweepHashEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                 uint32_t number, void *arg);
-  void SweepChildren(nsTArray<nsRuleNode*>& aSweepQueue);
-  bool DestroyIfNotMarked();
-
-  static const PLDHashTableOps ChildrenHashOps;
+  static PLDHashTableOps ChildrenHashOps;
 
   static PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                          uint32_t number, void *arg);
+                          PRUint32 number, void *arg);
 
   Key GetKey() const {
     return Key(mRule, GetLevel(), IsImportantRule());
@@ -348,11 +375,11 @@ private:
     kMaxChildrenInList = 32
   };
 
-  bool HaveChildren() const {
-    return mChildren.asVoid != nullptr;
+  PRBool HaveChildren() const {
+    return mChildren.asVoid != nsnull;
   }
-  bool ChildrenAreHashed() {
-    return (intptr_t(mChildren.asVoid) & kTypeMask) == kHashType;
+  PRBool ChildrenAreHashed() {
+    return (PRWord(mChildren.asVoid) & kTypeMask) == kHashType;
   }
   nsRuleNode* ChildrenList() {
     return mChildren.asList;
@@ -361,26 +388,26 @@ private:
     return &mChildren.asList;
   }
   PLDHashTable* ChildrenHash() {
-    return (PLDHashTable*) (intptr_t(mChildren.asHash) & ~intptr_t(kTypeMask));
+    return (PLDHashTable*) (PRWord(mChildren.asHash) & ~PRWord(kTypeMask));
   }
   void SetChildrenList(nsRuleNode *aList) {
-    NS_ASSERTION(!(intptr_t(aList) & kTypeMask),
+    NS_ASSERTION(!(PRWord(aList) & kTypeMask),
                  "pointer not 2-byte aligned");
     mChildren.asList = aList;
   }
   void SetChildrenHash(PLDHashTable *aHashtable) {
-    NS_ASSERTION(!(intptr_t(aHashtable) & kTypeMask),
+    NS_ASSERTION(!(PRWord(aHashtable) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asHash = (PLDHashTable*)(intptr_t(aHashtable) | kHashType);
+    mChildren.asHash = (PLDHashTable*)(PRWord(aHashtable) | kHashType);
   }
-  void ConvertChildrenToHash(int32_t aNumKids);
+  void ConvertChildrenToHash();
 
   nsCachedStyleData mStyleData;   // Any data we cached on the rule node.
 
-  uint32_t mDependentBits; // Used to cache the fact that we can look up
+  PRUint32 mDependentBits; // Used to cache the fact that we can look up
                            // cached data under a parent rule.
 
-  uint32_t mNoneBits; // Used to cache the fact that the branch to this
+  PRUint32 mNoneBits; // Used to cache the fact that the branch to this
                       // node specifies no non-inherited data for a
                       // given struct type.  (This usually implies that
                       // the entire branch specifies no non-inherited
@@ -408,12 +435,14 @@ private:
   // of deciding when to GC.  We could more accurately count unused rulenodes
   // by releasing/addrefing our parent when our refcount transitions to or from
   // 0, but it doesn't seem worth it to do that.
-  uint32_t mRefCnt;
+  PRUint32 mRefCnt;
 
 public:
-  // Overloaded new operator that allocates from a presShell arena.
+  // Overloaded new operator. Initializes the memory to 0 and relies on an arena
+  // (which comes from the presShell) to perform the allocation.
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW;
-  void Destroy() { DestroyInternal(nullptr); }
+  void Destroy() { DestroyInternal(nsnull); }
+  static nsILanguageAtomService* gLangService;
 
   // Implemented in nsStyleSet.h, since it needs to know about nsStyleSet.
   inline void AddRef();
@@ -423,224 +452,205 @@ public:
 
 protected:
   void DestroyInternal(nsRuleNode ***aDestroyQueueTail);
-  void PropagateDependentBit(nsStyleStructID aSID, nsRuleNode* aHighestNode,
-                             void* aStruct);
-  void PropagateNoneBit(uint32_t aBit, nsRuleNode* aHighestNode);
-  static void PropagateGrandancestorBit(nsStyleContext* aContext,
-                                        nsStyleContext* aContextInheritedFrom);
+  void PropagateDependentBit(PRUint32 aBit, nsRuleNode* aHighestNode);
+  void PropagateNoneBit(PRUint32 aBit, nsRuleNode* aHighestNode);
 
   const void* SetDefaultOnRoot(const nsStyleStructID aSID,
                                nsStyleContext* aContext);
 
-  /**
-   * Resolves any property values in aRuleData for a given style struct that
-   * have eCSSUnit_TokenStream values, by resolving them against the computed
-   * variable values on the style context and re-parsing the property.
-   *
-   * @return Whether any properties with eCSSUnit_TokenStream values were
-   *   encountered.
-   */
-  static bool ResolveVariableReferences(const nsStyleStructID aSID,
-                                        nsRuleData* aRuleData,
-                                        nsStyleContext* aContext);
-
   const void*
-    WalkRuleTree(const nsStyleStructID aSID, nsStyleContext* aContext);
+    WalkRuleTree(const nsStyleStructID aSID, nsStyleContext* aContext,
+                 nsRuleData* aRuleData, nsRuleDataStruct* aSpecificData);
 
   const void*
     ComputeDisplayData(void* aStartStruct,
-                       const nsRuleData* aRuleData,
+                       const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
                        RuleDetail aRuleDetail,
-                       const bool aCanStoreInRuleTree);
+                       const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeVisibilityData(void* aStartStruct,
-                          const nsRuleData* aRuleData,
+                          const nsRuleDataStruct& aData,
                           nsStyleContext* aContext, nsRuleNode* aHighestNode,
                           RuleDetail aRuleDetail,
-                          const bool aCanStoreInRuleTree);
+                          const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeFontData(void* aStartStruct,
-                    const nsRuleData* aRuleData,
+                    const nsRuleDataStruct& aData,
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
                     RuleDetail aRuleDetail,
-                    const bool aCanStoreInRuleTree);
+                    const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeColorData(void* aStartStruct,
-                     const nsRuleData* aRuleData,
+                     const nsRuleDataStruct& aData,
                      nsStyleContext* aContext, nsRuleNode* aHighestNode,
                      RuleDetail aRuleDetail,
-                     const bool aCanStoreInRuleTree);
+                     const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeBackgroundData(void* aStartStruct,
-                          const nsRuleData* aRuleData,
+                          const nsRuleDataStruct& aData,
                           nsStyleContext* aContext, nsRuleNode* aHighestNode,
                           RuleDetail aRuleDetail,
-                          const bool aCanStoreInRuleTree);
+                          const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeMarginData(void* aStartStruct,
-                      const nsRuleData* aRuleData,
+                      const nsRuleDataStruct& aData,
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
                       RuleDetail aRuleDetail,
-                      const bool aCanStoreInRuleTree);
+                      const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeBorderData(void* aStartStruct,
-                      const nsRuleData* aRuleData,
+                      const nsRuleDataStruct& aData,
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
                       RuleDetail aRuleDetail,
-                      const bool aCanStoreInRuleTree);
+                      const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputePaddingData(void* aStartStruct,
-                       const nsRuleData* aRuleData,
+                       const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
                        RuleDetail aRuleDetail,
-                       const bool aCanStoreInRuleTree);
+                       const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeOutlineData(void* aStartStruct,
-                       const nsRuleData* aRuleData,
+                       const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
                        RuleDetail aRuleDetail,
-                       const bool aCanStoreInRuleTree);
+                       const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeListData(void* aStartStruct,
-                    const nsRuleData* aRuleData,
+                    const nsRuleDataStruct& aData,
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
                     RuleDetail aRuleDetail,
-                    const bool aCanStoreInRuleTree);
+                    const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputePositionData(void* aStartStruct,
-                        const nsRuleData* aRuleData,
+                        const nsRuleDataStruct& aData,
                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
                         RuleDetail aRuleDetail,
-                        const bool aCanStoreInRuleTree);
+                        const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeTableData(void* aStartStruct,
-                     const nsRuleData* aRuleData,
+                     const nsRuleDataStruct& aData,
                      nsStyleContext* aContext, nsRuleNode* aHighestNode,
                      RuleDetail aRuleDetail,
-                     const bool aCanStoreInRuleTree);
+                     const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeTableBorderData(void* aStartStruct,
-                           const nsRuleData* aRuleData,
+                           const nsRuleDataStruct& aData,
                            nsStyleContext* aContext, nsRuleNode* aHighestNode,
                            RuleDetail aRuleDetail,
-                           const bool aCanStoreInRuleTree);
+                           const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeContentData(void* aStartStruct,
-                       const nsRuleData* aRuleData,
+                       const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
                        RuleDetail aRuleDetail,
-                       const bool aCanStoreInRuleTree);
+                       const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeQuotesData(void* aStartStruct,
-                      const nsRuleData* aRuleData,
+                      const nsRuleDataStruct& aData,
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
                       RuleDetail aRuleDetail,
-                      const bool aCanStoreInRuleTree);
+                      const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeTextData(void* aStartStruct,
-                    const nsRuleData* aRuleData,
+                    const nsRuleDataStruct& aData,
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
                     RuleDetail aRuleDetail,
-                    const bool aCanStoreInRuleTree);
+                    const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeTextResetData(void* aStartStruct,
-                         const nsRuleData* aRuleData,
+                         const nsRuleDataStruct& aData,
                          nsStyleContext* aContext, nsRuleNode* aHighestNode,
                          RuleDetail aRuleDetail,
-                         const bool aCanStoreInRuleTree);
+                         const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeUserInterfaceData(void* aStartStruct,
-                             const nsRuleData* aRuleData,
+                             const nsRuleDataStruct& aData,
                              nsStyleContext* aContext,
                              nsRuleNode* aHighestNode,
                              RuleDetail aRuleDetail,
-                             const bool aCanStoreInRuleTree);
+                             const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeUIResetData(void* aStartStruct,
-                       const nsRuleData* aRuleData,
+                       const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
                        RuleDetail aRuleDetail,
-                       const bool aCanStoreInRuleTree);
+                       const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeXULData(void* aStartStruct,
-                   const nsRuleData* aRuleData,
+                   const nsRuleDataStruct& aData,
                    nsStyleContext* aContext, nsRuleNode* aHighestNode,
                    RuleDetail aRuleDetail,
-                   const bool aCanStoreInRuleTree);
+                   const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeColumnData(void* aStartStruct,
-                      const nsRuleData* aRuleData,
+                      const nsRuleDataStruct& aData,
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
                       RuleDetail aRuleDetail,
-                      const bool aCanStoreInRuleTree);
+                      const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeSVGData(void* aStartStruct,
-                   const nsRuleData* aRuleData,
+                   const nsRuleDataStruct& aData,
                    nsStyleContext* aContext, nsRuleNode* aHighestNode,
                    RuleDetail aRuleDetail,
-                   const bool aCanStoreInRuleTree);
+                   const PRBool aCanStoreInRuleTree);
 
   const void*
     ComputeSVGResetData(void* aStartStruct,
-                        const nsRuleData* aRuleData,
+                        const nsRuleDataStruct& aData,
                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
                         RuleDetail aRuleDetail,
-                        const bool aCanStoreInRuleTree);
-
-  const void*
-    ComputeVariablesData(void* aStartStruct,
-                         const nsRuleData* aRuleData,
-                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                         RuleDetail aRuleDetail,
-                         const bool aCanStoreInRuleTree);
+                        const PRBool aCanStoreInRuleTree);
 
   // helpers for |ComputeFontData| that need access to |mNoneBits|:
   static void SetFontSize(nsPresContext* aPresContext,
-                          const nsRuleData* aRuleData,
+                          const nsRuleDataFont& aFontData,
                           const nsStyleFont* aFont,
                           const nsStyleFont* aParentFont,
                           nscoord* aSize,
                           const nsFont& aSystemFont,
                           nscoord aParentSize,
                           nscoord aScriptLevelAdjustedParentSize,
-                          bool aUsedStartStruct,
-                          bool aAtRoot,
-                          bool& aCanStoreInRuleTree);
+                          PRBool aUsedStartStruct,
+                          PRBool aAtRoot,
+                          PRBool& aCanStoreInRuleTree);
 
   static void SetFont(nsPresContext* aPresContext,
                       nsStyleContext* aContext,
-                      uint8_t aGenericFontID,
-                      const nsRuleData* aRuleData,
+                      nscoord aMinFontSize,
+                      PRUint8 aGenericFontID,
+                      const nsRuleDataFont& aFontData,
                       const nsStyleFont* aParentFont,
                       nsStyleFont* aFont,
-                      bool aStartStruct,
-                      bool& aCanStoreInRuleTree);
+                      PRBool aStartStruct,
+                      PRBool& aCanStoreInRuleTree);
 
   static void SetGenericFont(nsPresContext* aPresContext,
                              nsStyleContext* aContext,
-                             uint8_t aGenericFontID,
+                             PRUint8 aGenericFontID,
+                             nscoord aMinFontSize,
                              nsStyleFont* aFont);
 
   void AdjustLogicalBoxProp(nsStyleContext* aContext,
@@ -650,84 +660,85 @@ protected:
                             const nsCSSValue& aRTLLogicalValue,
                             mozilla::css::Side aSide,
                             nsCSSRect& aValueRect,
-                            bool& aCanStoreInRuleTree);
+                            PRBool& aCanStoreInRuleTree);
 
-  inline RuleDetail CheckSpecifiedProperties(const nsStyleStructID aSID,
-                                             const nsRuleData* aRuleData);
+  inline RuleDetail CheckSpecifiedProperties(const nsStyleStructID aSID, const nsRuleDataStruct& aRuleDataStruct);
+
+  const void* GetParentData(const nsStyleStructID aSID);
+  #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
+    const nsStyle##name_* GetParent##name_();
+  #include "nsStyleStructList.h"
+  #undef STYLE_STRUCT
+
+  const void* GetDisplayData(nsStyleContext* aContext);
+  const void* GetVisibilityData(nsStyleContext* aContext);
+  const void* GetFontData(nsStyleContext* aContext);
+  const void* GetColorData(nsStyleContext* aContext);
+  const void* GetBackgroundData(nsStyleContext* aContext);
+  const void* GetMarginData(nsStyleContext* aContext);
+  const void* GetBorderData(nsStyleContext* aContext);
+  const void* GetPaddingData(nsStyleContext* aContext);
+  const void* GetOutlineData(nsStyleContext* aContext);
+  const void* GetListData(nsStyleContext* aContext);
+  const void* GetPositionData(nsStyleContext* aContext);
+  const void* GetTableData(nsStyleContext* aContext);
+  const void* GetTableBorderData(nsStyleContext* aContext);
+
+  const void* GetContentData(nsStyleContext* aContext);
+  const void* GetQuotesData(nsStyleContext* aContext);
+  const void* GetTextData(nsStyleContext* aContext);
+  const void* GetTextResetData(nsStyleContext* aContext);
+  const void* GetUserInterfaceData(nsStyleContext* aContext);
+
+  const void* GetUIResetData(nsStyleContext* aContext);
+  const void* GetXULData(nsStyleContext* aContext);
+  const void* GetColumnData(nsStyleContext* aContext);
+  const void* GetSVGData(nsStyleContext* aContext);
+  const void* GetSVGResetData(nsStyleContext* aContext);
 
   already_AddRefed<nsCSSShadowArray>
               GetShadowData(const nsCSSValueList* aList,
                             nsStyleContext* aContext,
-                            bool aIsBoxShadow,
-                            bool& aCanStoreInRuleTree);
-  bool SetStyleFilterToCSSValue(nsStyleFilter* aStyleFilter,
-                                const nsCSSValue& aValue,
-                                nsStyleContext* aStyleContext,
-                                nsPresContext* aPresContext,
-                                bool& aCanStoreInRuleTree);
-  void SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
-                                  const nsCSSValue* aValue,
-                                  nsStyleContext* aStyleContext,
-                                  nsPresContext* aPresContext,
-                                  bool& aCanStoreInRuleTree);
+                            PRBool aIsBoxShadow,
+                            PRBool& inherited);
 
 private:
   nsRuleNode(nsPresContext* aPresContext, nsRuleNode* aParent,
-             nsIStyleRule* aRule, uint8_t aLevel, bool aIsImportant);
+             nsIStyleRule* aRule, PRUint8 aLevel, PRBool aIsImportant);
   ~nsRuleNode();
 
 public:
   static nsRuleNode* CreateRootNode(nsPresContext* aPresContext);
 
-  static void EnsureBlockDisplay(uint8_t& display,
-                                 bool aConvertListItem = false);
-  static void EnsureInlineDisplay(uint8_t& display);
-
   // Transition never returns null; on out of memory it'll just return |this|.
-  nsRuleNode* Transition(nsIStyleRule* aRule, uint8_t aLevel,
-                         bool aIsImportantRule);
+  nsRuleNode* Transition(nsIStyleRule* aRule, PRUint8 aLevel,
+                         PRPackedBool aIsImportantRule);
   nsRuleNode* GetParent() const { return mParent; }
-  bool IsRoot() const { return mParent == nullptr; }
+  PRBool IsRoot() const { return mParent == nsnull; }
 
-  // Return the root of the rule tree that this rule node is in.
-  nsRuleNode* RuleTree();
-  const nsRuleNode* RuleTree() const {
-    return const_cast<nsRuleNode*>(this)->RuleTree();
-  }
-
-  // These uint8_ts are really nsStyleSet::sheetType values.
-  uint8_t GetLevel() const {
+  // These PRUint8s are really nsStyleSet::sheetType values.
+  PRUint8 GetLevel() const {
     NS_ASSERTION(!IsRoot(), "can't call on root");
     return (mDependentBits & NS_RULE_NODE_LEVEL_MASK) >>
              NS_RULE_NODE_LEVEL_SHIFT;
   }
-  bool IsImportantRule() const {
+  PRBool IsImportantRule() const {
     NS_ASSERTION(!IsRoot(), "can't call on root");
     return (mDependentBits & NS_RULE_NODE_IS_IMPORTANT) != 0;
   }
 
-  /**
-   * Has this rule node at some time in its lifetime been the mRuleNode
-   * of some style context (as opposed to only being the ancestor of
-   * some style context's mRuleNode)?
-   */
-  void SetUsedDirectly();
-  bool IsUsedDirectly() const {
-    return (mDependentBits & NS_RULE_NODE_USED_DIRECTLY) != 0;
-  }
-
-  // NOTE:  Does not |AddRef|.  Null only for the root.
+  // NOTE:  Does not |AddRef|.
   nsIStyleRule* GetRule() const { return mRule; }
-  // NOTE: Does not |AddRef|.  Never null.
-  nsPresContext* PresContext() const { return mPresContext; }
+  // NOTE: Does not |AddRef|.
+  nsPresContext* GetPresContext() const { return mPresContext; }
 
   const void* GetStyleData(nsStyleStructID aSID,
                            nsStyleContext* aContext,
-                           bool aComputeData);
+                           PRBool aComputeData);
 
-  #define STYLE_STRUCT(name_, checkdata_cb_)                                  \
+  #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                      \
     const nsStyle##name_* GetStyle##name_(nsStyleContext* aContext,           \
-                                          bool aComputeData);
+                                          PRBool aComputeData);
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
@@ -736,16 +747,14 @@ public:
    * ancestors until it reaches a marked one.  Sweep recursively sweeps
    * the children, destroys any that are unmarked, and clears marks,
    * returning true if the node on which it was called was destroyed.
-   * If children are hashed, the mNextSibling field on the children is
-   * temporarily used internally by Sweep.
    */
   void Mark();
-  bool Sweep();
+  PRBool Sweep();
 
-  static bool
+  static PRBool
     HasAuthorSpecifiedRules(nsStyleContext* aStyleContext,
-                            uint32_t ruleTypeMask,
-                            bool aAuthorColorsAllowed);
+                            PRUint32 ruleTypeMask,
+                            PRBool aAuthorColorsAllowed);
 
   // Expose this so media queries can use it
   static nscoord CalcLengthWithInitialFont(nsPresContext* aPresContext,
@@ -754,7 +763,7 @@ public:
   static nscoord CalcLength(const nsCSSValue& aValue,
                             nsStyleContext* aStyleContext,
                             nsPresContext* aPresContext,
-                            bool& aCanStoreInRuleTree);
+                            PRBool& aCanStoreInRuleTree);
 
   struct ComputedCalc {
     nscoord mLength;
@@ -767,7 +776,7 @@ public:
   SpecifiedCalcToComputedCalc(const nsCSSValue& aValue,
                               nsStyleContext* aStyleContext,
                               nsPresContext* aPresContext,
-                              bool& aCanStoreInRuleTree);
+                              PRBool& aCanStoreInRuleTree);
 
   // Compute the value of an nsStyleCoord that IsCalcUnit().
   // (Values that don't require aPercentageBasis should be handled
@@ -784,47 +793,10 @@ public:
   // cached data such that we need to do dynamic change handling for
   // changes that change the results of media queries or require
   // rebuilding all style data.
-  bool TreeHasCachedData() const {
+  PRBool TreeHasCachedData() const {
     NS_ASSERTION(IsRoot(), "should only be called on root of rule tree");
     return HaveChildren() || mStyleData.mInheritedData || mStyleData.mResetData;
   }
-
-  bool NodeHasCachedData(const nsStyleStructID aSID) {
-    return !!mStyleData.GetStyleData(aSID);
-  }
-
-  static void ComputeFontFeatures(const nsCSSValuePairList *aFeaturesList,
-                                  nsTArray<gfxFontFeature>& aFeatureSettings);
-
-  static nscoord CalcFontPointSize(int32_t aHTMLSize, int32_t aBasePointSize, 
-                                   nsPresContext* aPresContext,
-                                   nsFontSizeType aFontSizeType = eFontSize_HTML);
-
-  static nscoord FindNextSmallerFontSize(nscoord aFontSize, int32_t aBasePointSize, 
-                                         nsPresContext* aPresContext,
-                                         nsFontSizeType aFontSizeType = eFontSize_HTML);
-
-  static nscoord FindNextLargerFontSize(nscoord aFontSize, int32_t aBasePointSize, 
-                                        nsPresContext* aPresContext,
-                                        nsFontSizeType aFontSizeType = eFontSize_HTML);
-
-  /**
-   * @param aValue The color value, returned from nsCSSParser::ParseColorString
-   * @param aPresContext Presentation context whose preferences are used
-   *                     for certain enumerated colors
-   * @param aStyleContext Style context whose color is used for 'currentColor'
-   *
-   * @note aPresContext and aStyleContext may be null, but in that case, fully
-   *       opaque black will be returned for the values that rely on these
-   *       objects to compute the color. (For example, -moz-hyperlinktext.)
-   *
-   * @return false if we fail to extract a color; this will not happen if both
-   *         aPresContext and aStyleContext are non-null
-   */
-  static bool ComputeColor(const nsCSSValue& aValue,
-                           nsPresContext* aPresContext,
-                           nsStyleContext* aStyleContext,
-                           nscolor& aResult);
 };
 
 #endif

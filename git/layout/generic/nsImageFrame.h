@@ -1,56 +1,93 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-/* rendering object for replaced elements with image data */
+/* rendering object for replaced elements with bitmap image data */
 
 #ifndef nsImageFrame_h___
 #define nsImageFrame_h___
 
 #include "nsSplittableFrame.h"
+#include "nsString.h"
+#include "nsAString.h"
+#include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 
-#include "imgINotificationObserver.h"
+#include "imgIRequest.h"
+#include "nsStubImageDecoderObserver.h"
+#include "imgIDecoderObserver.h"
 
+#include "Layers.h"
+#include "ImageLayers.h"
 #include "nsDisplayList.h"
 #include "imgIContainer.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
-#include "nsIReflowCallback.h"
-#include "nsTObserverArray.h"
 
-class nsFontMetrics;
+class nsIFrame;
 class nsImageMap;
 class nsIURI;
 class nsILoadGroup;
 struct nsHTMLReflowState;
-class nsHTMLReflowMetrics;
+struct nsHTMLReflowMetrics;
+struct nsSize;
 class nsDisplayImage;
 class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
-class nsImageLoadingContent;
 
-namespace mozilla {
-namespace layers {
-  class ImageContainer;
-  class ImageLayer;
-  class LayerManager;
-}
-}
+using namespace mozilla;
+using namespace mozilla::layers;
 
-class nsImageListener : public imgINotificationObserver
+class nsImageListener : public nsStubImageDecoderObserver
 {
-protected:
+public:
+  nsImageListener(nsImageFrame *aFrame);
   virtual ~nsImageListener();
 
-public:
-  explicit nsImageListener(nsImageFrame *aFrame);
-
   NS_DECL_ISUPPORTS
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+  // imgIDecoderObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+                             const nsIntRect *aRect);
+  NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
+                          const PRUnichar *statusArg);
+  // imgIContainerObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
+                          const nsIntRect *dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -58,72 +95,68 @@ private:
   nsImageFrame *mFrame;
 };
 
-typedef nsSplittableFrame ImageFrameSuper;
+#define IMAGE_SIZECONSTRAINED       NS_FRAME_STATE_BIT(20)
+#define IMAGE_GOTINITIALREFLOW      NS_FRAME_STATE_BIT(21)
 
-class nsImageFrame : public ImageFrameSuper,
-                     public nsIReflowCallback {
+#define ImageFrameSuper nsSplittableFrame
+
+class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
-  typedef mozilla::image::DrawResult DrawResult;
-  typedef mozilla::layers::ImageContainer ImageContainer;
-  typedef mozilla::layers::ImageLayer ImageLayer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsImageFrame(nsStyleContext* aContext);
+  nsImageFrame(nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME_TARGET(nsImageFrame)
   NS_DECL_QUERYFRAME
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
-
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual mozilla::IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
-  virtual nsSize GetIntrinsicRatio() MOZ_OVERRIDE;
-  virtual void Reflow(nsPresContext*           aPresContext,
-                      nsHTMLReflowMetrics&     aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual IntrinsicSize GetIntrinsicSize();
+  virtual nsSize GetIntrinsicRatio();
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
   
-  virtual nsresult  GetContentForEvent(mozilla::WidgetEvent* aEvent,
-                                       nsIContent** aContent) MOZ_OVERRIDE;
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
-                               mozilla::WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus) MOZ_OVERRIDE;
-  virtual nsresult GetCursor(const nsPoint& aPoint,
-                             nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
-  virtual nsresult AttributeChanged(int32_t aNameSpaceID,
-                                    nsIAtom* aAttribute,
-                                    int32_t aModType) MOZ_OVERRIDE;
+  NS_IMETHOD  GetContentForEvent(nsPresContext* aPresContext,
+                                 nsEvent* aEvent,
+                                 nsIContent** aContent);
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
+                        nsGUIEvent* aEvent,
+                        nsEventStatus* aEventStatus);
+  NS_IMETHOD GetCursor(const nsPoint& aPoint,
+                       nsIFrame::Cursor& aCursor);
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
+                              nsIAtom* aAttribute,
+                              PRInt32 aModType);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return ImageFrameSuper::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
   }
 
-#ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
-  void List(FILE* out = stderr, const char* aPrefix = "", 
-            uint32_t aFlags = 0) const MOZ_OVERRIDE;
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif
 
-  virtual LogicalSides GetLogicalSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
+  virtual PRIntn GetSkipSides() const;
 
-  nsresult GetIntrinsicImageSize(nsSize& aSize);
+  NS_IMETHOD GetImageMap(nsPresContext *aPresContext, nsIImageMap **aImageMap);
+
+  NS_IMETHOD GetIntrinsicImageSize(nsSize& aSize);
 
   static void ReleaseGlobals() {
     if (gIconLoad) {
@@ -133,66 +166,45 @@ public:
     NS_IF_RELEASE(sIOService);
   }
 
-  nsresult Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData);
-
   /**
    * Function to test whether aContent, which has aStyleContext as its style,
    * should get an image frame.  Note that this method is only used by the
    * frame constructor; it's only here because it uses gIconLoad for now.
    */
-  static bool ShouldCreateImageFrameFor(mozilla::dom::Element* aElement,
+  static PRBool ShouldCreateImageFrameFor(nsIContent* aContent,
                                           nsStyleContext* aStyleContext);
   
-  void DisplayAltFeedback(nsRenderingContext& aRenderingContext,
+  void DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
                           const nsRect&        aDirtyRect,
                           imgIRequest*         aRequest,
                           nsPoint              aPt);
 
   nsRect GetInnerArea() const;
 
-  /**
-   * Return a map element associated with this image.
-   */
-  mozilla::dom::Element* GetMapElement() const;
+  nsImageMap* GetImageMap(nsPresContext* aPresContext);
 
-  /**
-   * Return true if the image has associated image map.
-   */
-  bool HasImageMap() const { return mImageMap || GetMapElement(); }
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
+                                 InlineMinWidthData *aData);
 
-  nsImageMap* GetImageMap();
-  nsImageMap* GetExistingImageMap() const { return mImageMap; }
-
-  virtual void AddInlineMinISize(nsRenderingContext *aRenderingContext,
-                                 InlineMinISizeData *aData) MOZ_OVERRIDE;
-
-  void DisconnectMap();
-
-  // nsIReflowCallback
-  virtual bool ReflowFinished() MOZ_OVERRIDE;
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE;
+  nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager,
+                                        imgIContainer* aImage);
 
 protected:
   virtual ~nsImageFrame();
 
-  void EnsureIntrinsicSizeAndRatio();
+  void EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext);
 
-  virtual mozilla::LogicalSize
-  ComputeSize(nsRenderingContext *aRenderingContext,
-              mozilla::WritingMode aWritingMode,
-              const mozilla::LogicalSize& aCBSize,
-              nscoord aAvailableISize,
-              const mozilla::LogicalSize& aMargin,
-              const mozilla::LogicalSize& aBorder,
-              const mozilla::LogicalSize& aPadding,
-              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             PRBool aShrinkWrap);
 
-  bool IsServerImageMap();
+  PRBool IsServerImageMap();
 
   void TranslateEventCoords(const nsPoint& aPoint,
                             nsIntPoint& aResult);
 
-  bool GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
+  PRBool GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
                                     nsIContent** aNode);
   /**
    * Computes the width of the string that fits into the available space
@@ -203,34 +215,31 @@ protected:
    *            in PRUnichars
    * @return width of the string that fits within aMaxWidth
    */
-  nscoord MeasureString(const char16_t*     aString,
-                        int32_t              aLength,
+  nscoord MeasureString(const PRUnichar*     aString,
+                        PRInt32              aLength,
                         nscoord              aMaxWidth,
-                        uint32_t&            aMaxFit,
-                        nsRenderingContext& aContext,
-                        nsFontMetrics&      aFontMetrics);
+                        PRUint32&            aMaxFit,
+                        nsIRenderingContext& aContext);
 
   void DisplayAltText(nsPresContext*      aPresContext,
-                      nsRenderingContext& aRenderingContext,
+                      nsIRenderingContext& aRenderingContext,
                       const nsString&      aAltText,
                       const nsRect&        aRect);
 
-  DrawResult PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
-                        const nsRect& aDirtyRect, imgIContainer* aImage,
-                        uint32_t aFlags);
+  void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
+                  const nsRect& aDirtyRect, imgIContainer* aImage,
+                  PRUint32 aFlags);
 
 protected:
   friend class nsImageListener;
-  friend class nsImageLoadingContent;
-
-  nsresult OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage);
-  nsresult OnFrameUpdate(imgIRequest* aRequest, const nsIntRect* aRect);
-  nsresult OnLoadComplete(imgIRequest* aRequest, nsresult aStatus);
-
-  /**
-   * Notification that aRequest will now be the current request.
-   */
-  void NotifyNewCurrentRequest(imgIRequest *aRequest, nsresult aStatus);
+  nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  nsresult OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+                           const nsIntRect *rect);
+  nsresult OnStopDecode(imgIRequest *aRequest,
+                        nsresult aStatus,
+                        const PRUnichar *aStatusArg);
+  nsresult FrameChanged(imgIContainer *aContainer,
+                        const nsIntRect *aDirtyRect);
 
 private:
   // random helpers
@@ -249,7 +258,7 @@ private:
    * @return whether aImage's size did _not_
    *         match our previous intrinsic size.
    */
-  bool UpdateIntrinsicSize(imgIContainer* aImage);
+  PRBool UpdateIntrinsicSize(imgIContainer* aImage);
 
   /**
    * Recalculate mIntrinsicRatio from the image.
@@ -257,7 +266,7 @@ private:
    * @return whether aImage's ratio did _not_
    *         match our previous intrinsic ratio.
    */
-  bool UpdateIntrinsicRatio(imgIContainer* aImage);
+  PRBool UpdateIntrinsicRatio(imgIContainer* aImage);
 
   /**
    * This function calculates the transform for converting between
@@ -268,14 +277,15 @@ private:
    *
    * @return whether we succeeded in creating the transform.
    */
-  bool GetSourceToDestTransform(nsTransform2D& aTransform);
+  PRBool GetSourceToDestTransform(nsTransform2D& aTransform);
 
   /**
-   * Helper function to check whether the request corresponds to a load we don't
-   * care about.  Most of the decoder observer methods will bail early if this
-   * returns true.
+   * Helper functions to check whether the request or image container
+   * corresponds to a load we don't care about.  Most of the decoder
+   * observer methods will bail early if these return true.
    */
-  bool IsPendingLoad(imgIRequest* aRequest) const;
+  PRBool IsPendingLoad(imgIRequest* aRequest) const;
+  PRBool IsPendingLoad(imgIContainer* aContainer) const;
 
   /**
    * Function to convert a dirty rect in the source image to a dirty
@@ -283,33 +293,20 @@ private:
    */
   nsRect SourceRectToDest(const nsIntRect & aRect);
 
-  /**
-   * Triggers invalidation for both our image display item and, if appropriate,
-   * our alt-feedback display item.
-   *
-   * @param aLayerInvalidRect The area to invalidate in layer space. If null, the
-   *                          entire layer will be invalidated.
-   * @param aFrameInvalidRect The area to invalidate in frame space. If null, the
-   *                          entire frame will be invalidated.
-   */
-  void InvalidateSelf(const nsIntRect* aLayerInvalidRect,
-                      const nsRect* aFrameInvalidRect);
-
   nsImageMap*         mImageMap;
 
-  nsCOMPtr<imgINotificationObserver> mListener;
+  nsCOMPtr<imgIDecoderObserver> mListener;
 
-  nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
-  mozilla::IntrinsicSize mIntrinsicSize;
+  nsIFrame::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;
 
-  bool mDisplayingIcon;
-  bool mFirstFrameComplete;
-  bool mReflowCallbackPosted;
+  PRBool mDisplayingIcon;
 
   static nsIIOService* sIOService;
   
+  nsRefPtr<ImageContainer> mImageContainer; 
+
   /* loading / broken image icon support */
 
   // XXXbz this should be handled by the prescontext, I think; that
@@ -320,20 +317,32 @@ private:
   // loading / broken images
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
-                    imgRequestProxy **aRequest);
+                    imgIRequest **aRequest);
 
-  class IconLoad MOZ_FINAL : public nsIObserver,
-                             public imgINotificationObserver {
+  class IconLoad : public nsIObserver,
+                   public imgIDecoderObserver {
     // private class that wraps the data and logic needed for
     // broken image and loading image icons
   public:
     IconLoad();
 
-    void Shutdown();
+    void Shutdown()
+    {
+      // in case the pref service releases us later
+      if (mLoadingImage) {
+        mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mLoadingImage = nsnull;
+      }
+      if (mBrokenImage) {
+        mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mBrokenImage = nsnull;
+      }
+    }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
-    NS_DECL_IMGINOTIFICATIONOBSERVER
+    NS_DECL_IMGICONTAINEROBSERVER
+    NS_DECL_IMGIDECODEROBSERVER
 
     void AddIconObserver(nsImageFrame *frame) {
         NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
@@ -342,22 +351,20 @@ private:
     }
 
     void RemoveIconObserver(nsImageFrame *frame) {
-      mozilla::DebugOnly<bool> didRemove = mIconObservers.RemoveElement(frame);
-      NS_ABORT_IF_FALSE(didRemove, "Observer not in array");
+        PRBool rv = mIconObservers.RemoveElement(frame);
+        NS_ABORT_IF_FALSE(rv, "Observer not in array");
     }
 
   private:
-    ~IconLoad() {}
-
     void GetPrefs();
     nsTObserverArray<nsImageFrame*> mIconObservers;
 
 
   public:
-    nsRefPtr<imgRequestProxy> mLoadingImage;
-    nsRefPtr<imgRequestProxy> mBrokenImage;
-    bool             mPrefForceInlineAltText;
-    bool             mPrefShowPlaceholders;
+    nsCOMPtr<imgIRequest> mLoadingImage;
+    nsCOMPtr<imgIRequest> mBrokenImage;
+    PRPackedBool     mPrefForceInlineAltText;
+    PRPackedBool     mPrefShowPlaceholders;
   };
   
 public:
@@ -372,64 +379,31 @@ public:
  * image itself, and hence receive events just as if the image itself
  * received events.
  */
-class nsDisplayImage : public nsDisplayImageContainer {
+class nsDisplayImage : public nsDisplayItem {
 public:
-  typedef mozilla::layers::LayerManager LayerManager;
-
   nsDisplayImage(nsDisplayListBuilder* aBuilder, nsImageFrame* aFrame,
                  imgIContainer* aImage)
-    : nsDisplayImageContainer(aBuilder, aFrame), mImage(aImage) {
+    : nsDisplayItem(aBuilder, aFrame), mImage(aImage) {
     MOZ_COUNT_CTOR(nsDisplayImage);
   }
   virtual ~nsDisplayImage() {
     MOZ_COUNT_DTOR(nsDisplayImage);
   }
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
-
+                     nsIRenderingContext* aCtx);
+  nsCOMPtr<imgIContainer> GetImage();
+ 
   /**
    * Returns an ImageContainer for this image if the image type
    * supports it (TYPE_RASTER only).
    */
-  virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
-                                                        nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-
-  gfxRect GetDestRect();
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager,
-                                   const ContainerLayerParameters& aParameters) MOZ_OVERRIDE;
-  nsRect GetBounds(bool* aSnap)
-  {
-    *aSnap = true;
-
-    nsImageFrame* imageFrame = static_cast<nsImageFrame*>(mFrame);
-    return imageFrame->GetInnerArea() + ToReferenceFrame();
-  }
-
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                           bool* aSnap) MOZ_OVERRIDE
-  {
-    return GetBounds(aSnap);
-  }
-
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap) MOZ_OVERRIDE;
-
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE;
-
+  nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager);
+  
   /**
    * Configure an ImageLayer for this display item.
    * Set the required filter and scaling transform.
    */
-  virtual void ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset) MOZ_OVERRIDE;
+  void ConfigureLayer(ImageLayer* aLayer);
 
   NS_DISPLAY_DECL_NAME("Image", TYPE_IMAGE)
 private:

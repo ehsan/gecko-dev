@@ -1,63 +1,83 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=79: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef nsHistory_h___
 #define nsHistory_h___
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMHistory.h"
-#include "nsPIDOMWindow.h" // for GetParentObject
-#include "nsStringFwd.h"
-#include "nsWrapperCache.h"
+#include "nsISupports.h"
+#include "nscore.h"
+#include "nsIScriptContext.h"
+#include "nsISHistory.h"
+#include "nsIWeakReference.h"
+#include "nsPIDOMWindow.h"
 
 class nsIDocShell;
-class nsISHistory;
-class nsIWeakReference;
-class nsPIDOMWindow;
 
 // Script "History" object
-class nsHistory MOZ_FINAL : public nsIDOMHistory, // Empty, needed for extension
-                                                  // backwards compat
-                            public nsWrapperCache
+class nsHistory : public nsIDOMHistory,
+                  public nsIDOMHistory_MOZILLA_2_0_BRANCH
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsHistory)
-
-public:
-  explicit nsHistory(nsPIDOMWindow* aInnerWindow);
-
-  nsPIDOMWindow* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-  uint32_t GetLength(mozilla::ErrorResult& aRv) const;
-  void GetState(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-                mozilla::ErrorResult& aRv) const;
-  void Go(int32_t aDelta, mozilla::ErrorResult& aRv);
-  void Back(mozilla::ErrorResult& aRv);
-  void Forward(mozilla::ErrorResult& aRv);
-  void PushState(JSContext* aCx, JS::Handle<JS::Value> aData,
-                 const nsAString& aTitle, const nsAString& aUrl,
-                 mozilla::ErrorResult& aRv);
-  void ReplaceState(JSContext* aCx, JS::Handle<JS::Value> aData,
-                    const nsAString& aTitle, const nsAString& aUrl,
-                    mozilla::ErrorResult& aRv);
-
-protected:
+  nsHistory(nsPIDOMWindow* aInnerWindow);
   virtual ~nsHistory();
 
-  nsIDocShell* GetDocShell() const;
+  // nsISupports
+  NS_DECL_ISUPPORTS
 
-  void PushOrReplaceState(JSContext* aCx, JS::Handle<JS::Value> aData,
-                          const nsAString& aTitle, const nsAString& aUrl,
-                          mozilla::ErrorResult& aRv, bool aReplace);
+  // nsIDOMHistory
+  NS_DECL_NSIDOMHISTORY
+  NS_DECL_NSIDOMHISTORY_MOZILLA_2_0_BRANCH
 
-  already_AddRefed<nsISHistory> GetSessionHistory() const;
+  nsIDocShell *GetDocShell() {
+    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
+    if (!win)
+      return nsnull;
+    return win->GetDocShell();
+  }
+
+  void GetWindow(nsPIDOMWindow **aWindow) {
+    nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
+    *aWindow = win.forget().get();
+  }
+
+protected:
+  nsresult GetSessionHistoryFromDocShell(nsIDocShell * aDocShell,
+                                         nsISHistory ** aReturn);
 
   nsCOMPtr<nsIWeakReference> mInnerWindow;
 };

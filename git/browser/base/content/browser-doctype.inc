@@ -5,7 +5,7 @@
 %browserDTD;
 <!ENTITY % baseMenuDTD SYSTEM "chrome://browser/locale/baseMenuOverlay.dtd" >
 %baseMenuDTD;
-<!ENTITY % charsetDTD SYSTEM "chrome://global/locale/charsetMenu.dtd" >
+<!ENTITY % charsetDTD SYSTEM "chrome://global/locale/charsetOverlay.dtd" >
 %charsetDTD;
 <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd" >
 %textcontextDTD;
@@ -19,9 +19,5 @@
 #endif
 <!ENTITY % aboutHomeDTD SYSTEM "chrome://browser/locale/aboutHome.dtd">
 %aboutHomeDTD;
-<!ENTITY % searchBarDTD SYSTEM "chrome://browser/locale/searchbar.dtd">
-%searchBarDTD;
-<!ENTITY % syncBrandDTD SYSTEM "chrome://browser/locale/syncBrand.dtd">
-%syncBrandDTD;
 ]>
 

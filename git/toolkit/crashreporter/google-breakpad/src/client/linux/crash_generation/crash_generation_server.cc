@@ -39,17 +39,126 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <vector>
-
 #include "client/linux/crash_generation/crash_generation_server.h"
 #include "client/linux/crash_generation/client_info.h"
 #include "client/linux/handler/exception_handler.h"
 #include "client/linux/minidump_writer/minidump_writer.h"
 #include "common/linux/eintr_wrapper.h"
 #include "common/linux/guid_creator.h"
-#include "common/linux/safe_readlink.h"
 
 static const char kCommandQuit = 'x';
+
+static bool
+GetInodeForFileDescriptor(ino_t* inode_out, int fd)
+{
+  assert(inode_out);
+
+  struct stat buf;
+  if (fstat(fd, &buf) < 0)
+    return false;
+
+  if (!S_ISSOCK(buf.st_mode))
+    return false;
+
+  *inode_out = buf.st_ino;
+  return true;
+}
+
+// expected prefix of the target of the /proc/self/fd/%d link for a socket
+static const char kSocketLinkPrefix[] = "socket:[";
+
+// Parse a symlink in /proc/pid/fd/$x and return the inode number of the
+// socket.
+//   inode_out: (output) set to the inode number on success
+//   path: e.g. /proc/1234/fd/5 (must be a UNIX domain socket descriptor)
+static bool
+GetInodeForProcPath(ino_t* inode_out, const char* path)
+{
+  assert(inode_out);
+  assert(path);
+
+  char buf[256];
+  const ssize_t n = readlink(path, buf, sizeof(buf) - 1);
+  if (n == -1) {
+    return false;
+  }
+  buf[n] = 0;
+
+  if (0 != memcmp(kSocketLinkPrefix, buf, sizeof(kSocketLinkPrefix) - 1)) {
+    return false;
+  }
+
+  char* endptr;
+  const u_int64_t inode_ul =
+      strtoull(buf + sizeof(kSocketLinkPrefix) - 1, &endptr, 10);
+  if (*endptr != ']')
+    return false;
+
+  if (inode_ul == ULLONG_MAX) {
+    return false;
+  }
+
+  *inode_out = inode_ul;
+  return true;
+}
+
+static bool
+FindProcessHoldingSocket(pid_t* pid_out, ino_t socket_inode)
+{
+  assert(pid_out);
+  bool already_found = false;
+
+  DIR* proc = opendir("/proc");
+  if (!proc) {
+    return false;
+  }
+
+  std::vector<pid_t> pids;
+
+  struct dirent* dent;
+  while ((dent = readdir(proc))) {
+    char* endptr;
+    const unsigned long int pid_ul = strtoul(dent->d_name, &endptr, 10);
+    if (pid_ul == ULONG_MAX || '\0' != *endptr)
+      continue;
+    pids.push_back(pid_ul);
+  }
+  closedir(proc);
+
+  for (std::vector<pid_t>::const_iterator
+       i = pids.begin(); i != pids.end(); ++i) {
+    const pid_t current_pid = *i;
+    char buf[256];
+    snprintf(buf, sizeof(buf), "/proc/%d/fd", current_pid);
+    DIR* fd = opendir(buf);
+    if (!fd)
+      continue;
+
+    while ((dent = readdir(fd))) {
+      if (snprintf(buf, sizeof(buf), "/proc/%d/fd/%s", current_pid,
+                   dent->d_name) >= static_cast<int>(sizeof(buf))) {
+        continue;
+      }
+
+      ino_t fd_inode;
+      if (GetInodeForProcPath(&fd_inode, buf)
+	  && fd_inode == socket_inode) {
+	if (already_found) {
+	  closedir(fd);
+	  return false;
+	}
+
+	already_found = true;
+	*pid_out = current_pid;
+	break;
+      }
+    }
+
+    closedir(fd);
+  }
+
+  return already_found;
+}
 
 namespace google_breakpad {
 
@@ -60,7 +169,7 @@ CrashGenerationServer::CrashGenerationServer(
   OnClientExitingCallback exit_callback,
   void* exit_context,
   bool generate_dumps,
-  const string* dump_path) :
+  const std::string* dump_path) :
     server_fd_(listen_fd),
     dump_callback_(dump_callback),
     dump_context_(dump_context),
@@ -115,11 +224,11 @@ CrashGenerationServer::Stop()
 {
   assert(pthread_self() != thread_);
 
-  if (!started_)
-    return;
+ if (!started_)
+   return;
 
   HANDLE_EINTR(write(control_pipe_out_, &kCommandQuit, 1));
-
+  
   void* dummy;
   pthread_join(thread_, &dummy);
 
@@ -171,7 +280,7 @@ CrashGenerationServer::Run()
       if (EINTR == errno) {
         continue;
       } else {
-        return;
+	return;
       }
     }
 
@@ -257,11 +366,29 @@ CrashGenerationServer::ClientEvent(short revents)
     return true;
   }
 
-  string minidump_filename;
+  // Kernel bug workaround (broken in 2.6.30 at least):
+  // The kernel doesn't translate PIDs in SCM_CREDENTIALS across PID
+  // namespaces. Thus |crashing_pid| might be garbage from our point of view.
+  // In the future we can remove this workaround, but we have to wait a couple
+  // of years to be sure that it's worked its way out into the world.
+
+  ino_t inode_number;
+  if (!GetInodeForFileDescriptor(&inode_number, signal_fd)) {
+    HANDLE_EINTR(close(signal_fd));
+    return true;
+  }
+
+  if (!FindProcessHoldingSocket(&crashing_pid, inode_number - 1)) {
+    HANDLE_EINTR(close(signal_fd));
+    return true;
+  }
+
+  std::string minidump_filename;
   if (!MakeMinidumpFilename(minidump_filename))
     return true;
 
-  if (!google_breakpad::WriteMinidump(minidump_filename.c_str(),
+  if (generate_dumps_ &&
+      !google_breakpad::WriteMinidump(minidump_filename.c_str(),
                                       crashing_pid, crash_context,
                                       kCrashContextSize)) {
     HANDLE_EINTR(close(signal_fd));
@@ -269,13 +396,25 @@ CrashGenerationServer::ClientEvent(short revents)
   }
 
   if (dump_callback_) {
-    ClientInfo info(crashing_pid, this);
+    ClientInfo info;
+
+    info.crash_server_ = this;
+    info.pid_ = crashing_pid;
+    info.crash_context = crash_context;
+    info.crash_context_size = kCrashContextSize;
 
     dump_callback_(dump_context_, &info, &minidump_filename);
   }
 
   // Send the done signal to the process: it can exit now.
-  // (Closing this will make the child's sys_read unblock and return 0.)
+  memset(&msg, 0, sizeof(msg));
+  struct iovec done_iov;
+  done_iov.iov_base = const_cast<char*>("\x42");
+  done_iov.iov_len = 1;
+  msg.msg_iov = &done_iov;
+  msg.msg_iovlen = 1;
+
+  HANDLE_EINTR(sendmsg(signal_fd, &msg, MSG_DONTWAIT | MSG_NOSIGNAL));
   HANDLE_EINTR(close(signal_fd));
 
   return true;
@@ -303,7 +442,7 @@ CrashGenerationServer::ControlEvent(short revents)
 }
 
 bool
-CrashGenerationServer::MakeMinidumpFilename(string& outFilename)
+CrashGenerationServer::MakeMinidumpFilename(std::string& outFilename)
 {
   GUID guid;
   char guidString[kGUIDStringLength+1];
@@ -327,4 +466,4 @@ CrashGenerationServer::ThreadMain(void *arg)
   return NULL;
 }
 
-}  // namespace google_breakpad
+} // namespace google_breakpad

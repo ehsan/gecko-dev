@@ -37,13 +37,13 @@
 
 #include <assert.h>
 #include <fcntl.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #ifdef _WIN32
 #include <io.h>
+typedef SSIZE_T ssize_t;
 #define PRIx64 "llx"
 #define PRIx32 "lx"
 #define snprintf _snprintf
@@ -60,11 +60,10 @@
 
 #include "processor/range_map-inl.h"
 
-#include "common/scoped_ptr.h"
 #include "processor/basic_code_module.h"
 #include "processor/basic_code_modules.h"
-#include "common/logging.h"
-
+#include "processor/logging.h"
+#include "processor/scoped_ptr.h"
 
 
 namespace google_breakpad {
@@ -86,9 +85,9 @@ using std::vector;
 
 // Swapping an 8-bit quantity is a no-op.  This function is only provided
 // to account for certain templatized operations that require swapping for
-// wider types but handle uint8_t too
+// wider types but handle u_int8_t too
 // (MinidumpMemoryRegion::GetMemoryAtAddressInternal).
-static inline void Swap(uint8_t* value) {
+static inline void Swap(u_int8_t* value) {
 }
 
 
@@ -99,13 +98,13 @@ static inline void Swap(uint8_t* value) {
 // The furthest left shift never needs to be ANDed bitmask.
 
 
-static inline void Swap(uint16_t* value) {
+static inline void Swap(u_int16_t* value) {
   *value = (*value >> 8) |
            (*value << 8);
 }
 
 
-static inline void Swap(uint32_t* value) {
+static inline void Swap(u_int32_t* value) {
   *value =  (*value >> 24) |
            ((*value >> 8)  & 0x0000ff00) |
            ((*value << 8)  & 0x00ff0000) |
@@ -113,11 +112,11 @@ static inline void Swap(uint32_t* value) {
 }
 
 
-static inline void Swap(uint64_t* value) {
-  uint32_t* value32 = reinterpret_cast<uint32_t*>(value);
+static inline void Swap(u_int64_t* value) {
+  u_int32_t* value32 = reinterpret_cast<u_int32_t*>(value);
   Swap(&value32[0]);
   Swap(&value32[1]);
-  uint32_t temp = value32[0];
+  u_int32_t temp = value32[0];
   value32[0] = value32[1];
   value32[1] = temp;
 }
@@ -125,11 +124,11 @@ static inline void Swap(uint64_t* value) {
 
 // Given a pointer to a 128-bit int in the minidump data, set the "low"
 // and "high" fields appropriately.
-static void Normalize128(uint128_struct* value, bool is_big_endian) {
+static void Normalize128(u_int128_t* value, bool is_big_endian) {
   // The struct format is [high, low], so if the format is big-endian,
   // the most significant bytes will already be in the high field.
   if (!is_big_endian) {
-    uint64_t temp = value->low;
+    u_int64_t temp = value->low;
     value->low = value->high;
     value->high = temp;
   }
@@ -137,7 +136,7 @@ static void Normalize128(uint128_struct* value, bool is_big_endian) {
 
 // This just swaps each int64 half of the 128-bit value.
 // The value should also be normalized by calling Normalize128().
-static void Swap(uint128_struct* value) {
+static void Swap(u_int128_t* value) {
   Swap(&value->low);
   Swap(&value->high);
 }
@@ -177,7 +176,7 @@ static inline void Swap(MDGUID* guid) {
 // parameter, a converter that uses iconv would also need to take the host
 // CPU's endianness into consideration.  It doesn't seems worth the trouble
 // of making it a dependency when we don't care about anything but UTF-16.
-static string* UTF16ToUTF8(const vector<uint16_t>& in,
+static string* UTF16ToUTF8(const vector<u_int16_t>& in,
                            bool                     swap) {
   scoped_ptr<string> out(new string());
 
@@ -186,16 +185,16 @@ static string* UTF16ToUTF8(const vector<uint16_t>& in,
   // If the UTF-8 representation is longer, the string will grow dynamically.
   out->reserve(in.size());
 
-  for (vector<uint16_t>::const_iterator iterator = in.begin();
+  for (vector<u_int16_t>::const_iterator iterator = in.begin();
        iterator != in.end();
        ++iterator) {
     // Get a 16-bit value from the input
-    uint16_t in_word = *iterator;
+    u_int16_t in_word = *iterator;
     if (swap)
       Swap(&in_word);
 
     // Convert the input value (in_word) into a Unicode code point (unichar).
-    uint32_t unichar;
+    u_int32_t unichar;
     if (in_word >= 0xdc00 && in_word <= 0xdcff) {
       BPLOG(ERROR) << "UTF16ToUTF8 found low surrogate " <<
                       HexString(in_word) << " without high";
@@ -208,7 +207,7 @@ static string* UTF16ToUTF8(const vector<uint16_t>& in,
                         HexString(in_word) << " at end of string";
         return NULL;
       }
-      uint32_t high_word = in_word;
+      u_int32_t high_word = in_word;
       in_word = *iterator;
       if (in_word < 0xdc00 || in_word > 0xdcff) {
         BPLOG(ERROR) << "UTF16ToUTF8 found high surrogate " <<
@@ -251,7 +250,7 @@ static string* UTF16ToUTF8(const vector<uint16_t>& in,
 
 // Return the smaller of the number of code units in the UTF-16 string,
 // not including the terminating null word, or maxlen.
-static size_t UTF16codeunits(const uint16_t *string, size_t maxlen) {
+static size_t UTF16codeunits(const u_int16_t *string, size_t maxlen) {
   size_t count = 0;
   while (count < maxlen && string[count] != 0)
     count++;
@@ -287,8 +286,8 @@ MinidumpStream::MinidumpStream(Minidump* minidump)
 
 MinidumpContext::MinidumpContext(Minidump* minidump)
     : MinidumpStream(minidump),
-      context_(),
-      context_flags_(0) {
+      context_flags_(0),
+      context_() {
 }
 
 
@@ -297,7 +296,7 @@ MinidumpContext::~MinidumpContext() {
 }
 
 
-bool MinidumpContext::Read(uint32_t expected_size) {
+bool MinidumpContext::Read(u_int32_t expected_size) {
   valid_ = false;
 
   FreeContext();
@@ -318,15 +317,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
     if (minidump_->swap())
       Swap(&context_amd64->context_flags);
 
-    uint32_t cpu_type = context_amd64->context_flags & MD_CONTEXT_CPU_MASK;
-    if (cpu_type == 0) {
-      if (minidump_->GetContextCPUFlagsFromSystemInfo(&cpu_type)) {
-        context_amd64->context_flags |= cpu_type;
-      } else {
-        BPLOG(ERROR) << "Failed to preserve the current stream position";
-        return false;
-      }
-    }
+    u_int32_t cpu_type = context_amd64->context_flags & MD_CONTEXT_CPU_MASK;
 
     if (cpu_type != MD_CONTEXT_AMD64) {
       //TODO: fall through to switch below?
@@ -410,7 +401,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
     context_.amd64 = context_amd64.release();
   }
   else {
-    uint32_t context_flags;
+    u_int32_t context_flags;
     if (!minidump_->ReadBytes(&context_flags, sizeof(context_flags))) {
       BPLOG(ERROR) << "MinidumpContext could not read context flags";
       return false;
@@ -418,27 +409,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
     if (minidump_->swap())
       Swap(&context_flags);
 
-    uint32_t cpu_type = context_flags & MD_CONTEXT_CPU_MASK;
-    if (cpu_type == 0) {
-      // Unfortunately the flag for MD_CONTEXT_ARM that was taken
-      // from a Windows CE SDK header conflicts in practice with
-      // the CONTEXT_XSTATE flag. MD_CONTEXT_ARM has been renumbered,
-      // but handle dumps with the legacy value gracefully here.
-      if (context_flags & MD_CONTEXT_ARM_OLD) {
-        context_flags |= MD_CONTEXT_ARM;
-        context_flags &= ~MD_CONTEXT_ARM_OLD;
-        cpu_type = MD_CONTEXT_ARM;
-      }
-    }
-
-    if (cpu_type == 0) {
-      if (minidump_->GetContextCPUFlagsFromSystemInfo(&cpu_type)) {
-        context_flags |= cpu_type;
-      } else {
-        BPLOG(ERROR) << "Failed to preserve the current stream position";
-        return false;
-      }
-    }
+    u_int32_t cpu_type = context_flags & MD_CONTEXT_CPU_MASK;
 
     // Allocate the context structure for the correct CPU and fill it.  The
     // casts are slightly unorthodox, but it seems better to do that than to
@@ -460,8 +431,8 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         context_x86->context_flags = context_flags;
 
         size_t flags_size = sizeof(context_x86->context_flags);
-        uint8_t* context_after_flags =
-          reinterpret_cast<uint8_t*>(context_x86.get()) + flags_size;
+        u_int8_t* context_after_flags =
+          reinterpret_cast<u_int8_t*>(context_x86.get()) + flags_size;
         if (!minidump_->ReadBytes(context_after_flags,
                                   sizeof(MDRawContextX86) - flags_size)) {
           BPLOG(ERROR) << "MinidumpContext could not read x86 context";
@@ -533,8 +504,8 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         context_ppc->context_flags = context_flags;
 
         size_t flags_size = sizeof(context_ppc->context_flags);
-        uint8_t* context_after_flags =
-          reinterpret_cast<uint8_t*>(context_ppc.get()) + flags_size;
+        u_int8_t* context_after_flags =
+          reinterpret_cast<u_int8_t*>(context_ppc.get()) + flags_size;
         if (!minidump_->ReadBytes(context_after_flags,
                                   sizeof(MDRawContextPPC) - flags_size)) {
           BPLOG(ERROR) << "MinidumpContext could not read ppc context";
@@ -609,8 +580,8 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         context_sparc->context_flags = context_flags;
 
         size_t flags_size = sizeof(context_sparc->context_flags);
-        uint8_t* context_after_flags =
-            reinterpret_cast<uint8_t*>(context_sparc.get()) + flags_size;
+        u_int8_t* context_after_flags =
+            reinterpret_cast<u_int8_t*>(context_sparc.get()) + flags_size;
         if (!minidump_->ReadBytes(context_after_flags,
                                   sizeof(MDRawContextSPARC) - flags_size)) {
           BPLOG(ERROR) << "MinidumpContext could not read sparc context";
@@ -665,8 +636,8 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         context_arm->context_flags = context_flags;
 
         size_t flags_size = sizeof(context_arm->context_flags);
-        uint8_t* context_after_flags =
-            reinterpret_cast<uint8_t*>(context_arm.get()) + flags_size;
+        u_int8_t* context_after_flags =
+            reinterpret_cast<u_int8_t*>(context_arm.get()) + flags_size;
         if (!minidump_->ReadBytes(context_after_flags,
                                   sizeof(MDRawContextARM) - flags_size)) {
           BPLOG(ERROR) << "MinidumpContext could not read arm context";
@@ -706,7 +677,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
       }
 
       default: {
-        // Unknown context type - Don't log as an error yet. Let the
+        // Unknown context type - Don't log as an error yet. Let the 
         // caller work that out.
         BPLOG(INFO) << "MinidumpContext unknown context type " <<
           HexString(cpu_type);
@@ -722,7 +693,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
 }
 
 
-uint32_t MinidumpContext::GetContextCPU() const {
+u_int32_t MinidumpContext::GetContextCPU() const {
   if (!valid_) {
     // Don't log a message, GetContextCPU can be legitimately called with
     // valid_ false by FreeContext, which is called by Read.
@@ -730,41 +701,6 @@ uint32_t MinidumpContext::GetContextCPU() const {
   }
 
   return context_flags_ & MD_CONTEXT_CPU_MASK;
-}
-
-bool MinidumpContext::GetInstructionPointer(uint64_t* ip) const {
-  BPLOG_IF(ERROR, !ip) << "MinidumpContext::GetInstructionPointer "
-                          "requires |ip|";
-  assert(ip);
-  *ip = 0;
-
-  if (!valid_) {
-    BPLOG(ERROR) << "Invalid MinidumpContext for GetInstructionPointer";
-    return false;
-  }
-
-  switch (context_flags_ & MD_CONTEXT_CPU_MASK) {
-  case MD_CONTEXT_AMD64:
-    *ip = context_.amd64->rip;
-    break;
-  case MD_CONTEXT_ARM:
-    *ip = context_.arm->iregs[MD_CONTEXT_ARM_REG_PC];
-    break;
-  case MD_CONTEXT_PPC:
-    *ip = context_.ppc->srr0;
-    break;
-  case MD_CONTEXT_SPARC:
-    *ip = context_.ctx_sparc->pc;
-    break;
-  case MD_CONTEXT_X86:
-    *ip = context_.x86->eip;
-    break;
-  default:
-    // This should never happen.
-    BPLOG(ERROR) << "Unknown CPU architecture in GetInstructionPointer";
-    return false;
-  }
-  return true;
 }
 
 
@@ -848,7 +784,7 @@ void MinidumpContext::FreeContext() {
 }
 
 
-bool MinidumpContext::CheckAgainstSystemInfo(uint32_t context_cpu_type) {
+bool MinidumpContext::CheckAgainstSystemInfo(u_int32_t context_cpu_type) {
   // It's OK if the minidump doesn't contain an MD_SYSTEM_INFO_STREAM,
   // as this function just implements a sanity check.
   MinidumpSystemInfo* system_info = minidump_->GetSystemInfo();
@@ -1147,7 +1083,7 @@ void MinidumpContext::Print() {
 //
 
 
-uint32_t MinidumpMemoryRegion::max_bytes_ = 1024 * 1024;  // 1MB
+u_int32_t MinidumpMemoryRegion::max_bytes_ = 1024 * 1024;  // 1MB
 
 
 MinidumpMemoryRegion::MinidumpMemoryRegion(Minidump* minidump)
@@ -1166,12 +1102,12 @@ void MinidumpMemoryRegion::SetDescriptor(MDMemoryDescriptor* descriptor) {
   descriptor_ = descriptor;
   valid_ = descriptor &&
            descriptor_->memory.data_size <=
-               numeric_limits<uint64_t>::max() -
+               numeric_limits<u_int64_t>::max() -
                descriptor_->start_of_memory_range;
 }
 
 
-const uint8_t* MinidumpMemoryRegion::GetMemory() const {
+const u_int8_t* MinidumpMemoryRegion::GetMemory() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetMemory";
     return NULL;
@@ -1195,8 +1131,8 @@ const uint8_t* MinidumpMemoryRegion::GetMemory() const {
       return NULL;
     }
 
-    scoped_ptr< vector<uint8_t> > memory(
-        new vector<uint8_t>(descriptor_->memory.data_size));
+    scoped_ptr< vector<u_int8_t> > memory(
+        new vector<u_int8_t>(descriptor_->memory.data_size));
 
     if (!minidump_->ReadBytes(&(*memory)[0], descriptor_->memory.data_size)) {
       BPLOG(ERROR) << "MinidumpMemoryRegion could not read memory region";
@@ -1210,17 +1146,17 @@ const uint8_t* MinidumpMemoryRegion::GetMemory() const {
 }
 
 
-uint64_t MinidumpMemoryRegion::GetBase() const {
+u_int64_t MinidumpMemoryRegion::GetBase() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetBase";
-    return static_cast<uint64_t>(-1);
+    return static_cast<u_int64_t>(-1);
   }
 
   return descriptor_->start_of_memory_range;
 }
 
 
-uint32_t MinidumpMemoryRegion::GetSize() const {
+u_int32_t MinidumpMemoryRegion::GetSize() const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryRegion for GetSize";
     return 0;
@@ -1237,7 +1173,7 @@ void MinidumpMemoryRegion::FreeMemory() {
 
 
 template<typename T>
-bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(uint64_t address,
+bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(u_int64_t address,
                                                       T*        value) const {
   BPLOG_IF(ERROR, !value) << "MinidumpMemoryRegion::GetMemoryAtAddressInternal "
                              "requires |value|";
@@ -1250,19 +1186,18 @@ bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(uint64_t address,
     return false;
   }
 
-  // Common failure case
   if (address < descriptor_->start_of_memory_range ||
-      sizeof(T) > numeric_limits<uint64_t>::max() - address ||
+      sizeof(T) > numeric_limits<u_int64_t>::max() - address ||
       address + sizeof(T) > descriptor_->start_of_memory_range +
                             descriptor_->memory.data_size) {
-    BPLOG(INFO) << "MinidumpMemoryRegion request out of range: " <<
+    BPLOG(ERROR) << "MinidumpMemoryRegion request out of range: " <<
                     HexString(address) << "+" << sizeof(T) << "/" <<
                     HexString(descriptor_->start_of_memory_range) << "+" <<
                     HexString(descriptor_->memory.data_size);
     return false;
   }
 
-  const uint8_t* memory = GetMemory();
+  const u_int8_t* memory = GetMemory();
   if (!memory) {
     // GetMemory already logged a perfectly good message.
     return false;
@@ -1280,26 +1215,26 @@ bool MinidumpMemoryRegion::GetMemoryAtAddressInternal(uint64_t address,
 }
 
 
-bool MinidumpMemoryRegion::GetMemoryAtAddress(uint64_t  address,
-                                              uint8_t*  value) const {
+bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
+                                              u_int8_t*  value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
-bool MinidumpMemoryRegion::GetMemoryAtAddress(uint64_t  address,
-                                              uint16_t* value) const {
+bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
+                                              u_int16_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
-bool MinidumpMemoryRegion::GetMemoryAtAddress(uint64_t  address,
-                                              uint32_t* value) const {
+bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
+                                              u_int32_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
 
-bool MinidumpMemoryRegion::GetMemoryAtAddress(uint64_t  address,
-                                              uint64_t* value) const {
+bool MinidumpMemoryRegion::GetMemoryAtAddress(u_int64_t  address,
+                                              u_int64_t* value) const {
   return GetMemoryAtAddressInternal(address, value);
 }
 
@@ -1310,7 +1245,7 @@ void MinidumpMemoryRegion::Print() {
     return;
   }
 
-  const uint8_t* memory = GetMemory();
+  const u_int8_t* memory = GetMemory();
   if (memory) {
     printf("0x");
     for (unsigned int byte_index = 0;
@@ -1370,16 +1305,16 @@ bool MinidumpThread::Read() {
 
   // Check for base + size overflow or undersize.
   if (thread_.stack.memory.data_size == 0 ||
-      thread_.stack.memory.data_size > numeric_limits<uint64_t>::max() -
+      thread_.stack.memory.data_size > numeric_limits<u_int64_t>::max() -
                                        thread_.stack.start_of_memory_range) {
-    // This is ok, but log an error anyway.
     BPLOG(ERROR) << "MinidumpThread has a memory region problem, " <<
                     HexString(thread_.stack.start_of_memory_range) << "+" <<
                     HexString(thread_.stack.memory.data_size);
-  } else {
-    memory_ = new MinidumpMemoryRegion(minidump_);
-    memory_->SetDescriptor(&thread_.stack);
+    return false;
   }
+
+  memory_ = new MinidumpMemoryRegion(minidump_);
+  memory_->SetDescriptor(&thread_.stack);
 
   valid_ = true;
   return true;
@@ -1422,7 +1357,7 @@ MinidumpContext* MinidumpThread::GetContext() {
 }
 
 
-bool MinidumpThread::GetThreadID(uint32_t *thread_id) const {
+bool MinidumpThread::GetThreadID(u_int32_t *thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpThread::GetThreadID requires "
                                  "|thread_id|";
   assert(thread_id);
@@ -1485,7 +1420,7 @@ void MinidumpThread::Print() {
 //
 
 
-uint32_t MinidumpThreadList::max_threads_ = 4096;
+u_int32_t MinidumpThreadList::max_threads_ = 4096;
 
 
 MinidumpThreadList::MinidumpThreadList(Minidump* minidump)
@@ -1501,7 +1436,7 @@ MinidumpThreadList::~MinidumpThreadList() {
 }
 
 
-bool MinidumpThreadList::Read(uint32_t expected_size) {
+bool MinidumpThreadList::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   id_to_thread_map_.clear();
   delete threads_;
@@ -1510,7 +1445,7 @@ bool MinidumpThreadList::Read(uint32_t expected_size) {
 
   valid_ = false;
 
-  uint32_t thread_count;
+  u_int32_t thread_count;
   if (expected_size < sizeof(thread_count)) {
     BPLOG(ERROR) << "MinidumpThreadList count size mismatch, " <<
                     expected_size << " < " << sizeof(thread_count);
@@ -1524,7 +1459,7 @@ bool MinidumpThreadList::Read(uint32_t expected_size) {
   if (minidump_->swap())
     Swap(&thread_count);
 
-  if (thread_count > numeric_limits<uint32_t>::max() / sizeof(MDRawThread)) {
+  if (thread_count > numeric_limits<u_int32_t>::max() / sizeof(MDRawThread)) {
     BPLOG(ERROR) << "MinidumpThreadList thread count " << thread_count <<
                     " would cause multiplication overflow";
     return false;
@@ -1535,7 +1470,7 @@ bool MinidumpThreadList::Read(uint32_t expected_size) {
     // may be padded with 4 bytes on 64bit ABIs for alignment
     if (expected_size == sizeof(thread_count) + 4 +
                          thread_count * sizeof(MDRawThread)) {
-      uint32_t useless;
+      u_int32_t useless;
       if (!minidump_->ReadBytes(&useless, 4)) {
         BPLOG(ERROR) << "MinidumpThreadList cannot read threadlist padded bytes";
         return false;
@@ -1548,7 +1483,7 @@ bool MinidumpThreadList::Read(uint32_t expected_size) {
     }
   }
 
-
+  
   if (thread_count > max_threads_) {
     BPLOG(ERROR) << "MinidumpThreadList count " << thread_count <<
                     " exceeds maximum " << max_threads_;
@@ -1571,7 +1506,7 @@ bool MinidumpThreadList::Read(uint32_t expected_size) {
         return false;
       }
 
-      uint32_t thread_id;
+      u_int32_t thread_id;
       if (!thread->GetThreadID(&thread_id)) {
         BPLOG(ERROR) << "MinidumpThreadList cannot get thread ID for thread " <<
                         thread_index << "/" << thread_count;
@@ -1615,7 +1550,7 @@ MinidumpThread* MinidumpThreadList::GetThreadAtIndex(unsigned int index)
 }
 
 
-MinidumpThread* MinidumpThreadList::GetThreadByID(uint32_t thread_id) {
+MinidumpThread* MinidumpThreadList::GetThreadByID(u_int32_t thread_id) {
   // Don't check valid_.  Read calls this method before everything is
   // validated.  It is safe to not check valid_ here.
   return id_to_thread_map_[thread_id];
@@ -1647,8 +1582,8 @@ void MinidumpThreadList::Print() {
 //
 
 
-uint32_t MinidumpModule::max_cv_bytes_ = 32768;
-uint32_t MinidumpModule::max_misc_bytes_ = 32768;
+u_int32_t MinidumpModule::max_cv_bytes_ = 32768;
+u_int32_t MinidumpModule::max_misc_bytes_ = 32768;
 
 
 MinidumpModule::MinidumpModule(Minidump* minidump)
@@ -1717,7 +1652,7 @@ bool MinidumpModule::Read() {
   // Check for base + size overflow or undersize.
   if (module_.size_of_image == 0 ||
       module_.size_of_image >
-          numeric_limits<uint64_t>::max() - module_.base_of_image) {
+          numeric_limits<u_int64_t>::max() - module_.base_of_image) {
     BPLOG(ERROR) << "MinidumpModule has a module problem, " <<
                     HexString(module_.base_of_image) << "+" <<
                     HexString(module_.size_of_image);
@@ -1811,9 +1746,7 @@ string MinidumpModule::code_identifier() const {
     }
 
     case MD_OS_MAC_OS_X:
-    case MD_OS_IOS:
     case MD_OS_SOLARIS:
-    case MD_OS_ANDROID:
     case MD_OS_LINUX: {
       // TODO(mmentovai): support uuid extension if present, otherwise fall
       // back to version (from LC_ID_DYLIB?), otherwise fall back to something
@@ -1892,9 +1825,9 @@ string MinidumpModule::debug_file() const {
         if (bytes % 2 == 0) {
           unsigned int utf16_words = bytes / 2;
 
-          // UTF16ToUTF8 expects a vector<uint16_t>, so create a temporary one
+          // UTF16ToUTF8 expects a vector<u_int16_t>, so create a temporary one
           // and copy the UTF-16 data into it.
-          vector<uint16_t> string_utf16(utf16_words);
+          vector<u_int16_t> string_utf16(utf16_words);
           if (utf16_words)
             memcpy(&string_utf16[0], &misc_record->data, bytes);
 
@@ -1907,9 +1840,8 @@ string MinidumpModule::debug_file() const {
     }
   }
 
-  // Relatively common case
-  BPLOG_IF(INFO, file.empty()) << "MinidumpModule could not determine "
-                                  "debug_file for " << *name_;
+  BPLOG_IF(ERROR, file.empty()) << "MinidumpModule could not determine "
+                                   "debug_file for " << *name_;
 
   return file;
 }
@@ -1976,9 +1908,8 @@ string MinidumpModule::debug_identifier() const {
 
   // TODO(mmentovai): on the Mac, provide fallbacks as in code_identifier().
 
-  // Relatively common case
-  BPLOG_IF(INFO, identifier.empty()) << "MinidumpModule could not determine "
-                                        "debug_identifier for " << *name_;
+  BPLOG_IF(ERROR, identifier.empty()) << "MinidumpModule could not determine "
+                                         "debug_identifier for " << *name_;
 
   return identifier;
 }
@@ -2021,7 +1952,7 @@ const CodeModule* MinidumpModule::Copy() const {
 }
 
 
-const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
+const u_int8_t* MinidumpModule::GetCVRecord(u_int32_t* size) {
   if (!module_valid_) {
     BPLOG(ERROR) << "Invalid MinidumpModule for GetCVRecord";
     return NULL;
@@ -2047,21 +1978,21 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
     }
 
     // Allocating something that will be accessed as MDCVInfoPDB70 or
-    // MDCVInfoPDB20 but is allocated as uint8_t[] can cause alignment
+    // MDCVInfoPDB20 but is allocated as u_int8_t[] can cause alignment
     // problems.  x86 and ppc are able to cope, though.  This allocation
     // style is needed because the MDCVInfoPDB70 or MDCVInfoPDB20 are
     // variable-sized due to their pdb_file_name fields; these structures
     // are not MDCVInfoPDB70_minsize or MDCVInfoPDB20_minsize and treating
     // them as such would result in incomplete structures or overruns.
-    scoped_ptr< vector<uint8_t> > cv_record(
-        new vector<uint8_t>(module_.cv_record.data_size));
+    scoped_ptr< vector<u_int8_t> > cv_record(
+        new vector<u_int8_t>(module_.cv_record.data_size));
 
     if (!minidump_->ReadBytes(&(*cv_record)[0], module_.cv_record.data_size)) {
       BPLOG(ERROR) << "MinidumpModule could not read CodeView record";
       return NULL;
     }
 
-    uint32_t signature = MD_CVINFOUNKNOWN_SIGNATURE;
+    u_int32_t signature = MD_CVINFOUNKNOWN_SIGNATURE;
     if (module_.cv_record.data_size > sizeof(signature)) {
       MDCVInfoPDB70* cv_record_signature =
           reinterpret_cast<MDCVInfoPDB70*>(&(*cv_record)[0]);
@@ -2131,7 +2062,7 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
     // although byte-swapping can't be done.
 
     // Store the vector type because that's how storage was allocated, but
-    // return it casted to uint8_t*.
+    // return it casted to u_int8_t*.
     cv_record_ = cv_record.release();
     cv_record_signature_ = signature;
   }
@@ -2143,7 +2074,7 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
 }
 
 
-const MDImageDebugMisc* MinidumpModule::GetMiscRecord(uint32_t* size) {
+const MDImageDebugMisc* MinidumpModule::GetMiscRecord(u_int32_t* size) {
   if (!module_valid_) {
     BPLOG(ERROR) << "Invalid MinidumpModule for GetMiscRecord";
     return NULL;
@@ -2175,13 +2106,13 @@ const MDImageDebugMisc* MinidumpModule::GetMiscRecord(uint32_t* size) {
     }
 
     // Allocating something that will be accessed as MDImageDebugMisc but
-    // is allocated as uint8_t[] can cause alignment problems.  x86 and
+    // is allocated as u_int8_t[] can cause alignment problems.  x86 and
     // ppc are able to cope, though.  This allocation style is needed
     // because the MDImageDebugMisc is variable-sized due to its data field;
     // this structure is not MDImageDebugMisc_minsize and treating it as such
     // would result in an incomplete structure or an overrun.
-    scoped_ptr< vector<uint8_t> > misc_record_mem(
-        new vector<uint8_t>(module_.misc_record.data_size));
+    scoped_ptr< vector<u_int8_t> > misc_record_mem(
+        new vector<u_int8_t>(module_.misc_record.data_size));
     MDImageDebugMisc* misc_record =
         reinterpret_cast<MDImageDebugMisc*>(&(*misc_record_mem)[0]);
 
@@ -2200,7 +2131,7 @@ const MDImageDebugMisc* MinidumpModule::GetMiscRecord(uint32_t* size) {
       if (misc_record->unicode) {
         // There is a potential alignment problem, but shouldn't be a problem
         // in practice due to the layout of MDImageDebugMisc.
-        uint16_t* data16 = reinterpret_cast<uint16_t*>(&(misc_record->data));
+        u_int16_t* data16 = reinterpret_cast<u_int16_t*>(&(misc_record->data));
         unsigned int dataBytes = module_.misc_record.data_size -
                                  MDImageDebugMisc_minsize;
         unsigned int dataLength = dataBytes / 2;
@@ -2284,8 +2215,8 @@ void MinidumpModule::Print() {
   printf("  (code_identifier)               = \"%s\"\n",
          code_identifier().c_str());
 
-  uint32_t cv_record_size;
-  const uint8_t *cv_record = GetCVRecord(&cv_record_size);
+  u_int32_t cv_record_size;
+  const u_int8_t *cv_record = GetCVRecord(&cv_record_size);
   if (cv_record) {
     if (cv_record_signature_ == MD_CVINFOPDB70_SIGNATURE) {
       const MDCVInfoPDB70* cv_record_70 =
@@ -2370,12 +2301,12 @@ void MinidumpModule::Print() {
 //
 
 
-uint32_t MinidumpModuleList::max_modules_ = 1024;
+u_int32_t MinidumpModuleList::max_modules_ = 1024;
 
 
 MinidumpModuleList::MinidumpModuleList(Minidump* minidump)
     : MinidumpStream(minidump),
-      range_map_(new RangeMap<uint64_t, unsigned int>()),
+      range_map_(new RangeMap<u_int64_t, unsigned int>()),
       modules_(NULL),
       module_count_(0) {
 }
@@ -2387,7 +2318,7 @@ MinidumpModuleList::~MinidumpModuleList() {
 }
 
 
-bool MinidumpModuleList::Read(uint32_t expected_size) {
+bool MinidumpModuleList::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   range_map_->Clear();
   delete modules_;
@@ -2396,7 +2327,7 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
 
   valid_ = false;
 
-  uint32_t module_count;
+  u_int32_t module_count;
   if (expected_size < sizeof(module_count)) {
     BPLOG(ERROR) << "MinidumpModuleList count size mismatch, " <<
                     expected_size << " < " << sizeof(module_count);
@@ -2410,7 +2341,7 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
   if (minidump_->swap())
     Swap(&module_count);
 
-  if (module_count > numeric_limits<uint32_t>::max() / MD_MODULE_SIZE) {
+  if (module_count > numeric_limits<u_int32_t>::max() / MD_MODULE_SIZE) {
     BPLOG(ERROR) << "MinidumpModuleList module count " << module_count <<
                     " would cause multiplication overflow";
     return false;
@@ -2421,7 +2352,7 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
     // may be padded with 4 bytes on 64bit ABIs for alignment
     if (expected_size == sizeof(module_count) + 4 +
                          module_count * MD_MODULE_SIZE) {
-      uint32_t useless;
+      u_int32_t useless;
       if (!minidump_->ReadBytes(&useless, 4)) {
         BPLOG(ERROR) << "MinidumpModuleList cannot read modulelist padded bytes";
         return false;
@@ -2482,9 +2413,9 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
       // It is safe to use module->code_file() after successfully calling
       // module->ReadAuxiliaryData or noting that the module is valid.
 
-      uint64_t base_address = module->base_address();
-      uint64_t module_size = module->size();
-      if (base_address == static_cast<uint64_t>(-1)) {
+      u_int64_t base_address = module->base_address();
+      u_int64_t module_size = module->size();
+      if (base_address == static_cast<u_int64_t>(-1)) {
         BPLOG(ERROR) << "MinidumpModuleList found bad base address "
                         "for module " << module_index << "/" << module_count <<
                         ", " << module->code_file();
@@ -2512,7 +2443,7 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
 
 
 const MinidumpModule* MinidumpModuleList::GetModuleForAddress(
-    uint64_t address) const {
+    u_int64_t address) const {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpModuleList for GetModuleForAddress";
     return NULL;
@@ -2537,7 +2468,7 @@ const MinidumpModule* MinidumpModuleList::GetMainModule() const {
 
   // The main code module is the first one present in a minidump file's
   // MDRawModuleList.
-  return GetModuleAtIndex(0);
+  return GetModuleAtSequence(0);
 }
 
 
@@ -2611,12 +2542,12 @@ void MinidumpModuleList::Print() {
 //
 
 
-uint32_t MinidumpMemoryList::max_regions_ = 4096;
+u_int32_t MinidumpMemoryList::max_regions_ = 4096;
 
 
 MinidumpMemoryList::MinidumpMemoryList(Minidump* minidump)
     : MinidumpStream(minidump),
-      range_map_(new RangeMap<uint64_t, unsigned int>()),
+      range_map_(new RangeMap<u_int64_t, unsigned int>()),
       descriptors_(NULL),
       regions_(NULL),
       region_count_(0) {
@@ -2630,7 +2561,7 @@ MinidumpMemoryList::~MinidumpMemoryList() {
 }
 
 
-bool MinidumpMemoryList::Read(uint32_t expected_size) {
+bool MinidumpMemoryList::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   delete descriptors_;
   descriptors_ = NULL;
@@ -2641,7 +2572,7 @@ bool MinidumpMemoryList::Read(uint32_t expected_size) {
 
   valid_ = false;
 
-  uint32_t region_count;
+  u_int32_t region_count;
   if (expected_size < sizeof(region_count)) {
     BPLOG(ERROR) << "MinidumpMemoryList count size mismatch, " <<
                     expected_size << " < " << sizeof(region_count);
@@ -2656,7 +2587,7 @@ bool MinidumpMemoryList::Read(uint32_t expected_size) {
     Swap(&region_count);
 
   if (region_count >
-          numeric_limits<uint32_t>::max() / sizeof(MDMemoryDescriptor)) {
+          numeric_limits<u_int32_t>::max() / sizeof(MDMemoryDescriptor)) {
     BPLOG(ERROR) << "MinidumpMemoryList region count " << region_count <<
                     " would cause multiplication overflow";
     return false;
@@ -2667,7 +2598,7 @@ bool MinidumpMemoryList::Read(uint32_t expected_size) {
     // may be padded with 4 bytes on 64bit ABIs for alignment
     if (expected_size == sizeof(region_count) + 4 +
                          region_count * sizeof(MDMemoryDescriptor)) {
-      uint32_t useless;
+      u_int32_t useless;
       if (!minidump_->ReadBytes(&useless, 4)) {
         BPLOG(ERROR) << "MinidumpMemoryList cannot read memorylist padded bytes";
         return false;
@@ -2709,12 +2640,12 @@ bool MinidumpMemoryList::Read(uint32_t expected_size) {
       if (minidump_->swap())
         Swap(descriptor);
 
-      uint64_t base_address = descriptor->start_of_memory_range;
-      uint32_t region_size = descriptor->memory.data_size;
+      u_int64_t base_address = descriptor->start_of_memory_range;
+      u_int32_t region_size = descriptor->memory.data_size;
 
       // Check for base + size overflow or undersize.
       if (region_size == 0 ||
-          region_size > numeric_limits<uint64_t>::max() - base_address) {
+          region_size > numeric_limits<u_int64_t>::max() - base_address) {
         BPLOG(ERROR) << "MinidumpMemoryList has a memory region problem, " <<
                         " region " << region_index << "/" << region_count <<
                         ", " << HexString(base_address) << "+" <<
@@ -2762,7 +2693,7 @@ MinidumpMemoryRegion* MinidumpMemoryList::GetMemoryRegionAtIndex(
 
 
 MinidumpMemoryRegion* MinidumpMemoryList::GetMemoryRegionForAddress(
-    uint64_t address) {
+    u_int64_t address) {
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpMemoryList for GetMemoryRegionForAddress";
     return NULL;
@@ -2828,7 +2759,7 @@ MinidumpException::~MinidumpException() {
 }
 
 
-bool MinidumpException::Read(uint32_t expected_size) {
+bool MinidumpException::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   delete context_;
   context_ = NULL;
@@ -2870,7 +2801,7 @@ bool MinidumpException::Read(uint32_t expected_size) {
 }
 
 
-bool MinidumpException::GetThreadID(uint32_t *thread_id) const {
+bool MinidumpException::GetThreadID(u_int32_t *thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpException::GetThreadID requires "
                                  "|thread_id|";
   assert(thread_id);
@@ -2972,7 +2903,7 @@ MinidumpAssertion::~MinidumpAssertion() {
 }
 
 
-bool MinidumpAssertion::Read(uint32_t expected_size) {
+bool MinidumpAssertion::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   valid_ = false;
 
@@ -2993,43 +2924,40 @@ bool MinidumpAssertion::Read(uint32_t expected_size) {
   // Since we don't have an explicit byte length for each string,
   // we use UTF16codeunits to calculate word length, then derive byte
   // length from that.
-  uint32_t word_length = UTF16codeunits(assertion_.expression,
+  u_int32_t word_length = UTF16codeunits(assertion_.expression,
                                          sizeof(assertion_.expression));
   if (word_length > 0) {
-    uint32_t byte_length = word_length * 2;
-    vector<uint16_t> expression_utf16(word_length);
+    u_int32_t byte_length = word_length * 2;
+    vector<u_int16_t> expression_utf16(word_length);
     memcpy(&expression_utf16[0], &assertion_.expression[0], byte_length);
 
     scoped_ptr<string> new_expression(UTF16ToUTF8(expression_utf16,
                                                   minidump_->swap()));
-    if (new_expression.get())
-      expression_ = *new_expression;
+    expression_ = *new_expression;
   }
   
   // assertion
   word_length = UTF16codeunits(assertion_.function,
                                sizeof(assertion_.function));
   if (word_length) {
-    uint32_t byte_length = word_length * 2;
-    vector<uint16_t> function_utf16(word_length);
+    u_int32_t byte_length = word_length * 2;
+    vector<u_int16_t> function_utf16(word_length);
     memcpy(&function_utf16[0], &assertion_.function[0], byte_length);
     scoped_ptr<string> new_function(UTF16ToUTF8(function_utf16,
                                                 minidump_->swap()));
-    if (new_function.get())
-      function_ = *new_function;
+    function_ = *new_function;
   }
 
   // file
   word_length = UTF16codeunits(assertion_.file,
                                sizeof(assertion_.file));
   if (word_length > 0) {
-    uint32_t byte_length = word_length * 2;
-    vector<uint16_t> file_utf16(word_length);
+    u_int32_t byte_length = word_length * 2;
+    vector<u_int16_t> file_utf16(word_length);
     memcpy(&file_utf16[0], &assertion_.file[0], byte_length);
     scoped_ptr<string> new_file(UTF16ToUTF8(file_utf16,
                                             minidump_->swap()));
-    if (new_file.get())
-      file_ = *new_file;
+    file_ = *new_file;
   }
 
   if (minidump_->swap()) {
@@ -3080,7 +3008,7 @@ MinidumpSystemInfo::~MinidumpSystemInfo() {
 }
 
 
-bool MinidumpSystemInfo::Read(uint32_t expected_size) {
+bool MinidumpSystemInfo::Read(u_int32_t expected_size) {
   // Invalidate cached data.
   delete csd_version_;
   csd_version_ = NULL;
@@ -3133,12 +3061,12 @@ bool MinidumpSystemInfo::Read(uint32_t expected_size) {
 
 
 string MinidumpSystemInfo::GetOS() {
-  string os;
-
   if (!valid_) {
     BPLOG(ERROR) << "Invalid MinidumpSystemInfo for GetOS";
-    return os;
+    return NULL;
   }
+
+  string os;
 
   switch (system_info_.platform_id) {
     case MD_OS_WIN32_NT:
@@ -3150,20 +3078,12 @@ string MinidumpSystemInfo::GetOS() {
       os = "mac";
       break;
 
-    case MD_OS_IOS:
-      os = "ios";
-      break;
-
     case MD_OS_LINUX:
       os = "linux";
       break;
 
     case MD_OS_SOLARIS:
       os = "solaris";
-      break;
-
-    case MD_OS_ANDROID:
-      os = "android";
       break;
 
     default:
@@ -3332,7 +3252,7 @@ MinidumpMiscInfo::MinidumpMiscInfo(Minidump* minidump)
 }
 
 
-bool MinidumpMiscInfo::Read(uint32_t expected_size) {
+bool MinidumpMiscInfo::Read(u_int32_t expected_size) {
   valid_ = false;
 
   if (expected_size != MD_MISCINFO_SIZE &&
@@ -3418,7 +3338,7 @@ MinidumpBreakpadInfo::MinidumpBreakpadInfo(Minidump* minidump)
 }
 
 
-bool MinidumpBreakpadInfo::Read(uint32_t expected_size) {
+bool MinidumpBreakpadInfo::Read(u_int32_t expected_size) {
   valid_ = false;
 
   if (expected_size != sizeof(breakpad_info_)) {
@@ -3443,7 +3363,7 @@ bool MinidumpBreakpadInfo::Read(uint32_t expected_size) {
 }
 
 
-bool MinidumpBreakpadInfo::GetDumpThreadID(uint32_t *thread_id) const {
+bool MinidumpBreakpadInfo::GetDumpThreadID(u_int32_t *thread_id) const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpBreakpadInfo::GetDumpThreadID "
                                  "requires |thread_id|";
   assert(thread_id);
@@ -3464,7 +3384,7 @@ bool MinidumpBreakpadInfo::GetDumpThreadID(uint32_t *thread_id) const {
 }
 
 
-bool MinidumpBreakpadInfo::GetRequestingThreadID(uint32_t *thread_id)
+bool MinidumpBreakpadInfo::GetRequestingThreadID(u_int32_t *thread_id)
     const {
   BPLOG_IF(ERROR, !thread_id) << "MinidumpBreakpadInfo::GetRequestingThreadID "
                                  "requires |thread_id|";
@@ -3514,269 +3434,11 @@ void MinidumpBreakpadInfo::Print() {
 
 
 //
-// MinidumpMemoryInfo
-//
-
-
-MinidumpMemoryInfo::MinidumpMemoryInfo(Minidump* minidump)
-    : MinidumpObject(minidump),
-      memory_info_() {
-}
-
-
-bool MinidumpMemoryInfo::IsExecutable() const {
-  uint32_t protection =
-      memory_info_.protection & MD_MEMORY_PROTECTION_ACCESS_MASK;
-  return protection == MD_MEMORY_PROTECT_EXECUTE ||
-      protection == MD_MEMORY_PROTECT_EXECUTE_READ ||
-      protection == MD_MEMORY_PROTECT_EXECUTE_READWRITE;
-}
-
-
-bool MinidumpMemoryInfo::IsWritable() const {
-  uint32_t protection =
-      memory_info_.protection & MD_MEMORY_PROTECTION_ACCESS_MASK;
-  return protection == MD_MEMORY_PROTECT_READWRITE ||
-    protection == MD_MEMORY_PROTECT_WRITECOPY ||
-    protection == MD_MEMORY_PROTECT_EXECUTE_READWRITE ||
-    protection == MD_MEMORY_PROTECT_EXECUTE_WRITECOPY;
-}
-
-
-bool MinidumpMemoryInfo::Read() {
-  valid_ = false;
-
-  if (!minidump_->ReadBytes(&memory_info_, sizeof(memory_info_))) {
-    BPLOG(ERROR) << "MinidumpMemoryInfo cannot read memory info";
-    return false;
-  }
-
-  if (minidump_->swap()) {
-    Swap(&memory_info_.base_address);
-    Swap(&memory_info_.allocation_base);
-    Swap(&memory_info_.allocation_protection);
-    Swap(&memory_info_.region_size);
-    Swap(&memory_info_.state);
-    Swap(&memory_info_.protection);
-    Swap(&memory_info_.type);
-  }
-
-  // Check for base + size overflow or undersize.
-  if (memory_info_.region_size == 0 ||
-      memory_info_.region_size > numeric_limits<uint64_t>::max() -
-                                     memory_info_.base_address) {
-    BPLOG(ERROR) << "MinidumpMemoryInfo has a memory region problem, " <<
-                    HexString(memory_info_.base_address) << "+" <<
-                    HexString(memory_info_.region_size);
-    return false;
-  }
-
-  valid_ = true;
-  return true;
-}
-
-
-void MinidumpMemoryInfo::Print() {
-  if (!valid_) {
-    BPLOG(ERROR) << "MinidumpMemoryInfo cannot print invalid data";
-    return;
-  }
-
-  printf("MDRawMemoryInfo\n");
-  printf("  base_address          = 0x%" PRIx64 "\n",
-         memory_info_.base_address);
-  printf("  allocation_base       = 0x%" PRIx64 "\n",
-         memory_info_.allocation_base);
-  printf("  allocation_protection = 0x%x\n",
-         memory_info_.allocation_protection);
-  printf("  region_size           = 0x%" PRIx64 "\n", memory_info_.region_size);
-  printf("  state                 = 0x%x\n", memory_info_.state);
-  printf("  protection            = 0x%x\n", memory_info_.protection);
-  printf("  type                  = 0x%x\n", memory_info_.type);
-}
-
-
-//
-// MinidumpMemoryInfoList
-//
-
-
-MinidumpMemoryInfoList::MinidumpMemoryInfoList(Minidump* minidump)
-    : MinidumpStream(minidump),
-      range_map_(new RangeMap<uint64_t, unsigned int>()),
-      infos_(NULL),
-      info_count_(0) {
-}
-
-
-MinidumpMemoryInfoList::~MinidumpMemoryInfoList() {
-  delete range_map_;
-  delete infos_;
-}
-
-
-bool MinidumpMemoryInfoList::Read(uint32_t expected_size) {
-  // Invalidate cached data.
-  delete infos_;
-  infos_ = NULL;
-  range_map_->Clear();
-  info_count_ = 0;
-
-  valid_ = false;
-
-  MDRawMemoryInfoList header;
-  if (expected_size < sizeof(MDRawMemoryInfoList)) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList header size mismatch, " <<
-                    expected_size << " < " << sizeof(MDRawMemoryInfoList);
-    return false;
-  }
-  if (!minidump_->ReadBytes(&header, sizeof(header))) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList could not read header";
-    return false;
-  }
-
-  if (minidump_->swap()) {
-    Swap(&header.size_of_header);
-    Swap(&header.size_of_entry);
-    Swap(&header.number_of_entries);
-  }
-
-  // Sanity check that the header is the expected size.
-  //TODO(ted): could possibly handle this more gracefully, assuming
-  // that future versions of the structs would be backwards-compatible.
-  if (header.size_of_header != sizeof(MDRawMemoryInfoList)) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList header size mismatch, " <<
-                    header.size_of_header << " != " <<
-                    sizeof(MDRawMemoryInfoList);
-    return false;
-  }
-
-  // Sanity check that the entries are the expected size.
-  if (header.size_of_entry != sizeof(MDRawMemoryInfo)) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList entry size mismatch, " <<
-                    header.size_of_entry << " != " <<
-                    sizeof(MDRawMemoryInfo);
-    return false;
-  }
-
-  if (header.number_of_entries >
-          numeric_limits<uint32_t>::max() / sizeof(MDRawMemoryInfo)) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList info count " <<
-                    header.number_of_entries <<
-                    " would cause multiplication overflow";
-    return false;
-  }
-
-  if (expected_size != sizeof(MDRawMemoryInfoList) +
-                        header.number_of_entries * sizeof(MDRawMemoryInfo)) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList size mismatch, " << expected_size <<
-                    " != " << sizeof(MDRawMemoryInfoList) +
-                        header.number_of_entries * sizeof(MDRawMemoryInfo);
-    return false;
-  }
-
-  if (header.number_of_entries != 0) {
-    scoped_ptr<MinidumpMemoryInfos> infos(
-        new MinidumpMemoryInfos(header.number_of_entries,
-                                MinidumpMemoryInfo(minidump_)));
-
-    for (unsigned int index = 0;
-         index < header.number_of_entries;
-         ++index) {
-      MinidumpMemoryInfo* info = &(*infos)[index];
-
-      // Assume that the file offset is correct after the last read.
-      if (!info->Read()) {
-        BPLOG(ERROR) << "MinidumpMemoryInfoList cannot read info " <<
-                        index << "/" << header.number_of_entries;
-        return false;
-      }
-
-      uint64_t base_address = info->GetBase();
-      uint32_t region_size = info->GetSize();
-
-      if (!range_map_->StoreRange(base_address, region_size, index)) {
-        BPLOG(ERROR) << "MinidumpMemoryInfoList could not store"
-                        " memory region " <<
-                        index << "/" << header.number_of_entries << ", " <<
-                        HexString(base_address) << "+" <<
-                        HexString(region_size);
-        return false;
-      }
-    }
-
-    infos_ = infos.release();
-  }
-
-  info_count_ = header.number_of_entries;
-
-  valid_ = true;
-  return true;
-}
-
-
-const MinidumpMemoryInfo* MinidumpMemoryInfoList::GetMemoryInfoAtIndex(
-      unsigned int index) const {
-  if (!valid_) {
-    BPLOG(ERROR) << "Invalid MinidumpMemoryInfoList for GetMemoryInfoAtIndex";
-    return NULL;
-  }
-
-  if (index >= info_count_) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList index out of range: " <<
-                    index << "/" << info_count_;
-    return NULL;
-  }
-
-  return &(*infos_)[index];
-}
-
-
-const MinidumpMemoryInfo* MinidumpMemoryInfoList::GetMemoryInfoForAddress(
-    uint64_t address) const {
-  if (!valid_) {
-    BPLOG(ERROR) << "Invalid MinidumpMemoryInfoList for"
-                    " GetMemoryInfoForAddress";
-    return NULL;
-  }
-
-  unsigned int info_index;
-  if (!range_map_->RetrieveRange(address, &info_index, NULL, NULL)) {
-    BPLOG(INFO) << "MinidumpMemoryInfoList has no memory info at " <<
-                   HexString(address);
-    return NULL;
-  }
-
-  return GetMemoryInfoAtIndex(info_index);
-}
-
-
-void MinidumpMemoryInfoList::Print() {
-  if (!valid_) {
-    BPLOG(ERROR) << "MinidumpMemoryInfoList cannot print invalid data";
-    return;
-  }
-
-  printf("MinidumpMemoryInfoList\n");
-  printf("  info_count = %d\n", info_count_);
-  printf("\n");
-
-  for (unsigned int info_index = 0;
-       info_index < info_count_;
-       ++info_index) {
-    printf("info[%d]\n", info_index);
-    (*infos_)[info_index].Print();
-    printf("\n");
-  }
-}
-
-
-//
 // Minidump
 //
 
 
-uint32_t Minidump::max_streams_ = 128;
+u_int32_t Minidump::max_streams_ = 128;
 unsigned int Minidump::max_string_length_ = 1024;
 
 
@@ -3834,72 +3496,6 @@ bool Minidump::Open() {
   return true;
 }
 
-bool Minidump::GetContextCPUFlagsFromSystemInfo(uint32_t *context_cpu_flags) {
-  // Initialize output parameters
-  *context_cpu_flags = 0;
-
-  // Save the current stream position
-  off_t saved_position = Tell();
-  if (saved_position == -1) {
-    // Failed to save the current stream position.
-    // Returns true because the current position of the stream is preserved.
-    return true;
-  }
-
-  const MDRawSystemInfo* system_info =
-    GetSystemInfo() ? GetSystemInfo()->system_info() : NULL;
-
-  if (system_info != NULL) {
-    switch (system_info->processor_architecture) {
-      case MD_CPU_ARCHITECTURE_X86:
-        *context_cpu_flags = MD_CONTEXT_X86;
-        break;
-      case MD_CPU_ARCHITECTURE_MIPS:
-        *context_cpu_flags = MD_CONTEXT_MIPS;
-        break;
-      case MD_CPU_ARCHITECTURE_ALPHA:
-        *context_cpu_flags = MD_CONTEXT_ALPHA;
-        break;
-      case MD_CPU_ARCHITECTURE_PPC:
-        *context_cpu_flags = MD_CONTEXT_PPC;
-        break;
-      case MD_CPU_ARCHITECTURE_SHX:
-        *context_cpu_flags = MD_CONTEXT_SHX;
-        break;
-      case MD_CPU_ARCHITECTURE_ARM:
-        *context_cpu_flags = MD_CONTEXT_ARM;
-        break;
-      case MD_CPU_ARCHITECTURE_IA64:
-        *context_cpu_flags = MD_CONTEXT_IA64;
-        break;
-      case MD_CPU_ARCHITECTURE_ALPHA64:
-        *context_cpu_flags = 0;
-        break;
-      case MD_CPU_ARCHITECTURE_MSIL:
-        *context_cpu_flags = 0;
-        break;
-      case MD_CPU_ARCHITECTURE_AMD64:
-        *context_cpu_flags = MD_CONTEXT_AMD64;
-        break;
-      case MD_CPU_ARCHITECTURE_X86_WIN64:
-        *context_cpu_flags = 0;
-        break;
-      case MD_CPU_ARCHITECTURE_SPARC:
-        *context_cpu_flags = MD_CONTEXT_SPARC;
-        break;
-      case MD_CPU_ARCHITECTURE_UNKNOWN:
-        *context_cpu_flags = 0;
-        break;
-      default:
-        *context_cpu_flags = 0;
-        break;
-    }
-  }
-
-  // Restore position and return
-  return SeekSet(saved_position);
-}
-
 
 bool Minidump::Read() {
   // Invalidate cached data.
@@ -3924,7 +3520,7 @@ bool Minidump::Read() {
     // classes don't know or need to know what CPU (or endianness) the
     // minidump was produced on in order to parse it.  Use the signature as
     // a byte order marker.
-    uint32_t signature_swapped = header_.signature;
+    u_int32_t signature_swapped = header_.signature;
     Swap(&signature_swapped);
     if (signature_swapped != MD_HEADER_SIGNATURE) {
       // This isn't a minidump or a byte-swapped minidump.
@@ -4079,11 +3675,6 @@ MinidumpBreakpadInfo* Minidump::GetBreakpadInfo() {
   return GetStream(&breakpad_info);
 }
 
-MinidumpMemoryInfoList* Minidump::GetMemoryInfoList() {
-  MinidumpMemoryInfoList* memory_info_list;
-  return GetStream(&memory_info_list);
-}
-
 
 void Minidump::Print() {
   if (!valid_) {
@@ -4128,7 +3719,7 @@ void Minidump::Print() {
   for (MinidumpStreamMap::const_iterator iterator = stream_map_->begin();
        iterator != stream_map_->end();
        ++iterator) {
-    uint32_t stream_type = iterator->first;
+    u_int32_t stream_type = iterator->first;
     MinidumpStreamInfo info = iterator->second;
     printf("  stream type 0x%x at index %d\n", stream_type, info.stream_index);
   }
@@ -4210,7 +3801,7 @@ string* Minidump::ReadString(off_t offset) {
     return NULL;
   }
 
-  uint32_t bytes;
+  u_int32_t bytes;
   if (!ReadBytes(&bytes, sizeof(bytes))) {
     BPLOG(ERROR) << "ReadString could not read string size at offset " <<
                     offset;
@@ -4233,7 +3824,7 @@ string* Minidump::ReadString(off_t offset) {
     return NULL;
   }
 
-  vector<uint16_t> string_utf16(utf16_words);
+  vector<u_int16_t> string_utf16(utf16_words);
 
   if (utf16_words) {
     if (!ReadBytes(&string_utf16[0], bytes)) {
@@ -4247,8 +3838,8 @@ string* Minidump::ReadString(off_t offset) {
 }
 
 
-bool Minidump::SeekToStreamType(uint32_t  stream_type,
-                                uint32_t* stream_length) {
+bool Minidump::SeekToStreamType(u_int32_t  stream_type,
+                                u_int32_t* stream_length) {
   BPLOG_IF(ERROR, !stream_length) << "Minidump::SeekToStreamType requires "
                                      "|stream_length|";
   assert(stream_length);
@@ -4292,7 +3883,7 @@ T* Minidump::GetStream(T** stream) {
   // stream is a garbage parameter that's present only to account for C++'s
   // inability to overload a method based solely on its return type.
 
-  const uint32_t stream_type = T::kStreamType;
+  const u_int32_t stream_type = T::kStreamType;
 
   BPLOG_IF(ERROR, !stream) << "Minidump::GetStream type " << stream_type <<
                               " requires |stream|";
@@ -4321,7 +3912,7 @@ T* Minidump::GetStream(T** stream) {
     return *stream;
   }
 
-  uint32_t stream_length;
+  u_int32_t stream_length;
   if (!SeekToStreamType(stream_type, &stream_length)) {
     BPLOG(ERROR) << "GetStream could not seek to stream type " << stream_type;
     return NULL;

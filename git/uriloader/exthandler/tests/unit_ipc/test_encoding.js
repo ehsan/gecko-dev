@@ -1,14 +1,9 @@
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_get_profile();
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-do_get_profile();
 
 // Dynamically generates a classID for our component, registers it to mask
 // the existing component, and stored the masked components classID to be
@@ -58,7 +53,7 @@ function HelperAppDlg() { }
 HelperAppDlg.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIHelperAppLauncherDialog]),
   contractID: "@mozilla.org/helperapplauncherdialog;1",
-  show: function (launcher, ctx, reason, usePrivateUI) {
+  show: function (launcher, ctx, reason) {
     launcher.MIMEInfo.preferredAction = Ci.nsIMIMEInfo.saveToFile;
     launcher.launchWithApplication(null, false);
   },
@@ -108,8 +103,6 @@ function initChildTestEnv()
     const Cc = Components.classes;                                             \
     const Ci = Components.interfaces;                                          \
     const Cr = Components.results;                                             \
-    const Cu = Components.utils;                                               \
-    Cu.import("resource://gre/modules/Services.jsm");                          \
     function WindowContext() { }                                               \
                                                                                \
     WindowContext.prototype = {                                                \
@@ -150,14 +143,9 @@ function runChildTestSet(set)
 {
   DownloadListener.onFinished = testFinisher(set[2]);
   sendCommand('\
-  let uri = ioservice.newURI("http://localhost:4444' + set[0] + '", null, null);                  \
-  let channel = ioservice.newChannelFromURI2(uri,                                                 \
-                                             null, /* aLoadingNode */                             \
-                                             Services.scriptSecurityManager.getSystemPrincipal(), \
-                                             null, /* aTriggeringPrincipal */                     \
-                                             Ci.nsILoadInfo.SEC_NORMAL,                           \
-                                             Ci.nsIContentPolicy.TYPE_OTHER);                     \
-  uriloader.openURI(channel, Ci.nsIURILoader.IS_CONTENT_PREFERRED, new WindowContext());          \
+  let uri = ioservice.newURI("http://localhost:4444' + set[0] + '", null, null);\
+  let channel = ioservice.newChannelFromURI(uri);                              \
+  uriloader.openURI(channel, true, new WindowContext());                       \
   ');
 }
 
@@ -200,7 +188,14 @@ function finishTest1(subject, topic, data) {
   let bis = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
-  do_check_matches(str, responseBody);
+  do_check_true(str.length == responseBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - responseBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 /*
@@ -226,7 +221,14 @@ function finishTest2(subject, topic, data) {
   let bis = Cc["@mozilla.org/binaryinputstream;1"].createInstance(Ci.nsIBinaryInputStream);
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
-  do_check_matches(str, responseBody);
+  do_check_true(str.length == responseBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - responseBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 function testResponse3(metadata, response) {
@@ -248,7 +250,14 @@ function finishTest3(subject, topic, data) {
   bis.setInputStream(fis);
   let str = bis.readByteArray(bis.available());
   let decodedBody = [ 116, 101, 115, 116, 10 ]; // 't','e','s','t','\n'
-  do_check_matches(str, decodedBody);
+  do_check_true(str.length == decodedBody.length);
+
+  let cmp = 0;
+  for (i = 0; i < str.length; i++) {
+    cmp += str[i] - decodedBody[i];
+    if (cmp != 0) break;
+  }
+  do_check_true(cmp == 0);
 }
 
 let tests = [
@@ -259,7 +268,7 @@ let tests = [
 
 function run_test() {
 //  do_load_child_test_harness();
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.start(4444);
   do_test_pending();
 

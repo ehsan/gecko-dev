@@ -1,5 +1,5 @@
-// |jit-test|
-// vim: set ts=8 sts=4 et sw=4 tw=99:
+// |jit-test| mjitalways
+// vim: set ts=4 sw=4 tw=99 et:
 
 function assertObjectsEqual(obj1, obj2) {
     assertEq(obj1.a, obj2.a);
@@ -13,6 +13,7 @@ function assertObjectsEqual(obj1, obj2) {
 }
 
 function forName(obj) {
+    assertJit();
     eval('');
     var r = { };
     for (x in obj)
@@ -21,6 +22,7 @@ function forName(obj) {
 }
 
 function forGlobalName(obj) {
+    assertJit();
     var r = { };
     for (x in obj)
         r[x] = obj[x];
@@ -28,6 +30,7 @@ function forGlobalName(obj) {
 }
 
 function forProp(obj) {
+    assertJit();
     var r = { };
     var c = { };
     for (c.x in obj)
@@ -36,6 +39,7 @@ function forProp(obj) {
 }
 
 function forElem(obj, x) {
+    assertJit();
     var r = { };
     var c = { };
     for (c[x] in obj)
@@ -44,6 +48,7 @@ function forElem(obj, x) {
 }
 
 function forLocal(obj) {
+    assertJit();
     var r = { };
     for (var x in obj)
         r[x] = obj[x];
@@ -51,6 +56,7 @@ function forLocal(obj) {
 }
 
 function forArg(obj, x) {
+    assertJit();
     var r = { };
     for (x in obj)
         r[x] = obj[x];

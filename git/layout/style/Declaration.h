@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Glazman <glazman@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * representation of a declaration block (or style attribute) in a CSS
@@ -13,13 +46,10 @@
 
 // This header is in EXPORTS because it's used in several places in content/,
 // but it's not really a public interface.
-#ifndef MOZILLA_INTERNAL_API
-#error "This file should only be included within libxul"
+#ifndef _IMPL_NS_LAYOUT
+#error "This file should only be included within the layout library"
 #endif
 
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "CSSVariableDeclarations.h"
 #include "nsCSSDataBlock.h"
 #include "nsCSSProperty.h"
 #include "nsCSSProps.h"
@@ -60,72 +90,18 @@ public:
 
   void RemoveProperty(nsCSSProperty aProperty);
 
-  bool HasProperty(nsCSSProperty aProperty) const;
+  PRBool HasProperty(nsCSSProperty aProperty) const;
 
   void GetValue(nsCSSProperty aProperty, nsAString& aValue) const;
-  void GetAuthoredValue(nsCSSProperty aProperty, nsAString& aValue) const;
 
-  bool HasImportantData() const {
-    return mImportantData || mImportantVariables;
-  }
-  bool GetValueIsImportant(nsCSSProperty aProperty) const;
-  bool GetValueIsImportant(const nsAString& aProperty) const;
+  PRBool HasImportantData() const { return mImportantData != nsnull; }
+  PRBool GetValueIsImportant(nsCSSProperty aProperty) const;
+  PRBool GetValueIsImportant(const nsAString& aProperty) const;
 
-  /**
-   * Adds a custom property declaration to this object.
-   *
-   * @param aName The variable name (i.e., without the "--" prefix).
-   * @param aType The type of value the variable has.
-   * @param aValue The value of the variable, if aType is
-   *   CSSVariableDeclarations::eTokenStream.
-   * @param aIsImportant Whether the declaration is !important.
-   * @param aOverrideImportant When aIsImportant is false, whether an
-   *   existing !important declaration will be overridden.
-   */
-  void AddVariableDeclaration(const nsAString& aName,
-                              CSSVariableDeclarations::Type aType,
-                              const nsString& aValue,
-                              bool aIsImportant,
-                              bool aOverrideImportant);
-
-  /**
-   * Removes a custom property declaration from this object.
-   *
-   * @param aName The variable name (i.e., without the "--" prefix).
-   */
-  void RemoveVariableDeclaration(const nsAString& aName);
-
-  /**
-   * Returns whether a custom property declaration for a variable with
-   * a given name exists on this object.
-   *
-   * @param aName The variable name (i.e., without the "--" prefix).
-   */
-  bool HasVariableDeclaration(const nsAString& aName) const;
-
-  /**
-   * Gets the string value for a custom property declaration of a variable
-   * with a given name.
-   *
-   * @param aName The variable name (i.e., without the "--" prefix).
-   * @param aValue Out parameter into which the variable's value will be
-   *   stored.  If the value is 'initial' or 'inherit', that exact string
-   *   will be stored in aValue.
-   */
-  void GetVariableDeclaration(const nsAString& aName, nsAString& aValue) const;
-
-  /**
-   * Returns whether the custom property declaration for a variable with
-   * the given name was !important.
-   */
-  bool GetVariableValueIsImportant(const nsAString& aName) const;
-
-  uint32_t Count() const {
+  PRUint32 Count() const {
     return mOrder.Length();
   }
-
-  // Returns whether we actually had a property at aIndex
-  bool GetNthProperty(uint32_t aIndex, nsAString& aReturn) const;
+  void GetNthProperty(PRUint32 aIndex, nsAString& aReturn) const;
 
   void ToString(nsAString& aString) const;
 
@@ -140,14 +116,12 @@ public:
   /**
    * Transfer all of the state from |aExpandedData| into this declaration.
    * After calling, |aExpandedData| should be in its initial state.
-   * Callers must make sure mOrder is updated as necessary.
    */
   void CompressFrom(nsCSSExpandedDataBlock *aExpandedData) {
     NS_ABORT_IF_FALSE(!mData, "oops");
     NS_ABORT_IF_FALSE(!mImportantData, "oops");
     aExpandedData->Compress(getter_Transfers(mData),
-                            getter_Transfers(mImportantData),
-                            mOrder);
+                            getter_Transfers(mImportantData));
     aExpandedData->AssertInitialState();
   }
 
@@ -173,48 +147,39 @@ public:
   void MapNormalRuleInfoInto(nsRuleData *aRuleData) const {
     NS_ABORT_IF_FALSE(mData, "called while expanded");
     mData->MapRuleInfoInto(aRuleData);
-    if (mVariables) {
-      mVariables->MapRuleInfoInto(aRuleData);
-    }
   }
   void MapImportantRuleInfoInto(nsRuleData *aRuleData) const {
     NS_ABORT_IF_FALSE(mData, "called while expanded");
-    NS_ABORT_IF_FALSE(mImportantData || mImportantVariables,
-                      "must have important data or variables");
-    if (mImportantData) {
-      mImportantData->MapRuleInfoInto(aRuleData);
-    }
-    if (mImportantVariables) {
-      mImportantVariables->MapRuleInfoInto(aRuleData);
-    }
+    NS_ABORT_IF_FALSE(mImportantData, "must have important data");
+    mImportantData->MapRuleInfoInto(aRuleData);
   }
 
   /**
    * Attempt to replace the value for |aProperty| stored in this
    * declaration with the matching value from |aFromBlock|.
    * This method may only be called on a mutable declaration.
-   * It will fail (returning false) if |aProperty| is shorthand,
+   * It will fail (returning PR_FALSE) if |aProperty| is shorthand,
    * is not already in this declaration, or does not have the indicated
-   * importance level.  If it returns true, it erases the value in
-   * |aFromBlock|.  |aChanged| is set to true if the declaration
-   * changed as a result of the call, and to false otherwise.
+   * importance level.  If it returns PR_TRUE, it erases the value in
+   * |aFromBlock|.  |aChanged| is set to PR_TRUE if the declaration
+   * changed as a result of the call, and to PR_FALSE otherwise.
    */
-  bool TryReplaceValue(nsCSSProperty aProperty, bool aIsImportant,
+  PRBool TryReplaceValue(nsCSSProperty aProperty, PRBool aIsImportant,
                          nsCSSExpandedDataBlock& aFromBlock,
-                         bool* aChanged)
+                         PRBool* aChanged)
   {
     AssertMutable();
     NS_ABORT_IF_FALSE(mData, "called while expanded");
 
     if (nsCSSProps::IsShorthand(aProperty)) {
-      *aChanged = false;
-      return false;
+      *aChanged = PR_FALSE;
+      return PR_FALSE;
     }
     nsCSSCompressedDataBlock *block = aIsImportant ? mImportantData : mData;
     // mImportantData might be null
     if (!block) {
-      *aChanged = false;
-      return false;
+      *aChanged = PR_FALSE;
+      return PR_FALSE;
     }
 
 #ifdef DEBUG
@@ -228,7 +193,7 @@ public:
     return block->TryReplaceValue(aProperty, aFromBlock, aChanged);
   }
 
-  bool HasNonImportantValueFor(nsCSSProperty aProperty) const {
+  PRBool HasNonImportantValueFor(nsCSSProperty aProperty) const {
     NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aProperty), "must be longhand");
     return !!mData->ValueFor(aProperty);
   }
@@ -256,7 +221,7 @@ public:
    * Mark this declaration as unmodifiable.  It's 'const' so it can
    * be called from ToString.
    */
-  void SetImmutable() const { mImmutable = true; }
+  void SetImmutable() const { mImmutable = PR_TRUE; }
 
   /**
    * Clear the data, in preparation for its replacement with entirely
@@ -264,79 +229,33 @@ public:
    */
   void ClearData() {
     AssertMutable();
-    mData = nullptr;
-    mImportantData = nullptr;
-    mVariables = nullptr;
-    mImportantVariables = nullptr;
+    mData = nsnull;
+    mImportantData = nsnull;
     mOrder.Clear();
-    mVariableOrder.Clear();
   }
 
 #ifdef DEBUG
-  void List(FILE* out = stdout, int32_t aIndent = 0) const;
+  void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
 private:
-  Declaration& operator=(const Declaration& aCopy) = delete;
-  bool operator==(const Declaration& aCopy) const = delete;
+  // Not implemented, and not supported.
+  Declaration& operator=(const Declaration& aCopy);
+  PRBool operator==(const Declaration& aCopy) const;
 
-  void GetValue(nsCSSProperty aProperty, nsAString& aValue,
-                nsCSSValue::Serialization aValueSerialization) const;
-
-  static void AppendImportanceToString(bool aIsImportant, nsAString& aString);
+  static void AppendImportanceToString(PRBool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)
-  bool AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const;
-  bool AppendValueToString(nsCSSProperty aProperty, nsAString& aResult,
-                           nsCSSValue::Serialization aValueSerialization) const;
+  PRBool AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const;
   // Helper for ToString with strange semantics regarding aValue.
   void AppendPropertyAndValueToString(nsCSSProperty aProperty,
                                       nsAutoString& aValue,
                                       nsAString& aResult) const;
-  // helper for ToString that serializes a custom property declaration for
-  // a variable with the specified name
-  void AppendVariableAndValueToString(const nsAString& aName,
-                                      nsAString& aResult) const;
 
-public:
-  /**
-   * Returns the property at the given index in the ordered list of
-   * declarations.  For custom properties, eCSSPropertyExtra_variable
-   * is returned.
-   */
-  nsCSSProperty GetPropertyAt(uint32_t aIndex) const {
-    uint32_t value = mOrder[aIndex];
-    if (value >= eCSSProperty_COUNT) {
-      return eCSSPropertyExtra_variable;
-    }
-    return nsCSSProperty(value);
+  nsCSSProperty OrderValueAt(PRUint32 aValue) const {
+    return nsCSSProperty(mOrder.ElementAt(aValue));
   }
 
-  /**
-   * Gets the name of the custom property at the given index in the ordered
-   * list of declarations.
-   */
-  void GetCustomPropertyNameAt(uint32_t aIndex, nsAString& aResult) const {
-    MOZ_ASSERT(mOrder[aIndex] >= eCSSProperty_COUNT);
-    uint32_t variableIndex = mOrder[aIndex] - eCSSProperty_COUNT;
-    aResult.Truncate();
-    aResult.AppendLiteral("--");
-    aResult.Append(mVariableOrder[variableIndex]);
-  }
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-private:
-  // The order of properties in this declaration.  Longhand properties are
-  // represented by their nsCSSProperty value, and each custom property (--*)
-  // is represented by a value that begins at eCSSProperty_COUNT.
-  //
-  // Subtracting eCSSProperty_COUNT from those values that represent custom
-  // properties results in an index into mVariableOrder, which identifies the
-  // specific variable the custom property declaration is for.
-  nsAutoTArray<uint32_t, 8> mOrder;
-
-  // variable names of custom properties found in mOrder
-  nsTArray<nsString> mVariableOrder;
+  nsAutoTArray<PRUint8, 8> mOrder;
 
   // never null, except while expanded, or before the first call to
   // InitializeEmpty or CompressFrom.
@@ -345,15 +264,9 @@ private:
   // may be null
   nsAutoPtr<nsCSSCompressedDataBlock> mImportantData;
 
-  // may be null
-  nsAutoPtr<CSSVariableDeclarations> mVariables;
-
-  // may be null
-  nsAutoPtr<CSSVariableDeclarations> mImportantVariables;
-
   // set by style rules when |RuleMatched| is called;
   // also by ToString (hence the 'mutable').
-  mutable bool mImmutable;
+  mutable PRPackedBool mImmutable;
 };
 
 } // namespace css

@@ -1,29 +1,56 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 ci et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHttpHeaderArray.h"
-#include "nsURLHelper.h"
-#include "nsIHttpHeaderVisitor.h"
-
-namespace mozilla {
-namespace net {
+#include "nsHttp.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpHeaderArray <public>
 //-----------------------------------------------------------------------------
+
 nsresult
 nsHttpHeaderArray::SetHeader(nsHttpAtom header,
                              const nsACString &value,
-                             bool merge)
+                             PRBool merge)
 {
-    nsEntry *entry = nullptr;
-    int32_t index;
+    nsEntry *entry = nsnull;
+    PRInt32 index;
 
     index = LookupEntry(header, &entry);
 
@@ -35,56 +62,31 @@ nsHttpHeaderArray::SetHeader(nsHttpAtom header,
         return NS_OK;
     }
 
+    // Create a new entry, or...
     if (!entry) {
-        entry = mHeaders.AppendElement(); // new nsEntry()
-        if (!entry)
-            return NS_ERROR_OUT_OF_MEMORY;
-        entry->header = header;
-        entry->value = value;
-    } else if (merge && !IsSingletonHeader(header)) {
-        MergeHeader(header, entry, value);
-    } else {
-        // Replace the existing string with the new value
-        entry->value = value;
-    }
-
-    return NS_OK;
-}
-
-nsresult
-nsHttpHeaderArray::SetHeaderFromNet(nsHttpAtom header, const nsACString &value)
-{
-    nsEntry *entry = nullptr;
-
-    LookupEntry(header, &entry);
-
-    if (!entry) {
-        if (value.IsEmpty()) {
-            if (!TrackEmptyHeader(header)) {
-                LOG(("Ignoring Empty Header: %s\n", header.get()));
-                return NS_OK; // ignore empty headers by default
-            }
-        }
         entry = mHeaders.AppendElement(); //new nsEntry(header, value);
         if (!entry)
             return NS_ERROR_OUT_OF_MEMORY;
         entry->header = header;
         entry->value = value;
-    } else if (!IsSingletonHeader(header)) {
-        MergeHeader(header, entry, value);
-    } else {
-        // Multiple instances of non-mergeable header received from network
-        // - ignore if same value
-        if (!entry->value.Equals(value)) {
-            if (IsSuspectDuplicateHeader(header)) {
-                // reply may be corrupt/hacked (ex: CLRF injection attacks)
-                return NS_ERROR_CORRUPTED_CONTENT;
-            } // else silently drop value: keep value from 1st header seen
-            LOG(("Header %s silently dropped as non mergeable header\n",
-                 header.get()));
-        }
     }
-
+    // Append the new value to the existing value iff...
+    else if (merge && CanAppendToHeader(header)) {
+        if (header == nsHttp::Set_Cookie ||
+            header == nsHttp::WWW_Authenticate ||
+            header == nsHttp::Proxy_Authenticate)
+            // Special case these headers and use a newline delimiter to
+            // delimit the values from one another as commas may appear
+            // in the values of these headers contrary to what the spec says.
+            entry->value.Append('\n');
+        else
+            // Delimit each value from the others using a comma (per HTTP spec)
+            entry->value.AppendLiteral(", ");
+        entry->value.Append(value);
+    }
+    // Replace the existing string with the new value
+    else
+        entry->value = value;
     return NS_OK;
 }
 
@@ -95,17 +97,17 @@ nsHttpHeaderArray::ClearHeader(nsHttpAtom header)
 }
 
 const char *
-nsHttpHeaderArray::PeekHeader(nsHttpAtom header) const
+nsHttpHeaderArray::PeekHeader(nsHttpAtom header)
 {
-    const nsEntry *entry = nullptr;
+    nsEntry *entry = nsnull;
     LookupEntry(header, &entry);
-    return entry ? entry->value.get() : nullptr;
+    return entry ? entry->value.get() : nsnull;
 }
 
 nsresult
-nsHttpHeaderArray::GetHeader(nsHttpAtom header, nsACString &result) const
+nsHttpHeaderArray::GetHeader(nsHttpAtom header, nsACString &result)
 {
-    const nsEntry *entry = nullptr;
+    nsEntry *entry = nsnull;
     LookupEntry(header, &entry);
     if (!entry)
         return NS_ERROR_NOT_AVAILABLE;
@@ -117,7 +119,7 @@ nsresult
 nsHttpHeaderArray::VisitHeaders(nsIHttpHeaderVisitor *visitor)
 {
     NS_ENSURE_ARG_POINTER(visitor);
-    uint32_t i, count = mHeaders.Length();
+    PRUint32 i, count = mHeaders.Length();
     for (i = 0; i < count; ++i) {
         const nsEntry &entry = mHeaders[i];
         if (NS_FAILED(visitor->VisitHeader(nsDependentCString(entry.header),
@@ -127,7 +129,7 @@ nsHttpHeaderArray::VisitHeaders(nsIHttpHeaderVisitor *visitor)
     return NS_OK;
 }
 
-nsresult
+void
 nsHttpHeaderArray::ParseHeaderLine(const char *line,
                                    nsHttpAtom *hdr,
                                    char **val)
@@ -142,28 +144,28 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
     //                     and consisting of either *TEXT or combinations
     //                     of token, separators, and quoted-string>
     //
-
+    
     // We skip over mal-formed headers in the hope that we'll still be able to
     // do something useful with the response.
 
     char *p = (char *) strchr(line, ':');
     if (!p) {
         LOG(("malformed header [%s]: no colon\n", line));
-        return NS_OK;
+        return;
     }
 
     // make sure we have a valid token for the field-name
     if (!nsHttp::IsValidToken(line, p)) {
         LOG(("malformed header [%s]: field-name not a token\n", line));
-        return NS_OK;
+        return;
     }
-
+    
     *p = 0; // null terminate field-name
 
     nsHttpAtom atom = nsHttp::ResolveAtom(line);
     if (!atom) {
         LOG(("failed to resolve atom [%s]\n", line));
-        return NS_OK;
+        return;
     }
 
     // skip over whitespace
@@ -181,36 +183,17 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
     if (val) *val = p;
 
     // assign response header
-    return SetHeaderFromNet(atom, nsDependentCString(p, p2 - p));
+    SetHeader(atom, nsDependentCString(p, p2 - p), PR_TRUE);
 }
 
 void
-nsHttpHeaderArray::ParseHeaderSet(char *buffer)
+nsHttpHeaderArray::Flatten(nsACString &buf, PRBool pruneProxyHeaders)
 {
-    nsHttpAtom hdr;
-    char *val;
-    while (buffer) {
-        char *eof = strchr(buffer, '\r');
-        if (!eof) {
-            break;
-        }
-        *eof = '\0';
-        ParseHeaderLine(buffer, &hdr, &val);
-        buffer = eof + 1;
-        if (*buffer == '\n') {
-            buffer++;
-        }
-    }
-}
-
-void
-nsHttpHeaderArray::Flatten(nsACString &buf, bool pruneProxyHeaders)
-{
-    uint32_t i, count = mHeaders.Length();
+    PRUint32 i, count = mHeaders.Length();
     for (i = 0; i < count; ++i) {
         const nsEntry &entry = mHeaders[i];
         // prune proxy headers if requested
-        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) ||
+        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) || 
                                   (entry.header == nsHttp::Proxy_Connection)))
             continue;
         buf.Append(entry.header);
@@ -221,7 +204,7 @@ nsHttpHeaderArray::Flatten(nsACString &buf, bool pruneProxyHeaders)
 }
 
 const char *
-nsHttpHeaderArray::PeekHeaderAt(uint32_t index, nsHttpAtom &header) const
+nsHttpHeaderArray::PeekHeaderAt(PRUint32 index, nsHttpAtom &header)
 {
     const nsEntry &entry = mHeaders[index];
 
@@ -235,5 +218,32 @@ nsHttpHeaderArray::Clear()
     mHeaders.Clear();
 }
 
-} // namespace mozilla::net
-} // namespace mozilla
+//-----------------------------------------------------------------------------
+// nsHttpHeaderArray <private>
+//-----------------------------------------------------------------------------
+
+PRInt32
+nsHttpHeaderArray::LookupEntry(nsHttpAtom header, nsEntry **entry)
+{
+    PRUint32 index = mHeaders.IndexOf(header, 0, nsEntry::MatchHeader());
+    if (index != PR_UINT32_MAX)
+      *entry = &mHeaders[index];
+    return index;
+}
+
+PRBool
+nsHttpHeaderArray::CanAppendToHeader(nsHttpAtom header)
+{
+    return header != nsHttp::Content_Type        &&
+           header != nsHttp::Content_Length      &&
+           header != nsHttp::User_Agent          &&
+           header != nsHttp::Referer             &&
+           header != nsHttp::Host                &&
+           header != nsHttp::Authorization       &&
+           header != nsHttp::Proxy_Authorization &&
+           header != nsHttp::If_Modified_Since   &&
+           header != nsHttp::If_Unmodified_Since &&
+           header != nsHttp::From                &&
+           header != nsHttp::Location            &&
+           header != nsHttp::Max_Forwards;
+}

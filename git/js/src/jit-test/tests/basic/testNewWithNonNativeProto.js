@@ -7,3 +7,8 @@ function testNewWithNonNativeProto()
   return Object.getPrototypeOf(o) === a && o.splice === Array.prototype.splice;
 }
 assertEq(testNewWithNonNativeProto(), true);
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0,
+  sideExitIntoInterpreter: 1
+});

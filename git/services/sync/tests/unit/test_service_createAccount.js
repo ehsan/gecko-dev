@@ -1,15 +1,9 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/service.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 function run_test() {
-  initTestLogging("Trace");
-
-  let requestBody;
-  let secretHeader;
+  var requestBody;
+  var secretHeader;
   function send(statusCode, status, body) {
     return function(request, response) {
       requestBody = readBytesFromInputStream(request.bodyInputStream);
@@ -29,10 +23,13 @@ function run_test() {
     // jane@doe.com
     "/user/1.0/vuuf3eqgloxpxmzph27f5a6ve7gzlrms": send(400, "Bad Request", "2"),
     // jim@doe.com
-    "/user/1.0/vz6fhecgw5t3sgx3a4cektoiokyczkqd": send(500, "Server Error", "Server Error")
+    "/user/1.0/vz6fhecgw5t3sgx3a4cektoiokyczkqd": send(500, "Server Error", "Server Error"),
+    "/user/1.0/johndoe": send(200, "OK", "0"),
+    "/user/1.0/janedoe": send(400, "Bad Request", "2"),
+    "/user/1.0/jimdoe": send(500, "Server Error", "Server Error")
   });
   try {
-    Service.serverURL = server.baseURI;
+    Service.serverURL = "http://localhost:8080/";
 
     _("Create an account.");
     let res = Service.createAccount("john@doe.com", "mysecretpw",
@@ -45,12 +42,12 @@ function run_test() {
     do_check_eq(payload["captcha-response"], "response");
 
     _("A non-ASCII password is UTF-8 encoded.");
-    const moneyPassword = "moneyislike$£¥";
-    res = Service.createAccount("john@doe.com", moneyPassword,
+    res = Service.createAccount("john@doe.com", "moneyislike$\u20ac\xa5\u5143",
                                 "challenge", "response");
     do_check_eq(res, null);
     payload = JSON.parse(requestBody);
-    do_check_eq(payload.password, Utils.encodeUTF8(moneyPassword));
+    do_check_eq(payload.password,
+                Utils.encodeUTF8("moneyislike$\u20ac\xa5\u5143"));
 
     _("Invalid captcha or other user-friendly error.");
     res = Service.createAccount("jane@doe.com", "anothersecretpw",
@@ -67,6 +64,24 @@ function run_test() {
     res = Service.createAccount("john@doe.com", "mysecretpw",
                                 "challenge", "response");
     do_check_eq(secretHeader, "my-server-secret");
+
+
+    // Backwards compat with the Firefox UI. Remove once bug 595066 has landed.
+
+    _("Create an old-style account.");
+    res = Service.createAccount("johndoe", "mysecretpw", "john@doe.com",
+                                "challenge", "response");
+    do_check_eq(res, null);
+
+    _("Invalid captcha or other user-friendly error.");
+    res = Service.createAccount("janedoe", "anothersecretpw", "jane@doe.com",
+                                "challenge", "response");
+    do_check_eq(res, "invalid-captcha");
+
+    _("Generic server error.");
+    res = Service.createAccount("jimdoe", "preciousss", "jim@doe.com",
+                                "challenge", "response");
+    do_check_eq(res, "generic-server-error");
 
   } finally {
     Svc.Prefs.resetBranch("");

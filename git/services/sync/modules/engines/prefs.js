@@ -1,8 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Anant Narayanan <anant@kix.in>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
+const EXPORTED_SYMBOLS = ['PrefsEngine', 'PrefRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -13,26 +46,23 @@ const WEAVE_SYNC_PREFS = "services.sync.prefs.sync.";
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-common/utils.js");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
-const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
+const PREFS_GUID = Utils.encodeBase64url(Svc.AppInfo.ID);
 
-this.PrefRec = function PrefRec(collection, id) {
+function PrefRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 PrefRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Pref",
+  _logName: "Record.Pref",
 };
 
 Utils.deferGetSet(PrefRec, "cleartext", ["value"]);
 
 
-this.PrefsEngine = function PrefsEngine(service) {
-  SyncEngine.call(this, "Prefs", service);
+function PrefsEngine() {
+  SyncEngine.call(this, "Prefs");
 }
 PrefsEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -40,8 +70,6 @@ PrefsEngine.prototype = {
   _trackerObj: PrefTracker,
   _recordObj: PrefRec,
   version: 2,
-
-  syncPriority: 1,
 
   getChangedIDs: function getChangedIDs() {
     // No need for a proper timestamp (no conflict resolution needed).
@@ -67,9 +95,9 @@ PrefsEngine.prototype = {
 };
 
 
-function PrefStore(name, engine) {
-  Store.call(this, name, engine);
-  Svc.Obs.add("profile-before-change", function () {
+function PrefStore(name) {
+  Store.call(this, name);
+  Svc.Obs.add("profile-before-change", function() {
     this.__prefs = null;
   }, this);
 }
@@ -110,9 +138,20 @@ PrefStore.prototype = {
   },
 
   _setAllPrefs: function PrefStore__setAllPrefs(values) {
+    // cache 
+    let ltmExists = true;
+    let ltm = {};
+    let enabledBefore = false;
     let enabledPref = "lightweightThemes.isThemeSelected";
-    let enabledBefore = this._prefs.get(enabledPref, false);
-    let prevTheme = LightweightThemeManager.currentTheme;
+    let prevTheme = "";
+    try {
+      Cu.import("resource://gre/modules/LightweightThemeManager.jsm", ltm);
+      ltm = ltm.LightweightThemeManager;
+      enabledBefore = this._prefs.get(enabledPref, false);
+      prevTheme = ltm.currentTheme;
+    } catch(ex) {
+      ltmExists = false;
+    } // LightweightThemeManager only exists in Firefox 3.6+
 
     for (let [pref, value] in Iterator(values)) {
       if (!this._isSynced(pref))
@@ -132,12 +171,14 @@ PrefStore.prototype = {
     }
 
     // Notify the lightweight theme manager of all the new values
-    let enabledNow = this._prefs.get(enabledPref, false);
-    if (enabledBefore && !enabledNow) {
-      LightweightThemeManager.currentTheme = null;
-    } else if (enabledNow && LightweightThemeManager.usedThemes[0] != prevTheme) {
-      LightweightThemeManager.currentTheme = null;
-      LightweightThemeManager.currentTheme = LightweightThemeManager.usedThemes[0];
+    if (ltmExists) {
+      let enabledNow = this._prefs.get(enabledPref, false);
+      if (enabledBefore && !enabledNow)
+        ltm.currentTheme = null;
+      else if (enabledNow && ltm.usedThemes[0] != prevTheme) {
+        ltm.currentTheme = null;
+        ltm.currentTheme = ltm.usedThemes[0];
+      }
     }
   },
 
@@ -190,8 +231,8 @@ PrefStore.prototype = {
   }
 };
 
-function PrefTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function PrefTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("profile-before-change", this);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
@@ -216,36 +257,43 @@ PrefTracker.prototype = {
 
  __prefs: null,
   get _prefs() {
-    if (!this.__prefs) {
+    if (!this.__prefs)
       this.__prefs = new Preferences();
-    }
     return this.__prefs;
   },
 
-  startTracking: function () {
-    Services.prefs.addObserver("", this, false);
-  },
-
-  stopTracking: function () {
-    this.__prefs = null;
-    Services.prefs.removeObserver("", this);
-  },
-
-  observe: function (subject, topic, data) {
-    Tracker.prototype.observe.call(this, subject, topic, data);
-
-    switch (topic) {
+  _enabled: false,
+  observe: function(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "weave:engine:start-tracking":
+        if (!this._enabled) {
+          Cc["@mozilla.org/preferences-service;1"]
+            .getService(Ci.nsIPrefBranch2).addObserver("", this, false);
+          this._enabled = true;
+        }
+        break;
+      case "weave:engine:stop-tracking":
+        if (this._enabled)
+          this._enabled = false;
+        // Fall through to clean up.
       case "profile-before-change":
-        this.stopTracking();
+        this.__prefs = null;
+        Cc["@mozilla.org/preferences-service;1"]
+          .getService(Ci.nsIPrefBranch2).removeObserver("", this);
         break;
       case "nsPref:changed":
-        // Trigger a sync for MULTI-DEVICE for a change that determines
-        // which prefs are synced or a regular pref change.
-        if (data.indexOf(WEAVE_SYNC_PREFS) == 0 ||
-            this._prefs.get(WEAVE_SYNC_PREFS + data, false)) {
-          this.score += SCORE_INCREMENT_XLARGE;
+        // 100 points for a change that determines which prefs are synced,
+        // 25 points per regular pref change.
+        let up;
+        if (aData.indexOf(WEAVE_SYNC_PREFS) == 0)
+          up = 100;
+        else if (this._prefs.get(WEAVE_SYNC_PREFS + aData, false))
+          up = 25;
+
+        if (up) {
+          this.score += up;
           this.modified = true;
-          this._log.trace("Preference " + data + " changed");
+          this._log.trace("Preference " + aData + " changed");
         }
         break;
     }

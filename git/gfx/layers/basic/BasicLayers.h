@@ -1,68 +1,96 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_BASICLAYERS_H
 #define GFX_BASICLAYERS_H
 
-#include <stdint.h>                     // for INT32_MAX, int32_t
-#include "Layers.h"                     // for Layer (ptr only), etc
-#include "gfxTypes.h"
-#include "gfxContext.h"                 // for gfxContext
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/WidgetUtils.h"        // for ScreenRotation
-#include "mozilla/layers/LayersTypes.h"  // for BufferMode, LayersBackend, etc
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nscore.h"                     // for nsAString, etc
+#include "Layers.h"
 
-class gfxPattern;
+#include "gfxContext.h"
+#include "gfxCachedTempSurface.h"
+#include "nsAutoRef.h"
+#include "nsThreadUtils.h"
+
+#ifdef MOZ_IPC
+#include "mozilla/layers/ShadowLayers.h"
+#endif
+
 class nsIWidget;
 
 namespace mozilla {
 namespace layers {
 
 class BasicShadowableLayer;
-class ImageFactory;
-class ImageLayer;
-class PaintLayerContext;
-class ReadbackLayer;
+class ShadowThebesLayer;
+class ShadowContainerLayer;
+class ShadowImageLayer;
+class ShadowCanvasLayer;
+class ShadowColorLayer;
 class ReadbackProcessor;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
  * 
  * In each transaction, the client sets up the layer tree and then during
- * the drawing phase, each PaintedLayer is painted directly into the target
+ * the drawing phase, each ThebesLayer is painted directly into the target
  * context (with appropriate clipping and Push/PopGroups performed
  * between layers).
  */
-class BasicLayerManager MOZ_FINAL :
+class THEBES_API BasicLayerManager :
+#ifdef MOZ_IPC
+    public ShadowLayerManager
+#else
     public LayerManager
+#endif
 {
 public:
-  enum BasicLayerManagerType {
-    BLM_WIDGET,
-    BLM_OFFSCREEN,
-    BLM_INACTIVE
-  };
   /**
    * Construct a BasicLayerManager which will have no default
    * target context. SetDefaultTarget or BeginTransactionWithTarget
-   * must be called for any rendering to happen. PaintedLayers will not
+   * must be called for any rendering to happen. ThebesLayers will not
    * be retained.
    */
-  explicit BasicLayerManager(BasicLayerManagerType aType);
+  BasicLayerManager();
   /**
    * Construct a BasicLayerManager which will have no default
    * target context. SetDefaultTarget or BeginTransactionWithTarget
-   * must be called for any rendering to happen. PaintedLayers will be
+   * must be called for any rendering to happen. ThebesLayers will be
    * retained; that is, we will try to retain the visible contents of
-   * PaintedLayers as cairo surfaces. We create PaintedLayer buffers by
+   * ThebesLayers as cairo surfaces. We create ThebesLayer buffers by
    * creating similar surfaces to the default target context, or to
    * aWidget's GetThebesSurface if there is no default target context, or
    * to the passed-in context if there is no widget and no default
@@ -72,12 +100,9 @@ public:
    * must ensure that the widget outlives the layer manager or call
    * ClearWidget before the widget dies.
    */
-  explicit BasicLayerManager(nsIWidget* aWidget);
-
-protected:
+  BasicLayerManager(nsIWidget* aWidget);
   virtual ~BasicLayerManager();
 
-public:
   /**
    * Set the default target context that will be used when BeginTransaction
    * is called. This can only be called outside a transaction.
@@ -89,116 +114,229 @@ public:
    * mode we always completely overwrite the contents of aContext's
    * destination surface (within the clip region) using OPERATOR_SOURCE.
    */
-  void SetDefaultTarget(gfxContext* aContext);
-  virtual void SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation);
+  enum BufferMode {
+    BUFFER_NONE,
+    BUFFER_BUFFERED
+  };
+  void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering);
   gfxContext* GetDefaultTarget() { return mDefaultTarget; }
 
+  /**
+   * Set a target resolution for managed layers that are scalable.  It
+   * might make sense to call this outside of a transaction, but
+   * currently it's only allowed during the construction phase of
+   * transactions.
+   */
+  void SetResolution(float aXResolution, float aYResolution)
+  {
+    NS_ASSERTION(InConstruction(), "resolution must be set before drawing");
+    mXResolution = aXResolution;
+    mYResolution = aYResolution;
+  }
+  float XResolution() const { return mXResolution; }
+  float YResolution() const { return mYResolution; }
+
   nsIWidget* GetRetainerWidget() { return mWidget; }
-  void ClearRetainerWidget() { mWidget = nullptr; }
+  void ClearRetainerWidget() { mWidget = nsnull; }
 
-  virtual bool IsWidgetLayerManager() MOZ_OVERRIDE { return mWidget != nullptr; }
-  virtual bool IsInactiveLayerManager() MOZ_OVERRIDE { return mType == BLM_INACTIVE; }
+  virtual void BeginTransaction();
+  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
+  virtual bool EndEmptyTransaction();
+  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
+                              void* aCallbackData);
 
-  virtual void BeginTransaction() MOZ_OVERRIDE;
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget) MOZ_OVERRIDE;
-  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
-  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
-  virtual bool ShouldAvoidComponentAlphaLayers() MOZ_OVERRIDE { return IsWidgetLayerManager(); }
+  virtual void SetRoot(Layer* aLayer);
 
-  void AbortTransaction();
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
+  virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
+  virtual already_AddRefed<ImageLayer> CreateImageLayer();
+  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
+  virtual already_AddRefed<ImageContainer> CreateImageContainer();
+  virtual already_AddRefed<ColorLayer> CreateColorLayer();
+  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
+  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer()
+  { return nsnull; }
+  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer()
+  { return nsnull; }
+  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
+  { return nsnull; }
+  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
+  { return nsnull; }
+  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
+  { return nsnull; }
 
-  virtual void SetRoot(Layer* aLayer) MOZ_OVERRIDE;
+  virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
+  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
 
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ContainerLayer> CreateContainerLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ImageLayer> CreateImageLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ColorLayer> CreateColorLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() MOZ_OVERRIDE;
-  virtual ImageFactory *GetImageFactory();
-
-  virtual LayersBackend GetBackendType() MOZ_OVERRIDE { return LayersBackend::LAYERS_BASIC; }
-  virtual void GetBackendName(nsAString& name) MOZ_OVERRIDE { name.AssignLiteral("Basic"); }
-
-  bool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
 #ifdef DEBUG
-  bool InDrawing() { return mPhase == PHASE_DRAWING; }
-  bool InForward() { return mPhase == PHASE_FORWARD; }
+  PRBool InConstruction() { return mPhase == PHASE_CONSTRUCTION; }
+  PRBool InDrawing() { return mPhase == PHASE_DRAWING; }
+  PRBool InForward() { return mPhase == PHASE_FORWARD; }
+  PRBool InTransaction() { return mPhase != PHASE_NONE; }
 #endif
-  bool InTransaction() { return mPhase != PHASE_NONE; }
-
   gfxContext* GetTarget() { return mTarget; }
-  void SetTarget(gfxContext* aTarget) { mUsingDefaultTarget = false; mTarget = aTarget; }
-  bool IsRetained() { return mWidget != nullptr; }
+  PRBool IsRetained() { return mWidget != nsnull; }
 
-  virtual const char* Name() const MOZ_OVERRIDE { return "Basic"; }
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual const char* Name() const { return "Basic"; }
+#endif // MOZ_LAYERS_HAVE_LOG
 
-  // Clear the cached contents of this layer tree.
-  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
+  // Clear the cached contents of this layer.
+  void ClearCachedResources();
 
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
-  bool IsTransactionIncomplete() { return mTransactionIncomplete; }
 
-  already_AddRefed<gfxContext> PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
-                                                 const nsIntRegion& aRegion,
-                                                 bool* aNeedsClipToVisibleRegion);
-
-  virtual bool IsCompositingCheap() MOZ_OVERRIDE { return false; }
-  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE { return INT32_MAX; }
-  bool CompositorMightResample() { return mCompositorMightResample; }
-
-  virtual bool SupportsMixBlendModes(EnumSet<gfx::CompositionOp>& aMixBlendModes) MOZ_OVERRIDE { return true; }
+  virtual PRBool IsCompositingCheap() { return PR_FALSE; }
 
 protected:
+#ifdef DEBUG
   enum TransactionPhase {
     PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING, PHASE_FORWARD
   };
   TransactionPhase mPhase;
-
-  // This is the main body of the PaintLayer routine which will if it has
-  // children, recurse into PaintLayer() otherwise it will paint using the
-  // underlying Paint() method of the Layer. It will not do both.
-  void PaintSelfOrChildren(PaintLayerContext& aPaintContext, gfxContext* aGroupTarget);
-
-  // Paint the group onto the underlying target. This is used by PaintLayer to
-  // flush the group to the underlying target.
-  void FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipToVisibleRegion);
+#endif
 
   // Paints aLayer to mTarget.
-  void PaintLayer(gfxContext* aTarget,
-                  Layer* aLayer,
-                  DrawPaintedLayerCallback aCallback,
-                  void* aCallbackData);
+  void PaintLayer(Layer* aLayer,
+                  DrawThebesLayerCallback aCallback,
+                  void* aCallbackData,
+                  ReadbackProcessor* aReadback);
 
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);
 
-  bool EndTransactionInternal(DrawPaintedLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+  already_AddRefed<gfxContext> PushGroupWithCachedSurface(gfxContext *aTarget,
+                                                          gfxASurface::gfxContentType aContent,
+                                                          gfxPoint *aSavedOffset);
+  void PopGroupWithCachedSurface(gfxContext *aTarget,
+                                 const gfxPoint& aSavedOffset);
 
-  void FlashWidgetUpdateArea(gfxContext* aContext);
+  bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
+                              void* aCallbackData);
 
-  // Widget whose surface should be used as the basis for PaintedLayer
+  // Target resolution for scalable content.
+  float mXResolution;
+  float mYResolution;
+
+  // Widget whose surface should be used as the basis for ThebesLayer
   // buffers.
   nsIWidget* mWidget;
   // The default context for BeginTransaction.
   nsRefPtr<gfxContext> mDefaultTarget;
   // The context to draw into.
   nsRefPtr<gfxContext> mTarget;
-  // Image factory we use.
-  nsRefPtr<ImageFactory> mFactory;
 
-  BufferMode mDoubleBuffering;
-  BasicLayerManagerType mType;
-  bool mUsingDefaultTarget;
-  bool mTransactionIncomplete;
-  bool mCompositorMightResample;
+  // Cached surface for double buffering
+  gfxCachedTempSurface mCachedSurface;
+
+  BufferMode   mDoubleBuffering;
+  PRPackedBool mUsingDefaultTarget;
+  bool         mTransactionIncomplete;
 };
+ 
+
+#ifdef MOZ_IPC
+class BasicShadowLayerManager : public BasicLayerManager,
+                                public ShadowLayerForwarder
+{
+  typedef nsTArray<nsRefPtr<Layer> > LayerRefArray;
+
+public:
+  BasicShadowLayerManager(nsIWidget* aWidget);
+  virtual ~BasicShadowLayerManager();
+
+  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
+  virtual bool EndEmptyTransaction();
+  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
+                              void* aCallbackData);
+
+  virtual void SetRoot(Layer* aLayer);
+
+  virtual void Mutated(Layer* aLayer);
+
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
+  virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
+  virtual already_AddRefed<ImageLayer> CreateImageLayer();
+  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
+  virtual already_AddRefed<ColorLayer> CreateColorLayer();
+  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
+  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
+  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
+  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer();
+  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
+
+  ShadowableLayer* Hold(Layer* aLayer);
+
+  PLayersChild* GetShadowManager() const { return mShadowManager; }
+
+  void SetShadowManager(PLayersChild* aShadowManager)
+  {
+    mShadowManager = aShadowManager;
+  }
+
+  virtual PRBool IsCompositingCheap();
+
+private:
+  /**
+   * Forward transaction results to the parent context.
+   */
+  void ForwardTransaction();
+
+  LayerRefArray mKeepAlive;
+};
+#endif  // MOZ_IPC
 
 }
 }
+
+/**
+ * We need to be able to hold a reference to a gfxASurface from Image
+ * subclasses. This is potentially a problem since Images can be addrefed
+ * or released off the main thread. We can ensure that we never AddRef
+ * a gfxASurface off the main thread, but we might want to Release due
+ * to an Image being destroyed off the main thread.
+ * 
+ * We use nsCountedRef<nsMainThreadSurfaceRef> to reference the
+ * gfxASurface. When AddRefing, we assert that we're on the main thread.
+ * When Releasing, if we're not on the main thread, we post an event to
+ * the main thread to do the actual release.
+ */
+class nsMainThreadSurfaceRef;
+
+NS_SPECIALIZE_TEMPLATE
+class nsAutoRefTraits<nsMainThreadSurfaceRef> {
+public:
+  typedef gfxASurface* RawRef;
+
+  /**
+   * The XPCOM event that will do the actual release on the main thread.
+   */
+  class SurfaceReleaser : public nsRunnable {
+  public:
+    SurfaceReleaser(RawRef aRef) : mRef(aRef) {}
+    NS_IMETHOD Run() {
+      mRef->Release();
+      return NS_OK;
+    }
+    RawRef mRef;
+  };
+
+  static RawRef Void() { return nsnull; }
+  static void Release(RawRef aRawRef)
+  {
+    if (NS_IsMainThread()) {
+      aRawRef->Release();
+      return;
+    }
+    nsCOMPtr<nsIRunnable> runnable = new SurfaceReleaser(aRawRef);
+    NS_DispatchToMainThread(runnable);
+  }
+  static void AddRef(RawRef aRawRef)
+  {
+    NS_ASSERTION(NS_IsMainThread(),
+                 "Can only add a reference on the main thread");
+    aRawRef->AddRef();
+  }
+};
 
 #endif /* GFX_BASICLAYERS_H */

@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXPCOMCID_h__
 #define nsXPCOMCID_h__
 
 /**
  * XPCOM Directory Service Contract ID
- *   The directory service provides ways to obtain file system locations. The
+ *   The directory service provides ways to obtain file system locations. The 
  *   directory service is a singleton.
  *
  *   This contract supports the nsIDirectoryService and the nsIProperties
@@ -19,11 +51,11 @@
 
 /**
  * XPCOM File
- *   The file abstraction provides ways to obtain and access files and
- *   directories located on the local system.
+ *   The file abstraction provides ways to obtain and access files and 
+ *   directories located on the local system. 
  *
- *   This contract supports the nsIFile interface.
- *   This contract may also support platform specific interfaces such as
+ *   This contract supports the nsIFile interface and the nsILocalFile interface.
+ *   This contract may also support platform specific interfaces such as 
  *   nsILocalFileMac on platforms where additional interfaces are required.
  *
  */
@@ -31,7 +63,7 @@
 
 /**
  * XPCOM Category Manager Contract ID
- *   The contract supports the nsICategoryManager interface. The
+ *   The contract supports the nsICategoryManager interface. The 
  *   category manager is a singleton.
  * The "enumerateCategory" method of nsICategoryManager will return an object
  * that implements nsIUTF8StringEnumerator. In addition, the enumerator will
@@ -71,28 +103,13 @@
 #define NS_MEMORY_REPORTER_MANAGER_CONTRACTID "@mozilla.org/memory-reporter-manager;1"
 
 /**
- * Memory info dumper service CID
- */
-#define NS_MEMORY_INFO_DUMPER_CONTRACTID "@mozilla.org/memory-info-dumper;1"
-
-/**
- * Status reporter service CID
- */
-#define NS_STATUS_REPORTER_MANAGER_CONTRACTID "@mozilla.org/status-reporter-manager;1"
-
-/**
  * Cycle collector logger contract id
  */
 #define NS_CYCLE_COLLECTOR_LOGGER_CONTRACTID "@mozilla.org/cycle-collector-logger;1"
 
 /**
- * nsMessageLoop contract id
- */
-#define NS_MESSAGE_LOOP_CONTRACTID "@mozilla.org/message-loop;1"
-
-/**
- * The following are the CIDs and Contract IDs of the nsISupports wrappers for
- * primative types.
+ * The following are the CIDs and Contract IDs of the nsISupports wrappers for 
+ * primative types.  
  */
 #define NS_SUPPORTS_ID_CID \
 { 0xacf8dc40, 0x4a25, 0x11d3, \

@@ -1,29 +1,64 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsMultiMixedConv.h"
+#include "nsMemory.h"
+#include "nsInt64.h"
 #include "plstr.h"
 #include "nsIHttpChannel.h"
+#include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsIStringStream.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsURLHelper.h"
 #include "nsIStreamConverterService.h"
-#include <algorithm>
 
 //
 // Helper function for determining the length of data bytes up to
 // the next multipart token.  A token is usually preceded by a LF
 // or CRLF delimiter.
 // 
-static uint32_t
+static PRUint32
 LengthToToken(const char *cursor, const char *token)
 {
-    uint32_t len = token - cursor;
+    PRUint32 len = token - cursor;
     // Trim off any LF or CRLF preceding the token
     if (len && *(token-1) == '\n') {
         --len;
@@ -33,17 +68,17 @@ LengthToToken(const char *cursor, const char *token)
     return len;
 }
 
-nsPartChannel::nsPartChannel(nsIChannel *aMultipartChannel, uint32_t aPartID,
+nsPartChannel::nsPartChannel(nsIChannel *aMultipartChannel, PRUint32 aPartID,
                              nsIStreamListener* aListener) :
   mMultipartChannel(aMultipartChannel),
   mListener(aListener),
   mStatus(NS_OK),
-  mContentLength(UINT64_MAX),
-  mIsByteRangeRequest(false),
+  mContentLength(LL_MAXUINT),
+  mIsByteRangeRequest(PR_FALSE),
   mByteRangeStart(0),
   mByteRangeEnd(0),
   mPartID(aPartID),
-  mIsLastPart(false)
+  mIsLastPart(PR_FALSE)
 {
     mMultipartChannel = aMultipartChannel;
 
@@ -57,9 +92,9 @@ nsPartChannel::~nsPartChannel()
 {
 }
 
-void nsPartChannel::InitializeByteRange(int64_t aStart, int64_t aEnd)
+void nsPartChannel::InitializeByteRange(PRInt64 aStart, PRInt64 aEnd)
 {
-    mIsByteRangeRequest = true;
+    mIsByteRangeRequest = PR_TRUE;
     
     mByteRangeStart = aStart;
     mByteRangeEnd   = aEnd;
@@ -72,7 +107,7 @@ nsresult nsPartChannel::SendOnStartRequest(nsISupports* aContext)
 
 nsresult nsPartChannel::SendOnDataAvailable(nsISupports* aContext,
                                             nsIInputStream* aStream,
-                                            uint64_t aOffset, uint32_t aLen)
+                                            PRUint32 aOffset, PRUint32 aLen)
 {
     return mListener->OnDataAvailable(this, aContext, aStream, aOffset, aLen);
 }
@@ -84,16 +119,6 @@ nsresult nsPartChannel::SendOnStopRequest(nsISupports* aContext,
     nsCOMPtr<nsIStreamListener> listener;
     listener.swap(mListener);
     return listener->OnStopRequest(this, aContext, aStatus);
-}
-
-void nsPartChannel::SetContentDisposition(const nsACString& aContentDispositionHeader)
-{
-    mContentDispositionHeader = aContentDispositionHeader;
-    nsCOMPtr<nsIURI> uri;
-    GetURI(getter_AddRefs(uri));
-    NS_GetFilenameFromDisposition(mContentDispositionFilename,
-                                  mContentDispositionHeader, uri);
-    mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);
 }
 
 //
@@ -122,7 +147,7 @@ nsPartChannel::GetName(nsACString &aResult)
 }
 
 NS_IMETHODIMP
-nsPartChannel::IsPending(bool *aResult)
+nsPartChannel::IsPending(PRBool *aResult)
 {
     // For now, consider the active lifetime of each part the same as
     // the underlying multipart channel...  This is not exactly right,
@@ -252,18 +277,6 @@ nsPartChannel::SetOwner(nsISupports* aOwner)
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetLoadInfo(nsILoadInfo* *aLoadInfo)
-{
-    return mMultipartChannel->GetLoadInfo(aLoadInfo);
-}
-
-NS_IMETHODIMP
-nsPartChannel::SetLoadInfo(nsILoadInfo* aLoadInfo)
-{
-    return mMultipartChannel->SetLoadInfo(aLoadInfo);
-}
-
-NS_IMETHODIMP
 nsPartChannel::GetNotificationCallbacks(nsIInterfaceRequestor* *aCallbacks)
 {
     return mMultipartChannel->GetNotificationCallbacks(aCallbacks);
@@ -291,7 +304,7 @@ nsPartChannel::GetContentType(nsACString &aContentType)
 NS_IMETHODIMP
 nsPartChannel::SetContentType(const nsACString &aContentType)
 {
-    bool dummy;
+    PRBool dummy;
     net_ParseContentType(aContentType, mContentType, mContentCharset, &dummy);
     return NS_OK;
 }
@@ -311,71 +324,42 @@ nsPartChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentLength(int64_t *aContentLength)
+nsPartChannel::GetContentLength(PRInt32 *aContentLength)
 {
-    *aContentLength = mContentLength;
+    *aContentLength = mContentLength; // XXX truncates 64-bit value
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentLength(int64_t aContentLength)
+nsPartChannel::SetContentLength(PRInt32 aContentLength)
 {
     mContentLength = aContentLength;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentDisposition(uint32_t *aContentDisposition)
+nsPartChannel::GetContentDisposition(nsACString &aContentDisposition)
 {
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    *aContentDisposition = mContentDisposition;
+    aContentDisposition = mContentDisposition;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentDisposition(uint32_t aContentDisposition)
+nsPartChannel::SetContentDisposition(const nsACString &aContentDisposition)
 {
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsPartChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    if (mContentDispositionFilename.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    aContentDispositionFilename = mContentDispositionFilename;
+    mContentDisposition = aContentDisposition;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-
-NS_IMETHODIMP
-nsPartChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-    if (mContentDispositionHeader.IsEmpty())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    aContentDispositionHeader = mContentDispositionHeader;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPartChannel::GetPartID(uint32_t *aPartID)
+nsPartChannel::GetPartID(PRUint32 *aPartID)
 {
     *aPartID = mPartID;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetIsLastPart(bool *aIsLastPart)
+nsPartChannel::GetIsLastPart(PRBool *aIsLastPart)
 {
     *aIsLastPart = mIsLastPart;
     return NS_OK;
@@ -386,7 +370,7 @@ nsPartChannel::GetIsLastPart(bool *aIsLastPart)
 //
 
 NS_IMETHODIMP 
-nsPartChannel::GetIsByteRangeRequest(bool *aIsByteRangeRequest)
+nsPartChannel::GetIsByteRangeRequest(PRBool *aIsByteRangeRequest)
 {
     *aIsByteRangeRequest = mIsByteRangeRequest;
 
@@ -395,7 +379,7 @@ nsPartChannel::GetIsByteRangeRequest(bool *aIsByteRangeRequest)
 
 
 NS_IMETHODIMP 
-nsPartChannel::GetStartRange(int64_t *aStartRange)
+nsPartChannel::GetStartRange(PRInt64 *aStartRange)
 {
     *aStartRange = mByteRangeStart;
 
@@ -403,7 +387,7 @@ nsPartChannel::GetStartRange(int64_t *aStartRange)
 }
 
 NS_IMETHODIMP 
-nsPartChannel::GetEndRange(int64_t *aEndRange)
+nsPartChannel::GetEndRange(PRInt64 *aEndRange)
 {
     *aEndRange = mByteRangeEnd;
     return NS_OK;
@@ -421,10 +405,10 @@ nsPartChannel::GetBaseChannel(nsIChannel ** aReturn)
 
 
 // nsISupports implementation
-NS_IMPL_ISUPPORTS(nsMultiMixedConv,
-                  nsIStreamConverter,
-                  nsIStreamListener,
-                  nsIRequestObserver)
+NS_IMPL_ISUPPORTS3(nsMultiMixedConv,
+                   nsIStreamConverter,
+                   nsIStreamListener,
+                   nsIRequestObserver)
 
 
 // nsIStreamConverter implementation
@@ -454,42 +438,19 @@ nsMultiMixedConv::AsyncConvertData(const char *aFromType, const char *aToType,
     return NS_OK;
 }
 
-// AutoFree implementation to prevent memory leaks
-class AutoFree
-{
-public:
-  AutoFree() : mBuffer(nullptr) {}
-
-  explicit AutoFree(char *buffer) : mBuffer(buffer) {}
-
-  ~AutoFree() {
-    free(mBuffer);
-  }
-
-  AutoFree& operator=(char *buffer) {
-    mBuffer = buffer;
-    return *this;
-  }
-
-  operator char*() const {
-    return mBuffer;
-  }
-private:
-  char *mBuffer;
-};
+#define ERR_OUT { free(buffer); return rv; }
 
 // nsIStreamListener implementation
 NS_IMETHODIMP
 nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
-                                  nsIInputStream *inStr, uint64_t sourceOffset,
-                                  uint32_t count) {
+                                  nsIInputStream *inStr, PRUint32 sourceOffset, PRUint32 count) {
 
     if (mToken.IsEmpty()) // no token, no love.
         return NS_ERROR_FAILURE;
 
     nsresult rv = NS_OK;
-    AutoFree buffer(nullptr);
-    uint32_t bufLen = 0, read = 0;
+    char *buffer = nsnull;
+    PRUint32 bufLen = 0, read = 0;
 
     NS_ASSERTION(request, "multimixed converter needs a request");
 
@@ -499,8 +460,6 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
     // fill buffer
     {
         bufLen = count + mBufLen;
-        NS_ENSURE_TRUE((bufLen >= count) && (bufLen >= mBufLen),
-                       NS_ERROR_FAILURE);
         buffer = (char *) malloc(bufLen);
         if (!buffer)
             return NS_ERROR_OUT_OF_MEMORY;
@@ -526,7 +485,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // don't bother sending a token in the first "part." This is
         // illegal, but we'll handle the case anyway by shoving the
         // boundary token in for the server.
-        mFirstOnData = false;
+        mFirstOnData = PR_FALSE;
         NS_ASSERTION(!mBufLen, "this is our first time through, we can't have buffered data");
         const char * token = mToken.get();
            
@@ -536,7 +495,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             // we don't have enough data yet to make this comparison.
             // skip this check, and try again the next time OnData()
             // is called.
-            mFirstOnData = true;
+            mFirstOnData = PR_TRUE;
         }
         else if (!PL_strnstr(cursor, token, mTokenLen+2)) {
             buffer = (char *) realloc(buffer, bufLen + mTokenLen + 1);
@@ -554,30 +513,30 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         }
     }
 
-    char *token = nullptr;
+    char *token = nsnull;
 
     if (mProcessingHeaders) {
         // we were not able to process all the headers
         // for this "part" given the previous buffer given to 
         // us in the previous OnDataAvailable callback.
-        bool done = false;
+        PRBool done = PR_FALSE;
         rv = ParseHeaders(channel, cursor, bufLen, &done);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) ERR_OUT
 
         if (done) {
-            mProcessingHeaders = false;
+            mProcessingHeaders = PR_FALSE;
             rv = SendStart(channel);
-            if (NS_FAILED(rv)) return rv;
+            if (NS_FAILED(rv)) ERR_OUT
         }
     }
 
-    int32_t tokenLinefeed = 1;
+    PRInt32 tokenLinefeed = 1;
     while ( (token = FindToken(cursor, bufLen)) ) {
 
-        if (((token + mTokenLen) < (cursor + bufLen)) &&
-            (*(token + mTokenLen + 1) == '-')) {
+        if (*(token+mTokenLen+1) == '-') {
             // This was the last delimiter so we can stop processing
             rv = SendData(cursor, LengthToToken(cursor, token));
+            free(buffer);
             if (NS_FAILED(rv)) return rv;
             return SendStop(NS_OK);
         }
@@ -587,7 +546,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             NS_ASSERTION(!mProcessingHeaders, "we should be pushing raw data");
             rv = SendData(cursor, LengthToToken(cursor, token));
             bufLen -= token - cursor;
-            if (NS_FAILED(rv)) return rv;
+            if (NS_FAILED(rv)) ERR_OUT
         }
         // XXX else NS_ASSERTION(token == cursor, "?");
         token += mTokenLen;
@@ -596,34 +555,34 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
 
         if (mNewPart) {
             // parse headers
-            mNewPart = false;
+            mNewPart = PR_FALSE;
             cursor = token;
-            bool done = false; 
+            PRBool done = PR_FALSE; 
             rv = ParseHeaders(channel, cursor, bufLen, &done);
-            if (NS_FAILED(rv)) return rv;
+            if (NS_FAILED(rv)) ERR_OUT
             if (done) {
                 rv = SendStart(channel);
-                if (NS_FAILED(rv)) return rv;
+                if (NS_FAILED(rv)) ERR_OUT
             }
             else {
                 // we haven't finished processing header info.
                 // we'll break out and try to process later.
-                mProcessingHeaders = true;
+                mProcessingHeaders = PR_TRUE;
                 break;
             }
         }
         else {
-            mNewPart = true;
+            mNewPart = PR_TRUE;
             // Reset state so we don't carry it over from part to part
             mContentType.Truncate();
-            mContentLength = UINT64_MAX;
+            mContentLength = LL_MAXUINT;
             mContentDisposition.Truncate();
-            mIsByteRangeRequest = false;
+            mIsByteRangeRequest = PR_FALSE;
             mByteRangeStart = 0;
             mByteRangeEnd = 0;
             
             rv = SendStop(NS_OK);
-            if (NS_FAILED(rv)) return rv;
+            if (NS_FAILED(rv)) ERR_OUT
             // reset the token to front. this allows us to treat
             // the token as a starting token.
             token -= mTokenLen + tokenLinefeed;
@@ -637,7 +596,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
     // we buffer enough data to handle a broken token.
 
     // carry over
-    uint32_t bufAmt = 0;
+    PRUint32 bufAmt = 0;
     if (mProcessingHeaders)
         bufAmt = bufLen;
     else if (bufLen) {
@@ -648,20 +607,21 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         // have enough info to start a part, go ahead and buffer
         // enough to collect a boundary token.
         if (!mPartChannel || !(cursor[bufLen-1] == nsCRT::LF) )
-            bufAmt = std::min(mTokenLen - 1, bufLen);
+            bufAmt = PR_MIN(mTokenLen - 1, bufLen);
     }
 
     if (bufAmt) {
         rv = BufferData(cursor + (bufLen - bufAmt), bufAmt);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) ERR_OUT
         bufLen -= bufAmt;
     }
 
     if (bufLen) {
         rv = SendData(cursor, bufLen);
-        if (NS_FAILED(rv)) return rv;
+        if (NS_FAILED(rv)) ERR_OUT
     }
 
+    free(buffer);
     return rv;
 }
 
@@ -671,12 +631,12 @@ NS_IMETHODIMP
 nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     // we're assuming the content-type is available at this stage
     NS_ASSERTION(mToken.IsEmpty(), "a second on start???");
-    const char *bndry = nullptr;
-    nsAutoCString delimiter;
+    const char *bndry = nsnull;
+    nsCAutoString delimiter;
     nsresult rv = NS_OK;
     mContext = ctxt;
 
-    mFirstOnData = true;
+    mFirstOnData = PR_TRUE;
     mTotalSent   = 0;
 
     nsCOMPtr<nsIChannel> channel = do_QueryInterface(request, &rv);
@@ -704,7 +664,7 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     char *attrib = (char *) strchr(bndry, ';');
     if (attrib) *attrib = '\0';
 
-    nsAutoCString boundaryString(bndry);
+    nsCAutoString boundaryString(bndry);
     if (attrib) *attrib = ';';
 
     boundaryString.Trim(" \"");
@@ -735,7 +695,7 @@ nsMultiMixedConv::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
             // don't bother checking the return value here, if the send failed
             // we're done anyway as we're in the OnStop() callback.
             free(mBuffer);
-            mBuffer = nullptr;
+            mBuffer = nsnull;
             mBufLen = 0;
         }
         (void) SendStop(aStatus);
@@ -761,27 +721,27 @@ nsMultiMixedConv::nsMultiMixedConv() :
   mCurrentPartID(0)
 {
     mTokenLen           = 0;
-    mNewPart            = true;
-    mContentLength      = UINT64_MAX;
-    mBuffer             = nullptr;
+    mNewPart            = PR_TRUE;
+    mContentLength      = LL_MAXUINT;
+    mBuffer             = nsnull;
     mBufLen             = 0;
-    mProcessingHeaders  = false;
+    mProcessingHeaders  = PR_FALSE;
     mByteRangeStart     = 0;
     mByteRangeEnd       = 0;
     mTotalSent          = 0;
-    mIsByteRangeRequest = false;
+    mIsByteRangeRequest = PR_FALSE;
 }
 
 nsMultiMixedConv::~nsMultiMixedConv() {
     NS_ASSERTION(!mBuffer, "all buffered data should be gone");
     if (mBuffer) {
         free(mBuffer);
-        mBuffer = nullptr;
+        mBuffer = nsnull;
     }
 }
 
 nsresult
-nsMultiMixedConv::BufferData(char *aData, uint32_t aLen) {
+nsMultiMixedConv::BufferData(char *aData, PRUint32 aLen) {
     NS_ASSERTION(!mBuffer, "trying to over-write buffer");
 
     char *buffer = (char *) malloc(aLen);
@@ -837,10 +797,11 @@ nsMultiMixedConv::SendStart(nsIChannel *aChannel) {
     rv = mPartChannel->SetContentType(mContentType);
     if (NS_FAILED(rv)) return rv;
 
-    rv = mPartChannel->SetContentLength(mContentLength);
+    rv = mPartChannel->SetContentLength(mContentLength); // XXX Truncates 64-bit!
     if (NS_FAILED(rv)) return rv;
 
-    mPartChannel->SetContentDisposition(mContentDisposition);
+    rv = mPartChannel->SetContentDisposition(mContentDisposition);
+    if (NS_FAILED(rv)) return rv;
 
     nsLoadFlags loadFlags = 0;
     mPartChannel->GetLoadFlags(&loadFlags);
@@ -852,7 +813,7 @@ nsMultiMixedConv::SendStart(nsIChannel *aChannel) {
 
     // Add the new channel to the load group (if any)
     if (loadGroup) {
-        rv = loadGroup->AddRequest(mPartChannel, nullptr);
+        rv = loadGroup->AddRequest(mPartChannel, nsnull);
         if (NS_FAILED(rv)) return rv;
     }
 
@@ -883,23 +844,23 @@ nsMultiMixedConv::SendStop(nsresult aStatus) {
 }
 
 nsresult
-nsMultiMixedConv::SendData(char *aBuffer, uint32_t aLen) {
+nsMultiMixedConv::SendData(char *aBuffer, PRUint32 aLen) {
 
     nsresult rv = NS_OK;
     
     if (!mPartChannel) return NS_ERROR_FAILURE; // something went wrong w/ processing
 
-    if (mContentLength != UINT64_MAX) {
+    if (mContentLength != LL_MAXUINT) {
         // make sure that we don't send more than the mContentLength
         // XXX why? perhaps the Content-Length header was actually wrong!!
-        if ((uint64_t(aLen) + mTotalSent) > mContentLength)
-            aLen = static_cast<uint32_t>(mContentLength - mTotalSent);
+        if ((PRUint64(aLen) + mTotalSent) > mContentLength)
+            aLen = mContentLength - mTotalSent;
 
         if (aLen == 0)
             return NS_OK;
     }
 
-    uint64_t offset = mTotalSent;
+    PRUint32 offset = mTotalSent;
     mTotalSent += aLen;
 
     nsCOMPtr<nsIStringInputStream> ss(
@@ -917,9 +878,9 @@ nsMultiMixedConv::SendData(char *aBuffer, uint32_t aLen) {
     return mPartChannel->SendOnDataAvailable(mContext, inStream, offset, aLen);
 }
 
-int32_t
-nsMultiMixedConv::PushOverLine(char *&aPtr, uint32_t &aLen) {
-    int32_t chars = 0;
+PRInt32
+nsMultiMixedConv::PushOverLine(char *&aPtr, PRUint32 &aLen) {
+    PRInt32 chars = 0;
     if ((aLen > 0) && (*aPtr == nsCRT::CR || *aPtr == nsCRT::LF)) {
         if ((aLen > 1) && (aPtr[1] == nsCRT::LF))
             chars++;
@@ -932,16 +893,16 @@ nsMultiMixedConv::PushOverLine(char *&aPtr, uint32_t &aLen) {
 
 nsresult
 nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr, 
-                               uint32_t &aLen, bool *_retval) {
+                               PRUint32 &aLen, PRBool *_retval) {
     // NOTE: this data must be ascii.
     // NOTE: aPtr is NOT null terminated!
     nsresult rv = NS_OK;
-    char *cursor = aPtr, *newLine = nullptr;
-    uint32_t cursorLen = aLen;
-    bool done = false;
-    uint32_t lineFeedIncrement = 1;
+    char *cursor = aPtr, *newLine = nsnull;
+    PRUint32 cursorLen = aLen;
+    PRBool done = PR_FALSE;
+    PRUint32 lineFeedIncrement = 1;
     
-    mContentLength = UINT64_MAX; // XXX what if we were already called?
+    mContentLength = LL_MAXUINT; // XXX what if we were already called?
     while (cursorLen && (newLine = (char *) memchr(cursor, nsCRT::LF, cursorLen))) {
         // adjust for linefeeds
         if ((newLine > cursor) && (newLine[-1] == nsCRT::CR) ) { // CRLF
@@ -958,7 +919,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
             cursor += lineFeedIncrement;
             cursorLen -= lineFeedIncrement;
 
-            done = true;
+            done = PR_TRUE;
             break;
         }
 
@@ -967,18 +928,18 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
         char *colon = (char *) strchr(cursor, ':');
         if (colon) {
             *colon = '\0';
-            nsAutoCString headerStr(cursor);
+            nsCAutoString headerStr(cursor);
             headerStr.CompressWhitespace();
             *colon = ':';
 
-            nsAutoCString headerVal(colon + 1);
+            nsCAutoString headerVal(colon + 1);
             headerVal.CompressWhitespace();
 
             // examine header
             if (headerStr.LowerCaseEqualsLiteral("content-type")) {
                 mContentType = headerVal;
             } else if (headerStr.LowerCaseEqualsLiteral("content-length")) {
-                mContentLength = nsCRT::atoll(headerVal.get());
+                mContentLength = atoi(headerVal.get()); // XXX 64-bit math?
             } else if (headerStr.LowerCaseEqualsLiteral("content-disposition")) {
                 mContentDisposition = headerVal;
             } else if (headerStr.LowerCaseEqualsLiteral("set-cookie")) {
@@ -998,12 +959,9 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
 
                 // pass the bytes-unit and the SP
                 char *range = (char *) strchr(colon + 2, ' ');
+
                 if (!range)
                     return NS_ERROR_FAILURE;
-
-                do {
-                    range++;
-                } while (*range == ' ');
 
                 if (range[0] == '*'){
                     mByteRangeStart = mByteRangeEnd = 0;
@@ -1015,14 +973,14 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
                     
                     tmpPtr[0] = '\0';
                     
-                    mByteRangeStart = nsCRT::atoll(range);
+                    mByteRangeStart = atoi(range); // XXX want 64-bit conv
                     tmpPtr++;
-                    mByteRangeEnd = nsCRT::atoll(tmpPtr);
+                    mByteRangeEnd = atoi(tmpPtr);
                 }
 
-                mIsByteRangeRequest = true;
-                if (mContentLength == UINT64_MAX)
-                    mContentLength = uint64_t(mByteRangeEnd - mByteRangeStart + 1);
+                mIsByteRangeRequest = PR_TRUE;
+                if (mContentLength == LL_MAXUINT)
+                    mContentLength = PRUint64(PRInt64(mByteRangeEnd - mByteRangeStart + nsInt64(1)));
             }
         }
         *newLine = tmpChar;
@@ -1039,14 +997,14 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
 }
 
 char *
-nsMultiMixedConv::FindToken(char *aCursor, uint32_t aLen) {
+nsMultiMixedConv::FindToken(char *aCursor, PRUint32 aLen) {
     // strnstr without looking for null termination
     const char *token = mToken.get();
     char *cur = aCursor;
 
     if (!(token && aCursor && *token)) {
         NS_WARNING("bad data");
-        return nullptr;
+        return nsnull;
     }
 
     for (; aLen >= mTokenLen; aCursor++, aLen--) {
@@ -1066,13 +1024,13 @@ nsMultiMixedConv::FindToken(char *aCursor, uint32_t aLen) {
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 nsresult
 NS_NewMultiMixedConv(nsMultiMixedConv** aMultiMixedConv)
 {
-    NS_PRECONDITION(aMultiMixedConv != nullptr, "null ptr");
+    NS_PRECONDITION(aMultiMixedConv != nsnull, "null ptr");
     if (! aMultiMixedConv)
         return NS_ERROR_NULL_POINTER;
 

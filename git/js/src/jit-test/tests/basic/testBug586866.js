@@ -1,4 +1,4 @@
-var magic = 8;
+var magic = HOTLOOP;
 
 var obj = {};
 for (var i = 1; i <= magic; ++i)

@@ -1,11 +1,43 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is Oracle Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxMatrix.h"
+#include "gfx3DMatrix.h"
 #include "cairo.h"
-#include "mozilla/gfx/Tools.h"
 
 #define CAIRO_MATRIX(x) reinterpret_cast<cairo_matrix_t*>((x))
 #define CONST_CAIRO_MATRIX(x) reinterpret_cast<const cairo_matrix_t*>((x))
@@ -17,27 +49,28 @@ gfxMatrix::Reset()
     return *this;
 }
 
-bool
+const gfxMatrix&
 gfxMatrix::Invert()
 {
-    return cairo_matrix_invert(CAIRO_MATRIX(this)) == CAIRO_STATUS_SUCCESS;
+    cairo_matrix_invert(CAIRO_MATRIX(this));
+    return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Scale(gfxFloat x, gfxFloat y)
 {
     cairo_matrix_scale(CAIRO_MATRIX(this), x, y);
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Translate(const gfxPoint& pt)
 {
     cairo_matrix_translate(CAIRO_MATRIX(this), pt.x, pt.y);
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::Rotate(gfxFloat radians)
 {
     cairo_matrix_rotate(CAIRO_MATRIX(this), radians);
@@ -45,33 +78,17 @@ gfxMatrix::Rotate(gfxFloat radians)
 }
 
 const gfxMatrix&
-gfxMatrix::operator *= (const gfxMatrix& m)
+gfxMatrix::Multiply(const gfxMatrix& m)
 {
     cairo_matrix_multiply(CAIRO_MATRIX(this), CAIRO_MATRIX(this), CONST_CAIRO_MATRIX(&m));
     return *this;
 }
 
-gfxMatrix&
+const gfxMatrix&
 gfxMatrix::PreMultiply(const gfxMatrix& m)
 {
     cairo_matrix_multiply(CAIRO_MATRIX(this), CONST_CAIRO_MATRIX(&m), CAIRO_MATRIX(this));
     return *this;
-}
-
-/* static */ gfxMatrix
-gfxMatrix::Rotation(gfxFloat aAngle)
-{
-    gfxMatrix newMatrix;
-
-    gfxFloat s = sin(aAngle);
-    gfxFloat c = cos(aAngle);
-
-    newMatrix._11 = c;
-    newMatrix._12 = s;
-    newMatrix._21 = -s;
-    newMatrix._22 = c;
-
-    return newMatrix;
 }
 
 gfxPoint
@@ -93,7 +110,7 @@ gfxMatrix::Transform(const gfxSize& size) const
 gfxRect
 gfxMatrix::Transform(const gfxRect& rect) const
 {
-    return gfxRect(Transform(rect.TopLeft()), Transform(rect.Size()));
+    return gfxRect(Transform(rect.pos), Transform(rect.size));
 }
 
 gfxRect
@@ -105,20 +122,20 @@ gfxMatrix::TransformBounds(const gfxRect& rect) const
     double min_x, max_x;
     double min_y, max_y;
 
-    quad_x[0] = rect.X();
-    quad_y[0] = rect.Y();
+    quad_x[0] = rect.pos.x;
+    quad_y[0] = rect.pos.y;
     cairo_matrix_transform_point (CONST_CAIRO_MATRIX(this), &quad_x[0], &quad_y[0]);
 
-    quad_x[1] = rect.XMost();
-    quad_y[1] = rect.Y();
+    quad_x[1] = rect.pos.x + rect.size.width;
+    quad_y[1] = rect.pos.y;
     cairo_matrix_transform_point (CONST_CAIRO_MATRIX(this), &quad_x[1], &quad_y[1]);
 
-    quad_x[2] = rect.X();
-    quad_y[2] = rect.YMost();
+    quad_x[2] = rect.pos.x;
+    quad_y[2] = rect.pos.y + rect.size.height;
     cairo_matrix_transform_point (CONST_CAIRO_MATRIX(this), &quad_x[2], &quad_y[2]);
 
-    quad_x[3] = rect.XMost();
-    quad_y[3] = rect.YMost();
+    quad_x[3] = rect.pos.x + rect.size.width;
+    quad_y[3] = rect.pos.y + rect.size.height;
     cairo_matrix_transform_point (CONST_CAIRO_MATRIX(this), &quad_x[3], &quad_y[3]);
 
     min_x = max_x = quad_x[0];
@@ -136,25 +153,63 @@ gfxMatrix::TransformBounds(const gfxRect& rect) const
             max_y = quad_y[i];
     }
 
+    // we don't compute this now
+#if 0
+    if (is_tight) {
+        /* it's tight if and only if the four corner points form an axis-aligned
+           rectangle.
+           And that's true if and only if we can derive corners 0 and 3 from
+           corners 1 and 2 in one of two straightforward ways...
+           We could use a tolerance here but for now we'll fall back to FALSE in the case
+           of floating point error.
+        */
+        *is_tight =
+            (quad_x[1] == quad_x[0] && quad_y[1] == quad_y[3] &&
+             quad_x[2] == quad_x[3] && quad_y[2] == quad_y[0]) ||
+            (quad_x[1] == quad_x[3] && quad_y[1] == quad_y[0] &&
+             quad_x[2] == quad_x[0] && quad_y[2] == quad_y[3]);
+    }
+#endif
+
     return gfxRect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
+PRBool
+gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
+{
+  if (_13 != 0.0f || _14 != 0.0f ||
+      _23 != 0.0f || _24 != 0.0f ||
+      _31 != 0.0f || _32 != 0.0f || _33 != 1.0f || _34 != 0.0f ||
+      _43 != 0.0f || _44 != 1.0f) {
+    return PR_FALSE;
+  }
+  if (aMatrix) {
+    aMatrix->xx = _11;
+    aMatrix->yx = _12;
+    aMatrix->xy = _21;
+    aMatrix->yy = _22;
+    aMatrix->x0 = _41;
+    aMatrix->y0 = _42;
+  }
+  return PR_TRUE;
+}
 
 static void NudgeToInteger(double *aVal)
 {
     float f = float(*aVal);
-    mozilla::gfx::NudgeToInteger(&f);
-    *aVal = f;
+    float r = NS_roundf(f);
+    if (f == r) {
+        *aVal = r;
+    }
 }
 
-gfxMatrix&
+void
 gfxMatrix::NudgeToIntegers(void)
 {
-    NudgeToInteger(&_11);
-    NudgeToInteger(&_21);
-    NudgeToInteger(&_12);
-    NudgeToInteger(&_22);
-    NudgeToInteger(&_31);
-    NudgeToInteger(&_32);
-    return *this;
+    NudgeToInteger(&xx);
+    NudgeToInteger(&xy);
+    NudgeToInteger(&yx);
+    NudgeToInteger(&yy);
+    NudgeToInteger(&x0);
+    NudgeToInteger(&y0);
 }

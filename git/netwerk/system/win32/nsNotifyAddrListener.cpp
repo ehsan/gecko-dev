@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set et sw=4 ts=4: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License
+ * Version 1.1 (the "License"); you may not use this file except in
+ * compliance with the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is written by Juan Lang.
+ *
+ * The Initial Developer of the Original Code is 
+ * Juan Lang.
+ * Portions created by the Initial Developer are Copyright (C) 2003,2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or 
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdarg.h>
 #include <windef.h>
@@ -12,12 +44,8 @@
 #include <ole2.h>
 #include <netcon.h>
 #include <objbase.h>
-#include <winsock2.h>
-#include <ws2ipdef.h>
-#include <tcpmib.h>
-#include <iphlpapi.h>
-#include <netioapi.h>
 #include <iprtrmib.h>
+#include "prmem.h"
 #include "plstr.h"
 #include "nsThreadUtils.h"
 #include "nsIObserverService.h"
@@ -26,35 +54,42 @@
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Services.h"
-#include "nsCRT.h"
-#include "mozilla/Preferences.h"
 
 #include <iptypes.h>
 #include <iphlpapi.h>
 
-using namespace mozilla;
+typedef DWORD (WINAPI *GetAdaptersAddressesFunc)(ULONG, DWORD, PVOID,
+                                                 PIP_ADAPTER_ADDRESSES,
+                                                 PULONG);
+typedef DWORD (WINAPI *GetAdaptersInfoFunc)(PIP_ADAPTER_INFO, PULONG);
+typedef DWORD (WINAPI *GetIfEntryFunc)(PMIB_IFROW);
+typedef DWORD (WINAPI *GetIpAddrTableFunc)(PMIB_IPADDRTABLE, PULONG, BOOL);
+typedef DWORD (WINAPI *NotifyAddrChangeFunc)(PHANDLE, LPOVERLAPPED);
+typedef void (WINAPI *NcFreeNetconPropertiesFunc)(NETCON_PROPERTIES*);
 
-static HMODULE sNetshell;
-static decltype(NcFreeNetconProperties)* sNcFreeNetconProperties;
+static HMODULE sIPHelper, sNetshell;
+static GetAdaptersAddressesFunc sGetAdaptersAddresses;
+static GetAdaptersInfoFunc sGetAdaptersInfo;
+static GetIfEntryFunc sGetIfEntry;
+static GetIpAddrTableFunc sGetIpAddrTable;
+static NotifyAddrChangeFunc sNotifyAddrChange;
+static NcFreeNetconPropertiesFunc sNcFreeNetconProperties;
 
-static HMODULE sIphlpapi;
-static decltype(NotifyIpInterfaceChange)* sNotifyIpInterfaceChange;
-static decltype(CancelMibChangeNotify2)* sCancelMibChangeNotify2;
-
-#define NETWORK_NOTIFY_CHANGED_PREF "network.notify.changed"
-
-static void InitIphlpapi(void)
+static void InitIPHelperLibrary(void)
 {
-    if (!sIphlpapi) {
-        sIphlpapi = LoadLibraryW(L"Iphlpapi.dll");
-        if (sIphlpapi) {
-            sNotifyIpInterfaceChange = (decltype(NotifyIpInterfaceChange)*)
-                GetProcAddress(sIphlpapi, "NotifyIpInterfaceChange");
-            sCancelMibChangeNotify2 = (decltype(CancelMibChangeNotify2)*)
-                GetProcAddress(sIphlpapi, "CancelMibChangeNotify2");
-        } else {
-            NS_WARNING("Failed to load Iphlpapi.dll - cannot detect network"
-                       " changes!");
+    if (!sIPHelper) {
+        sIPHelper = LoadLibraryW(L"iphlpapi.dll");
+        if (sIPHelper) {
+            sGetAdaptersAddresses = (GetAdaptersAddressesFunc)
+                GetProcAddress(sIPHelper, "GetAdaptersAddresses");
+            sGetAdaptersInfo = (GetAdaptersInfoFunc)
+                GetProcAddress(sIPHelper, "GetAdaptersInfo");
+            sGetIfEntry = (GetIfEntryFunc)
+                GetProcAddress(sIPHelper, "GetIfEntry");
+            sGetIpAddrTable = (GetIpAddrTableFunc)
+                GetProcAddress(sIPHelper, "GetIpAddrTable");
+            sNotifyAddrChange = (NotifyAddrChangeFunc)
+                GetProcAddress(sIPHelper, "NotifyAddrChange");
         }
     }
 }
@@ -64,7 +99,7 @@ static void InitNetshellLibrary(void)
     if (!sNetshell) {
         sNetshell = LoadLibraryW(L"Netshell.dll");
         if (sNetshell) {
-            sNcFreeNetconProperties = (decltype(NcFreeNetconProperties)*)
+            sNcFreeNetconProperties = (NcFreeNetconPropertiesFunc)
                 GetProcAddress(sNetshell, "NcFreeNetconProperties");
         }
     }
@@ -72,33 +107,38 @@ static void InitNetshellLibrary(void)
 
 static void FreeDynamicLibraries(void)
 {
-    if (sNetshell) {
-        sNcFreeNetconProperties = nullptr;
-        FreeLibrary(sNetshell);
-        sNetshell = nullptr;
+    if (sIPHelper)
+    {
+        sGetAdaptersAddresses = nsnull;
+        sGetAdaptersInfo = nsnull;
+        sGetIfEntry = nsnull;
+        sGetIpAddrTable = nsnull;
+        sNotifyAddrChange = nsnull;
+
+        FreeLibrary(sIPHelper);
+        sIPHelper = nsnull;
     }
-    if (sIphlpapi) {
-        sNotifyIpInterfaceChange = nullptr;
-        sCancelMibChangeNotify2 = nullptr;
-        FreeLibrary(sIphlpapi);
-        sIphlpapi = nullptr;
+
+    if (sNetshell) {
+        sNcFreeNetconProperties = nsnull;
+        FreeLibrary(sNetshell);
+        sNetshell = nsnull;
     }
 }
 
-NS_IMPL_ISUPPORTS(nsNotifyAddrListener,
-                  nsINetworkLinkService,
-                  nsIRunnable,
-                  nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsNotifyAddrListener,
+                              nsINetworkLinkService,
+                              nsIRunnable,
+                              nsIObserver)
 
 nsNotifyAddrListener::nsNotifyAddrListener()
-    : mLinkUp(true)  // assume true by default
-    , mStatusKnown(false)
-    , mCheckAttempted(false)
-    , mShutdownEvent(nullptr)
-    , mIPInterfaceChecksum(0)
-    , mAllowChangedEvent(true)
+    : mLinkUp(PR_TRUE)  // assume true by default
+    , mStatusKnown(PR_FALSE)
+    , mCheckAttempted(PR_FALSE)
+    , mShutdownEvent(nsnull)
 {
-    InitIphlpapi();
+    mOSVerInfo.dwOSVersionInfoSize = sizeof(mOSVerInfo);
+    GetVersionEx(&mOSVerInfo);
 }
 
 nsNotifyAddrListener::~nsNotifyAddrListener()
@@ -108,10 +148,10 @@ nsNotifyAddrListener::~nsNotifyAddrListener()
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetIsLinkUp(bool *aIsUp)
+nsNotifyAddrListener::GetIsLinkUp(PRBool *aIsUp)
 {
     if (!mCheckAttempted && !mStatusKnown) {
-        mCheckAttempted = true;
+        mCheckAttempted = PR_TRUE;
         CheckLinkStatus();
     }
 
@@ -120,88 +160,54 @@ nsNotifyAddrListener::GetIsLinkUp(bool *aIsUp)
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetLinkStatusKnown(bool *aIsUp)
+nsNotifyAddrListener::GetLinkStatusKnown(PRBool *aIsUp)
 {
     *aIsUp = mStatusKnown;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetLinkType(uint32_t *aLinkType)
-{
-  NS_ENSURE_ARG_POINTER(aLinkType);
-
-  // XXX This function has not yet been implemented for this platform
-  *aLinkType = nsINetworkLinkService::LINK_TYPE_UNKNOWN;
-  return NS_OK;
-}
-
-// Static Callback function for NotifyIpInterfaceChange API.
-static void WINAPI OnInterfaceChange(PVOID callerContext,
-                                     PMIB_IPINTERFACE_ROW row,
-                                     MIB_NOTIFICATION_TYPE notificationType)
-{
-    nsNotifyAddrListener *notify = static_cast<nsNotifyAddrListener*>(callerContext);
-    notify->CheckLinkStatus();
-}
-
-NS_IMETHODIMP
 nsNotifyAddrListener::Run()
 {
-    PR_SetCurrentThreadName("Link Monitor");
+    HANDLE ev = CreateEvent(nsnull, FALSE, FALSE, nsnull);
+    NS_ENSURE_TRUE(ev, NS_ERROR_OUT_OF_MEMORY);
 
-    mChangedTime = TimeStamp::Now();
+    HANDLE handles[2] = { ev, mShutdownEvent };
+    OVERLAPPED overlapped = { 0 };
+    PRBool shuttingDown = PR_FALSE;
 
-    if (!sNotifyIpInterfaceChange || !sCancelMibChangeNotify2) {
-        // For Windows versions which are older than Vista which lack
-        // NotifyIpInterfaceChange. Note this means no IPv6 support.
-        HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        NS_ENSURE_TRUE(ev, NS_ERROR_OUT_OF_MEMORY);
+    InitIPHelperLibrary();
 
-        HANDLE handles[2] = { ev, mShutdownEvent };
-        OVERLAPPED overlapped = { 0 };
-        bool shuttingDown = false;
-
-        overlapped.hEvent = ev;
-        while (!shuttingDown) {
-            HANDLE h;
-            DWORD ret = NotifyAddrChange(&h, &overlapped);
-
-            if (ret == ERROR_IO_PENDING) {
-                ret = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
-                if (ret == WAIT_OBJECT_0) {
-                    CheckLinkStatus();
-                } else {
-                    shuttingDown = true;
-                }
-            } else {
-                shuttingDown = true;
-            }
-        }
+    if (!sNotifyAddrChange) {
         CloseHandle(ev);
-    } else {
-        // Windows Vista and newer versions.
-        HANDLE interfacechange;
-        // The callback will simply invoke CheckLinkStatus()
-        DWORD ret = sNotifyIpInterfaceChange(
-            AF_UNSPEC, // IPv4 and IPv6
-            (PIPINTERFACE_CHANGE_CALLBACK)OnInterfaceChange,
-            this,  // pass to callback
-            false, // no initial notification
-            &interfacechange);
-
-        if (ret == NO_ERROR) {
-            ret = WaitForSingleObject(mShutdownEvent, INFINITE);
-        }
-        sCancelMibChangeNotify2(interfacechange);
+        return NS_ERROR_NOT_AVAILABLE;
     }
+
+    overlapped.hEvent = ev;
+    while (!shuttingDown) {
+        HANDLE h;
+        DWORD ret = sNotifyAddrChange(&h, &overlapped);
+
+        if (ret == ERROR_IO_PENDING) {
+            ret = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+            if (ret == WAIT_OBJECT_0) {
+                CheckLinkStatus();
+            } else {
+                shuttingDown = PR_TRUE;
+            }
+        } else {
+            shuttingDown = PR_TRUE;
+        }
+    }
+    CloseHandle(ev);
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNotifyAddrListener::Observe(nsISupports *subject,
                               const char *topic,
-                              const char16_t *data)
+                              const PRUnichar *data)
 {
     if (!strcmp("xpcom-shutdown-threads", topic))
         Shutdown();
@@ -212,19 +218,28 @@ nsNotifyAddrListener::Observe(nsISupports *subject,
 nsresult
 nsNotifyAddrListener::Init(void)
 {
+    // XXX this call is very expensive (~650 milliseconds), so we
+    //     don't want to call it synchronously.  Instead, we just
+    //     start up assuming we have a network link, but we'll
+    //     report that the status isn't known.
+    //
+    // CheckLinkStatus();
+
+    // only start a thread on Windows 2000 or later
+    if (mOSVerInfo.dwPlatformId != VER_PLATFORM_WIN32_NT ||
+        mOSVerInfo.dwMajorVersion < 5)
+        return NS_OK;
+
     nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
     if (!observerService)
         return NS_ERROR_FAILURE;
 
     nsresult rv = observerService->AddObserver(this, "xpcom-shutdown-threads",
-                                               false);
+                                               PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    Preferences::AddBoolVarCache(&mAllowChangedEvent,
-                                 NETWORK_NOTIFY_CHANGED_PREF, true);
-
-    mShutdownEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    mShutdownEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
     NS_ENSURE_TRUE(mShutdownEvent, NS_ERROR_OUT_OF_MEMORY);
 
     rv = NS_NewThread(getter_AddRefs(mThread), this);
@@ -252,19 +267,19 @@ nsNotifyAddrListener::Shutdown(void)
     // Have to break the cycle here, otherwise nsNotifyAddrListener holds
     // onto the thread and the thread holds onto the nsNotifyAddrListener
     // via its mRunnable
-    mThread = nullptr;
+    mThread = nsnull;
 
     CloseHandle(mShutdownEvent);
-    mShutdownEvent = nullptr;
+    mShutdownEvent = NULL;
 
     return rv;
 }
 
-/* Sends the given event.  Assumes aEventID never goes out of scope (static
- * strings are ideal).
+/* Sends the given event to the UI thread.  Assumes aEventID never goes out
+ * of scope (static strings are ideal).
  */
 nsresult
-nsNotifyAddrListener::SendEvent(const char *aEventID)
+nsNotifyAddrListener::SendEventToUI(const char *aEventID)
 {
     if (!aEventID)
         return NS_ERROR_NULL_POINTER;
@@ -288,22 +303,137 @@ nsNotifyAddrListener::ChangeEvent::Run()
     return NS_OK;
 }
 
+DWORD
+nsNotifyAddrListener::GetOperationalStatus(DWORD aAdapterIndex)
+{
+    DWORD status = MIB_IF_OPER_STATUS_CONNECTED;
 
-// Bug 465158 features an explanation for this check. ICS being "Internet
-// Connection Sharing). The description says it is always IP address
-// 192.168.0.1 for this case.
-bool
-nsNotifyAddrListener::CheckICSGateway(PIP_ADAPTER_ADDRESSES aAdapter)
+    // try to get operational status on WinNT--on Win98, it consistently gives
+    // me the wrong status, dagnabbit
+    if (mOSVerInfo.dwPlatformId == VER_PLATFORM_WIN32_NT) {
+        // If this fails, assume it's connected.  Didn't find a KB, but it
+        // failed for me w/Win2K SP2, and succeeded for me w/Win2K SP3.
+        if (sGetIfEntry) {
+            MIB_IFROW ifRow;
+
+            ifRow.dwIndex = aAdapterIndex;
+            if (sGetIfEntry(&ifRow) == ERROR_SUCCESS)
+                status = ifRow.dwOperStatus;
+        }
+    }
+    return status;
+}
+
+/**
+ * Calls GetIpAddrTable to check whether a link is up.  Assumes so if any
+ * adapter has a non-zero IP (v4) address.  Sets mLinkUp if GetIpAddrTable
+ * succeeds, but doesn't set mStatusKnown.
+ * Returns ERROR_SUCCESS on success, and a Win32 error code otherwise.
+ */
+DWORD
+nsNotifyAddrListener::CheckIPAddrTable(void)
+{
+    if (!sGetIpAddrTable)
+        return ERROR_CALL_NOT_IMPLEMENTED;
+
+    ULONG size = 0;
+    DWORD ret = sGetIpAddrTable(nsnull, &size, FALSE);
+    if (ret == ERROR_INSUFFICIENT_BUFFER && size > 0) {
+        PMIB_IPADDRTABLE table = (PMIB_IPADDRTABLE) malloc(size);
+        if (!table)
+            return ERROR_OUTOFMEMORY;
+
+        ret = sGetIpAddrTable(table, &size, FALSE);
+        if (ret == ERROR_SUCCESS) {
+            PRBool linkUp = PR_FALSE;
+
+            for (DWORD i = 0; !linkUp && i < table->dwNumEntries; i++) {
+                if (GetOperationalStatus(table->table[i].dwIndex) >=
+                        MIB_IF_OPER_STATUS_CONNECTED &&
+                        table->table[i].dwAddr != 0 &&
+                        // Nor a loopback
+                        table->table[i].dwAddr != 0x0100007F)
+                    linkUp = PR_TRUE;
+            }
+            mLinkUp = linkUp;
+        }
+        free(table);
+    }
+    return ret;
+}
+
+/**
+ * Checks whether a link is up by calling GetAdaptersInfo.  If any adapter's
+ * operational status is at least MIB_IF_OPER_STATUS_CONNECTED, checks:
+ * 1. If it's configured for DHCP, the link is considered up if the DHCP
+ *    server is initialized.
+ * 2. If it's not configured for DHCP, the link is considered up if it has a
+ *    nonzero IP address.
+ * Sets mLinkUp and mStatusKnown if GetAdaptersInfo succeeds.
+ * Returns ERROR_SUCCESS on success, and a Win32 error code otherwise.  If the
+ * call is not present on the current platform, returns ERROR_NOT_SUPPORTED.
+ */
+DWORD
+nsNotifyAddrListener::CheckAdaptersInfo(void)
+{
+    if (!sGetAdaptersInfo)
+        return ERROR_NOT_SUPPORTED;
+
+    ULONG adaptersLen = 0;
+
+    DWORD ret = sGetAdaptersInfo(0, &adaptersLen);
+    if (ret == ERROR_BUFFER_OVERFLOW && adaptersLen > 0) {
+        PIP_ADAPTER_INFO adapters = (PIP_ADAPTER_INFO) malloc(adaptersLen);
+        if (!adapters)
+            return ERROR_OUTOFMEMORY;
+
+        ret = sGetAdaptersInfo(adapters, &adaptersLen);
+        if (ret == ERROR_SUCCESS) {
+            PRBool linkUp = PR_FALSE;
+            PIP_ADAPTER_INFO ptr;
+
+            for (ptr = adapters; ptr && !linkUp; ptr = ptr->Next) {
+                if (GetOperationalStatus(ptr->Index) >=
+                        MIB_IF_OPER_STATUS_CONNECTED) {
+                    if (ptr->DhcpEnabled) {
+                        if (PL_strcmp(ptr->DhcpServer.IpAddress.String,
+                                      "255.255.255.255")) {
+                            // it has a DHCP server, therefore it must have
+                            // a usable address
+                            linkUp = PR_TRUE;
+                        }
+                    }
+                    else {
+                        PIP_ADDR_STRING ipAddr;
+                        for (ipAddr = &ptr->IpAddressList; ipAddr && !linkUp;
+                             ipAddr = ipAddr->Next) {
+                            if (PL_strcmp(ipAddr->IpAddress.String, "0.0.0.0")) {
+                                linkUp = PR_TRUE;
+                            }
+                        }
+                    }
+                }
+            }
+            mLinkUp = linkUp;
+            mStatusKnown = PR_TRUE;
+            free(adapters);
+        }
+    }
+    return ret;
+}
+
+BOOL
+nsNotifyAddrListener::CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter)
 {
     if (!aAdapter->FirstUnicastAddress)
-        return false;
+        return FALSE;
 
     LPSOCKADDR aAddress = aAdapter->FirstUnicastAddress->Address.lpSockaddr;
     if (!aAddress)
-        return false;
+        return FALSE;
 
     PSOCKADDR_IN in_addr = (PSOCKADDR_IN)aAddress;
-    bool isGateway = (aAddress->sa_family == AF_INET &&
+    PRBool isGateway = (aAddress->sa_family == AF_INET &&
         in_addr->sin_addr.S_un.S_un_b.s_b1 == 192 &&
         in_addr->sin_addr.S_un.S_un_b.s_b2 == 168 &&
         in_addr->sin_addr.S_un.S_un_b.s_b3 == 0 &&
@@ -315,7 +445,7 @@ nsNotifyAddrListener::CheckICSGateway(PIP_ADAPTER_ADDRESSES aAdapter)
     return isGateway;
 }
 
-bool
+BOOL
 nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
 {
     InitNetshellLibrary();
@@ -323,13 +453,18 @@ nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
     // This method enumerates all privately shared connections and checks if some
     // of them has the same name as the one provided in aAdapterName. If such
     // connection is found in the collection the adapter is used as ICS gateway
-    bool isICSGatewayAdapter = false;
+    BOOL isICSGatewayAdapter = FALSE;
 
     HRESULT hr;
+
+    hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    if (FAILED(hr))
+        return FALSE;
+
     nsRefPtr<INetSharingManager> netSharingManager;
     hr = CoCreateInstance(
                 CLSID_NetSharingManager,
-                nullptr,
+                NULL,
                 CLSCTX_INPROC_SERVER,
                 IID_INetSharingManager,
                 getter_AddRefs(netSharingManager));
@@ -370,22 +505,26 @@ nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
             }
 
             nsRefPtr<INetConnection> connection;
-            if (SUCCEEDED(connectionVariant.punkVal->QueryInterface(
-                              IID_INetConnection,
-                              getter_AddRefs(connection)))) {
-                connectionVariant.punkVal->Release();
+            hr = connectionVariant.punkVal->QueryInterface(
+                        IID_INetConnection,
+                        getter_AddRefs(connection));
+            connectionVariant.punkVal->Release();
 
-                NETCON_PROPERTIES *properties;
-                if (SUCCEEDED(connection->GetProperties(&properties))) {
-                    if (!wcscmp(properties->pszwName, aAdapterName))
-                        isICSGatewayAdapter = true;
+            NETCON_PROPERTIES *properties;
+            if (SUCCEEDED(hr))
+                hr = connection->GetProperties(&properties);
 
-                    if (sNcFreeNetconProperties)
-                        sNcFreeNetconProperties(properties);
-                }
+            if (SUCCEEDED(hr)) {
+                if (!wcscmp(properties->pszwName, aAdapterName))
+                    isICSGatewayAdapter = TRUE;
+
+                if (sNcFreeNetconProperties)
+                    sNcFreeNetconProperties(properties);
             }
         }
     }
+
+    CoUninitialize();
 
     return isICSGatewayAdapter;
 }
@@ -393,74 +532,42 @@ nsNotifyAddrListener::CheckICSStatus(PWCHAR aAdapterName)
 DWORD
 nsNotifyAddrListener::CheckAdaptersAddresses(void)
 {
+    static const DWORD flags =
+        GAA_FLAG_SKIP_FRIENDLY_NAME | GAA_FLAG_SKIP_ANYCAST |
+        GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+
+    if (!sGetAdaptersAddresses)
+        return ERROR_NOT_SUPPORTED;
+
     ULONG len = 16384;
 
-    PIP_ADAPTER_ADDRESSES adapterList = (PIP_ADAPTER_ADDRESSES) moz_xmalloc(len);
+    PIP_ADAPTER_ADDRESSES addresses = (PIP_ADAPTER_ADDRESSES) malloc(len);
+    if (!addresses)
+        return ERROR_OUTOFMEMORY;
 
-    ULONG flags = GAA_FLAG_SKIP_DNS_SERVER|GAA_FLAG_SKIP_MULTICAST|
-        GAA_FLAG_SKIP_ANYCAST;
-
-    DWORD ret = GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, adapterList, &len);
+    DWORD ret = sGetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &len);
     if (ret == ERROR_BUFFER_OVERFLOW) {
-        free(adapterList);
-        adapterList = static_cast<PIP_ADAPTER_ADDRESSES> (moz_xmalloc(len));
-
-        ret = GetAdaptersAddresses(AF_UNSPEC, flags, nullptr, adapterList, &len);
+        free(addresses);
+        addresses = (PIP_ADAPTER_ADDRESSES) malloc(len);
+        if (!addresses)
+            return ERROR_BUFFER_OVERFLOW;
+        ret = sGetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &len);
     }
-
-    if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {
-        free(adapterList);
-        return ERROR_NOT_SUPPORTED;
-    }
-
-    //
-    // Since NotifyIpInterfaceChange() signals a change more often than we
-    // think is a worthy change, we checksum the entire state of all interfaces
-    // that are UP. If the checksum is the same as previous check, nothing
-    // of interest changed!
-    //
-    ULONG sum = 0;
 
     if (ret == ERROR_SUCCESS) {
-        bool linkUp = false;
+        PIP_ADAPTER_ADDRESSES ptr;
+        BOOL linkUp = FALSE;
 
-        for (PIP_ADAPTER_ADDRESSES adapter = adapterList; adapter;
-             adapter = adapter->Next) {
-            if (adapter->OperStatus != IfOperStatusUp ||
-                !adapter->FirstUnicastAddress ||
-                adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK ||
-                CheckICSGateway(adapter) ) {
-                continue;
-            }
-
-            // Add chars from AdapterName to the checksum.
-            for (int i = 0; adapter->AdapterName[i]; ++i) {
-                sum <<= 2;
-                sum += adapter->AdapterName[i];
-            }
-
-            // Add bytes from each socket address to the checksum.
-            for (PIP_ADAPTER_UNICAST_ADDRESS pip = adapter->FirstUnicastAddress;
-                 pip; pip = pip->Next) {
-                SOCKET_ADDRESS *sockAddr = &pip->Address;
-                for (int i = 0; i < sockAddr->iSockaddrLength; ++i) {
-                    sum += (reinterpret_cast<unsigned char *>
-                            (sockAddr->lpSockaddr))[i];
-                }
-            }
-            linkUp = true;
+        for (ptr = addresses; !linkUp && ptr; ptr = ptr->Next) {
+            if (ptr->OperStatus == IfOperStatusUp &&
+                    ptr->IfType != IF_TYPE_SOFTWARE_LOOPBACK &&
+                    !CheckIsGateway(ptr))
+                linkUp = TRUE;
         }
         mLinkUp = linkUp;
-        mStatusKnown = true;
+        mStatusKnown = TRUE;
     }
-    free(adapterList);
-
-    if (mLinkUp) {
-        /* Store the checksum only if one or more interfaces are up */
-        mIPInterfaceChecksum = sum;
-    }
-
-    CoUninitialize();
+    free(addresses);
 
     return ret;
 }
@@ -475,49 +582,18 @@ nsNotifyAddrListener::CheckLinkStatus(void)
 {
     DWORD ret;
     const char *event;
-    bool prevLinkUp = mLinkUp;
-    ULONG prevCsum = mIPInterfaceChecksum;
 
-    // The CheckAdaptersAddresses call is very expensive (~650 milliseconds),
-    // so we don't want to call it synchronously. Instead, we just start up
-    // assuming we have a network link, but we'll report that the status is
-    // unknown.
-    if (NS_IsMainThread()) {
-        NS_WARNING("CheckLinkStatus called on main thread! No check "
-                   "performed. Assuming link is up, status is unknown.");
-        mLinkUp = true;
+    ret = CheckAdaptersAddresses();
+    if (ret == ERROR_NOT_SUPPORTED)
+        ret = CheckAdaptersInfo();
+    if (ret == ERROR_NOT_SUPPORTED)
+        ret = CheckIPAddrTable();
+    if (ret != ERROR_SUCCESS)
+        mLinkUp = PR_TRUE; // I can't tell, so assume there's a link
 
-        if (!mStatusKnown) {
-            event = NS_NETWORK_LINK_DATA_UNKNOWN;
-        } else if (!prevLinkUp) {
-            event = NS_NETWORK_LINK_DATA_UP;
-        } else {
-            // Known status and it was already UP
-            event = nullptr;
-        }
-
-        if (event) {
-            SendEvent(event);
-        }
-    } else {
-        ret = CheckAdaptersAddresses();
-        if (ret != ERROR_SUCCESS) {
-            mLinkUp = true;
-        }
-
-        if (mLinkUp && (prevCsum != mIPInterfaceChecksum)) {
-            TimeDuration since = TimeStamp::Now() - mChangedTime;
-
-            // Network is online. Topology has changed. Always send CHANGED
-            // before UP - if allowed to and having cooled down.
-            if (mAllowChangedEvent && (since.ToMilliseconds() > 2000)) {
-                SendEvent(NS_NETWORK_LINK_DATA_CHANGED);
-            }
-        }
-        if (prevLinkUp != mLinkUp) {
-            // UP/DOWN status changed, send appropriate UP/DOWN event
-            SendEvent(mLinkUp ?
-                      NS_NETWORK_LINK_DATA_UP : NS_NETWORK_LINK_DATA_DOWN);
-        }
-    }
+    if (mStatusKnown)
+        event = mLinkUp ? NS_NETWORK_LINK_DATA_UP : NS_NETWORK_LINK_DATA_DOWN;
+    else
+        event = NS_NETWORK_LINK_DATA_UNKNOWN;
+    SendEventToUI(event);
 }

@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
@@ -7,7 +7,9 @@
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 410852;
-var summary = 'Valgrind errors in jsemit.cpp';
+var summary = 'Valgrind errors in jsemit.c';
+var actual = '';
+var expect = 'SyntaxError: syntax error';
 
 
 //-----------------------------------------------------------------------------
@@ -28,10 +30,11 @@ function test()
   }
   catch(ex)
   {
-    assertEq(ex instanceof SyntaxError, true, "wrong error: " + ex);
+    actual = ex + '';
+    print(actual);
   }
 
-  reportCompare(true, true, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

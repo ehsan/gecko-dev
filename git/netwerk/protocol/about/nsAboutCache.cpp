@@ -1,460 +1,342 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Henrik Gemal <mozilla@gemal.dk>
+ *   Darin Fisher <darin@netscape.com>
+ *   Alexey Chernyak <alexeyc@bigfoot.com> (XHTML 1.1 conversion)
+ *   Steffen Wilberg <steffen.wilberg@web.de> (new layout)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsAboutCache.h"
+#include "nsIIOService.h"
+#include "nsIServiceManager.h"
 #include "nsIInputStream.h"
 #include "nsIStorageStream.h"
+#include "nsISimpleEnumerator.h"
+#include "nsXPIDLString.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
+#include "prtime.h"
 #include "nsEscape.h"
-#include "nsAboutProtocolUtils.h"
-#include "nsPrintfCString.h"
-#include "nsDOMString.h"
 
-#include "nsICacheStorageService.h"
-#include "nsICacheStorage.h"
-#include "CacheFileUtils.h"
-#include "CacheObserver.h"
+#include "nsICacheService.h"
 
-#include "nsThreadUtils.h"
+static PRTime SecondsToPRTime(PRUint32 t_sec)
+{
+    PRTime t_usec, usec_per_sec;
+    LL_I2L(t_usec, t_sec);
+    LL_I2L(usec_per_sec, PR_USEC_PER_SEC);
+    LL_MUL(t_usec, t_usec, usec_per_sec);
+    return t_usec;
+}
+static void PrintTimeString(char *buf, PRUint32 bufsize, PRUint32 t_sec)
+{
+    PRExplodedTime et;
+    PRTime t_usec = SecondsToPRTime(t_sec);
+    PR_ExplodeTime(t_usec, PR_LocalTimeParameters, &et);
+    PR_FormatTime(buf, bufsize, "%Y-%m-%d %H:%M:%S", &et);
+}
 
-using namespace mozilla::net;
 
-NS_IMPL_ISUPPORTS(nsAboutCache, nsIAboutModule, nsICacheStorageVisitor)
+NS_IMPL_ISUPPORTS2(nsAboutCache, nsIAboutModule, nsICacheVisitor)
 
 NS_IMETHODIMP
-nsAboutCache::NewChannel(nsIURI* aURI,
-                         nsILoadInfo* aLoadInfo,
-                         nsIChannel** result)
+nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
-
     nsresult rv;
+    PRUint32 bytesWritten;
 
-    *result = nullptr;
-
-    nsCOMPtr<nsIInputStream> inputStream;
-    rv = NS_NewPipe(getter_AddRefs(inputStream), getter_AddRefs(mStream),
-                    16384, (uint32_t)-1,
-                    true, // non-blocking input
-                    false // blocking output
-    );
+    *result = nsnull;
+    // Get the cache manager service
+    nsCOMPtr<nsICacheService> cacheService = 
+             do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString storageName;
-    rv = ParseURI(aURI, storageName);
+    nsCOMPtr<nsIStorageStream> storageStream;
+    nsCOMPtr<nsIOutputStream> outputStream;
+
+    // Init: (block size, maximum length)
+    rv = NS_NewStorageStream(256, (PRUint32)-1, getter_AddRefs(storageStream));
     if (NS_FAILED(rv)) return rv;
 
-    mOverview = storageName.IsEmpty();
-    if (mOverview) {
-        // ...and visit all we can
-        mStorageList.AppendElement(NS_LITERAL_CSTRING("memory"));
-        mStorageList.AppendElement(NS_LITERAL_CSTRING("disk"));
-        mStorageList.AppendElement(NS_LITERAL_CSTRING("appcache"));
-    } else {
-        // ...and visit just the specified storage, entries will output too
-        mStorageList.AppendElement(storageName);
-    }
-
-    // The entries header is added on encounter of the first entry
-    mEntriesHeaderAdded = false;
-
-    nsCOMPtr<nsIChannel> channel;
-    // Bug 1087720 (and Bug 1099296):
-    // Once all callsites have been updated to call NewChannel2()
-    // instead of NewChannel() we should have a non-null loadInfo
-    // consistently. Until then we have to branch on the loadInfo.
-    if (aLoadInfo) {
-      rv = NS_NewInputStreamChannelInternal(getter_AddRefs(channel),
-                                            aURI,
-                                            inputStream,
-                                            NS_LITERAL_CSTRING("text/html"),
-                                            NS_LITERAL_CSTRING("utf-8"),
-                                            aLoadInfo);
-    }
-    else {
-      rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                            aURI,
-                            inputStream,
-                            nsContentUtils::GetSystemPrincipal(),
-                            nsILoadInfo::SEC_NORMAL,
-                            nsIContentPolicy::TYPE_OTHER,
-                            NS_LITERAL_CSTRING("text/html"),
-                            NS_LITERAL_CSTRING("utf-8"));
-    }
+    rv = storageStream->GetOutputStream(0, getter_AddRefs(outputStream));
     if (NS_FAILED(rv)) return rv;
 
     mBuffer.AssignLiteral(
-        "<!DOCTYPE html>\n"
-        "<html>\n"
-        "<head>\n"
-        "  <title>Network Cache Storage Information</title>\n"
-        "  <meta charset=\"utf-8\">\n"
-        "  <link rel=\"stylesheet\" href=\"chrome://global/skin/about.css\"/>\n"
-        "  <link rel=\"stylesheet\" href=\"chrome://global/skin/aboutCache.css\"/>\n"
-        "  <script src=\"chrome://global/content/aboutCache.js\"></script>"
-        "</head>\n"
-        "<body class=\"aboutPageWideContainer\">\n"
-        "<h1>Information about the Network Cache Storage Service</h1>\n");
+      "<!DOCTYPE html>\n"
+      "<html>\n"
+      "<head>\n"
+      "  <title>Information about the Cache Service</title>\n"
+      "  <link rel=\"stylesheet\" "
+      "href=\"chrome://global/skin/about.css\" type=\"text/css\"/>\n"
+      "  <link rel=\"stylesheet\" "
+      "href=\"chrome://global/skin/aboutCache.css\" type=\"text/css\"/>\n"
+      "</head>\n"
+      "<body class=\"aboutPageWideContainer\">\n"
+      "<h1>Information about the Cache Service</h1>\n");
 
-    // Add the context switch controls
-    mBuffer.AppendLiteral(
-        "<label><input id='priv' type='checkbox'/> Private</label>\n"
-        "<label><input id='anon' type='checkbox'/> Anonymous</label>\n"
-    );
+    outputStream->Write(mBuffer.get(), mBuffer.Length(), &bytesWritten);
 
-    if (CacheObserver::UseNewCache()) {
-        // Visit scoping by browser and appid is not implemented for
-        // the old cache, simply don't add these controls.
-        // The appid/inbrowser entries are already mixed in the default
-        // view anyway.
-        mBuffer.AppendLiteral(
-            "<label><input id='appid' type='text' size='6'/> AppID</label>\n"
-            "<label><input id='inbrowser' type='checkbox'/> In Browser Element</label>\n"
-        );
+    rv = ParseURI(aURI, mDeviceID);
+    if (NS_FAILED(rv)) return rv;
+
+    mStream = outputStream;
+
+    // nsCacheService::VisitEntries calls nsMemoryCacheDevice::Visit,
+    // nsDiskCacheDevice::Visit and nsOfflineCacheDevice::Visit,
+    // each of which call
+    //   1. VisitDevice (for about:cache),
+    //   2. VisitEntry in a loop (for about:cache?device=disk etc.)
+    rv = cacheService->VisitEntries(this);
+    mBuffer.Truncate();
+    if (rv == NS_ERROR_NOT_AVAILABLE) {
+        mBuffer.AppendLiteral("<h2>The cache is disabled.</h2>\n");
+    }
+    else if (NS_FAILED(rv)) {
+        return rv;
     }
 
-    mBuffer.AppendLiteral(
-        "<label><input id='submit' type='button' value='Update' onclick='navigate()'/></label>\n"
-    );
-
-    if (!mOverview) {
-        mBuffer.AppendLiteral("<a href=\"about:cache?storage=&amp;context=");
-        char* escapedContext = nsEscapeHTML(mContextString.get());
-        mBuffer.Append(escapedContext);
-        nsMemory::Free(escapedContext);
-        mBuffer.AppendLiteral("\">Back to overview</a>");
+    if (!mDeviceID.IsEmpty()) {
+        mBuffer.AppendLiteral("</table>\n");
     }
+    mBuffer.AppendLiteral("</body>\n"
+                          "</html>\n");
+    outputStream->Write(mBuffer.get(), mBuffer.Length(), &bytesWritten);
 
-    FlushBuffer();
+    nsCOMPtr<nsIInputStream> inStr;
 
-    // Kick it, this goes async.
-    rv = VisitNextStorage();
+    rv = storageStream->NewInputStream(0, getter_AddRefs(inStr));
     if (NS_FAILED(rv)) return rv;
 
-    channel.forget(result);
-    return NS_OK;
+    nsIChannel* channel;
+    rv = NS_NewInputStreamChannel(&channel, aURI, inStr,
+                                  NS_LITERAL_CSTRING("text/html"),
+                                  NS_LITERAL_CSTRING("utf-8"));
+    if (NS_FAILED(rv)) return rv;
+
+    *result = channel;
+    return rv;
 }
 
-nsresult
-nsAboutCache::ParseURI(nsIURI * uri, nsACString & storage)
+NS_IMETHODIMP
+nsAboutCache::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
-    //
-    // about:cache[?storage=<storage-name>[&context=<context-key>]]
-    //
-    nsresult rv;
-
-    nsAutoCString path;
-    rv = uri->GetPath(path);
-    if (NS_FAILED(rv)) return rv;
-
-    mContextString.Truncate();
-    mLoadInfo = CacheFileUtils::ParseKey(NS_LITERAL_CSTRING(""));
-    storage.Truncate();
-
-    nsACString::const_iterator start, valueStart, end;
-    path.BeginReading(start);
-    path.EndReading(end);
-
-    valueStart = end;
-    if (!FindInReadable(NS_LITERAL_CSTRING("?storage="), start, valueStart)) {
-        return NS_OK;
-    }
-
-    nsACString::const_iterator storageNameBegin = valueStart;
-
-    start = valueStart;
-    valueStart = end;
-    if (!FindInReadable(NS_LITERAL_CSTRING("&context="), start, valueStart))
-        start = end;
-
-    nsACString::const_iterator storageNameEnd = start;
-
-    mContextString = Substring(valueStart, end);
-    mLoadInfo = CacheFileUtils::ParseKey(mContextString);
-    storage.Assign(Substring(storageNameBegin, storageNameEnd));
-
-    return NS_OK;
-}
-
-nsresult
-nsAboutCache::VisitNextStorage()
-{
-    if (!mStorageList.Length())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    mStorageName = mStorageList[0];
-    mStorageList.RemoveElementAt(0);
-
-    // Must re-dispatch since we cannot start another visit cycle
-    // from visitor callback.  The cache v1 service doesn't like it.
-    // TODO - mayhemer, bug 913828, remove this dispatch and call
-    // directly.
-    nsCOMPtr<nsIRunnable> event =
-        NS_NewRunnableMethod(this, &nsAboutCache::FireVisitStorage);
-    return NS_DispatchToMainThread(event);
-}
-
-void
-nsAboutCache::FireVisitStorage()
-{
-    nsresult rv;
-
-    rv = VisitStorage(mStorageName);
-    if (NS_FAILED(rv)) {
-        if (mLoadInfo) {
-            char* escaped = nsEscapeHTML(mStorageName.get());
-            mBuffer.Append(
-                nsPrintfCString("<p>Unrecognized storage name '%s' in about:cache URL</p>",
-                                escaped));
-            nsMemory::Free(escaped);
-        } else {
-            char* escaped = nsEscapeHTML(mContextString.get());
-            mBuffer.Append(
-                nsPrintfCString("<p>Unrecognized context key '%s' in about:cache URL</p>",
-                                escaped));
-            nsMemory::Free(escaped);
-        }
-
-        FlushBuffer();
-
-        // Simulate finish of a visit cycle, this tries the next storage
-        // or closes the output stream (i.e. the UI loader will stop spinning)
-        OnCacheEntryVisitCompleted();
-    }
-}
-
-nsresult
-nsAboutCache::VisitStorage(nsACString const & storageName)
-{
-    nsresult rv;
-
-    rv = GetStorage(storageName, mLoadInfo, getter_AddRefs(mStorage));
-    if (NS_FAILED(rv)) return rv;
-
-    rv = mStorage->AsyncVisitStorage(this, !mOverview);
-    if (NS_FAILED(rv)) return rv;
-
-    return NS_OK;
-}
-
-//static
-nsresult
-nsAboutCache::GetStorage(nsACString const & storageName,
-                         nsILoadContextInfo* loadInfo,
-                         nsICacheStorage **storage)
-{
-    nsresult rv;
-
-    nsCOMPtr<nsICacheStorageService> cacheService =
-             do_GetService("@mozilla.org/netwerk/cache-storage-service;1", &rv);
-    if (NS_FAILED(rv)) return rv;
-
-    nsCOMPtr<nsICacheStorage> cacheStorage;
-    if (storageName == "disk") {
-        rv = cacheService->DiskCacheStorage(
-            loadInfo, false, getter_AddRefs(cacheStorage));
-    } else if (storageName == "memory") {
-        rv = cacheService->MemoryCacheStorage(
-            loadInfo, getter_AddRefs(cacheStorage));
-    } else if (storageName == "appcache") {
-        rv = cacheService->AppCacheStorage(
-            loadInfo, nullptr, getter_AddRefs(cacheStorage));
-    } else {
-        rv = NS_ERROR_UNEXPECTED;
-    }
-    if (NS_FAILED(rv)) return rv;
-
-    cacheStorage.forget(storage);
+    *result = 0;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsAboutCache::OnCacheStorageInfo(uint32_t aEntryCount, uint64_t aConsumption,
-                                 uint64_t aCapacity, nsIFile * aDirectory)
+nsAboutCache::VisitDevice(const char *deviceID,
+                          nsICacheDeviceInfo *deviceInfo,
+                          PRBool *visitEntries)
 {
-    // We need mStream for this
-    if (!mStream) {
-        return NS_ERROR_FAILURE;
-    }
+    PRUint32 bytesWritten, value, entryCount;
+    nsXPIDLCString str;
 
-    mBuffer.AssignLiteral("<h2>");
-    mBuffer.Append(mStorageName);
-    mBuffer.AppendLiteral("</h2>\n"
-                          "<table id=\"");
-    mBuffer.AppendLiteral("\">\n");
+    *visitEntries = PR_FALSE;
 
-    // Write out cache info
-    // Number of entries
-    mBuffer.AppendLiteral("  <tr>\n"
-                          "    <th>Number of entries:</th>\n"
-                          "    <td>");
-    mBuffer.AppendInt(aEntryCount);
-    mBuffer.AppendLiteral("</td>\n"
-                          "  </tr>\n");
+    if (mDeviceID.IsEmpty() || mDeviceID.Equals(deviceID)) {
 
-    // Maximum storage size
-    mBuffer.AppendLiteral("  <tr>\n"
-                          "    <th>Maximum storage size:</th>\n"
-                          "    <td>");
-    mBuffer.AppendInt(aCapacity / 1024);
-    mBuffer.AppendLiteral(" KiB</td>\n"
-                          "  </tr>\n");
+        // We need mStream for this
+        if (!mStream)
+          return NS_ERROR_FAILURE;
+	
+        // Write out the Cache Name
+        deviceInfo->GetDescription(getter_Copies(str));
 
-    // Storage in use
-    mBuffer.AppendLiteral("  <tr>\n"
-                          "    <th>Storage in use:</th>\n"
-                          "    <td>");
-    mBuffer.AppendInt(aConsumption / 1024);
-    mBuffer.AppendLiteral(" KiB</td>\n"
-                          "  </tr>\n");
+        mBuffer.AssignLiteral("<h2>");
+        mBuffer.Append(str);
+        mBuffer.AppendLiteral("</h2>\n"
+                              "<table id=\"");
+        mBuffer.Append(deviceID);
+        mBuffer.AppendLiteral("\">\n");
 
-    // Storage disk location
-    mBuffer.AppendLiteral("  <tr>\n"
-                          "    <th>Storage disk location:</th>\n"
-                          "    <td>");
-    if (aDirectory) {
-        nsAutoString path;
-        aDirectory->GetPath(path);
-        mBuffer.Append(NS_ConvertUTF16toUTF8(path));
-    } else {
-        mBuffer.AppendLiteral("none, only stored in memory");
-    }
-    mBuffer.AppendLiteral("    </td>\n"
-                          "  </tr>\n");
+        // Write out cache info
+        // Number of entries
+        mBuffer.AppendLiteral("  <tr>\n"
+                              "    <th>Number of entries:</th>\n"
+                              "    <td>");
+        entryCount = 0;
+        deviceInfo->GetEntryCount(&entryCount);
+        mBuffer.AppendInt(entryCount);
+        mBuffer.AppendLiteral("</td>\n"
+                              "  </tr>\n");
 
-    if (mOverview) { // The about:cache case
-        if (aEntryCount != 0) { // Add the "List Cache Entries" link
-            mBuffer.AppendLiteral("  <tr>\n"
-                                  "    <th><a href=\"about:cache?storage=");
-            mBuffer.Append(mStorageName);
-            mBuffer.AppendLiteral("&amp;context=");
-            char* escapedContext = nsEscapeHTML(mContextString.get());
-            mBuffer.Append(escapedContext);
-            nsMemory::Free(escapedContext);
-            mBuffer.AppendLiteral("\">List Cache Entries</a></th>\n"
-                                  "  </tr>\n");
+        // Maximum storage size
+        mBuffer.AppendLiteral("  <tr>\n"
+                              "    <th>Maximum storage size:</th>\n"
+                              "    <td>");
+        value = 0;
+        deviceInfo->GetMaximumSize(&value);
+        mBuffer.AppendInt(value/1024);
+        mBuffer.AppendLiteral(" KiB</td>\n"
+                              "  </tr>\n");
+
+        // Storage in use
+        mBuffer.AppendLiteral("  <tr>\n"
+                              "    <th>Storage in use:</th>\n"
+                              "    <td>");
+        value = 0;
+        deviceInfo->GetTotalSize(&value);
+        mBuffer.AppendInt(value/1024);
+        mBuffer.AppendLiteral(" KiB</td>\n"
+                              "  </tr>\n");
+
+        deviceInfo->GetUsageReport(getter_Copies(str));
+        mBuffer.Append(str);
+
+        if (mDeviceID.IsEmpty()) { // The about:cache case
+            if (entryCount != 0) { // Add the "List Cache Entries" link
+                mBuffer.AppendLiteral("  <tr>\n"
+                                      "    <th><a href=\"about:cache?device=");
+                mBuffer.Append(deviceID);
+                mBuffer.AppendLiteral("\">List Cache Entries</a></th>\n"
+                                      "  </tr>\n");
+            }
+            mBuffer.AppendLiteral("</table>\n");
+        } else { // The about:cache?device=disk etc. case
+            mBuffer.AppendLiteral("</table>\n");
+            if (entryCount != 0) {
+                *visitEntries = PR_TRUE;
+                mBuffer.AppendLiteral("<hr/>\n"
+                                      "<table id=\"entries\">\n"
+                                      "  <colgroup>\n"
+                                      "   <col id=\"col-key\">\n"
+                                      "   <col id=\"col-dataSize\">\n"
+                                      "   <col id=\"col-fetchCount\">\n"
+                                      "   <col id=\"col-lastModified\">\n"
+                                      "   <col id=\"col-expires\">\n"
+                                      "  </colgroup>\n"
+                                      "  <thead>\n"
+                                      "    <tr>\n"
+                                      "      <th>Key</th>\n"
+                                      "      <th>Data size</th>\n"
+                                      "      <th>Fetch count</th>\n"
+                                      "      <th>Last modified</th>\n"
+                                      "      <th>Expires</th>\n"
+                                      "    </tr>\n"
+                                      "  </thead>\n");
+            }
         }
-    }
 
-    mBuffer.AppendLiteral("</table>\n");
-
-    // The entries header is added on encounter of the first entry
-    mEntriesHeaderAdded = false;
-
-    FlushBuffer();
-
-    if (mOverview) {
-        // OnCacheEntryVisitCompleted() is not called when we do not iterate
-        // cache entries.  Since this moves forward to the next storage in
-        // the list we want to visit, artificially call it here.
-        OnCacheEntryVisitCompleted();
+        mStream->Write(mBuffer.get(), mBuffer.Length(), &bytesWritten);
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsAboutCache::OnCacheEntryInfo(nsIURI *aURI, const nsACString & aIdEnhance,
-                               int64_t aDataSize, int32_t aFetchCount,
-                               uint32_t aLastModified, uint32_t aExpirationTime)
+nsAboutCache::VisitEntry(const char *deviceID,
+                         nsICacheEntryInfo *entryInfo,
+                         PRBool *visitNext)
 {
     // We need mStream for this
-    if (!mStream) {
-        return NS_ERROR_FAILURE;
-    }
+    if (!mStream)
+      return NS_ERROR_FAILURE;
 
-    if (!mEntriesHeaderAdded) {
-        mBuffer.AppendLiteral("<hr/>\n"
-                              "<table id=\"entries\">\n"
-                              "  <colgroup>\n"
-                              "   <col id=\"col-key\">\n"
-                              "   <col id=\"col-dataSize\">\n"
-                              "   <col id=\"col-fetchCount\">\n"
-                              "   <col id=\"col-lastModified\">\n"
-                              "   <col id=\"col-expires\">\n"
-                              "  </colgroup>\n"
-                              "  <thead>\n"
-                              "    <tr>\n"
-                              "      <th>Key</th>\n"
-                              "      <th>Data size</th>\n"
-                              "      <th>Fetch count</th>\n"
-                              "      <th>Last Modifed</th>\n"
-                              "      <th>Expires</th>\n"
-                              "    </tr>\n"
-                              "  </thead>\n");
-        mEntriesHeaderAdded = true;
-    }
+    nsresult        rv;
+    PRUint32        bytesWritten;
+    nsCAutoString   key;
+    nsXPIDLCString  clientID;
+    PRBool          streamBased;
+    
+    rv = entryInfo->GetKey(key);
+    if (NS_FAILED(rv))  return rv;
+
+    rv = entryInfo->GetClientID(getter_Copies(clientID));
+    if (NS_FAILED(rv))  return rv;
+
+    rv = entryInfo->IsStreamBased(&streamBased);
+    if (NS_FAILED(rv)) return rv;
 
     // Generate a about:cache-entry URL for this entry...
-
-    nsAutoCString url;
-    url.AssignLiteral("about:cache-entry?storage=");
-    url.Append(mStorageName);
-
-    url.AppendLiteral("&amp;context=");
-    char* escapedContext = nsEscapeHTML(mContextString.get());
-    url += escapedContext;
-    nsMemory::Free(escapedContext);
-
-    url.AppendLiteral("&amp;eid=");
-    char* escapedEID = nsEscapeHTML(aIdEnhance.BeginReading());
-    url += escapedEID;
-    nsMemory::Free(escapedEID);
-
-    nsAutoCString cacheUriSpec;
-    aURI->GetAsciiSpec(cacheUriSpec);
-    char* escapedCacheURI = nsEscapeHTML(cacheUriSpec.get());
-    url.AppendLiteral("&amp;uri=");
-    url += escapedCacheURI;
+    nsCAutoString url;
+    url.AssignLiteral("about:cache-entry?client=");
+    url += clientID;
+    url.AppendLiteral("&amp;sb=");
+    url += streamBased ? '1' : '0';
+    url.AppendLiteral("&amp;key=");
+    char* escapedKey = nsEscapeHTML(key.get());
+    url += escapedKey; // key
 
     // Entry start...
-    mBuffer.AppendLiteral("  <tr>\n");
+    mBuffer.AssignLiteral("  <tr>\n");
 
     // URI
     mBuffer.AppendLiteral("    <td><a href=\"");
     mBuffer.Append(url);
     mBuffer.AppendLiteral("\">");
-    if (!aIdEnhance.IsEmpty()) {
-        mBuffer.Append(aIdEnhance);
-        mBuffer.Append(':');
-    }
-    mBuffer.Append(escapedCacheURI);
+    mBuffer.Append(escapedKey);
+    nsMemory::Free(escapedKey);
     mBuffer.AppendLiteral("</a></td>\n");
 
-    nsMemory::Free(escapedCacheURI);
-
     // Content length
+    PRUint32 length = 0;
+    entryInfo->GetDataSize(&length);
     mBuffer.AppendLiteral("    <td>");
-    mBuffer.AppendInt(aDataSize);
+    mBuffer.AppendInt(length);
     mBuffer.AppendLiteral(" bytes</td>\n");
 
     // Number of accesses
+    PRInt32 fetchCount = 0;
+    entryInfo->GetFetchCount(&fetchCount);
     mBuffer.AppendLiteral("    <td>");
-    mBuffer.AppendInt(aFetchCount);
+    mBuffer.AppendInt(fetchCount);
     mBuffer.AppendLiteral("</td>\n");
 
     // vars for reporting time
     char buf[255];
+    PRUint32 t;
 
     // Last modified time
     mBuffer.AppendLiteral("    <td>");
-    if (aLastModified) {
-        PrintTimeString(buf, sizeof(buf), aLastModified);
+    entryInfo->GetLastModified(&t);
+    if (t) {
+        PrintTimeString(buf, sizeof(buf), t);
         mBuffer.Append(buf);
-    } else {
-        mBuffer.AppendLiteral("No last modified time (bug 1000338)");
-    }
+    } else
+        mBuffer.AppendLiteral("No last modified time");
     mBuffer.AppendLiteral("</td>\n");
 
     // Expires time
     mBuffer.AppendLiteral("    <td>");
-    if (aExpirationTime < 0xFFFFFFFF) {
-        PrintTimeString(buf, sizeof(buf), aExpirationTime);
+    entryInfo->GetExpirationTime(&t);
+    if (t < 0xFFFFFFFF) {
+        PrintTimeString(buf, sizeof(buf), t);
         mBuffer.Append(buf);
     } else {
         mBuffer.AppendLiteral("No expiration time");
@@ -464,72 +346,52 @@ nsAboutCache::OnCacheEntryInfo(nsIURI *aURI, const nsACString & aIdEnhance,
     // Entry is done...
     mBuffer.AppendLiteral("  </tr>\n");
 
-    FlushBuffer();
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAboutCache::OnCacheEntryVisitCompleted()
-{
-    if (!mStream) {
-        return NS_ERROR_FAILURE;
-    }
-
-    if (mEntriesHeaderAdded) {
-        mBuffer.AppendLiteral("</table>\n");
-    }
-
-    // Kick another storage visiting (from a storage that allows us.)
-    while (mStorageList.Length()) {
-        nsresult rv = VisitNextStorage();
-        if (NS_SUCCEEDED(rv)) {
-            // Expecting new round of OnCache* calls.
-            return NS_OK;
-        }
-    }
-
-    // We are done!
-    mBuffer.AppendLiteral("</body>\n"
-                          "</html>\n");
-    FlushBuffer();
-    mStream->Close();
-
-    return NS_OK;
-}
-
-void
-nsAboutCache::FlushBuffer()
-{
-    uint32_t bytesWritten;
     mStream->Write(mBuffer.get(), mBuffer.Length(), &bytesWritten);
-    mBuffer.Truncate();
-}
 
-NS_IMETHODIMP
-nsAboutCache::GetURIFlags(nsIURI *aURI, uint32_t *result)
-{
-    *result = 0;
+    *visitNext = PR_TRUE;
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAboutCache::GetIndexedDBOriginPostfix(nsIURI *aURI, nsAString &result)
+
+nsresult
+nsAboutCache::ParseURI(nsIURI * uri, nsCString &deviceID)
 {
-    SetDOMStringToNull(result);
-    return NS_ERROR_NOT_IMPLEMENTED;
+    //
+    // about:cache[?device=string]
+    //
+    nsresult rv;
+
+    deviceID.Truncate();
+
+    nsCAutoString path;
+    rv = uri->GetPath(path);
+    if (NS_FAILED(rv)) return rv;
+
+    nsACString::const_iterator start, valueStart, end;
+    path.BeginReading(start);
+    path.EndReading(end);
+
+    valueStart = end;
+    if (!FindInReadable(NS_LITERAL_CSTRING("?device="), start, valueStart))
+        return NS_OK;
+
+    deviceID.Assign(Substring(valueStart, end));
+    return NS_OK;
 }
 
-// static
+
 nsresult
 nsAboutCache::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutCache* about = new nsAboutCache();
-    if (about == nullptr)
+    if (about == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(about);
     nsresult rv = about->QueryInterface(aIID, aResult);
     NS_RELEASE(about);
     return rv;
 }
+
+
 
 ////////////////////////////////////////////////////////////////////////////////

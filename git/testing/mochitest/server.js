@@ -1,8 +1,41 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is MozJSHTTP code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jeff Walden <jwalden+code@mit.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Sayre <sayrer@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // Note that the server script itself already defines Cc, Ci, and Cr for us,
 // and because they're constants it's not safe to redefine them.  Scope leakage
@@ -10,10 +43,11 @@
 
 // Disable automatic network detection, so tests work correctly when
 // not connected to a network.
-let ios = Cc["@mozilla.org/network/io-service;1"]
-          .getService(Ci.nsIIOService2);
-ios.manageOfflineStatus = false;
-ios.offline = false;
+let (ios = Cc["@mozilla.org/network/io-service;1"]
+           .getService(Ci.nsIIOService2)) {
+  ios.manageOfflineStatus = false;
+  ios.offline = false;
+}
 
 var server; // for use in the shutdown handler, if necessary
 
@@ -74,7 +108,7 @@ function makeTagFunc(tagName)
 
 function makeTags() {
   // map our global HTML generation functions
-  for (let tag of tags) {
+  for each (var tag in tags) {
       this[tag] = makeTagFunc(tag.toLowerCase());
   }
 }
@@ -107,10 +141,6 @@ if (this["nsHttpServer"]) {
 }
 
 var serverBasePath;
-var displayResults = true;
-
-var gServerAddress;
-var SERVER_PORT;
 
 //
 // SERVER SETUP
@@ -150,11 +180,6 @@ function runServer()
     throw "please define _SERVER_PORT (as a port number) before running server.js";
   }
 
-  // If DISPLAY_RESULTS is not specified, it defaults to true
-  if (typeof(_DISPLAY_RESULTS) != "undefined") {
-    displayResults = _DISPLAY_RESULTS;
-  }
-
   server._start(SERVER_PORT, gServerAddress);
 
   // touch a file in the profile directory to indicate we're alive
@@ -175,8 +200,8 @@ function runServer()
   if (serverAlive.exists()) {
     serverAlive.append("server_alive.txt");
     foStream.init(serverAlive,
-                  0x02 | 0x08 | 0x20, 436, 0); // write, create, truncate
-    var data = "It's alive!";
+                  0x02 | 0x08 | 0x20, 0664, 0); // write, create, truncate
+    data = "It's alive!";
     foStream.write(data, data.length);
     foStream.close();
   }
@@ -212,13 +237,9 @@ function createMochitestServer(serverBasePath)
   server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
   server.registerContentType("jar", "application/x-jar");
   server.registerContentType("ogg", "application/ogg");
-  server.registerContentType("pdf", "application/pdf");
   server.registerContentType("ogv", "video/ogg");
   server.registerContentType("oga", "audio/ogg");
-  server.registerContentType("opus", "audio/ogg; codecs=opus");
   server.registerContentType("dat", "text/plain; charset=utf-8");
-  server.registerContentType("frag", "text/plain"); // .frag == WebGL fragment shader
-  server.registerContentType("vert", "text/plain"); // .vert == WebGL vertex shader
   server.setIndexHandler(defaultDirHandler);
 
   var serverRoot =
@@ -252,7 +273,7 @@ function processLocations(server)
   serverLocations.append("server-locations.txt");
 
   const PR_RDONLY = 0x01;
-  var fis = new FileInputStream(serverLocations, PR_RDONLY, 292 /* 0444 */,
+  var fis = new FileInputStream(serverLocations, PR_RDONLY, 0444,
                                 Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
   var lis = new ConverterInputStream(fis, "UTF-8", 1024, 0x0);
@@ -392,15 +413,11 @@ function list(requestPath, directory, recurse)
 
   var dir = directory.QueryInterface(Ci.nsIFile);
   var links = {};
-
+  
   // The SimpleTest directory is hidden
-  let files = [];
-  for (let file of dirIter(dir)) {
-    if (file.exists() && file.path.indexOf("SimpleTest") == -1) {
-      files.push(file);
-    }
-  }
-
+  var files = [file for (file in dirIter(dir))
+               if (file.exists() && file.path.indexOf("SimpleTest") == -1)];
+  
   // Sort files by name, so that tests can be run in a pre-defined order inside
   // a given directory (see bug 384823)
   function leafNameComparator(first, second) {
@@ -411,9 +428,9 @@ function list(requestPath, directory, recurse)
     return 0;
   }
   files.sort(leafNameComparator);
-
+  
   count = files.length;
-  for (let file of files) {
+  for each (var file in files) {
     var key = path + file.leafName;
     var childCount = 0;
     if (file.isDirectory()) {
@@ -424,7 +441,7 @@ function list(requestPath, directory, recurse)
       count += childCount;
     } else {
       if (file.leafName.charAt(0) != '.') {
-        links[key] = {'test': {'url': key, 'expected': 'pass'}};
+        links[key] = true;
       }
     }
   }
@@ -443,11 +460,9 @@ function isTest(filename, pattern)
     return pattern.test(filename);
 
   // File name is a URL style path to a test file, make sure that we check for
-  // tests that start with the appropriate prefix.
-  var testPrefix = typeof(_TEST_PREFIX) == "string" ? _TEST_PREFIX : "test_";
-  var testPattern = new RegExp("^" + testPrefix);
-
-  var pathPieces = filename.split('/');
+  // tests that start with test_.
+  testPattern = /^test_/;
+  pathPieces = filename.split('/');
     
   return testPattern.test(pathPieces[pathPieces.length - 1]) &&
          filename.indexOf(".js") == -1 &&
@@ -496,13 +511,13 @@ function linksToTableRows(links, recursionLevel)
 {
   var response = "";
   for (var [link, value] in links) {
-    var classVal = (!isTest(link) && ((value instanceof Object) && ('test' in value)))
+    var classVal = (!isTest(link) && !(value instanceof Object))
       ? "non-test invisible"
       : "";
 
-    var spacer = "padding-left: " + (10 * recursionLevel) + "px";
+    spacer = "padding-left: " + (10 * recursionLevel) + "px";
 
-    if ((value instanceof Object) && !('test' in value)) {
+    if (value instanceof Object) {
       response += TR({class: "dir", id: "tr-" + link },
                      TD({colspan: "3"}, "&#160;"),
                      TD({style: spacer},
@@ -538,10 +553,10 @@ function linksToTableRows(links, recursionLevel)
 
 function arrayOfTestFiles(linkArray, fileArray, testPattern) {
   for (var [link, value] in Iterator(linkArray)) {
-    if ((value instanceof Object) && !('test' in value)) {
+    if (value instanceof Object) {
       arrayOfTestFiles(value, fileArray, testPattern);
-    } else if (isTest(link, testPattern) && (value instanceof Object)) {
-      fileArray.push(value['test'])
+    } else if (isTest(link, testPattern)) {
+      fileArray.push(link)
     }
   }
 }
@@ -552,8 +567,7 @@ function jsonArrayOfTestFiles(links)
 {
   var testFiles = [];
   arrayOfTestFiles(links, testFiles);
-  testFiles = testFiles.map(function(file) { return '"' + file['url'] + '"'; });
-
+  testFiles = ['"' + file + '"' for each(file in testFiles)];
   return "[" + testFiles.join(",\n") + "]";
 }
 
@@ -580,57 +594,16 @@ function regularListing(metadata, response)
 }
 
 /**
- * Read a manifestFile located at the root of the server's directory and turn
- * it into an object for creating a table of clickable links for each test.
- */
-function convertManifestToTestLinks(root, manifest)
-{
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-
-  var manifestFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  manifestFile.initWithFile(serverBasePath);
-  manifestFile.append(manifest);
-
-  var manifestStream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(Ci.nsIFileInputStream);
-  manifestStream.init(manifestFile, -1, 0, 0);
-
-  var manifestObj = JSON.parse(NetUtil.readInputStreamToString(manifestStream,
-                                                               manifestStream.available()));
-  var paths = manifestObj.tests;
-  var pathPrefix = '/' + root + '/'
-  return [paths.reduce(function(t, p) { t[pathPrefix + p.path] = true; return t; }, {}),
-          paths.length];
-}
-
-/**
  * Produce a test harness page containing all the test cases
  * below it, recursively.
  */
 function testListing(metadata, response)
 {
-  var links = {};
-  var count = 0;
-  if (metadata.queryString.indexOf('manifestFile') == -1) {
-    [links, count] = list(metadata.path,
-                          metadata.getProperty("directory"),
-                          true);
-  } else if (typeof(Components) != undefined) {
-    var manifest = metadata.queryString.match(/manifestFile=([^&]+)/)[1];
-
-    [links, count] = convertManifestToTestLinks(metadata.path.split('/')[1],
-                                                manifest);
-  }
-
-  var table_class = metadata.queryString.indexOf("hideResultsTable=1") > -1 ? "invisible": "";
-
-  let testname = (metadata.queryString.indexOf("testname=") > -1)
-                 ? metadata.queryString.match(/testname=([^&]+)/)[1]
-                 : "";
-
+  var [links, count] = list(metadata.path,
+                            metadata.getProperty("directory"),
+                            true);
   dumpn("count: " + count);
-  var tests = testname
-              ? "['/" + testname + "']"
-              : jsonArrayOfTestFiles(links);
+  var tests = jsonArrayOfTestFiles(links);
   response.write(
     HTML(
       HEAD(
@@ -638,22 +611,17 @@ function testListing(metadata, response)
         LINK({rel: "stylesheet",
               type: "text/css", href: "/static/harness.css"}
         ),
-        SCRIPT({type: "text/javascript",
-                 src: "/tests/SimpleTest/LogController.js"}),
-        SCRIPT({type: "text/javascript",
-                 src: "/tests/SimpleTest/MemoryStats.js"}),
+        SCRIPT({type: "text/javascript", src: "/MochiKit/packed.js"}),
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/TestRunner.js"}),
         SCRIPT({type: "text/javascript",
-                 src: "/tests/SimpleTest/MozillaLogger.js"}),
+                 src: "/tests/SimpleTest/MozillaFileLogger.js"}),
         SCRIPT({type: "text/javascript",
-                 src: "/chunkifyTests.js"}),
-        SCRIPT({type: "text/javascript",
-                 src: "/manifestLibrary.js"}),
+                 src: "/tests/SimpleTest/quit.js"}),
         SCRIPT({type: "text/javascript",
                  src: "/tests/SimpleTest/setup.js"}),
         SCRIPT({type: "text/javascript"},
-               "window.onload =  hookup; gTestList=" + tests + ";"
+               "connect(window, 'onload', hookup); gTestList=" + tests + ";"
         )
       ),
       BODY(
@@ -680,26 +648,18 @@ function testListing(metadata, response)
           ),
           DIV({class: "clear"}),
           DIV({class: "frameholder"},
-            IFRAME({scrolling: "no", id: "testframe"})
+            IFRAME({scrolling: "no", id: "testframe", width: "500", height: "300"})
           ),
           DIV({class: "clear"}),
           DIV({class: "toggle"},
             A({href: "#", id: "toggleNonTests"}, "Show Non-Tests"),
             BR()
           ),
-
-          (
-           displayResults ?
-            TABLE({cellpadding: 0, cellspacing: 0, class: table_class, id: "test-table"},
-              TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
-              linksToTableRows(links, 0)
-            ) : ""
+    
+          TABLE({cellpadding: 0, cellspacing: 0, id: "test-table"},
+            TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
+            linksToTableRows(links, 0)
           ),
-
-          BR(),
-          TABLE({cellpadding: 0, cellspacing: 0, border: 1, bordercolor: "red", id: "fail-table"}
-          ),
-
           DIV({class: "clear"})
         )
       )
@@ -714,7 +674,7 @@ function testListing(metadata, response)
 function defaultDirHandler(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/html;charset=utf-8", false);
+  response.setHeader("Content-type", "text/html", false);
   try {
     if (metadata.path.indexOf("/tests") != 0) {
       regularListing(metadata, response);

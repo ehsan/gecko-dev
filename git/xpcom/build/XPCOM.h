@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #ifndef mozilla_XPCOM_h
 #define mozilla_XPCOM_h
 
@@ -22,12 +18,14 @@
 #include "nsError.h"
 #include "nsDebug.h"
 #include "nsMemory.h"
+#include "nsTraceRefcnt.h"
 
 #include "nsID.h"
 
 #include "nsISupports.h"
 
 #include "nsTArray.h"
+#include "nsTPtrArray.h"
 #include "nsTWeakRef.h"
 
 #include "nsCOMPtr.h"
@@ -53,6 +51,7 @@
 #include "nsInterfaceHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsRefPtrHashtable.h"
+#include "mozilla/TimeStamp.h"
 
 // interfaces that inherit directly from nsISupports
 
@@ -68,11 +67,15 @@
 #include "nsIConsoleService.h"
 #include "nsIDebug.h"
 #include "nsIDirectoryEnumerator.h"
+#include "nsIEnumerator.h"
 #include "nsIEnvironment.h"
 #include "nsIErrorService.h"
 #include "nsIEventTarget.h"
 #include "nsIException.h"
+#include "nsIExceptionService.h"
 #include "nsIFactory.h"
+#include "nsIFastLoadFileControl.h"
+#include "nsIFastLoadService.h"
 #include "nsIFile.h"
 #include "nsIHashable.h"
 #include "nsIINIParser.h"
@@ -80,6 +83,7 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsILineInputStream.h"
 #include "nsIMemory.h"
+#include "nsIMemoryReporter.h"
 #include "nsIMutable.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
@@ -88,6 +92,7 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIProperties.h"
 #include "nsIPropertyBag2.h"
+#include "nsIRecyclingAllocator.h"
 #include "nsIRunnable.h"
 #include "nsISeekableStream.h"
 #include "nsISerializable.h"
@@ -98,11 +103,14 @@
 #include "nsIStreamBufferAccess.h"
 #include "nsIStringEnumerator.h"
 #include "nsIStorageStream.h"
+#include "nsISupportsArray.h"
 #include "nsISupportsIterators.h"
 #include "nsISupportsPrimitives.h"
 #include "nsISupportsPriority.h"
 #include "nsIThreadManager.h"
+#include "nsITimelineService.h"
 #include "nsITimer.h"
+#include "nsITraceRefcnt.h"
 #include "nsIUUIDGenerator.h"
 #include "nsIUnicharInputStream.h"
 #include "nsIUnicharOutputStream.h"
@@ -121,6 +129,7 @@
 #include "nsIConverterOutputStream.h"
 #include "nsIDebug2.h"
 #include "nsIInputStreamTee.h"
+#include "nsILocalFile.h"
 #include "nsIMultiplexInputStream.h"
 #include "nsIMutableArray.h"
 #include "nsIPersistentProperties2.h"
@@ -135,9 +144,13 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIPipe.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #include "nsIMacUtils.h"
+#endif
+
+#ifdef XP_OS2
+#include "nsILocalFileOS2.h"
 #endif
 
 // xpcom/glue utility headers
@@ -150,6 +163,7 @@
 
 #include "nsArrayEnumerator.h"
 #include "nsArrayUtils.h"
+#include "nsAutoLock.h"
 #include "nsCRTGlue.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDeque.h"

@@ -45,7 +45,6 @@
 
 #include "cairo-ft.h"
 #include "cairo-qt.h"
-#include "cairo-error-private.h"
 
 #include <memory>
 
@@ -56,6 +55,8 @@
 #include <QtGui/QPixmap>
 #include <QtGui/QBrush>
 #include <QtGui/QPen>
+#include <QtGui/QWidget>
+#include <QtGui/QX11Info>
 #include <QtCore/QVarLengthArray>
 
 #include <sys/time.h>
@@ -303,7 +304,7 @@ _qmatrix_from_cairo_matrix (const cairo_matrix_t& m)
 /** Path conversion **/
 typedef struct _qpainter_path_transform {
     QPainterPath path;
-    const cairo_matrix_t *ctm_inverse;
+    cairo_matrix_t *ctm_inverse;
 } qpainter_path_data;
 
 /* cairo path -> execute in context */
@@ -371,7 +372,7 @@ _cairo_path_to_qpainterpath_close_path (void *closure)
 
 static inline QPainterPath
 path_to_qt (cairo_path_fixed_t *path,
-	    const cairo_matrix_t *ctm_inverse = NULL)
+	    cairo_matrix_t *ctm_inverse = NULL)
 {
     qpainter_path_data data;
     cairo_status_t status;
@@ -588,6 +589,8 @@ _cairo_qt_surface_acquire_dest_image (void *abstract_surface,
             qimg = new QImage(((QImage*) pd)->copy());
         } else if (pd->devType() == QInternal::Pixmap) {
             qimg = new QImage(((QPixmap*) pd)->toImage());
+        } else if (pd->devType() == QInternal::Widget) {
+            qimg = new QImage(QPixmap::grabWindow(((QWidget*)pd)->winId()).toImage());
         }
     }
 
@@ -725,7 +728,7 @@ _cairo_qt_surface_set_clip_region (cairo_qt_surface_t *qs,
 	    cairo_region_get_rectangle (clip_region, i, &rect);
 
 	    QRect r(rect.x, rect.y, rect.width, rect.height);
-	    qr = qr.united(r);
+	    qr = qr.unite(r);
 	}
 
 	qs->p->setClipRegion (qr, Qt::IntersectClip);
@@ -1013,7 +1016,7 @@ struct PatternToBrushConverter {
 
 struct PatternToPenConverter {
     PatternToPenConverter (const cairo_pattern_t *source,
-                           const cairo_stroke_style_t *style) :
+                           cairo_stroke_style_t *style) :
         mBrushConverter(source)
     {
         Qt::PenJoinStyle join = Qt::MiterJoin;
@@ -1301,9 +1304,9 @@ _cairo_qt_surface_stroke (void *abstract_surface,
 			  cairo_operator_t op,
 			  const cairo_pattern_t *source,
 			  cairo_path_fixed_t *path,
-			  const cairo_stroke_style_t *style,
-			  const cairo_matrix_t *ctm,
-			  const cairo_matrix_t *ctm_inverse,
+			  cairo_stroke_style_t *style,
+			  cairo_matrix_t *ctm,
+			  cairo_matrix_t *ctm_inverse,
 			  double tolerance,
 			  cairo_antialias_t antialias,
 			  cairo_clip_t *clip)
@@ -1564,7 +1567,6 @@ cairo_qt_surface_create (QPainter *painter)
 
     _cairo_surface_init (&qs->base,
 			 &cairo_qt_surface_backend,
-			 NULL,
 			 CAIRO_CONTENT_COLOR_ALPHA);
 
     _cairo_surface_clipper_init (&qs->clipper,
@@ -1603,7 +1605,6 @@ cairo_qt_surface_create_with_qimage (cairo_format_t format,
 
     _cairo_surface_init (&qs->base,
 			 &cairo_qt_surface_backend,
-			 NULL,
 			 _cairo_content_from_format (format));
 
     _cairo_surface_clipper_init (&qs->clipper,
@@ -1671,7 +1672,7 @@ cairo_qt_surface_create_with_qpixmap (cairo_content_t content,
     if (content == CAIRO_CONTENT_COLOR_ALPHA)
 	pixmap->fill(Qt::transparent);
 
-    _cairo_surface_init (&qs->base, &cairo_qt_surface_backend, NULL, content);
+    _cairo_surface_init (&qs->base, &cairo_qt_surface_backend, content);
 
     _cairo_surface_clipper_init (&qs->clipper,
 				 _cairo_qt_surface_clipper_intersect_clip_path);
@@ -1730,9 +1731,9 @@ cairo_qt_surface_get_image (cairo_surface_t *surface)
  *
  * - Figure out why QBrush isn't working with non-repeated images
  *
- * - Correct repeat mode; right now, every surface source is ExtendMode::REPEAT
+ * - Correct repeat mode; right now, every surface source is EXTEND_REPEAT
  *   - implement EXTEND_NONE (?? probably need to clip to the extents of the source)
- *   - implement ExtendMode::REFLECT (create temporary and copy 4x, then ExtendMode::REPEAT that)
+ *   - implement EXTEND_REFLECT (create temporary and copy 4x, then EXTEND_REPEAT that)
  *
  * - stroke-image failure
  *

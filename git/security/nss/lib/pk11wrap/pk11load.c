@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * The following handles the loading, unloading and management of
  * various PCKS #11 modules
@@ -16,7 +48,6 @@
 #include "nssilock.h"
 #include "secerr.h"
 #include "prenv.h"
-#include "utilparst.h"
 
 #define DEBUG_MODULE 1
 
@@ -53,11 +84,6 @@ static const CK_C_INITIALIZE_ARGS secmodLockFunctions = {
     secmodCreateMutext, secmodDestroyMutext, secmodLockMutext, 
     secmodUnlockMutext, CKF_LIBRARY_CANT_CREATE_OS_THREADS|
 	CKF_OS_LOCKING_OK
-    ,NULL
-};
-static const CK_C_INITIALIZE_ARGS secmodNoLockArgs = {
-    NULL, NULL, NULL, NULL,
-    CKF_LIBRARY_CANT_CREATE_OS_THREADS
     ,NULL
 };
 
@@ -152,8 +178,8 @@ secmod_handleReload(SECMODModule *oldModule, SECMODModule *newModule)
 	char *oldModuleSpec;
 
 	if (secmod_IsInternalKeySlot(newModule)) {
-	    pk11_SetInternalKeySlotIfFirst(slot);
-	} 
+	    pk11_SetInternalKeySlot(slot);
+	}
 	newID = slot->slotID;
 	PK11_FreeSlot(slot);
 	for (thisChild=children, thisID=ids; thisChild && *thisChild; 
@@ -214,18 +240,12 @@ secmod_ModuleInit(SECMODModule *mod, SECMODModule **reload,
         return SECFailure;
     }
 
-    if (mod->libraryParams == NULL) {
-	if (mod->isThreadSafe) {
-	    pInitArgs = (void *) &secmodLockFunctions;
-	} else {
-	    pInitArgs = NULL;
-	}
+    if (mod->isThreadSafe == PR_FALSE) {
+	pInitArgs = NULL;
+    } else if (mod->libraryParams == NULL) {
+	pInitArgs = (void *) &secmodLockFunctions;
     } else {
-	if (mod->isThreadSafe) {
-	    moduleArgs = secmodLockFunctions;
-	} else {
-	    moduleArgs = secmodNoLockArgs;
-	}
+	moduleArgs = secmodLockFunctions;
 	moduleArgs.LibraryParameters = (void *) mod->libraryParams;
 	pInitArgs = &moduleArgs;
     }
@@ -262,30 +282,18 @@ secmod_ModuleInit(SECMODModule *mod, SECMODModule **reload,
 	}
     }
     if (crv != CKR_OK) {
-	if (!mod->isThreadSafe ||
+	if (pInitArgs == NULL ||
 		crv == CKR_NETSCAPE_CERTDB_FAILED ||
 		crv == CKR_NETSCAPE_KEYDB_FAILED) {
 	    PORT_SetError(PK11_MapError(crv));
 	    return SECFailure;
 	}
-	/* If we had attempted to init a single threaded module "with"
-	 * parameters and it failed, should we retry "without" parameters?
-	 * (currently we don't retry in this scenario) */
-
 	if (!loadSingleThreadedModules) {
 	    PORT_SetError(SEC_ERROR_INCOMPATIBLE_PKCS11);
 	    return SECFailure;
 	}
-	/* If we arrive here, the module failed a ThreadSafe init. */
 	mod->isThreadSafe = PR_FALSE;
-	if (!mod->libraryParams) {
-	    pInitArgs = NULL;
-	} else {
-	    moduleArgs = secmodNoLockArgs;
-	    moduleArgs.LibraryParameters = (void *) mod->libraryParams;
-	    pInitArgs = &moduleArgs;
-	}
-    	crv = PK11_GETTAB(mod)->C_Initialize(pInitArgs);
+    	crv = PK11_GETTAB(mod)->C_Initialize(NULL);
 	if ((CKR_CRYPTOKI_ALREADY_INITIALIZED == crv) &&
 	    (!enforceAlreadyInitializedError)) {
 	    *alreadyLoaded = PR_TRUE;
@@ -379,6 +387,7 @@ SECStatus
 secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule) {
     PRLibrary *library = NULL;
     CK_C_GetFunctionList entry = NULL;
+    char * full_name;
     CK_INFO info;
     CK_ULONG slotCount = 0;
     SECStatus rv;
@@ -425,11 +434,14 @@ secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule) {
 	    return SECFailure;
 	}
 
+	full_name = PORT_Strdup(mod->dllName);
+
 	/* load the library. If this succeeds, then we have to remember to
 	 * unload the library if anything goes wrong from here on out...
 	 */
-	library = PR_LoadLibrary(mod->dllName);
+	library = PR_LoadLibrary(full_name);
 	mod->library = (void *)library;
+	PORT_Free(full_name);
 
 	if (library == NULL) {
 	    return SECFailure;
@@ -538,11 +550,6 @@ secmod_LoadPKCS11Module(SECMODModule *mod, SECMODModule **oldModule) {
 	    /* look down the slot info table */
 	    PK11_LoadSlotList(mod->slots[i],mod->slotInfo,mod->slotInfoCount);
 	    SECMOD_SetRootCerts(mod->slots[i],mod);
-	    /* explicitly mark the internal slot as such if IsInternalKeySlot()
-	     * is set */
-	    if (secmod_IsInternalKeySlot(mod) && (i == (mod->isFIPS ? 0 : 1))) {
-		pk11_SetInternalKeySlotIfFirst(mod->slots[i]);
-	    } 
 	}
 	mod->slotCount = slotCount;
 	mod->slotInfoCount = 0;
@@ -584,7 +591,7 @@ SECMOD_UnloadModule(SECMODModule *mod) {
     /* do we want the semantics to allow unloading the internal library?
      * if not, we should change this to SECFailure and move it above the
      * mod->loaded = PR_FALSE; */
-    if (mod->internal && (mod->dllName == NULL)) {
+    if (mod->internal) {
         if (0 == PR_ATOMIC_DECREMENT(&softokenLoadCount)) {
           if (softokenLib) {
               disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");

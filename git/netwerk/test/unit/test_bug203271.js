@@ -4,11 +4,10 @@
 // specified in RFC 2616 section 14.9.3 by letting max-age
 // take precedence
 
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 const BUGID = "203271";
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var tests = [
     // original problem described in bug#203271
@@ -76,6 +75,12 @@ var tests = [
 
 ];
 
+function getCacheService()
+{
+    return Components.classes["@mozilla.org/network/cache-service;1"].
+                      getService(Components.interfaces.nsICacheService);
+}
+
 function logit(i, data, ctx) {
     dump("requested [" + tests[i].server + "] " +
          "got [" + data + "] " +
@@ -97,15 +102,7 @@ function logit(i, data, ctx) {
 function setupChannel(suffix, value) {
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
                          getService(Ci.nsIIOService);
-    var chan = ios.newChannel2("http://localhost:" +
-                               httpserver.identity.primaryPort + suffix,
-                               "",
-                               null,
-                               null,      // aLoadingNode
-                               Services.scriptSecurityManager.getSystemPrincipal(),
-                               null,      // aTriggeringPrincipal
-                               Ci.nsILoadInfo.SEC_NORMAL,
-                               Ci.nsIContentPolicy.TYPE_OTHER);
+    var chan = ios.newChannel("http://localhost:4444" + suffix, "", null);
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.requestMethod = "GET"; // default value, just being paranoid...
     httpChan.setRequestHeader("x-request", value, false);
@@ -135,11 +132,11 @@ function checkValueAndTrigger(request, data, ctx) {
 
 function run_test() {
     httpserver.registerPathHandler("/precedence", handler);
-    httpserver.start(-1);
+    httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
-
+    getCacheService().
+       evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     triggerNextTest();
     do_test_pending();
 }

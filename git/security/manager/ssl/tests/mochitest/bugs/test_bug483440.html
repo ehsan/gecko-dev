@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Test bug 483437 and bug 480509</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -8,14 +9,16 @@
 
 <script class="testbody" type="text/javascript">
 
-var certdb = SpecialPowers.Cc["@mozilla.org/security/x509certdb;1"]
-  .getService(SpecialPowers.Ci.nsIX509CertDB);
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+var certdb = Components.classes["@mozilla.org/security/x509certdb;1"]
+  .getService(Components.interfaces.nsIX509CertDB);
 
 function test(certNick, expected)
 {
   var cert1 = certdb.findCertByNickname(null, certNick);
-  var certDumpTree1 = SpecialPowers.Cc["@mozilla.org/security/nsASN1Tree;1"]
-                     .createInstance(SpecialPowers.Ci.nsIASN1Tree);
+  var certDumpTree1 = Components.classes["@mozilla.org/security/nsASN1Tree;1"]
+                     .createInstance(Components.interfaces.nsIASN1Tree);
   certDumpTree1.loadASN1Structure(cert1.ASN1Structure);
   var value1 = certDumpTree1.getDisplayData(9);
   

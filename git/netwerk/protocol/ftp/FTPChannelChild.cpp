@@ -1,25 +1,53 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alon Zakai <azakai@mozilla.com>
+ *   Josh Matthews <josh@joshmatthews.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/net/ChannelDiverterChild.h"
 #include "mozilla/net/FTPChannelChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "nsFtpProtocolHandler.h"
-#include "nsITabChild.h"
-#include "nsStringStream.h"
-#include "nsNetUtil.h"
-#include "base/compiler_specific.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-#include "SerializedLoadContext.h"
-#include "mozilla/ipc/BackgroundUtils.h"
 
-using namespace mozilla::ipc;
+#include "nsStringStream.h"
+#include "nsMimeTypes.h"
+#include "nsNetUtil.h"
+#include "nsIURIFixup.h"
+#include "nsCDefaultURIFixup.h"
 
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -28,26 +56,19 @@ namespace mozilla {
 namespace net {
 
 FTPChannelChild::FTPChannelChild(nsIURI* uri)
-: mIPCOpen(false)
+: ChannelEventQueue<FTPChannelChild>(this)
+, mIPCOpen(false)
 , mCanceled(false)
 , mSuspendCount(0)
-, mIsPending(false)
-, mWasOpened(false)
+, mIsPending(PR_FALSE)
+, mWasOpened(PR_FALSE)
 , mLastModifiedTime(0)
 , mStartPos(0)
-, mDivertingToParent(false)
-, mFlushedForDiversion(false)
-, mSuspendSent(false)
 {
   LOG(("Creating FTPChannelChild @%x\n", this));
   // grab a reference to the handler to ensure that it doesn't go away.
   NS_ADDREF(gFtpHandler);
   SetURI(uri);
-  mEventQ = new ChannelEventQueue(static_cast<nsIFTPChannel*>(this));
-
-  // We could support thread retargeting, but as long as we're being driven by
-  // IPDL on the main thread it doesn't buy us anything.
-  DisallowThreadRetargeting();
 }
 
 FTPChannelChild::~FTPChannelChild()
@@ -76,14 +97,13 @@ FTPChannelChild::ReleaseIPDLReference()
 // FTPChannelChild::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED(FTPChannelChild,
-                            nsBaseChannel,
-                            nsIFTPChannel,
-                            nsIUploadChannel,
-                            nsIResumableChannel,
-                            nsIProxiedChannel,
-                            nsIChildChannel,
-                            nsIDivertableChannel)
+NS_IMPL_ISUPPORTS_INHERITED5(FTPChannelChild,
+                             nsBaseChannel,
+                             nsIFTPChannel,
+                             nsIUploadChannel,
+                             nsIResumableChannel,
+                             nsIProxiedChannel,
+                             nsIChildChannel)
 
 //-----------------------------------------------------------------------------
 
@@ -101,7 +121,7 @@ FTPChannelChild::SetLastModifiedTime(PRTime lastModifiedTime)
 }
 
 NS_IMETHODIMP
-FTPChannelChild::ResumeAt(uint64_t aStartPos, const nsACString& aEntityID)
+FTPChannelChild::ResumeAt(PRUint64 aStartPos, const nsACString& aEntityID)
 {
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   mStartPos = aStartPos;
@@ -125,7 +145,7 @@ FTPChannelChild::GetProxyInfo(nsIProxyInfo** aProxyInfo)
 NS_IMETHODIMP
 FTPChannelChild::SetUploadStream(nsIInputStream* stream,
                                  const nsACString& contentType,
-                                 int64_t contentLength)
+                                 PRInt32 contentLength)
 {
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   mUploadStream = stream;
@@ -144,43 +164,10 @@ FTPChannelChild::GetUploadStream(nsIInputStream** stream)
 
 //-----------------------------------------------------------------------------
 
-// helper function to assign loadInfo to openArgs
-void
-propagateLoadInfo(nsILoadInfo *aLoadInfo,
-                  FTPChannelOpenArgs& openArgs)
-{
-  mozilla::ipc::PrincipalInfo requestingPrincipalInfo;
-  mozilla::ipc::PrincipalInfo triggeringPrincipalInfo;
-
-  if (aLoadInfo) {
-    mozilla::ipc::PrincipalToPrincipalInfo(aLoadInfo->LoadingPrincipal(),
-                                           &requestingPrincipalInfo);
-    openArgs.requestingPrincipalInfo() = requestingPrincipalInfo;
-
-    mozilla::ipc::PrincipalToPrincipalInfo(aLoadInfo->TriggeringPrincipal(),
-                                           &triggeringPrincipalInfo);
-    openArgs.triggeringPrincipalInfo() = triggeringPrincipalInfo;
-
-    openArgs.securityFlags() = aLoadInfo->GetSecurityFlags();
-    openArgs.contentPolicyType() = aLoadInfo->GetContentPolicyType();
-    openArgs.innerWindowID() = aLoadInfo->GetInnerWindowID();
-    return;
-  }
-
-  // use default values if no loadInfo is provided
-  mozilla::ipc::PrincipalToPrincipalInfo(nsContentUtils::GetSystemPrincipal(),
-                                         &requestingPrincipalInfo);
-  openArgs.requestingPrincipalInfo() = requestingPrincipalInfo;
-  openArgs.triggeringPrincipalInfo() = requestingPrincipalInfo;
-  openArgs.securityFlags() = nsILoadInfo::SEC_NORMAL;
-  openArgs.contentPolicyType() = nsIContentPolicy::TYPE_OTHER;
-  openArgs.innerWindowID() = 0;
-}
-
 NS_IMETHODIMP
 FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
 {
-  LOG(("FTPChannelChild::AsyncOpen [this=%p]\n", this));
+  LOG(("FTPChannelChild::AsyncOpen [this=%x]\n", this));
 
   NS_ENSURE_TRUE((gNeckoChild), NS_ERROR_FAILURE);
   NS_ENSURE_ARG_POINTER(listener);
@@ -196,65 +183,37 @@ FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
   if (NS_FAILED(rv))
     return rv;
 
-  mozilla::dom::TabChild* tabChild = nullptr;
-  nsCOMPtr<nsITabChild> iTabChild;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsITabChild),
-                                getter_AddRefs(iTabChild));
-  GetCallback(iTabChild);
-  if (iTabChild) {
-    tabChild = static_cast<mozilla::dom::TabChild*>(iTabChild.get());
-  }
-  if (MissingRequiredTabChild(tabChild, "ftp")) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
+  // FIXME: like bug 558623, merge constructor+SendAsyncOpen into 1 IPC msg
+  gNeckoChild->SendPFTPChannelConstructor(this);
   mListener = listener;
   mListenerContext = aContext;
 
   // add ourselves to the load group. 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
-  OptionalInputStreamParams uploadStream;
-  nsTArray<mozilla::ipc::FileDescriptor> fds;
-  SerializeInputStream(mUploadStream, uploadStream, fds);
-
-  MOZ_ASSERT(fds.IsEmpty());
-
-  FTPChannelOpenArgs openArgs;
-  SerializeURI(nsBaseChannel::URI(), openArgs.uri());
-  openArgs.startPos() = mStartPos;
-  openArgs.entityID() = mEntityID;
-  openArgs.uploadStream() = uploadStream;
-
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  GetLoadInfo(getter_AddRefs(loadInfo));
-  propagateLoadInfo(loadInfo, openArgs);
-
-  gNeckoChild->
-    SendPFTPChannelConstructor(this, tabChild, IPC::SerializedLoadContext(this),
-                               openArgs);
+  SendAsyncOpen(nsBaseChannel::URI(), mStartPos, mEntityID,
+                IPC::InputStream(mUploadStream));
 
   // The socket transport layer in the chrome process now has a logical ref to
   // us until OnStopRequest is called.
   AddIPDLReference();
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
 
   return rv;
 }
 
 NS_IMETHODIMP
-FTPChannelChild::IsPending(bool* result)
+FTPChannelChild::IsPending(PRBool* result)
 {
   *result = mIsPending;
   return NS_OK;
 }
 
 nsresult
-FTPChannelChild::OpenContentStream(bool async,
+FTPChannelChild::OpenContentStream(PRBool async,
                                    nsIInputStream** stream,
                                    nsIChannel** channel)
 {
@@ -268,182 +227,97 @@ FTPChannelChild::OpenContentStream(bool async,
 
 class FTPStartRequestEvent : public ChannelEvent
 {
-public:
-  FTPStartRequestEvent(FTPChannelChild* aChild,
-                       const nsresult& aChannelStatus,
-                       const int64_t& aContentLength,
-                       const nsCString& aContentType,
-                       const PRTime& aLastModified,
-                       const nsCString& aEntityID,
-                       const URIParams& aURI)
-    : mChild(aChild)
-    , mChannelStatus(aChannelStatus)
-    , mContentLength(aContentLength)
-    , mContentType(aContentType)
-    , mLastModified(aLastModified)
-    , mEntityID(aEntityID)
-    , mURI(aURI)
-  {
-  }
-  void Run()
-  {
-    mChild->DoOnStartRequest(mChannelStatus, mContentLength, mContentType,
-                             mLastModified, mEntityID, mURI);
-  }
-
-private:
+ public:
+  FTPStartRequestEvent(FTPChannelChild* aChild, const PRInt32& aContentLength,
+                       const nsCString& aContentType, const PRTime& aLastModified,
+                       const nsCString& aEntityID, const IPC::URI& aURI)
+  : mChild(aChild), mContentLength(aContentLength), mContentType(aContentType),
+    mLastModified(aLastModified), mEntityID(aEntityID), mURI(aURI) {}
+  void Run() { mChild->DoOnStartRequest(mContentLength, mContentType,
+                                       mLastModified, mEntityID, mURI); }
+ private:
   FTPChannelChild* mChild;
-  nsresult mChannelStatus;
-  int64_t mContentLength;
+  PRInt32 mContentLength;
   nsCString mContentType;
   PRTime mLastModified;
   nsCString mEntityID;
-  URIParams mURI;
+  IPC::URI mURI;
 };
 
 bool
-FTPChannelChild::RecvOnStartRequest(const nsresult& aChannelStatus,
-                                    const int64_t& aContentLength,
+FTPChannelChild::RecvOnStartRequest(const PRInt32& aContentLength,
                                     const nsCString& aContentType,
                                     const PRTime& aLastModified,
                                     const nsCString& aEntityID,
-                                    const URIParams& aURI)
+                                    const IPC::URI& aURI)
 {
-  // mFlushedForDiversion and mDivertingToParent should NEVER be set at this
-  // stage, as they are set in the listener's OnStartRequest.
-  MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-    "mFlushedForDiversion should be unset before OnStartRequest!");
-  MOZ_RELEASE_ASSERT(!mDivertingToParent,
-    "mDivertingToParent should be unset before OnStartRequest!");
-
-  LOG(("FTPChannelChild::RecvOnStartRequest [this=%p]\n", this));
-
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new FTPStartRequestEvent(this, aChannelStatus,
-                                              aContentLength, aContentType,
-                                              aLastModified, aEntityID, aURI));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPStartRequestEvent(this, aContentLength, aContentType,
+                                          aLastModified, aEntityID, aURI));
   } else {
-    DoOnStartRequest(aChannelStatus, aContentLength, aContentType,
-                     aLastModified, aEntityID, aURI);
+    DoOnStartRequest(aContentLength, aContentType, aLastModified,
+                     aEntityID, aURI);
   }
   return true;
 }
 
 void
-FTPChannelChild::DoOnStartRequest(const nsresult& aChannelStatus,
-                                  const int64_t& aContentLength,
+FTPChannelChild::DoOnStartRequest(const PRInt32& aContentLength,
                                   const nsCString& aContentType,
                                   const PRTime& aLastModified,
                                   const nsCString& aEntityID,
-                                  const URIParams& aURI)
+                                  const IPC::URI& aURI)
 {
-  LOG(("FTPChannelChild::DoOnStartRequest [this=%p]\n", this));
+  LOG(("FTPChannelChild::RecvOnStartRequest [this=%x]\n", this));
 
-  // mFlushedForDiversion and mDivertingToParent should NEVER be set at this
-  // stage, as they are set in the listener's OnStartRequest.
-  MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-    "mFlushedForDiversion should be unset before OnStartRequest!");
-  MOZ_RELEASE_ASSERT(!mDivertingToParent,
-    "mDivertingToParent should be unset before OnStartRequest!");
-
-  if (!mCanceled && NS_SUCCEEDED(mStatus)) {
-    mStatus = aChannelStatus;
-  }
-
-  mContentLength = aContentLength;
+  SetContentLength(aContentLength);
   SetContentType(aContentType);
   mLastModifiedTime = aLastModified;
   mEntityID = aEntityID;
 
   nsCString spec;
-  nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
+  nsCOMPtr<nsIURI> uri(aURI);
   uri->GetSpec(spec);
   nsBaseChannel::URI()->SetSpec(spec);
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
   if (NS_FAILED(rv))
     Cancel(rv);
-
-  if (mDivertingToParent) {
-    mListener = nullptr;
-    mListenerContext = nullptr;
-    if (mLoadGroup) {
-      mLoadGroup->RemoveRequest(this, nullptr, mStatus);
-    }
-  }
 }
 
 class FTPDataAvailableEvent : public ChannelEvent
 {
-public:
-  FTPDataAvailableEvent(FTPChannelChild* aChild,
-                        const nsresult& aChannelStatus,
-                        const nsCString& aData,
-                        const uint64_t& aOffset,
-                        const uint32_t& aCount)
-    : mChild(aChild)
-    , mChannelStatus(aChannelStatus)
-    , mData(aData)
-    , mOffset(aOffset)
-    , mCount(aCount)
-  {
-  }
-  void Run()
-  {
-    mChild->DoOnDataAvailable(mChannelStatus, mData, mOffset, mCount);
-  }
-
-private:
+ public:
+  FTPDataAvailableEvent(FTPChannelChild* aChild, const nsCString& aData,
+                        const PRUint32& aOffset, const PRUint32& aCount)
+  : mChild(aChild), mData(aData), mOffset(aOffset), mCount(aCount) {}
+  void Run() { mChild->DoOnDataAvailable(mData, mOffset, mCount); }
+ private:
   FTPChannelChild* mChild;
-  nsresult mChannelStatus;
   nsCString mData;
-  uint64_t mOffset;
-  uint32_t mCount;
+  PRUint32 mOffset, mCount;
 };
 
 bool
-FTPChannelChild::RecvOnDataAvailable(const nsresult& channelStatus,
-                                     const nsCString& data,
-                                     const uint64_t& offset,
-                                     const uint32_t& count)
+FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
+                                     const PRUint32& offset,
+                                     const PRUint32& count)
 {
-  MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-                     "Should not be receiving any more callbacks from parent!");
-
-  LOG(("FTPChannelChild::RecvOnDataAvailable [this=%p]\n", this));
-
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(
-      new FTPDataAvailableEvent(this, channelStatus, data, offset, count));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPDataAvailableEvent(this, data, offset, count));
   } else {
-    MOZ_RELEASE_ASSERT(!mDivertingToParent,
-                       "ShouldEnqueue when diverting to parent!");
-
-    DoOnDataAvailable(channelStatus, data, offset, count);
+    DoOnDataAvailable(data, offset, count);
   }
   return true;
 }
 
 void
-FTPChannelChild::DoOnDataAvailable(const nsresult& channelStatus,
-                                   const nsCString& data,
-                                   const uint64_t& offset,
-                                   const uint32_t& count)
+FTPChannelChild::DoOnDataAvailable(const nsCString& data,
+                                   const PRUint32& offset,
+                                   const PRUint32& count)
 {
-  LOG(("FTPChannelChild::DoOnDataAvailable [this=%p]\n", this));
-
-  if (!mCanceled && NS_SUCCEEDED(mStatus)) {
-    mStatus = channelStatus;
-  }
-
-  if (mDivertingToParent) {
-    MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-      "Should not be processing any more callbacks from parent!");
-
-    SendDivertOnDataAvailable(data, offset, count);
-    return;
-  }
+  LOG(("FTPChannelChild::RecvOnDataAvailable [this=%x]\n", this));
 
   if (mCanceled)
     return;
@@ -463,7 +337,7 @@ FTPChannelChild::DoOnDataAvailable(const nsresult& channelStatus,
     return;
   }
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
   rv = mListener->OnDataAvailable(this, mListenerContext,
                                   stringStream, offset, count);
   if (NS_FAILED(rv))
@@ -473,187 +347,103 @@ FTPChannelChild::DoOnDataAvailable(const nsresult& channelStatus,
 
 class FTPStopRequestEvent : public ChannelEvent
 {
-public:
-  FTPStopRequestEvent(FTPChannelChild* aChild,
-                      const nsresult& aChannelStatus)
-    : mChild(aChild)
-    , mChannelStatus(aChannelStatus)
-  {
-  }
-  void Run()
-  {
-    mChild->DoOnStopRequest(mChannelStatus);
-  }
-
-private:
+ public:
+  FTPStopRequestEvent(FTPChannelChild* aChild, const nsresult& aStatusCode)
+  : mChild(aChild), mStatusCode(aStatusCode) {}
+  void Run() { mChild->DoOnStopRequest(mStatusCode); }
+ private:
   FTPChannelChild* mChild;
-  nsresult mChannelStatus;
+  nsresult mStatusCode;
 };
 
 bool
-FTPChannelChild::RecvOnStopRequest(const nsresult& aChannelStatus)
+FTPChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 {
-  MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-    "Should not be receiving any more callbacks from parent!");
-
-  LOG(("FTPChannelChild::RecvOnStopRequest [this=%p status=%x]\n",
-       this, aChannelStatus));
-
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new FTPStopRequestEvent(this, aChannelStatus));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPStopRequestEvent(this, statusCode));
   } else {
-    DoOnStopRequest(aChannelStatus);
+    DoOnStopRequest(statusCode);
   }
   return true;
 }
 
 void
-FTPChannelChild::DoOnStopRequest(const nsresult& aChannelStatus)
+FTPChannelChild::DoOnStopRequest(const nsresult& statusCode)
 {
-  LOG(("FTPChannelChild::DoOnStopRequest [this=%p status=%x]\n",
-       this, aChannelStatus));
-
-  if (mDivertingToParent) {
-    MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
-      "Should not be processing any more callbacks from parent!");
-
-    SendDivertOnStopRequest(aChannelStatus);
-    return;
-  }
+  LOG(("FTPChannelChild::RecvOnStopRequest [this=%x status=%u]\n",
+           this, statusCode));
 
   if (!mCanceled)
-    mStatus = aChannelStatus;
+    mStatus = statusCode;
 
   { // Ensure that all queued ipdl events are dispatched before
     // we initiate protocol deletion below.
-    mIsPending = false;
-    AutoEventEnqueuer ensureSerialDispatch(mEventQ);
-    (void)mListener->OnStopRequest(this, mListenerContext, aChannelStatus);
-    mListener = nullptr;
-    mListenerContext = nullptr;
+    mIsPending = PR_FALSE;
+    AutoEventEnqueuer ensureSerialDispatch(this);
+    (void)mListener->OnStopRequest(this, mListenerContext, statusCode);
+    mListener = nsnull;
+    mListenerContext = nsnull;
 
     if (mLoadGroup)
-      mLoadGroup->RemoveRequest(this, nullptr, aChannelStatus);
+      mLoadGroup->RemoveRequest(this, nsnull, statusCode);
   }
 
-  // This calls NeckoChild::DeallocPFTPChannelChild(), which deletes |this| if IPDL
+  // This calls NeckoChild::DeallocPFTPChannel(), which deletes |this| if IPDL
   // holds the last reference.  Don't rely on |this| existing after here!
   Send__delete__(this);
 }
 
-class FTPFailedAsyncOpenEvent : public ChannelEvent
+class FTPCancelEarlyEvent : public ChannelEvent
 {
  public:
-  FTPFailedAsyncOpenEvent(FTPChannelChild* aChild, nsresult aStatus)
+  FTPCancelEarlyEvent(FTPChannelChild* aChild, nsresult aStatus)
   : mChild(aChild), mStatus(aStatus) {}
-  void Run() { mChild->DoFailedAsyncOpen(mStatus); }
+  void Run() { mChild->DoCancelEarly(mStatus); }
  private:
   FTPChannelChild* mChild;
   nsresult mStatus;
 };
 
 bool
-FTPChannelChild::RecvFailedAsyncOpen(const nsresult& statusCode)
+FTPChannelChild::RecvCancelEarly(const nsresult& statusCode)
 {
-  LOG(("FTPChannelChild::RecvFailedAsyncOpen [this=%p status=%x]\n",
-       this, statusCode));
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new FTPFailedAsyncOpenEvent(this, statusCode));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPCancelEarlyEvent(this, statusCode));
   } else {
-    DoFailedAsyncOpen(statusCode);
+    DoCancelEarly(statusCode);
   }
   return true;
 }
 
 void
-FTPChannelChild::DoFailedAsyncOpen(const nsresult& statusCode)
+FTPChannelChild::DoCancelEarly(const nsresult& statusCode)
 {
-  LOG(("FTPChannelChild::DoFailedAsyncOpen [this=%p status=%x]\n",
-       this, statusCode));
-  mStatus = statusCode;
+  if (mCanceled)
+    return;
 
+  mCanceled = true;
+  mStatus = statusCode;
+  mIsPending = PR_FALSE;
+  
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nullptr, statusCode);
+    mLoadGroup->RemoveRequest(this, nsnull, statusCode);
 
   if (mListener) {
     mListener->OnStartRequest(this, mListenerContext);
-    mIsPending = false;
     mListener->OnStopRequest(this, mListenerContext, statusCode);
-  } else {
-    mIsPending = false;
   }
 
-  mListener = nullptr;
-  mListenerContext = nullptr;
+  mListener = nsnull;
+  mListenerContext = nsnull;
 
   if (mIPCOpen)
     Send__delete__(this);
 }
 
-class FTPFlushedForDiversionEvent : public ChannelEvent
-{
- public:
-  explicit FTPFlushedForDiversionEvent(FTPChannelChild* aChild)
-  : mChild(aChild)
-  {
-    MOZ_RELEASE_ASSERT(aChild);
-  }
-
-  void Run()
-  {
-    mChild->FlushedForDiversion();
-  }
- private:
-  FTPChannelChild* mChild;
-};
-
-bool
-FTPChannelChild::RecvFlushedForDiversion()
-{
-  LOG(("FTPChannelChild::RecvFlushedForDiversion [this=%p]\n", this));
-  MOZ_ASSERT(mDivertingToParent);
-
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new FTPFlushedForDiversionEvent(this));
-  } else {
-    MOZ_CRASH();
-  }
-  return true;
-}
-
-void
-FTPChannelChild::FlushedForDiversion()
-{
-  LOG(("FTPChannelChild::FlushedForDiversion [this=%p]\n", this));
-  MOZ_RELEASE_ASSERT(mDivertingToParent);
-
-  // Once this is set, it should not be unset before FTPChannelChild is taken
-  // down. After it is set, no OnStart/OnData/OnStop callbacks should be
-  // received from the parent channel, nor dequeued from the ChannelEventQueue.
-  mFlushedForDiversion = true;
-
-  SendDivertComplete();
-}
-
-bool
-FTPChannelChild::RecvDivertMessages()
-{
-  LOG(("FTPChannelChild::RecvDivertMessages [this=%p]\n", this));
-  MOZ_RELEASE_ASSERT(mDivertingToParent);
-  MOZ_RELEASE_ASSERT(mSuspendCount > 0);
-
-  // DivertTo() has been called on parent, so we can now start sending queued
-  // IPDL messages back to parent listener.
-  if (NS_WARN_IF(NS_FAILED(Resume()))) {
-    return false;
-  }
-  return true;
-}
-
 class FTPDeleteSelfEvent : public ChannelEvent
 {
  public:
-  explicit FTPDeleteSelfEvent(FTPChannelChild* aChild)
+  FTPDeleteSelfEvent(FTPChannelChild* aChild)
   : mChild(aChild) {}
   void Run() { mChild->DoDeleteSelf(); }
  private:
@@ -663,8 +453,8 @@ class FTPDeleteSelfEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvDeleteSelf()
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new FTPDeleteSelfEvent(this));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPDeleteSelfEvent(this));
   } else {
     DoDeleteSelf();
   }
@@ -681,7 +471,6 @@ FTPChannelChild::DoDeleteSelf()
 NS_IMETHODIMP
 FTPChannelChild::Cancel(nsresult status)
 {
-  LOG(("FTPChannelChild::Cancel [this=%p]\n", this));
   if (mCanceled)
     return NS_OK;
 
@@ -696,18 +485,8 @@ NS_IMETHODIMP
 FTPChannelChild::Suspend()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-
-  LOG(("FTPChannelChild::Suspend [this=%p]\n", this));
-
-  // SendSuspend only once, when suspend goes from 0 to 1.
-  // Don't SendSuspend at all if we're diverting callbacks to the parent;
-  // suspend will be called at the correct time in the parent itself.
-  if (!mSuspendCount++ && !mDivertingToParent) {
-    SendSuspend();
-    mSuspendSent = true;
-  }
-  mEventQ->Suspend();
-
+  mSuspendCount++;
+  SendSuspend();
   return NS_OK;
 }
 
@@ -715,18 +494,13 @@ NS_IMETHODIMP
 FTPChannelChild::Resume()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-
-  LOG(("FTPChannelChild::Resume [this=%p]\n", this));
-
-  // SendResume only once, when suspend count drops to 0.
-  // Don't SendResume at all if we're diverting callbacks to the parent (unless
-  // suspend was sent earlier); otherwise, resume will be called at the correct
-  // time in the parent itself.
-  if (!--mSuspendCount && (!mDivertingToParent || mSuspendSent)) {
-    SendResume();
+  SendResume();
+  --mSuspendCount;
+  if (!mSuspendCount) {
+    if (mQueuePhase == PHASE_UNQUEUED)
+      mQueuePhase = PHASE_FINISHED_QUEUEING;
+    FlushEventQueue();
   }
-  mEventQ->Resume();
-
   return NS_OK;
 }
 
@@ -735,31 +509,17 @@ FTPChannelChild::Resume()
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-FTPChannelChild::ConnectParent(uint32_t id)
+FTPChannelChild::ConnectParent(PRUint32 id)
 {
-  LOG(("FTPChannelChild::ConnectParent [this=%p]\n", this));
-
-  mozilla::dom::TabChild* tabChild = nullptr;
-  nsCOMPtr<nsITabChild> iTabChild;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsITabChild),
-                                getter_AddRefs(iTabChild));
-  GetCallback(iTabChild);
-  if (iTabChild) {
-    tabChild = static_cast<mozilla::dom::TabChild*>(iTabChild.get());
-  }
-
   // The socket transport in the chrome process now holds a logical ref to us
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
   AddIPDLReference();
 
-  FTPChannelConnectArgs connectArgs(id);
-
-  if (!gNeckoChild->SendPFTPChannelConstructor(this, tabChild,
-                                               IPC::SerializedLoadContext(this),
-                                               connectArgs)) {
+  if (!gNeckoChild->SendPFTPChannelConstructor(this))
     return NS_ERROR_FAILURE;
-  }
+
+  if (!SendConnectChannel(id))
+    return NS_ERROR_FAILURE;
 
   return NS_OK;
 }
@@ -768,58 +528,23 @@ NS_IMETHODIMP
 FTPChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
                                        nsISupports *aContext)
 {
-  LOG(("FTPChannelChild::CompleteRedirectSetup [this=%p]\n", this));
+  LOG(("FTPChannelChild::CompleteRedirectSetup [this=%x]\n", this));
 
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
   mListener = listener;
   mListenerContext = aContext;
 
   // add ourselves to the load group.
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
   // We already have an open IPDL connection to the parent. If on-modify-request
   // listeners or load group observers canceled us, let the parent handle it
   // and send it back to us naturally.
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// FTPChannelChild::nsIDivertableChannel
-//-----------------------------------------------------------------------------
-NS_IMETHODIMP
-FTPChannelChild::DivertToParent(ChannelDiverterChild **aChild)
-{
-  MOZ_RELEASE_ASSERT(aChild);
-  MOZ_RELEASE_ASSERT(gNeckoChild);
-  MOZ_RELEASE_ASSERT(!mDivertingToParent);
-
-  LOG(("FTPChannelChild::DivertToParent [this=%p]\n", this));
-
-  // We must fail DivertToParent() if there's no parent end of the channel (and
-  // won't be!) due to early failure.
-  if (NS_FAILED(mStatus) && !mIPCOpen) {
-    return mStatus;
-  }
-
-  nsresult rv = Suspend();
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-  // Once this is set, it should not be unset before the child is taken down.
-  mDivertingToParent = true;
-
-  PChannelDiverterChild* diverter =
-    gNeckoChild->SendPChannelDiverterConstructor(this);
-  MOZ_RELEASE_ASSERT(diverter);
-
-  *aChild = static_cast<ChannelDiverterChild*>(diverter);
-
   return NS_OK;
 }
 

@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
@@ -51,6 +53,7 @@
       this.invoke = function removeChildSpan_invoke()
       {
         // remove HTML span, a first child of the node
+        ensureAccessibleTree(this.DOMNode);
         this.DOMNode.removeChild(this.DOMNode.firstChild);
       }
 
@@ -157,6 +160,8 @@
 
       this.invoke = function removeChildren_invoke()
       {
+        ensureAccessibleTree(this.DOMNode);
+
         if (aLastToFirst) {
           while (this.DOMNode.firstChild)
             this.DOMNode.removeChild(this.DOMNode.lastChild);

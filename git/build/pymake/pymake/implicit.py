@@ -4,7 +4,6 @@ rules, at least match-anything cancellation rules.
 """
 
 variables = {
-    'MKDIR': '%pymake.builtins mkdir',
     'RM': '%pymake.builtins rm -f',
     'SLEEP': '%pymake.builtins sleep',
     'TOUCH': '%pymake.builtins touch',

@@ -1,12 +1,7 @@
 // This file ensures that suspending a channel directly after opening it
 // suspends future notifications correctly.
 
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserv.identity.primaryPort;
-});
+do_load_httpd_js();
 
 const MIN_TIME_DIFFERENCE = 3000;
 const RESUME_DELAY = 5000;
@@ -30,9 +25,7 @@ var listener = {
     // Insert a delay between this and the next callback to ensure message buffering
     // works correctly
     request.suspend();
-    request.suspend();
     do_timeout(RESUME_DELAY, function() request.resume());
-    do_timeout(RESUME_DELAY + 1000, function() request.resume());
   },
 
   onDataAvailable: function(request, context, stream, offset, count) {
@@ -41,8 +34,6 @@ var listener = {
 
     // Ensure that suspending and resuming inside a callback works correctly
     request.suspend();
-    request.suspend();
-    request.resume();
     request.resume();
 
     this._gotData = true;
@@ -56,25 +47,18 @@ var listener = {
 
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel2(url,
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER).QueryInterface(Ci.nsIHttpChannel);
+  var chan = ios.newChannel(url, null, null).QueryInterface(Ci.nsIHttpChannel);
   return chan;
 }
 
 var httpserv = null;
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/woo", data);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
-  var chan = makeChan(URL + "/woo");
+  var chan = makeChan("http://localhost:4444/woo");
   chan.QueryInterface(Ci.nsIRequest);
   chan.asyncOpen(listener, null);
 

@@ -1,7 +1,39 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_LAYERMANAGERD3D10_H
 #define GFX_LAYERMANAGERD3D10_H
@@ -12,7 +44,6 @@
 #include <d3d10_1.h>
 
 #include "gfxContext.h"
-#include "mozilla/gfx/UserData.h"
 #include "nsIWidget.h"
 
 #include "ReadbackManagerD3D10.h"
@@ -20,7 +51,6 @@
 namespace mozilla {
 namespace layers {
 
-class DummyRoot;
 class Nv3DVUtils;
 
 /**
@@ -41,18 +71,13 @@ struct ShaderConstantRectD3D10
   operator float* () { return &mX; }
 };
 
-/*
- * This is the LayerManager used for Direct3D 10. For now this will
- * render on the main thread.
- *
- * For the time being, LayerManagerD3D10 forwards layers
- * transactions.
- */
-class LayerManagerD3D10 : public LayerManager {
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::gfx::IntSize IntSize;
-  typedef mozilla::gfx::SurfaceFormat SurfaceFormat;
+extern cairo_user_data_key_t gKeyD3D10Texture;
 
+/*
+ * This is the LayerManager used for Direct3D 9. For now this will render on
+ * the main thread.
+ */
+class THEBES_API LayerManagerD3D10 : public LayerManager {
 public:
   LayerManagerD3D10(nsIWidget *aWidget);
   virtual ~LayerManagerD3D10();
@@ -63,9 +88,9 @@ public:
    * to draw to the window. If this method fails the device cannot be used.
    * This function is not threadsafe.
    *
-   * return True is initialization was succesful, false when it was not.
+   * \return True is initialization was succesful, false when it was not.
    */
-  bool Initialize(bool force = false, HRESULT* aHresultPtr = nullptr);
+  bool Initialize();
 
   /*
    * LayerManager implementation.
@@ -78,68 +103,51 @@ public:
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
 
-  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
+  virtual bool EndEmptyTransaction();
 
   struct CallbackInfo {
-    DrawPaintedLayerCallback Callback;
+    DrawThebesLayerCallback Callback;
     void *CallbackData;
   };
 
-  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
+                              void* aCallbackData);
 
   const CallbackInfo &GetCallbackInfo() { return mCurrentCallbackInfo; }
 
-  // D3D10 guarantees textures can be at least this size
-  enum {
-    MAX_TEXTURE_SIZE = 8192
-  };
-  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize)
-  {
-    return aSize <= gfx::IntSize(MAX_TEXTURE_SIZE, MAX_TEXTURE_SIZE);
-  }
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
-  virtual int32_t GetMaxTextureSize() const
-  {
-    return MAX_TEXTURE_SIZE;
-  }
-
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer();
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
+
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
+
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
+
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
+
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
 
-  virtual TemporaryRef<DrawTarget>
-    CreateOptimalDrawTarget(const IntSize &aSize,
-                            SurfaceFormat aSurfaceFormat);
+  virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
-  virtual TemporaryRef<DrawTarget>
-    CreateOptimalMaskDrawTarget(const IntSize &aSize);
+  virtual already_AddRefed<gfxASurface>
+    CreateOptimalSurface(const gfxIntSize &aSize,
+                         gfxASurface::gfxImageFormat imageFormat);
 
-  virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const gfx::IntSize &aSize,
-                     mozilla::gfx::SurfaceFormat aFormat);
-
-  virtual LayersBackend GetBackendType() { return LayersBackend::LAYERS_D3D10; }
+  virtual LayersBackend GetBackendType() { return LAYERS_D3D10; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 10"); }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "D3D10"; }
+#endif // MOZ_LAYERS_HAVE_LOG
 
   // Public helpers
 
   ID3D10Device1 *device() const { return mDevice; }
 
   ID3D10Effect *effect() const { return mEffect; }
-  IDXGISwapChain *SwapChain() const
-  {
-    return mSwapChain;
-  }
+
   ReadbackManagerD3D10 *readbackManager();
 
-  void SetupInputAssembler();
   void SetViewport(const nsIntSize &aViewport);
   const nsIntSize &GetViewport() { return mViewport; }
 
@@ -148,7 +156,7 @@ public:
    */
   Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
 
-  static void ReportFailure(const nsACString &aMsg, HRESULT aCode);
+  static void LayerManagerD3D10::ReportFailure(const nsACString &aMsg, HRESULT aCode);
 
 private:
   void SetupPipeline();
@@ -156,7 +164,7 @@ private:
   void VerifyBufferSize();
   void EnsureReadbackManager();
 
-  void Render(EndTransactionFlags aFlags);
+  void Render();
 
   nsRefPtr<ID3D10Device1> mDevice;
 
@@ -171,8 +179,6 @@ private:
 
   nsIWidget *mWidget;
 
-  bool mDisableSequenceForNextFrame;
-
   CallbackInfo mCurrentCallbackInfo;
 
   nsIntSize mViewport;
@@ -181,7 +187,7 @@ private:
   nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 
 
   /*
-   * Context target, nullptr when drawing directly to our swap chain.
+   * Context target, NULL when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
 
@@ -199,7 +205,7 @@ class LayerD3D10
 public:
   LayerD3D10(LayerManagerD3D10 *aManager);
 
-  virtual LayerD3D10 *GetFirstChildD3D10() { return nullptr; }
+  virtual LayerD3D10 *GetFirstChildD3D10() { return nsnull; }
 
   void SetFirstChild(LayerD3D10 *aParent);
 
@@ -223,62 +229,17 @@ public:
    */
   Nv3DVUtils *GetNv3DVUtils()  { return mD3DManager->GetNv3DVUtils(); }
 
-  /*
-   * Returns a shader resource view of a texture containing the contents of this
-   * layer. Will try to return an existing texture if possible, or a temporary
-   * one if not. It is the callee's responsibility to release the shader
-   * resource view. Will return null if a texture could not be constructed.
-   * The texture will not be transformed, i.e., it will be in the same coord
-   * space as this.
-   * Any layer that can be used as a mask layer should override this method.
-   * If aSize is non-null, it will contain the size of the texture.
-   */
-  virtual already_AddRefed<ID3D10ShaderResourceView> GetAsTexture(gfx::IntSize* aSize)
-  {
-    return nullptr;
-  }
 
   void SetEffectTransformAndOpacity()
   {
     Layer* layer = GetLayer();
-    const gfx::Matrix4x4& transform = layer->GetEffectiveTransform();
-    void* raw = &const_cast<gfx::Matrix4x4&>(transform)._11;
+    const gfx3DMatrix& transform = layer->GetEffectiveTransform();
+    void* raw = &const_cast<gfx3DMatrix&>(transform)._11;
     effect()->GetVariableByName("mLayerTransform")->SetRawValue(raw, 0, 64);
     effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(layer->GetEffectiveOpacity());
   }
 
 protected:
-  /*
-   * Finds a texture for this layer's mask layer (if it has one) and sets it
-   * as an input to the shaders.
-   * Returns SHADER_MASK if a texture is loaded, SHADER_NO_MASK if there was no 
-   * mask layer, or a texture for the mask layer could not be loaded.
-   */
-  uint8_t LoadMaskTexture();
-
-  /**
-   * Select a shader technique using a combination of the following flags.
-   * Not all combinations of flags are supported, and might cause an error,
-   * check the fx file to see which shaders exist. In particular, aFlags should
-   * include any combination of the 0x20 bit = 0 flags OR one of the 0x20 bit = 1
-   * flags. Mask flags can be used in either case.
-   */
-  ID3D10EffectTechnique* SelectShader(uint8_t aFlags);
-  const static uint8_t SHADER_NO_MASK = 0;
-  const static uint8_t SHADER_MASK = 0x1;
-  const static uint8_t SHADER_MASK_3D = 0x2;
-  // 0x20 bit = 0
-  const static uint8_t SHADER_RGB = 0;
-  const static uint8_t SHADER_RGBA = 0x4;
-  const static uint8_t SHADER_NON_PREMUL = 0;
-  const static uint8_t SHADER_PREMUL = 0x8;
-  const static uint8_t SHADER_LINEAR = 0;
-  const static uint8_t SHADER_POINT = 0x10;
-  // 0x20 bit = 1
-  const static uint8_t SHADER_YCBCR = 0x20;
-  const static uint8_t SHADER_COMPONENT_ALPHA = 0x24;
-  const static uint8_t SHADER_SOLID = 0x28;
-
   LayerManagerD3D10 *mD3DManager;
 };
 

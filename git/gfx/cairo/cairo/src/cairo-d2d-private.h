@@ -43,16 +43,17 @@
 #include <d3d10.h>
 #include <dxgi.h>
 
+extern "C" {
 #include "cairoint.h"
 #include "cairo-surface-clipper-private.h"
+}
 
 #include "cairo-win32-refptr.h"
 #include "cairo-d2d-private-fx.h"
 #include "cairo-win32.h"
-#include "cairo-list-private.h"
 
 /* describes the type of the currently applied clip so that we can pop it */
-struct d2d_clip_t;
+struct d2d_clip;
 
 #define MAX_OPERATORS CAIRO_OPERATOR_HSL_LUMINOSITY + 1
 
@@ -79,14 +80,10 @@ typedef struct _cairo_d2d_device cairo_d2d_device_t;
 
 struct _cairo_d2d_surface {
     _cairo_d2d_surface() : d2d_clip(NULL), clipping(false), isDrawing(false),
-            textRenderingState(TEXT_RENDERING_UNINITIALIZED)
+	textRenderingInit(true)
     {
 	_cairo_clip_init (&this->clip);
-        cairo_list_init(&this->dependent_surfaces);
     }
-    
-    ~_cairo_d2d_surface();
-
 
     cairo_surface_t base;
     /* Device used by this surface 
@@ -114,7 +111,7 @@ struct _cairo_d2d_surface {
     cairo_format_t format;
 
     cairo_clip_t clip;
-    d2d_clip_t *d2d_clip;
+    d2d_clip *d2d_clip;
 
 
     /** Mask layer used by surface_mask to push opacity masks */
@@ -133,39 +130,21 @@ struct _cairo_d2d_surface {
     /** Indicates if our render target is currently in drawing mode */
     bool isDrawing;
     /** Indicates if text rendering is initialized */
-    enum TextRenderingState {
-        TEXT_RENDERING_UNINITIALIZED,
-        TEXT_RENDERING_NO_CLEARTYPE,
-        TEXT_RENDERING_NORMAL,
-        TEXT_RENDERING_GDI_CLASSIC
-    };
-    TextRenderingState textRenderingState;
+    bool textRenderingInit;
 
     RefPtr<ID3D10RenderTargetView> buffer_rt_view;
     RefPtr<ID3D10ShaderResourceView> buffer_sr_view;
 
-    // Other d2d surfaces which depend on this one and need to be flushed if
-    // it is drawn to. This is required for situations where this surface is
-    // drawn to another surface, but may be modified before the other surface
-    // has flushed. When the flush of the other surface then happens and the
-    // drawing command is actually executed, the contents of this surface will
-    // no longer be what it was when the drawing command was issued.
-    cairo_list_t dependent_surfaces;
+
     //cairo_surface_clipper_t clipper;
 };
 typedef struct _cairo_d2d_surface cairo_d2d_surface_t;
 
-struct _cairo_d2d_surface_entry
-{
-    cairo_list_t link;
-    cairo_d2d_surface_t *surface;
-};
-
 typedef HRESULT (WINAPI*D2D1CreateFactoryFunc)(
-    D2D1_FACTORY_TYPE factoryType,
-    REFIID iid,
-    CONST D2D1_FACTORY_OPTIONS *pFactoryOptions,
-    void **factory
+    __in D2D1_FACTORY_TYPE factoryType,
+    __in REFIID iid,
+    __in_opt CONST D2D1_FACTORY_OPTIONS *pFactoryOptions,
+    __out void **factory
 );
 
 typedef HRESULT (WINAPI*D3D10CreateDevice1Func)(

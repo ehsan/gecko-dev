@@ -1,27 +1,51 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is Oracle Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
+#include "prmem.h"
 
-#include "mozilla/MemoryReporting.h"
-#if defined(HAVE_POSIX_MEMALIGN)
 #include "gfxAlphaRecovery.h"
-#endif
 #include "gfxImageSurface.h"
 
 #include "cairo.h"
-#include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
-#include <algorithm>
-
-using namespace mozilla;
-using namespace mozilla::gfx;
 
 gfxImageSurface::gfxImageSurface()
   : mSize(0, 0),
-    mOwnsData(false),
-    mFormat(gfxImageFormat::Unknown),
+    mOwnsData(PR_FALSE),
+    mFormat(ImageFormatUnknown),
     mStride(0)
 {
 }
@@ -33,10 +57,10 @@ gfxImageSurface::InitFromSurface(cairo_surface_t *csurf)
     mSize.height = cairo_image_surface_get_height(csurf);
     mData = cairo_image_surface_get_data(csurf);
     mFormat = (gfxImageFormat) cairo_image_surface_get_format(csurf);
-    mOwnsData = false;
+    mOwnsData = PR_FALSE;
     mStride = cairo_image_surface_get_stride(csurf);
 
-    Init(csurf, true);
+    Init(csurf, PR_TRUE);
 }
 
 gfxImageSurface::gfxImageSurface(unsigned char *aData, const gfxIntSize& aSize,
@@ -46,29 +70,21 @@ gfxImageSurface::gfxImageSurface(unsigned char *aData, const gfxIntSize& aSize,
 }
 
 void
-gfxImageSurface::MakeInvalid()
-{
-    mSize = gfxIntSize(-1, -1);
-    mData = nullptr;
-    mStride = 0;
-}
-
-void
 gfxImageSurface::InitWithData(unsigned char *aData, const gfxIntSize& aSize,
                               long aStride, gfxImageFormat aFormat)
 {
     mSize = aSize;
-    mOwnsData = false;
+    mOwnsData = PR_FALSE;
     mData = aData;
     mFormat = aFormat;
     mStride = aStride;
 
     if (!CheckSurfaceSize(aSize))
-        MakeInvalid();
+        return;
 
     cairo_surface_t *surface =
         cairo_image_surface_create_for_data((unsigned char*)mData,
-                                            (cairo_format_t)(int)mFormat,
+                                            (cairo_format_t)mFormat,
                                             mSize.width,
                                             mSize.height,
                                             mStride);
@@ -85,59 +101,44 @@ static void*
 TryAllocAlignedBytes(size_t aSize)
 {
     // Use fallible allocators here
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
     void* ptr;
     // Try to align for fast alpha recovery.  This should only help
     // cairo too, can't hurt.
     return moz_posix_memalign(&ptr,
                               1 << gfxAlphaRecovery::GoodAlignmentLog2(),
                               aSize) ?
-             nullptr : ptr;
+             nsnull : ptr;
 #else
     // Oh well, hope that luck is with us in the allocator
     return moz_malloc(aSize);
 #endif
 }
 
-gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, bool aClear)
- : mSize(size), mData(nullptr), mFormat(format)
+gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) :
+    mSize(size), mOwnsData(PR_FALSE), mData(nsnull), mFormat(format)
 {
-    AllocateAndInit(0, 0, aClear);
-}
+    mStride = ComputeStride();
 
-void 
-gfxImageSurface::AllocateAndInit(long aStride, int32_t aMinimalAllocation,
-                                 bool aClear)
-{
-    // The callers should set mSize and mFormat.
-    MOZ_ASSERT(!mData);
-    mData = nullptr;
-    mOwnsData = false;
+    if (!CheckSurfaceSize(size))
+        return;
 
-    mStride = aStride > 0 ? aStride : ComputeStride();
-    if (aMinimalAllocation < mSize.height * mStride)
-        aMinimalAllocation = mSize.height * mStride;
-
-    if (!CheckSurfaceSize(mSize))
-        MakeInvalid();
-
-    // if we have a zero-sized surface, just leave mData nullptr
+    // if we have a zero-sized surface, just leave mData nsnull
     if (mSize.height * mStride > 0) {
 
         // This can fail to allocate memory aligned as we requested,
         // or it can fail to allocate any memory at all.
-        mData = (unsigned char *) TryAllocAlignedBytes(aMinimalAllocation);
+        mData = (unsigned char *) TryAllocAlignedBytes(mSize.height * mStride);
         if (!mData)
             return;
-        if (aClear)
-            memset(mData, 0, aMinimalAllocation);
+        memset(mData, 0, mSize.height * mStride);
     }
 
-    mOwnsData = true;
+    mOwnsData = PR_TRUE;
 
     cairo_surface_t *surface =
         cairo_image_surface_create_for_data((unsigned char*)mData,
-                                            (cairo_format_t)(int)mFormat,
+                                            (cairo_format_t)format,
                                             mSize.width,
                                             mSize.height,
                                             mStride);
@@ -150,23 +151,16 @@ gfxImageSurface::AllocateAndInit(long aStride, int32_t aMinimalAllocation,
     }
 }
 
-gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format,
-                                 long aStride, int32_t aExtraBytes, bool aClear)
- : mSize(size), mData(nullptr), mFormat(format)
-{
-    AllocateAndInit(aStride, aExtraBytes, aClear);
-}
-
 gfxImageSurface::gfxImageSurface(cairo_surface_t *csurf)
 {
     mSize.width = cairo_image_surface_get_width(csurf);
     mSize.height = cairo_image_surface_get_height(csurf);
     mData = cairo_image_surface_get_data(csurf);
     mFormat = (gfxImageFormat) cairo_image_surface_get_format(csurf);
-    mOwnsData = false;
+    mOwnsData = PR_FALSE;
     mStride = cairo_image_surface_get_stride(csurf);
 
-    Init(csurf, true);
+    Init(csurf, PR_TRUE);
 }
 
 gfxImageSurface::~gfxImageSurface()
@@ -180,15 +174,15 @@ gfxImageSurface::ComputeStride(const gfxIntSize& aSize, gfxImageFormat aFormat)
 {
     long stride;
 
-    if (aFormat == gfxImageFormat::ARGB32)
+    if (aFormat == ImageFormatARGB32)
         stride = aSize.width * 4;
-    else if (aFormat == gfxImageFormat::RGB24)
+    else if (aFormat == ImageFormatRGB24)
         stride = aSize.width * 4;
-    else if (aFormat == gfxImageFormat::RGB16_565)
+    else if (aFormat == ImageFormatRGB16_565)
         stride = aSize.width * 2;
-    else if (aFormat == gfxImageFormat::A8)
+    else if (aFormat == ImageFormatA8)
         stride = aSize.width;
-    else if (aFormat == gfxImageFormat::A1) {
+    else if (aFormat == ImageFormatA1) {
         stride = (aSize.width + 7) / 8;
     } else {
         NS_WARNING("Unknown format specified to gfxImageSurface!");
@@ -200,134 +194,34 @@ gfxImageSurface::ComputeStride(const gfxIntSize& aSize, gfxImageFormat aFormat)
     return stride;
 }
 
-size_t
-gfxImageSurface::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+PRBool
+gfxImageSurface::CopyFrom(gfxImageSurface *other)
 {
-    size_t n = gfxASurface::SizeOfExcludingThis(aMallocSizeOf);
-    if (mOwnsData) {
-        n += aMallocSizeOf(mData);
+    if (other->mSize != mSize)
+    {
+        return PR_FALSE;
     }
-    return n;
-}
 
-size_t
-gfxImageSurface::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
+    if (other->mFormat != mFormat &&
+        !(other->mFormat == ImageFormatARGB32 && mFormat == ImageFormatRGB24) &&
+        !(other->mFormat == ImageFormatRGB24 && mFormat == ImageFormatARGB32))
+    {
+        return PR_FALSE;
+    }
 
-bool
-gfxImageSurface::SizeOfIsMeasured() const
-{
-    return true;
-}
-
-// helper function for the CopyFrom methods
-static void
-CopyForStride(unsigned char* aDest, unsigned char* aSrc, const gfxIntSize& aSize, long aDestStride, long aSrcStride)
-{
-    if (aDestStride == aSrcStride) {
-        memcpy (aDest, aSrc, aSrcStride * aSize.height);
+    if (other->mStride == mStride) {
+        memcpy (mData, other->mData, mStride * mSize.height);
     } else {
-        int lineSize = std::min(aDestStride, aSrcStride);
-        for (int i = 0; i < aSize.height; i++) {
-            unsigned char* src = aSrc + aSrcStride * i;
-            unsigned char* dst = aDest + aDestStride * i;
+        int lineSize = PR_MIN(other->mStride, mStride);
+        for (int i = 0; i < mSize.height; i++) {
+            unsigned char *src = other->mData + other->mStride * i;
+            unsigned char *dst = mData + mStride * i;
 
             memcpy (dst, src, lineSize);
         }
     }
-}
 
-// helper function for the CopyFrom methods
-static bool
-FormatsAreCompatible(gfxImageFormat a1, gfxImageFormat a2)
-{
-    if (a1 != a2 &&
-        !(a1 == gfxImageFormat::ARGB32 &&
-          a2 == gfxImageFormat::RGB24) &&
-        !(a1 == gfxImageFormat::RGB24 &&
-          a2 == gfxImageFormat::ARGB32)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool
-gfxImageSurface::CopyFrom (SourceSurface *aSurface)
-{
-    mozilla::RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
-
-    if (!data) {
-        return false;
-    }
-
-    gfxIntSize size(data->GetSize().width, data->GetSize().height);
-    if (size != mSize) {
-        return false;
-    }
-
-    if (!FormatsAreCompatible(SurfaceFormatToImageFormat(aSurface->GetFormat()),
-                              mFormat)) {
-        return false;
-    }
-
-    CopyForStride(mData, data->GetData(), size, mStride, data->Stride());
-
-    return true;
-}
-
-
-bool
-gfxImageSurface::CopyFrom(gfxImageSurface *other)
-{
-    if (other->mSize != mSize) {
-        return false;
-    }
-
-    if (!FormatsAreCompatible(other->mFormat, mFormat)) {
-        return false;
-    }
-
-    CopyForStride(mData, other->mData, mSize, mStride, other->mStride);
-
-    return true;
-}
-
-bool
-gfxImageSurface::CopyTo(SourceSurface *aSurface) {
-    mozilla::RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
-
-    if (!data) {
-        return false;
-    }
-
-    gfxIntSize size(data->GetSize().width, data->GetSize().height);
-    if (size != mSize) {
-        return false;
-    }
-
-    if (!FormatsAreCompatible(SurfaceFormatToImageFormat(aSurface->GetFormat()),
-                              mFormat)) {
-        return false;
-    }
-
-    CopyForStride(data->GetData(), mData, size, data->Stride(), mStride);
-
-    return true;
-}
-
-TemporaryRef<DataSourceSurface>
-gfxImageSurface::CopyToB8G8R8A8DataSourceSurface()
-{
-  RefPtr<DataSourceSurface> dataSurface =
-    Factory::CreateDataSourceSurface(IntSize(GetSize().width, GetSize().height),
-                                     SurfaceFormat::B8G8R8A8);
-  if (dataSurface) {
-    CopyTo(dataSurface);
-  }
-  return dataSurface.forget();
+    return PR_TRUE;
 }
 
 already_AddRefed<gfxSubimageSurface>
@@ -335,32 +229,21 @@ gfxImageSurface::GetSubimage(const gfxRect& aRect)
 {
     gfxRect r(aRect);
     r.Round();
-    MOZ_ASSERT(gfxRect(0, 0, mSize.width, mSize.height).Contains(r));
-
-    gfxImageFormat format = Format();
-
     unsigned char* subData = Data() +
         (Stride() * (int)r.Y()) +
         (int)r.X() * gfxASurface::BytePerPixelFromFormat(Format());
 
-    if (format == gfxImageFormat::ARGB32 &&
-        GetOpaqueRect().Contains(aRect)) {
-        format = gfxImageFormat::RGB24;
-    }
-
     nsRefPtr<gfxSubimageSurface> image =
         new gfxSubimageSurface(this, subData,
-                               gfxIntSize((int)r.Width(), (int)r.Height()),
-                               format);
+                               gfxIntSize((int)r.Width(), (int)r.Height()));
 
-    return image.forget();
+    return image.forget().get();
 }
 
 gfxSubimageSurface::gfxSubimageSurface(gfxImageSurface* aParent,
                                        unsigned char* aData,
-                                       const gfxIntSize& aSize,
-                                       gfxImageFormat aFormat)
-  : gfxImageSurface(aData, aSize, aParent->Stride(), aFormat)
+                                       const gfxIntSize& aSize)
+  : gfxImageSurface(aData, aSize, aParent->Stride(), aParent->Format())
   , mParent(aParent)
 {
 }

@@ -9,90 +9,80 @@
  */
 
 
-#include "vpx_config.h"
-#include "vp8_rtcd.h"
-#if ARCH_ARM
-#include "vpx_ports/arm.h"
-#elif ARCH_X86 || ARCH_X86_64
-#include "vpx_ports/x86.h"
-#endif
-#include "vp8/common/onyxc_int.h"
+#include "vpx_ports/config.h"
+#include "g_common.h"
+#include "subpixel.h"
+#include "loopfilter.h"
+#include "recon.h"
+#include "idct.h"
+#include "onyxc_int.h"
 
-#if CONFIG_MULTITHREAD
-#if HAVE_UNISTD_H && !defined(__OS2__)
-#include <unistd.h>
-#elif defined(_WIN32)
-#include <windows.h>
-typedef void (WINAPI *PGNSI)(LPSYSTEM_INFO);
-#elif defined(__OS2__)
-#define INCL_DOS
-#define INCL_DOSSPINLOCK
-#include <os2.h>
-#endif
-#endif
+extern void vp8_arch_x86_common_init(VP8_COMMON *ctx);
+extern void vp8_arch_arm_common_init(VP8_COMMON *ctx);
 
-#if CONFIG_MULTITHREAD
-static int get_cpu_count()
-{
-    int core_count = 16;
+void (*vp8_build_intra_predictors_mby_ptr)(MACROBLOCKD *x);
+extern void vp8_build_intra_predictors_mby(MACROBLOCKD *x);
 
-#if HAVE_UNISTD_H && !defined(__OS2__)
-#if defined(_SC_NPROCESSORS_ONLN)
-    core_count = sysconf(_SC_NPROCESSORS_ONLN);
-#elif defined(_SC_NPROC_ONLN)
-    core_count = sysconf(_SC_NPROC_ONLN);
-#endif
-#elif defined(_WIN32)
-    {
-        PGNSI pGNSI;
-        SYSTEM_INFO sysinfo;
-
-        /* Call GetNativeSystemInfo if supported or
-         * GetSystemInfo otherwise. */
-
-        pGNSI = (PGNSI) GetProcAddress(
-                GetModuleHandle(TEXT("kernel32.dll")), "GetNativeSystemInfo");
-        if (pGNSI != NULL)
-            pGNSI(&sysinfo);
-        else
-            GetSystemInfo(&sysinfo);
-
-        core_count = sysinfo.dwNumberOfProcessors;
-    }
-#elif defined(__OS2__)
-    {
-        ULONG proc_id;
-        ULONG status;
-
-        core_count = 0;
-        for (proc_id = 1; ; proc_id++)
-        {
-            if (DosGetProcessorStatus(proc_id, &status))
-                break;
-
-            if (status == PROC_ONLINE)
-                core_count++;
-        }
-    }
-#else
-    /* other platforms */
-#endif
-
-    return core_count > 0 ? core_count : 1;
-}
-#endif
-
-void vp8_clear_system_state_c() {};
+void (*vp8_build_intra_predictors_mby_s_ptr)(MACROBLOCKD *x);
+extern void vp8_build_intra_predictors_mby_s(MACROBLOCKD *x);
 
 void vp8_machine_specific_config(VP8_COMMON *ctx)
 {
-#if CONFIG_MULTITHREAD
-    ctx->processor_core_count = get_cpu_count();
-#endif /* CONFIG_MULTITHREAD */
+#if CONFIG_RUNTIME_CPU_DETECT
+    VP8_COMMON_RTCD *rtcd = &ctx->rtcd;
+
+    rtcd->idct.idct1        = vp8_short_idct4x4llm_1_c;
+    rtcd->idct.idct16       = vp8_short_idct4x4llm_c;
+    rtcd->idct.idct1_scalar_add = vp8_dc_only_idct_add_c;
+    rtcd->idct.iwalsh1      = vp8_short_inv_walsh4x4_1_c;
+    rtcd->idct.iwalsh16     = vp8_short_inv_walsh4x4_c;
+
+    rtcd->recon.copy16x16   = vp8_copy_mem16x16_c;
+    rtcd->recon.copy8x8     = vp8_copy_mem8x8_c;
+    rtcd->recon.copy8x4     = vp8_copy_mem8x4_c;
+    rtcd->recon.recon       = vp8_recon_b_c;
+    rtcd->recon.recon2      = vp8_recon2b_c;
+    rtcd->recon.recon4      = vp8_recon4b_c;
+    rtcd->recon.recon_mb    = vp8_recon_mb_c;
+    rtcd->recon.recon_mby   = vp8_recon_mby_c;
+
+    rtcd->subpix.sixtap16x16   = vp8_sixtap_predict16x16_c;
+    rtcd->subpix.sixtap8x8     = vp8_sixtap_predict8x8_c;
+    rtcd->subpix.sixtap8x4     = vp8_sixtap_predict8x4_c;
+    rtcd->subpix.sixtap4x4     = vp8_sixtap_predict_c;
+    rtcd->subpix.bilinear16x16 = vp8_bilinear_predict16x16_c;
+    rtcd->subpix.bilinear8x8   = vp8_bilinear_predict8x8_c;
+    rtcd->subpix.bilinear8x4   = vp8_bilinear_predict8x4_c;
+    rtcd->subpix.bilinear4x4   = vp8_bilinear_predict4x4_c;
+
+    rtcd->loopfilter.normal_mb_v = vp8_loop_filter_mbv_c;
+    rtcd->loopfilter.normal_b_v  = vp8_loop_filter_bv_c;
+    rtcd->loopfilter.normal_mb_h = vp8_loop_filter_mbh_c;
+    rtcd->loopfilter.normal_b_h  = vp8_loop_filter_bh_c;
+    rtcd->loopfilter.simple_mb_v = vp8_loop_filter_mbvs_c;
+    rtcd->loopfilter.simple_b_v  = vp8_loop_filter_bvs_c;
+    rtcd->loopfilter.simple_mb_h = vp8_loop_filter_mbhs_c;
+    rtcd->loopfilter.simple_b_h  = vp8_loop_filter_bhs_c;
+
+#if CONFIG_POSTPROC || (CONFIG_VP8_ENCODER && CONFIG_PSNR)
+    rtcd->postproc.down        = vp8_mbpost_proc_down_c;
+    rtcd->postproc.across      = vp8_mbpost_proc_across_ip_c;
+    rtcd->postproc.downacross  = vp8_post_proc_down_and_across_c;
+    rtcd->postproc.addnoise    = vp8_plane_add_noise_c;
+    rtcd->postproc.blend_mb    = vp8_blend_mb_c;
+#endif
+
+#endif
+    /* Pure C: */
+    vp8_build_intra_predictors_mby_ptr = vp8_build_intra_predictors_mby;
+    vp8_build_intra_predictors_mby_s_ptr = vp8_build_intra_predictors_mby_s;
+
+#if ARCH_X86 || ARCH_X86_64
+    vp8_arch_x86_common_init(ctx);
+#endif
 
 #if ARCH_ARM
-    ctx->cpu_caps = arm_cpu_caps();
-#elif ARCH_X86 || ARCH_X86_64
-    ctx->cpu_caps = x86_simd_caps();
+    vp8_arch_arm_common_init(ctx);
 #endif
+
 }

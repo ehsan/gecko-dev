@@ -1,8 +1,44 @@
 <?xml version="1.0"?>
 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Places Menupopup View.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2005-2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Annie Sullivan <annie.sullivan@gmail.com>
+#   Ben Goodger <beng@google.com>
+#   Asaf Romano <mano@mozilla.com>
+#   Simon Bünzli <zeniko@gmail.com>
+#   Marco Bonardo <mak77@bonardo.net>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 <bindings id="placesMenuBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -36,6 +72,10 @@
                                                 "popup-internal-box");
       </field>
 
+      <!-- markers for start and end of valid places items -->
+      <field name="_startMarker">-1</field>
+      <field name="_endMarker">-1</field>
+
       <!-- This is the view that manage the popup -->
       <field name="_rootView">PlacesUIUtils.getViewForNode(this);</field>
 
@@ -43,16 +83,17 @@
       <method name="_hideDropIndicator">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          let target = aEvent.target;
+          var target = aEvent.target;
 
-          // Don't draw the drop indicator outside of markers.
-          // The markers are hidden, since otherwise sometimes popups acquire
-          // scrollboxes on OS X, so we can't use them directly.
-          let firstChildTop = this._startMarker.nextSibling.boxObject.y;
-          let lastChildBottom = this._endMarker.previousSibling.boxObject.y +
-                                this._endMarker.previousSibling.boxObject.height;
-          let betweenMarkers = target.boxObject.y >= firstChildTop ||
-                               target.boxObject.y <= lastChildBottom;
+          // in some view we have _startMarker and _endMarker, we should not
+          // draw the drop indicator outside of them
+          var betweenMarkers = true;
+          if (this._startMarker != -1 &&
+              target.boxObject.y <= this.childNodes[this._startMarker].boxObject.y)
+            betweenMarkers = false;
+          if (this._endMarker != -1 &&
+              target.boxObject.y >= this.childNodes[this._endMarker].boxObject.y)
+            betweenMarkers = false;
 
           // Hide the dropmarker if current node is not a Places node.
           return !(target && target._placesNode && betweenMarkers);
@@ -80,8 +121,8 @@
               elt = elt.parentNode;
 
             // Calculate positions taking care of arrowscrollbox
+            let eventY = aEvent.layerY;
             let scrollbox = this._scrollBox;
-            let eventY = aEvent.layerY + (scrollbox.boxObject.y - this.boxObject.y);
             let scrollboxOffset = scrollbox.scrollBoxObject.y -
                                   (scrollbox.boxObject.y - this.boxObject.y);
             let eltY = elt.boxObject.y - scrollboxOffset;
@@ -103,12 +144,9 @@
                 dropPoint.folderElt = elt;
               return dropPoint;
             }
-
-            let tagName = PlacesUtils.nodeIsTagQuery(elt._placesNode) ?
-                            elt._placesNode.title : null;
-            if ((PlacesUtils.nodeIsFolder(elt._placesNode) &&
-                 !PlacesUIUtils.isContentsReadOnly(elt._placesNode)) ||
-                PlacesUtils.nodeIsTagQuery(elt._placesNode)) {
+            else if ((PlacesUtils.nodeIsFolder(elt._placesNode) ||
+                      PlacesUtils.nodeIsTagQuery(elt._placesNode)) &&
+                     !PlacesUtils.nodeIsReadOnly(elt._placesNode)) {
               // This is a folder or a tag container.
               if (eventY - eltY < eltHeight * 0.20) {
                 // If mouse is in the top part of the element, drop above folder.
@@ -116,7 +154,7 @@
                                     PlacesUtils.getConcreteItemId(resultNode),
                                     -1,
                                     Ci.nsITreeView.DROP_BEFORE,
-                                    tagName,
+                                    PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                     elt._placesNode.itemId);
                 return dropPoint;
               }
@@ -126,7 +164,7 @@
                                     PlacesUtils.getConcreteItemId(elt._placesNode),
                                     -1,
                                     Ci.nsITreeView.DROP_ON,
-                                    tagName);
+                                    PlacesUtils.nodeIsTagQuery(elt._placesNode));
                 dropPoint.folderElt = elt;
                 return dropPoint;
               }
@@ -138,7 +176,7 @@
                                   PlacesUtils.getConcreteItemId(resultNode),
                                   -1,
                                   Ci.nsITreeView.DROP_BEFORE,
-                                  tagName,
+                                  PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                   elt._placesNode.itemId);
               return dropPoint;
             }
@@ -148,7 +186,7 @@
                                 PlacesUtils.getConcreteItemId(resultNode),
                                 -1,
                                 Ci.nsITreeView.DROP_AFTER,
-                                tagName,
+                                PlacesUtils.nodeIsTagQuery(elt._placesNode),
                                 elt._placesNode.itemId);
             return dropPoint;
         ]]></body>
@@ -367,8 +405,7 @@
 
         let dropPoint = this._getDropPoint(event);
         if (dropPoint && dropPoint.ip) {
-          PlacesControllerDragHelper.onDrop(dropPoint.ip, event.dataTransfer)
-                                    .then(null, Components.utils.reportError);
+          PlacesControllerDragHelper.onDrop(dropPoint.ip, event.dataTransfer);
           event.preventDefault();
         }
 
@@ -460,7 +497,7 @@
         // If we have not moved to a valid new target clear the drop indicator
         // this happens when moving out of the popup.
         let target = event.relatedTarget;
-        if (!target || !this.contains(target))
+        if (!target)
           this._indicatorBar.hidden = true;
 
         // Close any folder being hovered over
@@ -487,141 +524,6 @@
         this._cleanupDragDetails();
       ]]></handler>
 
-    </handlers>
-  </binding>
-
-  <!-- Most of this is copied from the arrowpanel binding in popup.xml -->
-  <binding id="places-popup-arrow"
-           extends="chrome://browser/content/places/menu.xml#places-popup-base">
-    <content flip="both" side="top" position="bottomcenter topright">
-      <xul:vbox anonid="container" class="panel-arrowcontainer" flex="1"
-               xbl:inherits="side,panelopen">
-        <xul:box anonid="arrowbox" class="panel-arrowbox">
-          <xul:image anonid="arrow" class="panel-arrow" xbl:inherits="side"/>
-        </xul:box>
-        <xul:box class="panel-arrowcontent" xbl:inherits="side,align,dir,orient,pack" flex="1">
-          <xul:vbox class="menupopup-drop-indicator-bar" hidden="true">
-            <xul:image class="menupopup-drop-indicator" mousethrough="always"/>
-          </xul:vbox>
-          <xul:arrowscrollbox class="popup-internal-box" flex="1" orient="vertical"
-                              smoothscroll="false">
-            <children/>
-          </xul:arrowscrollbox>
-        </xul:box>
-      </xul:vbox>
-    </content>
-
-    <implementation>
-      <constructor><![CDATA[
-        this.style.pointerEvents = 'none';
-      ]]></constructor>
-      <method name="adjustArrowPosition">
-        <body><![CDATA[
-          var arrow = document.getAnonymousElementByAttribute(this, "anonid", "arrow");
-
-          var anchor = this.anchorNode;
-          if (!anchor) {
-            arrow.hidden = true;
-            return;
-          }
-
-          var container = document.getAnonymousElementByAttribute(this, "anonid", "container");
-          var arrowbox = document.getAnonymousElementByAttribute(this, "anonid", "arrowbox");
-
-          var position = this.alignmentPosition;
-          var offset = this.alignmentOffset;
-
-          this.setAttribute("arrowposition", position);
-
-          // if this panel has a "sliding" arrow, we may have previously set margins...
-          arrowbox.style.removeProperty("transform");
-          if (position.indexOf("start_") == 0 || position.indexOf("end_") == 0) {
-            container.orient = "horizontal";
-            arrowbox.orient = "vertical";
-            if (position.indexOf("_after") > 0) {
-              arrowbox.pack = "end";
-            } else {
-              arrowbox.pack = "start";
-            }
-            arrowbox.style.transform = "translate(0, " + -offset + "px)";
-
-            // The assigned side stays the same regardless of direction.
-            var isRTL = (window.getComputedStyle(this).direction == "rtl");
-
-            if (position.indexOf("start_") == 0) {
-              container.dir = "reverse";
-              this.setAttribute("side", isRTL ? "left" : "right");
-            }
-            else {
-              container.dir = "";
-              this.setAttribute("side", isRTL ? "right" : "left");
-            }
-          }
-          else if (position.indexOf("before_") == 0 || position.indexOf("after_") == 0) {
-            container.orient = "";
-            arrowbox.orient = "";
-            if (position.indexOf("_end") > 0) {
-              arrowbox.pack = "end";
-            } else {
-              arrowbox.pack = "start";
-            }
-            arrowbox.style.transform = "translate(" + -offset + "px, 0)";
-
-            if (position.indexOf("before_") == 0) {
-              container.dir = "reverse";
-              this.setAttribute("side", "bottom");
-            }
-            else {
-              container.dir = "";
-              this.setAttribute("side", "top");
-            }
-          }
-
-          arrow.hidden = false;
-        ]]></body>
-      </method>
-    </implementation>
-
-    <handlers>
-      <handler event="popupshowing" phase="target"><![CDATA[
-        this.adjustArrowPosition();
-        this.setAttribute("animate", "open");
-      ]]></handler>
-      <handler event="popupshown" phase="target"><![CDATA[
-        this.setAttribute("panelopen", "true");
-        let disablePointerEvents;
-        if (!this.hasAttribute("disablepointereventsfortransition")) {
-          let container = document.getAnonymousElementByAttribute(this, "anonid", "container");
-          let cs = getComputedStyle(container);
-          let transitionProp = cs.transitionProperty;
-          let transitionTime = parseFloat(cs.transitionDuration);
-          disablePointerEvents = (transitionProp.contains("transform") ||
-                                  transitionProp == "all") &&
-                                 transitionTime > 0;
-          this.setAttribute("disablepointereventsfortransition", disablePointerEvents);
-        } else {
-          disablePointerEvents = this.getAttribute("disablepointereventsfortransition") == "true";
-        }
-        if (!disablePointerEvents) {
-          this.style.removeProperty("pointer-events");
-        }
-      ]]></handler>
-      <handler event="transitionend"><![CDATA[
-        if (event.originalTarget.getAttribute("anonid") == "container" &&
-            event.propertyName == "transform") {
-          this.style.removeProperty("pointer-events");
-        }
-      ]]></handler>
-      <handler event="popuphiding" phase="target"><![CDATA[
-        this.setAttribute("animate", "cancel");
-      ]]></handler>
-      <handler event="popuphidden" phase="target"><![CDATA[
-        this.removeAttribute("panelopen");
-        if (this.getAttribute("disablepointereventsfortransition") == "true") {
-          this.style.pointerEvents = 'none';
-        }
-        this.removeAttribute("animate");
-      ]]></handler>
     </handlers>
   </binding>
 </bindings>

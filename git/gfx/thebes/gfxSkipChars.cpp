@@ -1,149 +1,262 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Novell code.
+ *
+ * The Initial Developer of the Original Code is Novell.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxSkipChars.h"
-#include "mozilla/BinarySearch.h"
 
-struct SkippedRangeStartComparator
+#include <stdlib.h>
+
+#define SHORTCUT_FREQUENCY 256
+
+// Even numbered list entries are "keep" entries
+static PRBool
+IsKeepEntry(PRUint32 aEntry)
 {
-    const uint32_t mOffset;
-    explicit SkippedRangeStartComparator(const uint32_t aOffset) : mOffset(aOffset) {}
-    int operator()(const gfxSkipChars::SkippedRange& aRange) const {
-        return (mOffset < aRange.Start()) ? -1 : 1;
-    }
-};
+    return !(aEntry & 1);
+}
 
 void
-gfxSkipCharsIterator::SetOriginalOffset(int32_t aOffset)
+gfxSkipChars::BuildShortcuts()
 {
-    aOffset += mOriginalStringToSkipCharsOffset;
-    NS_ASSERTION(uint32_t(aOffset) <= mSkipChars->mCharCount,
+    if (!mList || mCharCount < SHORTCUT_FREQUENCY)
+        return;
+  
+    mShortcuts = new Shortcut[mCharCount/SHORTCUT_FREQUENCY];
+    if (!mShortcuts)
+        return;
+  
+    PRUint32 i;
+    PRUint32 nextShortcutIndex = 0;
+    PRUint32 originalCharOffset = 0;
+    PRUint32 skippedCharOffset = 0;
+    for (i = 0; i < mListLength; ++i) {
+        PRUint8 len = mList[i];
+    
+        // We use >= here to ensure that when mCharCount is a multiple of
+        // SHORTCUT_FREQUENCY, we fill in the final shortcut with a reference
+        // to the last element of mList. This means that in general when a list
+        // element ends on an offset that's a multiple of SHORTCUT_FREQUENCY,
+        // that list element is the shortcut for that offset, which is
+        // slightly suboptimal (the *next* element is the one we really want),
+        // but it's all correct and simpler this way.
+        while (originalCharOffset + len >= (nextShortcutIndex + 1)*SHORTCUT_FREQUENCY) {
+            mShortcuts[nextShortcutIndex] =
+                Shortcut(i, originalCharOffset, skippedCharOffset);
+            ++nextShortcutIndex;
+        }
+    
+        originalCharOffset += len;
+        if (IsKeepEntry(i)) {
+            skippedCharOffset += len;
+        }
+    }
+}
+
+void
+gfxSkipCharsIterator::SetOffsets(PRUint32 aOffset, PRBool aInOriginalString)
+{
+    NS_ASSERTION(aOffset <= mSkipChars->mCharCount,
                  "Invalid offset");
 
-    mOriginalStringOffset = aOffset;
-
-    const uint32_t rangeCount = mSkipChars->mRanges.Length();
-    if (rangeCount == 0) {
-        mSkippedStringOffset = aOffset;
+    if (mSkipChars->mListLength == 0) {
+        mOriginalStringOffset = mSkippedStringOffset = aOffset;
         return;
     }
-
-    // at start of string?
+  
     if (aOffset == 0) {
+        // Start from the beginning of the string.
         mSkippedStringOffset = 0;
-        mCurrentRangeIndex =
-            rangeCount && mSkipChars->mRanges[0].Start() == 0 ? 0 : -1;
-        return;
-    }
-
-    // find the range that includes or precedes aOffset
-    const nsTArray<gfxSkipChars::SkippedRange>& ranges = mSkipChars->mRanges;
-    size_t idx;
-    mozilla::BinarySearchIf(ranges, 0, rangeCount,
-                            SkippedRangeStartComparator(aOffset),
-                            &idx);
-
-    if (idx == rangeCount) {
-        mCurrentRangeIndex = rangeCount - 1;
-    } else if (uint32_t(aOffset) < ranges[idx].Start()) {
-        mCurrentRangeIndex = idx - 1;
-        if (mCurrentRangeIndex == -1) {
-            mSkippedStringOffset = aOffset;
+        mOriginalStringOffset = 0;
+        mListPrefixLength = 0;
+        mListPrefixKeepCharCount = 0;
+        mListPrefixCharCount = 0;
+        if (aInOriginalString) {
+            // Nothing more to do!
             return;
         }
-    } else {
-        mCurrentRangeIndex = idx;
     }
-
-    const gfxSkipChars::SkippedRange& r = ranges[mCurrentRangeIndex];
-    if (uint32_t(aOffset) < r.End()) {
-        mSkippedStringOffset = r.SkippedOffset();
-        return;
+  
+    if (aInOriginalString && mSkipChars->mShortcuts &&
+        abs(PRInt32(aOffset) - PRInt32(mListPrefixCharCount)) > SHORTCUT_FREQUENCY) {
+        // Take a shortcut. This makes SetOffsets(..., PR_TRUE) O(1) by bounding
+        // the iterations in the loop below to at most SHORTCUT_FREQUENCY iterations
+        PRUint32 shortcutIndex = aOffset/SHORTCUT_FREQUENCY;
+        if (shortcutIndex == 0) {
+            mListPrefixLength = 0;
+            mListPrefixKeepCharCount = 0;
+            mListPrefixCharCount = 0;
+        } else {
+            const gfxSkipChars::Shortcut& shortcut = mSkipChars->mShortcuts[shortcutIndex - 1];
+            mListPrefixLength = shortcut.mListPrefixLength;
+            mListPrefixKeepCharCount = shortcut.mListPrefixKeepCharCount;
+            mListPrefixCharCount = shortcut.mListPrefixCharCount;
+        }
     }
-
-    mSkippedStringOffset = aOffset - r.NextDelta();
+  
+    PRInt32 currentRunLength = mSkipChars->mList[mListPrefixLength];
+    for (;;) {
+        // See if aOffset is in the string segment described by
+        // mSkipChars->mList[mListPrefixLength]
+        PRUint32 segmentOffset = aInOriginalString ? mListPrefixCharCount : mListPrefixKeepCharCount;
+        if ((aInOriginalString || IsKeepEntry(mListPrefixLength)) &&
+            aOffset >= segmentOffset && aOffset < segmentOffset + currentRunLength) {
+            PRInt32 offsetInSegment = aOffset - segmentOffset;
+            mOriginalStringOffset = mListPrefixCharCount + offsetInSegment;
+            mSkippedStringOffset = mListPrefixKeepCharCount;
+            if (IsKeepEntry(mListPrefixLength)) {
+                mSkippedStringOffset += offsetInSegment;
+            }
+            return;
+        }
+        
+        if (aOffset < segmentOffset) {
+            // We need to move backwards
+            if (mListPrefixLength <= 0) {
+                // nowhere to go backwards
+                mOriginalStringOffset = mSkippedStringOffset = 0;
+                return;
+            }
+            // Go backwards one segment and restore invariants
+            --mListPrefixLength;
+            currentRunLength = mSkipChars->mList[mListPrefixLength];
+            mListPrefixCharCount -= currentRunLength;
+            if (IsKeepEntry(mListPrefixLength)) {
+                mListPrefixKeepCharCount -= currentRunLength;
+            }
+        } else {
+            // We need to move forwards
+            if (mListPrefixLength >= mSkipChars->mListLength - 1) {
+                // nowhere to go forwards
+                mOriginalStringOffset = mListPrefixCharCount + currentRunLength;
+                mSkippedStringOffset = mListPrefixKeepCharCount;
+                if (IsKeepEntry(mListPrefixLength)) {
+                    mSkippedStringOffset += currentRunLength;
+                }
+                return;
+            }
+            // Go forwards one segment and restore invariants
+            mListPrefixCharCount += currentRunLength;
+            if (IsKeepEntry(mListPrefixLength)) {
+                mListPrefixKeepCharCount += currentRunLength;
+            }
+            ++mListPrefixLength;
+            currentRunLength = mSkipChars->mList[mListPrefixLength];
+        }
+    }
 }
 
-struct SkippedRangeOffsetComparator
+PRBool
+gfxSkipCharsIterator::IsOriginalCharSkipped(PRInt32* aRunLength) const
 {
-    const uint32_t mOffset;
-    explicit SkippedRangeOffsetComparator(const uint32_t aOffset) : mOffset(aOffset) {}
-    int operator()(const gfxSkipChars::SkippedRange& aRange) const {
-        return (mOffset < aRange.SkippedOffset()) ? -1 : 1;
+    if (mSkipChars->mListLength == 0) {
+        if (aRunLength) {
+            *aRunLength = mSkipChars->mCharCount - mOriginalStringOffset;
+        }
+        return mSkipChars->mCharCount == PRUint32(mOriginalStringOffset);
     }
-};
+  
+    PRUint32 listPrefixLength = mListPrefixLength;
+    // figure out which segment we're in
+    PRUint32 currentRunLength = mSkipChars->mList[listPrefixLength];
+    // Zero-length list entries are possible. Advance until mListPrefixLength
+    // is pointing to a run with real characters (or we're at the end of the
+    // string).
+    while (currentRunLength == 0 && listPrefixLength < mSkipChars->mListLength - 1) {
+        ++listPrefixLength;
+        // This does not break the iterator's invariant because no skipped
+        // or kept characters are being added
+        currentRunLength = mSkipChars->mList[listPrefixLength];
+    }
+    NS_ASSERTION(PRUint32(mOriginalStringOffset) >= mListPrefixCharCount,
+                 "Invariant violation");
+    PRUint32 offsetIntoCurrentRun =
+      PRUint32(mOriginalStringOffset) - mListPrefixCharCount;
+    if (listPrefixLength >= mSkipChars->mListLength - 1 &&
+        offsetIntoCurrentRun >= currentRunLength) {
+        NS_ASSERTION(listPrefixLength == mSkipChars->mListLength - 1 &&
+                     offsetIntoCurrentRun == currentRunLength,
+                     "Overran end of string");
+        // We're at the end of the string
+        if (aRunLength) {
+            *aRunLength = 0;
+        }
+        return PR_TRUE;
+    }
+  
+    PRBool isSkipped = !IsKeepEntry(listPrefixLength);
+    if (aRunLength) {
+        // Long runs of all-skipped or all-kept characters will be encoded as
+        // sequences of 255, 0, 255, 0 etc. Compute the maximum run length by skipping
+        // over zero entries.
+        PRUint32 runLength = currentRunLength - offsetIntoCurrentRun;
+        for (PRUint32 i = listPrefixLength + 2; i < mSkipChars->mListLength; i += 2) {
+            if (mSkipChars->mList[i - 1] != 0)
+                break;
+            runLength += mSkipChars->mList[i];
+        }
+        *aRunLength = runLength;
+    }
+    return isSkipped;
+}
 
 void
-gfxSkipCharsIterator::SetSkippedOffset(uint32_t aOffset)
+gfxSkipCharsBuilder::FlushRun()
 {
-    NS_ASSERTION((mSkipChars->mRanges.IsEmpty() &&
-                  aOffset <= mSkipChars->mCharCount) ||
-                 (aOffset <= mSkipChars->LastRange().SkippedOffset() +
-                                 mSkipChars->mCharCount -
-                                 mSkipChars->LastRange().End()),
-                 "Invalid skipped offset");
-    mSkippedStringOffset = aOffset;
-
-    uint32_t rangeCount = mSkipChars->mRanges.Length();
-    if (rangeCount == 0) {
-        mOriginalStringOffset = aOffset;
-        return;
-    }
-
-    const nsTArray<gfxSkipChars::SkippedRange>& ranges = mSkipChars->mRanges;
-    size_t idx;
-    mozilla::BinarySearchIf(ranges, 0, rangeCount,
-                            SkippedRangeOffsetComparator(aOffset),
-                            &idx);
-
-    if (idx == rangeCount) {
-        mCurrentRangeIndex = rangeCount - 1;
-    } else if (aOffset < ranges[idx].SkippedOffset()) {
-        mCurrentRangeIndex = idx - 1;
-        if (mCurrentRangeIndex == -1) {
-            mOriginalStringOffset = aOffset;
+    NS_ASSERTION((mBuffer.Length() & 1) == mRunSkipped,
+                 "out of sync?");
+    // Fill in buffer entries starting at mBufferLength, as many as necessary
+    PRUint32 charCount = mRunCharCount;
+    for (;;) {
+        PRUint32 chars = PR_MIN(255, charCount);
+        if (!mBuffer.AppendElement(chars)) {
+            mInErrorState = PR_TRUE;
             return;
         }
-    } else {
-        mCurrentRangeIndex = idx;
-    }
-
-    const gfxSkipChars::SkippedRange& r = ranges[mCurrentRangeIndex];
-    mOriginalStringOffset = r.End() + aOffset - r.SkippedOffset();
-}
-
-bool
-gfxSkipCharsIterator::IsOriginalCharSkipped(int32_t* aRunLength) const
-{
-    if (mCurrentRangeIndex == -1) {
-        // we're before the first skipped range (if any)
-        if (aRunLength) {
-            uint32_t end = mSkipChars->mRanges.IsEmpty() ?
-                mSkipChars->mCharCount : mSkipChars->mRanges[0].Start();
-            *aRunLength = end - mOriginalStringOffset;
+        charCount -= chars;
+        if (charCount == 0)
+            break;
+        if (!mBuffer.AppendElement(0)) {
+            mInErrorState = PR_TRUE;
+            return;
         }
-        return mSkipChars->mCharCount == uint32_t(mOriginalStringOffset);
     }
-
-    const gfxSkipChars::SkippedRange& range =
-        mSkipChars->mRanges[mCurrentRangeIndex];
-
-    if (uint32_t(mOriginalStringOffset) < range.End()) {
-        if (aRunLength) {
-            *aRunLength = range.End() - mOriginalStringOffset;
-        }
-        return true;
-    }
-
-    if (aRunLength) {
-        uint32_t end =
-            uint32_t(mCurrentRangeIndex) + 1 < mSkipChars->mRanges.Length() ?
-                mSkipChars->mRanges[mCurrentRangeIndex + 1].Start() :
-                mSkipChars->mCharCount;
-        *aRunLength = end - mOriginalStringOffset;
-    }
-
-    return mSkipChars->mCharCount == uint32_t(mOriginalStringOffset);
+  
+    NS_ASSERTION(mCharCount + mRunCharCount >= mCharCount,
+                 "String length overflow");
+    mCharCount += mRunCharCount;
+    mRunCharCount = 0;
+    mRunSkipped = !mRunSkipped;
 }

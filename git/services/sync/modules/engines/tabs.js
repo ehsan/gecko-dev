@@ -1,41 +1,80 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Myk Melez <myk@mozilla.org>
+ *  Jono DiCarlo <jdicarlo@mozilla.com>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ["TabEngine", "TabSetRecord"];
+const EXPORTED_SYMBOLS = ['TabEngine', 'TabSetRecord'];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-const TABS_TTL = 604800;           // 7 days.
-const TAB_ENTRIES_LIMIT = 25;      // How many URLs to include in tab history.
+const TABS_TTL = 604800; // 7 days
 
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+// It is safer to inspect the private browsing preferences rather than
+// the flags of nsIPrivateBrowsingService.  The user may have turned on
+// "Never remember history" in the same session, or Firefox was started
+// with the -private command line argument.  In both cases, the
+// "autoStarted" flag of nsIPrivateBrowsingService will be wrong.
+const PBPrefs = new Preferences("browser.privatebrowsing.");
 
-this.TabSetRecord = function TabSetRecord(collection, id) {
+
+function TabSetRecord(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 TabSetRecord.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Tabs",
-  ttl: TABS_TTL,
+  _logName: "Record.Tabs",
+  ttl: TABS_TTL
 };
 
 Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
 
 
-this.TabEngine = function TabEngine(service) {
-  SyncEngine.call(this, "Tabs", service);
+function TabEngine() {
+  SyncEngine.call(this, "Tabs");
 
-  // Reset the client on every startup so that we fetch recent tabs.
+  // Reset the client on every startup so that we fetch recent tabs
   this._resetClient();
 }
 TabEngine.prototype = {
@@ -44,139 +83,104 @@ TabEngine.prototype = {
   _trackerObj: TabTracker,
   _recordObj: TabSetRecord,
 
-  syncPriority: 3,
-
-  getChangedIDs: function () {
+  getChangedIDs: function getChangedIDs() {
     // No need for a proper timestamp (no conflict resolution needed).
     let changedIDs = {};
     if (this._tracker.modified)
-      changedIDs[this.service.clientsEngine.localID] = 0;
+      changedIDs[Clients.localID] = 0;
     return changedIDs;
   },
 
-  // API for use by Sync UI code to give user choices of tabs to open.
-  getAllClients: function () {
+  // API for use by Weave UI code to give user choices of tabs to open:
+  getAllClients: function TabEngine_getAllClients() {
     return this._store._remoteClients;
   },
 
-  getClientById: function (id) {
+  getClientById: function TabEngine_getClientById(id) {
     return this._store._remoteClients[id];
   },
 
-  _resetClient: function () {
+  _resetClient: function TabEngine__resetClient() {
     SyncEngine.prototype._resetClient.call(this);
     this._store.wipe();
     this._tracker.modified = true;
   },
 
-  removeClientData: function () {
-    let url = this.engineURL + "/" + this.service.clientsEngine.localID;
-    this.service.resource(url).delete();
-  },
-
-  /**
-   * Return a Set of open URLs.
+  /* The intent is not to show tabs in the menu if they're already
+   * open locally.  There are a couple ways to interpret this: for
+   * instance, we could do it by removing a tab from the list when
+   * you open it -- but then if you close it, you can't get back to
+   * it.  So the way I'm doing it here is to not show a tab in the menu
+   * if you have a tab open to the same URL, even though this means
+   * that as soon as you navigate anywhere, the original tab will
+   * reappear in the menu.
    */
-  getOpenURLs: function () {
-    let urls = new Set();
-    for (let entry of this._store.getAllTabs()) {
-      urls.add(entry.urlHistory[0]);
-    }
-    return urls;
+  locallyOpenTabMatchesURL: function TabEngine_localTabMatches(url) {
+    return this._store.getAllTabs().some(function(tab) {
+      return tab.urlHistory[0] == url;
+    });
   }
 };
 
 
-function TabStore(name, engine) {
-  Store.call(this, name, engine);
+function TabStore(name) {
+  Store.call(this, name);
 }
 TabStore.prototype = {
   __proto__: Store.prototype,
 
-  itemExists: function (id) {
-    return id == this.engine.service.clientsEngine.localID;
+  itemExists: function TabStore_itemExists(id) {
+    return id == Clients.localID;
   },
 
-  getWindowEnumerator: function () {
-    return Services.wm.getEnumerator("navigator:browser");
-  },
-
-  shouldSkipWindow: function (win) {
-    return win.closed ||
-           PrivateBrowsingUtils.isWindowPrivate(win);
-  },
-
-  getTabState: function (tab) {
-    return JSON.parse(Svc.Session.getTabState(tab));
-  },
-
-  getAllTabs: function (filter) {
+  getAllTabs: function getAllTabs(filter) {
     let filteredUrls = new RegExp(Svc.Prefs.get("engine.tabs.filteredUrls"), "i");
 
     let allTabs = [];
 
-    let winEnum = this.getWindowEnumerator();
-    while (winEnum.hasMoreElements()) {
-      let win = winEnum.getNext();
-      if (this.shouldSkipWindow(win)) {
-        continue;
-      }
-
-      for (let tab of win.gBrowser.tabs) {
-        tabState = this.getTabState(tab);
-
+    let currentState = JSON.parse(Svc.Session.getBrowserState());
+    currentState.windows.forEach(function(window) {
+      window.tabs.forEach(function(tab) {
         // Make sure there are history entries to look at.
-        if (!tabState || !tabState.entries.length) {
-          continue;
-        }
+        if (!tab.entries.length)
+          return;
+        // Until we store full or partial history, just grab the current entry.
+        // index is 1 based, so make sure we adjust.
+        let entry = tab.entries[tab.index - 1];
 
-        let acceptable = !filter ? (url) => url :
-                                   (url) => url && !filteredUrls.test(url);
+        // Filter out some urls if necessary. SessionStore can return empty
+        // tabs in some cases - easiest thing is to just ignore them for now.
+        if (!entry.url || filter && filteredUrls.test(entry.url))
+          return;
 
-        let entries = tabState.entries;
-        let index = tabState.index;
-        let current = entries[index - 1];
-
-        // We ignore the tab completely if the current entry url is
-        // not acceptable (we need something accurate to open).
-        if (!acceptable(current.url)) {
-          continue;
-        }
-
-        // The element at `index` is the current page. Previous URLs were
-        // previously visited URLs; subsequent URLs are in the 'forward' stack,
-        // which we can't represent in Sync, so we truncate here.
-        let candidates = (entries.length == index) ?
-                         entries :
-                         entries.slice(0, index);
-
-        let urls = candidates.map((entry) => entry.url)
-                             .filter(acceptable)
-                             .reverse();                       // Because Sync puts current at index 0, and history after.
-
-        // Truncate if necessary.
-        if (urls.length > TAB_ENTRIES_LIMIT) {
-          urls.length = TAB_ENTRIES_LIMIT;
-        }
-
+        // weaveLastUsed will only be set if the tab was ever selected (or
+        // opened after Weave was running). So it might not ever be set.
+        // I think it's also possible that attributes[.image] might not be set
+        // so handle that as well.
         allTabs.push({
-          title: current.title || "",
-          urlHistory: urls,
-          icon: tabState.attributes && tabState.attributes.image || "",
-          lastUsed: Math.floor((tabState.lastAccessed || 0) / 1000),
+          title: entry.title || "",
+          urlHistory: [entry.url],
+          icon: tab.attributes && tab.attributes.image || "",
+          lastUsed: tab.extData && tab.extData.weaveLastUsed || 0
         });
-      }
-    }
+      });
+    });
 
     return allTabs;
   },
 
-  createRecord: function (id, collection) {
+  createRecord: function createRecord(id, collection) {
     let record = new TabSetRecord(collection, id);
-    record.clientName = this.engine.service.clientsEngine.localName;
+    record.clientName = Clients.localName;
+
+    // Don't provide any tabs to compare against and ignore the update later.
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+      record.tabs = [];
+      return record;
+    }
 
     // Sort tabs in descending-used order to grab the most recently used
-    let tabs = this.getAllTabs(true).sort(function (a, b) {
+    let tabs = this.getAllTabs(true).sort(function(a, b) {
       return b.lastUsed - a.lastUsed;
     });
 
@@ -196,7 +200,7 @@ TabStore.prototype = {
     }
 
     this._log.trace("Created tabs " + tabs.length + " of " + origLength);
-    tabs.forEach(function (tab) {
+    tabs.forEach(function(tab) {
       this._log.trace("Wrapping tab: " + JSON.stringify(tab));
     }, this);
 
@@ -204,73 +208,50 @@ TabStore.prototype = {
     return record;
   },
 
-  getAllIDs: function () {
-    // Don't report any tabs if all windows are in private browsing for
-    // first syncs.
+  getAllIDs: function TabStore_getAllIds() {
+    // Don't report any tabs if we're in private browsing for first syncs.
     let ids = {};
-    let allWindowsArePrivate = false;
-    let wins = Services.wm.getEnumerator("navigator:browser");
-    while (wins.hasMoreElements()) {
-      if (PrivateBrowsingUtils.isWindowPrivate(wins.getNext())) {
-        // Ensure that at least there is a private window.
-        allWindowsArePrivate = true;
-      } else {
-        // If there is a not private windown then finish and continue.
-        allWindowsArePrivate = false;
-        break;
-      }
-    }
-
-    if (allWindowsArePrivate &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
       return ids;
-    }
 
-    ids[this.engine.service.clientsEngine.localID] = true;
+    ids[Clients.localID] = true;
     return ids;
   },
 
-  wipe: function () {
+  wipe: function TabStore_wipe() {
     this._remoteClients = {};
   },
 
-  create: function (record) {
+  create: function TabStore_create(record) {
     this._log.debug("Adding remote tabs from " + record.clientName);
     this._remoteClients[record.id] = record.cleartext;
 
-    // Lose some precision, but that's good enough (seconds).
+    // Lose some precision, but that's good enough (seconds)
     let roundModify = Math.floor(record.modified / 1000);
     let notifyState = Svc.Prefs.get("notifyTabState");
-
-    // If there's no existing pref, save this first modified time.
-    if (notifyState == null) {
+    // If there's no existing pref, save this first modified time
+    if (notifyState == null)
       Svc.Prefs.set("notifyTabState", roundModify);
+    // Don't change notifyState if it's already 0 (don't notify)
+    else if (notifyState == 0)
       return;
-    }
-
-    // Don't change notifyState if it's already 0 (don't notify).
-    if (notifyState == 0) {
-      return;
-    }
-
-    // We must have gotten a new tab that isn't the same as last time.
-    if (notifyState != roundModify) {
+    // We must have gotten a new tab that isn't the same as last time
+    else if (notifyState != roundModify)
       Svc.Prefs.set("notifyTabState", 0);
-    }
   },
 
-  update: function (record) {
+  update: function update(record) {
     this._log.trace("Ignoring tab updates as local ones win");
-  },
+  }
 };
 
 
-function TabTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function TabTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 
-  // Make sure "this" pointer is always set correctly for event listeners.
+  // Make sure "this" pointer is always set correctly for event listeners
   this.onTab = Utils.bind2(this, this.onTab);
   this._unregisterListeners = Utils.bind2(this, this._unregisterListeners);
 }
@@ -279,17 +260,16 @@ TabTracker.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
-  loadChangedIDs: function () {
+  loadChangedIDs: function loadChangedIDs() {
     // Don't read changed IDs from disk at start up.
   },
 
-  clearChangedIDs: function () {
+  clearChangedIDs: function clearChangedIDs() {
     this.modified = false;
   },
 
   _topics: ["pageshow", "TabOpen", "TabClose", "TabSelect"],
-
-  _registerListenersForWindow: function (window) {
+  _registerListenersForWindow: function registerListenersFW(window) {
     this._log.trace("Registering tab listeners in window");
     for each (let topic in this._topics) {
       window.addEventListener(topic, this.onTab, false);
@@ -297,11 +277,11 @@ TabTracker.prototype = {
     window.addEventListener("unload", this._unregisterListeners, false);
   },
 
-  _unregisterListeners: function (event) {
+  _unregisterListeners: function unregisterListeners(event) {
     this._unregisterListenersForWindow(event.target);
   },
 
-  _unregisterListenersForWindow: function (window) {
+  _unregisterListenersForWindow: function unregisterListenersFW(window) {
     this._log.trace("Removing tab listeners in window");
     window.removeEventListener("unload", this._unregisterListeners, false);
     for each (let topic in this._topics) {
@@ -309,57 +289,67 @@ TabTracker.prototype = {
     }
   },
 
-  startTracking: function () {
-    Svc.Obs.add("domwindowopened", this);
-    let wins = Services.wm.getEnumerator("navigator:browser");
-    while (wins.hasMoreElements()) {
-      this._registerListenersForWindow(wins.getNext());
-    }
-  },
-
-  stopTracking: function () {
-    Svc.Obs.remove("domwindowopened", this);
-    let wins = Services.wm.getEnumerator("navigator:browser");
-    while (wins.hasMoreElements()) {
-      this._unregisterListenersForWindow(wins.getNext());
-    }
-  },
-
-  observe: function (subject, topic, data) {
-    Tracker.prototype.observe.call(this, subject, topic, data);
-
-    switch (topic) {
-      case "domwindowopened":
-        let onLoad = () => {
-          subject.removeEventListener("load", onLoad, false);
-          // Only register after the window is done loading to avoid unloads.
-          this._registerListenersForWindow(subject);
-        };
-
-        // Add tab listeners now that a window has opened.
-        subject.addEventListener("load", onLoad, false);
+  _enabled: false,
+  observe: function TabTracker_observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "weave:engine:start-tracking":
+        if (!this._enabled) {
+          Svc.Obs.add("private-browsing", this);
+          Svc.Obs.add("domwindowopened", this);
+          let wins = Svc.WinMediator.getEnumerator("navigator:browser");
+          while (wins.hasMoreElements())
+            this._registerListenersForWindow(wins.getNext());
+          this._enabled = true;
+        }
         break;
+      case "weave:engine:stop-tracking":
+        if (this._enabled) {
+          Svc.Obs.remove("private-browsing", this);
+          Svc.Obs.remove("domwindowopened", this);
+          let wins = Svc.WinMediator.getEnumerator("navigator:browser");
+          while (wins.hasMoreElements())
+            this._unregisterListenersForWindow(wins.getNext());
+          this._enabled = false;
+        }
+        return;
+      case "domwindowopened":
+        // Add tab listeners now that a window has opened
+        let self = this;
+        aSubject.addEventListener("load", function onLoad(event) {
+          aSubject.removeEventListener("load", onLoad, false);
+          // Only register after the window is done loading to avoid unloads
+          self._registerListenersForWindow(aSubject);
+        }, false);
+        break;
+      case "private-browsing":
+        if (aData == "enter" && !PBPrefs.get("autostart"))
+          this.modified = false;
     }
   },
 
-  onTab: function (event) {
-    if (event.originalTarget.linkedBrowser) {
-      let browser = event.originalTarget.linkedBrowser;
-      if (PrivateBrowsingUtils.isBrowserPrivate(browser) &&
-          !PrivateBrowsingUtils.permanentPrivateBrowsing) {
-        this._log.trace("Ignoring tab event from private browsing.");
-        return;
-      }
+  onTab: function onTab(event) {
+    if (Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+      this._log.trace("Ignoring tab event from private browsing.");
+      return;
     }
 
     this._log.trace("onTab event: " + event.type);
     this.modified = true;
 
-    // For page shows, bump the score 10% of the time, emulating a partial
-    // score. We don't want to sync too frequently. For all other page
-    // events, always bump the score.
-    if (event.type != "pageshow" || Math.random() < .1) {
-      this.score += SCORE_INCREMENT_SMALL;
+    // For pageshow events, only give a partial score bump (~.1)
+    let chance = .1;
+
+    // For regular Tab events, do a full score bump and remember when it changed
+    if (event.type != "pageshow") {
+      chance = 1;
+
+      // Store a timestamp in the tab to track when it was last used
+      Svc.Session.setTabValue(event.originalTarget, "weaveLastUsed",
+                              Math.floor(Date.now() / 1000));
     }
+
+    // Only increase the score by whole numbers, so use random for partial score
+    if (Math.random() < chance)
+      this.score++;
   },
-};
+}

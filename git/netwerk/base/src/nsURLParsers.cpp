@@ -1,27 +1,57 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <string.h>
-
-#include "mozilla/RangedPtr.h"
-
 #include "nsURLParsers.h"
 #include "nsURLHelper.h"
+#include "nsIURI.h"
+#include "prtypes.h"
 #include "nsString.h"
 #include "nsCRT.h"
-
-using namespace mozilla;
+#include "netCore.h"
 
 //----------------------------------------------------------------------------
 
-static uint32_t
-CountConsecutiveSlashes(const char *str, int32_t len)
+static PRUint32
+CountConsecutiveSlashes(const char *str, PRInt32 len)
 {
-    RangedPtr<const char> p(str, len);
-    uint32_t count = 0;
-    while (len-- && *p++ == '/') ++count;
+    PRUint32 count = 0;
+    while (len-- && *str++ == '/') ++count;
     return count;
 }
 
@@ -29,15 +59,17 @@ CountConsecutiveSlashes(const char *str, int32_t len)
 // nsBaseURLParser implementation
 //----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS(nsAuthURLParser, nsIURLParser)
-NS_IMPL_ISUPPORTS(nsNoAuthURLParser, nsIURLParser)
+// The URL parser service does not have any internal state; however, it can
+// be called from multiple threads, so we must use a threadsafe AddRef and
+// Release implementation.
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsBaseURLParser, nsIURLParser)
 
 #define SET_RESULT(component, pos, len) \
     PR_BEGIN_MACRO \
         if (component ## Pos) \
-           *component ## Pos = uint32_t(pos); \
+           *component ## Pos = PRUint32(pos); \
         if (component ## Len) \
-           *component ## Len = int32_t(len); \
+           *component ## Len = PRInt32(len); \
     PR_END_MACRO
 
 #define OFFSET_RESULT(component, offset) \
@@ -47,24 +79,22 @@ NS_IMPL_ISUPPORTS(nsNoAuthURLParser, nsIURLParser)
     PR_END_MACRO
 
 NS_IMETHODIMP
-nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
-                          uint32_t *schemePos, int32_t *schemeLen,
-                          uint32_t *authorityPos, int32_t *authorityLen,
-                          uint32_t *pathPos, int32_t *pathLen)
+nsBaseURLParser::ParseURL(const char *spec, PRInt32 specLen,
+                          PRUint32 *schemePos, PRInt32 *schemeLen,
+                          PRUint32 *authorityPos, PRInt32 *authorityLen,
+                          PRUint32 *pathPos, PRInt32 *pathLen)
 {
-    if (NS_WARN_IF(!spec)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(spec, "null pointer");
 
     if (specLen < 0)
         specLen = strlen(spec);
 
-    const char *stop = nullptr;
-    const char *colon = nullptr;
-    const char *slash = nullptr;
+    const char *stop = nsnull;
+    const char *colon = nsnull;
+    const char *slash = nsnull;
     const char *p;
-    uint32_t offset = 0;
-    int32_t len = specLen;
+    PRUint32 offset = 0;
+    PRInt32 len = specLen;
     for (p = spec; len && *p && !colon && !slash; ++p, --len) {
         // skip leading whitespace
         if (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') {
@@ -81,6 +111,7 @@ nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
             case '/': // start of filepath
             case '?': // start of query
             case '#': // start of ref
+            case ';': // start of param
                 if (!slash)
                     slash = p;
                 break;
@@ -93,7 +124,7 @@ nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
     }
     // disregard the first colon if it follows an '@' or a '['
     if (colon && stop && colon > stop)
-        colon = nullptr;
+        colon = nsnull;
 
     // if the spec only contained whitespace ...
     if (specLen == 0) {
@@ -124,7 +155,7 @@ nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
         }
         SET_RESULT(scheme, offset, colon - spec);
         if (authorityLen || pathLen) {
-            uint32_t schemeLen = colon + 1 - spec;
+            PRUint32 schemeLen = colon + 1 - spec;
             offset += schemeLen;
             ParseAfterScheme(colon + 1, specLen - schemeLen,
                              authorityPos, authorityLen,
@@ -149,27 +180,24 @@ nsBaseURLParser::ParseURL(const char *spec, int32_t specLen,
         // spec = <path-no-slashes-or-colon>
         //
         SET_RESULT(scheme, 0, -1);
-        if (authorityLen || pathLen) {
+        if (authorityLen || pathLen)
             ParseAfterScheme(spec, specLen,
                              authorityPos, authorityLen,
                              pathPos, pathLen);
             OFFSET_RESULT(authority, offset);
             OFFSET_RESULT(path, offset);
-        }
     }
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsBaseURLParser::ParseAuthority(const char *auth, int32_t authLen,
-                                uint32_t *usernamePos, int32_t *usernameLen,
-                                uint32_t *passwordPos, int32_t *passwordLen,
-                                uint32_t *hostnamePos, int32_t *hostnameLen,
-                                int32_t *port)
+nsBaseURLParser::ParseAuthority(const char *auth, PRInt32 authLen,
+                                PRUint32 *usernamePos, PRInt32 *usernameLen,
+                                PRUint32 *passwordPos, PRInt32 *passwordLen,
+                                PRUint32 *hostnamePos, PRInt32 *hostnameLen,
+                                PRInt32 *port)
 {
-    if (NS_WARN_IF(!auth)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(auth, "null pointer");
 
     if (authLen < 0)
         authLen = strlen(auth);
@@ -183,9 +211,9 @@ nsBaseURLParser::ParseAuthority(const char *auth, int32_t authLen,
 }
 
 NS_IMETHODIMP
-nsBaseURLParser::ParseUserInfo(const char *userinfo, int32_t userinfoLen,
-                               uint32_t *usernamePos, int32_t *usernameLen,
-                               uint32_t *passwordPos, int32_t *passwordLen)
+nsBaseURLParser::ParseUserInfo(const char *userinfo, PRInt32 userinfoLen,
+                               PRUint32 *usernamePos, PRInt32 *usernameLen,
+                               PRUint32 *passwordPos, PRInt32 *passwordLen)
 {
     SET_RESULT(username, 0, -1);
     SET_RESULT(password, 0, -1);
@@ -193,9 +221,9 @@ nsBaseURLParser::ParseUserInfo(const char *userinfo, int32_t userinfoLen,
 }
 
 NS_IMETHODIMP
-nsBaseURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
-                                 uint32_t *hostnamePos, int32_t *hostnameLen,
-                                 int32_t *port)
+nsBaseURLParser::ParseServerInfo(const char *serverinfo, PRInt32 serverinfoLen,
+                                 PRUint32 *hostnamePos, PRInt32 *hostnameLen,
+                                 PRInt32 *port)
 {
     SET_RESULT(hostname, 0, -1);
     if (port)
@@ -204,19 +232,18 @@ nsBaseURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
 }
 
 NS_IMETHODIMP
-nsBaseURLParser::ParsePath(const char *path, int32_t pathLen,
-                           uint32_t *filepathPos, int32_t *filepathLen,
-                           uint32_t *queryPos, int32_t *queryLen,
-                           uint32_t *refPos, int32_t *refLen)
+nsBaseURLParser::ParsePath(const char *path, PRInt32 pathLen,
+                           PRUint32 *filepathPos, PRInt32 *filepathLen,
+                           PRUint32 *paramPos, PRInt32 *paramLen,
+                           PRUint32 *queryPos, PRInt32 *queryLen,
+                           PRUint32 *refPos, PRInt32 *refLen)
 {
-    if (NS_WARN_IF(!path)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(path, "null pointer");
 
     if (pathLen < 0)
         pathLen = strlen(path);
 
-    // path = [/]<segment1>/<segment2>/<...>/<segmentN>?<query>#<ref>
+    // path = [/]<segment1>/<segment2>/<...>/<segmentN>;<param>?<query>#<ref>
 
     // XXX PL_strnpbrk would be nice, but it's buggy
 
@@ -250,6 +277,8 @@ nsBaseURLParser::ParsePath(const char *path, int32_t pathLen,
     else
         SET_RESULT(ref, 0, -1);
 
+    // search backwards for param
+    const char *param_beg = 0;
     const char *end;
     if (query_beg)
         end = query_beg - 1;
@@ -257,6 +286,20 @@ nsBaseURLParser::ParsePath(const char *path, int32_t pathLen,
         end = ref_beg - 1;
     else
         end = path + pathLen;
+    for (p = end - 1; p >= path && *p != '/'; --p) {
+        if (*p == ';') {
+            // found param
+            param_beg = p + 1;
+        }
+    }
+
+    if (param_beg) {
+        // found <filepath>;<param>
+        SET_RESULT(param, param_beg - path, end - param_beg);
+        end = param_beg - 1;
+    }
+    else
+        SET_RESULT(param, 0, -1);
 
     // an empty file path is no file path
     if (end != path)
@@ -267,14 +310,12 @@ nsBaseURLParser::ParsePath(const char *path, int32_t pathLen,
 }
 
 NS_IMETHODIMP
-nsBaseURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
-                               uint32_t *directoryPos, int32_t *directoryLen,
-                               uint32_t *basenamePos, int32_t *basenameLen,
-                               uint32_t *extensionPos, int32_t *extensionLen)
+nsBaseURLParser::ParseFilePath(const char *filepath, PRInt32 filepathLen,
+                               PRUint32 *directoryPos, PRInt32 *directoryLen,
+                               PRUint32 *basenamePos, PRInt32 *basenameLen,
+                               PRUint32 *extensionPos, PRInt32 *extensionLen)
 {
-    if (NS_WARN_IF(!filepath)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filepath, "null pointer");
 
     if (filepathLen < 0)
         filepathLen = strlen(filepath);
@@ -316,13 +357,11 @@ nsBaseURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
 }
 
 nsresult
-nsBaseURLParser::ParseFileName(const char *filename, int32_t filenameLen,
-                               uint32_t *basenamePos, int32_t *basenameLen,
-                               uint32_t *extensionPos, int32_t *extensionLen)
+nsBaseURLParser::ParseFileName(const char *filename, PRInt32 filenameLen,
+                               PRUint32 *basenamePos, PRInt32 *basenameLen,
+                               PRUint32 *extensionPos, PRInt32 *extensionLen)
 {
-    if (NS_WARN_IF(!filename)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filename, "null pointer");
 
     if (filenameLen < 0)
         filenameLen = strlen(filename);
@@ -350,39 +389,37 @@ nsBaseURLParser::ParseFileName(const char *filename, int32_t filenameLen,
 //----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsNoAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
-                                 uint32_t *usernamePos, int32_t *usernameLen,
-                                 uint32_t *passwordPos, int32_t *passwordLen,
-                                 uint32_t *hostnamePos, int32_t *hostnameLen,
-                                 int32_t *port)
+nsNoAuthURLParser::ParseAuthority(const char *auth, PRInt32 authLen,
+                                 PRUint32 *usernamePos, PRInt32 *usernameLen,
+                                 PRUint32 *passwordPos, PRInt32 *passwordLen,
+                                 PRUint32 *hostnamePos, PRInt32 *hostnameLen,
+                                 PRInt32 *port)
 {
     NS_NOTREACHED("Shouldn't parse auth in a NoAuthURL!");
     return NS_ERROR_UNEXPECTED;
 }
 
 void
-nsNoAuthURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
-                                    uint32_t *authPos, int32_t *authLen,
-                                    uint32_t *pathPos, int32_t *pathLen)
+nsNoAuthURLParser::ParseAfterScheme(const char *spec, PRInt32 specLen,
+                                    PRUint32 *authPos, PRInt32 *authLen,
+                                    PRUint32 *pathPos, PRInt32 *pathLen)
 {
     NS_PRECONDITION(specLen >= 0, "unexpected");
 
     // everything is the path
-    uint32_t pos = 0;
+    PRUint32 pos = 0;
     switch (CountConsecutiveSlashes(spec, specLen)) {
     case 0:
     case 1:
         break;
     case 2:
         {
-            const char *p = nullptr;
+            const char *p = nsnull;
             if (specLen > 2) {
                 // looks like there is an authority section
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
                 // if the authority looks like a drive number then we
                 // really want to treat it as part of the path
-                // [a-zA-Z][:|]{/\}
-                // i.e one of:   c:   c:\foo  c:/foo  c|  c|\foo  c|/foo
                 if ((specLen > 3) && (spec[3] == ':' || spec[3] == '|') &&
                     nsCRT::IsAsciiAlpha(spec[2]) &&
                     ((specLen == 4) || (spec[4] == '/') || (spec[4] == '\\'))) {
@@ -390,17 +427,16 @@ nsNoAuthURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
                     break;  
                 } 
 #endif
-                // Ignore apparent authority; path is everything after it
-                for (p = spec + 2; p < spec + specLen; ++p) {
-                    if (*p == '/' || *p == '?' || *p == '#')
-                        break;
-                }
+                p = (const char *) memchr(spec + 2, '/', specLen - 2);
             }
-            SET_RESULT(auth, 0, -1);
-            if (p && p != spec+specLen)
+            if (p) {
+                SET_RESULT(auth, 0, -1);
                 SET_RESULT(path, p - spec, specLen - (p - spec));
-            else
+            }
+            else {
+                SET_RESULT(auth, 0, -1);
                 SET_RESULT(path, 0, -1);
+            }
             return;
         }
     default:
@@ -411,16 +447,14 @@ nsNoAuthURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
     SET_RESULT(path, pos, specLen - pos);
 }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
 NS_IMETHODIMP
-nsNoAuthURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
-                                 uint32_t *directoryPos, int32_t *directoryLen,
-                                 uint32_t *basenamePos, int32_t *basenameLen,
-                                 uint32_t *extensionPos, int32_t *extensionLen)
+nsNoAuthURLParser::ParseFilePath(const char *filepath, PRInt32 filepathLen,
+                                 PRUint32 *directoryPos, PRInt32 *directoryLen,
+                                 PRUint32 *basenamePos, PRInt32 *basenameLen,
+                                 PRUint32 *extensionPos, PRInt32 *extensionLen)
 {
-    if (NS_WARN_IF(!filepath)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(filepath, "null pointer");
 
     if (filepathLen < 0)
         filepathLen = strlen(filepath);
@@ -454,17 +488,15 @@ nsNoAuthURLParser::ParseFilePath(const char *filepath, int32_t filepathLen,
 //----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
-                                uint32_t *usernamePos, int32_t *usernameLen,
-                                uint32_t *passwordPos, int32_t *passwordLen,
-                                uint32_t *hostnamePos, int32_t *hostnameLen,
-                                int32_t *port)
+nsAuthURLParser::ParseAuthority(const char *auth, PRInt32 authLen,
+                                PRUint32 *usernamePos, PRInt32 *usernameLen,
+                                PRUint32 *passwordPos, PRInt32 *passwordLen,
+                                PRUint32 *hostnamePos, PRInt32 *hostnameLen,
+                                PRInt32 *port)
 {
     nsresult rv;
 
-    if (NS_WARN_IF(!auth)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(auth, "null pointer");
 
     if (authLen < 0)
         authLen = strlen(auth);
@@ -480,9 +512,7 @@ nsAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
 
     // search backwards for @
     const char *p = auth + authLen - 1;
-    for (; (*p != '@') && (p > auth); --p) {
-      continue;
-    }
+    for (; (*p != '@') && (p > auth); --p);
     if ( *p == '@' ) {
         // auth = <user-info@server-info>
         rv = ParseUserInfo(auth, p - auth,
@@ -508,13 +538,11 @@ nsAuthURLParser::ParseAuthority(const char *auth, int32_t authLen,
 }
 
 NS_IMETHODIMP
-nsAuthURLParser::ParseUserInfo(const char *userinfo, int32_t userinfoLen,
-                               uint32_t *usernamePos, int32_t *usernameLen,
-                               uint32_t *passwordPos, int32_t *passwordLen)
+nsAuthURLParser::ParseUserInfo(const char *userinfo, PRInt32 userinfoLen,
+                               PRUint32 *usernamePos, PRInt32 *usernameLen,
+                               PRUint32 *passwordPos, PRInt32 *passwordLen)
 {
-    if (NS_WARN_IF(!userinfo)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(userinfo, "null pointer");
 
     if (userinfoLen < 0)
         userinfoLen = strlen(userinfo);
@@ -544,13 +572,11 @@ nsAuthURLParser::ParseUserInfo(const char *userinfo, int32_t userinfoLen,
 }
 
 NS_IMETHODIMP
-nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
-                                 uint32_t *hostnamePos, int32_t *hostnameLen,
-                                 int32_t *port)
+nsAuthURLParser::ParseServerInfo(const char *serverinfo, PRInt32 serverinfoLen,
+                                 PRUint32 *hostnamePos, PRInt32 *hostnameLen,
+                                 PRInt32 *port)
 {
-    if (NS_WARN_IF(!serverinfo)) {
-        return NS_ERROR_INVALID_POINTER;
-    }
+    NS_PRECONDITION(serverinfo, "null pointer");
 
     if (serverinfoLen < 0)
         serverinfoLen = strlen(serverinfo);
@@ -565,14 +591,14 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
     // search backwards for a ':' but stop on ']' (IPv6 address literal
     // delimiter).  check for illegal characters in the hostname.
     const char *p = serverinfo + serverinfoLen - 1;
-    const char *colon = nullptr, *bracket = nullptr;
+    const char *colon = nsnull, *bracket = nsnull;
     for (; p > serverinfo; --p) {
         switch (*p) {
             case ']':
                 bracket = p;
                 break;
             case ':':
-                if (bracket == nullptr)
+                if (bracket == nsnull)
                     colon = p;
                 break;
             case ' ':
@@ -587,7 +613,7 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
         SET_RESULT(hostname, 0, colon - serverinfo);
         if (port) {
             // XXX unfortunately ToInteger is not defined for substrings
-            nsAutoCString buf(colon+1, serverinfoLen - (colon + 1 - serverinfo));
+            nsCAutoString buf(colon+1, serverinfoLen - (colon + 1 - serverinfo));
             if (buf.Length() == 0) {
                 *port = -1;
             }
@@ -596,9 +622,9 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
                 if (nondigit && *nondigit)
                     return NS_ERROR_MALFORMED_URI;
 
-                nsresult err;
+                PRInt32 err;
                 *port = buf.ToInteger(&err);
-                if (NS_FAILED(err) || *port < 0)
+                if (NS_FAILED(err) || *port <= 0)
                     return NS_ERROR_MALFORMED_URI;
             }
         }
@@ -609,30 +635,23 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, int32_t serverinfoLen,
         if (port)
            *port = -1;
     }
-
-    // In case of IPv6 address check its validity
-    if (*hostnameLen > 1 && *(serverinfo + *hostnamePos) == '[' &&
-        *(serverinfo + *hostnamePos + *hostnameLen - 1) == ']' &&
-        !net_IsValidIPv6Addr(serverinfo + *hostnamePos + 1, *hostnameLen - 2))
-            return NS_ERROR_MALFORMED_URI;
-
     return NS_OK;
 }
 
 void
-nsAuthURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
-                                  uint32_t *authPos, int32_t *authLen,
-                                  uint32_t *pathPos, int32_t *pathLen)
+nsAuthURLParser::ParseAfterScheme(const char *spec, PRInt32 specLen,
+                                  PRUint32 *authPos, PRInt32 *authLen,
+                                  PRUint32 *pathPos, PRInt32 *pathLen)
 {
     NS_PRECONDITION(specLen >= 0, "unexpected");
 
-    uint32_t nslash = CountConsecutiveSlashes(spec, specLen);
+    PRUint32 nslash = CountConsecutiveSlashes(spec, specLen);
 
     // search for the end of the authority section
     const char *end = spec + specLen;
     const char *p;
     for (p = spec + nslash; p < end; ++p) {
-        if (*p == '/' || *p == '?' || *p == '#')
+        if (*p == '/' || *p == '?' || *p == '#' || *p == ';')
             break;
     }
     if (p < end) {
@@ -652,13 +671,13 @@ nsAuthURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
 //----------------------------------------------------------------------------
 
 void
-nsStdURLParser::ParseAfterScheme(const char *spec, int32_t specLen,
-                                 uint32_t *authPos, int32_t *authLen,
-                                 uint32_t *pathPos, int32_t *pathLen)
+nsStdURLParser::ParseAfterScheme(const char *spec, PRInt32 specLen,
+                                 PRUint32 *authPos, PRInt32 *authLen,
+                                 PRUint32 *pathPos, PRInt32 *pathLen)
 {
     NS_PRECONDITION(specLen >= 0, "unexpected");
 
-    uint32_t nslash = CountConsecutiveSlashes(spec, specLen);
+    PRUint32 nslash = CountConsecutiveSlashes(spec, specLen);
 
     // search for the end of the authority section
     const char *end = spec + specLen;

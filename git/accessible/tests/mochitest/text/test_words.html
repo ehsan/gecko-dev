@@ -2,9 +2,10 @@
 <html>
 <head>
   <title>nsIAccessibleText getText related function tests for html:input,html:div and html:textarea</title>
-  <meta charset="utf-8" />
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
+  <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
@@ -12,12 +13,7 @@
   <script type="application/javascript"
           src="../text.js"></script>
   <script type="application/javascript">
-    if (navigator.platform.startsWith("Mac")) {
-      SimpleTest.expectAssertions(0, 1);
-    } else {
-      SimpleTest.expectAssertions(0, 1);
-    }
-
+    
     function doTest()
     {
       // "one two"
@@ -69,7 +65,7 @@
       testWords("div12", ["4,261.01"], kTodo);
 
       // "カタカナ"
-      testWords("div13", ["カタカナ"], kOk);
+      testWords("div13", ["カタカナ"], kTodo);
 
       // "Peter's car"
       testWords("div14", ["Peter's", "car"], kTodo);
@@ -91,8 +87,6 @@
       testWordAt("div17", 2, "are", kOk);
       testWordAt("div17", 3, "you", kOk);
       testWordAt("div17", 4, "here", kTodo);
-
-      testWords("input_1", ["foo", "bar"]);
 
       SimpleTest.finish();
     }
@@ -127,7 +121,5 @@
   <div id="div16">3+4*5=23</div>
   <div id="div17">Hello. Friend, are you here?!</div>
   </pre>
-  <input id="input_1" type="text" value="foo bar" placeholder="something or other">
-
 </body>
 </html>

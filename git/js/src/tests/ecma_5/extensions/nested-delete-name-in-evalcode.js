@@ -1,4 +1,3 @@
-// |reftest| fails -- bug 604301, at a minimum
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 

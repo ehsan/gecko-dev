@@ -6,6 +6,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=426271
 <head>
   <title>Test for Bug 426271</title>
   <script type="text/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" 
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js">
           </script>
   <script type="text/javascript" src="CharsetDetectionTests.js"></script>
@@ -20,11 +22,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=426271
 <iframe id="testframe"></iframe>
 <pre id="test">
 <script class="testbody" type="text/javascript">
-SimpleTest.expectAssertions(1);
 /** Test for Bug 426271 **/
 CharsetDetectionTests("bug426271_text-utf-8.html",
 		      "UTF-8",
-		      new Array("ja_parallel_state_machine"));
+		      new Array("ja_parallel_state_machine",
+				"zhtw_parallel_state_machine",
+				"zhcn_parallel_state_machine",
+				"zh_parallel_state_machine",
+				"cjk_parallel_state_machine",
+				"universal_charset_detector"));
 </script>
 </pre>
 </body>

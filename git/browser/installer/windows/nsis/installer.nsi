@@ -1,14 +1,44 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Mozilla Installer code.
+#
+# The Initial Developer of the Original Code is Mozilla Foundation
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Robert Strong <robert.bugzilla@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 # Required Plugins:
-# AppAssocReg    http://nsis.sourceforge.net/Application_Association_Registration_plug-in
-# ApplicationID  http://nsis.sourceforge.net/ApplicationID_plug-in
-# CityHash       http://mxr.mozilla.org/mozilla-central/source/other-licenses/nsis/Contrib/CityHash
-# ShellLink      http://nsis.sourceforge.net/ShellLink_plug-in
-# UAC            http://nsis.sourceforge.net/UAC_plug-in
-# ServicesHelper Mozilla specific plugin that is located in /other-licenses/nsis
+# AppAssocReg   http://nsis.sourceforge.net/Application_Association_Registration_plug-in
+# ApplicationID http://nsis.sourceforge.net/ApplicationID_plug-in
+# ShellLink     http://nsis.sourceforge.net/ShellLink_plug-in
+# UAC           http://nsis.sourceforge.net/UAC_plug-in
 
 ; Set verbosity to 3 (e.g. no script) to lessen the noise in the build logs
 !verbose 3
@@ -21,14 +51,6 @@ CRCCheck on
 
 RequestExecutionLevel user
 
-; The commands inside this ifdef require NSIS 3.0a2 or greater so the ifdef can
-; be removed after we require NSIS 3.0a2 or greater.
-!ifdef NSIS_PACKEDVERSION
-  Unicode true
-  ManifestSupportedOS all
-  ManifestDPIAware true
-!endif
-
 !addplugindir ./
 
 Var TmpVal
@@ -36,9 +58,7 @@ Var InstallType
 Var AddStartMenuSC
 Var AddQuickLaunchSC
 Var AddDesktopSC
-Var InstallMaintenanceService
 Var PageName
-Var PreventRebootRequired
 
 ; By defining NO_STARTMENU_DIR an installer that doesn't provide an option for
 ; an application's Start Menu PROGRAMS directory and doesn't define the
@@ -79,19 +99,16 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 ; Must be inserted before other macros that use logging
 !insertmacro _LoggingCommon
 
-!insertmacro AddDisabledDDEHandlerValues
+!insertmacro AddDDEHandlerValues
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
-!insertmacro CleanUpdateDirectories
+!insertmacro CleanUpdatesDir
 !insertmacro CopyFilesFromDir
 !insertmacro CreateRegKey
-!insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro GetParent
-!insertmacro InitHashAppModelId
 !insertmacro IsHandlerForInstallDir
 !insertmacro IsPinnedToTaskBar
-!insertmacro IsUserAdmin
 !insertmacro LogDesktopShortcut
 !insertmacro LogQuickLaunchShortcut
 !insertmacro LogStartMenuShortcut
@@ -100,10 +117,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
-!ifdef MOZ_METRO
-!insertmacro RemoveDEHRegistrationIfMatching
-!endif
-!insertmacro RemovePrecompleteEntries
 !insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
 !insertmacro UpdateShortcutAppModelIDs
@@ -125,7 +138,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 
 Name "${BrandFullName}"
 OutFile "setup.exe"
-!ifdef HAVE_64BIT_BUILD
+!ifdef HAVE_64BIT_OS
   InstallDir "$PROGRAMFILES64\${BrandFullName}\"
 !else
   InstallDir "$PROGRAMFILES32\${BrandFullName}\"
@@ -167,11 +180,6 @@ Page custom preOptions leaveOptions
 !define MUI_DIRECTORYPAGE_VERIFYONLEAVE
 !insertmacro MUI_PAGE_DIRECTORY
 
-; Custom Components Page
-!ifdef MOZ_MAINTENANCE_SERVICE
-Page custom preComponents leaveComponents
-!endif
-
 ; Custom Shortcuts Page
 Page custom preShortcuts leaveShortcuts
 
@@ -204,41 +212,7 @@ Section "-InstallStartCleanup"
   SetOutPath "$INSTDIR"
   ${StartInstallLog} "${BrandFullName}" "${AB_CD}" "${AppVersion}" "${GREVersion}"
 
-  StrCpy $PreventRebootRequired "false"
-  ${GetParameters} $R8
-  ${GetOptions} "$R8" "/INI=" $R7
-  ${Unless} ${Errors}
-    ; The configuration file must also exist
-    ${If} ${FileExists} "$R7"
-      ReadINIStr $R9 $R7 "Install" "RemoveDistributionDir"
-      ReadINIStr $R8 $R7 "Install" "PreventRebootRequired"
-      ${If} $R8 == "true"
-        StrCpy $PreventRebootRequired "true"
-      ${EndIf}
-    ${EndIf}
-  ${EndUnless}
-
-  ; Remove directories and files we always control before parsing the uninstall
-  ; log so empty directories can be removed.
-  ${If} ${FileExists} "$INSTDIR\updates"
-    RmDir /r "$INSTDIR\updates"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\updated"
-    RmDir /r "$INSTDIR\updated"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\defaults\shortcuts"
-    RmDir /r "$INSTDIR\defaults\shortcuts"
-  ${EndIf}
-  ; Only remove the distribution directory if it exists and if the installer
-  ; isn't launched with an ini file that has RemoveDistributionDir=false in the
-  ; install section.
-  ${If} ${FileExists} "$INSTDIR\distribution"
-  ${AndIf} $R9 != "false"
-    RmDir /r "$INSTDIR\distribution"
-  ${EndIf}
-
-  ; Delete the app exe if present to prevent launching the app while we are
-  ; installing.
+  ; Delete the app exe to prevent launching the app while we are installing.
   ClearErrors
   ${DeleteFile} "$INSTDIR\${FileMainEXE}"
   ${If} ${Errors}
@@ -250,38 +224,10 @@ Section "-InstallStartCleanup"
     ClearErrors
   ${EndIf}
 
-  ; setup the application model id registration value
-  ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
-
   ; Remove the updates directory for Vista and above
-  ${CleanUpdateDirectories} "Mozilla\Firefox" "Mozilla\updates"
+  ${CleanUpdatesDir} "Mozilla\Firefox"
 
   ${RemoveDeprecatedFiles}
-
-  StrCpy $R2 "false"
-  StrCpy $R3 "false"
-  ${RemovePrecompleteEntries} "$R2" "$R3"
-
-  ${If} ${FileExists} "$INSTDIR\defaults\pref\channel-prefs.js"
-    Delete "$INSTDIR\defaults\pref\channel-prefs.js"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\defaults\pref"
-    RmDir "$INSTDIR\defaults\pref"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\defaults"
-    RmDir "$INSTDIR\defaults"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\uninstall"
-    ; Remove the uninstall directory that we control
-    RmDir /r "$INSTDIR\uninstall"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\update-settings.ini"
-    Delete "$INSTDIR\update-settings.ini"
-  ${EndIf}
-
-  ; Explictly remove empty webapprt dir in case it exists (bug 757978).
-  RmDir "$INSTDIR\webapprt\components"
-  RmDir "$INSTDIR\webapprt"
 
   ${InstallStartCleanupCommon}
 SectionEnd
@@ -313,6 +259,18 @@ Section "-Application" APP_IDX
     ${LogMsg} "Registered: $INSTDIR\AccessibleMarshal.dll"
   ${EndIf}
 
+  ; Write extra files created by the application to the uninstall log so they
+  ; will be removed when the application is uninstalled. To remove an empty
+  ; directory write a bogus filename to the deepest directory and all empty
+  ; parent directories will be removed.
+  ${LogUninstall} "File: \components\compreg.dat"
+  ${LogUninstall} "File: \components\xpti.dat"
+  ${LogUninstall} "File: \active-update.xml"
+  ${LogUninstall} "File: \install.log"
+  ${LogUninstall} "File: \install_status.log"
+  ${LogUninstall} "File: \install_wizard.log"
+  ${LogUninstall} "File: \updates.xml"
+
   ClearErrors
 
   ; Default for creating Start Menu shortcut
@@ -340,9 +298,6 @@ Section "-Application" APP_IDX
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${RegCleanMain} "Software\Mozilla"
   ${RegCleanUninstall}
-!ifdef MOZ_METRO
-  ${ResetWin8PromptKeys} "HKCU" ""
-!endif
   ${UpdateProtocolHandlers}
 
   ClearErrors
@@ -382,24 +337,23 @@ Section "-Application" APP_IDX
   ${SetUninstallKeys}
 
   ; On install always add the FirefoxHTML and FirefoxURL keys.
-  ; An empty string is used for the 5th param because FirefoxHTML is not a
-  ; protocol handler.
+  ; An empty string is used for the 5th param because FirefoxHTML and FirefoxURL
+  ; are not protocol handlers.
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
-  StrCpy $2 "$\"$8$\" -osint -url $\"%1$\""
+  StrCpy $2 "$\"$8$\" -requestPending -osint -url $\"%1$\""
+  StrCpy $3 "$\"%1$\",,0,0,,,,"
 
-  ; In Win8, the delegate execute handler picks up the value in FirefoxURL and
-  ; FirefoxHTML to launch the desktop browser when it needs to.
-  ${AddDisabledDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" \
-                                 "${AppRegName} Document" ""
-  ${AddDisabledDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" \
-                                 "true"
+  ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} Document" "" \
+                         "${DDEApplication}" "$3" "WWW_OpenURL"
 
-  ; For pre win8, the following keys should only be set if we can write to HKLM.
-  ; For post win8, the keys below get set in both HKLM and HKCU.
+  ${AddDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" "true" \
+                         "${DDEApplication}" "$3" "WWW_OpenURL"
+
+  ; The following keys should only be set if we can write to HKLM
   ${If} $TmpVal == "HKLM"
     ; Set the Start Menu Internet and Vista Registered App HKLM registry keys.
-    ${SetStartMenuInternet} "HKLM"
-    ${FixShellIconHandler} "HKLM"
+    ${SetStartMenuInternet}
+    ${FixShellIconHandler}
 
     ; If we are writing to HKLM and create either the desktop or start menu
     ; shortcuts set IconsVisible to 1 otherwise to 0.
@@ -412,72 +366,6 @@ Section "-Application" APP_IDX
       WriteRegDWORD HKLM "$0" "IconsVisible" 0
     ${EndIf}
   ${EndIf}
-
-  ${If} ${AtLeastWin8}
-    ; Set the Start Menu Internet and Vista Registered App HKCU registry keys.
-    ${SetStartMenuInternet} "HKCU"
-    ${FixShellIconHandler} "HKCU"
-
-    ; If we create either the desktop or start menu shortcuts, then
-    ; set IconsVisible to 1 otherwise to 0.
-    ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
-    StrCpy $0 "Software\Clients\StartMenuInternet\$R9\InstallInfo"
-    ${If} $AddDesktopSC == 1
-    ${OrIf} $AddStartMenuSC == 1
-      WriteRegDWORD HKCU "$0" "IconsVisible" 1
-    ${Else}
-      WriteRegDWORD HKCU "$0" "IconsVisible" 0
-    ${EndIf}
-!ifdef MOZ_METRO
-    ${CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                        "FirefoxURL" \
-                                        "FirefoxHTML"
-    ${AddMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                    "$INSTDIR\CommandExecuteHandler.exe" \
-                                    $AppUserModelID \
-                                    "FirefoxURL" \
-                                    "FirefoxHTML"
-!else
-  ; The metro browser is not enabled by the mozconfig.
-  ${If} ${AtLeastWin8}
-    ${RemoveDEHRegistration} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                             $AppUserModelID \
-                             "FirefoxURL" \
-                             "FirefoxHTML"
-  ${EndIf}
-!endif
-  ${EndIf}
-
-!ifdef MOZ_MAINTENANCE_SERVICE
-  ; If the maintenance service page was displayed then a value was already 
-  ; explicitly selected for installing the maintenance service and 
-  ; and so InstallMaintenanceService will already be 0 or 1.
-  ; If the maintenance service page was not displayed then 
-  ; InstallMaintenanceService will be equal to "".
-  ${If} $InstallMaintenanceService == ""
-    Call IsUserAdmin
-    Pop $R0
-    ${If} $R0 == "true"
-    ; Only proceed if we have HKLM write access
-    ${AndIf} $TmpVal == "HKLM"
-    ; On Windows 2000 we do not install the maintenance service.
-    ${AndIf} ${AtLeastWinXP}
-      ; The user is an admin so we should default to install service yes
-      StrCpy $InstallMaintenanceService "1"
-    ${Else}
-      ; The user is not admin so we should default to install service no
-      StrCpy $InstallMaintenanceService "0"
-    ${EndIf}
-  ${EndIf}
-
-  ${If} $InstallMaintenanceService == "1"
-    ; The user wants to install the maintenance service, so execute
-    ; the pre-packaged maintenance service installer. 
-    ; This option can only be turned on if the user is an admin so there
-    ; is no need to use ExecShell w/ verb runas to enforce elevated.
-    nsExec::Exec "$\"$INSTDIR\maintenanceservice_installer.exe$\""
-  ${EndIf}
-!endif
 
   ; These need special handling on uninstall since they may be overwritten by
   ; an install into a different location.
@@ -532,7 +420,7 @@ Section "-Application" APP_IDX
   ${Unless} ${Errors}
     GetFunctionAddress $0 FixShortcutAppModelIDs
     UAC::ExecCodeSegment $0
-  ${EndUnless}
+  ${EndIf}
 
   ; UAC only allows elevating to an Admin account so there is no need to add
   ; the Start Menu or Desktop shortcuts from the original unelevated process
@@ -544,8 +432,7 @@ Section "-Application" APP_IDX
       ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
                                            "$INSTDIR"
       ${If} ${AtLeastWin7}
-      ${AndIf} "$AppUserModelID" != ""
-        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "$AppUserModelID" "true"
+        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
       ${EndIf}
       ${LogMsg} "Added Shortcut: $SMPROGRAMS\${BrandFullName}.lnk"
     ${Else}
@@ -559,8 +446,7 @@ Section "-Application" APP_IDX
       ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" \
                                              "$INSTDIR"
       ${If} ${AtLeastWin7}
-      ${AndIf} "$AppUserModelID" != ""
-        ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "$AppUserModelID"  "true"
+        ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
       ${EndIf}
       ${LogMsg} "Added Shortcut: $DESKTOP\${BrandFullName}.lnk"
     ${Else}
@@ -588,13 +474,6 @@ Section "-Application" APP_IDX
       ${EndIf}
     ${EndUnless}
   ${EndIf}
-
-!ifdef MOZ_MAINTENANCE_SERVICE
-  ${If} $TmpVal == "HKLM"
-    ; Add the registry keys for allowed certificates.
-    ${AddMaintCertKeys}
-  ${EndIf}
-!endif
 SectionEnd
 
 ; Cleanup operations to perform at the end of the installation.
@@ -617,58 +496,46 @@ Section "-InstallEndCleanup"
         UAC::ExecCodeSegment $0
       ${EndIf}
     ${EndIf}
-    ; Adds a pinned Task Bar shortcut (see MigrateTaskBarShortcut for details).
-    ${MigrateTaskBarShortcut}
   ${EndUnless}
+
+  ; Adds a pinned Task Bar shortcut (see MigrateTaskBarShortcut for details).
+  ${MigrateTaskBarShortcut}
 
   ${GetShortcutsLogPath} $0
   WriteIniStr "$0" "TASKBAR" "Migrated" "true"
 
-  ; Add the Firewall entries during install
-  Call AddFirewallEntries
-
   ; Refresh desktop icons
-  System::Call "shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i ${SHCNF_DWORDFLUSH}, i 0, i 0)"
+  System::Call "shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)"
 
   ${InstallEndCleanupCommon}
 
-  ${If} $PreventRebootRequired == "true"
-    SetRebootFlag false
-  ${EndIf}
-
   ${If} ${RebootFlag}
-    ; Admin is required to delete files on reboot so only add the moz-delete if
-    ; the user is an admin. After calling UAC::IsAdmin $0 will equal 1 if the
-    ; user is an admin.
-    UAC::IsAdmin
-    ${If} "$0" == "1"
-      ; When a reboot is required give SHChangeNotify time to finish the
-      ; refreshing the icons so the OS doesn't display the icons from helper.exe
-      Sleep 10000
-      ${LogHeader} "Reboot Required To Finish Installation"
-      ; ${FileMainEXE}.moz-upgrade should never exist but just in case...
-      ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}.moz-upgrade"
-        Rename "$INSTDIR\${FileMainEXE}" "$INSTDIR\${FileMainEXE}.moz-upgrade"
-      ${EndUnless}
+    ; When a reboot is required give SHChangeNotify time to finish the
+    ; refreshing the icons so the OS doesn't display the icons from helper.exe
+    Sleep 10000
+    ${LogHeader} "Reboot Required To Finish Installation"
+    ; ${FileMainEXE}.moz-upgrade should never exist but just in case...
+    ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}.moz-upgrade"
+      Rename "$INSTDIR\${FileMainEXE}" "$INSTDIR\${FileMainEXE}.moz-upgrade"
+    ${EndUnless}
 
-      ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
-        ClearErrors
-        Rename "$INSTDIR\${FileMainEXE}" "$INSTDIR\${FileMainEXE}.moz-delete"
-        ${Unless} ${Errors}
-          Delete /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-delete"
-        ${EndUnless}
-      ${EndIf}
-
-      ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
-        CopyFiles /SILENT "$INSTDIR\uninstall\helper.exe" "$INSTDIR"
-        FileOpen $0 "$INSTDIR\${FileMainEXE}" w
-        FileWrite $0 "Will be deleted on restart"
-        Rename /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-upgrade" "$INSTDIR\${FileMainEXE}"
-        FileClose $0
-        Delete "$INSTDIR\${FileMainEXE}"
-        Rename "$INSTDIR\helper.exe" "$INSTDIR\${FileMainEXE}"
+    ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
+      ClearErrors
+      Rename "$INSTDIR\${FileMainEXE}" "$INSTDIR\${FileMainEXE}.moz-delete"
+      ${Unless} ${Errors}
+        Delete /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-delete"
       ${EndUnless}
     ${EndIf}
+
+    ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
+      CopyFiles /SILENT "$INSTDIR\uninstall\helper.exe" "$INSTDIR"
+      FileOpen $0 "$INSTDIR\${FileMainEXE}" w
+      FileWrite $0 "Will be deleted on restart"
+      Rename /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-upgrade" "$INSTDIR\${FileMainEXE}"
+      FileClose $0
+      Delete "$INSTDIR\${FileMainEXE}"
+      Rename "$INSTDIR\helper.exe" "$INSTDIR\${FileMainEXE}"
+    ${EndUnless}
   ${EndIf}
 SectionEnd
 
@@ -805,33 +672,12 @@ Function CheckExistingInstall
 FunctionEnd
 
 Function LaunchApp
-!ifndef DEV_EDITION
-  ${ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_LAUNCH)"
-!endif
-
   ClearErrors
   ${GetParameters} $0
   ${GetOptions} "$0" "/UAC:" $1
   ${If} ${Errors}
-    StrCpy $1 "0"
-    StrCpy $2 "0"
-!ifdef MOZ_METRO
-    ; Check to see if this install location is currently set as the
-    ; default browser.
-    AppAssocReg::QueryAppIsDefaultAll "${AppRegName}" "effective"
-    Pop $1
-    ; Check for a last run type to see if metro was the last browser
-    ; front end in use.
-    ReadRegDWORD $2 HKCU "Software\Mozilla\Firefox" "MetroLastAHE"
-!endif
-    ${If} $1 == "1"
-    ${AndIf} $2 == "1" ; 1 equals AHE_IMMERSIVE
-      ; Launch into metro
-      Exec "$\"$INSTDIR\CommandExecuteHandler.exe$\" --launchmetro"
-    ${Else}
-      ; Launch into desktop
-      Exec "$\"$INSTDIR\${FileMainEXE}$\""
-    ${EndIf}
+    ${ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_LAUNCH)"
+    Exec "$INSTDIR\${FileMainEXE}"
   ${Else}
     GetFunctionAddress $0 LaunchAppFromElevatedProcess
     UAC::ExecCodeSegment $0
@@ -839,6 +685,8 @@ Function LaunchApp
 FunctionEnd
 
 Function LaunchAppFromElevatedProcess
+  ${ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_LAUNCH)"
+
   ; Find the installation directory when launching using GetFunctionAddress
   ; from an elevated installer since $INSTDIR will not be set in this installer
   ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
@@ -848,25 +696,7 @@ Function LaunchAppFromElevatedProcess
   ; Set our current working directory to the application's install directory
   ; otherwise the 7-Zip temp directory will be in use and won't be deleted.
   SetOutPath "$1"
-  StrCpy $2 "0"
-  StrCpy $3 "0"
-!ifdef MOZ_METRO
-  ; Check to see if this install location is currently set as the
-  ; default browser.
-  AppAssocReg::QueryAppIsDefaultAll "${AppRegName}" "effective"
-  Pop $2
-  ; Check for a last run type to see if metro was the last browser
-  ; front end in use.
-  ReadRegDWORD $3 HKCU "Software\Mozilla\Firefox" "MetroLastAHE"
-!endif
-  ${If} $2 == "1"
-  ${AndIf} $3 == "1" ; 1 equals AHE_IMMERSIVE
-    ; Launch into metro
-    Exec "$\"$1\CommandExecuteHandler.exe$\" --launchmetro"
-  ${Else}
-    ; Launch into desktop
-    Exec "$\"$0$\""
-  ${EndIf}
+  Exec "$0"
 FunctionEnd
 
 ################################################################################
@@ -950,16 +780,7 @@ Function leaveShortcuts
     Abort
   ${EndIf}
   ${MUI_INSTALLOPTIONS_READ} $AddDesktopSC "shortcuts.ini" "Field 2" "State"
-
-  ; If we have a Metro browser and are Win8, then we don't have a Field 3
-!ifdef MOZ_METRO
-  ${Unless} ${AtLeastWin8}
-!endif
-    ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
-!ifdef MOZ_METRO
-  ${EndIf}
-!endif
-
+  ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
   ; Don't install the quick launch shortcut on Windows 7
   ${Unless} ${AtLeastWin7}
     ${MUI_INSTALLOPTIONS_READ} $AddQuickLaunchSC "shortcuts.ini" "Field 4" "State"
@@ -969,58 +790,6 @@ Function leaveShortcuts
     Call CheckExistingInstall
   ${EndIf}
 FunctionEnd
-
-!ifdef MOZ_MAINTENANCE_SERVICE
-Function preComponents
-  ; If the service already exists, don't show this page
-  ServicesHelper::IsInstalled "MozillaMaintenance"
-  Pop $R9
-  ${If} $R9 == 1
-    ; The service already exists so don't show this page.
-    Abort
-  ${EndIf}
-
-  ; On Windows 2000 we do not install the maintenance service.
-  ${Unless} ${AtLeastWinXP}
-    Abort
-  ${EndUnless}
-
-  ; Don't show the custom components page if the
-  ; user is not an admin
-  Call IsUserAdmin
-  Pop $R9
-  ${If} $R9 != "true"
-    Abort
-  ${EndIf}
-
-  ; Only show the maintenance service page if we have write access to HKLM
-  ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" \
-              "${BrandShortName}InstallerTest" "Write Test"
-  ${If} ${Errors}
-    ClearErrors
-    Abort
-  ${Else}
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
-  ${EndIf}
-
-  StrCpy $PageName "Components"
-  ${CheckCustomCommon}
-  !insertmacro MUI_HEADER_TEXT "$(COMPONENTS_PAGE_TITLE)" "$(COMPONENTS_PAGE_SUBTITLE)"
-  !insertmacro MUI_INSTALLOPTIONS_DISPLAY "components.ini"
-FunctionEnd
-
-Function leaveComponents
-  ${MUI_INSTALLOPTIONS_READ} $0 "components.ini" "Settings" "State"
-  ${If} $0 != 0
-    Abort
-  ${EndIf}
-  ${MUI_INSTALLOPTIONS_READ} $InstallMaintenanceService "components.ini" "Field 2" "State"
-  ${If} $InstallType == ${INSTALLTYPE_CUSTOM}
-    Call CheckExistingInstall
-  ${EndIf}
-FunctionEnd
-!endif
 
 Function preSummary
   StrCpy $PageName "Summary"
@@ -1079,7 +848,6 @@ Function preSummary
     ; If Firefox isn't the http handler for this user show the option to set
     ; Firefox as the default browser.
     ${If} "$R9" != "true"
-    ${AndIf} ${AtMostWin2008R2}
       WriteINIStr "$PLUGINSDIR\summary.ini" "Settings" NumFields "4"
       WriteINIStr "$PLUGINSDIR\summary.ini" "Field 4" Type   "checkbox"
       WriteINIStr "$PLUGINSDIR\summary.ini" "Field 4" Text   "$(SUMMARY_TAKE_DEFAULTS)"
@@ -1150,27 +918,14 @@ FunctionEnd
 # Initialization Functions
 
 Function .onInit
-  ; Remove the current exe directory from the search order.
-  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
-  System::Call 'kernel32::SetDllDirectoryW(w "")'
-
   StrCpy $PageName ""
   StrCpy $LANGUAGE 0
   ${SetBrandNameVars} "$EXEDIR\core\distribution\setup.ini"
 
   ${InstallOnInitCommon} "$(WARN_MIN_SUPPORTED_OS_MSG)"
 
-; The commands inside this ifndef are needed prior to NSIS 3.0a2 and can be
-; removed after we require NSIS 3.0a2 or greater.
-!ifndef NSIS_PACKEDVERSION
-  ${If} ${AtLeastWinVista}
-    System::Call 'user32::SetProcessDPIAware()'
-  ${EndIf}
-!endif
-
   !insertmacro InitInstallOptionsFile "options.ini"
   !insertmacro InitInstallOptionsFile "shortcuts.ini"
-  !insertmacro InitInstallOptionsFile "components.ini"
   !insertmacro InitInstallOptionsFile "summary.ini"
 
   WriteINIStr "$PLUGINSDIR\options.ini" "Settings" NumFields "5"
@@ -1184,7 +939,7 @@ Function .onInit
 
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Type   "RadioButton"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Text   "$(OPTION_STANDARD_RADIO)"
-  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Left   "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Left   "15"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Right  "-1"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Top    "25"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Bottom "35"
@@ -1193,7 +948,7 @@ Function .onInit
 
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Type   "RadioButton"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Text   "$(OPTION_CUSTOM_RADIO)"
-  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Left   "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Left   "15"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Right  "-1"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Top    "55"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Bottom "65"
@@ -1201,14 +956,14 @@ Function .onInit
 
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Type   "label"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Text   "$(OPTION_STANDARD_DESC)"
-  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Left   "30"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Right  "-1"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Top    "37"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Bottom "57"
 
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Type   "label"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Text   "$(OPTION_CUSTOM_DESC)"
-  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Left   "30"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Right  "-1"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Top    "67"
   WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Bottom "87"
@@ -1230,58 +985,31 @@ Function .onInit
 
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Type   "checkbox"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Text   "$(ICONS_DESKTOP)"
-  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Left   "0"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Left   "15"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Right  "-1"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Top    "20"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Bottom "30"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" State  "1"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Flags  "GROUP"
 
-  ; Don't offer to install the start menu shortcut on Windows 8
-  ; for Metro builds.
-!ifdef MOZ_METRO
-  ${Unless} ${AtLeastWin8}
-!endif
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Type   "checkbox"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Text   "$(ICONS_STARTMENU)"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Left   "0"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Right  "-1"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Top    "40"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Bottom "50"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" State  "1"
-!ifdef MOZ_METRO
-  ${EndIf}
-!endif
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Text   "$(ICONS_STARTMENU)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Left   "15"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Top    "40"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Bottom "50"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" State  "1"
 
   ; Don't offer to install the quick launch shortcut on Windows 7
   ${Unless} ${AtLeastWin7}
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Type   "checkbox"
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Text   "$(ICONS_QUICKLAUNCH)"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Left   "0"
+    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Left   "15"
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Right  "-1"
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Top    "60"
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Bottom "70"
     WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" State  "1"
   ${EndUnless}
-
-  ; Setup the components.ini file for the Components Page
-  WriteINIStr "$PLUGINSDIR\components.ini" "Settings" NumFields "2"
-
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Type   "label"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Text   "$(OPTIONAL_COMPONENTS_DESC)"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Left   "0"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Top    "5"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Bottom "25"
-
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Type   "checkbox"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Text   "$(MAINTENANCE_SERVICE_CHECKBOX_DESC)"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Left   "0"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Top    "27"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Bottom "37"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" State  "1"
-  WriteINIStr "$PLUGINSDIR\components.ini" "Field 2" Flags  "GROUP"
 
   ; There must always be a core directory.
   ${GetSize} "$EXEDIR\core\" "/S=0K" $R5 $R7 $R8

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -12,70 +12,56 @@
 #ifndef LIBGLESV2_SHADER_H_
 #define LIBGLESV2_SHADER_H_
 
-
-#include <string>
+#define GL_APICALL
+#include <GLES2/gl2.h>
+#include <d3dx9.h>
 #include <list>
 #include <vector>
 
-#include "angle_gl.h"
-#include <GLSLANG/ShaderLang.h>
-
-#include "common/angleutils.h"
-#include "libGLESv2/angletypes.h"
-
-namespace rx
-{
-class ShaderImpl;
-}
+#include "libGLESv2/ResourceManager.h"
 
 namespace gl
 {
-class ResourceManager;
-
-struct PackedVarying : public sh::Varying
+struct Varying
 {
-    unsigned int registerIndex; // Assigned during link
-    unsigned int columnIndex; // Assigned during link, defaults to 0
-
-    PackedVarying(const sh::Varying &varying)
-      : sh::Varying(varying),
-        registerIndex(GL_INVALID_INDEX),
-        columnIndex(0)
-    {}
-
-    bool registerAssigned() const { return registerIndex != GL_INVALID_INDEX; }
-    bool isBuiltIn() const { return name.compare(0, 3, "gl_") == 0; }
-
-    void resetRegisterAssignment()
+    Varying(GLenum type, const std::string &name, int size, bool array)
+        : type(type), name(name), size(size), array(array), reg(-1), col(-1)
     {
-        registerIndex = GL_INVALID_INDEX;
     }
+
+    GLenum type;
+    std::string name;
+    int size;   // Number of 'type' elements
+    bool array;
+
+    int reg;    // First varying register, assigned during link
+    int col;    // First register element, assigned during link
 };
+
+typedef std::list<Varying> VaryingList;
 
 class Shader
 {
+    friend Program;
+
   public:
-    Shader(ResourceManager *manager, rx::ShaderImpl *impl, GLenum type, GLuint handle);
+    Shader(ResourceManager *manager, GLuint handle);
 
     virtual ~Shader();
 
-    GLenum getType() const { return mType; }
+    virtual GLenum getType() = 0;
     GLuint getHandle() const;
 
-    rx::ShaderImpl *getImplementation() { return mShader; }
-    const rx::ShaderImpl *getImplementation() const { return mShader; }
-
     void deleteSource();
-    void setSource(GLsizei count, const char *const *string, const GLint *length);
+    void setSource(GLsizei count, const char **string, const GLint *length);
     int getInfoLogLength() const;
-    void getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog) const;
+    void getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog);
     int getSourceLength() const;
-    void getSource(GLsizei bufSize, GLsizei *length, char *buffer) const;
-    int getTranslatedSourceLength() const;
-    void getTranslatedSource(GLsizei bufSize, GLsizei *length, char *buffer) const;
+    void getSource(GLsizei bufSize, GLsizei *length, char *source);
 
-    void compile();
-    bool isCompiled() const { return mCompiled; }
+    virtual void compile() = 0;
+    bool isCompiled();
+    const char *getHLSL();
 
     void addRef();
     void release();
@@ -83,34 +69,89 @@ class Shader
     bool isFlaggedForDeletion() const;
     void flagForDeletion();
 
-    const std::vector<gl::PackedVarying> &getVaryings() const;
-    const std::vector<sh::Uniform> &getUniforms() const;
-    const std::vector<sh::InterfaceBlock> &getInterfaceBlocks() const;
-    const std::vector<sh::Attribute> &getActiveAttributes() const;
-    const std::vector<sh::Attribute> &getActiveOutputVariables() const;
+    static void releaseCompiler();
 
-    std::vector<gl::PackedVarying> &getVaryings();
-    std::vector<sh::Uniform> &getUniforms();
-    std::vector<sh::InterfaceBlock> &getInterfaceBlocks();
-    std::vector<sh::Attribute> &getActiveAttributes();
-    std::vector<sh::Attribute> &getActiveOutputVariables();
-
-  private:
+  protected:
     DISALLOW_COPY_AND_ASSIGN(Shader);
 
-    static void getSourceImpl(const std::string &source, GLsizei bufSize, GLsizei *length, char *buffer);
+    void parseVaryings();
 
-    rx::ShaderImpl *mShader;
+    void compileToHLSL(void *compiler);
+
+    static GLenum parseType(const std::string &type);
+    static bool compareVarying(const Varying &x, const Varying &y);
+
     const GLuint mHandle;
-    const GLenum mType;
-    std::string mSource;
     unsigned int mRefCount;     // Number of program objects this shader is attached to
     bool mDeleteStatus;         // Flag to indicate that the shader can be deleted when no longer in use
-    bool mCompiled;             // Indicates if this shader has been successfully compiled
+
+    char *mSource;
+    char *mHlsl;
+    char *mInfoLog;
+
+    VaryingList varyings;
+
+    bool mUsesFragCoord;
+    bool mUsesFrontFacing;
+    bool mUsesPointSize;
+    bool mUsesPointCoord;
 
     ResourceManager *mResourceManager;
+
+    static void *mFragmentCompiler;
+    static void *mVertexCompiler;
 };
 
+struct Attribute
+{
+    Attribute() : type(GL_NONE), name("")
+    {
+    }
+
+    Attribute(GLenum type, const std::string &name) : type(type), name(name)
+    {
+    }
+
+    GLenum type;
+    std::string name;
+};
+
+typedef std::vector<Attribute> AttributeArray;
+
+class VertexShader : public Shader
+{
+    friend Program;
+
+  public:
+    VertexShader(ResourceManager *manager, GLuint handle);
+
+    ~VertexShader();
+
+    GLenum getType();
+    void compile();
+    int getSemanticIndex(const std::string &attributeName);
+
+  private:
+    DISALLOW_COPY_AND_ASSIGN(VertexShader);
+
+    void parseAttributes();
+
+    AttributeArray mAttributes;
+};
+
+class FragmentShader : public Shader
+{
+  public:
+    FragmentShader(ResourceManager *manager, GLuint handle);
+
+    ~FragmentShader();
+
+    GLenum getType();
+    void compile();
+
+  private:
+    DISALLOW_COPY_AND_ASSIGN(FragmentShader);
+};
 }
 
 #endif   // LIBGLESV2_SHADER_H_

@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 
 /*
  * Any copyright is dedicated to the Public Domain.
@@ -11,6 +11,9 @@ function fn() {
 
 assertEq(testLenientAndStrict('var f = fn(); f.length = 1; f.length',
                               returns(3), raisesException(TypeError)),
+         true);
+assertEq(testLenientAndStrict('var f = fn(); delete f.length',
+                              returns(false), raisesException(TypeError)),
          true);
 
 reportCompare(true, true);

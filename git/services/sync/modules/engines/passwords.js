@@ -1,106 +1,135 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com>
+ *  Anant Narayanan <anant@kix.in>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *  Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ['PasswordEngine', 'LoginRec'];
+const EXPORTED_SYMBOLS = ['PasswordEngine', 'LoginRec'];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
 
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/util.js");
 
-this.LoginRec = function LoginRec(collection, id) {
+function LoginRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 LoginRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Login",
+  _logName: "Record.Login",
 };
 
-Utils.deferGetSet(LoginRec, "cleartext", [
-    "hostname", "formSubmitURL",
-    "httpRealm", "username", "password", "usernameField", "passwordField",
-    ]);
+Utils.deferGetSet(LoginRec, "cleartext", ["hostname", "formSubmitURL",
+  "httpRealm", "username", "password", "usernameField", "passwordField"]);
 
 
-this.PasswordEngine = function PasswordEngine(service) {
-  SyncEngine.call(this, "Passwords", service);
+function PasswordEngine() {
+  SyncEngine.call(this, "Passwords");
 }
 PasswordEngine.prototype = {
   __proto__: SyncEngine.prototype,
   _storeObj: PasswordStore,
   _trackerObj: PasswordTracker,
   _recordObj: LoginRec,
-
   applyIncomingBatchSize: PASSWORDS_STORE_BATCH_SIZE,
 
-  syncPriority: 2,
-
-  _syncFinish: function () {
+  _syncFinish: function _syncFinish() {
     SyncEngine.prototype._syncFinish.call(this);
 
-    // Delete the Weave credentials from the server once.
-    if (!Svc.Prefs.get("deletePwdFxA", false)) {
+    // Delete the weave credentials from the server once
+    if (!Svc.Prefs.get("deletePwd", false)) {
       try {
-        let ids = [];
-        for (let host of Utils.getSyncCredentialsHosts()) {
-          for (let info of Services.logins.findLogins({}, host, "", "")) {
-            ids.push(info.QueryInterface(Components.interfaces.nsILoginMetaInfo).guid);
-          }
-        }
-        if (ids.length) {
-          let coll = new Collection(this.engineURL, null, this.service);
-          coll.ids = ids;
-          let ret = coll.delete();
-          this._log.debug("Delete result: " + ret);
-          if (!ret.success && ret.status != 400) {
-            // A non-400 failure means try again next time.
-            return;
-          }
-        } else {
-          this._log.debug("Didn't find any passwords to delete");
-        }
-        // If there were no ids to delete, or we succeeded, or got a 400,
-        // record success.
-        Svc.Prefs.set("deletePwdFxA", true);
-        Svc.Prefs.reset("deletePwd"); // The old prefname we previously used.
-      } catch (ex) {
+        let ids = Svc.Login.findLogins({}, PWDMGR_HOST, "", "").map(function(info)
+          info.QueryInterface(Components.interfaces.nsILoginMetaInfo).guid);
+        let coll = new Collection(this.engineURL);
+        coll.ids = ids;
+        let ret = coll.delete();
+        this._log.debug("Delete result: " + ret);
+
+        Svc.Prefs.set("deletePwd", true);
+      }
+      catch(ex) {
         this._log.debug("Password deletes failed: " + Utils.exceptionStr(ex));
       }
     }
   },
 
-  _findDupe: function (item) {
+  _findDupe: function _findDupe(item) {
     let login = this._store._nsLoginInfoFromRecord(item);
-    if (!login) {
+    if (!login)
       return;
-    }
 
-    let logins = Services.logins.findLogins({}, login.hostname, login.formSubmitURL, login.httpRealm);
+    let logins = Svc.Login.findLogins({}, login.hostname, login.formSubmitURL,
+      login.httpRealm);
 
-    this._store._sleep(0); // Yield back to main thread after synchronous operation.
-
-    // Look for existing logins that match the hostname, but ignore the password.
-    for each (let local in logins) {
-      if (login.matches(local, true) && local instanceof Ci.nsILoginMetaInfo) {
+    // Look for existing logins that match the hostname but ignore the password
+    for each (let local in logins)
+      if (login.matches(local, true) && local instanceof Ci.nsILoginMetaInfo)
         return local.guid;
-      }
-    }
-  },
+  }
 };
 
-function PasswordStore(name, engine) {
-  Store.call(this, name, engine);
-  this._nsLoginInfo = new Components.Constructor("@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
+function PasswordStore(name) {
+  Store.call(this, name);
+  this._nsLoginInfo = new Components.Constructor(
+    "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
+
+  Utils.lazy2(this, "DBConnection", function() {
+    try {
+      return Svc.Login.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.mozIStorageConnection);
+    } catch (ex if (ex.result == Cr.NS_ERROR_NO_INTERFACE)) {
+      // Gecko <2.0 *sadface*
+      return null;
+    }
+  });
 }
 PasswordStore.prototype = {
   __proto__: Store.prototype,
 
-  _nsLoginInfoFromRecord: function (record) {
-    if (record.formSubmitURL && record.httpRealm) {
-      this._log.warn("Record " + record.id + " has both formSubmitURL and httpRealm. Skipping.");
+  _nsLoginInfoFromRecord: function PasswordStore__nsLoginInfoRec(record) {
+    if (record.formSubmitURL &&
+        record.httpRealm) {
+      this._log.warn("Record " + record.id +
+                     " has both formSubmitURL and httpRealm. Skipping.");
       return null;
     }
     
@@ -120,32 +149,40 @@ PasswordStore.prototype = {
     return info;
   },
 
-  _getLoginFromGUID: function (id) {
-    let prop = Cc["@mozilla.org/hash-property-bag;1"].createInstance(Ci.nsIWritablePropertyBag2);
+  _getLoginFromGUID: function PasswordStore__getLoginFromGUID(id) {
+    let prop = Cc["@mozilla.org/hash-property-bag;1"].
+      createInstance(Ci.nsIWritablePropertyBag2);
     prop.setPropertyAsAUTF8String("guid", id);
 
-    let logins = Services.logins.searchLogins({}, prop);
-    this._sleep(0); // Yield back to main thread after synchronous operation.
-
+    let logins = Svc.Login.searchLogins({}, prop);
     if (logins.length > 0) {
       this._log.trace(logins.length + " items matching " + id + " found.");
       return logins[0];
+    } else {
+      this._log.trace("No items matching " + id + " found. Ignoring");
     }
-
-    this._log.trace("No items matching " + id + " found. Ignoring");
-    return null;
+    return false;
   },
 
-  getAllIDs: function () {
+  applyIncomingBatch: function applyIncomingBatch(records) {
+    if (!this.DBConnection) {
+      return Store.prototype.applyIncomingBatch.call(this, records);
+    }
+
+    return Utils.runInTransaction(this.DBConnection, function() {
+      return Store.prototype.applyIncomingBatch.call(this, records);
+    }, this);
+  },
+
+  getAllIDs: function PasswordStore__getAllIDs() {
     let items = {};
-    let logins = Services.logins.getAllLogins({});
+    let logins = Svc.Login.getAllLogins({});
 
     for (let i = 0; i < logins.length; i++) {
-      // Skip over Weave password/passphrase entries.
+      // Skip over Weave password/passphrase entries
       let metaInfo = logins[i].QueryInterface(Ci.nsILoginMetaInfo);
-      if (Utils.getSyncCredentialsHosts().has(metaInfo.hostname)) {
+      if (metaInfo.hostname == PWDMGR_HOST)
         continue;
-      }
 
       items[metaInfo.guid] = metaInfo;
     }
@@ -153,7 +190,7 @@ PasswordStore.prototype = {
     return items;
   },
 
-  changeItemID: function (oldID, newID) {
+  changeItemID: function PasswordStore__changeItemID(oldID, newID) {
     this._log.trace("Changing item ID: " + oldID + " to " + newID);
 
     let oldLogin = this._getLoginFromGUID(oldID);
@@ -166,55 +203,53 @@ PasswordStore.prototype = {
       return;
     }
 
-    let prop = Cc["@mozilla.org/hash-property-bag;1"]
-                 .createInstance(Ci.nsIWritablePropertyBag2);
+    let prop = Cc["@mozilla.org/hash-property-bag;1"].
+      createInstance(Ci.nsIWritablePropertyBag2);
     prop.setPropertyAsAUTF8String("guid", newID);
 
-    Services.logins.modifyLogin(oldLogin, prop);
+    Svc.Login.modifyLogin(oldLogin, prop);
   },
 
-  itemExists: function (id) {
-    return !!this._getLoginFromGUID(id);
+  itemExists: function PasswordStore__itemExists(id) {
+    if (this._getLoginFromGUID(id))
+      return true;
+    return false;
   },
 
-  createRecord: function (id, collection) {
+  createRecord: function createRecord(id, collection) {
     let record = new LoginRec(collection, id);
     let login = this._getLoginFromGUID(id);
 
-    if (!login) {
-      record.deleted = true;
-      return record;
+    if (login) {
+      record.hostname = login.hostname;
+      record.formSubmitURL = login.formSubmitURL;
+      record.httpRealm = login.httpRealm;
+      record.username = login.username;
+      record.password = login.password;
+      record.usernameField = login.usernameField;
+      record.passwordField = login.passwordField;
     }
-
-    record.hostname = login.hostname;
-    record.formSubmitURL = login.formSubmitURL;
-    record.httpRealm = login.httpRealm;
-    record.username = login.username;
-    record.password = login.password;
-    record.usernameField = login.usernameField;
-    record.passwordField = login.passwordField;
-
+    else
+      record.deleted = true;
     return record;
   },
 
-  create: function (record) {
+  create: function PasswordStore__create(record) {
     let login = this._nsLoginInfoFromRecord(record);
-    if (!login) {
+    if (!login)
       return;
-    }
-
     this._log.debug("Adding login for " + record.hostname);
     this._log.trace("httpRealm: " + JSON.stringify(login.httpRealm) + "; " +
                     "formSubmitURL: " + JSON.stringify(login.formSubmitURL));
     try {
-      Services.logins.addLogin(login);
+      Svc.Login.addLogin(login);
     } catch(ex) {
       this._log.debug("Adding record " + record.id +
                       " resulted in exception " + Utils.exceptionStr(ex));
     }
   },
 
-  remove: function (record) {
+  remove: function PasswordStore__remove(record) {
     this._log.trace("Removing login " + record.id);
 
     let loginItem = this._getLoginFromGUID(record.id);
@@ -223,10 +258,10 @@ PasswordStore.prototype = {
       return;
     }
 
-    Services.logins.removeLogin(loginItem);
+    Svc.Login.removeLogin(loginItem);
   },
 
-  update: function (record) {
+  update: function PasswordStore__update(record) {
     let loginItem = this._getLoginFromGUID(record.id);
     if (!loginItem) {
       this._log.debug("Skipping update for unknown item: " + record.hostname);
@@ -235,12 +270,10 @@ PasswordStore.prototype = {
 
     this._log.debug("Updating " + record.hostname);
     let newinfo = this._nsLoginInfoFromRecord(record);
-    if (!newinfo) {
+    if (!newinfo)
       return;
-    }
-
     try {
-      Services.logins.modifyLogin(loginItem, newinfo);
+      Svc.Login.modifyLogin(loginItem, newinfo);
     } catch(ex) {
       this._log.debug("Modifying record " + record.id +
                       " resulted in exception " + Utils.exceptionStr(ex) +
@@ -248,56 +281,60 @@ PasswordStore.prototype = {
     }
   },
 
-  wipe: function () {
-    Services.logins.removeAllLogins();
-  },
+  wipe: function PasswordStore_wipe() {
+    Svc.Login.removeAllLogins();
+  }
 };
 
-function PasswordTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function PasswordTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }
 PasswordTracker.prototype = {
   __proto__: Tracker.prototype,
 
-  startTracking: function () {
-    Svc.Obs.add("passwordmgr-storage-changed", this);
-  },
-
-  stopTracking: function () {
-    Svc.Obs.remove("passwordmgr-storage-changed", this);
-  },
-
-  observe: function (subject, topic, data) {
-    Tracker.prototype.observe.call(this, subject, topic, data);
-
-    if (this.ignoreAll) {
-      return;
-    }
-
-    // A single add, remove or change or removing all items
-    // will trigger a sync for MULTI_DEVICE.
-    switch (data) {
-      case "modifyLogin":
-        subject = subject.QueryInterface(Ci.nsIArray).queryElementAt(1, Ci.nsILoginMetaInfo);
-        // Fall through.
-      case "addLogin":
-      case "removeLogin":
-        // Skip over Weave password/passphrase changes.
-        subject.QueryInterface(Ci.nsILoginMetaInfo).QueryInterface(Ci.nsILoginInfo);
-        if (Utils.getSyncCredentialsHosts().has(subject.hostname)) {
-          break;
+  _enabled: false,
+  observe: function PasswordTracker_observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "weave:engine:start-tracking":
+        if (!this._enabled) {
+          Svc.Obs.add("passwordmgr-storage-changed", this);
+          this._enabled = true;
         }
-
-        this.score += SCORE_INCREMENT_XLARGE;
-        this._log.trace(data + ": " + subject.guid);
-        this.addChangedID(subject.guid);
-        break;
-      case "removeAllLogins":
-        this._log.trace(data);
-        this.score += SCORE_INCREMENT_XLARGE;
-        break;
+        return;
+      case "weave:engine:stop-tracking":
+        if (this._enabled) {
+          Svc.Obs.remove("passwordmgr-storage-changed", this);
+          this._enabled = false;
+        }
+        return;
     }
-  },
+
+    if (this.ignoreAll)
+      return;
+
+    // A single add, remove or change is 15 points, all items removed is 50
+    switch (aData) {
+    case 'modifyLogin':
+      aSubject = aSubject.QueryInterface(Ci.nsIArray).
+        queryElementAt(1, Ci.nsILoginMetaInfo);
+    case 'addLogin':
+    case 'removeLogin':
+      // Skip over Weave password/passphrase changes
+      aSubject.QueryInterface(Ci.nsILoginMetaInfo).
+        QueryInterface(Ci.nsILoginInfo);
+      if (aSubject.hostname == PWDMGR_HOST)
+        break;
+
+      this.score += 15;
+      this._log.trace(aData + ": " + aSubject.guid);
+      this.addChangedID(aSubject.guid);
+      break;
+    case 'removeAllLogins':
+      this._log.trace(aData);
+      this.score += 500;
+      break;
+    }
+  }
 };

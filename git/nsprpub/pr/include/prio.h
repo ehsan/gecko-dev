@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * File:     prio.h
@@ -110,9 +142,6 @@ typedef enum PRTransmitFileFlags {
 #define PR_AF_INET6 100
 #endif
 
-#define PR_AF_INET_SDP 101
-#define PR_AF_INET6_SDP 102
-
 #ifndef PR_AF_UNSPEC
 #define PR_AF_UNSPEC 0
 #endif
@@ -211,8 +240,6 @@ typedef enum PRSockOption
     PR_SockOpt_NoDelay,         /* don't delay send to coalesce packets */
     PR_SockOpt_MaxSegment,      /* maximum segment size */
     PR_SockOpt_Broadcast,       /* enable broadcast */
-    PR_SockOpt_Reuseport,       /* allow local address & port reuse on
-                                 * platforms that support it */
     PR_SockOpt_Last
 } PRSockOption;
 
@@ -236,8 +263,6 @@ typedef struct PRSocketOptionData
         PRUintn tos;                /* IP type of service and precedence */
         PRBool non_blocking;        /* Non-blocking (network) I/O */
         PRBool reuse_addr;          /* Allow local address reuse */
-        PRBool reuse_port;          /* Allow local address & port reuse on
-                                     * platforms that support it */
         PRBool keep_alive;          /* Keep connections alive */
         PRBool mcast_loopback;      /* IP multicast loopback */
         PRBool no_delay;            /* Don't delay send to coalesce packets */
@@ -1857,19 +1882,6 @@ NSPR_API(void *) PR_MemMap(
 NSPR_API(PRStatus) PR_MemUnmap(void *addr, PRUint32 len);
 
 NSPR_API(PRStatus) PR_CloseFileMap(PRFileMap *fmap);
-
-/*
- * Synchronously flush the given memory-mapped address range of the given open
- * file to disk. The function does not return until all modified data have
- * been written to disk.
- *
- * On some platforms, the function will call PR_Sync(fd) internally if it is
- * necessary for flushing modified data to disk synchronously.
- */
-NSPR_API(PRStatus) PR_SyncMemMap(
-    PRFileDesc *fd,
-    void *addr,
-    PRUint32 len);
 
 /*
  ******************************************************************

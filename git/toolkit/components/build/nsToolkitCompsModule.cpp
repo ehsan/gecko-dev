@@ -1,88 +1,107 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Joe Hewitt <hewitt@netscape.com> (Original Author)
+ *   The Mozilla Foundation <http://www.mozilla.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/ModuleUtils.h"
 #include "nsAppStartup.h"
 #include "nsUserInfo.h"
 #include "nsToolkitCompsCID.h"
 #include "nsFindService.h"
-#if defined(USE_MOZ_UPDATER)
-#include "nsUpdateDriver.h"
+
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+#include "nsParentalControlsServiceWin.h"
 #endif
 
-#if !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
-#include "nsParentalControlsService.h"
-#endif
-
+#ifdef ALERTS_SERVICE
 #include "nsAlertsService.h"
+#endif
 
+#ifdef MOZ_RDF
 #include "nsDownloadManager.h"
-#include "DownloadPlatform.h"
 #include "nsDownloadProxy.h"
+#include "nsCharsetMenu.h"
 #include "rdf.h"
+#endif
 
 #include "nsTypeAheadFind.h"
 
 #ifdef MOZ_URL_CLASSIFIER
-#include "ApplicationReputation.h"
 #include "nsUrlClassifierDBService.h"
 #include "nsUrlClassifierStreamUpdater.h"
 #include "nsUrlClassifierUtils.h"
-#include "nsUrlClassifierPrefixSet.h"
+#include "nsUrlClassifierHashCompleter.h"
+#endif
+
+#ifdef MOZ_FEEDS
+#include "nsScriptableUnescapeHTML.h"
 #endif
 
 #include "nsBrowserStatusFilter.h"
-#include "mozilla/FinalizationWitnessService.h"
-#include "mozilla/NativeOSFileInternals.h"
-#include "mozilla/AddonPathService.h"
 
-#if defined(XP_WIN)
-#include "NativeFileWatcherWin.h"
-#else
-#include "NativeFileWatcherNotSupported.h"
-#endif // (XP_WIN)
-
-#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
-#define MOZ_HAS_TERMINATOR
+#ifdef ANDROID
+#include "nsWebappsSupport.h"
 #endif
-
-#if defined(MOZ_HAS_TERMINATOR)
-#include "nsTerminator.h"
-#endif
-
-using namespace mozilla;
 
 /////////////////////////////////////////////////////////////////////////////
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsAppStartup, Init)
-
-#if defined(MOZ_HAS_TERMINATOR)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsTerminator)
-#endif
-
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUserInfo)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFindService)
 
-#if !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsParentalControlsService)
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsParentalControlsServiceWin)
 #endif
 
+#ifdef ALERTS_SERVICE
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAlertsService)
+#endif
 
+#ifdef MOZ_RDF
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDownloadManager,
-                                         nsDownloadManager::GetSingleton)
-NS_GENERIC_FACTORY_CONSTRUCTOR(DownloadPlatform)
+                                         nsDownloadManager::GetSingleton) 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
+#endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTypeAheadFind)
 
 #ifdef MOZ_URL_CLASSIFIER
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(ApplicationReputationService,
-                                         ApplicationReputationService::GetSingleton)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsUrlClassifierPrefixSet)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUrlClassifierStreamUpdater)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierUtils, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlClassifierHashCompleter, Init)
 
 static nsresult
 nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
@@ -93,7 +112,7 @@ nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
     NS_ENSURE_NO_AGGREGATION(aOuter);
 
     nsUrlClassifierDBService *inst = nsUrlClassifierDBService::GetInstance(&rv);
-    if (nullptr == inst) {
+    if (NULL == inst) {
         return rv;
     }
     /* NS_ADDREF(inst); */
@@ -104,115 +123,113 @@ nsUrlClassifierDBServiceConstructor(nsISupports *aOuter, REFNSIID aIID,
 }
 #endif
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
-#if defined(USE_MOZ_UPDATER)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsUpdateProcessor)
+#ifdef MOZ_FEEDS
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableUnescapeHTML)
 #endif
-NS_GENERIC_FACTORY_CONSTRUCTOR(FinalizationWitnessService)
-NS_GENERIC_FACTORY_CONSTRUCTOR(NativeOSFileInternalsService)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(NativeFileWatcherService, Init)
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(AddonPathService, AddonPathService::GetInstance)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
+
+#ifdef ANDROID
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebappsSupport)
+#endif
 
 NS_DEFINE_NAMED_CID(NS_TOOLKIT_APPSTARTUP_CID);
-#if defined(MOZ_HAS_TERMINATOR)
-NS_DEFINE_NAMED_CID(NS_TOOLKIT_TERMINATOR_CID);
-#endif
 NS_DEFINE_NAMED_CID(NS_USERINFO_CID);
+#ifdef ALERTS_SERVICE
 NS_DEFINE_NAMED_CID(NS_ALERTSSERVICE_CID);
-#if !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+#endif
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
 NS_DEFINE_NAMED_CID(NS_PARENTALCONTROLSSERVICE_CID);
 #endif
+#ifdef MOZ_RDF
 NS_DEFINE_NAMED_CID(NS_DOWNLOADMANAGER_CID);
-NS_DEFINE_NAMED_CID(NS_DOWNLOADPLATFORM_CID);
 NS_DEFINE_NAMED_CID(NS_DOWNLOAD_CID);
+#endif
 NS_DEFINE_NAMED_CID(NS_FIND_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_TYPEAHEADFIND_CID);
 #ifdef MOZ_URL_CLASSIFIER
-NS_DEFINE_NAMED_CID(NS_APPLICATION_REPUTATION_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERPREFIXSET_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERDBSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERSTREAMUPDATER_CID);
 NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERUTILS_CID);
+NS_DEFINE_NAMED_CID(NS_URLCLASSIFIERHASHCOMPLETER_CID);
+#endif
+#ifdef MOZ_FEEDS
+NS_DEFINE_NAMED_CID(NS_SCRIPTABLEUNESCAPEHTML_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_BROWSERSTATUSFILTER_CID);
-#if defined(USE_MOZ_UPDATER)
-NS_DEFINE_NAMED_CID(NS_UPDATEPROCESSOR_CID);
-#endif
-NS_DEFINE_NAMED_CID(FINALIZATIONWITNESSSERVICE_CID);
-NS_DEFINE_NAMED_CID(NATIVE_OSFILE_INTERNALS_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_ADDON_PATH_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NATIVE_FILEWATCHER_SERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_CHARSETMENU_CID);
 
-static const Module::CIDEntry kToolkitCIDs[] = {
-  { &kNS_TOOLKIT_APPSTARTUP_CID, false, nullptr, nsAppStartupConstructor },
-#if defined(MOZ_HAS_TERMINATOR)
-  { &kNS_TOOLKIT_TERMINATOR_CID, false, nullptr, nsTerminatorConstructor },
+#ifdef ANDROID
+NS_DEFINE_NAMED_CID(NS_WEBAPPSSUPPORT_CID);
 #endif
-  { &kNS_USERINFO_CID, false, nullptr, nsUserInfoConstructor },
-  { &kNS_ALERTSSERVICE_CID, false, nullptr, nsAlertsServiceConstructor },
-#if !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
-  { &kNS_PARENTALCONTROLSSERVICE_CID, false, nullptr, nsParentalControlsServiceConstructor },
+
+static const mozilla::Module::CIDEntry kToolkitCIDs[] = {
+  { &kNS_TOOLKIT_APPSTARTUP_CID, false, NULL, nsAppStartupConstructor },
+  { &kNS_USERINFO_CID, false, NULL, nsUserInfoConstructor },
+#ifdef ALERTS_SERVICE
+  { &kNS_ALERTSSERVICE_CID, false, NULL, nsAlertsServiceConstructor },
 #endif
-  { &kNS_DOWNLOADMANAGER_CID, false, nullptr, nsDownloadManagerConstructor },
-  { &kNS_DOWNLOADPLATFORM_CID, false, nullptr, DownloadPlatformConstructor },
-  { &kNS_DOWNLOAD_CID, false, nullptr, nsDownloadProxyConstructor },
-  { &kNS_FIND_SERVICE_CID, false, nullptr, nsFindServiceConstructor },
-  { &kNS_TYPEAHEADFIND_CID, false, nullptr, nsTypeAheadFindConstructor },
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+  { &kNS_PARENTALCONTROLSSERVICE_CID, false, NULL, nsParentalControlsServiceWinConstructor },
+#endif
+#ifdef MOZ_RDF
+  { &kNS_DOWNLOADMANAGER_CID, false, NULL, nsDownloadManagerConstructor },
+  { &kNS_DOWNLOAD_CID, false, NULL, nsDownloadProxyConstructor },
+#endif
+  { &kNS_FIND_SERVICE_CID, false, NULL, nsFindServiceConstructor },
+  { &kNS_TYPEAHEADFIND_CID, false, NULL, nsTypeAheadFindConstructor },
 #ifdef MOZ_URL_CLASSIFIER
-  { &kNS_APPLICATION_REPUTATION_SERVICE_CID, false, nullptr, ApplicationReputationServiceConstructor },
-  { &kNS_URLCLASSIFIERPREFIXSET_CID, false, nullptr, nsUrlClassifierPrefixSetConstructor },
-  { &kNS_URLCLASSIFIERDBSERVICE_CID, false, nullptr, nsUrlClassifierDBServiceConstructor },
-  { &kNS_URLCLASSIFIERSTREAMUPDATER_CID, false, nullptr, nsUrlClassifierStreamUpdaterConstructor },
-  { &kNS_URLCLASSIFIERUTILS_CID, false, nullptr, nsUrlClassifierUtilsConstructor },
+  { &kNS_URLCLASSIFIERDBSERVICE_CID, false, NULL, nsUrlClassifierDBServiceConstructor },
+  { &kNS_URLCLASSIFIERSTREAMUPDATER_CID, false, NULL, nsUrlClassifierStreamUpdaterConstructor },
+  { &kNS_URLCLASSIFIERUTILS_CID, false, NULL, nsUrlClassifierUtilsConstructor },
+  { &kNS_URLCLASSIFIERHASHCOMPLETER_CID, false, NULL, nsUrlClassifierHashCompleterConstructor },
 #endif
-  { &kNS_BROWSERSTATUSFILTER_CID, false, nullptr, nsBrowserStatusFilterConstructor },
-#if defined(USE_MOZ_UPDATER)
-  { &kNS_UPDATEPROCESSOR_CID, false, nullptr, nsUpdateProcessorConstructor },
+#ifdef MOZ_FEEDS
+  { &kNS_SCRIPTABLEUNESCAPEHTML_CID, false, NULL, nsScriptableUnescapeHTMLConstructor },
 #endif
-  { &kFINALIZATIONWITNESSSERVICE_CID, false, nullptr, FinalizationWitnessServiceConstructor },
-  { &kNATIVE_OSFILE_INTERNALS_SERVICE_CID, false, nullptr, NativeOSFileInternalsServiceConstructor },
-  { &kNS_ADDON_PATH_SERVICE_CID, false, nullptr, AddonPathServiceConstructor },
-  { &kNATIVE_FILEWATCHER_SERVICE_CID, false, nullptr, NativeFileWatcherServiceConstructor },
-  { nullptr }
+  { &kNS_BROWSERSTATUSFILTER_CID, false, NULL, nsBrowserStatusFilterConstructor },
+  { &kNS_CHARSETMENU_CID, false, NULL, NS_NewCharsetMenu },
+#ifdef ANDROID
+  { &kNS_WEBAPPSSUPPORT_CID, false, NULL, nsWebappsSupportConstructor },
+#endif
+  { NULL }
 };
 
-static const Module::ContractIDEntry kToolkitContracts[] = {
+static const mozilla::Module::ContractIDEntry kToolkitContracts[] = {
   { NS_APPSTARTUP_CONTRACTID, &kNS_TOOLKIT_APPSTARTUP_CID },
-#if defined(MOZ_HAS_TERMINATOR)
-  { NS_TOOLKIT_TERMINATOR_CONTRACTID, &kNS_TOOLKIT_TERMINATOR_CID },
-#endif
   { NS_USERINFO_CONTRACTID, &kNS_USERINFO_CID },
+#ifdef ALERTS_SERVICE
   { NS_ALERTSERVICE_CONTRACTID, &kNS_ALERTSSERVICE_CID },
-#if !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
+#endif
+#if defined(XP_WIN) && !defined(MOZ_DISABLE_PARENTAL_CONTROLS)
   { NS_PARENTALCONTROLSSERVICE_CONTRACTID, &kNS_PARENTALCONTROLSSERVICE_CID },
 #endif
+#ifdef MOZ_RDF
   { NS_DOWNLOADMANAGER_CONTRACTID, &kNS_DOWNLOADMANAGER_CID },
-  { NS_DOWNLOADPLATFORM_CONTRACTID, &kNS_DOWNLOADPLATFORM_CID },
   { NS_TRANSFER_CONTRACTID, &kNS_DOWNLOAD_CID },
+#endif
   { NS_FIND_SERVICE_CONTRACTID, &kNS_FIND_SERVICE_CID },
   { NS_TYPEAHEADFIND_CONTRACTID, &kNS_TYPEAHEADFIND_CID },
 #ifdef MOZ_URL_CLASSIFIER
-  { NS_APPLICATION_REPUTATION_SERVICE_CONTRACTID, &kNS_APPLICATION_REPUTATION_SERVICE_CID },
-  { NS_URLCLASSIFIERPREFIXSET_CONTRACTID, &kNS_URLCLASSIFIERPREFIXSET_CID },
   { NS_URLCLASSIFIERDBSERVICE_CONTRACTID, &kNS_URLCLASSIFIERDBSERVICE_CID },
   { NS_URICLASSIFIERSERVICE_CONTRACTID, &kNS_URLCLASSIFIERDBSERVICE_CID },
   { NS_URLCLASSIFIERSTREAMUPDATER_CONTRACTID, &kNS_URLCLASSIFIERSTREAMUPDATER_CID },
   { NS_URLCLASSIFIERUTILS_CONTRACTID, &kNS_URLCLASSIFIERUTILS_CID },
+  { NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID, &kNS_URLCLASSIFIERHASHCOMPLETER_CID },
+#endif
+#ifdef MOZ_FEEDS
+  { NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID, &kNS_SCRIPTABLEUNESCAPEHTML_CID },
 #endif
   { NS_BROWSERSTATUSFILTER_CONTRACTID, &kNS_BROWSERSTATUSFILTER_CID },
-#if defined(USE_MOZ_UPDATER)
-  { NS_UPDATEPROCESSOR_CONTRACTID, &kNS_UPDATEPROCESSOR_CID },
+  { NS_RDF_DATASOURCE_CONTRACTID_PREFIX NS_CHARSETMENU_PID, &kNS_CHARSETMENU_CID },
+#ifdef ANDROID
+  { NS_WEBAPPSSUPPORT_CONTRACTID, &kNS_WEBAPPSSUPPORT_CID },
 #endif
-  { FINALIZATIONWITNESSSERVICE_CONTRACTID, &kFINALIZATIONWITNESSSERVICE_CID },
-  { NATIVE_OSFILE_INTERNALS_SERVICE_CONTRACTID, &kNATIVE_OSFILE_INTERNALS_SERVICE_CID },
-  { NS_ADDONPATHSERVICE_CONTRACTID, &kNS_ADDON_PATH_SERVICE_CID },
-  { NATIVE_FILEWATCHER_SERVICE_CONTRACTID, &kNATIVE_FILEWATCHER_SERVICE_CID },
-  { nullptr }
+  { NULL }
 };
 
-static const Module kToolkitModule = {
-  Module::kVersion,
+static const mozilla::Module kToolkitModule = {
+  mozilla::Module::kVersion,
   kToolkitCIDs,
   kToolkitContracts
 };

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Extension Manager UI.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Blair McBride <bmcbride@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 @namespace xhtml "http://www.w3.org/1999/xhtml";
 
@@ -53,66 +86,6 @@ xhtml|link {
 
 .detail-row {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#detail-row");
-}
-
-.text-list {
-  white-space: pre-line;
-  -moz-user-select: element;
-}
-
-setting, row[unsupported="true"] {
-  display: none;
-}
-
-setting[type="bool"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-bool");
-}
-
-setting[type="bool"][localized="true"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-localized-bool");
-}
-
-setting[type="boolint"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-boolint");
-}
-
-setting[type="integer"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-integer");
-}
-
-setting[type="integer"]:not([size]) textbox {
-  -moz-box-flex: 1;
-}
-
-setting[type="control"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-control");
-}
-
-setting[type="string"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-string");
-}
-
-setting[type="color"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-color");
-}
-
-setting[type="file"],
-setting[type="directory"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-path");
-}
-
-setting[type="radio"],
-setting[type="menulist"] {
-  display: -moz-grid-line;
-  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
 }
 
 #addonitem-popup > menuitem[disabled="true"] {
@@ -183,23 +156,12 @@ setting[type="menulist"] {
 
 /* Plugins aren't yet disabled by safemode (bug 342333),
    so don't show that warning when viewing plugins. */
-#addons-page[warning="safemode"] .view-pane[type="plugin"] .global-warning-container,
+#addons-page[warning="safemode"] .view-pane[type="plugin"] .global-warning,
 #addons-page[warning="safemode"] #detail-view[loading="true"] .global-warning {
   display: none;
 }
 
-#addons-page .view-pane:not([type="plugin"]) .plugin-info-container {
-  display: none;
-}
-
-#addons-page .view-pane:not([type="experiment"]) .experiment-info-container {
-  display: none;
-}
-
 .addon .relnotes {
-  -moz-user-select: text;
-}
-#detail-name, #detail-desc, #detail-fulldesc {
   -moz-user-select: text;
 }
 
@@ -216,42 +178,4 @@ richlistitem:not([selected]) * {
 
 #header-search {
   width: 22em;
-}
-
-#header-utils-btn {
-  -moz-user-focus: normal;
-}
-
-.discover-button[disabled="true"] {
-  display: none;
-}
-
-#experiments-learn-more[disabled="true"] {
-  display: none;
-}
-
-#experiments-change-telemetry[disabled="true"] {
-  display: none;
-}
-
-.view-pane[type="experiment"] .error,
-.view-pane[type="experiment"] .warning,
-.view-pane[type="experiment"] .addon:not([pending="uninstall"]) .pending,
-.view-pane[type="experiment"] .disabled-postfix,
-.view-pane[type="experiment"] .update-postfix,
-.view-pane[type="experiment"] .version,
-#detail-view[type="experiment"] .alert-container,
-#detail-view[type="experiment"] #detail-version,
-#detail-view[type="experiment"] #detail-creator {
-  display: none;
-}
-
-.view-pane:not([type="experiment"]) .experiment-container,
-.view-pane:not([type="experiment"]) #detail-experiment-container {
-  display: none;
-}
-
-.addon[type="experiment"][status="installing"] .experiment-time,
-.addon[type="experiment"][status="installing"] .experiment-state {
-  display: none;
 }

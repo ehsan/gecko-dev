@@ -71,9 +71,9 @@ reporterr(int e, const char *fmt, ...)
 }
 
 static void
-split(int32_t *I,int32_t *V,int32_t start,int32_t len,int32_t h)
+split(PROffset32 *I,PROffset32 *V,PROffset32 start,PROffset32 len,PROffset32 h)
 {
-	int32_t i,j,k,x,tmp,jj,kk;
+	PROffset32 i,j,k,x,tmp,jj,kk;
 
 	if(len<16) {
 		for(k=start;k<start+len;k+=j) {
@@ -133,10 +133,10 @@ split(int32_t *I,int32_t *V,int32_t start,int32_t len,int32_t h)
 }
 
 static void
-qsufsort(int32_t *I,int32_t *V,unsigned char *old,int32_t oldsize)
+qsufsort(PROffset32 *I,PROffset32 *V,unsigned char *old,PROffset32 oldsize)
 {
-	int32_t buckets[256];
-	int32_t i,h,len;
+	PROffset32 buckets[256];
+	PROffset32 i,h,len;
 
 	for(i=0;i<256;i++) buckets[i]=0;
 	for(i=0;i<oldsize;i++) buckets[old[i]]++;
@@ -171,10 +171,10 @@ qsufsort(int32_t *I,int32_t *V,unsigned char *old,int32_t oldsize)
 	for(i=0;i<oldsize+1;i++) I[V[i]]=i;
 }
 
-static int32_t
-matchlen(unsigned char *old,int32_t oldsize,unsigned char *newbuf,int32_t newsize)
+static PROffset32
+matchlen(unsigned char *old,PROffset32 oldsize,unsigned char *newbuf,PROffset32 newsize)
 {
-	int32_t i;
+	PROffset32 i;
 
 	for(i=0;(i<oldsize)&&(i<newsize);i++)
 		if(old[i]!=newbuf[i]) break;
@@ -182,11 +182,11 @@ matchlen(unsigned char *old,int32_t oldsize,unsigned char *newbuf,int32_t newsiz
 	return i;
 }
 
-static int32_t
-search(int32_t *I,unsigned char *old,int32_t oldsize,
-       unsigned char *newbuf,int32_t newsize,int32_t st,int32_t en,int32_t *pos)
+static PROffset32
+search(PROffset32 *I,unsigned char *old,PROffset32 oldsize,
+       unsigned char *newbuf,PROffset32 newsize,PROffset32 st,PROffset32 en,PROffset32 *pos)
 {
-	int32_t x,y;
+	PROffset32 x,y;
 
 	if(en-st<2) {
 		x=matchlen(old+I[st],oldsize-I[st],newbuf,newsize);
@@ -213,18 +213,18 @@ int main(int argc,char *argv[])
 {
 	int fd;
 	unsigned char *old,*newbuf;
-	int32_t oldsize,newsize;
-	int32_t *I,*V;
+	PROffset32 oldsize,newsize;
+	PROffset32 *I,*V;
 
-	int32_t scan,pos,len;
-	int32_t lastscan,lastpos,lastoffset;
-	int32_t oldscore,scsc;
+	PROffset32 scan,pos,len;
+	PROffset32 lastscan,lastpos,lastoffset;
+	PROffset32 oldscore,scsc;
 
-	int32_t s,Sf,lenf,Sb,lenb;
-	int32_t overlap,Ss,lens;
-	int32_t i;
+	PROffset32 s,Sf,lenf,Sb,lenb;
+	PROffset32 overlap,Ss,lens;
+	PROffset32 i;
 
-	int32_t dblen,eblen;
+	PROffset32 dblen,eblen;
 	unsigned char *db,*eb;
 
 	unsigned int scrc;
@@ -234,7 +234,7 @@ int main(int argc,char *argv[])
 		0, 0, 0, 0, 0, 0
 	};
 
-	uint32_t numtriples;
+	PRUint32 numtriples;
 
 	if(argc!=4)
 		reporterr(1,"usage: %s <oldfile> <newfile> <patchfile>\n",argv[0]);
@@ -251,8 +251,8 @@ int main(int argc,char *argv[])
 
 	scrc = crc32(old, oldsize);
 
-	if(((I=(int32_t*) malloc((oldsize+1)*sizeof(int32_t)))==NULL) ||
-		((V=(int32_t*) malloc((oldsize+1)*sizeof(int32_t)))==NULL))
+	if(((I=(PROffset32*) malloc((oldsize+1)*sizeof(PROffset32)))==NULL) ||
+		((V=(PROffset32*) malloc((oldsize+1)*sizeof(PROffset32)))==NULL))
 		reporterr(1,NULL);
 
 	qsufsort(I,V,old,oldsize);
@@ -362,9 +362,9 @@ int main(int argc,char *argv[])
 			       "	X: %u\n"
 			       "	Y: %u\n"
 			       "	Z: %i\n",
-			       (uint32_t) lenf,
-			       (uint32_t) ((scan-lenb)-(lastscan+lenf)),
-			       (uint32_t) ((pos-lenb)-(lastpos+lenf)));
+			       (PRUint32) lenf,
+			       (PRUint32) ((scan-lenb)-(lastscan+lenf)),
+			       (PRUint32) ((pos-lenb)-(lastpos+lenf)));
 #endif
 
 			++numtriples;

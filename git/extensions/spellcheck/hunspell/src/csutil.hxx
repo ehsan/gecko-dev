@@ -1,3 +1,60 @@
+/******* BEGIN LICENSE BLOCK *******
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * 
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ * 
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * 
+ * The Initial Developers of the Original Code are Kevin Hendricks (MySpell)
+ * and László Németh (Hunspell). Portions created by the Initial Developers
+ * are Copyright (C) 2002-2005 the Initial Developers. All Rights Reserved.
+ * 
+ * Contributor(s): Kevin Hendricks (kevin.hendricks@sympatico.ca)
+ *                 David Einstein (deinst@world.std.com)
+ *                 László Németh (nemethl@gyorsposta.hu)
+ *                 Caolan McNamara (caolanm@redhat.com)
+ *                 Davide Prina
+ *                 Giuseppe Modugno
+ *                 Gianluca Turconi
+ *                 Simon Brouwer
+ *                 Noll Janos
+ *                 Biro Arpad
+ *                 Goldman Eleonora
+ *                 Sarlos Tamas
+ *                 Bencsath Boldizsar
+ *                 Halacsy Peter
+ *                 Dvornik Laszlo
+ *                 Gefferth Andras
+ *                 Nagy Viktor
+ *                 Varga Daniel
+ *                 Chris Halls
+ *                 Rene Engelhard
+ *                 Bram Moolenaar
+ *                 Dafydd Jones
+ *                 Harri Pitkanen
+ *                 Andras Timar
+ *                 Tor Lillqvist
+ * 
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ ******* END LICENSE BLOCK *******/
+
 #ifndef __CSUTILHXX__
 #define __CSUTILHXX__
 
@@ -51,9 +108,6 @@
 #define DEFAULTFLAGS   65510
 #define FORBIDDENWORD  65510
 #define ONLYUPCASEFLAG 65511
-
-// fopen or optional _wfopen to fix long pathname problem of WIN32
-LIBHUNSPELL_DLL_EXPORTED FILE * myfopen(const char * path, const char * mode);
 
 // convert UTF-16 characters to UTF-8
 LIBHUNSPELL_DLL_EXPORTED char * u16_u8(char * dest, int size, const w_char * src, int srclen);
@@ -119,13 +173,41 @@ struct cs_info {
   unsigned char cupper;
 };
 
+// Unicode character encoding information
+struct unicode_info {
+  unsigned short c;
+  unsigned short cupper;
+  unsigned short clower;
+};
+
+struct unicode_info2 {
+  char cletter;
+  unsigned short cupper;
+  unsigned short clower;
+};
+
 LIBHUNSPELL_DLL_EXPORTED int initialize_utf_tbl();
 LIBHUNSPELL_DLL_EXPORTED void free_utf_tbl();
 LIBHUNSPELL_DLL_EXPORTED unsigned short unicodetoupper(unsigned short c, int langnum);
 LIBHUNSPELL_DLL_EXPORTED unsigned short unicodetolower(unsigned short c, int langnum);
 LIBHUNSPELL_DLL_EXPORTED int unicodeisalpha(unsigned short c);
 
+struct enc_entry {
+  const char * enc_name;
+  struct cs_info * cs_table;
+};
+
+// language to encoding default map
+
+struct lang_map {
+  const char * lang;
+  const char * def_enc;
+  int num;
+};
+
 LIBHUNSPELL_DLL_EXPORTED struct cs_info * get_current_cs(const char * es);
+
+LIBHUNSPELL_DLL_EXPORTED const char * get_default_enc(const char * lang);
 
 // get language identifiers of language codes
 LIBHUNSPELL_DLL_EXPORTED int get_lang_num(const char * lang);
@@ -194,9 +276,9 @@ LIBHUNSPELL_DLL_EXPORTED inline char* HENTRY_DATA(struct hentry *h)
     if (!h->var)
         ret = NULL;
     else if (h->var & H_OPT_ALIASM)
-        ret = get_stored_pointer(HENTRY_WORD(h) + h->blen + 1);
+        ret = get_stored_pointer(&(h->word[0]) + h->blen + 1);
     else 
-        ret = HENTRY_WORD(h) + h->blen + 1;
+        ret = &(h->word[0]) + h->blen + 1;
     return ret;
 }
 
@@ -207,9 +289,9 @@ LIBHUNSPELL_DLL_EXPORTED inline const char* HENTRY_DATA2(const struct hentry *h)
     if (!h->var)
         ret = "";
     else if (h->var & H_OPT_ALIASM)
-        ret = get_stored_pointer(HENTRY_WORD(h) + h->blen + 1);
+        ret = get_stored_pointer(&(h->word[0]) + h->blen + 1);
     else
-        ret = HENTRY_WORD(h) + h->blen + 1;
+        ret = &(h->word[0]) + h->blen + 1;
     return ret;
 }
 

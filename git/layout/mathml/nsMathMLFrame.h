@@ -1,22 +1,57 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsMathMLFrame_h___
 #define nsMathMLFrame_h___
 
-#include "mozilla/Attributes.h"
-#include "nsFontMetrics.h"
+#include "nsCOMPtr.h"
+#include "nsPresContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
+#include "nsStyleContext.h"
+#include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "nsIMathMLFrame.h"
-#include "nsLayoutUtils.h"
-#include "nsBoundingMetrics.h"
-#include "nsIFrame.h"
+#include "nsFrame.h"
+#include "nsCSSValue.h"
+#include "nsMathMLElement.h"
 
 class nsMathMLChar;
-class nsCSSValue;
-class nsDisplayListSet;
 
 // Concrete base class with default methods that derived MathML frames can override
 class nsMathMLFrame : public nsIMathMLFrame {
@@ -24,84 +59,67 @@ public:
 
   // nsIMathMLFrame ---
 
-  virtual bool
-  IsSpaceLike() MOZ_OVERRIDE {
-    return NS_MATHML_IS_SPACE_LIKE(mPresentationData.flags);
-  }
-
   NS_IMETHOD
-  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
+  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) {
     aBoundingMetrics = mBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
+  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) {
     mBoundingMetrics = aBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetReference(const nsPoint& aReference) MOZ_OVERRIDE {
+  SetReference(const nsPoint& aReference) {
     mReference = aReference;
     return NS_OK;
   }
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
-  Stretch(nsRenderingContext& aRenderingContext,
+  Stretch(nsIRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
-          nsHTMLReflowMetrics& aDesiredStretchSize) MOZ_OVERRIDE
+          nsHTMLReflowMetrics& aDesiredStretchSize)
   {
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetEmbellishData(nsEmbellishData& aEmbellishData) MOZ_OVERRIDE {
+  GetEmbellishData(nsEmbellishData& aEmbellishData) {
     aEmbellishData = mEmbellishData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetPresentationData(nsPresentationData& aPresentationData) MOZ_OVERRIDE {
+  GetPresentationData(nsPresentationData& aPresentationData) {
     aPresentationData = mPresentationData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE
+  TransmitAutomaticData()
   {
     return NS_OK;
   }
 
   NS_IMETHOD
-  UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate) MOZ_OVERRIDE;
+  UpdatePresentationData(PRUint32        aFlagsValues,
+                         PRUint32        aFlagsToUpdate);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate) MOZ_OVERRIDE
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate)
   {
     return NS_OK;
-  }
-
-  uint8_t
-  ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE
-  {
-    return 0;
-  }
-
-  bool
-  IsMrowLike() MOZ_OVERRIDE
-  {
-    return false;
   }
 
   // helper to give a style context suitable for doing the stretching to the
@@ -111,7 +129,8 @@ public:
   ResolveMathMLCharStyle(nsPresContext*  aPresContext,
                          nsIContent*      aContent,
                          nsStyleContext*  aParenStyleContext,
-                         nsMathMLChar*    aMathMLChar);
+                         nsMathMLChar*    aMathMLChar,
+                         PRBool           aIsMutableChar);
 
   // helper to get the mEmbellishData of a frame
   // The MathML REC precisely defines an "embellished operator" as:
@@ -137,24 +156,42 @@ public:
   static void
   GetPresentationDataFrom(nsIFrame*           aFrame,
                           nsPresentationData& aPresentationData,
-                          bool                aClimbTree = true);
+                          PRBool              aClimbTree = PR_TRUE);
+
+  // helper used by <mstyle> and <mtable> to see if they have a displaystyle attribute 
+  static void
+  FindAttrDisplaystyle(nsIContent*         aContent,
+                       nsPresentationData& aPresentationData);
+
+  // helper to check if a content has an attribute. If content is nsnull or if
+  // the attribute is not there, check if the attribute is on the mstyle hierarchy
+  // @return PR_TRUE  --if attribute exists
+  //         PR_FALSE --if attribute doesn't exist
+  static PRBool
+  GetAttribute(nsIContent* aContent,
+               nsIFrame*   aMathMLmstyleFrame,          
+               nsIAtom*    aAttributeAtom,
+               nsString&   aValue);
 
   // utilities to parse and retrieve numeric values in CSS units
   // All values are stored in twips.
-  // @pre  aLengthValue is the default length value of the attribute.
-  // @post aLengthValue is the length value computed from the attribute.
-  static void ParseNumericValue(const nsString&   aString,
-                                nscoord*          aLengthValue,
-                                uint32_t          aFlags,
-                                nsPresContext*    aPresContext,
-                                nsStyleContext*   aStyleContext,
-                                float             aFontSizeInflation);
+  static PRBool
+  ParseNumericValue(const nsString& aString,
+                    nsCSSValue&     aCSSValue) {
+    return nsMathMLElement::ParseNumericValue(aString, aCSSValue,
+            nsMathMLElement::PARSE_ALLOW_NEGATIVE |
+            nsMathMLElement::PARSE_ALLOW_UNITLESS);
+  }
 
   static nscoord 
   CalcLength(nsPresContext*   aPresContext,
              nsStyleContext*   aStyleContext,
-             const nsCSSValue& aCSSValue,
-             float             aFontSizeInflation);
+             const nsCSSValue& aCSSValue);
+
+  static PRBool
+  ParseNamedSpaceValue(nsIFrame*   aMathMLmstyleFrame,
+                       nsString&   aString,
+                       nsCSSValue& aCSSValue);
 
   static eMathMLFrameType
   GetMathMLFrameTypeFor(nsIFrame* aFrame)
@@ -196,23 +233,21 @@ public:
   // helper methods for getting sup/subdrop's from a child
   static void 
   GetSubDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSubDrop,
-                      float           aFontSizeInflation) 
+                      nscoord&        aSubDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
-                                          aFontSizeInflation);
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsCOMPtr<nsIFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSubDrop(fm, aSubDrop);
   }
 
   static void 
   GetSupDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSupDrop,
-                      float           aFontSizeInflation) 
+                      nscoord&        aSupDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
-                                          aFontSizeInflation);
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsCOMPtr<nsIFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSupDrop(fm, aSupDrop);
   }
 
@@ -227,23 +262,25 @@ public:
 
   // 2 levels of subscript shifts
   static void
-  GetSubScriptShifts(nsFontMetrics* fm, 
+  GetSubScriptShifts(nsIFontMetrics* fm, 
                      nscoord&        aSubScriptShift1, 
                      nscoord&        aSubScriptShift2)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     aSubScriptShift1 = NSToCoordRound(150.000f/430.556f * xHeight);
     aSubScriptShift2 = NSToCoordRound(247.217f/430.556f * xHeight);
   }
 
   // 3 levels of superscript shifts
   static void
-  GetSupScriptShifts(nsFontMetrics* fm, 
+  GetSupScriptShifts(nsIFontMetrics* fm, 
                      nscoord&        aSupScriptShift1, 
                      nscoord&        aSupScriptShift2, 
                      nscoord&        aSupScriptShift3)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     aSupScriptShift1 = NSToCoordRound(412.892f/430.556f * xHeight);
     aSupScriptShift2 = NSToCoordRound(362.892f/430.556f * xHeight);
     aSupScriptShift3 = NSToCoordRound(288.889f/430.556f * xHeight);
@@ -252,71 +289,77 @@ public:
   // these are TeX specific params not found in ordinary fonts
 
   static void
-  GetSubDrop(nsFontMetrics* fm,
+  GetSubDrop(nsIFontMetrics* fm,
              nscoord&        aSubDrop)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     aSubDrop = NSToCoordRound(50.000f/430.556f * xHeight);
   }
 
   static void
-  GetSupDrop(nsFontMetrics* fm,
+  GetSupDrop(nsIFontMetrics* fm,
              nscoord&        aSupDrop)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     aSupDrop = NSToCoordRound(386.108f/430.556f * xHeight);
   }
 
   static void
-  GetNumeratorShifts(nsFontMetrics* fm, 
+  GetNumeratorShifts(nsIFontMetrics* fm, 
                      nscoord&        numShift1, 
                      nscoord&        numShift2, 
                      nscoord&        numShift3)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     numShift1 = NSToCoordRound(676.508f/430.556f * xHeight);
     numShift2 = NSToCoordRound(393.732f/430.556f * xHeight);
     numShift3 = NSToCoordRound(443.731f/430.556f * xHeight);
   }
 
   static void
-  GetDenominatorShifts(nsFontMetrics* fm, 
+  GetDenominatorShifts(nsIFontMetrics* fm, 
                        nscoord&        denShift1, 
                        nscoord&        denShift2)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     denShift1 = NSToCoordRound(685.951f/430.556f * xHeight);
     denShift2 = NSToCoordRound(344.841f/430.556f * xHeight);
   }
 
   static void
-  GetEmHeight(nsFontMetrics* fm,
+  GetEmHeight(nsIFontMetrics* fm,
               nscoord&        emHeight)
   {
-#if 0
+#if 0 
     // should switch to this API in order to scale with changes of TextZoom
-    emHeight = fm->EmHeight();
+    fm->GetEmHeight(emHeight);
 #else
     emHeight = NSToCoordRound(float(fm->Font().size));
 #endif
   }
 
   static void
-  GetAxisHeight (nsFontMetrics* fm,
+  GetAxisHeight (nsIFontMetrics* fm,
                  nscoord&        axisHeight)
   {
-    axisHeight = NSToCoordRound(250.000f/430.556f * fm->XHeight());
+    fm->GetXHeight (axisHeight);
+    axisHeight = NSToCoordRound(250.000f/430.556f * axisHeight);
   }
 
   static void
-  GetBigOpSpacings(nsFontMetrics* fm, 
+  GetBigOpSpacings(nsIFontMetrics* fm, 
                    nscoord&        bigOpSpacing1,
                    nscoord&        bigOpSpacing2,
                    nscoord&        bigOpSpacing3,
                    nscoord&        bigOpSpacing4,
                    nscoord&        bigOpSpacing5)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     bigOpSpacing1 = NSToCoordRound(111.111f/430.556f * xHeight);
     bigOpSpacing2 = NSToCoordRound(166.667f/430.556f * xHeight);
     bigOpSpacing3 = NSToCoordRound(200.000f/430.556f * xHeight);
@@ -325,10 +368,11 @@ public:
   }
 
   static void
-  GetRuleThickness(nsFontMetrics* fm,
+  GetRuleThickness(nsIFontMetrics* fm,
                    nscoord&        ruleThickness)
   {
-    nscoord xHeight = fm->XHeight();
+    nscoord xHeight;
+    fm->GetXHeight(xHeight);
     ruleThickness = NSToCoordRound(40.000f/430.556f * xHeight);
   }
 
@@ -336,24 +380,17 @@ public:
   // Here are some slower variants to obtain the desired metrics
   // by actually measuring some characters
   static void
-  GetRuleThickness(nsRenderingContext& aRenderingContext, 
-                   nsFontMetrics*      aFontMetrics,
+  GetRuleThickness(nsIRenderingContext& aRenderingContext, 
+                   nsIFontMetrics*      aFontMetrics,
                    nscoord&             aRuleThickness);
 
   static void
-  GetAxisHeight(nsRenderingContext& aRenderingContext, 
-                nsFontMetrics*      aFontMetrics,
+  GetAxisHeight(nsIRenderingContext& aRenderingContext, 
+                nsIFontMetrics*      aFontMetrics,
                 nscoord&             aAxisHeight);
 
-  static void
-  GetRadicalParameters(nsFontMetrics* aFontMetrics,
-                       bool aDisplayStyle,
-                       nscoord& aRadicalRuleThickness,
-                       nscoord& aRadicalExtraAscender,
-                       nscoord& aRadicalVerticalGap);
-
 protected:
-#if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
+#if defined(NS_DEBUG) && defined(SHOW_BOUNDING_BOX)
   nsresult DisplayBoundingMetrics(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, const nsPoint& aPt,
                                   const nsBoundingMetrics& aMetrics,
@@ -364,9 +401,9 @@ protected:
    * Display a solid rectangle in the frame's text color. Used for drawing
    * fraction separators and root/sqrt overbars.
    */
-  void DisplayBar(nsDisplayListBuilder* aBuilder,
-                  nsIFrame* aFrame, const nsRect& aRect,
-                  const nsDisplayListSet& aLists);
+  nsresult DisplayBar(nsDisplayListBuilder* aBuilder,
+                      nsIFrame* aFrame, const nsRect& aRect,
+                      const nsDisplayListSet& aLists);
 
   // information about the presentation policy of the frame
   nsPresentationData mPresentationData;

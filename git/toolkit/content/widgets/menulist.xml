@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="menulistBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -17,7 +13,7 @@
     </resources>
   </binding>
 
-  <binding id="menulist" display="xul:menu" role="xul:menulist"
+  <binding id="menulist" display="xul:menu"
            extends="chrome://global/content/bindings/menulist.xml#menulist-base">
     <content sizetopopup="pref">
       <xul:hbox class="menulist-label-box" flex="1">
@@ -34,19 +30,16 @@
 
       <handler event="popupshowing">
         <![CDATA[
-          if (event.target.parentNode == this) {
-            this.menuBoxObject.activeChild = null;
-            if (this.selectedItem)
-              // Not ready for auto-setting the active child in hierarchies yet.
-              // For now, only do this when the outermost menupopup opens.
-              this.menuBoxObject.activeChild = this.mSelectedInternal;
-          }
+          if (event.target.parentNode == this && this.selectedItem)
+            // Not ready for auto-setting the active child in hierarchies yet.
+            // For now, only do this when the outermost menupopup opens.
+            this.menuBoxObject.activeChild = this.mSelectedInternal;
         ]]>
       </handler>
 
       <handler event="keypress" modifiers="shift any" group="system">
         <![CDATA[
-          if (!event.defaultPrevented &&
+          if (!event.getPreventDefault() &&
               (event.keyCode == KeyEvent.DOM_VK_UP ||
                event.keyCode == KeyEvent.DOM_VK_DOWN ||
                event.keyCode == KeyEvent.DOM_VK_PAGE_UP ||
@@ -66,12 +59,9 @@
       </handler>
     </handlers>
 
-    <implementation implements="nsIDOMXULMenuListElement, nsIDOMEventListener">
+    <implementation implements="nsIDOMXULMenuListElement, nsIAccessibleProvider, nsIDOMEventListener">
       <constructor>
-        this.mInputField = null;
-        this.mSelectedInternal = null;
-        this.menuBoxObject = this.boxObject;
-        this.setInitialSelection();
+        this.setInitialSelection()
       </constructor>
 
       <method name="setInitialSelection">
@@ -148,6 +138,14 @@
           ]]>
         </getter>
       </property>
+
+      <field name="menuBoxObject" readonly="true">
+        this.boxObject.QueryInterface(Components.interfaces.nsIMenuBoxObject)
+      </field>
+
+      <field name="mSelectedInternal">
+        null
+      </field>
 
       <method name="contains">
         <parameter name="item"/>
@@ -382,6 +380,17 @@
         </body>
       </method>
 
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            <!-- Droppable is currently used for the Firefox bookmarks dialog only -->
+            return (this.getAttribute("droppable") == "false") ?
+                   Components.interfaces.nsIAccessibleProvider.XULTextBox :
+                   Components.interfaces.nsIAccessibleProvider.XULCombobox;
+          ]]>
+        </getter>
+      </property>
+
       <destructor>
         <![CDATA[
           if (this.mSelectedInternal) {
@@ -402,7 +411,7 @@
   <binding id="menulist-editable" extends="chrome://global/content/bindings/menulist.xml#menulist">
     <content sizetopopup="pref">
       <xul:hbox class="menulist-editable-box textbox-input-box" xbl:inherits="context,disabled,readonly,focused" flex="1">
-        <html:input class="menulist-editable-input" anonid="input" allowevents="true"
+        <html:input class="menulist-editable-input" flex="1" anonid="input" allowevents="true"
                     xbl:inherits="value=label,value,disabled,tabindex,readonly,placeholder"/>
       </xul:hbox>
       <xul:dropmarker class="menulist-dropmarker" type="menu"
@@ -452,6 +461,8 @@
           ]]>
         </body>
       </method>
+
+      <field name="mInputField">null</field>
 
       <property name="inputField" readonly="true">
         <getter><![CDATA[
@@ -568,7 +579,6 @@
             if (document.commandDispatcher.focusedElement != this.inputField)
               this.inputField.focus();
 
-            this.menuBoxObject.activeChild = null;
             if (this.selectedItem)
               // Not ready for auto-setting the active child in hierarchies yet.
               // For now, only do this when the outermost menupopup opens.
@@ -591,6 +601,16 @@
         ]]>
       </handler>
     </handlers>
+  </binding>
+
+  <binding id="menulist-compact" display="xul:menu"
+           extends="chrome://global/content/bindings/menulist.xml#menulist">
+    <content sizetopopup="false">
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
+      <xul:image class="menulist-icon" xbl:inherits="src=image,src"/>
+      <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
+      <children includes="menupopup"/>
+    </content>
   </binding>
 
   <binding id="menulist-description" display="xul:menu"

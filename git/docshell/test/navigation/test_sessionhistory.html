@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=
 -->
 <head>
   <title>Test for Bug </title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -25,15 +26,12 @@ var testFiles =
     "file_bug462076_3.html",         // Dynamic frames after onload
     "file_bug508537_1.html",         // Dynamic frames and forward-back
     "file_document_write_1.html",    // Session history + document.write
-    //"file_static_and_dynamic_1.html",// Static and dynamic frames and forward-back
-    "file_bug534178.html",           // Session history transaction clean-up.
-    "file_fragment_handling_during_load.html",
-    "file_nested_frames.html"
+    "file_static_and_dynamic_1.html",// Static and dynamic frames and forward-back
+    "file_bug534178.html"            // Session history transaction clean-up.
   ];
 var testCount = 0; // Used by the test files.
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 
 var testWindow;
 function nextTest_() {
@@ -55,7 +53,7 @@ function isTestDynamic() {
 }
 
 function nextTest() {
-  setTimeout(nextTest_, 0);
+  setTimeout(nextTest_, 1000);
 }
 
 </script>

@@ -8,18 +8,11 @@
 # verify the tests work
 include reftest-sanity/reftest.list
 
-# images (if ImageLib is busted, could result in weird failures in other tests)
-include ../../image/test/reftest/reftest.list
-
-# CSSWG tests
-include w3c-css/submitted/reftest.list
-include w3c-css/received/reftest.list
+# images (if libpr0n is busted, could result in weird failures in other tests)
+include ../../modules/libpr0n/test/reftest/reftest.list
 
 # relative and absolute positioning
 include abs-pos/reftest.list
-include position-relative/reftest.list
-
-include async-scrolling/reftest.list
 
 # backgrounds/
 include backgrounds/reftest.list
@@ -33,9 +26,6 @@ include border-image/reftest.list
 # border-radius/
 include border-radius/reftest.list
 
-# -moz-box tests
-include box/reftest.list
-
 # box-ordinal/
 include box-ordinal/reftest.list
 
@@ -48,18 +38,8 @@ include box-shadow/reftest.list
 # bugs/
 include bugs/reftest.list
 
-# canvas
+# canvas 2D
 include canvas/reftest.list
-include ../../dom/canvas/test/reftest/reftest.list
-
-# css animations
-include css-animations/reftest.list
-
-# blending/
-include css-blending/reftest.list
-
-# Tests for the css-break spec
-include css-break/reftest.list
 
 # css calc() tests
 include css-calc/reftest.list
@@ -69,9 +49,6 @@ include css-charset/reftest.list
 
 # css default pseudo class tests
 include css-default/reftest.list
-
-# css-display spec tests
-include css-display/reftest.list
 
 # css :disable tests
 include css-disabled/reftest.list
@@ -88,14 +65,14 @@ include css-gradients/reftest.list
 # css media queries (tests for print mode)
 include css-mediaqueries/reftest.list
 
+# css namespaces
+include css-namespace/reftest.list
+
 # css parsing
 include css-parsing/reftest.list
 
 # css placeholder
 include css-placeholder/reftest.list
-
-# css ruby
-include css-ruby/reftest.list
 
 # css required
 include css-required/reftest.list
@@ -112,12 +89,6 @@ include css-invalid/reftest.list
 # css-submit-invalid
 include css-submit-invalid/reftest.list
 
-# css text-overflow
-include text-overflow/reftest.list
-
-# css selectors
-include css-selectors/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
@@ -129,9 +100,6 @@ include css-ui-valid/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
-
-# css variables
-include css-variables/reftest.list
 
 # Reftests in css-visited are run using
 # layout/style/test/test_visited_reftests instead of using the reftest
@@ -148,14 +116,14 @@ include ../../content/test/reftest/reftest.list
 # counters/
 include counters/reftest.list
 
-# counter-style/
-include counter-style/reftest.list
-
 # datalist
 include datalist/reftest.list
 
 # dom/
 include dom/reftest.list
+
+# editor/
+include editor/reftest.list
 
 # generated-content/
 include generated-content/reftest.list
@@ -166,12 +134,6 @@ include first-letter/reftest.list
 # first-line/
 include first-line/reftest.list
 
-# flexbox (display: flex, display: inline-flex)
-include flexbox/reftest.list
-
-# CSS Grid (display: grid, display: inline-grid)
-include css-grid/reftest.list
-
 # floats/
 include floats/reftest.list
 
@@ -180,12 +142,6 @@ include font-face/reftest.list
 
 # font features (opentype)
 include font-features/reftest.list
-
-# mobile font size inflation
-skip-if(B2G&&browserIsRemote) include font-inflation/reftest.list # Bug 972697
-
-# CSS Font Loading API
-include font-loading-api/reftest.list
 
 # font matching
 include font-matching/reftest.list
@@ -211,12 +167,6 @@ include image-rect/reftest.list
 # image-region/
 include image-region/reftest.list
 
-# indic shaping with harfbuzz
-include indic-shaping/reftest.list
-
-# inline layout
-include inline/reftest.list
-
 # inline borders and padding
 include inline-borderpadding/reftest.list
 
@@ -225,9 +175,6 @@ include layers/reftest.list
 
 # line-breaking/
 include line-breaking/reftest.list
-
-# list-item/
-include list-item/reftest.list
 
 # mathml/
 include mathml/reftest.list
@@ -239,22 +186,16 @@ include margin-collapsing/reftest.list
 include marquee/reftest.list
 
 # native-theme/
-# skipping for B2G since something around radio-nonnative.html makes the whole suite hang
-skip-if(B2G) include native-theme/reftest.list
+include native-theme/reftest.list
 
 # netwerk/
 include ../../netwerk/test/reftest/reftest.list
-
-include outline/reftest.list
 
 # object/
 include object/reftest.list
 
 # ogg-video/
-skip-if(!B2G&&browserIsRemote) include ogg-video/reftest.list
-
-# webm-video/
-skip-if(!B2G&&browserIsRemote) include webm-video/reftest.list
+include ogg-video/reftest.list
 
 # parser/
 include ../../parser/htmlparser/tests/reftest/reftest.list
@@ -266,26 +207,17 @@ include percent-overflow-sizing/reftest.list
 include pixel-rounding/reftest.list
 
 # plugin/
-include ../../dom/plugins/test/reftest/reftest.list
-
-# position-dynamic-changes/
-include position-dynamic-changes/reftest.list
+include ../../modules/plugin/test/reftest/reftest.list
 
 # printing
 include printing/reftest.list
 include pagination/reftest.list
-
-# <style scoped>
-include scoped-style/reftest.list
 
 # scrolling
 include scrolling/reftest.list
 
 # selection
 include selection/reftest.list
-
-# sticky positioning
-include position-sticky/reftest.list
 
 # svg/
 include svg/reftest.list
@@ -305,12 +237,8 @@ include table-bordercollapse/reftest.list
 # table-dom/
 include table-dom/reftest.list
 
-include table-overflow/reftest.list
-
 # table-width/
 include table-width/reftest.list
-
-include ../tables/reftests/reftest.list
 
 # text/
 include text/reftest.list
@@ -324,30 +252,17 @@ include text-indent/reftest.list
 # text-shadow/
 include text-shadow/reftest.list
 
-# text-svgglyphs/
-include text-svgglyphs/reftest.list
+# theme (pinstripe)
+include ../../toolkit/themes/pinstripe/reftests/reftest.list
 
 # text-transform/
 include text-transform/reftest.list
 
-# theme (osx)
-include ../../toolkit/themes/osx/reftests/reftest.list
-
-include ../../toolkit/content/tests/reftests/reftest.list
-
 # -moz-transform/
 include transform/reftest.list
 
-# 3d transforms
-include transform-3d/reftest.list
-
 # unicode/ (verify that we don't do expend effort doing unicode-aware case checks)
 include unicode/reftest.list
-
-include view-source/reftest.list
-
-# webcomponents/
-include webcomponents/reftest.list
 
 # widget/
 include ../../widget/reftests/reftest.list
@@ -358,30 +273,12 @@ include ../../content/test/reftest/xml-stylesheet/reftest.list
 # xul-document-load/
 include xul-document-load/reftest.list
 
-# xul/
-include xul/reftest.list
-
-# xul
-include ../xul/reftest/reftest.list
-
 # xul grid
-include ../xul/grid/reftests/reftest.list
+include ../xul/base/src/grid/reftests/reftest.list
 
 # z-index/
 include z-index/reftest.list
 
 # reftest(s) to verify content bugfixes
-include ../../dom/html/reftests/reftest.list
-include ../../dom/imptests/reftest.list
-
-# editor/
-include ../../editor/reftests/reftest.list
-
-# box-sizing
-include box-sizing/reftest.list
-
-# invalidation
-include invalidation/reftest.list
-
-# encodings
-include ../../dom/encoding/test/reftest/reftest.list
+include ../../content/html/document/reftests/reftests.list
+include ../../content/html/content/reftests/reftest.list

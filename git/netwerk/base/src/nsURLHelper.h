@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Andreas Otte.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsURLHelper_h__
 #define nsURLHelper_h__
@@ -34,33 +66,33 @@ enum netCoalesceFlags
 //----------------------------------------------------------------------------
 
 /* shutdown frees URL parser */
-void net_ShutdownURLHelper();
+NS_HIDDEN_(void) net_ShutdownURLHelper();
 #ifdef XP_MACOSX
-void net_ShutdownURLHelperOSX();
+NS_HIDDEN_(void) net_ShutdownURLHelperOSX();
 #endif
 
 /* access URL parsers */
-nsIURLParser * net_GetAuthURLParser();
-nsIURLParser * net_GetNoAuthURLParser();
-nsIURLParser * net_GetStdURLParser();
+NS_HIDDEN_(nsIURLParser *) net_GetAuthURLParser();
+NS_HIDDEN_(nsIURLParser *) net_GetNoAuthURLParser();
+NS_HIDDEN_(nsIURLParser *) net_GetStdURLParser();
 
 /* convert between nsIFile and file:// URL spec 
  * net_GetURLSpecFromFile does an extra stat, so callers should
  * avoid it if possible in favor of net_GetURLSpecFromActualFile
  * and net_GetURLSpecFromDir */
-nsresult net_GetURLSpecFromFile(nsIFile *, nsACString &);
-nsresult net_GetURLSpecFromDir(nsIFile *, nsACString &);
-nsresult net_GetURLSpecFromActualFile(nsIFile *, nsACString &);
-nsresult net_GetFileFromURLSpec(const nsACString &, nsIFile **);
+NS_HIDDEN_(nsresult) net_GetURLSpecFromFile(nsIFile *, nsACString &);
+NS_HIDDEN_(nsresult) net_GetURLSpecFromDir(nsIFile *, nsACString &);
+NS_HIDDEN_(nsresult) net_GetURLSpecFromActualFile(nsIFile *, nsACString &);
+NS_HIDDEN_(nsresult) net_GetFileFromURLSpec(const nsACString &, nsIFile **);
 
 /* extract file path components from file:// URL */
-nsresult net_ParseFileURL(const nsACString &inURL,
+NS_HIDDEN_(nsresult) net_ParseFileURL(const nsACString &inURL,
                                       nsACString &outDirectory,
                                       nsACString &outFileBaseName,
                                       nsACString &outFileExtension);
 
 /* handle .. in dirs while resolving URLs (path is UTF-8) */
-void net_CoalesceDirs(netCoalesceFlags flags, char* path);
+NS_HIDDEN_(void) net_CoalesceDirs(netCoalesceFlags flags, char* path);
 
 /**
  * Resolves a relative path string containing "." and ".."
@@ -75,7 +107,7 @@ void net_CoalesceDirs(netCoalesceFlags flags, char* path);
  *
  * @return a new string, representing canonical uri
  */
-nsresult net_ResolveRelativePath(const nsACString &relativePath,
+NS_HIDDEN_(nsresult) net_ResolveRelativePath(const nsACString &relativePath,
                                              const nsACString &basePath,
                                              nsACString &result);
 
@@ -87,15 +119,15 @@ nsresult net_ResolveRelativePath(const nsACString &relativePath,
  * @param endPos    end of scheme; index of colon (may be null)
  * @param scheme    scheme copied to this buffer on return (may be null)
  */
-nsresult net_ExtractURLScheme(const nsACString &inURI,
-                                          uint32_t *startPos, 
-                                          uint32_t *endPos,
-                                          nsACString *scheme = nullptr);
+NS_HIDDEN_(nsresult) net_ExtractURLScheme(const nsACString &inURI,
+                                          PRUint32 *startPos, 
+                                          PRUint32 *endPos,
+                                          nsACString *scheme = nsnull);
 
 /* check that the given scheme conforms to RFC 2396 */
-bool net_IsValidScheme(const char *scheme, uint32_t schemeLen);
+NS_HIDDEN_(PRBool) net_IsValidScheme(const char *scheme, PRUint32 schemeLen);
 
-inline bool net_IsValidScheme(const nsAFlatCString &scheme)
+inline PRBool net_IsValidScheme(const nsAFlatCString &scheme)
 {
     return net_IsValidScheme(scheme.get(), scheme.Length());
 }
@@ -109,16 +141,15 @@ inline bool net_IsValidScheme(const nsAFlatCString &scheme)
  * This function strips out all whitespace at the beginning and end of the URL
  * and strips out \r, \n, \t from the middle of the URL.  This makes it safe to
  * call on things like javascript: urls or data: urls, where we may in fact run
- * into whitespace that is not properly encoded.  Note that stripping does not
- * occur in the scheme portion itself.
+ * into whitespace that is not properly encoded.
  *
  * @param str the pointer to the string to filter.  Must be non-null.
  * @param result the out param to write to if filtering happens
  * @return whether result was written to
  */
-bool net_FilterURIString(const char *str, nsACString& result);
+NS_HIDDEN_(PRBool) net_FilterURIString(const char *str, nsACString& result);
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
 /**
  * On Win32 and OS/2 system's a back-slash in a file:// URL is equivalent to a
  * forward-slash.  This function maps any back-slashes to forward-slashes.
@@ -132,7 +163,7 @@ bool net_FilterURIString(const char *str, nsACString& result);
  *
  * @returns false if aURL is already normalized.  Otherwise, returns true.
  */
-bool net_NormalizeFileURL(const nsACString &aURL,
+NS_HIDDEN_(PRBool) net_NormalizeFileURL(const nsACString &aURL,
                                         nsCString &aResultBuf);
 #endif
 
@@ -141,15 +172,15 @@ bool net_NormalizeFileURL(const nsACString &aURL,
  */
 
 /* convert to lower case */
-void net_ToLowerCase(char* str, uint32_t length);
-void net_ToLowerCase(char* str);
+NS_HIDDEN_(void) net_ToLowerCase(char* str, PRUint32 length);
+NS_HIDDEN_(void) net_ToLowerCase(char* str);
 
 /**
  * returns pointer to first character of |str| in the given set.  if not found,
  * then |end| is returned.  stops prematurely if a null byte is encountered,
  * and returns the address of the null byte.
  */
-char * net_FindCharInSet(const char *str, const char *end, const char *set);
+NS_HIDDEN_(char *) net_FindCharInSet(const char *str, const char *end, const char *set);
 
 /**
  * returns pointer to first character of |str| NOT in the given set.  if all
@@ -157,13 +188,13 @@ char * net_FindCharInSet(const char *str, const char *end, const char *set);
  * included in |set|, then stops prematurely if a null byte is encountered,
  * and returns the address of the null byte.
  */
-char * net_FindCharNotInSet(const char *str, const char *end, const char *set);
+NS_HIDDEN_(char *) net_FindCharNotInSet(const char *str, const char *end, const char *set);
 
 /**
  * returns pointer to last character of |str| NOT in the given set.  if all
  * characters are in the given set, then |str - 1| is returned.
  */
-char * net_RFindCharNotInSet(const char *str, const char *end, const char *set);
+NS_HIDDEN_(char *) net_RFindCharNotInSet(const char *str, const char *end, const char *set);
 
 /**
  * Parses a content-type header and returns the content type and
@@ -173,10 +204,10 @@ char * net_RFindCharNotInSet(const char *str, const char *end, const char *set);
  * true.  Note that aContentCharset can be empty even if aHadCharset
  * is true.
  */
-void net_ParseContentType(const nsACString &aHeaderStr,
+NS_HIDDEN_(void) net_ParseContentType(const nsACString &aHeaderStr,
                                       nsACString       &aContentType,
                                       nsACString       &aContentCharset,
-                                      bool*          aHadCharset);
+                                      PRBool*          aHadCharset);
 /**
  * As above, but also returns the start and end indexes for the charset
  * parameter in aHeaderStr.  These are indices for the entire parameter, NOT
@@ -186,12 +217,12 @@ void net_ParseContentType(const nsACString &aHeaderStr,
  * it's possible to have aContentCharset empty and *aHadCharset true when
  * *aCharsetStart is nonnegative; this corresponds to charset="".
  */
-void net_ParseContentType(const nsACString &aHeaderStr,
+NS_HIDDEN_(void) net_ParseContentType(const nsACString &aHeaderStr,
                                       nsACString       &aContentType,
                                       nsACString       &aContentCharset,
-                                      bool             *aHadCharset,
-                                      int32_t          *aCharsetStart,
-                                      int32_t          *aCharsetEnd);
+                                      PRBool           *aHadCharset,
+                                      PRInt32          *aCharsetStart,
+                                      PRInt32          *aCharsetEnd);
 
 /* inline versions */
 
@@ -215,16 +246,6 @@ inline char *net_RFindCharNotInSet(const char *str, const char *set)
  * This function returns true if the given hostname does not include any
  * restricted characters.  Otherwise, false is returned.
  */
-bool net_IsValidHostName(const nsCSubstring &host);
-
-/**
- * Checks whether the IPv4 address is valid according to RFC 3986 section 3.2.2.
- */
-bool net_IsValidIPv4Addr(const char *addr, int32_t addrLen);
-
-/**
- * Checks whether the IPv6 address is valid according to RFC 3986 section 3.2.2.
- */
-bool net_IsValidIPv6Addr(const char *addr, int32_t addrLen);
+NS_HIDDEN_(PRBool) net_IsValidHostName(const nsCSubstring &host);
 
 #endif // !nsURLHelper_h__

@@ -9,10 +9,6 @@
 #include "base/message_loop.h"
 #include "base/waitable_event.h"
 
-#include "nsISupportsImpl.h"
-#include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
-
 namespace base {
 
 // -----------------------------------------------------------------------------
@@ -31,9 +27,8 @@ namespace base {
 // -----------------------------------------------------------------------------
 // A thread-safe, reference-counted, write-once flag.
 // -----------------------------------------------------------------------------
-class Flag MOZ_FINAL {
+class Flag : public RefCountedThreadSafe<Flag> {
  public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Flag)
   Flag() { flag_ = false; }
 
   void Set() {
@@ -46,8 +41,6 @@ class Flag MOZ_FINAL {
     return flag_;
   }
 
- protected:
-  ~Flag() {}
  private:
   mutable Lock lock_;
   bool flag_;
@@ -57,7 +50,7 @@ class Flag MOZ_FINAL {
 // This is an asynchronous waiter which posts a task to a MessageLoop when
 // fired. An AsyncWaiter may only be in a single wait-list.
 // -----------------------------------------------------------------------------
-class AsyncWaiter MOZ_FINAL : public WaitableEvent::Waiter {
+class AsyncWaiter : public WaitableEvent::Waiter {
  public:
   AsyncWaiter(MessageLoop* message_loop, Task* task, Flag* flag)
       : message_loop_(message_loop),
@@ -90,7 +83,7 @@ class AsyncWaiter MOZ_FINAL : public WaitableEvent::Waiter {
  private:
   MessageLoop *const message_loop_;
   Task *const cb_task_;
-  nsRefPtr<Flag> flag_;
+  scoped_refptr<Flag> flag_;
 };
 
 // -----------------------------------------------------------------------------
@@ -120,7 +113,7 @@ class AsyncCallbackTask : public Task {
   }
 
  private:
-  nsRefPtr<Flag> flag_;
+  scoped_refptr<Flag> flag_;
   WaitableEventWatcher::Delegate *const delegate_;
   WaitableEvent *const event_;
 };

@@ -36,7 +36,6 @@ var gAutoHide = false;
 var gExpectedEventDetails = null;
 var gExpectedTriggerNode = null;
 var gWindowUtils;
-var gPopupWidth = -1, gPopupHeight = -1;
 
 function startPopupTests(tests)
 {
@@ -52,7 +51,8 @@ function startPopupTests(tests)
   document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
 
   gPopupTests = tests;
-  gWindowUtils = SpecialPowers.getDOMWindowUtils(window);
+  gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
   goNext();
 }
@@ -83,11 +83,15 @@ function is(left, right, message) {
 }
 
 function disableNonTestMouse(aDisable) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   gWindowUtils.disableNonTestMouseEvents(aDisable);
 }
 
 function eventOccurred(event)
 {
+   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   if (gPopupTests.length <= gTestIndex) {
     ok(false, "Extra " + event.type + " event fired");
     return;
@@ -127,16 +131,6 @@ function eventOccurred(event)
       is(event.target.id, eventitem[1],
          test.testname + " event target ID " + event.target.id);
       matches = eventitem[0] == event.type && eventitem[1] == event.target.id;
-    }
-
-    var modifiersMask = eventitem[2];
-    if (modifiersMask) {
-      var m = "";
-      m += event.altKey ? '1' : '0';
-      m += event.ctrlKey ? '1' : '0';
-      m += event.shiftKey ? '1' : '0';
-      m += event.metaKey ? '1' : '0';
-      is(m, modifiersMask, test.testname + " modifiers mask matches");
     }
 
     var expectedState;
@@ -210,17 +204,6 @@ function goNextStep()
 
 function goNext()
 {
-  // We want to continue after the next animation frame so that
-  // we're in a stable state and don't get spurious mouse events at unexpected targets.
-  window.requestAnimationFrame(
-    function() {
-      setTimeout(goNextStepSync, 0);
-    }
-  );
-}
-
-function goNextStepSync()
-{
   if (gTestIndex >= 0 && "end" in gPopupTests[gTestIndex] && gPopupTests[gTestIndex].end) {
     finish();
     return;
@@ -262,7 +245,7 @@ function openMenu(menu)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof MenuBoxObject)
+    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
       bo.openMenu(true);
     else
       synthesizeMouse(menu, 4, 4, { });
@@ -276,7 +259,7 @@ function closeMenu(menu, popup)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof MenuBoxObject)
+    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
       bo.openMenu(false);
     else
       popup.hidePopup();
@@ -303,7 +286,7 @@ function checkOpen(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof MenuBoxObject)
+  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
     ok(menu.getAttribute("open") == "true", testname + " " + menuid + " menu is open");
 }
 
@@ -312,7 +295,7 @@ function checkClosed(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(!menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof MenuBoxObject)
+  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
     ok(!menu.hasAttribute("open"), testname + " " + menuid + " menu is closed");
 }
 
@@ -352,15 +335,9 @@ function compareEdge(anchor, popup, edge, offsetX, offsetY, testname)
   var popuprect = popup.getBoundingClientRect();
   var check1 = false, check2 = false;
 
-  if (gPopupWidth == -1) {
-    ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
-       (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
-       testname + " size");
-  }
-  else {
-    is(Math.round(popuprect.width), gPopupWidth, testname + " width");
-    is(Math.round(popuprect.height), gPopupHeight, testname + " height");
-  }
+  ok((Math.round(popuprect.right) - Math.round(popuprect.left)) &&
+     (Math.round(popuprect.bottom) - Math.round(popuprect.top)),
+     testname + " size");
 
   var spaceIdx = edge.indexOf(" ");
   if (spaceIdx > 0) {

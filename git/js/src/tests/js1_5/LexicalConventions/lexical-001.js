@@ -1,7 +1,40 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   pschwartau@netscape.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 /*
@@ -27,96 +60,96 @@ var BUGNUMBER = '49233';
 var summary = 'Testing numeric literals that begin with 0';
 var statprefix = 'Testing ';
 var quote = "'";
-var asString = new Array();
+var status = new Array();
 var actual = new Array();
 var expect = new Array();
 
 
-  asString[0]='01'
+status[0]=showStatus('01')
   actual[0]=01
   expect[0]=1
 
-  asString[1]='07'
+  status[1]=showStatus('07')
   actual[1]=07
   expect[1]=7
 
-  asString[2]='08'
+  status[2]=showStatus('08')
   actual[2]=08
   expect[2]=8
 
-  asString[3]='09'
+  status[3]=showStatus('09')
   actual[3]=09
   expect[3]=9
 
-  asString[4]='010'
+  status[4]=showStatus('010')
   actual[4]=010
   expect[4]=8
 
-  asString[5]='017'
+  status[5]=showStatus('017')
   actual[5]=017
   expect[5]=15
 
-  asString[6]='018'
+  status[6]=showStatus('018')
   actual[6]=018
   expect[6]=18
 
-  asString[7]='019'
+  status[7]=showStatus('019')
   actual[7]=019
   expect[7]=19
 
-  asString[8]='079'
+  status[8]=showStatus('079')
   actual[8]=079
   expect[8]=79
 
-  asString[9]='0079'
+  status[9]=showStatus('0079')
   actual[9]=0079
   expect[9]=79
 
-  asString[10]='099'
+  status[10]=showStatus('099')
   actual[10]=099
   expect[10]=99
 
-  asString[11]='0099'
+  status[11]=showStatus('0099')
   actual[11]=0099
   expect[11]=99
 
-  asString[12]='000000000077'
+  status[12]=showStatus('000000000077')
   actual[12]=000000000077
   expect[12]=63
 
-  asString[13]='000000000078'
+  status[13]=showStatus('000000000078')
   actual[13]=000000000078
   expect[13]=78
 
-  asString[14]='0000000000770000'
+  status[14]=showStatus('0000000000770000')
   actual[14]=0000000000770000
   expect[14]=258048
 
-  asString[15]='0000000000780000'
+  status[15]=showStatus('0000000000780000')
   actual[15]=0000000000780000
   expect[15]=780000
 
-  asString[16]='0765432198'
+  status[16]=showStatus('0765432198')
   actual[16]=0765432198
   expect[16]=765432198
 
-  asString[17]='00076543219800'
+  status[17]=showStatus('00076543219800')
   actual[17]=00076543219800
   expect[17]=76543219800
 
-  asString[18]='0000001001007'
+  status[18]=showStatus('0000001001007')
   actual[18]=0000001001007
   expect[18]=262663
 
-  asString[19]='0000001001009'
+  status[19]=showStatus('0000001001009')
   actual[19]=0000001001009
   expect[19]=1001009
 
-  asString[20]='070'
+  status[20]=showStatus('070')
   actual[20]=070
   expect[20]=56
 
-  asString[21]='080'
+  status[21]=showStatus('080')
   actual[21]=080
   expect[21]=80
 
@@ -140,9 +173,9 @@ function test()
   printStatus (summary);
 
 
-  for (i=0; i !=asString.length; i++)
+  for (i=0; i !=status.length; i++)
   {
-    reportCompare (expect[i], actual[i], showStatus(asString[i]));
+    reportCompare (expect[i], actual[i], status[i]);
   }
 
   exitFunc ('test');

@@ -1,9 +1,52 @@
 <?xml version="1.0"?>
 
 # -*- Mode: HTML -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org browser.
+#
+# The Initial Developer of the Original Code is
+# Joe Hewitt.
+# Portions created by the Initial Developer are Copyright (C) 2003
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Pierre Chanial (p_ch@verizon.net)
+#   Dean Tessman   (dean_tessman@hotmail.com)
+#   Masayuki Nakano (masayuki@d-toybox.com)
+#   Pamela Greene (pamg.bugs@gmail.com)
+#   Edward Lee (edward.lee@engineering.uiuc.edu)
+#   Drew Willcoxon (adw@mozilla.com)
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+
+<!DOCTYPE bindings [
+<!ENTITY % actionsDTD SYSTEM "chrome://global/locale/actions.dtd">
+%actionsDTD;
+]>
 
 <bindings id="autocompleteBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -11,10 +54,9 @@
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="autocomplete" role="xul:combobox"
+  <binding id="autocomplete"
            extends="chrome://global/content/bindings/textbox.xml#textbox">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
@@ -27,8 +69,8 @@
         <xul:hbox anonid="textbox-input-box" class="textbox-input-box" flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
           <children/>
           <html:input anonid="input" class="autocomplete-textbox textbox-input"
-                      allowevents="true"
-                      xbl:inherits="tooltiptext=inputtooltiptext,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint"/>
+                      flex="1" allowevents="true"
+                      xbl:inherits="tooltiptext=inputtooltiptext,onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
@@ -42,55 +84,50 @@
       <children includes="toolbarbutton"/>
     </content>
 
-    <implementation implements="nsIAutoCompleteInput, nsIDOMXULMenuListElement">
+    <implementation implements="nsIAccessibleProvider, nsIAutoCompleteInput, nsIDOMXULMenuListElement">
       <field name="mController">null</field>
       <field name="mSearchNames">null</field>
       <field name="mIgnoreInput">false</field>
       <field name="mEnterEvent">null</field>
-
-      <field name="_searchBeginHandler">null</field>
-      <field name="_searchCompleteHandler">null</field>
-      <field name="_textEnteredHandler">null</field>
-      <field name="_textRevertedHandler">null</field>
+      <field name="mConsumeRollupEvent">false</field>
 
       <constructor><![CDATA[
-        this.mController = Components.classes["@mozilla.org/autocomplete/controller;1"].
-          getService(Components.interfaces.nsIAutoCompleteController);
-
-        this._searchBeginHandler = this.initEventHandler("searchbegin");
-        this._searchCompleteHandler = this.initEventHandler("searchcomplete");
-        this._textEnteredHandler = this.initEventHandler("textentered");
-        this._textRevertedHandler = this.initEventHandler("textreverted");
-
-        // For security reasons delay searches on pasted values.
-        this.inputField.controllers.insertControllerAt(0, this._pasteController);
+        mController = Components.classes["@mozilla.org/autocomplete/controller;1"].
+                        getService(Components.interfaces.nsIAutoCompleteController);
       ]]></constructor>
 
-      <destructor><![CDATA[
-        this.inputField.controllers.removeController(this._pasteController);
-      ]]></destructor>
+      <!-- =================== nsIAccessibleProvider =================== -->
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            // Will be exposed as nsIAccessible::ROLE_AUTOCOMPLETE
+            return Components.interfaces.nsIAccessibleProvider.XULCombobox;
+          ]]>
+        </getter>
+      </property>
 
       <!-- =================== nsIAutoCompleteInput =================== -->
 
       <field name="popup"><![CDATA[
-        // Wrap in a block so that the let statements don't
-        // create properties on 'this' (bug 635252).
-        {
-          let popup = null;
-          let popupId = this.getAttribute("autocompletepopup");
+        // Wrap in an anonymous function so that the var statements don't
+        // create properties on 'this'.
+        (function (that) {
+          var popup = null;
+          var popupId = that.getAttribute("autocompletepopup");
           if (popupId)
             popup = document.getElementById(popupId);
           if (!popup) {
             popup = document.createElement("panel");
             popup.setAttribute("type", "autocomplete");
             popup.setAttribute("noautofocus", "true");
-
-            let popupset = document.getAnonymousElementByAttribute(this, "anonid", "popupset");
+  
+            var popupset = document.getAnonymousElementByAttribute(that, "anonid", "popupset");
             popupset.appendChild(popup);
           }
-          popup.mInput = this;
-          popup;
-        }
+          popup.mInput = that;
+          return popup;
+        })(this);
       ]]></field>
 
       <property name="controller" onget="return this.mController;" readonly="true"/>
@@ -128,18 +165,8 @@
                 onget="return this.getAttribute('showimagecolumn') == 'true';"/>
 
       <property name="timeout"
-                onset="this.setAttribute('timeout', val); return val;">
-        <getter><![CDATA[
-          // For security reasons delay searches on pasted values. 
-          if (this._valueIsPasted) {
-            let t = parseInt(this.getAttribute('pastetimeout'));
-            return isNaN(t) ? 1000 : t;
-          }
-
-          let t = parseInt(this.getAttribute('timeout'));
-          return isNaN(t) ? 50 : t;
-        ]]></getter>
-      </property>
+                onset="this.setAttribute('timeout', val); return val;"
+                onget="return parseInt(this.getAttribute('timeout')) || 50;"/>
 
       <property name="searchParam"
                 onget="return this.getAttribute('autocompletesearchparam') || '';"
@@ -148,14 +175,8 @@
       <property name="searchCount" readonly="true"
                 onget="this.initSearchNames(); return this.mSearchNames.length;"/>
 
-      <field name="PrivateBrowsingUtils" readonly="true">
-        let utils = {};
-        Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm", utils);
-        utils.PrivateBrowsingUtils
-      </field>
-
-      <property name="inPrivateContext" readonly="true"
-                onget="return this.PrivateBrowsingUtils.isWindowPrivate(window);"/>
+      <property name="consumeRollupEvent" readonly="true"
+                onget="return this.mConsumeRollupEvent;"/>
 
       <!-- This is the maximum number of drop-down rows we get when we
             hit the drop marker beside fields that have it (like the URLbar).-->
@@ -174,13 +195,7 @@
         <setter><![CDATA[
           // Completing a result should simulate the user typing the result,
           // so fire an input event.
-          // Trim popup selected values, but never trim results coming from
-          // autofill.
-          if (this.popup.selectedIndex == -1)
-            this._disableTrim = true;
           this.value = val;
-          this._disableTrim = false;
-
           var evt = document.createEvent("UIEvents");
           evt.initUIEvent("input", true, false, window, 0);
           this.mIgnoreInput = true;
@@ -200,8 +215,7 @@
 
       <method name="onSearchBegin">
         <body><![CDATA[
-          if (this._searchBeginHandler)
-            this._searchBeginHandler();
+          this.fireEvent("searchbegin");
         ]]></body>
       </method>
 
@@ -212,16 +226,13 @@
           else
             this.removeAttribute("nomatch");
 
-          if (this._searchCompleteHandler)
-            this._searchCompleteHandler();
+          this.fireEvent("searchcomplete");
         ]]></body>
       </method>
 
       <method name="onTextEntered">
         <body><![CDATA[
-          let rv = false;
-          if (this._textEnteredHandler)
-            rv = this._textEnteredHandler(this.mEnterEvent);
+          var rv = this.fireEvent("textentered", this.mEnterEvent);
           this.mEnterEvent = null;
           return rv;
         ]]></body>
@@ -229,9 +240,7 @@
 
       <method name="onTextReverted">
         <body><![CDATA[
-          if (this._textRevertedHandler)
-            return this._textRevertedHandler();
-          return false;
+          return this.fireEvent("textreverted");
         ]]></body>
       </method>
 
@@ -256,8 +265,6 @@
 
       <!-- =================== PUBLIC MEMBERS =================== -->
 
-      <field name="valueIsTyped">false</field>
-      <field name="_disableTrim">false</field>
       <property name="value">
         <getter><![CDATA[
           if (typeof this.onBeforeValueGet == "function") {
@@ -273,15 +280,7 @@
           if (typeof this.onBeforeValueSet == "function")
             val = this.onBeforeValueSet(val);
 
-          if (typeof this.trimValue == "function" && !this._disableTrim)
-            val = this.trimValue(val);
-
-          this.valueIsTyped = false;
           this.inputField.value = val;
-
-          if (typeof this.formatValue == "function")
-            this.formatValue();
-
           this.mIgnoreInput = false;
           var event = document.createEvent('Events');
           event.initEvent('ValueChange', true, true);
@@ -309,6 +308,16 @@
                 onset="this.setAttribute('disablekeynavigation', val); return val;"
                 onget="return this.getAttribute('disablekeynavigation') == 'true';"/>
 
+      <!-- option to completely ignore any blur events while
+           searches are still going on.  This is useful so that nothing
+           gets autopicked if the window is required to lose focus for
+           some reason (eg in LDAP autocomplete, another window may be
+           brought up so that the user can enter a password to authenticate
+           to an LDAP server).  -->
+      <property name="ignoreBlurWhileSearching"
+                onset="this.setAttribute('ignoreblurwhilesearching', val); return val;"
+                onget="return this.getAttribute('ignoreblurwhilesearching') == 'true';"/>
+
       <!-- option to highlight entries that don't have any matches -->
       <property name="highlightNonMatches"
                 onset="this.setAttribute('highlightnonmatches', val); return val;"
@@ -326,8 +335,12 @@
 
       <method name="detachController">
         <body><![CDATA[
-          if (this.mController.input == this)
+          try {
+            if  (this.mController.input == this)
             this.mController.input = null;
+          } catch (ex) {
+            // nothing really to do.
+          }
         ]]></body>
       </method>
 
@@ -341,6 +354,7 @@
 
       <method name="closePopup">
         <body><![CDATA[
+          this.mConsumeRollupEvent = false;
           this.popup.closePopup();
         ]]></body>
       </method>
@@ -357,6 +371,7 @@
             input.setAttribute("open", "true");
             function onHide() {
               input.removeAttribute("open");
+              input.mConsumeRollupEvent = false;
               popup.removeEventListener("popuphiding", onHide, false);
             }
             popup.addEventListener("popuphiding", onHide, false);
@@ -376,6 +391,7 @@
           // Ensure that we have focus.
           if (!this.focused)
             this.focus();
+          this.mConsumeRollupEvent = true;
           this.attachController();
           this.mController.startSearch("");
         ]]></body>
@@ -383,7 +399,7 @@
 
       <method name="toggleHistoryPopup">
         <body><![CDATA[
-          if (!this.popup.popupOpen)
+          if (!this.popup.mPopupOpen)
             this.showHistoryPopup();
           else
             this.closePopup();
@@ -392,28 +408,31 @@
 
       <!-- ::::::::::::: event dispatching ::::::::::::: -->
 
-      <method name="initEventHandler">
+      <method name="fireEvent">
         <parameter name="aEventType"/>
         <body><![CDATA[
-          let handlerString = this.getAttribute("on" + aEventType);
-          if (handlerString) {
-            return (new Function("eventType", "param", handlerString)).bind(this, aEventType);
+          var cancel = false;
+          // handle any xml attribute event handlers
+          var handler = this.getAttribute("on"+aEventType);
+          if (handler) {
+            var fn = new Function("eventType", "param", handler);
+            cancel = fn.apply(this, arguments);
           }
-          return null;
+
+          return cancel;
         ]]></body>
       </method>
 
       <!-- ::::::::::::: key handling ::::::::::::: -->
 
-      <field name="_selectionDetails">null</field>
       <method name="onKeyPress">
         <parameter name="aEvent"/>
         <body><![CDATA[
           if (aEvent.target.localName != "textbox")
-            return true; // Let child buttons of autocomplete take input
+            return;  // Let child buttons of autocomplete take input
 
           //XXXpch this is so bogus...
-          if (aEvent.defaultPrevented)
+          if (aEvent.getPreventDefault())
             return false;
 
           var cancel = false;
@@ -440,12 +459,10 @@
           if (!this.disableKeyNavigation && !aEvent.ctrlKey && !aEvent.altKey) {
             switch (aEvent.keyCode) {
               case KeyEvent.DOM_VK_TAB:
-                if (this.tabScrolling && this.popup.popupOpen)
+                if (this.tabScrolling && this.popup.mPopupOpen)
                   cancel = this.mController.handleKeyNavigation(aEvent.shiftKey ?
                                                                 KeyEvent.DOM_VK_UP :
                                                                 KeyEvent.DOM_VK_DOWN);
-                else if (this.forceComplete && this.mController.matchCount >= 1)
-                  this.mController.handleTab();
                 break;
               case KeyEvent.DOM_VK_UP:
               case KeyEvent.DOM_VK_DOWN:
@@ -469,12 +486,6 @@
                 aEvent.preventDefault();
 #endif
               this.mEnterEvent = aEvent;
-              if (this.mController.selection) {
-                this._selectionDetails = {
-                  index: this.mController.selection.currentIndex,
-                  kind: "key"
-                };
-              }
               cancel = this.mController.handleEnter(false);
               break;
             case KeyEvent.DOM_VK_DELETE:
@@ -536,40 +547,14 @@
         ]]></body>
       </method>
 
-      <field name="_valueIsPasted">false</field>
-      <field name="_pasteController"><![CDATA[
-        ({
-          _autocomplete: this,
-          _kGlobalClipboard: Components.interfaces.nsIClipboard.kGlobalClipboard,
-          supportsCommand: function(aCommand) aCommand == "cmd_paste",
-          doCommand: function(aCommand) {
-            this._autocomplete._valueIsPasted = true;
-            this._autocomplete.editor.paste(this._kGlobalClipboard);
-            this._autocomplete._valueIsPasted = false;
-          },
-          isCommandEnabled: function(aCommand) {
-            return this._autocomplete.editor.isSelectionEditable &&
-                   this._autocomplete.editor.canPaste(this._kGlobalClipboard);
-          },
-          onEvent: function() {}
-        })
-      ]]></field>
-
-      <method name="onInput">
-        <parameter name="aEvent"/>
-        <body><![CDATA[
-          if (!this.mIgnoreInput && this.mController.input == this) {
-            this.valueIsTyped = true;
-            this.mController.handleText();
-          }
-          this.resetActionType();
-        ]]></body>
-      </method>
     </implementation>
 
     <handlers>
       <handler event="input"><![CDATA[
-        this.onInput(event);
+        if (!this.mIgnoreInput && this.mController.input == this) {
+          this.mController.handleText(true);
+        }
+        this.resetActionType();
       ]]></handler>
 
       <handler event="keypress" phase="capturing"
@@ -584,24 +569,18 @@
       <handler event="focus" phase="capturing"
                action="this.attachController();"/>
 
-      <handler event="blur" phase="capturing"><![CDATA[
-        if (!this._dontBlur) {
-          if (this.forceComplete && this.mController.matchCount >= 1)
-            this.mController.handleEnter(false);
-          this.detachController();
-        }
-      ]]></handler>
+      <handler event="blur" phase="capturing"
+               action="if (!this._dontBlur) this.detachController();"/>
     </handlers>
   </binding>
 
   <binding id="autocomplete-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-base-popup">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/tree.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
-    <content ignorekeys="true" level="top" consumeoutsideclicks="never">
+    <content ignorekeys="true" level="top">
       <xul:tree anonid="tree" class="autocomplete-tree plain" hidecolumnpicker="true" flex="1" seltype="single">
         <xul:treecols anonid="treecols">
           <xul:treecol id="treecolAutoCompleteValue" class="autocomplete-treecol" flex="1" overflow="true"/>
@@ -744,14 +723,16 @@
             var nav = aElement.ownerDocument.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                               .getInterface(Components.interfaces.nsIWebNavigation);
             var docShell = nav.QueryInterface(Components.interfaces.nsIDocShell);
-            var docViewer = docShell.contentViewer;
+            var docViewer = docShell.contentViewer.QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
             var width = (rect.right - rect.left) * docViewer.fullZoom;
             this.setAttribute("width", width > 100 ? width : 100);
 
-            // Adjust the direction of the autocomplete popup list based on the textbox direction, bug 649840
-            var popupDirection = aElement.ownerDocument.defaultView.getComputedStyle(aElement).direction;
-            this.style.direction = popupDirection;
-
+            // setConsumeRollupEvent() before we call openPopup()
+            var nsIPopupBO = Components.interfaces.nsIPopupBoxObject;
+            this.popupBoxObject.setConsumeRollupEvent(
+              this.mInput.consumeRollupEvent ?
+                nsIPopupBO.ROLLUP_CONSUME :
+                nsIPopupBO.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
           }
         ]]></body>
@@ -797,16 +778,21 @@
         <setter><![CDATA[
           // We must do this by hand because the tree binding may not be ready yet
           this.mView = val;
-          this.tree.boxObject.view = val;
+          var bx = this.tree.boxObject;
+          bx = bx.QueryInterface(Components.interfaces.nsITreeBoxObject);
+          bx.view = val;
         ]]></setter>
       </property>
 
     </implementation>
   </binding>
 
-  <binding id="autocomplete-base-popup" role="none"
-extends="chrome://global/content/bindings/popup.xml#popup">
+  <binding id="autocomplete-base-popup" extends="chrome://global/content/bindings/popup.xml#popup">
     <implementation implements="nsIAutoCompletePopup">
+      <!-- nsIAccessible from #popup -->
+      <property name="accessibleType" readonly="true"
+                onget="return Components.interfaces.nsIAccessibleProvider.NoAccessible;"/>
+
       <field name="mInput">null</field>
       <field name="mPopupOpen">false</field>
 
@@ -893,26 +879,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
       <handler event="popupshowing"><![CDATA[
         // If normalMaxRows wasn't already set by the input, then set it here
         // so that we restore the correct number when the popup is hidden.
-
-        // Null-check this.mInput; see bug 1017914
-        if (this._normalMaxRows < 0 && this.mInput) {
+        if (this._normalMaxRows < 0)
           this._normalMaxRows = this.mInput.maxRows;
-        }
-
-        // Set an attribute for styling the popup based on the input.
-        let inputID = "";
-        if (this.mInput && this.mInput.ownerDocument &&
-            this.mInput.ownerDocument.documentURIObject.schemeIs("chrome")) {
-          inputID = this.mInput.id;
-          // Take care of elements with no id that are inside xbl bindings
-          if (!inputID) {
-            let bindingParent = this.mInput.ownerDocument.getBindingParent(this.mInput);
-            if (bindingParent) {
-              inputID = bindingParent.id;
-            }
-          }
-        }
-        this.setAttribute("autocompleteinput", inputID);
 
         this.mPopupOpen = true;
       ]]></handler>
@@ -924,22 +892,16 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
         controller.stopSearch();
 
-        this.removeAttribute("autocompleteinput");
         this.mPopupOpen = false;
 
         // Reset the maxRows property to the cached "normal" value, and reset
         // _normalMaxRows so that we can detect whether it was set by the input
         // when the popupshowing handler runs.
-
-        // Null-check this.mInput; see bug 1017914
-        if (this.mInput)
-          this.mInput.maxRows = this._normalMaxRows;
+        this.mInput.maxRows = this._normalMaxRows;
         this._normalMaxRows = -1;
         // If the list was being navigated and then closed, make sure
         // we fire accessible focus event back to textbox
-
-        // Null-check this.mInput; see bug 1017914
-        if (isListActive && this.mInput) {
+        if (isListActive) {
           this.mInput.mIgnoreFocus = true;
           this.mInput._focus();
           this.mInput.mIgnoreFocus = false;
@@ -950,11 +912,10 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
   <binding id="autocomplete-rich-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-base-popup">
     <resources>
-      <stylesheet src="chrome://global/content/autocomplete.css"/>
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
-    <content ignorekeys="true" level="top" consumeoutsideclicks="never">
+    <content ignorekeys="true" level="top">
       <xul:richlistbox anonid="richlistbox" class="autocomplete-richlistbox" flex="1"/>
       <xul:hbox>
         <children/>
@@ -963,7 +924,6 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
     <implementation implements="nsIAutoCompletePopup">
       <field name="_currentIndex">0</field>
-      <field name="_rowHeight">0</field>
 
       <!-- =================== nsIAutoCompletePopup =================== -->
 
@@ -1011,6 +971,12 @@ extends="chrome://global/content/bindings/popup.xml#popup">
             // invalidate() depends on the width attribute
             this._invalidate();
 
+            // setConsumeRollupEvent() before we call openPopup()
+            var nsIPopupBO = Components.interfaces.nsIPopupBoxObject;
+            this.popupBoxObject.setConsumeRollupEvent(
+              this.mInput.consumeRollupEvent ?
+                nsIPopupBO.ROLLUP_CONSUME :
+                nsIPopupBO.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
           }
         ]]>
@@ -1082,37 +1048,17 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           // Default the height to 0 if we have no rows to show
           let height = 0;
           if (numRows) {
-            if (!this._rowHeight) {
-              let firstRowRect = rows[0].getBoundingClientRect();
-              this._rowHeight = firstRowRect.height;
-            }
+            let firstRowRect = rows[0].getBoundingClientRect();
+            let lastRowRect = rows[numRows - 1].getBoundingClientRect();
 
             // Calculate the height to have the first row to last row shown
-            height = this._rowHeight * numRows;
+            height = lastRowRect.bottom - firstRowRect.top;
           }
 
           // Only update the height if we have a non-zero height and if it
           // changed (the richlistbox is collapsed if there are no results)
           if (height && height != this.richlistbox.height)
             this.richlistbox.height = height;
-          ]]>
-        </body>
-      </method>
-
-      <method name="_getImageURLForResolution">
-        <parameter name="aWin"/>
-        <parameter name="aURL"/>
-        <parameter name="aWidth"/>
-        <parameter name="aHeight"/>
-        <body>
-          <![CDATA[
-          if (!aURL.endsWith('.ico') && !aURL.endsWith('.ICO')) {
-            return aURL;
-          }
-          let width  = Math.round(aWidth * aWin.devicePixelRatio);
-          let height = Math.round(aHeight * aWin.devicePixelRatio);
-          return aURL + (aURL.contains("#") ? "&" : "#") +
-                 "-moz-resolution=" + width + "," + height;
           ]]>
         </body>
       </method>
@@ -1127,7 +1073,7 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           // Process maxRows per chunk to improve performance and user experience
           for (let i = 0; i < this.maxRows; i++) {
             if (this._currentIndex >= matchCount)
-              break;
+              return;
 
             var item;
 
@@ -1157,9 +1103,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
             }
 
             // set these attributes before we set the class
-            // so that we can use them from the constructor
-            let iconURI = this._getImageURLForResolution(window, controller.getImageAt(this._currentIndex), 16, 16);
-            item.setAttribute("image", iconURI);
+            // so that we can use them from the contructor
+            item.setAttribute("image", controller.getImageAt(this._currentIndex));
             item.setAttribute("url", url);
             item.setAttribute("title", controller.getCommentAt(this._currentIndex));
             item.setAttribute("type", controller.getStyleAt(this._currentIndex));
@@ -1180,14 +1125,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
             this._currentIndex++;
           }
 
-          if (typeof this.onResultsAdded == "function")
-            this.onResultsAdded();
-
-          if (this._currentIndex < matchCount) {
-            // yield after each batch of items so that typing the url bar is
-            // responsive
-            setTimeout(function (self) { self._appendCurrentResult(); }, 0, this);
-          }
+          // yield after each batch of items so that typing the url bar is responsive
+          setTimeout(function (self) { self._appendCurrentResult(); }, 0, this);
         ]]>
         </body>
       </method>
@@ -1241,7 +1180,7 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           <xul:label class="ac-normal-text ac-comment" xbl:inherits="selected" value=":"/>
           <xul:description anonid="extra" class="ac-normal-text ac-comment" xbl:inherits="selected"/>
         </xul:hbox>
-        <xul:image anonid="type-image" class="ac-type-icon" xbl:inherits="selected"/>
+        <xul:image anonid="type-image" class="ac-type-icon"/>
       </xul:hbox>
       <xul:hbox align="center" class="ac-url-box">
         <xul:spacer class="ac-site-icon"/>
@@ -1303,29 +1242,14 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
             // allow consumers that have extended popups to override
             // the label values for the richlistitems
-            if (panel.createResultLabel) {
-              let types = this.getAttribute("type").split(/\s+/);
-              // We only want one type for createResultLabel, so get the first
-              // that isn't "action".
-              let type = types.find(v => v != "action");
-
-              return panel.createResultLabel(title, url, type);
-            }
+            if (panel.createResultLabel)
+              return panel.createResultLabel(title, url, this.getAttribute("type"));
 
             // aType (ex: "ac-result-type-<aType>") is related to the class of the image,
             // and is not "visible" text so don't use it for the label (for accessibility).
             return title + " " + url;
           ]]>
         </getter>
-      </property>
-
-      <property name="_stringBundle">
-        <getter><![CDATA[
-          if (!this.__stringBundle) {
-            this.__stringBundle = Services.strings.createBundle("chrome://global/locale/autocomplete.properties");
-          }
-          return this.__stringBundle;
-        ]]></getter>
       </property>
 
       <field name="_boundaryCutoff">null</field>
@@ -1370,10 +1294,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           }
 
           // Sort the regions by start position then end position
-          regions = regions.sort((a, b) => {
-            let start = a[0] - b[0];
-            return (start == 0) ? a[1] - b[1] : start;
-          });
+          regions = regions.sort(function(a, b) let (start = a[0] - b[0])
+            start == 0 ? a[1] - b[1] : start);
 
           // Generate the boundary indices from each region
           let start = 0;
@@ -1421,6 +1343,23 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         </body>
       </method>
 
+      <method name="_needsAlternateEmphasis">
+        <parameter name="aText"/>
+        <body>
+          <![CDATA[
+          for (let i = aText.length; --i >= 0; ) {
+            let charCode = aText.charCodeAt(i);
+            // Arabic, Syriac, Indic languages are likely to have ligatures
+            // that are broken when using the main emphasis styling
+            if (0x0600 <= charCode && charCode <= 0x109F)
+              return true;
+          }
+
+          return false;
+          ]]>
+        </body>
+      </method>
+
       <method name="_setUpDescription">
         <parameter name="aDescriptionElement"/>
         <parameter name="aText"/>
@@ -1442,6 +1381,10 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           let tokens = this._getSearchTokens(search);
           let indices = this._getBoundaryIndices(aText, tokens);
 
+          // If we're searching for something that needs alternate emphasis,
+          // we'll need to check the text that we match
+          let checkAlt = this._needsAlternateEmphasis(search);
+
           let next;
           let start = 0;
           let len = indices.length;
@@ -1455,7 +1398,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
               // Emphasize the text for even indices
               let span = aDescriptionElement.appendChild(
                 document.createElementNS("http://www.w3.org/1999/xhtml", "span"));
-              span.className = "ac-emphasize-text";
+              span.className = checkAlt && this._needsAlternateEmphasis(text) ?
+                "ac-emphasize-alt" : "ac-emphasize-text";
               span.textContent = text;
             } else {
               // Otherwise, it's plain text
@@ -1466,131 +1410,14 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         </body>
       </method>
 
-      <!--
-        This will generate an array of emphasis pairs for use with
-        _setUpEmphasisedSections(). Each pair is a tuple (array) that
-        represents a block of text - containing the text of that block, and a
-        boolean for whether that block should have an emphasis styling applied
-        to it.
-
-        These pairs are generated by parsing a localised string (aSourceString)
-        with parameters, in the format that is used by
-        nsIStringBundle.formatStringFromName():
-
-          "textA %1$S textB textC %2$S"
-
-        Or:
-
-          "textA %S"
-
-        Where "%1$S", "%2$S", and "%S" are intended to be replaced by provided
-        replacement strings. These are specified an array of tuples
-        (aReplacements), each containing the replacement text and a boolean for
-        whether that text should have an emphasis styling applied. This is used
-        as a 1-based array - ie, "%1$S" is replaced by the item in the first
-        index of aReplacements, "%2$S" by the second, etc. "%S" will always
-        match the first index.
-      -->
-      <method name="_generateEmphasisPairs">
-        <parameter name="aSourceString"/>
-        <parameter name="aReplacements"/>
-        <body>
-          <![CDATA[
-            let pairs = [];
-
-            // Split on %S, %1$S, %2$S, etc. ie:
-            //   "textA %S"
-            //     becomes ["textA ", "%S"]
-            //   "textA %1$S textB textC %2$S"
-            //     becomes ["textA ", "%1$S", " textB textC ", "%2$S"]
-            let parts = aSourceString.split(/(%(?:[0-9]+\$)?S)/);
-
-            for (let part of parts) {
-              // The above regex will actually give us an empty string at the
-              // end - we don't want that, as we don't want to later generate an
-              // empty text node for it.
-              if (part.length === 0)
-                continue;
-
-              // Determine if this token is a replacement token or a normal text
-              // token. If it is a replacement token, we want to extract the
-              // numerical number. However, we still want to match on "$S".
-              let match = part.match(/^%(?:([0-9]+)\$)?S$/);
-
-              if (match) {
-                // "%S" doesn't have a numerical number in it, but will always
-                // be assumed to be 1. Furthermore, the input string specifies
-                // these with a 1-based index, but we want a 0-based index.
-                let index = (match[1] || 1) - 1;
-
-                if (index >= 0 && index < aReplacements.length) {
-                  let replacement = aReplacements[index];
-                  pairs.push([...replacement]);
-                }
-              } else {
-                pairs.push([part, false]);
-              }
-            }
-
-            return pairs;
-          ]]>
-        </body>
-      </method>
-
-      <!--
-        _setUpEmphasisedSections() has the same use as _setUpDescription,
-        except instead of taking a string and highlighting given tokens, it takes
-        an array of pairs generated by _generateEmphasisPairs(). This allows
-        control over emphasising based on specific blocks of text, rather than
-        search for substrings.
-      -->
-      <method name="_setUpEmphasisedSections">
-        <parameter name="aDescriptionElement"/>
-        <parameter name="aTextPairs"/>
-        <body>
-          <![CDATA[
-          // Get rid of all previous text
-          while (aDescriptionElement.hasChildNodes())
-            aDescriptionElement.firstChild.remove();
-
-          for (let [text, emphasise] of aTextPairs) {
-            if (emphasise) {
-              let span = aDescriptionElement.appendChild(
-                document.createElementNS("http://www.w3.org/1999/xhtml", "span"));
-              span.className = "ac-emphasize-text";
-              span.textContent = text;
-            } else {
-              aDescriptionElement.appendChild(document.createTextNode(text));
-            }
-          }
-          ]]>
-        </body>
-      </method>
-
       <method name="_adjustAcItem">
         <body>
           <![CDATA[
-          let url = this.getAttribute("url");
-          let title = this.getAttribute("title");
-          let type = this.getAttribute("type");
-
-          let displayUrl = url;
-
-          let input = this.parentNode.parentNode.input;
-          if (typeof input.trimValue == "function")
-            displayUrl = input.trimValue(url);
-
-          let emphasiseTitle = true;
-          let emphasiseUrl = true;
-
-          // Hide the title's extra box by default, until we find out later if
-          // we need extra stuff.
-          this._extraBox.hidden = true;
-          this._titleBox.flex = 1;
-          this._typeImage.hidden = false;
+          var url = this.getAttribute("url");
+          var title = this.getAttribute("title");
+          var type = this.getAttribute("type");
 
           this.removeAttribute("actiontype");
-          this.classList.remove("overridable-action");
 
           // The ellipses are hidden via their visibility so that they always
           // take up space and don't pop in on top of text when shown.  For
@@ -1598,82 +1425,24 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           // space when hidden.  Setting the hidden property accomplishes that.
           this._titleOverflowEllipsis.hidden = false;
 
-          let types = new Set(type.split(/\s+/));
-          let initialTypes = new Set(types);
-
           // If the type includes an action, set up the item appropriately.
-          if (types.has("action")) {
-            let action = this._parseActionUrl(url);
-            this.setAttribute("actiontype", action.type);
-
-            if (action.type == "switchtab") {
-              this.classList.add("overridable-action");
-              displayUrl = action.params.url;
-              let desc = this._stringBundle.GetStringFromName("switchToTab");
-              this._setUpDescription(this._action, desc, true);
-            } else if (action.type == "searchengine") {
-              emphasiseUrl = false;
-
-              let sourceStr = this._stringBundle.GetStringFromName("searchWithEngineForQuery");
-              title = this._generateEmphasisPairs(sourceStr, [
-                                                    [action.params.engineName, false],
-                                                    [action.params.searchQuery, true]
-                                                  ]);
-              // If this is a default search match, we remove the image so we
-              // can style it ourselves with a generic search icon.
-              // We don't do this when matching an aliased search engine,
-              // because the icon helps with recognising which engine will be
-              // used (when using the default engine, we don't need that
-              // recognition).
-              if (!action.params.alias) {
-                this.removeAttribute("image");
-              }
-            } else if (action.type == "visiturl") {
-              emphasiseUrl = false;
-              displayUrl = action.params.url;
-
-              let sourceStr = this._stringBundle.GetStringFromName("visitURL");
-              title = this._generateEmphasisPairs(sourceStr, [
-                                                    [displayUrl, true],
-                                                  ]);
-            }
+          var types = type.split(/\s+/);
+          var actionIndex = types.indexOf("action");
+          if (actionIndex >= 0) {
+            let [,action, param] = url.match(/^moz-action:([^,]+),(.*)$/);
+            this.setAttribute("actiontype", action);
+            url = param;
+            let desc = "]]>&action.switchToTab.label;<![CDATA[";
+            this._setUpDescription(this._action, desc, true);
 
             // Remove the "action" substring so that the correct style, if any,
             // is applied below.
-            types.delete("action");
+            types.splice(actionIndex, 1);
+            type = types.join(" ");
           }
-
-          // Check if we have a search engine name
-          if (types.has("search")) {
-            emphasiseUrl = false;
-
-            const TITLE_SEARCH_ENGINE_SEPARATOR = " \u00B7\u2013\u00B7 ";
-
-            let searchEngine = "";
-            [title, searchEngine] = title.split(TITLE_SEARCH_ENGINE_SEPARATOR);
-            displayUrl = this._stringBundle.formatStringFromName("searchWithEngine", [searchEngine], 1);
-
-            // Remove the "search" substring so that the correct style, if any,
-            // is applied below.
-            types.delete("search");
-          }
-
-          // Check if we have an auto-fill URL
-          if (types.has("autofill")) {
-            emphasiseUrl = false;
-
-            let sourceStr = this._stringBundle.GetStringFromName("visitURL");
-            title = this._generateEmphasisPairs(sourceStr, [
-                                                 [displayUrl, true],
-                                                ]);
-
-            types.delete("autofill");
-          }
-
-          type = [...types].join(" ");
 
           // If we have a tag match, show the tags and icon
-          if (type == "tag" || type == "bookmark-tag") {
+          if (type == "tag") {
             // Configure the extra box for tags display
             this._extraBox.hidden = false;
             this._extraBox.childNodes[0].hidden = false;
@@ -1691,73 +1460,48 @@ extends="chrome://global/content/bindings/popup.xml#popup">
             // Emphasize the matching text in the tags
             this._setUpDescription(this._extra, sortedTags);
 
-            // If we're suggesting bookmarks, then treat tagged matches as
-            // bookmarks for the star.
-            if (type == "bookmark-tag") {
-              type = "bookmark";
-            } else {
-              this._typeImage.hidden = true;
-            }
-          // keyword and favicon type results for search engines
-          // have an extra magnifying glass icon after them
-          } else if (type == "keyword" || (initialTypes.has("search") &&
-              initialTypes.has("favicon"))) {
+            // Treat tagged matches as bookmarks for the star
+            type = "bookmark";
+          } else if (type == "keyword") {
             // Configure the extra box for keyword display
             this._extraBox.hidden = false;
             this._extraBox.childNodes[0].hidden = true;
-            // The second child node is ":" and it should be hidden for non keyword types
-            this._extraBox.childNodes[1].hidden = type == "keyword" ? false : true;
+            this._extraBox.childNodes[1].hidden = false;
             this._extraBox.pack = "start";
             this._titleBox.flex = 0;
 
             // Hide the ellipsis so it doesn't take up space.
             this._titleOverflowEllipsis.hidden = true;
 
-            if (type == "keyword") {
-              // Put the parameters next to the title if we have any
-              let search = this.getAttribute("text");
-              let params = "";
-              let paramsIndex = search.indexOf(" ");
-              if (paramsIndex != -1)
-                params = search.substr(paramsIndex + 1);
+            // Put the parameters next to the title if we have any
+            let search = this.getAttribute("text");
+            let params = "";
+            let paramsIndex = search.indexOf(' ');
+            if (paramsIndex != -1)
+              params = search.substr(paramsIndex + 1);
 
-              // Emphasize the keyword parameters
-              this._setUpDescription(this._extra, params);
+            // Emphasize the keyword parameters
+            this._setUpDescription(this._extra, params);
 
-              // Don't emphasize keyword searches in the title or url
-              emphasiseUrl = false;
-              emphasiseTitle = false;
-            } else {
-              // Don't show any description for non keyword types.
-              this._setUpDescription(this._extra, "", true);
-            }
-            // If the result has the type favicon and a known search provider,
-            // customize it the same way as a keyword result.
-            type = "keyword";
+            // Don't emphasize keyword searches in the title or url
+            this.setAttribute("text", "");
+          } else {
+            // Hide the title's extra box if we don't need extra stuff
+            this._extraBox.hidden = true;
+            this._titleBox.flex = 1;
           }
 
           // Give the image the icon style and a special one for the type
           this._typeImage.className = "ac-type-icon" +
             (type ? " ac-result-type-" + type : "");
 
-          // Show the domain as the title if we don't have a title.
-          if (title == "") {
-            title = displayUrl;
-            try {
-              let uri = Services.io.newURI(url, null, null);
-              // Not all valid URLs have a domain.
-              if (uri.host)
-                title = uri.host;
-            } catch (e) {}
-          }
+          // Show the url as the title if we don't have a title
+          if (title == "")
+            title = url;
 
           // Emphasize the matching search terms for the description
-          if (Array.isArray(title))
-            this._setUpEmphasisedSections(this._title, title);
-          else
-            this._setUpDescription(this._title, title, !emphasiseTitle);
-
-          this._setUpDescription(this._url, displayUrl, !emphasiseUrl);
+          this._setUpDescription(this._title, title);
+          this._setUpDescription(this._url, url);
 
           // Set up overflow on a timeout because the contents of the box
           // might not have a width yet even though we just changed them
@@ -1765,36 +1509,6 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           setTimeout(this._setUpOverflow, 0, this._urlBox, this._urlOverflowEllipsis);
           ]]>
         </body>
-      </method>
-
-      <method name="_parseActionUrl">
-        <parameter name="aUrl"/>
-        <body><![CDATA[
-          if (!aUrl.startsWith("moz-action:"))
-            return null;
-
-          // URL is in the format moz-action:ACTION,PARAMS
-          // Where PARAMS is a JSON encoded object.
-          let [, type, params] = aUrl.match(/^moz-action:([^,]+),(.*)$/);
-
-          let action = {
-            type: type,
-          };
-
-          try {
-            action.params = JSON.parse(params);
-          } catch (e) {
-            // If this failed, we assume that params is not a JSON object, and
-            // is instead just a flat string. This will happen when
-            // UnifiedComplete is disabled - in which case, the param is always
-            // a URL.
-            action.params = {
-              url: params,
-            }
-          }
-
-          return action;
-        ]]></body>
       </method>
 
       <method name="_setUpOverflow">

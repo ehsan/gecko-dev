@@ -1,11 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Radha Kulkarni (radha@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
-interface nsISHEntry;
+interface nsIHistoryEntry;
 interface nsISHistoryListener;
 interface nsISimpleEnumerator;
 /**
@@ -22,12 +55,12 @@ interface nsISimpleEnumerator;
 
 %{C++
 #define NS_SHISTORY_CID \
-{0x7b807041, 0xe60a, 0x4384, {0x93, 0x5f, 0xaf, 0x30, 0x61, 0xd8, 0xb8, 0x15}}
+{0x7294fe9c, 0x14d8, 0x11d5, {0x98, 0x82, 0x00, 0xC0, 0x4f, 0xa0, 0x2f, 0x40}}
 
 #define NS_SHISTORY_CONTRACTID "@mozilla.org/browser/shistory;1"
 %}
 
-[scriptable, uuid(7b807041-e60a-4384-935f-af3061d8b815)]
+[scriptable, uuid(9883609F-CDD8-4d83-9B55-868FF08AD433)]
 interface nsISHistory: nsISupports
 {
   /**
@@ -63,7 +96,6 @@ interface nsISHistory: nsISupports
    * given index.
    *
    * @param index             The index value whose entry is requested.
-   *                          The oldest entry is located at index == 0.
    * @param modifyIndex       A boolean flag that indicates if the current
    *                          index of session history should be modified 
    *                          to the parameter index.
@@ -73,7 +105,7 @@ interface nsISHistory: nsISupports
    *                          <code>NS_ERROR_FAILURE</code> Error in obtaining
    *                          history entry for the given index.
    */
-   nsISHEntry getEntryAtIndex(in long index, in boolean modifyIndex);
+   nsIHistoryEntry getEntryAtIndex(in long index, in boolean modifyIndex);
 
 
   /**
@@ -136,27 +168,19 @@ interface nsISHistory: nsISupports
    *           by step #1 to obtain handle to the next object in the list. 
    *           The object returned by this step is of type nsISupports.
    *        3) Perform a QueryInterface on the object returned by step #2 
-   *           to nsISHEntry.
-   *        4) Use nsISHEntry to access properties of each history entry. 
+   *           to nsIHistoryEntry.
+   *        4) Use nsIHistoryEntry to access properties of each history entry. 
    *
    * @see nsISimpleEnumerator
-   * @see nsISHEntry
+   * @see nsIHistoryEntry
    * @see QueryInterface()
    * @see do_QueryInterface()
    */
    readonly attribute nsISimpleEnumerator SHistoryEnumerator;
+};
 
-   void reloadCurrentEntry();
-
-   /**
-   * Called to obtain the index to a given history entry.
-   *
-   * @param aEntry            The entry to obtain the index of.
-   *
-   * @return                  <code>NS_OK</code> index for the history entry
-   *                          is obtained successfully.
-   *                          <code>NS_ERROR_FAILURE</code> Error in obtaining
-   *                          index for the given history entry.
-   */
-   long getIndexOfEntry(in nsISHEntry aEntry);
+[scriptable, uuid(ac8b3eb3-2051-4cce-8303-d6e7938501dd)]
+interface nsISHistory_2_0_BRANCH: nsISHistory
+{
+  void reloadCurrentEntry();
 };

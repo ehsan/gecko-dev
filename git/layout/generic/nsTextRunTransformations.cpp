@@ -1,117 +1,119 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Novell code.
+ *
+ * The Initial Developer of the Original Code is Novell Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   robert@ocallahan.org
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsTextRunTransformations.h"
 
-#include "mozilla/MemoryReporting.h"
+#include "nsTextFrameUtils.h"
+#include "gfxSkipChars.h"
 
-#include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
+#include "gfxContext.h"
+#include "nsContentUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsUnicodeProperties.h"
-#include "nsSpecialCasingData.h"
-#include "mozilla/gfx/2D.h"
-#include "nsTextFrameUtils.h"
-#include "nsIPersistentProperties2.h"
-#include "nsNetUtil.h"
-#include "GreekCasing.h"
-#include "IrishCasing.h"
 
-// Unicode characters needing special casing treatment in tr/az languages
-#define LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE  0x0130
-#define LATIN_SMALL_LETTER_DOTLESS_I           0x0131
-
-// Greek sigma needs custom handling for the lowercase transform; for details
-// see comments under "case NS_STYLE_TEXT_TRANSFORM_LOWERCASE" within
-// nsCaseTransformTextRunFactory::RebuildTextRun(), and bug 740120.
-#define GREEK_CAPITAL_LETTER_SIGMA             0x03A3
-#define GREEK_SMALL_LETTER_FINAL_SIGMA         0x03C2
-#define GREEK_SMALL_LETTER_SIGMA               0x03C3
+#define SZLIG 0x00DF
 
 nsTransformedTextRun *
 nsTransformedTextRun::Create(const gfxTextRunFactory::Parameters* aParams,
                              nsTransformingTextRunFactory* aFactory,
                              gfxFontGroup* aFontGroup,
-                             const char16_t* aString, uint32_t aLength,
-                             const uint32_t aFlags, nsStyleContext** aStyles,
-                             bool aOwnsFactory)
+                             const PRUnichar* aString, PRUint32 aLength,
+                             const PRUint32 aFlags, nsStyleContext** aStyles,
+                             PRBool aOwnsFactory)
 {
   NS_ASSERTION(!(aFlags & gfxTextRunFactory::TEXT_IS_8BIT),
                "didn't expect text to be marked as 8-bit here");
 
-  void *storage = AllocateStorageForTextRun(sizeof(nsTransformedTextRun), aLength);
-  if (!storage) {
-    return nullptr;
+  // Note that AllocateStorage MAY modify the textPtr parameter,
+  // if the text is not persistent and therefore a private copy is created
+  const void *textPtr = aString;
+  CompressedGlyph *glyphStorage = AllocateStorage(textPtr, aLength, aFlags);
+  if (!glyphStorage) {
+    return nsnull;
   }
 
-  return new (storage) nsTransformedTextRun(aParams, aFactory, aFontGroup,
-                                            aString, aLength,
-                                            aFlags, aStyles, aOwnsFactory);
+  return new nsTransformedTextRun(aParams, aFactory, aFontGroup,
+                                  static_cast<const PRUnichar*>(textPtr), aLength,
+                                  aFlags, aStyles, aOwnsFactory, glyphStorage);
 }
 
 void
-nsTransformedTextRun::SetCapitalization(uint32_t aStart, uint32_t aLength,
-                                        bool* aCapitalization,
+nsTransformedTextRun::SetCapitalization(PRUint32 aStart, PRUint32 aLength,
+                                        PRPackedBool* aCapitalization,
                                         gfxContext* aRefContext)
 {
   if (mCapitalize.IsEmpty()) {
     if (!mCapitalize.AppendElements(GetLength()))
       return;
-    memset(mCapitalize.Elements(), 0, GetLength()*sizeof(bool));
+    memset(mCapitalize.Elements(), 0, GetLength()*sizeof(PRPackedBool));
   }
-  memcpy(mCapitalize.Elements() + aStart, aCapitalization, aLength*sizeof(bool));
-  mNeedsRebuild = true;
+  memcpy(mCapitalize.Elements() + aStart, aCapitalization, aLength*sizeof(PRPackedBool));
+  mNeedsRebuild = PR_TRUE;
 }
 
-bool
-nsTransformedTextRun::SetPotentialLineBreaks(uint32_t aStart, uint32_t aLength,
-                                             uint8_t* aBreakBefore,
+PRBool
+nsTransformedTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
+                                             PRPackedBool* aBreakBefore,
                                              gfxContext* aRefContext)
 {
-  bool changed = gfxTextRun::SetPotentialLineBreaks(aStart, aLength,
+  PRBool changed = gfxTextRun::SetPotentialLineBreaks(aStart, aLength,
       aBreakBefore, aRefContext);
   if (changed) {
-    mNeedsRebuild = true;
+    mNeedsRebuild = PR_TRUE;
   }
   return changed;
 }
 
-size_t
-nsTransformedTextRun::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-{
-  size_t total = gfxTextRun::SizeOfExcludingThis(aMallocSizeOf);
-  total += mStyles.SizeOfExcludingThis(aMallocSizeOf);
-  total += mCapitalize.SizeOfExcludingThis(aMallocSizeOf);
-  if (mOwnsFactory) {
-    total += aMallocSizeOf(mFactory);
-  }
-  return total;
-}
-
-size_t
-nsTransformedTextRun::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-{
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-
 nsTransformedTextRun*
-nsTransformingTextRunFactory::MakeTextRun(const char16_t* aString, uint32_t aLength,
+nsTransformingTextRunFactory::MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
                                           const gfxTextRunFactory::Parameters* aParams,
-                                          gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                          nsStyleContext** aStyles, bool aOwnsFactory)
+                                          gfxFontGroup* aFontGroup, PRUint32 aFlags,
+                                          nsStyleContext** aStyles, PRBool aOwnsFactory)
 {
   return nsTransformedTextRun::Create(aParams, this, aFontGroup,
                                       aString, aLength, aFlags, aStyles, aOwnsFactory);
 }
 
 nsTransformedTextRun*
-nsTransformingTextRunFactory::MakeTextRun(const uint8_t* aString, uint32_t aLength,
+nsTransformingTextRunFactory::MakeTextRun(const PRUint8* aString, PRUint32 aLength,
                                           const gfxTextRunFactory::Parameters* aParams,
-                                          gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                          nsStyleContext** aStyles, bool aOwnsFactory)
+                                          gfxFontGroup* aFontGroup, PRUint32 aFlags,
+                                          nsStyleContext** aStyles, PRBool aOwnsFactory)
 {
   // We'll only have a Unicode code path to minimize the amount of code needed
   // for these rarely used features
@@ -121,29 +123,45 @@ nsTransformingTextRunFactory::MakeTextRun(const uint8_t* aString, uint32_t aLeng
                      aStyles, aOwnsFactory);
 }
 
-void
+/**
+ * Copy a given textrun, but merge certain characters into a single logical
+ * character. Glyphs for a character are added to the glyph list for the previous
+ * character and then the merged character is eliminated. Visually the results
+ * are identical.
+ * 
+ * This is used for text-transform:uppercase when we encounter a SZLIG,
+ * whose uppercase form is "SS".
+ * 
+ * This function is unable to merge characters when they occur in different
+ * glyph runs. It's hard to see how this could happen, but if it does, we just
+ * discard the characters-to-merge.
+ * 
+ * For simplicity, this produces a textrun containing all DetailedGlyphs,
+ * no simple glyphs. So don't call it unless you really have merging to do.
+ * 
+ * @param aCharsToMerge when aCharsToMerge[i] is true, this character is
+ * merged into the previous character
+ */
+static void
 MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
-                         const bool* aCharsToMerge, const bool* aDeletedChars)
+                         PRPackedBool* aCharsToMerge)
 {
   aDest->ResetGlyphRuns();
 
   gfxTextRun::GlyphRunIterator iter(aSrc, 0, aSrc->GetLength());
-  uint32_t offset = 0;
+  PRUint32 offset = 0;
   nsAutoTArray<gfxTextRun::DetailedGlyph,2> glyphs;
   while (iter.NextRun()) {
     gfxTextRun::GlyphRun* run = iter.GetGlyphRun();
-    nsresult rv = aDest->AddGlyphRun(run->mFont, run->mMatchType,
-                                     offset, false, run->mOrientation);
+    nsresult rv = aDest->AddGlyphRun(run->mFont, offset);
     if (NS_FAILED(rv))
       return;
 
-    bool anyMissing = false;
-    uint32_t mergeRunStart = iter.GetStringStart();
-    const gfxTextRun::CompressedGlyph *srcGlyphs = aSrc->GetCharacterGlyphs();
-    gfxTextRun::CompressedGlyph mergedGlyph = srcGlyphs[mergeRunStart];
-    uint32_t stringEnd = iter.GetStringEnd();
-    for (uint32_t k = iter.GetStringStart(); k < stringEnd; ++k) {
-      const gfxTextRun::CompressedGlyph g = srcGlyphs[k];
+    PRBool anyMissing = PR_FALSE;
+    PRUint32 mergeRunStart = iter.GetStringStart();
+    PRUint32 k;
+    for (k = iter.GetStringStart(); k < iter.GetStringEnd(); ++k) {
+      gfxTextRun::CompressedGlyph g = aSrc->GetCharacterGlyphs()[k];
       if (g.IsSimpleGlyph()) {
         if (!anyMissing) {
           gfxTextRun::DetailedGlyph details;
@@ -155,7 +173,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
         }
       } else {
         if (g.IsMissing()) {
-          anyMissing = true;
+          anyMissing = PR_TRUE;
           glyphs.Clear();
         }
         if (g.GetGlyphCount() > 0) {
@@ -163,43 +181,38 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
         }
       }
 
+      // We could teach this method to handle merging of characters that aren't
+      // cluster starts or ligature group starts, but this is really only used
+      // to merge S's (uppercase &szlig;), so it's not worth it.
+
       if (k + 1 < iter.GetStringEnd() && aCharsToMerge[k + 1]) {
-        // next char is supposed to merge with current, so loop without
-        // writing current merged glyph to the destination
+        NS_ASSERTION(g.IsClusterStart() && g.IsLigatureGroupStart(),
+                     "Don't know how to merge this stuff");
         continue;
       }
 
+      NS_ASSERTION(mergeRunStart == k ||
+                   (g.IsClusterStart() && g.IsLigatureGroupStart()),
+                   "Don't know how to merge this stuff");
+
       // If the start of the merge run is actually a character that should
       // have been merged with the previous character (this can happen
-      // if there's a font change in the middle of a case-mapped character,
-      // that decomposed into a sequence of base+diacritics, for example),
+      // if there's a font change in the middle of a szlig, for example),
       // just discard the entire merge run. See comment at start of this
       // function.
-      NS_WARN_IF_FALSE(!aCharsToMerge[mergeRunStart],
-                       "unable to merge across a glyph run boundary, "
-                       "glyph(s) discarded");
       if (!aCharsToMerge[mergeRunStart]) {
         if (anyMissing) {
-          mergedGlyph.SetMissing(glyphs.Length());
+          g.SetMissing(glyphs.Length());
         } else {
-          mergedGlyph.SetComplex(mergedGlyph.IsClusterStart(),
-                                 mergedGlyph.IsLigatureGroupStart(),
-                                 glyphs.Length());
+          g.SetComplex(PR_TRUE, PR_TRUE, glyphs.Length());
         }
-        aDest->SetGlyphs(offset, mergedGlyph, glyphs.Elements());
+        aDest->SetGlyphs(offset, g, glyphs.Elements());
         ++offset;
-
-        while (offset < aDest->GetLength() && aDeletedChars[offset]) {
-          aDest->SetGlyphs(offset++, gfxTextRun::CompressedGlyph(), nullptr);
-        }
       }
 
       glyphs.Clear();
-      anyMissing = false;
+      anyMissing = PR_FALSE;
       mergeRunStart = k + 1;
-      if (mergeRunStart < stringEnd) {
-        mergedGlyph = srcGlyphs[mergeRunStart];
-      }
     }
     NS_ASSERTION(glyphs.Length() == 0,
                  "Leftover glyphs, don't request merging of the last character with its next!");  
@@ -207,431 +220,193 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
   NS_ASSERTION(offset == aDest->GetLength(), "Bad offset calculations");
 }
 
-gfxTextRunFactory::Parameters
-GetParametersForInner(nsTransformedTextRun* aTextRun, uint32_t* aFlags,
+static gfxTextRunFactory::Parameters
+GetParametersForInner(nsTransformedTextRun* aTextRun, PRUint32* aFlags,
     gfxContext* aRefContext)
 {
   gfxTextRunFactory::Parameters params =
-    { aRefContext, nullptr, nullptr,
-      nullptr, 0, aTextRun->GetAppUnitsPerDevUnit()
+    { aRefContext, nsnull, nsnull,
+      nsnull, 0, aTextRun->GetAppUnitsPerDevUnit()
     };
   *aFlags = aTextRun->GetFlags() & ~gfxFontGroup::TEXT_IS_PERSISTENT;
   return params;
 }
 
-// Some languages have special casing conventions that differ from the
-// default Unicode mappings.
-// The enum values here are named for well-known exemplar languages that
-// exhibit the behavior in question; multiple lang tags may map to the
-// same setting here, if the behavior is shared by other languages.
-enum LanguageSpecificCasingBehavior {
-  eLSCB_None,    // default non-lang-specific behavior
-  eLSCB_Dutch,   // treat "ij" digraph as a unit for capitalization
-  eLSCB_Greek,   // strip accent when uppercasing Greek vowels
-  eLSCB_Irish,   // keep prefix letters as lowercase when uppercasing Irish
-  eLSCB_Turkish  // preserve dotted/dotless-i distinction in uppercase
-};
-
-static LanguageSpecificCasingBehavior
-GetCasingFor(const nsIAtom* aLang)
+void
+nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
+    gfxContext* aRefContext)
 {
-  if (!aLang) {
-      return eLSCB_None;
-  }
-  if (aLang == nsGkAtoms::tr ||
-      aLang == nsGkAtoms::az ||
-      aLang == nsGkAtoms::ba ||
-      aLang == nsGkAtoms::crh ||
-      aLang == nsGkAtoms::tt) {
-    return eLSCB_Turkish;
-  }
-  if (aLang == nsGkAtoms::nl) {
-    return eLSCB_Dutch;
-  }
-  if (aLang == nsGkAtoms::el) {
-    return eLSCB_Greek;
-  }
-  if (aLang == nsGkAtoms::ga) {
-    return eLSCB_Irish;
-  }
+  gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
+  gfxFontStyle fontStyle = *fontGroup->GetStyle();
+  fontStyle.size *= 0.8;
+  nsRefPtr<gfxFontGroup> smallFont = fontGroup->Copy(&fontStyle);
+  if (!smallFont)
+    return;
 
-  // Is there a region subtag we should ignore?
-  nsAtomString langStr(const_cast<nsIAtom*>(aLang));
-  int index = langStr.FindChar('-');
-  if (index > 0) {
-    langStr.Truncate(index);
-    nsCOMPtr<nsIAtom> truncatedLang = do_GetAtom(langStr);
-    return GetCasingFor(truncatedLang);
-  }
+  PRUint32 flags;
+  gfxTextRunFactory::Parameters innerParams =
+      GetParametersForInner(aTextRun, &flags, aRefContext);
 
-  return eLSCB_None;
-}
+  PRUint32 length = aTextRun->GetLength();
+  const PRUnichar* str = aTextRun->GetTextUnicode();
+  nsRefPtr<nsStyleContext>* styles = aTextRun->mStyles.Elements();
+  // Create a textrun so we can check cluster-start properties
+  gfxTextRunCache::AutoTextRun inner(
+      gfxTextRunCache::MakeTextRun(str, length, fontGroup, &innerParams, flags));
+  if (!inner.get())
+    return;
 
-bool
-nsCaseTransformTextRunFactory::TransformString(
-    const nsAString& aString,
-    nsString& aConvertedString,
-    bool aAllUppercase,
-    const nsIAtom* aLanguage,
-    nsTArray<bool>& aCharsToMergeArray,
-    nsTArray<bool>& aDeletedCharsArray,
-    nsTransformedTextRun* aTextRun,
-    nsTArray<uint8_t>* aCanBreakBeforeArray,
-    nsTArray<nsStyleContext*>* aStyleArray)
-{
-  NS_PRECONDITION(!aTextRun || (aCanBreakBeforeArray && aStyleArray),
-                  "either none or all three optional parameters required");
+  nsCaseTransformTextRunFactory uppercaseFactory(nsnull, PR_TRUE);
 
-  uint32_t length = aString.Length();
-  const char16_t* str = aString.BeginReading();
+  aTextRun->ResetGlyphRuns();
 
-  bool mergeNeeded = false;
+  PRUint32 runStart = 0;
+  PRBool runIsLowercase = PR_FALSE;
+  nsAutoTArray<nsStyleContext*,50> styleArray;
+  nsAutoTArray<PRPackedBool,50> canBreakBeforeArray;
 
-  bool capitalizeDutchIJ = false;
-  bool prevIsLetter = false;
-  bool ntPrefix = false; // true immediately after a word-initial 'n' or 't'
-                         // when doing Irish lowercasing
-  uint32_t sigmaIndex = uint32_t(-1);
-  nsIUGenCategory::nsUGenCategory cat;
-
-  uint8_t style = aAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE : 0;
-  const nsIAtom* lang = aLanguage;
-
-  LanguageSpecificCasingBehavior languageSpecificCasing = GetCasingFor(lang);
-  mozilla::GreekCasing::State greekState;
-  mozilla::IrishCasing::State irishState;
-  uint32_t irishMark = uint32_t(-1); // location of possible prefix letter(s)
-
-  for (uint32_t i = 0; i < length; ++i) {
-    uint32_t ch = str[i];
-
-    nsStyleContext* styleContext;
-    if (aTextRun) {
-      styleContext = aTextRun->mStyles[i];
-      style = aAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE :
-        styleContext->StyleText()->mTextTransform;
-
-      const nsStyleFont* styleFont = styleContext->StyleFont();
-      nsIAtom* newLang = styleFont->mExplicitLanguage
-                         ? styleFont->mLanguage : nullptr;
-      if (lang != newLang) {
-        lang = newLang;
-        languageSpecificCasing = GetCasingFor(lang);
-        greekState.Reset();
-        irishState.Reset();
-        irishMark = uint32_t(-1);
-      }
-    }
-
-    int extraChars = 0;
-    const mozilla::unicode::MultiCharMapping *mcm;
-    bool inhibitBreakBefore = false; // have we just deleted preceding hyphen?
-
-    if (NS_IS_HIGH_SURROGATE(ch) && i < length - 1 &&
-        NS_IS_LOW_SURROGATE(str[i + 1])) {
-      ch = SURROGATE_TO_UCS4(ch, str[i + 1]);
-    }
-
-    switch (style) {
-    case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-      if (languageSpecificCasing == eLSCB_Turkish) {
-        if (ch == 'I') {
-          ch = LATIN_SMALL_LETTER_DOTLESS_I;
-          prevIsLetter = true;
-          sigmaIndex = uint32_t(-1);
-          break;
-        }
-        if (ch == LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE) {
-          ch = 'i';
-          prevIsLetter = true;
-          sigmaIndex = uint32_t(-1);
-          break;
-        }
-      }
-
-      cat = mozilla::unicode::GetGenCategory(ch);
-
-      if (languageSpecificCasing == eLSCB_Irish &&
-          cat == nsIUGenCategory::kLetter) {
-        // See bug 1018805 for Irish lowercasing requirements
-        if (!prevIsLetter && (ch == 'n' || ch == 't')) {
-          ntPrefix = true;
-        } else {
-          if (ntPrefix && mozilla::IrishCasing::IsUpperVowel(ch)) {
-            aConvertedString.Append('-');
-            ++extraChars;
-          }
-          ntPrefix = false;
-        }
+  PRUint32 i;
+  for (i = 0; i <= length; ++i) {
+    PRBool isLowercase = PR_FALSE;
+    if (i < length) {
+      // Characters that aren't the start of a cluster are ignored here. They
+      // get added to whatever lowercase/non-lowercase run we're in.
+      if (!inner->IsClusterStart(i)) {
+        isLowercase = runIsLowercase;
       } else {
-        ntPrefix = false;
-      }
-
-      // Special lowercasing behavior for Greek Sigma: note that this is listed
-      // as context-sensitive in Unicode's SpecialCasing.txt, but is *not* a
-      // language-specific mapping; it applies regardless of the language of
-      // the element.
-      //
-      // The lowercase mapping for CAPITAL SIGMA should be to SMALL SIGMA (i.e.
-      // the non-final form) whenever there is a following letter, or when the
-      // CAPITAL SIGMA occurs in isolation (neither preceded nor followed by a
-      // LETTER); and to FINAL SIGMA when it is preceded by another letter but
-      // not followed by one.
-      //
-      // To implement the context-sensitive nature of this mapping, we keep
-      // track of whether the previous character was a letter. If not, CAPITAL
-      // SIGMA will map directly to SMALL SIGMA. If the previous character
-      // was a letter, CAPITAL SIGMA maps to FINAL SIGMA and we record the
-      // position in the converted string; if we then encounter another letter,
-      // that FINAL SIGMA is replaced with a standard SMALL SIGMA.
-
-      // If sigmaIndex is not -1, it marks where we have provisionally mapped
-      // a CAPITAL SIGMA to FINAL SIGMA; if we now find another letter, we
-      // need to change it to SMALL SIGMA.
-      if (sigmaIndex != uint32_t(-1)) {
-        if (cat == nsIUGenCategory::kLetter) {
-          aConvertedString.SetCharAt(GREEK_SMALL_LETTER_SIGMA, sigmaIndex);
-        }
-      }
-
-      if (ch == GREEK_CAPITAL_LETTER_SIGMA) {
-        // If preceding char was a letter, map to FINAL instead of SMALL,
-        // and note where it occurred by setting sigmaIndex; we'll change it
-        // to standard SMALL SIGMA later if another letter follows
-        if (prevIsLetter) {
-          ch = GREEK_SMALL_LETTER_FINAL_SIGMA;
-          sigmaIndex = aConvertedString.Length();
+        if (styles[i]->GetStyleFont()->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS) {
+          PRUnichar ch = str[i];
+          PRUnichar ch2;
+          ch2 = ToUpperCase(ch);
+          isLowercase = ch != ch2 || ch == SZLIG;
         } else {
-          // CAPITAL SIGMA not preceded by a letter is unconditionally mapped
-          // to SMALL SIGMA
-          ch = GREEK_SMALL_LETTER_SIGMA;
-          sigmaIndex = uint32_t(-1);
-        }
-        prevIsLetter = true;
-        break;
-      }
-
-      // ignore diacritics for the purpose of contextual sigma mapping;
-      // otherwise, reset prevIsLetter appropriately and clear the
-      // sigmaIndex marker
-      if (cat != nsIUGenCategory::kMark) {
-        prevIsLetter = (cat == nsIUGenCategory::kLetter);
-        sigmaIndex = uint32_t(-1);
-      }
-
-      mcm = mozilla::unicode::SpecialLower(ch);
-      if (mcm) {
-        int j = 0;
-        while (j < 2 && mcm->mMappedChars[j + 1]) {
-          aConvertedString.Append(mcm->mMappedChars[j]);
-          ++extraChars;
-          ++j;
-        }
-        ch = mcm->mMappedChars[j];
-        break;
-      }
-
-      ch = ToLowerCase(ch);
-      break;
-
-    case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
-      if (languageSpecificCasing == eLSCB_Turkish && ch == 'i') {
-        ch = LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE;
-        break;
-      }
-
-      if (languageSpecificCasing == eLSCB_Greek) {
-        ch = mozilla::GreekCasing::UpperCase(ch, greekState);
-        break;
-      }
-
-      if (languageSpecificCasing == eLSCB_Irish) {
-        bool mark;
-        uint8_t action;
-        ch = mozilla::IrishCasing::UpperCase(ch, irishState, mark, action);
-        if (mark) {
-          irishMark = aConvertedString.Length();
-          break;
-        } else if (action) {
-          nsString& str = aConvertedString; // shorthand
-          switch (action) {
-          case 1:
-            // lowercase a single prefix letter
-            NS_ASSERTION(str.Length() > 0 && irishMark < str.Length(),
-                         "bad irishMark!");
-            str.SetCharAt(ToLowerCase(str[irishMark]), irishMark);
-            irishMark = uint32_t(-1);
-            break;
-          case 2:
-            // lowercase two prefix letters (immediately before current pos)
-            NS_ASSERTION(str.Length() >= 2 && irishMark == str.Length() - 2,
-                         "bad irishMark!");
-            str.SetCharAt(ToLowerCase(str[irishMark]), irishMark);
-            str.SetCharAt(ToLowerCase(str[irishMark + 1]), irishMark + 1);
-            irishMark = uint32_t(-1);
-            break;
-          case 3:
-            // lowercase one prefix letter, and delete following hyphen
-            // (which must be the immediately-preceding char)
-            NS_ASSERTION(str.Length() >= 2 && irishMark == str.Length() - 2,
-                         "bad irishMark!");
-            str.Replace(irishMark, 2, ToLowerCase(str[irishMark]));
-            aDeletedCharsArray[irishMark + 1] = true;
-            // Remove the trailing entries (corresponding to the deleted hyphen)
-            // from the auxiliary arrays.
-            aCharsToMergeArray.SetLength(aCharsToMergeArray.Length() - 1);
-            if (aTextRun) {
-              aStyleArray->SetLength(aStyleArray->Length() - 1);
-              aCanBreakBeforeArray->SetLength(aCanBreakBeforeArray->Length() - 1);
-              inhibitBreakBefore = true;
-            }
-            mergeNeeded = true;
-            irishMark = uint32_t(-1);
-            break;
-          }
-          // ch has been set to the uppercase for current char;
-          // No need to check for SpecialUpper here as none of the characters
-          // that could trigger an Irish casing action have special mappings.
-          break;
-        }
-        // If we didn't have any special action to perform, fall through
-        // to check for special uppercase (ß)
-      }
-
-      mcm = mozilla::unicode::SpecialUpper(ch);
-      if (mcm) {
-        int j = 0;
-        while (j < 2 && mcm->mMappedChars[j + 1]) {
-          aConvertedString.Append(mcm->mMappedChars[j]);
-          ++extraChars;
-          ++j;
-        }
-        ch = mcm->mMappedChars[j];
-        break;
-      }
-
-      ch = ToUpperCase(ch);
-      break;
-
-    case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
-      if (aTextRun) {
-        if (capitalizeDutchIJ && ch == 'j') {
-          ch = 'J';
-          capitalizeDutchIJ = false;
-          break;
-        }
-        capitalizeDutchIJ = false;
-        if (i < aTextRun->mCapitalize.Length() && aTextRun->mCapitalize[i]) {
-          if (languageSpecificCasing == eLSCB_Turkish && ch == 'i') {
-            ch = LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE;
-            break;
-          }
-          if (languageSpecificCasing == eLSCB_Dutch && ch == 'i') {
-            ch = 'I';
-            capitalizeDutchIJ = true;
-            break;
-          }
-
-          mcm = mozilla::unicode::SpecialTitle(ch);
-          if (mcm) {
-            int j = 0;
-            while (j < 2 && mcm->mMappedChars[j + 1]) {
-              aConvertedString.Append(mcm->mMappedChars[j]);
-              ++extraChars;
-              ++j;
-            }
-            ch = mcm->mMappedChars[j];
-            break;
-          }
-
-          ch = ToTitleCase(ch);
+          // Don't transform the character! I.e., pretend that it's not lowercase
         }
       }
-      break;
-
-    case NS_STYLE_TEXT_TRANSFORM_FULLWIDTH:
-      ch = mozilla::unicode::GetFullWidth(ch);
-      break;
-
-    default:
-      break;
     }
 
-    if (ch == uint32_t(-1)) {
-      aDeletedCharsArray.AppendElement(true);
-      mergeNeeded = true;
-    } else {
-      aDeletedCharsArray.AppendElement(false);
-      aCharsToMergeArray.AppendElement(false);
-      if (aTextRun) {
-        aStyleArray->AppendElement(styleContext);
-        aCanBreakBeforeArray->AppendElement(inhibitBreakBefore ? false :
-                                            aTextRun->CanBreakLineBefore(i));
-      }
+    if ((i == length || runIsLowercase != isLowercase) && runStart < i) {
+      nsAutoPtr<nsTransformedTextRun> transformedChild;
+      gfxTextRunCache::AutoTextRun cachedChild;
+      gfxTextRun* child;
 
-      if (IS_IN_BMP(ch)) {
-        aConvertedString.Append(ch);
+      if (runIsLowercase) {
+        transformedChild = uppercaseFactory.MakeTextRun(str + runStart, i - runStart,
+            &innerParams, smallFont, flags, styleArray.Elements(), PR_FALSE);
+        child = transformedChild;
       } else {
-        aConvertedString.Append(H_SURROGATE(ch));
-        aConvertedString.Append(L_SURROGATE(ch));
-        ++i;
-        aDeletedCharsArray.AppendElement(true); // not exactly deleted, but the
-                                                // trailing surrogate is skipped
-        ++extraChars;
+        cachedChild =
+          gfxTextRunCache::MakeTextRun(str + runStart, i - runStart, fontGroup,
+              &innerParams, flags);
+        child = cachedChild.get();
       }
+      if (!child)
+        return;
+      // Copy potential linebreaks into child so they're preserved
+      // (and also child will be shaped appropriately)
+      NS_ASSERTION(canBreakBeforeArray.Length() == i - runStart,
+                   "lost some break-before values?");
+      child->SetPotentialLineBreaks(0, canBreakBeforeArray.Length(),
+          canBreakBeforeArray.Elements(), aRefContext);
+      if (transformedChild) {
+        transformedChild->FinishSettingProperties(aRefContext);
+      }
+      aTextRun->CopyGlyphDataFrom(child, 0, child->GetLength(), runStart);
 
-      while (extraChars-- > 0) {
-        mergeNeeded = true;
-        aCharsToMergeArray.AppendElement(true);
-        if (aTextRun) {
-          aStyleArray->AppendElement(styleContext);
-          aCanBreakBeforeArray->AppendElement(false);
-        }
-      }
+      runStart = i;
+      styleArray.Clear();
+      canBreakBeforeArray.Clear();
+    }
+
+    if (i < length) {
+      runIsLowercase = isLowercase;
+      styleArray.AppendElement(styles[i]);
+      canBreakBeforeArray.AppendElement(aTextRun->CanBreakLineBefore(i));
     }
   }
-
-  return mergeNeeded;
 }
 
 void
 nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
-    gfxContext* aRefContext, gfxMissingFontRecorder *aMFR)
+    gfxContext* aRefContext)
 {
+  PRUint32 length = aTextRun->GetLength();
+  const PRUnichar* str = aTextRun->GetTextUnicode();
+  nsRefPtr<nsStyleContext>* styles = aTextRun->mStyles.Elements();
+
   nsAutoString convertedString;
-  nsAutoTArray<bool,50> charsToMergeArray;
-  nsAutoTArray<bool,50> deletedCharsArray;
-  nsAutoTArray<uint8_t,50> canBreakBeforeArray;
+  nsAutoTArray<PRPackedBool,50> charsToMergeArray;
   nsAutoTArray<nsStyleContext*,50> styleArray;
+  nsAutoTArray<PRPackedBool,50> canBreakBeforeArray;
+  PRUint32 extraCharsCount = 0;
 
-  bool mergeNeeded = TransformString(aTextRun->mString,
-                                     convertedString,
-                                     mAllUppercase,
-                                     nullptr,
-                                     charsToMergeArray,
-                                     deletedCharsArray,
-                                     aTextRun,
-                                     &canBreakBeforeArray,
-                                     &styleArray);
+  PRUint32 i;
+  for (i = 0; i < length; ++i) {
+    PRUnichar ch = str[i];
 
-  uint32_t flags;
+    charsToMergeArray.AppendElement(PR_FALSE);
+    styleArray.AppendElement(styles[i]);
+    canBreakBeforeArray.AppendElement(aTextRun->CanBreakLineBefore(i));
+
+    PRUint8 style = mAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE
+      : styles[i]->GetStyleText()->mTextTransform;
+    PRBool extraChar = PR_FALSE;
+
+    switch (style) {
+    case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
+      ch = ToLowerCase(ch);
+      break;
+    case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
+      if (ch == SZLIG) {
+        convertedString.Append('S');
+        extraChar = PR_TRUE;
+        ch = 'S';
+      } else {
+        ch = ToUpperCase(ch);
+      }
+      break;
+    case NS_STYLE_TEXT_TRANSFORM_CAPITALIZE:
+      if (i < aTextRun->mCapitalize.Length() && aTextRun->mCapitalize[i]) {
+        if (ch == SZLIG) {
+          convertedString.Append('S');
+          extraChar = PR_TRUE;
+          ch = 'S';
+        } else {
+          ch = ToTitleCase(ch);
+        }
+      }
+      break;
+    default:
+      break;
+    }
+
+    convertedString.Append(ch);
+    if (extraChar) {
+      ++extraCharsCount;
+      charsToMergeArray.AppendElement(PR_TRUE);
+      styleArray.AppendElement(styles[i]);
+      canBreakBeforeArray.AppendElement(PR_FALSE);
+    }
+  }
+
+  PRUint32 flags;
   gfxTextRunFactory::Parameters innerParams =
       GetParametersForInner(aTextRun, &flags, aRefContext);
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
 
   nsAutoPtr<nsTransformedTextRun> transformedChild;
-  nsAutoPtr<gfxTextRun> cachedChild;
+  gfxTextRunCache::AutoTextRun cachedChild;
   gfxTextRun* child;
 
   if (mInnerTransformingTextRunFactory) {
     transformedChild = mInnerTransformingTextRunFactory->MakeTextRun(
         convertedString.BeginReading(), convertedString.Length(),
-        &innerParams, fontGroup, flags, styleArray.Elements(), false);
+        &innerParams, fontGroup, flags, styleArray.Elements(), PR_FALSE);
     child = transformedChild.get();
   } else {
-    cachedChild = fontGroup->MakeTextRun(
-        convertedString.BeginReading(), convertedString.Length(),
-        &innerParams, flags, aMFR);
+    cachedChild = gfxTextRunCache::MakeTextRun(
+        convertedString.BeginReading(), convertedString.Length(), fontGroup,
+        &innerParams, flags);
     child = cachedChild.get();
   }
   if (!child)
@@ -643,18 +418,12 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   child->SetPotentialLineBreaks(0, canBreakBeforeArray.Length(),
       canBreakBeforeArray.Elements(), aRefContext);
   if (transformedChild) {
-    transformedChild->FinishSettingProperties(aRefContext, aMFR);
+    transformedChild->FinishSettingProperties(aRefContext);
   }
 
-  if (mergeNeeded) {
+  if (extraCharsCount > 0) {
     // Now merge multiple characters into one multi-glyph character as required
-    // and deal with skipping deleted accent chars
-    NS_ASSERTION(charsToMergeArray.Length() == child->GetLength(),
-                 "source length mismatch");
-    NS_ASSERTION(deletedCharsArray.Length() == aTextRun->GetLength(),
-                 "destination length mismatch");
-    MergeCharactersInTextRun(aTextRun, child, charsToMergeArray.Elements(),
-                             deletedCharsArray.Elements());
+    MergeCharactersInTextRun(aTextRun, child, charsToMergeArray.Elements());
   } else {
     // No merging to do, so just copy; this produces a more optimized textrun.
     // We can't steal the data because the child may be cached and stealing

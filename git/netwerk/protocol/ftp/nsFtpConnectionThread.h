@@ -1,27 +1,75 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bradley Baetz <bbaetz@student.usyd.edu.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef __nsFtpState__h_
 #define __nsFtpState__h_
 
+#include "ftpCore.h"
+#include "nsFTPChannel.h"
 #include "nsBaseContentStream.h"
 
+#include "nsInt64.h"
+#include "nsIThread.h"
+#include "nsIRunnable.h"
+#include "nsISocketTransportService.h"
+#include "nsISocketTransport.h"
+#include "nsIServiceManager.h"
+#include "nsIStreamListener.h"
 #include "nsICacheListener.h"
+#include "nsIURI.h"
+#include "prnetdb.h"
+#include "prtime.h"
 #include "nsString.h"
+#include "nsIFTPChannel.h"
+#include "nsIProtocolHandler.h"
 #include "nsCOMPtr.h"
 #include "nsIAsyncInputStream.h"
+#include "nsIOutputStream.h"
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
+#include "nsIPrompt.h"
 #include "nsITransport.h"
-#include "mozilla/net/DNS.h"
-#include "nsFtpControlConnection.h"
-#include "nsIProtocolProxyCallback.h"
+#include "nsIProxyInfo.h"
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkManager.h"
-#include "nsProxyRelease.h"
-#endif
+#include "nsFtpControlConnection.h"
+
+#include "nsICacheEntryDescriptor.h"
+#include "nsICacheListener.h"
 
 // ftp server types
 #define FTP_GENERIC_TYPE     0
@@ -57,57 +105,48 @@ typedef enum _FTP_STATE {
     FTP_S_STOR, FTP_R_STOR,
     FTP_S_LIST, FTP_R_LIST,
     FTP_S_PASV, FTP_R_PASV,
-    FTP_S_PWD,  FTP_R_PWD,
-    FTP_S_FEAT, FTP_R_FEAT,
-    FTP_S_OPTS, FTP_R_OPTS
+    FTP_S_PWD,  FTP_R_PWD
 } FTP_STATE;
 
 // higher level ftp actions
 typedef enum _FTP_ACTION {GET, PUT} FTP_ACTION;
 
 class nsFtpChannel;
-class nsICancelable;
-class nsICacheEntryDescriptor;
-class nsIProxyInfo;
-class nsIStreamListener;
 
 // The nsFtpState object is the content stream for the channel.  It implements
 // nsIInputStreamCallback, so it can read data from the control connection.  It
 // implements nsITransportEventSink so it can mix status events from both the
 // control connection and the data connection.
 
-class nsFtpState MOZ_FINAL : public nsBaseContentStream,
-                             public nsIInputStreamCallback,
-                             public nsITransportEventSink,
-                             public nsICacheListener,
-                             public nsIRequestObserver,
-                             public nsFtpControlConnectionListener,
-                             public nsIProtocolProxyCallback
-{
+class nsFtpState : public nsBaseContentStream,
+                   public nsIInputStreamCallback,
+                   public nsITransportEventSink,
+                   public nsICacheListener,
+                   public nsIRequestObserver,
+                   public nsFtpControlConnectionListener {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIINPUTSTREAMCALLBACK
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIREQUESTOBSERVER
-    NS_DECL_NSIPROTOCOLPROXYCALLBACK
 
     // Override input stream methods:
-    NS_IMETHOD CloseWithStatus(nsresult status) MOZ_OVERRIDE;
-    NS_IMETHOD Available(uint64_t *result) MOZ_OVERRIDE;
+    NS_IMETHOD CloseWithStatus(nsresult status);
+    NS_IMETHOD Available(PRUint32 *result);
     NS_IMETHOD ReadSegments(nsWriteSegmentFun fun, void *closure,
-                            uint32_t count, uint32_t *result) MOZ_OVERRIDE;
+                            PRUint32 count, PRUint32 *result);
 
     // nsFtpControlConnectionListener methods:
-    virtual void OnControlDataAvailable(const char *data, uint32_t dataLen) MOZ_OVERRIDE;
-    virtual void OnControlError(nsresult status) MOZ_OVERRIDE;
+    virtual void OnControlDataAvailable(const char *data, PRUint32 dataLen);
+    virtual void OnControlError(nsresult status);
 
     nsFtpState();
     nsresult Init(nsFtpChannel *channel);
 
 protected:
     // Notification from nsBaseContentStream::AsyncWait
-    virtual void OnCallbackPending() MOZ_OVERRIDE;
+    virtual void OnCallbackPending();
 
 private:
     virtual ~nsFtpState();
@@ -131,8 +170,6 @@ private:
     nsresult        S_stor(); FTP_STATE       R_stor();
     nsresult        S_pasv(); FTP_STATE       R_pasv();
     nsresult        S_pwd();  FTP_STATE       R_pwd();
-    nsresult        S_feat(); FTP_STATE       R_feat();
-    nsresult        S_opts(); FTP_STATE       R_opts();
     // END: STATE METHODS
     ///////////////////////////////////
 
@@ -149,6 +186,7 @@ private:
     void ConvertDirspecFromVMS(nsCString& fileSpec);
     nsresult BuildStreamConverter(nsIStreamListener** convertStreamListener);
     nsresult SetContentType();
+    nsresult ConvertUTF8PathToCharset(const nsACString &aCharset);
 
     /**
      * This method is called to kick-off the FTP state machine.  mState is
@@ -167,13 +205,13 @@ private:
      * the nsFtpState's OnCacheEntryAvailable method will be called once the
      * cache entry is available or if an error occurs.
      */
-    bool CheckCache();
+    PRBool CheckCache();
 
     /**
      * This method returns true if the data for this URL can be read from the
      * cache.  This method assumes that mCacheEntry is non-null.
      */
-    bool CanReadCacheEntry();
+    PRBool CanReadCacheEntry();
 
     /**
      * This method causes the cache entry to be read.  Data from the cache
@@ -181,7 +219,7 @@ private:
      * if successfully reading from the cache.  This method assumes that
      * mCacheEntry is non-null and opened with read access.
      */
-    bool ReadCacheEntry();
+    PRBool ReadCacheEntry();
 
     /**
      * This method configures mDataStream with an asynchronous input stream to
@@ -204,16 +242,16 @@ private:
         // ****** state machine vars
     FTP_STATE           mState;             // the current state
     FTP_STATE           mNextState;         // the next state
-    bool                mKeepRunning;       // thread event loop boolean
-    int32_t             mResponseCode;      // the last command response code
+    PRPackedBool        mKeepRunning;       // thread event loop boolean
+    PRInt32             mResponseCode;      // the last command response code
     nsCString           mResponseMsg;       // the last command response text
 
         // ****** channel/transport/stream vars 
     nsRefPtr<nsFtpControlConnection> mControlConnection;       // cacheable control connection (owns mCPipe)
-    bool                            mReceivedControlData;  
-    bool                            mTryingCachedControl;     // retrying the password
-    bool                            mRETRFailed;              // Did we already try a RETR and it failed?
-    uint64_t                        mFileSize;
+    PRPackedBool                    mReceivedControlData;  
+    PRPackedBool                    mTryingCachedControl;     // retrying the password
+    PRPackedBool                    mRETRFailed;              // Did we already try a RETR and it failed?
+    PRUint64                        mFileSize;
     nsCString                       mModTime;
 
         // ****** consumer vars
@@ -221,22 +259,21 @@ private:
     nsCOMPtr<nsIProxyInfo>          mProxyInfo;
 
         // ****** connection cache vars
-    int32_t             mServerType;    // What kind of server are we talking to
+    PRInt32             mServerType;    // What kind of server are we talking to
 
         // ****** protocol interpretation related state vars
     nsString            mUsername;      // username
     nsString            mPassword;      // password
     FTP_ACTION          mAction;        // the higher level action (GET/PUT)
-    bool                mAnonymous;     // try connecting anonymous (default)
-    bool                mRetryPass;     // retrying the password
-    bool                mStorReplyReceived; // FALSE if waiting for STOR
+    PRPackedBool        mAnonymous;     // try connecting anonymous (default)
+    PRPackedBool        mRetryPass;     // retrying the password
+    PRPackedBool        mStorReplyReceived; // FALSE if waiting for STOR
                                             // completion status from server
     nsresult            mInternalError; // represents internal state errors
-    bool                mReconnectAndLoginAgain;
-    bool                mCacheConnection;
+    PRPackedBool        mReconnectAndLoginAgain;
 
         // ****** URI vars
-    int32_t                mPort;       // the port to connect to
+    PRInt32                mPort;       // the port to connect to
     nsString               mFilename;   // url filename (if any)
     nsCString              mPath;       // the url's path
     nsCString              mPwd;        // login Path
@@ -245,38 +282,21 @@ private:
     nsCOMPtr<nsITransport>        mDataTransport;
     nsCOMPtr<nsIAsyncInputStream> mDataStream;
     nsCOMPtr<nsIRequest>    mUploadRequest;
-    bool                    mAddressChecked;
-    bool                    mServerIsIPv6;
-    bool                    mUseUTF8;
+    PRPackedBool            mAddressChecked;
+    PRPackedBool            mServerIsIPv6;
+    
+    static PRUint32         mSessionStartTime;
 
-    static uint32_t         mSessionStartTime;
-
-    mozilla::net::NetAddr   mServerAddress;
+    PRNetAddr               mServerAddress;
 
     // ***** control read gvars
     nsresult                mControlStatus;
     nsCString               mControlReadCarryOverBuf;
 
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
-    bool                    mDoomCache;
-
+    PRPackedBool            mDoomCache;
+    
     nsCString mSuppliedEntityID;
-
-    nsCOMPtr<nsICancelable>  mProxyRequest;
-    bool                     mDeferredCallbackPending;
-
-// These members are used for network per-app metering (bug 855948)
-// Currently, they are only available on gonk.
-    uint64_t                           mCountRecv;
-#ifdef MOZ_WIDGET_GONK
-    nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-#endif
-    nsresult                           SaveNetworkStats(bool);
-    void                               CountRecvBytes(uint64_t recvBytes)
-    {
-        mCountRecv += recvBytes;
-        SaveNetworkStats(false);
-    }
 };
 
 #endif //__nsFtpState__h_

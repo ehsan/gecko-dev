@@ -305,7 +305,7 @@ public class WifiConfiguration implements Parcelable {
     }
 
     public String toString() {
-        StringBuilder sbuf = new StringBuilder();
+        StringBuffer sbuf = new StringBuffer();
         if (this.status == WifiConfiguration.Status.CURRENT) {
             sbuf.append("* ");
         } else if (this.status == WifiConfiguration.Status.DISABLED) {

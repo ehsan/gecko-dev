@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is DOM Inspector.
+ *
+ * The Initial Developer of the Original Code is
+ * Christopher A. Aillon <christopher@aillon.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Christopher A. Aillon <christopher@aillon.com>
+ *   L. David Baron, Mozilla Corporation <dbaron@dbaron.org> (modified for reftest)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -70,42 +104,22 @@ RefTestCmdLineHandler.prototype =
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefService);
     var branch = prefs.getDefaultBranch("");
-
-#include reftest-preferences.js
+    branch.setBoolPref("gfx.color_management.force_srgb", true);
+    branch.setBoolPref("browser.dom.window.dump.enabled", true);
+    branch.setIntPref("ui.caretBlinkTime", -1);
+    branch.setBoolPref("dom.send_after_paint_to_content", true);
+    // no slow script dialogs
+    branch.setIntPref("dom.max_script_run_time", 0);
+    branch.setIntPref("dom.max_chrome_script_run_time", 0);
 
     var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                            .getService(nsIWindowWatcher);
-
-    function loadReftests() {
-      wwatch.openWindow(null, "chrome://reftest/content/reftest.xul", "_blank",
-                        "chrome,dialog=no,all", args);
-    }
-
-    var remote = false;
-    try {
-      remote = prefs.getBoolPref("reftest.remote");
-    } catch (ex) {
-    }
-
-    // If we are running on a remote machine, assume that we can't open another
-    // window for transferring focus to when tests don't require focus.
-    if (remote) {
-      loadReftests();
-    }
-    else {
-      // This dummy window exists solely for enforcing proper focus discipline.
-      var dummy = wwatch.openWindow(null, "about:blank", "dummy",
-                                    "chrome,dialog=no,left=800,height=200,width=200,all", null);
-      dummy.onload = function dummyOnload() {
-        dummy.focus();
-        loadReftests();
-      }
-    }
-
+    wwatch.openWindow(null, "chrome://reftest/content/reftest.xul", "_blank",
+                      "chrome,dialog=no,all", args);
     cmdLine.preventDefault = true;
   },
 
-  helpInfo : "  --reftest <file>   Run layout acceptance tests on given manifest.\n"
+  helpInfo : "  -reftest <file>    Run layout acceptance tests on given manifest.\n"
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([RefTestCmdLineHandler]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([RefTestCmdLineHandler]);

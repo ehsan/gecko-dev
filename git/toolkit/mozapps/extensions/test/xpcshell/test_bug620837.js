@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const PREF_BLOCKLIST_LASTUPDATETIME   = "app.update.lastUpdateTime.blocklist-background-update-timer";
 const PREF_BLOCKLIST_PINGCOUNTTOTAL   = "extensions.blocklist.pingCountTotal";
@@ -28,14 +28,12 @@ function pathHandler(metadata, response) {
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
-  gTestserver = new HttpServer();
+  gTestserver = new nsHttpServer();
   gTestserver.registerPathHandler("/", pathHandler);
-  gTestserver.start(-1);
-  gPort = gTestserver.identity.primaryPort;
+  gTestserver.start(4444);
 
   Services.prefs.setCharPref("extensions.blocklist.url",
-                             "http://localhost:" + gPort +
-                             "/?%PING_COUNT%&%TOTAL_PING_COUNT%&%DAYS_SINCE_LAST_PING%");
+                             "http://localhost:4444/?%PING_COUNT%&%TOTAL_PING_COUNT%&%DAYS_SINCE_LAST_PING%");
 
   do_test_pending();
   test1();
@@ -70,7 +68,7 @@ function test4() {
   Services.prefs.setIntPref(PREF_BLOCKLIST_LASTUPDATETIME,
                             (getNowInSeconds() - (SECONDS_IN_DAY * 2)));
   gNextTest = test5;
-  gExpectedQueryString = "1&3&2";
+  gExpectedQueryString = "1&3&reset";
   notify_blocklist();
 }
 
@@ -102,7 +100,7 @@ function test8() {
   Services.prefs.setIntPref(PREF_BLOCKLIST_LASTUPDATETIME,
                             (getNowInSeconds() - (SECONDS_IN_DAY * 5)));
   gNextTest = test9;
-  gExpectedQueryString = "1&6&5";
+  gExpectedQueryString = "1&6&reset";
   notify_blocklist();
 }
 
@@ -118,25 +116,8 @@ function test9() {
 function test10() {
   Services.prefs.setIntPref(PREF_BLOCKLIST_LASTUPDATETIME,
                             (getNowInSeconds() - (SECONDS_IN_DAY * 7)));
-  gNextTest = test11;
-  gExpectedQueryString = "3&1&7";
-  notify_blocklist();
-}
-
-function test11() {
-  Services.prefs.setIntPref(PREF_BLOCKLIST_PINGCOUNTVERSION, -1);
-  Services.prefs.setIntPref(PREF_BLOCKLIST_LASTUPDATETIME,
-                            (getNowInSeconds() - (SECONDS_IN_DAY * 8)));
-  gNextTest = test12;
-  gExpectedQueryString = "1&2&8";
-  notify_blocklist();
-}
-
-function test12() {
-  Services.prefs.setIntPref(PREF_BLOCKLIST_LASTUPDATETIME,
-                            (getNowInSeconds() - (SECONDS_IN_DAY * 9)));
   gNextTest = finish;
-  gExpectedQueryString = "2&3&9";
+  gExpectedQueryString = "3&1&reset";
   notify_blocklist();
 }
 

@@ -1,17 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is storage test code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
-
 #include "nsMemory.h"
-#include "prthread.h"
 #include "nsThreadUtils.h"
 #include "nsDirectoryServiceDefs.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "mozIStorageService.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatementCallback.h"
@@ -21,11 +50,7 @@
 #include "mozIStorageAsyncStatement.h"
 #include "mozIStorageStatement.h"
 #include "mozIStoragePendingStatement.h"
-#include "mozIStorageError.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIEventTarget.h"
-
-#include "sqlite3.h"
+#include "nsThreadUtils.h"
 
 static int gTotalTests = 0;
 static int gPassedTests = 0;
@@ -60,11 +85,7 @@ static int gPassedTests = 0;
   do_check_true(aExpected == aActual)
 #else
 #include <sstream>
-// Print nsresult as uint32_t
-std::ostream& operator<<(std::ostream& aStream, const nsresult aInput)
-{
-  return aStream << static_cast<uint32_t>(aInput);
-}
+
 #define do_check_eq(aExpected, aActual) \
   PR_BEGIN_MACRO \
     gTotalTests++; \
@@ -78,8 +99,6 @@ std::ostream& operator<<(std::ostream& aStream, const nsresult aInput)
     } \
   PR_END_MACRO
 #endif
-
-#define do_check_ok(aInvoc) do_check_true((aInvoc) == SQLITE_OK)
 
 already_AddRefed<mozIStorageService>
 getService()
@@ -131,16 +150,16 @@ public:
 
   void SpinUntilCompleted();
 
-  uint16_t completionReason;
+  PRUint16 completionReason;
 
 protected:
-  virtual ~AsyncStatementSpinner() {}
+  ~AsyncStatementSpinner() {}
   volatile bool mCompleted;
 };
 
-NS_IMPL_ISUPPORTS(AsyncStatementSpinner,
-                  mozIStorageStatementCallback,
-                  mozIStorageCompletionCallback)
+NS_IMPL_ISUPPORTS2(AsyncStatementSpinner,
+                   mozIStorageStatementCallback,
+                   mozIStorageCompletionCallback)
 
 AsyncStatementSpinner::AsyncStatementSpinner()
 : completionReason(0)
@@ -157,25 +176,11 @@ AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
 NS_IMETHODIMP
 AsyncStatementSpinner::HandleError(mozIStorageError *aError)
 {
-  int32_t result;
-  nsresult rv = aError->GetResult(&result);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsAutoCString message;
-  rv = aError->GetMessage(message);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoCString warnMsg;
-  warnMsg.AppendLiteral("An error occurred while executing an async statement: ");
-  warnMsg.AppendInt(result);
-  warnMsg.Append(' ');
-  warnMsg.Append(message);
-  NS_WARNING(warnMsg.get());
-
   return NS_OK;
 }
 
 NS_IMETHODIMP
-AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
+AsyncStatementSpinner::HandleCompletion(PRUint16 aReason)
 {
   completionReason = aReason;
   mCompleted = true;
@@ -183,7 +188,7 @@ AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
 }
 
 NS_IMETHODIMP
-AsyncStatementSpinner::Complete(nsresult, nsISupports*)
+AsyncStatementSpinner::Complete()
 {
   mCompleted = true;
   return NS_OK;
@@ -193,7 +198,7 @@ void AsyncStatementSpinner::SpinUntilCompleted()
 {
   nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
   nsresult rv = NS_OK;
-  bool processed = true;
+  PRBool processed = PR_TRUE;
   while (!mCompleted && NS_SUCCEEDED(rv)) {
     rv = thread->ProcessNextEvent(true, &processed);
   }
@@ -201,189 +206,3 @@ void AsyncStatementSpinner::SpinUntilCompleted()
 
 #define NS_DECL_ASYNCSTATEMENTSPINNER \
   NS_IMETHOD HandleResult(mozIStorageResultSet *aResultSet);
-
-////////////////////////////////////////////////////////////////////////////////
-//// Async Helpers
-
-/**
- * Execute an async statement, blocking the main thread until we get the
- * callback completion notification.
- */
-void
-blocking_async_execute(mozIStorageBaseStatement *stmt)
-{
-  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
-
-  nsCOMPtr<mozIStoragePendingStatement> pendy;
-  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pendy));
-  spinner->SpinUntilCompleted();
-}
-
-/**
- * Invoke AsyncClose on the given connection, blocking the main thread until we
- * get the completion notification.
- */
-void
-blocking_async_close(mozIStorageConnection *db)
-{
-  nsRefPtr<AsyncStatementSpinner> spinner(new AsyncStatementSpinner());
-
-  db->AsyncClose(spinner);
-  spinner->SpinUntilCompleted();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//// Mutex Watching
-
-/**
- * Verify that mozIStorageAsyncStatement's life-cycle never triggers a mutex on
- * the caller (generally main) thread.  We do this by decorating the sqlite
- * mutex logic with our own code that checks what thread it is being invoked on
- * and sets a flag if it is invoked on the main thread.  We are able to easily
- * decorate the SQLite mutex logic because SQLite allows us to retrieve the
- * current function pointers being used and then provide a new set.
- */
-
-sqlite3_mutex_methods orig_mutex_methods;
-sqlite3_mutex_methods wrapped_mutex_methods;
-
-bool mutex_used_on_watched_thread = false;
-PRThread *watched_thread = nullptr;
-/**
- * Ugly hack to let us figure out what a connection's async thread is.  If we
- * were MOZILLA_INTERNAL_API and linked as such we could just include
- * mozStorageConnection.h and just ask Connection directly.  But that turns out
- * poorly.
- *
- * When the thread a mutex is invoked on isn't watched_thread we save it to this
- * variable.
- */
-PRThread *last_non_watched_thread = nullptr;
-
-/**
- * Set a flag if the mutex is used on the thread we are watching, but always
- * call the real mutex function.
- */
-extern "C" void wrapped_MutexEnter(sqlite3_mutex *mutex)
-{
-  PRThread *curThread = ::PR_GetCurrentThread();
-  if (curThread == watched_thread)
-    mutex_used_on_watched_thread = true;
-  else
-    last_non_watched_thread = curThread;
-  orig_mutex_methods.xMutexEnter(mutex);
-}
-
-extern "C" int wrapped_MutexTry(sqlite3_mutex *mutex)
-{
-  if (::PR_GetCurrentThread() == watched_thread)
-    mutex_used_on_watched_thread = true;
-  return orig_mutex_methods.xMutexTry(mutex);
-}
-
-void hook_sqlite_mutex()
-{
-  // We need to initialize and teardown SQLite to get it to set up the
-  // default mutex handlers for us so we can steal them and wrap them.
-  do_check_ok(sqlite3_initialize());
-  do_check_ok(sqlite3_shutdown());
-  do_check_ok(::sqlite3_config(SQLITE_CONFIG_GETMUTEX, &orig_mutex_methods));
-  do_check_ok(::sqlite3_config(SQLITE_CONFIG_GETMUTEX, &wrapped_mutex_methods));
-  wrapped_mutex_methods.xMutexEnter = wrapped_MutexEnter;
-  wrapped_mutex_methods.xMutexTry = wrapped_MutexTry;
-  do_check_ok(::sqlite3_config(SQLITE_CONFIG_MUTEX, &wrapped_mutex_methods));
-}
-
-/**
- * Call to clear the watch state and to set the watching against this thread.
- *
- * Check |mutex_used_on_watched_thread| to see if the mutex has fired since
- * this method was last called.  Since we're talking about the current thread,
- * there are no race issues to be concerned about
- */
-void watch_for_mutex_use_on_this_thread()
-{
-  watched_thread = ::PR_GetCurrentThread();
-  mutex_used_on_watched_thread = false;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//// Thread Wedgers
-
-/**
- * A runnable that blocks until code on another thread invokes its unwedge
- * method.  By dispatching this to a thread you can ensure that no subsequent
- * runnables dispatched to the thread will execute until you invoke unwedge.
- *
- * The wedger is self-dispatching, just construct it with its target.
- */
-class ThreadWedger : public nsRunnable
-{
-public:
-  explicit ThreadWedger(nsIEventTarget *aTarget)
-  : mReentrantMonitor("thread wedger")
-  , unwedged(false)
-  {
-    aTarget->Dispatch(this, aTarget->NS_DISPATCH_NORMAL);
-  }
-
-  NS_IMETHOD Run()
-  {
-    mozilla::ReentrantMonitorAutoEnter automon(mReentrantMonitor);
-
-    if (!unwedged)
-      automon.Wait();
-
-    return NS_OK;
-  }
-
-  void unwedge()
-  {
-    mozilla::ReentrantMonitorAutoEnter automon(mReentrantMonitor);
-    unwedged = true;
-    automon.Notify();
-  }
-
-private:
-  mozilla::ReentrantMonitor mReentrantMonitor;
-  bool unwedged;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-//// Async Helpers
-
-/**
- * A horrible hack to figure out what the connection's async thread is.  By
- * creating a statement and async dispatching we can tell from the mutex who
- * is the async thread, PRThread style.  Then we map that to an nsIThread.
- */
-already_AddRefed<nsIThread>
-get_conn_async_thread(mozIStorageConnection *db)
-{
-  // Make sure we are tracking the current thread as the watched thread
-  watch_for_mutex_use_on_this_thread();
-
-  // - statement with nothing to bind
-  nsCOMPtr<mozIStorageAsyncStatement> stmt;
-  db->CreateAsyncStatement(
-    NS_LITERAL_CSTRING("SELECT 1"),
-    getter_AddRefs(stmt));
-  blocking_async_execute(stmt);
-  stmt->Finalize();
-
-  nsCOMPtr<nsIThreadManager> threadMan =
-    do_GetService("@mozilla.org/thread-manager;1");
-  nsCOMPtr<nsIThread> asyncThread;
-  threadMan->GetThreadFromPRThread(last_non_watched_thread,
-                                   getter_AddRefs(asyncThread));
-
-  // Additionally, check that the thread we get as the background thread is the
-  // same one as the one we report from getInterface.
-  nsCOMPtr<nsIEventTarget> target = do_GetInterface(db);
-  nsCOMPtr<nsIThread> allegedAsyncThread = do_QueryInterface(target);
-  PRThread *allegedPRThread;
-  (void)allegedAsyncThread->GetPRThread(&allegedPRThread);
-  do_check_eq(allegedPRThread, last_non_watched_thread);
-  return asyncThread.forget();
-}

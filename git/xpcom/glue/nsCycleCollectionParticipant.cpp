@@ -1,129 +1,103 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsCOMPtr.h"
-#include "jsapi.h"
-#include "jsfriendapi.h"
 
-#ifdef MOZILLA_INTERNAL_API
-#include "nsString.h"
-#else
-#include "nsStringAPI.h"
-#endif
-
-void
-nsScriptObjectTracer::NoteJSChild(JS::GCCellPtr aGCThing, const char* aName,
-                                  void* aClosure)
+static void
+NoteChild(PRUint32 aLangID, void *aScriptThing, void *aClosure)
 {
-  nsCycleCollectionTraversalCallback* cb =
+  nsCycleCollectionTraversalCallback *cb =
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, aName);
-  if (aGCThing.isObject()) {
-    cb->NoteJSObject(aGCThing.toObject());
-  } else if (aGCThing.isScript()) {
-    cb->NoteJSScript(aGCThing.toScript());
-  } else {
-    MOZ_ASSERT(!mozilla::AddToCCKind(aGCThing.kind()));
-  }
+  cb->NoteScriptChild(aLangID, aScriptThing);
+}
+
+void
+nsScriptObjectTracer::TraverseScriptObjects(void *p,
+                                        nsCycleCollectionTraversalCallback &cb)
+{
+  Trace(p, NoteChild, &cb);
+}
+
+nsresult
+nsXPCOMCycleCollectionParticipant::RootAndUnlinkJSObjects(void *p)
+{
+    nsISupports *s = static_cast<nsISupports*>(p);
+    NS_ADDREF(s);
+    return NS_OK;
+}
+
+nsresult
+nsXPCOMCycleCollectionParticipant::Unlink(void *p)
+{
+  return NS_OK;
+}
+
+nsresult
+nsXPCOMCycleCollectionParticipant::Unroot(void *p)
+{
+    nsISupports *s = static_cast<nsISupports*>(p);
+    NS_RELEASE(s);
+    return NS_OK;
+}
+
+nsresult
+nsXPCOMCycleCollectionParticipant::Traverse
+    (void *p, nsCycleCollectionTraversalCallback &cb)
+{
+  return NS_OK;
+}
+
+void
+nsXPCOMCycleCollectionParticipant::UnmarkPurple(nsISupports *n)
+{
 }
 
 NS_IMETHODIMP_(void)
-nsXPCOMCycleCollectionParticipant::Root(void* aPtr)
-{
-  nsISupports* s = static_cast<nsISupports*>(aPtr);
-  NS_ADDREF(s);
-}
-
-NS_IMETHODIMP_(void)
-nsXPCOMCycleCollectionParticipant::Unroot(void* aPtr)
-{
-  nsISupports* s = static_cast<nsISupports*>(aPtr);
-  NS_RELEASE(s);
-}
-
-// We define a default trace function because some participants don't need
-// to trace anything, so it is okay for them not to define one.
-NS_IMETHODIMP_(void)
-nsXPCOMCycleCollectionParticipant::Trace(void* aPtr, const TraceCallbacks& aCb,
-                                         void* aClosure)
+nsXPCOMCycleCollectionParticipant::Trace(void *p, TraceCallback cb,
+                                         void *closure)
 {
 }
 
-bool
-nsXPCOMCycleCollectionParticipant::CheckForRightISupports(nsISupports* aSupports)
+PRBool
+nsXPCOMCycleCollectionParticipant::CheckForRightISupports(nsISupports *s)
 {
-  nsISupports* foo;
-  aSupports->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
-                            reinterpret_cast<void**>(&foo));
-  return aSupports == foo;
-}
-
-void
-CycleCollectionNoteEdgeNameImpl(nsCycleCollectionTraversalCallback& aCallback,
-                                const char* aName,
-                                uint32_t aFlags)
-{
-  nsAutoCString arrayEdgeName(aName);
-  if (aFlags & CycleCollectionEdgeNameArrayFlag) {
-    arrayEdgeName.AppendLiteral("[i]");
-  }
-  aCallback.NoteNextEdgeName(arrayEdgeName.get());
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<JS::Value>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  if (aPtr->isMarkable()) {
-    mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
-  }
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<jsid>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  if (JSID_IS_GCTHING(*aPtr)) {
-    mCallback(JSID_TO_GCTHING(*aPtr), aName, aClosure);
-  }
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<JSObject*>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
-}
-
-void
-TraceCallbackFunc::Trace(JS::TenuredHeap<JSObject*>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<JSFunction*>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<JSString*>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
-}
-
-void
-TraceCallbackFunc::Trace(JS::Heap<JSScript*>* aPtr, const char* aName,
-                         void* aClosure) const
-{
-  mCallback(JS::GCCellPtr(*aPtr), aName, aClosure);
+    nsISupports* foo;
+    s->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                      reinterpret_cast<void**>(&foo));
+    return s == foo;
 }

@@ -1,6 +1,34 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# Contributor(s):
+#   Chris Jones <jones.chris.g@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 import sys
 
@@ -20,10 +48,7 @@ class CxxCodeGen(CodePrinter, Visitor):
         self.write(ws.ws)
 
     def visitCppDirective(self, cd):
-        if cd.rest:
-            self.println('#%s %s'% (cd.directive, cd.rest))
-        else:
-            self.println('#%s'% (cd.directive))
+        self.println('#%s %s'% (cd.directive, cd.rest))
 
     def visitNamespace(self, ns):
         self.println('namespace '+ ns.name +' {')
@@ -136,9 +161,9 @@ class CxxCodeGen(CodePrinter, Visitor):
         if c.abstract:
             # FIXME/cjones: turn this "on" when we get the analysis
             self.write(' /*NS_ABSTRACT_CLASS*/')
-        self.write(' '+ c.name)
         if c.final:
-            self.write(' MOZ_FINAL')
+            self.write(' NS_FINAL_CLASS')
+        self.write(' '+ c.name)
 
         if c.specializes is not None:
             self.write(' <')
@@ -185,19 +210,14 @@ class CxxCodeGen(CodePrinter, Visitor):
 
         if md.inline:
             self.write('inline ')
-        if md.inline:
-            self.write('MOZ_NEVER_INLINE ')
         if md.static:
             self.write('static ')
         if md.virtual:
             self.write('virtual ')
         if md.ret:
-            if md.only_for_definition:
-                self.write('auto ')
-            else:
-                md.ret.accept(self)
-                self.println()
-                self.printdent()
+            md.ret.accept(self)
+            self.println()
+            self.printdent()
         if md.typeop is not None:
             self.write('operator ')
             md.typeop.accept(self)
@@ -210,9 +230,6 @@ class CxxCodeGen(CodePrinter, Visitor):
 
         if md.const:
             self.write(' const')
-        if md.ret and md.only_for_definition:
-            self.write(' -> ')
-            md.ret.accept(self)
         if md.warn_unused:
             self.write(' NS_WARN_UNUSED_RESULT')
         if md.pure:
@@ -220,9 +237,6 @@ class CxxCodeGen(CodePrinter, Visitor):
 
 
     def visitMethodDefn(self, md):
-        if md.decl.pure:
-            return
-
         self.printdent()
         md.decl.accept(self)
         self.println()
@@ -237,8 +251,6 @@ class CxxCodeGen(CodePrinter, Visitor):
     def visitConstructorDecl(self, cd):
         if cd.explicit:
             self.write('explicit ')
-        else:
-            self.write('MOZ_IMPLICIT ')
         self.visitMethodDecl(cd)
 
     def visitConstructorDefn(self, cd):

@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Clark <buster@netscape.com>
+ *   Robert O'Callahan <roc+moz@cs.cmu.edu>
+ *   L. David Baron <dbaron@dbaron.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* state used in reflow of block frames */
 
@@ -10,17 +45,14 @@
 
 #include "nsFloatManager.h"
 #include "nsLineBox.h"
-#include "nsHTMLReflowState.h"
-
-class nsBlockFrame;
-class nsFrameList;
-class nsOverflowContinuationTracker;
+#include "nsFrameList.h"
+#include "nsBlockFrame.h"
 
   // block reflow state flags
-#define BRS_UNCONSTRAINEDBSIZE    0x00000001
-#define BRS_ISBSTARTMARGINROOT    0x00000002  // Is this frame a root for block
-#define BRS_ISBENDMARGINROOT      0x00000004  //  direction start/end margin collapsing?
-#define BRS_APPLYBSTARTMARGIN     0x00000008  // See ShouldApplyTopMargin
+#define BRS_UNCONSTRAINEDHEIGHT   0x00000001
+#define BRS_ISTOPMARGINROOT       0x00000002  // Is this frame a root for top/bottom margin collapsing?
+#define BRS_ISBOTTOMMARGINROOT    0x00000004
+#define BRS_APPLYTOPMARGIN        0x00000008  // See ShouldApplyTopMargin
 #define BRS_ISFIRSTINFLOW         0x00000010
 // Set when mLineAdjacentToTop is valid
 #define BRS_HAVELINEADJACENTTOTOP 0x00000020
@@ -32,18 +64,16 @@ class nsOverflowContinuationTracker;
 #define BRS_ISOVERFLOWCONTAINER   0x00000100
 // Our mPushedFloats list is stored on the blocks' proptable
 #define BRS_PROPTABLE_FLOATCLIST  0x00000200
-// Set when the pref layout.float-fragments-inside-column.enabled is true.
-#define BRS_FLOAT_FRAGMENTS_INSIDE_COLUMN_ENABLED 0x00000400
-#define BRS_LASTFLAG              BRS_FLOAT_FRAGMENTS_INSIDE_COLUMN_ENABLED
+#define BRS_LASTFLAG              BRS_PROPTABLE_FLOATCLIST
 
 class nsBlockReflowState {
 public:
   nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                      nsPresContext* aPresContext,
                      nsBlockFrame* aFrame,
-                     bool aBStartMarginRoot, bool aBEndMarginRoot,
-                     bool aBlockNeedsFloatManager,
-                     nscoord aConsumedBSize = NS_INTRINSICSIZE);
+                     const nsHTMLReflowMetrics& aMetrics,
+                     PRBool aTopMarginRoot, PRBool aBottomMarginRoot,
+                     PRBool aBlockNeedsFloatManager);
 
   /**
    * Get the available reflow space (the area not occupied by floats)
@@ -51,94 +81,110 @@ public:
    * our coordinate system, which is the content box, with (0, 0) in the
    * upper left.
    *
-   * Returns whether there are floats present at the given block-direction
-   * coordinate and within the inline size of the content rect.
+   * Returns whether there are floats present at the given vertical
+   * coordinate and within the width of the content rect.
    */
   nsFlowAreaRect GetFloatAvailableSpace() const
-    { return GetFloatAvailableSpace(mBCoord); }
-  nsFlowAreaRect GetFloatAvailableSpace(nscoord aBCoord) const
-    { return GetFloatAvailableSpaceWithState(aBCoord, nullptr); }
+    { return GetFloatAvailableSpace(mY); }
+  nsFlowAreaRect GetFloatAvailableSpace(nscoord aY) const
+    { return GetFloatAvailableSpaceWithState(aY, nsnull); }
   nsFlowAreaRect
-    GetFloatAvailableSpaceWithState(nscoord aBCoord,
+    GetFloatAvailableSpaceWithState(nscoord aY,
                                     nsFloatManager::SavedState *aState) const;
   nsFlowAreaRect
-    GetFloatAvailableSpaceForBSize(nscoord aBCoord, nscoord aBSize,
-                                   nsFloatManager::SavedState *aState) const;
+    GetFloatAvailableSpaceForHeight(nscoord aY, nscoord aHeight,
+                                    nsFloatManager::SavedState *aState) const;
 
   /*
-   * The following functions all return true if they were able to
-   * place the float, false if the float did not fit in available
+   * The following functions all return PR_TRUE if they were able to
+   * place the float, PR_FALSE if the float did not fit in available
    * space.
    * aLineLayout is null when we are reflowing pushed floats (because
    * they are not associated with a line box).
    */
-  bool AddFloat(nsLineLayout*       aLineLayout,
-                nsIFrame*           aFloat,
-                nscoord             aAvailableISize);
+  PRBool AddFloat(nsLineLayout*       aLineLayout,
+                  nsIFrame*           aFloat,
+                  nscoord             aAvailableWidth);
 private:
-  bool CanPlaceFloat(nscoord aFloatISize,
-                     const nsFlowAreaRect& aFloatAvailableSpace);
+  PRBool CanPlaceFloat(nscoord aFloatWidth,
+                       const nsFlowAreaRect& aFloatAvailableSpace);
 public:
-  bool FlowAndPlaceFloat(nsIFrame* aFloat);
+  PRBool FlowAndPlaceFloat(nsIFrame* aFloat);
 private:
   void PushFloatPastBreak(nsIFrame* aFloat);
 public:
   void PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aFloats,
                                    nsLineBox* aLine);
 
-  // Returns the first coordinate >= aBCoord that clears the
-  // floats indicated by aBreakType and has enough inline size between floats
+  // Returns the first coordinate >= aY that clears the
+  // floats indicated by aBreakType and has enough width between floats
   // (or no floats remaining) to accomodate aReplacedBlock.
-  nscoord ClearFloats(nscoord aBCoord, uint8_t aBreakType,
-                      nsIFrame *aReplacedBlock = nullptr,
-                      uint32_t aFlags = 0);
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
+                      nsIFrame *aReplacedBlock = nsnull,
+                      PRUint32 aFlags = 0);
 
-  bool IsAdjacentWithTop() const {
-    return mBCoord == mBorderPadding.BStart(mReflowState.GetWritingMode());
+  PRBool IsAdjacentWithTop() const {
+    return mY ==
+      ((mFlags & BRS_ISFIRSTINFLOW) ? mReflowState.mComputedBorderPadding.top : 0);
   }
 
   /**
-   * Return mBlock's computed physical border+padding with GetSkipSides applied.
+   * Adjusts the border/padding to return 0 for the top if
+   * we are not the first in flow.
    */
-  const mozilla::LogicalMargin& BorderPadding() const {
-    return mBorderPadding;
+  nsMargin BorderPadding() const {
+    nsMargin result = mReflowState.mComputedBorderPadding;
+    if (!(mFlags & BRS_ISFIRSTINFLOW)) {
+      result.top = 0;
+      if (mFlags & BRS_ISOVERFLOWCONTAINER) {
+        result.bottom = 0;
+      }
+    }
+    return result;
   }
 
-  /**
-   * Retrieve the block-direction size "consumed" by any previous-in-flows.
-   */
-  nscoord GetConsumedBSize();
+  // XXX maybe we should do the same adjustment for continuations here
+  const nsMargin& Margin() const {
+    return mReflowState.mComputedMargin;
+  }
 
-  // Reconstruct the previous block-end margin that goes before |aLine|.
-  void ReconstructMarginBefore(nsLineList::iterator aLine);
+  // Reconstruct the previous bottom margin that goes above |aLine|.
+  void ReconstructMarginAbove(nsLineList::iterator aLine);
 
   // Caller must have called GetAvailableSpace for the correct position
-  // (which need not be the current mBCoord).
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
   void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
-                          const mozilla::LogicalRect& aFloatAvailableSpace,
-                                            nscoord&  aIStartResult,
-                                            nscoord&  aIEndResult);
+                                            const nsRect& aFloatAvailableSpace,
+                                            nscoord& aLeftResult,
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
 
-  // Caller must have called GetAvailableSpace for the current mBCoord
+  // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
                               const nsFlowAreaRect& aFloatAvailableSpace,
-                              bool aBlockAvoidsFloats,
-                              mozilla::LogicalRect& aResult);
+                              PRBool aBlockAvoidsFloats,
+                              nsRect& aResult);
 
 protected:
-  void RecoverFloats(nsLineList::iterator aLine, nscoord aDeltaBCoord);
+  void RecoverFloats(nsLineList::iterator aLine, nscoord aDeltaY);
 
 public:
-  void RecoverStateFrom(nsLineList::iterator aLine, nscoord aDeltaBCoord);
+  void RecoverStateFrom(nsLineList::iterator aLine, nscoord aDeltaY);
 
   void AdvanceToNextLine() {
     if (GetFlag(BRS_LINE_LAYOUT_EMPTY)) {
-      SetFlag(BRS_LINE_LAYOUT_EMPTY, false);
+      SetFlag(BRS_LINE_LAYOUT_EMPTY, PR_FALSE);
     } else {
       mLineNumber++;
     }
   }
+
+  nsLineBox* NewLineBox(nsIFrame* aFrame, PRInt32 aCount, PRBool aIsBlock);
+
+  void FreeLineBox(nsLineBox* aLine);
 
   //----------------------------------------
 
@@ -159,8 +205,7 @@ public:
   // padding. This, therefore, represents the inner "content area" (in
   // spacemanager coordinates) where child frames will be placed,
   // including child blocks and floats.
-  mozilla::WritingMode mFloatManagerWM;
-  mozilla::LogicalPoint mFloatManagerOrigin;
+  nscoord mFloatManagerX, mFloatManagerY;
 
   // XXX get rid of this
   nsReflowStatus mReflowStatus;
@@ -171,43 +216,17 @@ public:
   // block, not floats inside of it.
   nsFloatManager::SavedState mFloatManagerStateBefore;
 
-  nscoord mBEndEdge;
+  nscoord mBottomEdge;
 
   // The content area to reflow child frames within.  This is within
-  // this frame's coordinate system and writing mode, which means
-  // mContentArea.IStart == BorderPadding().IStart and
-  // mContentArea.BStart == BorderPadding().BStart.
-  // The block size may be NS_UNCONSTRAINEDSIZE, which indicates that there
+  // this frame's coordinate system, which means mContentArea.x ==
+  // BorderPadding().left and mContentArea.y == BorderPadding().top.
+  // The height may be NS_UNCONSTRAINEDSIZE, which indicates that there
   // is no page/column boundary below (the common case).
-  // mContentArea.BEnd() should only be called after checking that
-  // mContentArea.BSize is not NS_UNCONSTRAINEDSIZE; otherwise
+  // mContentArea.YMost() should only be called after checking that
+  // mContentArea.height is not NS_UNCONSTRAINEDSIZE; otherwise
   // coordinate overflow may occur.
-  mozilla::LogicalRect mContentArea;
-  nscoord ContentIStart() const {
-    return mContentArea.IStart(mReflowState.GetWritingMode());
-  }
-  nscoord ContentISize() const {
-    return mContentArea.ISize(mReflowState.GetWritingMode());
-  }
-  nscoord ContentIEnd() const {
-    return mContentArea.IEnd(mReflowState.GetWritingMode());
-  }
-  nscoord ContentBStart() const {
-    return mContentArea.BStart(mReflowState.GetWritingMode());
-  }
-  nscoord ContentBSize() const {
-    return mContentArea.BSize(mReflowState.GetWritingMode());
-  }
-  nscoord ContentBEnd() const {
-    return mContentArea.BEnd(mReflowState.GetWritingMode());
-  }
-  mozilla::LogicalSize ContentSize(mozilla::WritingMode aWM) const {
-    mozilla::WritingMode wm = mReflowState.GetWritingMode();
-    return mContentArea.Size(wm).ConvertTo(aWM, wm);
-  }
-
-  // Physical width. Use only for physical <-> logical coordinate conversion.
-  nscoord mContainerWidth;
+  nsRect mContentArea;
 
   // Continuation out-of-flow float frames that need to move to our
   // next in flow are placed here during reflow.  It's a pointer to
@@ -216,14 +235,12 @@ public:
   // This method makes sure pushed floats are accessible to
   // StealFrame. Call it before adding any frames to mPushedFloats.
   void SetupPushedFloatList();
-  /**
-   * Append aFloatCont and its next-in-flows within the same block to
-   * mPushedFloats.  aFloatCont should not be on any child list when
-   * making this call.  Its next-in-flows will be removed from
-   * mBlock using StealFrame() before being added to mPushedFloats.
-   * All appended frames will be marked NS_FRAME_IS_PUSHED_FLOAT.
-   */
-  void AppendPushedFloatChain(nsIFrame* aFloatCont);
+  // Use this method to append to mPushedFloats.
+  void AppendPushedFloat(nsIFrame* aFloatCont) {
+    SetupPushedFloatList();
+    aFloatCont->AddStateBits(NS_FRAME_IS_PUSHED_FLOAT);
+    mPushedFloats->AppendFrame(mBlock, aFloatCont);
+  }
 
   // Track child overflow continuations.
   nsOverflowContinuationTracker* mOverflowTracker;
@@ -244,11 +261,8 @@ public:
   // always before the current line.
   nsLineList::iterator mLineAdjacentToTop;
 
-  // The current block-direction coordinate in the block
-  nscoord mBCoord;
-
-  // mBlock's computed physical border+padding with GetSkipSides applied.
-  mozilla::LogicalMargin mBorderPadding;
+  // The current Y coordinate in the block
+  nscoord mY;
 
   // The overflow areas of all floats placed so far
   nsOverflowAreas mFloatOverflowAreas;
@@ -260,7 +274,7 @@ public:
   nsIFrame* mPrevChild;
 
   // The previous child frames collapsed bottom margin value.
-  nsCollapsingMargin mPrevBEndMargin;
+  nsCollapsingMargin mPrevBottomMargin;
 
   // The current next-in-flow for the block. When lines are pulled
   // from a next-in-flow, this is used to know which next-in-flow to
@@ -286,18 +300,16 @@ public:
 
   nscoord mMinLineHeight;
 
-  int32_t mLineNumber;
+  PRInt32 mLineNumber;
 
-  int16_t mFlags;
+  PRInt16 mFlags;
  
-  uint8_t mFloatBreakType;
+  PRUint8 mFloatBreakType;
 
-  // The amount of computed block-direction size "consumed" by previous-in-flows.
-  nscoord mConsumedBSize;
-
-  void SetFlag(uint32_t aFlag, bool aValue)
+  void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
+    NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
     if (aValue) { // set flag
       mFlags |= aFlag;
     }
@@ -306,7 +318,7 @@ public:
     }
   }
 
-  bool GetFlag(uint32_t aFlag) const
+  PRBool GetFlag(PRUint32 aFlag) const
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
     return !!(mFlags & aFlag);

@@ -3,26 +3,12 @@
  */
 
 // Tests whether
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
+var gTestserver = null;
 
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-mapFile("/data/test_bug619730.xml", gTestserver);
-
-function load_blocklist(file, aCallback) {
-  Services.obs.addObserver(function() {
-    Services.obs.removeObserver(arguments.callee, "blocklist-updated");
-
-    do_execute_soon(aCallback);
-  }, "blocklist-updated", false);
-  
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
-                             gPort + "/data/" + file);
+function load_blocklist(file) {
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -35,6 +21,10 @@ var gSawTest = false;
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new nsHttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
 
@@ -55,10 +45,9 @@ function run_test() {
   Services.obs.addObserver(function(aSubject, aTopic, aData) {
     do_check_true(gSawGFX);
     do_check_true(gSawTest);
+
+    gTestserver.stop(do_test_finished);
   }, "blocklist-data-fooItems", false);
 
-  // Need to wait for the blocklist to load; Bad Things happen if the test harness
-  // shuts down AddonManager before the blocklist service is done telling it about
-  // changes
-  load_blocklist("test_bug619730.xml", () => gTestserver.stop(do_test_finished));
+  load_blocklist("test_bug619730.xml");
 }

@@ -18,7 +18,7 @@ class MemoryStream : public OTSStream {
       : ptr_(ptr), length_(length), off_(0) {
   }
 
-  virtual bool WriteRaw(const void *data, size_t length) {
+  bool WriteRaw(const void *data, size_t length) {
     if ((off_ + length > length_) ||
         (length > std::numeric_limits<size_t>::max() - off_)) {
       return false;
@@ -28,14 +28,14 @@ class MemoryStream : public OTSStream {
     return true;
   }
 
-  virtual bool Seek(off_t position) {
+  bool Seek(off_t position) {
     if (position < 0) return false;
     if (static_cast<size_t>(position) > length_) return false;
     off_ = position;
     return true;
   }
 
-  virtual off_t Tell() const {
+  off_t Tell() const {
     return off_;
   }
 
@@ -71,7 +71,7 @@ class ExpandingMemoryStream : public OTSStream {
       if (new_length > limit_)
         new_length = limit_;
       uint8_t* new_buf = new uint8_t[new_length];
-      std::memcpy(new_buf, ptr_, length_);
+      memcpy(new_buf, ptr_, length_);
       length_ = new_length;
       delete[] static_cast<uint8_t*>(ptr_);
       ptr_ = new_buf;

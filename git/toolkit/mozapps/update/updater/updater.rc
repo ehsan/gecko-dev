@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
@@ -31,7 +27,6 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 1                       RT_MANIFEST             "updater.exe.manifest"
-IDR_COMCTL32_MANIFEST   RT_MANIFEST             "updater.exe.comctl32.manifest"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -39,18 +34,6 @@ IDR_COMCTL32_MANIFEST   RT_MANIFEST             "updater.exe.comctl32.manifest"
 //
 
 IDI_DIALOG ICON "updater.ico"
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Embedded an identifier to uniquely identiy this as a Mozilla updater.
-//
-
-STRINGTABLE
-{
-  IDS_UPDATER_IDENTITY, "moz-updater.exe-4cdccec4-5ee0-4a06-9817-4cd899a9db49"
-} 
-
 
 /////////////////////////////////////////////////////////////////////////////
 //

@@ -1,60 +1,119 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is Oracle Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_ASURFACE_H
 #define GFX_ASURFACE_H
 
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/UniquePtr.h"
-
 #include "gfxTypes.h"
-#include "nscore.h"
-#include "nsSize.h"
+#include "gfxRect.h"
+#include "nsAutoPtr.h"
 
-#ifdef MOZILLA_INTERNAL_API
-#include "nsStringFwd.h"
-#else
-#include "nsStringAPI.h"
-#endif
+typedef struct _cairo_surface cairo_surface_t;
+typedef struct _cairo_user_data_key cairo_user_data_key_t;
+
+typedef void (*thebes_destroy_func_t) (void *data);
 
 class gfxImageSurface;
-struct nsIntPoint;
-struct nsIntRect;
-struct gfxRect;
-struct gfxPoint;
-
-template <typename T>
-struct already_AddRefed;
 
 /**
  * A surface is something you can draw on. Instantiate a subclass of this
  * abstract class, and use gfxContext to draw on this surface.
  */
-class gfxASurface {
+class THEBES_API gfxASurface {
 public:
-#ifdef MOZILLA_INTERNAL_API
     nsrefcnt AddRef(void);
     nsrefcnt Release(void);
 
-    // These functions exist so that browsercomps can refcount a gfxASurface
-    virtual nsrefcnt AddRefExternal(void);
-    virtual nsrefcnt ReleaseExternal(void);
-#else
-    virtual nsrefcnt AddRef(void);
-    virtual nsrefcnt Release(void);
-#endif
-
 public:
+    /**
+     * The format for an image surface. For all formats with alpha data, 0
+     * means transparent, 1 or 255 means fully opaque.
+     */
+    typedef enum {
+        ImageFormatARGB32, ///< ARGB data in native endianness, using premultiplied alpha
+        ImageFormatRGB24,  ///< xRGB data in native endianness
+        ImageFormatA8,     ///< Only an alpha channel
+        ImageFormatA1,     ///< Packed transparency information (one byte refers to 8 pixels)
+        ImageFormatRGB16_565,  ///< RGB_565 data in native endianness
+        ImageFormatUnknown
+    } gfxImageFormat;
+
+    typedef enum {
+        SurfaceTypeImage,
+        SurfaceTypePDF,
+        SurfaceTypePS,
+        SurfaceTypeXlib,
+        SurfaceTypeXcb,
+        SurfaceTypeGlitz,
+        SurfaceTypeQuartz,
+        SurfaceTypeWin32,
+        SurfaceTypeBeOS,
+        SurfaceTypeDirectFB,
+        SurfaceTypeSVG,
+        SurfaceTypeOS2,
+        SurfaceTypeWin32Printing,
+        SurfaceTypeQuartzImage,
+        SurfaceTypeScript,
+        SurfaceTypeQPainter,
+        SurfaceTypeRecording,
+        SurfaceTypeVG,
+        SurfaceTypeGL,
+        SurfaceTypeDRM,
+        SurfaceTypeTee,
+        SurfaceTypeXML,
+        SurfaceTypeSkia,
+        SurfaceTypeD2D,
+        SurfaceTypeMax
+    } gfxSurfaceType;
+
+    typedef enum {
+        CONTENT_COLOR       = 0x1000,
+        CONTENT_ALPHA       = 0x2000,
+        CONTENT_COLOR_ALPHA = 0x3000
+    } gfxContentType;
 
     /** Wrap the given cairo surface and return a gfxASurface for it.
      * This adds a reference to csurf (owned by the returned gfxASurface).
      */
-    static already_AddRefed<gfxASurface> Wrap(cairo_surface_t *csurf, const gfxIntSize& aSize = gfxIntSize(-1, -1));
+    static already_AddRefed<gfxASurface> Wrap(cairo_surface_t *csurf);
 
     /*** this DOES NOT addref the surface */
     cairo_surface_t *CairoSurface() {
+        NS_ASSERTION(mSurface != nsnull, "gfxASurface::CairoSurface called with mSurface == nsnull!");
         return mSurface;
     }
 
@@ -64,8 +123,6 @@ public:
 
     void SetDeviceOffset(const gfxPoint& offset);
     gfxPoint GetDeviceOffset() const;
-
-    virtual bool GetRotateForLandscape() { return false; }
 
     void Flush() const;
     void MarkDirty();
@@ -91,27 +148,17 @@ public:
      * Returns null on error.
      */
     virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
-                                                               const nsIntSize& aSize);
+                                                               const gfxIntSize& aSize);
 
     /**
-     * Returns an image surface for this surface, or nullptr if not supported.
+     * Returns an image surface for this surface, or nsnull if not supported.
      * This will not copy image data, just wraps an image surface around
      * pixel data already available in memory.
      */
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
-
-    /**
-     * Returns a read-only ARGB32 image surface for this surface. If this is an
-     * optimized surface this may require a copy.
-     * Returns null on error.
-     */
-    virtual already_AddRefed<gfxImageSurface> GetAsReadableARGB32ImageSurface();
-
-    /**
-     * Creates a new ARGB32 image surface with the same contents as this surface.
-     * Returns null on error.
-     */
-    already_AddRefed<gfxImageSurface> CopyToARGB32ImageSurface();
+    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface()
+    {
+      return nsnull;
+    }
 
     int CairoStatus();
 
@@ -119,24 +166,26 @@ public:
      * using 4 bytes per pixel; optionally, make sure that either dimension
      * doesn't exceed the given limit.
      */
-    static bool CheckSurfaceSize(const nsIntSize& sz, int32_t limit = 0);
+    static PRBool CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit = 0);
 
-    /* Provide a stride value that will respect all alignment requirements of
-     * the accelerated image-rendering code.
+    /* Return the default set of context flags for this surface; these are
+     * hints to the context about any special rendering considerations.  See
+     * gfxContext::SetFlag for documentation.
      */
-    static int32_t FormatStrideForWidth(gfxImageFormat format, int32_t width);
+    virtual PRInt32 GetDefaultContextFlags() const { return 0; }
 
     static gfxContentType ContentFromFormat(gfxImageFormat format);
+    static gfxImageFormat FormatFromContent(gfxContentType format);
 
-    void SetSubpixelAntialiasingEnabled(bool aEnabled);
-    bool GetSubpixelAntialiasingEnabled();
+    void SetSubpixelAntialiasingEnabled(PRBool aEnabled);
+    PRBool GetSubpixelAntialiasingEnabled();
 
     /**
      * Record number of bytes for given surface type.  Use positive bytes
      * for allocations and negative bytes for deallocations.
      */
-    static void RecordMemoryUsedForSurfaceType(gfxSurfaceType aType,
-                                               int32_t aBytes);
+    static void RecordMemoryUsedForSurfaceType(gfxASurface::gfxSurfaceType aType,
+                                               PRInt32 aBytes);
 
     /**
      * Same as above, but use current surface type as returned by GetType().
@@ -144,50 +193,45 @@ public:
      * in which case the value that was recorded for this surface will
      * be freed.
      */
-    void RecordMemoryUsed(int32_t aBytes);
+    void RecordMemoryUsed(PRInt32 aBytes);
     void RecordMemoryFreed();
 
-    virtual int32_t KnownMemoryUsed() { return mBytesRecorded; }
+    PRInt32 KnownMemoryUsed() { return mBytesRecorded; }
 
-    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-    // gfxASurface has many sub-classes.  This method indicates if a sub-class
-    // is capable of measuring its own size accurately.  If not, the caller
-    // must fall back to a computed size.  (Note that gfxASurface can actually
-    // measure itself, but we must |return false| here because it serves as the
-    // (conservative) default for all the sub-classes.  Therefore, this
-    // function should only be called on a |gfxASurface*| that actually points
-    // to a sub-class of gfxASurface.)
-    virtual bool SizeOfIsMeasured() const { return false; }
+    static PRInt32 BytePerPixelFromFormat(gfxImageFormat format);
 
-    /**
-     * Where does this surface's memory live?  By default, we say it's in this
-     * process's heap.
-     */
-    virtual gfxMemoryLocation GetMemoryLocation() const;
+    virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
 
-    static int32_t BytePerPixelFromFormat(gfxImageFormat format);
-
-    virtual const nsIntSize GetSize() const;
-
-    void SetOpaqueRect(const gfxRect& aRect);
-
-    const gfxRect& GetOpaqueRect() {
-        if (!!mOpaqueRect)
-            return *mOpaqueRect;
-        return GetEmptyOpaqueRect();
+    void SetOpaqueRect(const gfxRect& aRect) {
+        if (aRect.IsEmpty()) {
+            mOpaqueRect = nsnull;
+        } else if (mOpaqueRect) {
+            *mOpaqueRect = aRect;
+        } else {
+            mOpaqueRect = new gfxRect(aRect);
+        }
     }
+    const gfxRect& GetOpaqueRect() {
+        if (mOpaqueRect)
+            return *mOpaqueRect;
+        static const gfxRect empty(0, 0, 0, 0);
+        return empty;
+    }
+
+    virtual PRBool SupportsSelfCopy() { return PR_TRUE; }
 
     /**
      * Mark the surface as being allowed/not allowed to be used as a source.
      */
-    void SetAllowUseAsSource(bool aAllow) { mAllowUseAsSource = aAllow; }
-    bool GetAllowUseAsSource() { return mAllowUseAsSource; }
-
-    static uint8_t BytesPerPixel(gfxImageFormat aImageFormat);
+    void SetAllowUseAsSource(PRBool aAllow) { mAllowUseAsSource = aAllow; }
+    PRBool GetAllowUseAsSource() { return mAllowUseAsSource; }
 
 protected:
-    gfxASurface();
+    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0),
+                    mSurfaceValid(PR_FALSE), mAllowUseAsSource(PR_TRUE)
+    {
+        MOZ_COUNT_CTOR(gfxASurface);
+    }
 
     static gfxASurface* GetSurfaceWrapper(cairo_surface_t *csurf);
     static void SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf);
@@ -195,44 +239,39 @@ protected:
     // NB: Init() *must* be called from within subclass's
     // constructors.  It's unsafe to call it after the ctor finishes;
     // leaks and use-after-frees are possible.
-    void Init(cairo_surface_t *surface, bool existingSurface = false);
+    void Init(cairo_surface_t *surface, PRBool existingSurface = PR_FALSE);
 
-    // out-of-line helper to allow GetOpaqueRect() to be inlined
-    // without including gfxRect.h here
-    static const gfxRect& GetEmptyOpaqueRect();
+    virtual ~gfxASurface()
+    {
+        RecordMemoryFreed();
 
-    virtual ~gfxASurface();
+        MOZ_COUNT_DTOR(gfxASurface);
+    }
 
     cairo_surface_t *mSurface;
-    mozilla::UniquePtr<gfxRect> mOpaqueRect;
+    nsAutoPtr<gfxRect> mOpaqueRect;
 
 private:
     static void SurfaceDestroyFunc(void *data);
 
-    int32_t mFloatingRefs;
-    int32_t mBytesRecorded;
+    PRInt32 mFloatingRefs;
+    PRInt32 mBytesRecorded;
 
 protected:
-    bool mSurfaceValid;
-    bool mAllowUseAsSource;
+    PRPackedBool mSurfaceValid;
+    PRPackedBool mAllowUseAsSource;
 };
 
 /**
  * An Unknown surface; used to wrap unknown cairo_surface_t returns from cairo
  */
-class gfxUnknownSurface : public gfxASurface {
+class THEBES_API gfxUnknownSurface : public gfxASurface {
 public:
-    gfxUnknownSurface(cairo_surface_t *surf, const gfxIntSize& aSize)
-        : mSize(aSize)
-    {
-        Init(surf, true);
+    gfxUnknownSurface(cairo_surface_t *surf) {
+        Init(surf, PR_TRUE);
     }
 
     virtual ~gfxUnknownSurface() { }
-    virtual const nsIntSize GetSize() const { return mSize; }
-
-private:
-    nsIntSize mSize;
 };
 
 #endif /* GFX_ASURFACE_H */

@@ -14,10 +14,258 @@
 %define VP8_FILTER_WEIGHT 128
 %define VP8_FILTER_SHIFT  7
 
+;void vp8_post_proc_down_and_across_mmx
+;(
+;    unsigned char *src_ptr,
+;    unsigned char *dst_ptr,
+;    int src_pixels_per_line,
+;    int dst_pixels_per_line,
+;    int rows,
+;    int cols,
+;    int flimit
+;)
+global sym(vp8_post_proc_down_and_across_mmx)
+sym(vp8_post_proc_down_and_across_mmx):
+    push        rbp
+    mov         rbp, rsp
+    SHADOW_ARGS_TO_STACK 7
+    GET_GOT     rbx
+    push        rsi
+    push        rdi
+    ; end prolog
+
+%if ABI_IS_32BIT=1 && CONFIG_PIC=1
+    ; move the global rd onto the stack, since we don't have enough registers
+    ; to do PIC addressing
+    movq        mm0, [GLOBAL(rd)]
+    sub         rsp, 8
+    movq        [rsp], mm0
+%define RD [rsp]
+%else
+%define RD [GLOBAL(rd)]
+%endif
+
+        push        rbx
+        lea         rbx, [GLOBAL(Blur)]
+        movd        mm2, dword ptr arg(6) ;flimit
+        punpcklwd   mm2, mm2
+        punpckldq   mm2, mm2
+
+        mov         rsi,        arg(0) ;src_ptr
+        mov         rdi,        arg(1) ;dst_ptr
+
+        movsxd      rcx, DWORD PTR arg(4) ;rows
+        movsxd      rax, DWORD PTR arg(2) ;src_pixels_per_line ; destination pitch?
+        pxor        mm0, mm0              ; mm0 = 00000000
+
+nextrow:
+
+        xor         rdx,        rdx       ; clear out rdx for use as loop counter
+nextcol:
+
+        pxor        mm7, mm7              ; mm7 = 00000000
+        movq        mm6, [rbx + 32 ]      ; mm6 = kernel 2 taps
+        movq        mm3, [rsi]            ; mm4 = r0 p0..p7
+        punpcklbw   mm3, mm0              ; mm3 = p0..p3
+        movq        mm1, mm3              ; mm1 = p0..p3
+        pmullw      mm3, mm6              ; mm3 *= kernel 2 modifiers
+
+        movq        mm6, [rbx + 48]       ; mm6 = kernel 3 taps
+        movq        mm5, [rsi + rax]      ; mm4 = r1 p0..p7
+        punpcklbw   mm5, mm0              ; mm5 = r1 p0..p3
+        pmullw      mm6, mm5              ; mm6 *= p0..p3 * kernel 3 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm6
+
+        ; thresholding
+        movq        mm7, mm1              ; mm7 = r0 p0..p3
+        psubusw     mm7, mm5              ; mm7 = r0 p0..p3 - r1 p0..p3
+        psubusw     mm5, mm1              ; mm5 = r1 p0..p3 - r0 p0..p3
+        paddusw     mm7, mm5              ; mm7 = abs(r0 p0..p3 - r1 p0..p3)
+        pcmpgtw     mm7, mm2
+
+        movq        mm6, [rbx + 64 ]      ; mm6 = kernel 4 modifiers
+        movq        mm5, [rsi + 2*rax]    ; mm4 = r2 p0..p7
+        punpcklbw   mm5, mm0              ; mm5 = r2 p0..p3
+        pmullw      mm6, mm5              ; mm5 *= kernel 4 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = r0 p0..p3
+        psubusw     mm6, mm5              ; mm6 = r0 p0..p3 - r2 p0..p3
+        psubusw     mm5, mm1              ; mm5 = r2 p0..p3 - r2 p0..p3
+        paddusw     mm6, mm5              ; mm6 = abs(r0 p0..p3 - r2 p0..p3)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+
+        neg         rax
+        movq        mm6, [rbx ]           ; kernel 0 taps
+        movq        mm5, [rsi+2*rax]      ; mm4 = r-2 p0..p7
+        punpcklbw   mm5, mm0              ; mm5 = r-2 p0..p3
+        pmullw      mm6, mm5              ; mm5 *= kernel 0 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = r0 p0..p3
+        psubusw     mm6, mm5              ; mm6 = p0..p3 - r-2 p0..p3
+        psubusw     mm5, mm1              ; mm5 = r-2 p0..p3 - p0..p3
+        paddusw     mm6, mm5              ; mm6 = abs(r0 p0..p3 - r-2 p0..p3)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+        movq        mm6, [rbx + 16]       ; kernel 1 taps
+        movq        mm4, [rsi+rax]        ; mm4 = r-1 p0..p7
+        punpcklbw   mm4, mm0              ; mm4 = r-1 p0..p3
+        pmullw      mm6, mm4              ; mm4 *= kernel 1 modifiers.
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = r0 p0..p3
+        psubusw     mm6, mm4              ; mm6 = p0..p3 - r-2 p0..p3
+        psubusw     mm4, mm1              ; mm5 = r-1 p0..p3 - p0..p3
+        paddusw     mm6, mm4              ; mm6 = abs(r0 p0..p3 - r-1 p0..p3)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+
+        paddusw     mm3, RD               ; mm3 += round value
+        psraw       mm3, VP8_FILTER_SHIFT     ; mm3 /= 128
+
+        pand        mm1, mm7              ; mm1 select vals > thresh from source
+        pandn       mm7, mm3              ; mm7 select vals < thresh from blurred result
+        paddusw     mm1, mm7              ; combination
+
+        packuswb    mm1, mm0              ; pack to bytes
+
+        movd        [rdi], mm1            ;
+        neg         rax                   ; pitch is positive
+
+
+        add         rsi, 4
+        add         rdi, 4
+        add         rdx, 4
+
+        cmp         edx, dword ptr arg(5) ;cols
+        jl          nextcol
+        ; done with the all cols, start the across filtering in place
+        sub         rsi, rdx
+        sub         rdi, rdx
+
+
+        push        rax
+        xor         rdx,    rdx
+        mov         rax,    [rdi-4];
+
+acrossnextcol:
+        pxor        mm7, mm7              ; mm7 = 00000000
+        movq        mm6, [rbx + 32 ]      ;
+        movq        mm4, [rdi+rdx]        ; mm4 = p0..p7
+        movq        mm3, mm4              ; mm3 = p0..p7
+        punpcklbw   mm3, mm0              ; mm3 = p0..p3
+        movq        mm1, mm3              ; mm1 = p0..p3
+        pmullw      mm3, mm6              ; mm3 *= kernel 2 modifiers
+
+        movq        mm6, [rbx + 48]
+        psrlq       mm4, 8                ; mm4 = p1..p7
+        movq        mm5, mm4              ; mm5 = p1..p7
+        punpcklbw   mm5, mm0              ; mm5 = p1..p4
+        pmullw      mm6, mm5              ; mm6 *= p1..p4 * kernel 3 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm6
+
+        ; thresholding
+        movq        mm7, mm1              ; mm7 = p0..p3
+        psubusw     mm7, mm5              ; mm7 = p0..p3 - p1..p4
+        psubusw     mm5, mm1              ; mm5 = p1..p4 - p0..p3
+        paddusw     mm7, mm5              ; mm7 = abs(p0..p3 - p1..p4)
+        pcmpgtw     mm7, mm2
+
+        movq        mm6, [rbx + 64 ]
+        psrlq       mm4, 8                ; mm4 = p2..p7
+        movq        mm5, mm4              ; mm5 = p2..p7
+        punpcklbw   mm5, mm0              ; mm5 = p2..p5
+        pmullw      mm6, mm5              ; mm5 *= kernel 4 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = p0..p3
+        psubusw     mm6, mm5              ; mm6 = p0..p3 - p1..p4
+        psubusw     mm5, mm1              ; mm5 = p1..p4 - p0..p3
+        paddusw     mm6, mm5              ; mm6 = abs(p0..p3 - p1..p4)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+
+        movq        mm6, [rbx ]
+        movq        mm4, [rdi+rdx-2]      ; mm4 = p-2..p5
+        movq        mm5, mm4              ; mm5 = p-2..p5
+        punpcklbw   mm5, mm0              ; mm5 = p-2..p1
+        pmullw      mm6, mm5              ; mm5 *= kernel 0 modifiers
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = p0..p3
+        psubusw     mm6, mm5              ; mm6 = p0..p3 - p1..p4
+        psubusw     mm5, mm1              ; mm5 = p1..p4 - p0..p3
+        paddusw     mm6, mm5              ; mm6 = abs(p0..p3 - p1..p4)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+        movq        mm6, [rbx + 16]
+        psrlq       mm4, 8                ; mm4 = p-1..p5
+        punpcklbw   mm4, mm0              ; mm4 = p-1..p2
+        pmullw      mm6, mm4              ; mm4 *= kernel 1 modifiers.
+        paddusw     mm3, mm6              ; mm3 += mm5
+
+        ; thresholding
+        movq        mm6, mm1              ; mm6 = p0..p3
+        psubusw     mm6, mm4              ; mm6 = p0..p3 - p1..p4
+        psubusw     mm4, mm1              ; mm5 = p1..p4 - p0..p3
+        paddusw     mm6, mm4              ; mm6 = abs(p0..p3 - p1..p4)
+        pcmpgtw     mm6, mm2
+        por         mm7, mm6              ; accumulate thresholds
+
+        paddusw     mm3, RD               ; mm3 += round value
+        psraw       mm3, VP8_FILTER_SHIFT     ; mm3 /= 128
+
+        pand        mm1, mm7              ; mm1 select vals > thresh from source
+        pandn       mm7, mm3              ; mm7 select vals < thresh from blurred result
+        paddusw     mm1, mm7              ; combination
+
+        packuswb    mm1, mm0              ; pack to bytes
+        mov         DWORD PTR [rdi+rdx-4],  eax   ; store previous four bytes
+        movd        eax,    mm1
+
+        add         rdx, 4
+        cmp         edx, dword ptr arg(5) ;cols
+        jl          acrossnextcol;
+
+        mov         DWORD PTR [rdi+rdx-4],  eax
+        pop         rax
+
+        ; done with this rwo
+        add         rsi,rax               ; next line
+        movsxd      rax, dword ptr arg(3) ;dst_pixels_per_line ; destination pitch?
+        add         rdi,rax               ; next destination
+        movsxd      rax, dword ptr arg(2) ;src_pixels_per_line ; destination pitch?
+
+        dec         rcx                   ; decrement count
+        jnz         nextrow               ; next row
+        pop         rbx
+
+    ; begin epilog
+    pop rdi
+    pop rsi
+    RESTORE_GOT
+    UNSHADOW_ARGS
+    pop         rbp
+    ret
+%undef RD
+
+
 ;void vp8_mbpost_proc_down_mmx(unsigned char *dst,
 ;                             int pitch, int rows, int cols,int flimit)
 extern sym(vp8_rv)
-global sym(vp8_mbpost_proc_down_mmx) PRIVATE
+global sym(vp8_mbpost_proc_down_mmx)
 sym(vp8_mbpost_proc_down_mmx):
     push        rbp
     mov         rbp, rsp
@@ -45,40 +293,12 @@ sym(vp8_mbpost_proc_down_mmx):
     add         dword ptr arg(2), 8
 
     ;for(c=0; c<cols; c+=4)
-.loop_col:
+loop_col:
             mov         rsi,        arg(0)  ;s
             pxor        mm0,        mm0     ;
 
             movsxd      rax,        dword ptr arg(1) ;pitch       ;
-
-            ; this copies the last row down into the border 8 rows
-            mov         rdi,        rsi
-            mov         rdx,        arg(2)
-            sub         rdx,        9
-            imul        rdx,        rax
-            lea         rdi,        [rdi+rdx]
-            movq        mm1,        QWORD ptr[rdi]              ; first row
-            mov         rcx,        8
-.init_borderd                                                    ; initialize borders
-            lea         rdi,        [rdi + rax]
-            movq        [rdi],      mm1
-
-            dec         rcx
-            jne         .init_borderd
-
             neg         rax                                     ; rax = -pitch
-
-            ; this copies the first row up into the border 8 rows
-            mov         rdi,        rsi
-            movq        mm1,        QWORD ptr[rdi]              ; first row
-            mov         rcx,        8
-.init_border                                                    ; initialize borders
-            lea         rdi,        [rdi + rax]
-            movq        [rdi],      mm1
-
-            dec         rcx
-            jne         .init_border
-
 
             lea         rsi,        [rsi + rax*8];              ; rdi = s[-pitch*8]
             neg         rax
@@ -92,7 +312,7 @@ sym(vp8_mbpost_proc_down_mmx):
 
             mov         rcx,        15          ;
 
-.loop_initvar:
+loop_initvar:
             movd        mm1,        DWORD PTR [rdi];
             punpcklbw   mm1,        mm0     ;
 
@@ -109,10 +329,10 @@ sym(vp8_mbpost_proc_down_mmx):
             lea         rdi,        [rdi+rax]   ;
 
             dec         rcx
-            jne         .loop_initvar
+            jne         loop_initvar
             ;save the var and sum
             xor         rdx,        rdx
-.loop_row:
+loop_row:
             movd        mm1,        DWORD PTR [rsi]     ; [s-pitch*8]
             movd        mm2,        DWORD PTR [rdi]     ; [s+pitch*7]
 
@@ -193,6 +413,7 @@ sym(vp8_mbpost_proc_down_mmx):
             movq        mm4,        [sym(vp8_rv) + rcx*2]
 %endif
             paddw       mm1,        mm4
+            ;paddw     xmm1,       eight8s
             psraw       mm1,        4
 
             packuswb    mm1,        mm0
@@ -204,29 +425,26 @@ sym(vp8_mbpost_proc_down_mmx):
             and         rcx,        15
             movd        DWORD PTR   [rsp+rcx*4], mm1 ;d[rcx*4]
 
-            cmp         edx,        8
-            jl          .skip_assignment
-
             mov         rcx,        rdx
             sub         rcx,        8
+
             and         rcx,        15
             movd        mm1,        DWORD PTR [rsp+rcx*4] ;d[rcx*4]
-            movd        [rsi],      mm1
 
-.skip_assignment
+            movd        [rsi],      mm1
             lea         rsi,        [rsi+rax]
 
             lea         rdi,        [rdi+rax]
             add         rdx,        1
 
             cmp         edx,        dword arg(2) ;rows
-            jl          .loop_row
+            jl          loop_row
 
 
         add         dword arg(0), 4 ; s += 4
         sub         dword arg(3), 4 ; cols -= 4
         cmp         dword arg(3), 0
-        jg          .loop_col
+        jg          loop_col
 
     add         rsp, 136
     pop         rsp
@@ -246,7 +464,8 @@ sym(vp8_mbpost_proc_down_mmx):
 ;                            unsigned char whiteclamp[16],
 ;                            unsigned char bothclamp[16],
 ;                            unsigned int Width, unsigned int Height, int Pitch)
-global sym(vp8_plane_add_noise_mmx) PRIVATE
+extern sym(rand)
+global sym(vp8_plane_add_noise_mmx)
 sym(vp8_plane_add_noise_mmx):
     push        rbp
     mov         rbp, rsp
@@ -256,8 +475,8 @@ sym(vp8_plane_add_noise_mmx):
     push        rdi
     ; end prolog
 
-.addnoise_loop:
-    call sym(LIBVPX_RAND) WRT_PLT
+addnoise_loop:
+    call sym(rand) WRT_PLT
     mov     rcx, arg(1) ;noise
     and     rax, 0xff
     add     rcx, rax
@@ -273,7 +492,7 @@ sym(vp8_plane_add_noise_mmx):
             mov     rsi, arg(0) ;Pos
             xor         rax,rax
 
-.addnoise_nextset:
+addnoise_nextset:
             movq        mm1,[rsi+rax]         ; get the source
 
             psubusb     mm1, [rdx]    ;blackclamp        ; clamp both sides so we don't outrange adding noise
@@ -287,12 +506,12 @@ sym(vp8_plane_add_noise_mmx):
             add         rax,8                 ; move to the next line
 
             cmp         rax, rcx
-            jl          .addnoise_nextset
+            jl          addnoise_nextset
 
     movsxd  rax, dword arg(7) ; Pitch
     add     arg(0), rax ; Start += Pitch
     sub     dword arg(6), 1   ; Height -= 1
-    jg      .addnoise_loop
+    jg      addnoise_loop
 
     ; begin epilog
     pop rdi

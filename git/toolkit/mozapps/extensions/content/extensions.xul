@@ -1,7 +1,41 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is the Extension Manager UI.
+   -
+   - The Initial Developer of the Original Code is
+   - the Mozilla Foundation.
+   - Portions created by the Initial Developer are Copyright (C) 2010
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   Blair McBride <bmcbride@mozilla.com>
+   -   David Dahl <ddahl@mozilla.com>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
 
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
 <?xml-stylesheet href="chrome://mozapps/content/extensions/extensions.css"?>
@@ -18,7 +52,10 @@
       xmlns:xhtml="http://www.w3.org/1999/xhtml"
       id="addons-page" title="&addons.windowTitle;"
       role="application" windowtype="Addons:Manager"
-      disablefastfind="true">
+      disablefastfind="true"
+      ondragenter="gDragDrop.onDragOver(event)"
+      ondragover="gDragDrop.onDragOver(event)"
+      ondrop="gDragDrop.onDrop(event)">
 
   <xhtml:link rel="shortcut icon"
               href="chrome://mozapps/skin/extensions/extensionGeneric-16.png"/>
@@ -52,8 +89,6 @@
       <menuitem id="menuitem_uninstallItem" command="cmd_uninstallItem"
                 label="&cmd.uninstallAddon.label;"
                 accesskey="&cmd.uninstallAddon.accesskey;"/>
-      <menuitem id="menuitem_debugItem" command="cmd_debugItem"
-                label="&cmd.debugAddon.label;"/>
       <menuseparator id="addonitem-menuseparator" />
       <menuitem id="menuitem_preferences" command="cmd_showItemPreferences"
 #ifdef XP_WIN
@@ -74,8 +109,8 @@
 
   <!-- global commands - these act on all addons, or affect the addons manager
        in some other way -->
-  <commandset id="globalCommandSet">
-    <command id="cmd_focusSearch"/>
+  <commandset id="globalCommandSet"
+              oncommand="gViewController.doCommand(event.target.id);">
     <command id="cmd_findAllUpdates"/>
     <command id="cmd_restartApp"/>
     <command id="cmd_goToDiscoverPane"/>
@@ -85,22 +120,20 @@
     <command id="cmd_back"/>
     <command id="cmd_forward"/>
     <command id="cmd_enableCheckCompatibility"/>
-    <command id="cmd_pluginCheck"/>
     <command id="cmd_enableUpdateSecurity"/>
     <command id="cmd_toggleAutoUpdateDefault"/>
     <command id="cmd_resetAddonAutoUpdate"/>
-    <command id="cmd_experimentsLearnMore"/>
-    <command id="cmd_experimentsOpenTelemetryPreferences"/>
   </commandset>
 
   <!-- view commands - these act on the selected addon -->
   <commandset id="viewCommandSet"
-              events="richlistbox-select" commandupdater="true">
+              events="richlistbox-select" commandupdater="true"
+              oncommandupdate="gViewController.updateCommands();"
+              oncommand="gViewController.doCommand(event.target.id);">
     <command id="cmd_showItemDetails"/>
     <command id="cmd_findItemUpdates"/>
     <command id="cmd_showItemPreferences"/>
     <command id="cmd_showItemAbout"/>
-    <command id="cmd_debugItem"/>
     <command id="cmd_enableItem"/>
     <command id="cmd_disableItem"/>
     <command id="cmd_installItem"/>
@@ -109,16 +142,7 @@
     <command id="cmd_cancelUninstallItem"/>
     <command id="cmd_cancelOperation"/>
     <command id="cmd_contribute"/>
-    <command id="cmd_askToActivateItem"/>
-    <command id="cmd_alwaysActivateItem"/>
-    <command id="cmd_neverActivateItem"/>
   </commandset>
-
-  <keyset>
-    <!-- XXXunf Disabled until bug 371900 is fixed. -->
-    <key id="focusSearch" key="&search.commandkey;" modifiers="accel"
-         disabled="true"/>
-  </keyset>
 
   <!-- main header -->
   <hbox id="header" align="center">
@@ -183,33 +207,56 @@
   <hbox flex="1">
 
     <!-- category list -->
-    <richlistbox id="categories">
+    <richlistbox id="categories" persist="last-selected">
       <richlistitem id="category-search" value="addons://search/"
                     class="category"
-                    name="&view.search.label;" priority="0"
+                    name="&view.search.label;"
                     tooltiptext="&view.search.label;" disabled="true"/>
       <richlistitem id="category-discover" value="addons://discover/"
                     class="category"
-                    name="&view.discover.label;" priority="1000"
+                    name="&view.discover.label;"
                     tooltiptext="&view.discover.label;"/>
+      <richlistitem id="category-languages" value="addons://list/locale"
+                    class="category"
+                    name="&view.locales.label;"
+                    tooltiptext="&view.locales.label;"
+                    hidden="true" persist="hidden"/>
+      <richlistitem id="category-searchengines"
+                    value="addons://list/searchengine"
+                    class="category"
+                    name="&view.searchengines.label;"
+                    tooltiptext="&view.searchengines.label;"
+                    hidden="true" persist="hidden"/>
+      <richlistitem id="category-extensions" value="addons://list/extension"
+                    class="category"
+                    name="&view.features.label;"
+                    tooltiptext="&view.features.label;"/>
+      <richlistitem id="category-themes" value="addons://list/theme"
+                    class="category"
+                    name="&view.appearance2.label;"
+                    tooltiptext="&view.appearance2.label;"/>
+      <richlistitem id="category-plugins" value="addons://list/plugin"
+                    class="category"
+                    name="&view.plugins.label;"
+                    tooltiptext="&view.plugins.label;"/>
       <richlistitem id="category-availableUpdates" value="addons://updates/available"
                     class="category"
-                    name="&view.availableUpdates.label;" priority="100000"
+                    name="&view.availableUpdates.label;"
                     tooltiptext="&view.availableUpdates.label;"
                     disabled="true"/>
       <richlistitem id="category-recentUpdates" value="addons://updates/recent"
                     class="category"
-                    name="&view.recentUpdates.label;" priority="101000"
+                    name="&view.recentUpdates.label;"
                     tooltiptext="&view.recentUpdates.label;" disabled="true"/>
     </richlistbox>
 
-    <box id="view-port-container" class="main-content" flex="1">
+    <box id="view-port-container" flex="1">
 
       <!-- view port -->
       <deck id="view-port" flex="1" selectedIndex="0">
 
         <!-- discover view -->
-        <deck id="discover-view" flex="1" class="view-pane" selectedIndex="0" tabindex="0">
+        <deck id="discover-view" flex="1" class="view-pane" selectedIndex="0">
           <vbox id="discover-loading" align="center" pack="stretch" flex="1" class="alert-container">
             <spacer class="alert-spacer-before"/>
             <hbox class="alert loading" align="center">
@@ -239,7 +286,7 @@
         </deck>
 
         <!-- search view -->
-        <vbox id="search-view" flex="1" class="view-pane" tabindex="0">
+        <vbox id="search-view" flex="1" class="view-pane">
           <hbox class="view-header global-warning-container" align="center">
             <!-- global warnings -->
             <hbox class="global-warning" flex="1">
@@ -301,9 +348,7 @@
             <spacer class="alert-spacer-before"/>
             <vbox class="alert">
               <label value="&listEmpty.search.label;"/>
-              <button class="discover-button"
-                      id="discover-button-search"
-                      label="&listEmpty.button.label;"
+              <button label="&listEmpty.button.label;" class="addon-control"
                       command="cmd_goToDiscoverPane"/>
             </vbox>
             <spacer class="alert-spacer-after"/>
@@ -316,7 +361,7 @@
         </vbox>
 
         <!-- list view -->
-        <vbox id="list-view" flex="1" class="view-pane" align="stretch" tabindex="0">
+        <vbox id="list-view" flex="1" class="view-pane" align="stretch">
           <hbox class="view-header global-warning-container">
             <!-- global warnings -->
             <hbox class="global-warning" flex="1">
@@ -349,39 +394,12 @@
               <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
           </hbox>
-          <hbox class="view-header global-info-container plugin-info-container">
-            <hbox class="global-info" flex="1" align="center">
-              <button class="button-link global-info-plugincheck"
-                      label="&info.plugincheck.label;"
-                      tooltiptext="&info.plugincheck.tooltip;"
-                      command="cmd_pluginCheck"/>
-              <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
-            </hbox>
-          </hbox>
-          <hbox class="view-header global-info-container experiment-info-container">
-            <hbox class="global-info" flex="1" align="center">
-              <label value="&experiment.info.label;"/>
-              <button id="experiments-learn-more"
-                      label="&experiment.info.learnmore;"
-                      tooltiptext="&experiment.info.learnmore;"
-                      accesskey="&experiment.info.learnmore.accesskey;"
-                      command="cmd_experimentsLearnMore"/>
-              <button id="experiments-change-telemetry"
-                      label="&experiment.info.changetelemetry;"
-                      tooltiptext="&experiment.info.changetelemetry;"
-                      accesskey="&experiment.info.changetelemetry.accesskey;"
-                      command="cmd_experimentsOpenTelemetryPreferences"/>
-              <spacer flex="5000"/> <!-- Necessary to allow the message to wrap. -->
-            </hbox>
-          </hbox>
           <vbox id="addon-list-empty" class="alert-container"
                 flex="1" hidden="true">
             <spacer class="alert-spacer-before"/>
             <vbox class="alert">
               <label value="&listEmpty.installed.label;"/>
-              <button class="discover-button"
-                      id="discover-button-install"
-                      label="&listEmpty.button.label;"
+              <button label="&listEmpty.button.label;" class="addon-control"
                       command="cmd_goToDiscoverPane"/>
             </vbox>
             <spacer class="alert-spacer-after"/>
@@ -390,7 +408,7 @@
         </vbox>
 
         <!-- updates view -->
-        <vbox id="updates-view" flex="1" class="view-pane" tabindex="0">
+        <vbox id="updates-view" flex="1" class="view-pane">
           <hbox class="view-header global-warning-container" align="center">
             <!-- global warnings -->
             <hbox class="global-warning" flex="1">
@@ -432,7 +450,7 @@
             <vbox class="alert">
               <label id="empty-availableUpdates-msg" value="&listEmpty.availableUpdates.label;"/>
               <label id="empty-recentUpdates-msg" value="&listEmpty.recentUpdates.label;"/>
-              <button label="&listEmpty.findUpdates.label;"
+              <button label="&listEmpty.findUpdates.label;" class="addon-control"
                       command="cmd_findAllUpdates"/>
             </vbox>
             <spacer class="alert-spacer-after"/>
@@ -446,7 +464,7 @@
         </vbox>
 
         <!-- detail view -->
-        <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical" tabindex="0">
+        <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical">
           <!-- global warnings -->
           <hbox class="global-warning-container global-warning">
             <hbox class="global-warning-safemode" flex="1" align="center"
@@ -517,9 +535,7 @@
                 </hbox>
               </vbox>
               <hbox align="start">
-                <vbox id="detail-icon-container" align="end">
-                  <image id="detail-icon" class="icon"/>
-                </vbox>
+                <image id="detail-icon" class="icon"/>
                 <vbox flex="1">
                   <vbox id="detail-summary">
                     <hbox id="detail-name-container" class="name-container"
@@ -532,15 +548,6 @@
                     </hbox>
                     <label id="detail-creator" class="creator"/>
                   </vbox>
-                  <hbox id="detail-experiment-container">
-                    <svg width="8" height="8" viewBox="0 0 8 8" version="1.1"
-                         xmlns="http://www.w3.org/2000/svg"
-                         id="detail-experiment-bullet-container">
-                      <circle cx="4" cy="4" r="4" id="detail-experiment-bullet"/>
-                    </svg>
-                    <label id="detail-experiment-state"/>
-                    <label id="detail-experiment-time"/>
-                  </hbox>
                   <hbox id="detail-desc-container" align="start">
                     <vbox pack="center"> <!-- Necessary to work around bug 394738 -->
                       <image id="detail-screenshot" hidden="true"/>
@@ -569,7 +576,7 @@
                        <column flex="1"/>
                        <column flex="2"/>
                     </columns>
-                    <rows id="detail-rows">
+                    <rows>
                       <row class="detail-row-complex" id="detail-updates-row">
                         <label class="detail-row-label" value="&detail.updateType;"/>
                         <hbox align="center">
@@ -627,9 +634,6 @@
 #endif
                             command="cmd_showItemPreferences"/>
                     <spacer flex="1"/>
-                    <button id="detail-debug-btn" class="addon-control debug"
-                            label="Debug"
-                            command="cmd_debugItem" />
                     <button id="detail-enable-btn" class="addon-control enable"
                             label="&cmd.enableAddon.label;"
                             accesskey="&cmd.enableAddon.accesskey;"
@@ -648,27 +652,6 @@
                             label="&cmd.installAddon.label;"
                             accesskey="&cmd.installAddon.accesskey;"
                             command="cmd_installItem"/>
-                    <menulist id="detail-state-menulist"
-                              crop="none" sizetopopup="always"
-                              tooltiptext="&cmd.stateMenu.tooltip;">
-                      <menupopup>
-                        <menuitem id="detail-ask-to-activate-menuitem"
-                                  class="addon-control"
-                                  label="&cmd.askToActivate.label;"
-                                  tooltiptext="&cmd.askToActivate.tooltip;"
-                                  command="cmd_askToActivateItem"/>
-                        <menuitem id="detail-always-activate-menuitem"
-                                  class="addon-control"
-                                  label="&cmd.alwaysActivate.label;"
-                                  tooltiptext="&cmd.alwaysActivate.tooltip;"
-                                  command="cmd_alwaysActivateItem"/>
-                        <menuitem id="detail-never-activate-menuitem"
-                                  class="addon-control"
-                                  label="&cmd.neverActivate.label;"
-                                  tooltiptext="&cmd.neverActivate.tooltip;"
-                                  command="cmd_neverActivateItem"/>
-                      </menupopup>
-                    </menulist>
                   </hbox>
                 </vbox>
               </hbox>

@@ -64,10 +64,6 @@ sourcepath ..\..\src\gzip
 
 source ftgzip.c
 
-sourcepath ..\..\src\bzip2
-
-source ftbzip2.c
-
 sourcepath ..\..\src\lzw
 
 source ftlzw.c
@@ -130,7 +126,6 @@ userinclude		..\..\src\cff
 userinclude		..\..\src\cid
 userinclude		..\..\src\gxvalid
 userinclude		..\..\src\gzip
-userinclude		..\..\src\bzip2
 userinclude		..\..\src\lzw
 userinclude		..\..\src\otvalid
 userinclude		..\..\src\pcf

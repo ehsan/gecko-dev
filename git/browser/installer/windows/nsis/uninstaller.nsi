@@ -1,10 +1,41 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Mozilla Installer code.
+#
+# The Initial Developer of the Original Code is Mozilla Foundation
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Robert Strong <robert.bugzilla@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 # Required Plugins:
 # AppAssocReg http://nsis.sourceforge.net/Application_Association_Registration_plug-in
-# CityHash    http://mxr.mozilla.org/mozilla-central/source/other-licenses/nsis/Contrib/CityHash
 # ShellLink   http://nsis.sourceforge.net/ShellLink_plug-in
 # UAC         http://nsis.sourceforge.net/UAC_plug-in
 
@@ -19,14 +50,6 @@ CRCCheck on
 
 RequestExecutionLevel user
 
-; The commands inside this ifdef require NSIS 3.0a2 or greater so the ifdef can
-; be removed after we require NSIS 3.0a2 or greater.
-!ifdef NSIS_PACKEDVERSION
-  Unicode true
-  ManifestSupportedOS all
-  ManifestDPIAware true
-!endif
-
 !addplugindir ./
 
 ; On Vista and above attempt to elevate Standard Users in addition to users that
@@ -36,11 +59,7 @@ RequestExecutionLevel user
 ; prevents compiling of the reg write logging.
 !define NO_LOG
 
-!define MaintUninstallKey \
- "Software\Microsoft\Windows\CurrentVersion\Uninstall\MozillaMaintenanceService"
-
 Var TmpVal
-Var MaintCertKey
 
 ; Other included files may depend upon these includes!
 ; The following includes are provided by NSIS.
@@ -68,15 +87,13 @@ Var MaintCertKey
 VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
 VIAddVersionKey "OriginalFilename" "helper.exe"
 
-!insertmacro AddDisabledDDEHandlerValues
+!insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
 !insertmacro ElevateUAC
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
-!insertmacro InitHashAppModelId
 !insertmacro IsHandlerForInstallDir
 !insertmacro IsPinnedToTaskBar
-!insertmacro IsUserAdmin
 !insertmacro LogDesktopShortcut
 !insertmacro LogQuickLaunchShortcut
 !insertmacro LogStartMenuShortcut
@@ -84,9 +101,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
-!ifdef MOZ_METRO
-!insertmacro RemoveDEHRegistrationIfMatching
-!endif
 !insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
 !insertmacro UpdateShortcutAppModelIDs
@@ -96,23 +110,20 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 
 !insertmacro un.ChangeMUIHeaderImage
 !insertmacro un.CheckForFilesInUse
-!insertmacro un.CleanUpdateDirectories
+!insertmacro un.CleanUpdatesDir
 !insertmacro un.CleanVirtualStore
+!insertmacro un.DeleteRelativeProfiles
 !insertmacro un.DeleteShortcuts
 !insertmacro un.GetLongPath
 !insertmacro un.GetSecondInstallPath
-!insertmacro un.InitHashAppModelId
 !insertmacro un.ManualCloseAppPrompt
+!insertmacro un.ParseUninstallLog
 !insertmacro un.RegCleanAppHandler
 !insertmacro un.RegCleanFileHandler
 !insertmacro un.RegCleanMain
 !insertmacro un.RegCleanUninstall
 !insertmacro un.RegCleanProtocolHandler
-!ifdef MOZ_METRO
-!insertmacro un.RemoveDEHRegistrationIfMatching
-!endif
 !insertmacro un.RemoveQuotesFromPath
-!insertmacro un.RemovePrecompleteEntries
 !insertmacro un.SetAppLSPCategories
 !insertmacro un.SetBrandNameVars
 
@@ -127,7 +138,7 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 
 Name "${BrandFullName}"
 OutFile "helper.exe"
-!ifdef HAVE_64BIT_BUILD
+!ifdef HAVE_64BIT_OS
   InstallDir "$PROGRAMFILES64\${BrandFullName}\"
 !else
   InstallDir "$PROGRAMFILES32\${BrandFullName}\"
@@ -161,67 +172,27 @@ ShowUnInstDetails nevershow
 !insertmacro MUI_UNPAGE_WELCOME
 
 ; Custom Uninstall Confirm Page
-UninstPage custom un.preConfirm
+UninstPage custom un.preConfirm un.leaveConfirm
 
 ; Remove Files Page
 !insertmacro MUI_UNPAGE_INSTFILES
 
 ; Finish Page
 
+; Don't setup the survey controls, functions, etc. when the application has
+; defined NO_UNINSTALL_SURVEY
+!ifndef NO_UNINSTALL_SURVEY
+!define MUI_PAGE_CUSTOMFUNCTION_PRE un.preFinish
+!define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
+!define MUI_FINISHPAGE_SHOWREADME ""
+!define MUI_FINISHPAGE_SHOWREADME_TEXT $(SURVEY_TEXT)
+!define MUI_FINISHPAGE_SHOWREADME_FUNCTION un.Survey
+!endif
+
 !insertmacro MUI_UNPAGE_FINISH
 
 ; Use the default dialog for IDD_VERIFY for a simple Banner
 ChangeUI IDD_VERIFY "${NSISDIR}\Contrib\UIs\default.exe"
-
-################################################################################
-# Helper Functions
-
-; This function is used to uninstall the maintenance service if the
-; application currently being uninstalled is the last application to use the 
-; maintenance service.
-Function un.UninstallServiceIfNotUsed
-  ; $0 will store if a subkey exists
-  ; $1 will store the first subkey if it exists or an empty string if it doesn't
-  ; Backup the old values
-  Push $0
-  Push $1
-
-  ; The maintenance service always uses the 64-bit registry on x64 systems
-  ${If} ${RunningX64}
-    SetRegView 64
-  ${EndIf}
-
-  ; Figure out the number of subkeys
-  StrCpy $0 0
-  ${Do}
-    EnumRegKey $1 HKLM "Software\Mozilla\MaintenanceService" $0
-    ${If} "$1" == ""
-      ${ExitDo}
-    ${EndIf}
-    IntOp $0 $0 + 1
-  ${Loop}
-
-  ; Restore back the registry view
-  ${If} ${RunningX64}
-    SetRegView lastUsed
-  ${EndIf}
-  ${If} $0 == 0
-    ; Get the path of the maintenance service uninstaller
-    ReadRegStr $1 HKLM ${MaintUninstallKey} "UninstallString"
-
-    ; If the uninstall string does not exist, skip executing it
-    StrCmp $1 "" doneUninstall
-
-    ; $1 is already a quoted string pointing to the install path
-    ; so we're already protected against paths with spaces
-    nsExec::Exec "$1 /S"
-doneUninstall:
-  ${EndIf}
-
-  ; Restore the old value of $1 and $0
-  Pop $1
-  Pop $0
-FunctionEnd
 
 ################################################################################
 # Install Sections
@@ -249,8 +220,13 @@ Section "Uninstall"
     ClearErrors
   ${EndIf}
 
-  ; setup the application model id registration value
-  ${un.InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
+  ${MUI_INSTALLOPTIONS_READ} $0 "unconfirm.ini" "Field 3" "State"
+  ${If} "$0" == "1"
+    ${un.DeleteRelativeProfiles} "Mozilla\Firefox"
+    RmDir "$APPDATA\Mozilla\Extensions\{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
+    RmDir "$APPDATA\Mozilla\Extensions"
+    RmDir "$APPDATA\Mozilla"
+  ${EndIf}
 
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${un.RegCleanMain} "Software\Mozilla"
@@ -258,17 +234,7 @@ Section "Uninstall"
   ${un.DeleteShortcuts}
 
   ; Unregister resources associated with Win7 taskbar jump lists.
-  ${If} ${AtLeastWin7}
-  ${AndIf} "$AppUserModelID" != ""
-    ApplicationID::UninstallJumpLists "$AppUserModelID"
-  ${EndIf}
-
-  ; Remove the updates directory for Vista and above
-  ${un.CleanUpdateDirectories} "Mozilla\Firefox" "Mozilla\updates"
-
-  ; Remove any app model id's stored in the registry for this install path
-  DeleteRegValue HKCU "Software\Mozilla\${AppName}\TaskBarIDs" "$INSTDIR"
-  DeleteRegValue HKLM "Software\Mozilla\${AppName}\TaskBarIDs" "$INSTDIR"
+  ApplicationID::UninstallJumpLists "${AppUserModelID}"
 
   ClearErrors
   WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
@@ -283,24 +249,6 @@ Section "Uninstall"
     ${un.DeleteShortcuts}
     ${un.SetAppLSPCategories}
   ${EndIf}
-
-!ifdef MOZ_METRO
-  ${If} ${AtLeastWin8}
-    ${un.CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                           "FirefoxURL" \
-                                           "FirefoxHTML"
-  ${EndIf}
-  ${ResetWin8PromptKeys} "HKCU" ""
-  ${ResetWin8MetroSplash}
-!else
-  ; The metro browser is not enabled by the mozconfig.
-  ${If} ${AtLeastWin8}
-    ${RemoveDEHRegistration} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                             $AppUserModelID \
-                             "FirefoxURL" \
-                             "FirefoxHTML"
-  ${EndIf}
-!endif
 
   ${un.RegCleanAppHandler} "FirefoxURL"
   ${un.RegCleanAppHandler} "FirefoxHTML"
@@ -318,11 +266,6 @@ Section "Uninstall"
     ${un.RegCleanFileHandler}  ".shtml" "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xht"   "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xhtml" "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".oga"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".ogg"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".ogv"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".pdf"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".webm"  "FirefoxHTML"
   ${EndIf}
 
   SetShellVarContext all  ; Set SHCTX to HKLM
@@ -347,22 +290,6 @@ Section "Uninstall"
   ${If} "$INSTDIR" == "$R1"
     DeleteRegKey HKLM "Software\Clients\StartMenuInternet\${FileMainEXE}"
     DeleteRegValue HKLM "Software\RegisteredApplications" "${AppRegName}"
-  ${EndIf}
-
-  ReadRegStr $R1 HKCU "$0" ""
-  ${un.RemoveQuotesFromPath} "$R1" $R1
-  ${un.GetParent} "$R1" $R1
-
-  ; Only remove the StartMenuInternet key if it refers to this install location.
-  ; The StartMenuInternet registry key is independent of the default browser
-  ; settings. The XPInstall base un-installer always removes this key if it is
-  ; uninstalling the default browser and it will always replace the keys when
-  ; installing even if there is another install of Firefox that is set as the
-  ; default browser. Now the key is always updated on install but it is only
-  ; removed if it refers to this install location.
-  ${If} "$INSTDIR" == "$R1"
-    DeleteRegKey HKCU "Software\Clients\StartMenuInternet\${FileMainEXE}"
-    DeleteRegValue HKCU "Software\RegisteredApplications" "${AppRegName}"
   ${EndIf}
 
   StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\App Paths\${FileMainEXE}"
@@ -394,105 +321,62 @@ Section "Uninstall"
   ${If} ${FileExists} "$INSTDIR\updates"
     RmDir /r /REBOOTOK "$INSTDIR\updates"
   ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\updated"
-    RmDir /r /REBOOTOK "$INSTDIR\updated"
-  ${EndIf}
   ${If} ${FileExists} "$INSTDIR\defaults\shortcuts"
     RmDir /r /REBOOTOK "$INSTDIR\defaults\shortcuts"
   ${EndIf}
   ${If} ${FileExists} "$INSTDIR\distribution"
     RmDir /r /REBOOTOK "$INSTDIR\distribution"
   ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\removed-files"
+    Delete /REBOOTOK "$INSTDIR\removed-files"
+  ${EndIf}
+
+  ; Remove the updates directory for Vista and above
+  ${un.CleanUpdatesDir} "Mozilla\Firefox"
 
   ; Remove files that may be left behind by the application in the
   ; VirtualStore directory.
   ${un.CleanVirtualStore}
 
-  ; Only unregister the dll if the registration points to this installation
-  ReadRegStr $R1 HKCR "CLSID\{0D68D6D0-D93D-4D08-A30D-F00DD1F45B24}\InProcServer32" ""
-  ${If} "$INSTDIR\AccessibleMarshal.dll" == "$R1"
-    ${UnregisterDLL} "$INSTDIR\AccessibleMarshal.dll"
-  ${EndIf}
+  ; Parse the uninstall log to unregister dll's and remove all installed
+  ; files / directories this install is responsible for.
+  ${un.ParseUninstallLog}
 
-  StrCpy $R2 "false"
-  StrCpy $R3 "false"
-  ${un.RemovePrecompleteEntries} "$R2" "$R3"
-
-  ${If} ${FileExists} "$INSTDIR\defaults\pref\channel-prefs.js"
-    Delete /REBOOTOK "$INSTDIR\defaults\pref\channel-prefs.js"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\defaults\pref"
-    RmDir /REBOOTOK "$INSTDIR\defaults\pref"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\defaults"
-    RmDir /REBOOTOK "$INSTDIR\defaults"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\uninstall"
-    ; Remove the uninstall directory that we control
-    RmDir /r /REBOOTOK "$INSTDIR\uninstall"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\install.log"
-    Delete /REBOOTOK "$INSTDIR\install.log"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\update-settings.ini"
-    Delete /REBOOTOK "$INSTDIR\update-settings.ini"
-  ${EndIf}
-
-  ; Explictly remove empty webapprt dir in case it exists (bug 757978).
-  RmDir "$INSTDIR\webapprt\components"
-  RmDir "$INSTDIR\webapprt"
+  ; Remove the uninstall directory that we control
+  RmDir /r /REBOOTOK "$INSTDIR\uninstall"
 
   ; Remove the installation directory if it is empty
-  RmDir "$INSTDIR"
+  ${RemoveDir} "$INSTDIR"
 
   ; If firefox.exe was successfully deleted yet we still need to restart to
   ; remove other files create a dummy firefox.exe.moz-delete to prevent the
   ; installer from allowing an install without restart when it is required
   ; to complete an uninstall.
   ${If} ${RebootFlag}
-    ; Admin is required to delete files on reboot so only add the moz-delete if
-    ; the user is an admin. After calling UAC::IsAdmin $0 will equal 1 if the
-    ; user is an admin.
-    UAC::IsAdmin
-    ${If} "$0" == "1"
-      ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}.moz-delete"
-        FileOpen $0 "$INSTDIR\${FileMainEXE}.moz-delete" w
-        FileWrite $0 "Will be deleted on restart"
-        Delete /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-delete"
-        FileClose $0
-      ${EndUnless}
-    ${EndIf}
+    ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}.moz-delete"
+      FileOpen $0 "$INSTDIR\${FileMainEXE}.moz-delete" w
+      FileWrite $0 "Will be deleted on restart"
+      Delete /REBOOTOK "$INSTDIR\${FileMainEXE}.moz-delete"
+      FileClose $0
+    ${EndUnless}
   ${EndIf}
 
   ; Refresh desktop icons otherwise the start menu internet item won't be
   ; removed and other ugly things will happen like recreation of the app's
   ; clients registry key by the OS under some conditions.
-  System::Call "shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i 0, i 0, i 0)"
-
-!ifdef MOZ_MAINTENANCE_SERVICE
-  ; Get the path the allowed cert is at and remove it
-  ; Keep this block of code last since it modfies the reg view
-  ServicesHelper::PathToUniqueRegistryPath "$INSTDIR"
-  Pop $MaintCertKey
-  ${If} $MaintCertKey != ""
-    ; Always use the 64bit registry for certs on 64bit systems.
-    ${If} ${RunningX64}
-      SetRegView 64
-    ${EndIf}
-    DeleteRegKey HKLM "$MaintCertKey"
-    ${If} ${RunningX64}
-      SetRegView lastused
-    ${EndIf}
-  ${EndIf}
-  Call un.UninstallServiceIfNotUsed
-!endif
-
-  ${un.IsFirewallSvcRunning}
-  Pop $0
-  ${If} "$0" == "true"
-    liteFirewallW::RemoveRule "$INSTDIR\${FileMainEXE}" "${BrandShortName} ($INSTDIR)"
-  ${EndIf}
+  System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
 SectionEnd
+
+################################################################################
+# Helper Functions
+
+; Don't setup the survey controls, functions, etc. when the application has
+; defined NO_UNINSTALL_SURVEY
+!ifndef NO_UNINSTALL_SURVEY
+Function un.Survey
+  Exec "$\"$TmpVal$\" $\"${SurveyURL}$\""
+FunctionEnd
+!endif
 
 ################################################################################
 # Language
@@ -556,7 +440,7 @@ Function un.preConfirm
   ${EndIf}
 
   ; Setup the unconfirm.ini file for the Custom Uninstall Confirm Page
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "3"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "5"
 
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Type   "label"
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 1" Text   "$(UN_CONFIRM_UNINSTALLED_FROM)"
@@ -576,22 +460,44 @@ Function un.preConfirm
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" Bottom "30"
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 2" flags  "READONLY"
 
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Type   "label"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Text   "$(UN_CONFIRM_CLICK)"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Text   "$(UN_REMOVE_PROFILES)"
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Left   "0"
   WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Right  "-1"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Top    "130"
-  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Bottom "150"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Top    "40"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Bottom "50"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" State  "0"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" flags  "NOTIFY"
+
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Type   "text"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" State   "$(UN_REMOVE_PROFILES_DESC)"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Left   "0"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Top    "52"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Bottom "120"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" flags  "MULTILINE|READONLY"
+
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Type   "label"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Text   "$(UN_CONFIRM_CLICK)"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Left   "0"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Top    "130"
+  WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 5" Bottom "150"
 
   ${If} "$TmpVal" == "true"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Type   "label"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Text   "$(SUMMARY_REBOOT_REQUIRED_UNINSTALL)"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Left   "0"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Right  "-1"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Top    "35"
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Bottom "45"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Type   "label"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Text   "$(SUMMARY_REBOOT_REQUIRED_UNINSTALL)"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Left   "0"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Right  "-1"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Top    "35"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 6" Bottom "45"
 
-    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "4"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Settings" NumFields "6"
+
+    ; To insert this control reset Top / Bottom for controls below this one
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Top    "55"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 3" Bottom "65"
+    WriteINIStr "$PLUGINSDIR\unconfirm.ini" "Field 4" Top    "67"
   ${EndIf}
 
   !insertmacro MUI_HEADER_TEXT "$(UN_CONFIRM_PAGE_TITLE)" "$(UN_CONFIRM_PAGE_SUBTITLE)"
@@ -599,40 +505,83 @@ Function un.preConfirm
   ; focus. This sets the focus to the Install button instead.
   !insertmacro MUI_INSTALLOPTIONS_INITDIALOG "unconfirm.ini"
   GetDlgItem $0 $HWNDPARENT 1
+  ${MUI_INSTALLOPTIONS_READ} $1 "unconfirm.ini" "Field 4" "HWND"
+  SetCtlColors $1 0x000000 0xFFFFEE
+  ShowWindow $1 ${SW_HIDE}
   System::Call "user32::SetFocus(i r0, i 0x0007, i,i)i"
   ${MUI_INSTALLOPTIONS_READ} $1 "unconfirm.ini" "Field 2" "HWND"
   SendMessage $1 ${WM_SETTEXT} 0 "STR:$INSTDIR"
   !insertmacro MUI_INSTALLOPTIONS_SHOW
 FunctionEnd
 
+Function un.leaveConfirm
+  ${MUI_INSTALLOPTIONS_READ} $0 "unconfirm.ini" "Settings" "State"
+  StrCmp $0 "3" +1 continue
+  ${MUI_INSTALLOPTIONS_READ} $0 "unconfirm.ini" "Field 3" "State"
+  ${MUI_INSTALLOPTIONS_READ} $1 "unconfirm.ini" "Field 4" "HWND"
+  StrCmp $0 1 +1 +3
+  ShowWindow $1 ${SW_SHOW}
+  Abort
+
+  ShowWindow $1 ${SW_HIDE}
+  Abort
+
+  continue:
+
+  ; Try to delete the app executable and if we can't delete it try to find the
+  ; app's message window and prompt the user to close the app. This allows
+  ; running an instance that is located in another directory. If for whatever
+  ; reason there is no message window we will just rename the app's files and
+  ; then remove them on restart if they are in use.
+  ClearErrors
+  ${DeleteFile} "$INSTDIR\${FileMainEXE}"
+  ${If} ${Errors}
+    ${un.ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_UNINSTALL)"
+  ${EndIf}
+FunctionEnd
+
+!ifndef NO_UNINSTALL_SURVEY
+Function un.preFinish
+  ; Do not modify the finish page if there is a reboot pending
+  ${Unless} ${RebootFlag}
+    ; Setup the survey controls, functions, etc.
+    StrCpy $TmpVal "SOFTWARE\Microsoft\IE Setup\Setup"
+    ClearErrors
+    ReadRegStr $0 HKLM $TmpVal "Path"
+    ${If} ${Errors}
+      !insertmacro MUI_INSTALLOPTIONS_WRITE "ioSpecial.ini" "settings" "NumFields" "3"
+    ${Else}
+      ExpandEnvStrings $0 "$0" ; this value will usually contain %programfiles%
+      ${If} $0 != "\"
+        StrCpy $0 "$0\"
+      ${EndIf}
+      StrCpy $0 "$0\iexplore.exe"
+      ClearErrors
+      GetFullPathName $TmpVal $0
+      ${If} ${Errors}
+        !insertmacro MUI_INSTALLOPTIONS_WRITE "ioSpecial.ini" "settings" "NumFields" "3"
+      ${Else}
+        ; When we add an optional action to the finish page the cancel button
+        ; is enabled. This disables it and leaves the finish button as the
+        ; only choice.
+        !insertmacro MUI_INSTALLOPTIONS_WRITE "ioSpecial.ini" "settings" "cancelenabled" "0"
+      ${EndIf}
+    ${EndIf}
+  ${EndUnless}
+FunctionEnd
+!endif
+
 ################################################################################
 # Initialization Functions
 
 Function .onInit
-  ; Remove the current exe directory from the search order.
-  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
-  System::Call 'kernel32::SetDllDirectoryW(w "")'
-
-  ; We need this set up for most of the helper.exe operations.
   ${UninstallOnInitCommon}
 FunctionEnd
 
 Function un.onInit
-  ; Remove the current exe directory from the search order.
-  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
-  System::Call 'kernel32::SetDllDirectoryW(w "")'
-
   StrCpy $LANGUAGE 0
 
   ${un.UninstallUnOnInitCommon}
-
-; The commands inside this ifndef are needed prior to NSIS 3.0a2 and can be
-; removed after we require NSIS 3.0a2 or greater.
-!ifndef NSIS_PACKEDVERSION
-  ${If} ${AtLeastWinVista}
-    System::Call 'user32::SetProcessDPIAware()'
-  ${EndIf}
-!endif
 
   !insertmacro InitInstallOptionsFile "unconfirm.ini"
 FunctionEnd

@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 function round_trip(uri) {
   var objectOutStream = Cc["@mozilla.org/binaryoutputstream;1"].
                        createInstance(Ci.nsIObjectOutputStream);
@@ -15,6 +18,10 @@ function round_trip(uri) {
 
 var prefData =
   [
+    {
+      name: "network.enableIDN",
+      newVal: true
+    },
     {
       name: "network.IDN_show_punycode",
       newVal: false

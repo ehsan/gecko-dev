@@ -1,11 +1,41 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Google Safe Browsing.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Niels Provos <niels@google.com> (original author)
+#   Fritz Schneider <fritz@google.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/Services.jsm");
 
-// This is the only implementation of nsIUrlListManager.
 // A class that manages lists, namely white and black lists for
 // phishing or malware protection. The ListManager knows how to fetch,
 // update, and store lists.
@@ -14,20 +44,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 //
 // TODO more comprehensive update tests, for example add unittest check 
 //      that the listmanagers tables are properly written on updates
-
-// Log only if browser.safebrowsing.debug is true
-function log(...stuff) {
-  var prefs_ = new G_Preferences();
-  var debug = prefs_.getPref("browser.safebrowsing.debug");
-  if (!debug) {
-    return;
-  }
-
-  var d = new Date();
-  let msg = "listmanager: " + d.toTimeString() + ": " + stuff.join(" ");
-  Services.console.logStringMessage(msg);
-  dump(msg + "\n");
-}
 
 function QueryAdapter(callback) {
   this.callback_ = callback;
@@ -44,32 +60,53 @@ QueryAdapter.prototype.handleResponse = function(value) {
  * @constructor
  */
 function PROT_ListManager() {
-  log("Initializing list manager");
+  this.debugZone = "listmanager";
+  G_debugService.enableZone(this.debugZone);
+
+  this.currentUpdateChecker_ = null;   // set when we toggle updates
   this.prefs_ = new G_Preferences();
   this.updateInterval = this.prefs_.getPref("urlclassifier.updateinterval", 30 * 60) * 1000;
 
-  // A map of tableNames to objects of type
-  // { updateUrl: <updateUrl>, gethashUrl: <gethashUrl> }
+  this.updateserverURL_ = null;
+  this.gethashURL_ = null;
+
+  this.isTesting_ = false;
+
   this.tablesData = {};
-  // A map of updateUrls to maps of tables requiring updates, e.g.
-  // { safebrowsing-update-url: { goog-phish-shavar: true,
-  //                              goog-malware-shavar: true }
-  this.needsUpdate_ = {};
 
   this.observerServiceObserver_ = new G_ObserverServiceObserver(
                                           'quit-application',
                                           BindToObject(this.shutdown_, this),
                                           true /*only once*/);
 
-  // A map of updateUrls to single-use G_Alarms. An entry exists if and only if
-  // there is at least one table with updates enabled for that url. G_Alarms
-  // are reset when enabling/disabling updates or on update callbacks (update
-  // success, update failure, download error).
-  this.updateCheckers_ = {};
-  this.requestBackoffs_ = {};
+  // Lazily create the key manager (to avoid fetching keys when they
+  // aren't needed).
+  this.keyManager_ = null;
+
+  this.rekeyObserver_ = new G_ObserverServiceObserver(
+                                          'url-classifier-rekey-requested',
+                                          BindToObject(this.rekey_, this),
+                                          false);
+  this.updateWaitingForKey_ = false;
+
+  this.cookieObserver_ = new G_ObserverServiceObserver(
+                                          'cookie-changed',
+                                          BindToObject(this.cookieChanged_, this),
+                                          false);
+
+  /* Backoff interval should be between 30 and 60 minutes. */
+  var backoffInterval = 30 * 60 * 1000;
+  backoffInterval += Math.floor(Math.random() * (30 * 60 * 1000));
+
+  this.requestBackoff_ = new RequestBackoff(2 /* max errors */,
+                                      60*1000 /* retry interval, 1 min */,
+                                            4 /* num requests */,
+                                   60*60*1000 /* request time, 60 min */,
+                              backoffInterval /* backoff interval, 60 min */,
+                                 8*60*60*1000 /* max backoff, 8hr */);
+
   this.dbService_ = Cc["@mozilla.org/url-classifier/dbservice;1"]
                    .getService(Ci.nsIUrlClassifierDBService);
-
 
   this.hashCompleter_ = Cc["@mozilla.org/url-classifier/hashcompleter;1"]
                         .getService(Ci.nsIUrlClassifierHashCompleter);
@@ -80,56 +117,77 @@ function PROT_ListManager() {
  * Delete all of our data tables which seem to leak otherwise.
  */
 PROT_ListManager.prototype.shutdown_ = function() {
+  if (this.keyManager_) {
+    this.keyManager_.shutdown();
+  }
+
   for (var name in this.tablesData) {
     delete this.tablesData[name];
   }
 }
 
 /**
- * Register a new table table
- * @param tableName - the name of the table
- * @param updateUrl - the url for updating the table
- * @param gethashUrl - the url for fetching hash completions
- * @returns true if the table could be created; false otherwise
+ * Set the url we check for updates.  If the new url is valid and different,
+ * update our table list.
+ * 
+ * After setting the update url, the caller is responsible for registering
+ * tables and then toggling update checking.  All the code for this logic is
+ * currently in browser/components/safebrowsing.  Maybe it should be part of
+ * the listmanger?
  */
-PROT_ListManager.prototype.registerTable = function(tableName,
-                                                    updateUrl,
-                                                    gethashUrl) {
-  log("registering " + tableName + " with " + updateUrl);
-  if (!updateUrl) {
-    log("Can't register table " + tableName + " without updateUrl");
-    return false;
+PROT_ListManager.prototype.setUpdateUrl = function(url) {
+  G_Debug(this, "Set update url: " + url);
+  if (url != this.updateserverURL_) {
+    this.updateserverURL_ = url;
+    this.requestBackoff_.reset();
+    
+    // Remove old tables which probably aren't valid for the new provider.
+    for (var name in this.tablesData) {
+      delete this.tablesData[name];
+    }
   }
-  this.tablesData[tableName] = {};
-  this.tablesData[tableName].updateUrl = updateUrl;
-  this.tablesData[tableName].gethashUrl = gethashUrl;
-
-  // Keep track of all of our update URLs.
-  if (!this.needsUpdate_[updateUrl]) {
-    this.needsUpdate_[updateUrl] = {};
-    /* Backoff interval should be between 30 and 60 minutes. */
-    var backoffInterval = 30 * 60 * 1000;
-    backoffInterval += Math.floor(Math.random() * (30 * 60 * 1000));
-
-    log("Creating request backoff for " + updateUrl);
-    this.requestBackoffs_[updateUrl] = new RequestBackoff(2 /* max errors */,
-                                      60*1000 /* retry interval, 1 min */,
-                                            4 /* num requests */,
-                                   60*60*1000 /* request time, 60 min */,
-                              backoffInterval /* backoff interval, 60 min */,
-                                 8*60*60*1000 /* max backoff, 8hr */);
-
-  }
-  this.needsUpdate_[updateUrl][tableName] = false;
-
-  return true;
 }
 
-PROT_ListManager.prototype.getGethashUrl = function(tableName) {
-  if (this.tablesData[tableName] && this.tablesData[tableName].gethashUrl) {
-    return this.tablesData[tableName].gethashUrl;
+/**
+ * Set the gethash url.
+ */
+PROT_ListManager.prototype.setGethashUrl = function(url) {
+  G_Debug(this, "Set gethash url: " + url);
+  if (url != this.gethashURL_) {
+    this.gethashURL_ = url;
+    this.hashCompleter_.gethashUrl = url;
   }
-  return "";
+}
+
+/**
+ * Set the crypto key url.
+ * @param url String
+ */
+PROT_ListManager.prototype.setKeyUrl = function(url) {
+  G_Debug(this, "Set key url: " + url);
+  if (!this.keyManager_) {
+    this.keyManager_ = new PROT_UrlCryptoKeyManager();
+    this.keyManager_.onNewKey(BindToObject(this.newKey_, this));
+
+    this.hashCompleter_.setKeys(this.keyManager_.getClientKey(),
+                                this.keyManager_.getWrappedKey());
+  }
+
+  this.keyManager_.setKeyUrl(url);
+}
+
+/**
+ * Register a new table table
+ * @param tableName - the name of the table
+ * @param opt_requireMac true if a mac is required on update, false otherwise
+ * @returns true if the table could be created; false otherwise
+ */
+PROT_ListManager.prototype.registerTable = function(tableName, 
+                                                    opt_requireMac) {
+  this.tablesData[tableName] = {};
+  this.tablesData[tableName].needsUpdate = false;
+
+  return true;
 }
 
 /**
@@ -137,25 +195,16 @@ PROT_ListManager.prototype.getGethashUrl = function(tableName) {
  * @param tables - an array of table names that need updating
  */
 PROT_ListManager.prototype.enableUpdate = function(tableName) {
+  var changed = false;
   var table = this.tablesData[tableName];
   if (table) {
-    log("Enabling table updates for " + tableName);
-    this.needsUpdate_[table.updateUrl][tableName] = true;
+    G_Debug(this, "Enabling table updates for " + tableName);
+    table.needsUpdate = true;
+    changed = true;
   }
-}
 
-/**
- * Returns true if any table associated with the updateUrl requires updates.
- * @param updateUrl - the updateUrl
- */
-PROT_ListManager.prototype.updatesNeeded_ = function(updateUrl) {
-  let updatesNeeded = false;
-  for (var tableName in this.needsUpdate_[updateUrl]) {
-    if (this.needsUpdate_[updateUrl][tableName]) {
-      updatesNeeded = true;
-    }
-  }
-  return updatesNeeded;
+  if (changed === true)
+    this.maybeToggleUpdateChecking();
 }
 
 /**
@@ -163,87 +212,130 @@ PROT_ListManager.prototype.updatesNeeded_ = function(updateUrl) {
  * @param tables - an array of table names that no longer need updating
  */
 PROT_ListManager.prototype.disableUpdate = function(tableName) {
+  var changed = false;
   var table = this.tablesData[tableName];
   if (table) {
-    log("Disabling table updates for " + tableName);
-    this.needsUpdate_[table.updateUrl][tableName] = false;
-    if (!this.updatesNeeded_(table.updateUrl) &&
-        this.updateCheckers_[table.updateUrl]) {
-      this.updateCheckers_[table.updateUrl].cancel();
-      this.updateCheckers_[table.updateUrl] = null;
-    }
+    G_Debug(this, "Disabling table updates for " + tableName);
+    table.needsUpdate = false;
+    changed = true;
   }
+
+  if (changed === true)
+    this.maybeToggleUpdateChecking();
 }
 
 /**
  * Determine if we have some tables that need updating.
  */
 PROT_ListManager.prototype.requireTableUpdates = function() {
-  for (var name in this.tablesData) {
-    // Tables that need updating even if other tables don't require it
-    if (this.needsUpdate_[this.tablesData[name].updateUrl][name]) {
+  for (var type in this.tablesData) {
+    // Tables that need updating even if other tables dont require it
+    if (this.tablesData[type].needsUpdate)
       return true;
-    }
   }
 
   return false;
 }
 
 /**
- * Acts as a nsIUrlClassifierCallback for getTables.
+ * Start managing the lists we know about. We don't do this automatically
+ * when the listmanager is instantiated because their profile directory
+ * (where we store the lists) might not be available.
  */
-PROT_ListManager.prototype.kickoffUpdate_ = function (onDiskTableData)
-{
-  this.startingUpdate_ = false;
-  var initialUpdateDelay = 3000;
+PROT_ListManager.prototype.maybeStartManagingUpdates = function() {
+  if (this.isTesting_)
+    return;
 
-  // If the user has never downloaded tables, do the check now.
-  log("needsUpdate: " + JSON.stringify(this.needsUpdate_, undefined, 2));
-  for (var updateUrl in this.needsUpdate_) {
-    // If we haven't already kicked off updates for this updateUrl, set a
-    // non-repeating timer for it. The timer delay will be reset either on
-    // updateSuccess to this.updateinterval, or backed off on downloadError.
-    // Don't set the updateChecker unless at least one table has updates
-    // enabled.
-    if (this.updatesNeeded_(updateUrl) && !this.updateCheckers_[updateUrl]) {
-      log("Initializing update checker for " + updateUrl);
-      this.updateCheckers_[updateUrl] =
-        new G_Alarm(BindToObject(this.checkForUpdates, this, updateUrl),
-                    initialUpdateDelay, false /* repeating */);
-    } else {
-      log("No updates needed or already initialized for " + updateUrl);
-    }
-  }
+  // We might have been told about tables already, so see if we should be
+  // actually updating.
+  this.maybeToggleUpdateChecking();
 }
 
-PROT_ListManager.prototype.stopUpdateCheckers = function() {
-  log("Stopping updates");
-  for (var updateUrl in this.updateCheckers_) {
-    this.updateCheckers_[updateUrl].cancel();
-    this.updateCheckers_[updateUrl] = null;
+PROT_ListManager.prototype.kickoffUpdate_ = function (tableData)
+{
+  this.startingUpdate_ = false;
+  // If the user has never downloaded tables, do the check now.
+  // If the user has tables, add a fuzz of a few minutes.
+  var initialUpdateDelay = 3000;
+  if (tableData != "") {
+    // Add a fuzz of 0-5 minutes.
+    initialUpdateDelay += Math.floor(Math.random() * (5 * 60 * 1000));
   }
+
+  this.currentUpdateChecker_ =
+    new G_Alarm(BindToObject(this.checkForUpdates, this),
+                initialUpdateDelay);
 }
 
 /**
  * Determine if we have any tables that require updating.  Different
  * Wardens may call us with new tables that need to be updated.
- */
+ */ 
 PROT_ListManager.prototype.maybeToggleUpdateChecking = function() {
+  // If we are testing or dont have an application directory yet, we should
+  // not start reading tables from disk or schedule remote updates
+  if (this.isTesting_)
+    return;
+
   // We update tables if we have some tables that want updates.  If there
   // are no tables that want to be updated - we dont need to check anything.
-  if (this.requireTableUpdates()) {
-    log("Starting managing lists");
+  if (this.requireTableUpdates() === true) {
+    G_Debug(this, "Starting managing lists");
+    this.startUpdateChecker();
 
-    // Get the list of existing tables from the DBService before making any
-    // update requests.
-    if (!this.startingUpdate_) {
+    // Multiple warden can ask us to reenable updates at the same time, but we
+    // really just need to schedule a single update.
+    if (!this.currentUpdateChecker && !this.startingUpdate_) {
       this.startingUpdate_ = true;
       // check the current state of tables in the database
       this.dbService_.getTables(BindToObject(this.kickoffUpdate_, this));
     }
   } else {
-    log("Stopping managing lists (if currently active)");
-    this.stopUpdateCheckers();                    // Cancel pending updates
+    G_Debug(this, "Stopping managing lists (if currently active)");
+    this.stopUpdateChecker();                    // Cancel pending updates
+  }
+}
+
+/**
+ * Start periodic checks for updates. Idempotent.
+ * We want to distribute update checks evenly across the update period (an
+ * hour).  The first update is scheduled for a random time between 0.5 and 1.5
+ * times the update interval.
+ */
+PROT_ListManager.prototype.startUpdateChecker = function() {
+  this.stopUpdateChecker();
+  
+  // Schedule the first check for between 15 and 45 minutes.
+  var repeatingUpdateDelay = this.updateInterval / 2;
+  repeatingUpdateDelay += Math.floor(Math.random() * this.updateInterval);
+  this.updateChecker_ = new G_Alarm(BindToObject(this.initialUpdateCheck_,
+                                                 this),
+                                    repeatingUpdateDelay);
+}
+
+/**
+ * Callback for the first update check.
+ * We go ahead and check for table updates, then start a regular timer (once
+ * every update interval).
+ */
+PROT_ListManager.prototype.initialUpdateCheck_ = function() {
+  this.checkForUpdates();
+  this.updateChecker_ = new G_Alarm(BindToObject(this.checkForUpdates, this), 
+                                    this.updateInterval, true /* repeat */);
+}
+
+/**
+ * Stop checking for updates. Idempotent.
+ */
+PROT_ListManager.prototype.stopUpdateChecker = function() {
+  if (this.updateChecker_) {
+    this.updateChecker_.cancel();
+    this.updateChecker_ = null;
+  }
+  // Cancel the oneoff check from maybeToggleUpdateChecking.
+  if (this.currentUpdateChecker_) {
+    this.currentUpdateChecker_.cancel();
+    this.currentUpdateChecker_ = null;
   }
 }
 
@@ -253,20 +345,20 @@ PROT_ListManager.prototype.maybeToggleUpdateChecking = function() {
  * and querying them could throw.
  *
  * @param table String Name of the table that we want to consult
- * @param key Principal being used to lookup the database
+ * @param key String Key for table lookup
  * @param callback nsIUrlListManagerCallback (ie., Function) given false or the
  *        value in the table corresponding to key.  If the table name does not
  *        exist, we return false, too.
  */
 PROT_ListManager.prototype.safeLookup = function(key, callback) {
   try {
-    log("safeLookup: " + key);
+    G_Debug(this, "safeLookup: " + key);
     var cb = new QueryAdapter(callback);
     this.dbService_.lookup(key,
                            BindToObject(cb.handleResponse, cb),
                            true);
   } catch(e) {
-    log("safeLookup masked failure for key " + key + ": " + e);
+    G_Debug(this, "safeLookup masked failure for key " + key + ": " + e);
     callback.handleEvent("");
   }
 }
@@ -274,23 +366,24 @@ PROT_ListManager.prototype.safeLookup = function(key, callback) {
 /**
  * Updates our internal tables from the update server
  *
- * @param updateUrl: request updates for tables associated with that url, or
- * for all tables if the url is empty.
+ * @returns true when a new request was scheduled, false if an old request
+ *          was still pending.
  */
-PROT_ListManager.prototype.checkForUpdates = function(updateUrl) {
-  log("checkForUpdates with " + updateUrl);
+PROT_ListManager.prototype.checkForUpdates = function() {
+  // Allow new updates to be scheduled from maybeToggleUpdateChecking()
+  this.currentUpdateChecker_ = null;
+
+  if (!this.updateserverURL_) {
+    G_Debug(this, 'checkForUpdates: no update server url');
+    return false;
+  }
+
   // See if we've triggered the request backoff logic.
-  if (!updateUrl) {
+  if (!this.requestBackoff_.canMakeRequest())
     return false;
-  }
-  if (!this.requestBackoffs_[updateUrl] ||
-      !this.requestBackoffs_[updateUrl].canMakeRequest()) {
-    log("Can't make update request");
-    return false;
-  }
+
   // Grab the current state of the tables from the database
-  this.dbService_.getTables(BindToObject(this.makeUpdateRequest_, this,
-                            updateUrl));
+  this.dbService_.getTables(BindToObject(this.makeUpdateRequest_, this));
   return true;
 }
 
@@ -300,81 +393,79 @@ PROT_ListManager.prototype.checkForUpdates = function(updateUrl) {
  * @param tableData List of table data already in the database, in the form
  *        tablename;<chunk ranges>\n
  */
-PROT_ListManager.prototype.makeUpdateRequest_ = function(updateUrl, tableData) {
-  log("this.tablesData: " + JSON.stringify(this.tablesData, undefined, 2));
-  log("existing chunks: " + tableData + "\n");
-  // Disallow blank updateUrls
-  if (!updateUrl) {
+PROT_ListManager.prototype.makeUpdateRequest_ = function(tableData) {
+  if (!this.keyManager_)
+    return;
+
+  if (!this.keyManager_.hasKey()) {
+    // We don't have a client key yet.  Schedule a rekey, and rerequest
+    // when we have one.
+
+    // If there's already an update waiting for a new key, don't bother.
+    if (this.updateWaitingForKey_)
+      return;
+
+    // If maybeReKey() returns false we have asked for too many keys,
+    // and won't be getting a new one.  Since we don't want to do
+    // updates without a client key, we'll skip this update if maybeReKey()
+    // fails.
+    if (this.keyManager_.maybeReKey())
+      this.updateWaitingForKey_ = true;
+
     return;
   }
-  // An object of the form
-  // { tableList: comma-separated list of tables to request,
-  //   tableNames: map of tables that need updating,
-  //   request: list of tables and existing chunk ranges from tableData
-  // }
-  var streamerMap = { tableList: null, tableNames: {}, request: "" };
+
+  var tableList;
+  var tableNames = {};
   for (var tableName in this.tablesData) {
-    // Skip tables not matching this update url
-    if (this.tablesData[tableName].updateUrl != updateUrl) {
-      continue;
-    }
-    if (this.needsUpdate_[this.tablesData[tableName].updateUrl][tableName]) {
-      streamerMap.tableNames[tableName] = true;
-    }
-    if (!streamerMap.tableList) {
-      streamerMap.tableList = tableName;
+    if (this.tablesData[tableName].needsUpdate)
+      tableNames[tableName] = true;
+    if (!tableList) {
+      tableList = tableName;
     } else {
-      streamerMap.tableList += "," + tableName;
+      tableList += "," + tableName;
     }
   }
-  // Build the request. For each table already in the database, include the
-  // chunk data from the database
+
+  var request = "";
+
+  // For each table already in the database, include the chunk data from
+  // the database
   var lines = tableData.split("\n");
   for (var i = 0; i < lines.length; i++) {
     var fields = lines[i].split(";");
-    var name = fields[0];
-    if (streamerMap.tableNames[name]) {
-      streamerMap.request += lines[i] + "\n";
-      delete streamerMap.tableNames[name];
+    if (tableNames[fields[0]]) {
+      request += lines[i] + ":mac\n";
+      delete tableNames[fields[0]];
     }
   }
+
   // For each requested table that didn't have chunk data in the database,
   // request it fresh
-  for (let tableName in streamerMap.tableNames) {
-    streamerMap.request += tableName + ";\n";
+  for (var tableName in tableNames) {
+    request += tableName + ";mac\n";
   }
 
-  log("update request: " + JSON.stringify(streamerMap, undefined, 2) + "\n");
-
-  // Don't send an empty request.
-  if (streamerMap.request.length > 0) {
-    this.makeUpdateRequestForEntry_(updateUrl, streamerMap.tableList,
-                                    streamerMap.request);
-  } else {
-    // We were disabled between kicking off getTables and now.
-    log("Not sending empty request");
-  }
-}
-
-PROT_ListManager.prototype.makeUpdateRequestForEntry_ = function(updateUrl,
-                                                                 tableList,
-                                                                 request) {
-  log("makeUpdateRequestForEntry_: request " + request +
-      " update: " + updateUrl + " tablelist: " + tableList + "\n");
+  G_Debug(this, 'checkForUpdates: scheduling request..');
   var streamer = Cc["@mozilla.org/url-classifier/streamupdater;1"]
                  .getService(Ci.nsIUrlClassifierStreamUpdater);
+  try {
+    streamer.updateUrl = this.updateserverURL_ +
+                         "&wrkey=" + this.keyManager_.getWrappedKey();
+  } catch (e) {
+    G_Debug(this, 'invalid url');
+    return;
+  }
 
-  this.requestBackoffs_[updateUrl].noteRequest();
+  this.requestBackoff_.noteRequest();
 
-  if (!streamer.downloadUpdates(
-        tableList,
-        request,
-        updateUrl,
-        BindToObject(this.updateSuccess_, this, tableList, updateUrl),
-        BindToObject(this.updateError_, this, tableList, updateUrl),
-        BindToObject(this.downloadError_, this, tableList, updateUrl))) {
-    // Our alarm gets reset in one of the 3 callbacks.
-    log("pending update, queued request until later");
+  if (!streamer.downloadUpdates(tableList,
+                                request,
+                                this.keyManager_.getClientKey(),
+                                BindToObject(this.updateSuccess_, this),
+                                BindToObject(this.updateError_, this),
+                                BindToObject(this.downloadError_, this))) {
+    G_Debug(this, "pending update, wait until later");
   }
 }
 
@@ -383,69 +474,89 @@ PROT_ListManager.prototype.makeUpdateRequestForEntry_ = function(updateUrl,
  * @param waitForUpdate String The number of seconds that the client should
  *        wait before requesting again.
  */
-PROT_ListManager.prototype.updateSuccess_ = function(tableList, updateUrl,
-                                                     waitForUpdate) {
-  log("update success for " + tableList + " from " + updateUrl + ": " +
-      waitForUpdate + "\n");
-  var delay;
+PROT_ListManager.prototype.updateSuccess_ = function(waitForUpdate) {
+  G_Debug(this, "update success: " + waitForUpdate);
   if (waitForUpdate) {
-    delay = parseInt(waitForUpdate, 10);
+    var delay = parseInt(waitForUpdate, 10);
+    // As long as the delay is something sane (5 minutes or more), update
+    // our delay time for requesting updates
+    if (delay >= (5 * 60) && this.updateChecker_)
+      this.updateChecker_.setDelay(delay * 1000);
   }
-  // As long as the delay is something sane (5 minutes or more), update
-  // our delay time for requesting updates. We always use a non-repeating
-  // timer since the delay is set differently at every callback.
-  if (delay >= (5 * 60)) {
-    log("Waiting " + delay + " seconds");
-    delay = delay * 1000;
-  } else {
-    log("Ignoring delay from server, waiting " + this.updateInterval / 1000);
-    delay = this.updateInterval;
-  }
-  this.updateCheckers_[updateUrl] =
-    new G_Alarm(BindToObject(this.checkForUpdates, this, updateUrl),
-                delay, false);
 
   // Let the backoff object know that we completed successfully.
-  this.requestBackoffs_[updateUrl].noteServerResponse(200);
+  this.requestBackoff_.noteServerResponse(200);
 }
 
 /**
  * Callback function if the update request succeeded.
  * @param result String The error code of the failure
  */
-PROT_ListManager.prototype.updateError_ = function(table, updateUrl, result) {
-  log("update error for " + table + " from " + updateUrl + ": " + result + "\n");
-  // There was some trouble applying the updates. Don't try again for at least
-  // updateInterval seconds.
-  this.updateCheckers_[updateUrl] =
-    new G_Alarm(BindToObject(this.checkForUpdates, this, updateUrl),
-                this.updateInterval, false);
+PROT_ListManager.prototype.updateError_ = function(result) {
+  G_Debug(this, "update error: " + result);
+  // XXX: there was some trouble applying the updates.
 }
 
 /**
  * Callback function when the download failed
  * @param status String http status or an empty string if connection refused.
  */
-PROT_ListManager.prototype.downloadError_ = function(table, updateUrl, status) {
-  log("download error for " + table + ": " + status + "\n");
+PROT_ListManager.prototype.downloadError_ = function(status) {
+  G_Debug(this, "download error: " + status);
   // If status is empty, then we assume that we got an NS_CONNECTION_REFUSED
   // error.  In this case, we treat this is a http 500 error.
   if (!status) {
     status = 500;
   }
   status = parseInt(status, 10);
-  this.requestBackoffs_[updateUrl].noteServerResponse(status);
-  var delay = this.updateInterval;
-  if (this.requestBackoffs_[updateUrl].isErrorStatus(status)) {
-    // Schedule an update for when our backoff is complete
-    delay = this.requestBackoffs_[updateUrl].nextRequestDelay();
-  } else {
-    log("Got non error status for error callback?!");
-  }
-  this.updateCheckers_[updateUrl] =
-    new G_Alarm(BindToObject(this.checkForUpdates, this, updateUrl),
-                delay, false);
+  this.requestBackoff_.noteServerResponse(status);
 
+  if (this.requestBackoff_.isErrorStatus(status)) {
+    // Schedule an update for when our backoff is complete
+    this.currentUpdateChecker_ =
+      new G_Alarm(BindToObject(this.checkForUpdates, this),
+                  this.requestBackoff_.nextRequestDelay());
+  }
+}
+
+/**
+ * Called when either the update process or a gethash request signals
+ * that the server requested a rekey.
+ */
+PROT_ListManager.prototype.rekey_ = function() {
+  G_Debug(this, "rekey requested");
+
+  // The current key is no good anymore.
+  this.keyManager_.dropKey();
+  this.keyManager_.maybeReKey();
+}
+
+/**
+ * Called when cookies are cleared - clears the current MAC keys.
+ */
+PROT_ListManager.prototype.cookieChanged_ = function(subject, topic, data) {
+  if (data != "cleared")
+    return;
+
+  G_Debug(this, "cookies cleared");
+  this.keyManager_.dropKey();
+}
+
+/**
+ * Called when we've received a new key from the server.
+ */
+PROT_ListManager.prototype.newKey_ = function() {
+  G_Debug(this, "got a new MAC key");
+
+  this.hashCompleter_.setKeys(this.keyManager_.getClientKey(),
+                              this.keyManager_.getWrappedKey());
+
+  if (this.keyManager_.hasKey()) {
+    if (this.updateWaitingForKey_) {
+      this.updateWaitingForKey_ = false;
+      this.checkForUpdates();
+    }
+  }
 }
 
 PROT_ListManager.prototype.QueryInterface = function(iid) {

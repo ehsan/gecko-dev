@@ -1,15 +1,49 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is
+ *  Oracle Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   Brett Wilson <brettw@gmail.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *   Drew Willcoxon <adw@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozStorageService.h"
 #include "mozStorageConnection.h"
 #include "prinit.h"
+#include "pratom.h"
 #include "nsAutoPtr.h"
 #include "nsCollationCID.h"
 #include "nsEmbedCID.h"
@@ -19,28 +53,72 @@
 #include "nsILocaleService.h"
 #include "nsIXPConnect.h"
 #include "nsIObserverService.h"
-#include "nsIPropertyBag2.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/LateWriteChecks.h"
-#include "mozIStorageCompletionCallback.h"
-#include "mozIStoragePendingStatement.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 
 #include "sqlite3.h"
-
-#ifdef SQLITE_OS_WIN
-// "windows.h" was included and it can #define lots of things we care about...
-#undef CompareString
-#endif
+#include "test_quota.c"
 
 #include "nsIPromptService.h"
+#include "nsIMemoryReporter.h"
 
-#ifdef MOZ_STORAGE_MEMORY
-#  include "mozmemory.h"
-#  ifdef MOZ_DMD
-#    include "DMD.h"
-#  endif
-#endif
+#include "mozilla/FunctionTimer.h"
+
+namespace {
+
+class QuotaCallbackData
+{
+public:
+  QuotaCallbackData(mozIStorageQuotaCallback *aCallback,
+                    nsISupports *aUserData)
+  : callback(aCallback), userData(aUserData)
+  {
+    MOZ_COUNT_CTOR(QuotaCallbackData);
+  }
+
+  ~QuotaCallbackData()
+  {
+    MOZ_COUNT_DTOR(QuotaCallbackData);
+  }
+
+  static void Callback(const char *zFilename,
+                       sqlite3_int64 *piLimit,
+                       sqlite3_int64 iSize,
+                       void *pArg)
+  {
+    NS_ASSERTION(zFilename && strlen(zFilename), "Null or empty filename!");
+    NS_ASSERTION(piLimit, "Null pointer!");
+
+    QuotaCallbackData *data = static_cast<QuotaCallbackData*>(pArg);
+    if (!data) {
+      // No callback specified, return immediately.
+      return;
+    }
+
+    NS_ASSERTION(data->callback, "Should never have a null callback!");
+
+    nsDependentCString filename(zFilename);
+
+    PRInt64 newLimit;
+    if (NS_SUCCEEDED(data->callback->QuotaExceeded(filename, *piLimit,
+                                                   iSize, data->userData,
+                                                   &newLimit))) {
+      *piLimit = newLimit;
+    }
+  }
+
+  static void Destroy(void *aUserData)
+  {
+    delete static_cast<QuotaCallbackData*>(aUserData);
+  }
+
+private:
+  nsCOMPtr<mozIStorageQuotaCallback> callback;
+  nsCOMPtr<nsISupports> userData;
+};
+
+} // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Defines
@@ -48,164 +126,113 @@
 #define PREF_TS_SYNCHRONOUS "toolkit.storage.synchronous"
 #define PREF_TS_SYNCHRONOUS_DEFAULT 1
 
-#define PREF_TS_PAGESIZE "toolkit.storage.pageSize"
-
-// This value must be kept in sync with the value of SQLITE_DEFAULT_PAGE_SIZE in
-// db/sqlite3/src/Makefile.in.
-#define PREF_TS_PAGESIZE_DEFAULT 32768
-
 namespace mozilla {
 namespace storage {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Memory Reporting
 
-#ifdef MOZ_DMD
-static mozilla::Atomic<size_t> gSqliteMemoryUsed;
-#endif
-
-static int64_t
-StorageSQLiteDistinguishedAmount()
+static PRInt64
+GetStorageSQLitePageCacheMemoryUsed(void *)
 {
-  return ::sqlite3_memory_used();
+  int current, high;
+  int rc = ::sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &current, &high,
+                            0);
+  return rc == SQLITE_OK ? current : 0;
 }
 
-/**
- * Passes a single SQLite memory statistic to a memory reporter callback.
- *
- * @param aHandleReport
- *        The callback.
- * @param aData
- *        The data for the callback.
- * @param aConn
- *        The SQLite connection.
- * @param aPathHead
- *        Head of the path for the memory report.
- * @param aKind
- *        The memory report statistic kind, one of "stmt", "cache" or
- *        "schema".
- * @param aDesc
- *        The memory report description.
- * @param aOption
- *        The SQLite constant for getting the measurement.
- * @param aTotal
- *        The accumulator for the measurement.
- */
-nsresult
-ReportConn(nsIHandleReportCallback *aHandleReport,
-           nsISupports *aData,
-           Connection *aConn,
-           const nsACString &aPathHead,
-           const nsACString &aKind,
-           const nsACString &aDesc,
-           int32_t aOption,
-           size_t *aTotal)
+static PRInt64
+GetStorageSQLiteOtherMemoryUsed(void *)
 {
-  nsCString path(aPathHead);
-  path.Append(aKind);
-  path.AppendLiteral("-used");
-
-  int32_t val = aConn->getSqliteRuntimeStatus(aOption);
-  nsresult rv = aHandleReport->Callback(EmptyCString(), path,
-                                        nsIMemoryReporter::KIND_HEAP,
-                                        nsIMemoryReporter::UNITS_BYTES,
-                                        int64_t(val), aDesc, aData);
-  NS_ENSURE_SUCCESS(rv, rv);
-  *aTotal += val;
-
-  return NS_OK;
+  int pageCacheCurrent, pageCacheHigh;
+  int rc = ::sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &pageCacheCurrent,
+                            &pageCacheHigh, 0);
+  return rc == SQLITE_OK ? ::sqlite3_memory_used() - pageCacheCurrent : 0;
 }
 
-// Warning: To get a Connection's measurements requires holding its lock.
-// There may be a delay getting the lock if another thread is accessing the
-// Connection.  This isn't very nice if CollectReports is called from the main
-// thread!  But at the time of writing this function is only called when
-// about:memory is loaded (not, for example, when telemetry pings occur) and
-// any delays in that case aren't so bad.
-NS_IMETHODIMP
-Service::CollectReports(nsIHandleReportCallback *aHandleReport,
-                        nsISupports *aData, bool aAnonymize)
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLitePageCacheMemoryUsed,
+                             "storage/sqlite/pagecache",
+                             "Memory in use by SQLite for the page cache",
+                             GetStorageSQLitePageCacheMemoryUsed,
+                             nsnull)
+
+NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteOtherMemoryUsed,
+                             "storage/sqlite/other",
+                             "Memory in use by SQLite for other various reasons",
+                             GetStorageSQLiteOtherMemoryUsed,
+                             nsnull)
+
+////////////////////////////////////////////////////////////////////////////////
+//// Helpers
+
+class ServiceMainThreadInitializer : public nsRunnable
 {
-  nsresult rv;
-  size_t totalConnSize = 0;
+public:
+  ServiceMainThreadInitializer(nsIObserver *aObserver,
+                               nsIXPConnect **aXPConnectPtr,
+                               PRInt32 *aSynchronousPrefValPtr)
+  : mObserver(aObserver)
+  , mXPConnectPtr(aXPConnectPtr)
+  , mSynchronousPrefValPtr(aSynchronousPrefValPtr)
   {
-    nsTArray<nsRefPtr<Connection> > connections;
-    getConnections(connections);
-
-    for (uint32_t i = 0; i < connections.Length(); i++) {
-      nsRefPtr<Connection> &conn = connections[i];
-
-      // Someone may have closed the Connection, in which case we skip it.
-      bool isReady;
-      (void)conn->GetConnectionReady(&isReady);
-      if (!isReady) {
-          continue;
-      }
-
-      nsCString pathHead("explicit/storage/sqlite/");
-      // This filename isn't privacy-sensitive, and so is never anonymized.
-      pathHead.Append(conn->getFilename());
-      pathHead.Append('/');
-
-      SQLiteMutexAutoLock lockedScope(conn->sharedDBMutex);
-
-      NS_NAMED_LITERAL_CSTRING(stmtDesc,
-        "Memory (approximate) used by all prepared statements used by "
-        "connections to this database.");
-      rv = ReportConn(aHandleReport, aData, conn, pathHead,
-                      NS_LITERAL_CSTRING("stmt"), stmtDesc,
-                      SQLITE_DBSTATUS_STMT_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      NS_NAMED_LITERAL_CSTRING(cacheDesc,
-        "Memory (approximate) used by all pager caches used by connections "
-        "to this database.");
-      rv = ReportConn(aHandleReport, aData, conn, pathHead,
-                      NS_LITERAL_CSTRING("cache"), cacheDesc,
-                      SQLITE_DBSTATUS_CACHE_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      NS_NAMED_LITERAL_CSTRING(schemaDesc,
-        "Memory (approximate) used to store the schema for all databases "
-        "associated with connections to this database.");
-      rv = ReportConn(aHandleReport, aData, conn, pathHead,
-                      NS_LITERAL_CSTRING("schema"), schemaDesc,
-                      SQLITE_DBSTATUS_SCHEMA_USED, &totalConnSize);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-#ifdef MOZ_DMD
-    if (::sqlite3_memory_used() != int64_t(gSqliteMemoryUsed)) {
-      NS_WARNING("memory consumption reported by SQLite doesn't match "
-                 "our measurements");
-    }
-#endif
   }
 
-  int64_t other = ::sqlite3_memory_used() - totalConnSize;
+  NS_IMETHOD Run()
+  {
+    NS_PRECONDITION(NS_IsMainThread(), "Must be running on the main thread!");
 
-  rv = aHandleReport->Callback(
-          EmptyCString(),
-          NS_LITERAL_CSTRING("explicit/storage/sqlite/other"),
-          KIND_HEAP, UNITS_BYTES, other,
-          NS_LITERAL_CSTRING("All unclassified sqlite memory."),
-          aData);
-  NS_ENSURE_SUCCESS(rv, rv);
+    // NOTE:  All code that can only run on the main thread and needs to be run
+    //        during initialization should be placed here.  During the off-
+    //        chance that storage is initialized on a background thread, this
+    //        will ensure everything that isn't threadsafe is initialized in
+    //        the right place.
 
-  return NS_OK;
-}
+    // Register for xpcom-shutdown so we can cleanup after ourselves.  The
+    // observer service can only be used on the main thread.
+    nsCOMPtr<nsIObserverService> os =
+      mozilla::services::GetObserverService();
+    NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
+    nsresult rv = os->AddObserver(mObserver, "xpcom-shutdown", PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // We cache XPConnect for our language helpers.  XPConnect can only be
+    // used on the main thread.
+    (void)CallGetService(nsIXPConnect::GetCID(), mXPConnectPtr);
+
+    // We need to obtain the toolkit.storage.synchronous preferences on the main
+    // thread because the preference service can only be accessed there.  This
+    // is cached in the service for all future Open[Unshared]Database calls.
+    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    PRInt32 synchronous = PREF_TS_SYNCHRONOUS_DEFAULT;
+    if (pref)
+      (void)pref->GetIntPref(PREF_TS_SYNCHRONOUS, &synchronous);
+    ::PR_AtomicSet(mSynchronousPrefValPtr, synchronous);
+
+    // Register our SQLite memory reporters.  Registration can only happen on
+    // the main thread (otherwise you'll get cryptic crashes).
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(StorageSQLitePageCacheMemoryUsed));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(StorageSQLiteOtherMemoryUsed));
+
+    return NS_OK;
+  }
+
+private:
+  nsIObserver *mObserver;
+  nsIXPConnect **mXPConnectPtr;
+  PRInt32 *mSynchronousPrefValPtr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Service
 
-NS_IMPL_ISUPPORTS(
+NS_IMPL_THREADSAFE_ISUPPORTS3(
   Service,
   mozIStorageService,
   nsIObserver,
-  nsIMemoryReporter
+  mozIStorageServiceQuotaManagement
 )
 
-Service *Service::gService = nullptr;
+Service *Service::gService = nsnull;
 
 Service *
 Service::getSingleton()
@@ -222,18 +249,15 @@ Service::getSingleton()
     nsCOMPtr<nsIPromptService> ps(do_GetService(NS_PROMPTSERVICE_CONTRACTID));
     if (ps) {
       nsAutoString title, message;
-      title.AppendLiteral("SQLite Version Error");
-      message.AppendLiteral("The application has been updated, but your version "
+      title.AppendASCII("SQLite Version Error");
+      message.AppendASCII("The application has been updated, but your version "
                           "of SQLite is too old and the application cannot "
                           "run.");
-      (void)ps->Alert(nullptr, title.get(), message.get());
+      (void)ps->Alert(nsnull, title.get(), message.get());
     }
     ::PR_Abort();
   }
 
-  // The first reference to the storage service must be obtained on the
-  // main thread.
-  NS_ENSURE_TRUE(NS_IsMainThread(), nullptr);
   gService = new Service();
   if (gService) {
     NS_ADDREF(gService);
@@ -244,7 +268,7 @@ Service::getSingleton()
   return gService;
 }
 
-nsIXPConnect *Service::sXPConnect = nullptr;
+nsIXPConnect *Service::sXPConnect = nsnull;
 
 // static
 already_AddRefed<nsIXPConnect>
@@ -264,117 +288,36 @@ Service::getXPConnect()
   return xpc.forget();
 }
 
-int32_t Service::sSynchronousPref;
+PRInt32 Service::sSynchronousPref;
 
 // static
-int32_t
+PRInt32
 Service::getSynchronousPref()
 {
   return sSynchronousPref;
 }
 
-int32_t Service::sDefaultPageSize = PREF_TS_PAGESIZE_DEFAULT;
-
 Service::Service()
 : mMutex("Service::mMutex")
-, mSqliteVFS(nullptr)
-, mRegistrationMutex("Service::mRegistrationMutex")
-, mConnections()
 {
 }
 
 Service::~Service()
 {
-  mozilla::UnregisterWeakMemoryReporter(this);
-  mozilla::UnregisterStorageSQLiteDistinguishedAmount();
-
-  int rc = sqlite3_vfs_unregister(mSqliteVFS);
-  if (rc != SQLITE_OK)
-    NS_WARNING("Failed to unregister sqlite vfs wrapper.");
-
   // Shutdown the sqlite3 API.  Warn if shutdown did not turn out okay, but
   // there is nothing actionable we can do in that case.
+  int rc = ::sqlite3_quota_shutdown();
+  if (rc != SQLITE_OK)
+    NS_WARNING("sqlite3 did not shutdown cleanly.");
+
   rc = ::sqlite3_shutdown();
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
-  DebugOnly<bool> shutdownObserved = !sXPConnect;
+  bool shutdownObserved = !sXPConnect;
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
-  gService = nullptr;
-  delete mSqliteVFS;
-  mSqliteVFS = nullptr;
-}
-
-void
-Service::registerConnection(Connection *aConnection)
-{
-  mRegistrationMutex.AssertNotCurrentThreadOwns();
-  MutexAutoLock mutex(mRegistrationMutex);
-  (void)mConnections.AppendElement(aConnection);
-}
-
-void
-Service::unregisterConnection(Connection *aConnection)
-{
-  // If this is the last Connection it might be the only thing keeping Service
-  // alive.  So ensure that Service is destroyed only after the Connection is
-  // cleanly unregistered and destroyed.
-  nsRefPtr<Service> kungFuDeathGrip(this);
-  {
-    mRegistrationMutex.AssertNotCurrentThreadOwns();
-    MutexAutoLock mutex(mRegistrationMutex);
-    DebugOnly<bool> removed = mConnections.RemoveElement(aConnection);
-    // Assert if we try to unregister a non-existent connection.
-    MOZ_ASSERT(removed);
-  }
-}
-
-void
-Service::getConnections(/* inout */ nsTArray<nsRefPtr<Connection> >& aConnections)
-{
-  mRegistrationMutex.AssertNotCurrentThreadOwns();
-  MutexAutoLock mutex(mRegistrationMutex);
-  aConnections.Clear();
-  aConnections.AppendElements(mConnections);
-}
-
-void
-Service::minimizeMemory()
-{
-  nsTArray<nsRefPtr<Connection> > connections;
-  getConnections(connections);
-
-  for (uint32_t i = 0; i < connections.Length(); i++) {
-    nsRefPtr<Connection> conn = connections[i];
-    if (!conn->connectionReady())
-      continue;
-
-    NS_NAMED_LITERAL_CSTRING(shrinkPragma, "PRAGMA shrink_memory");
-    nsCOMPtr<mozIStorageConnection> syncConn = do_QueryInterface(
-      NS_ISUPPORTS_CAST(mozIStorageAsyncConnection*, conn));
-    bool onOpenedThread = false;
-
-    if (!syncConn) {
-      // This is a mozIStorageAsyncConnection, it can only be used on the main
-      // thread, so we can do a straight API call.
-      nsCOMPtr<mozIStoragePendingStatement> ps;
-      DebugOnly<nsresult> rv =
-        conn->ExecuteSimpleSQLAsync(shrinkPragma, nullptr, getter_AddRefs(ps));
-      MOZ_ASSERT(NS_SUCCEEDED(rv), "Should have purged sqlite caches");
-    } else if (NS_SUCCEEDED(conn->threadOpenedOn->IsOnCurrentThread(&onOpenedThread)) &&
-               onOpenedThread) {
-      // We are on the opener thread, so we can just proceed.
-      conn->ExecuteSimpleSQL(shrinkPragma);
-    } else {
-      // We are on the wrong thread, the query should be executed on the
-      // opener thread, so we must dispatch to it.
-      nsCOMPtr<nsIRunnable> event =
-        NS_NewRunnableMethodWithArg<const nsCString>(
-          conn, &Connection::ExecuteSimpleSQL, shrinkPragma);
-      conn->threadOpenedOn->Dispatch(event, NS_DISPATCH_NORMAL);
-    }
-  }
+  gService = nsnull;
 }
 
 void
@@ -383,141 +326,12 @@ Service::shutdown()
   NS_IF_RELEASE(sXPConnect);
 }
 
-sqlite3_vfs *ConstructTelemetryVFS();
-
-#ifdef MOZ_STORAGE_MEMORY
-
-namespace {
-
-// By default, SQLite tracks the size of all its heap blocks by adding an extra
-// 8 bytes at the start of the block to hold the size.  Unfortunately, this
-// causes a lot of 2^N-sized allocations to be rounded up by jemalloc
-// allocator, wasting memory.  For example, a request for 1024 bytes has 8
-// bytes added, becoming a request for 1032 bytes, and jemalloc rounds this up
-// to 2048 bytes, wasting 1012 bytes.  (See bug 676189 for more details.)
-//
-// So we register jemalloc as the malloc implementation, which avoids this
-// 8-byte overhead, and thus a lot of waste.  This requires us to provide a
-// function, sqliteMemRoundup(), which computes the actual size that will be
-// allocated for a given request.  SQLite uses this function before all
-// allocations, and may be able to use any excess bytes caused by the rounding.
-//
-// Note: the wrappers for moz_malloc, moz_realloc and moz_malloc_usable_size
-// are necessary because the sqlite_mem_methods type signatures differ slightly
-// from the standard ones -- they use int instead of size_t.  But we don't need
-// a wrapper for moz_free.
-
-#ifdef MOZ_DMD
-
-// sqlite does its own memory accounting, and we use its numbers in our memory
-// reporters.  But we don't want sqlite's heap blocks to show up in DMD's
-// output as unreported, so we mark them as reported when they're allocated and
-// mark them as unreported when they are freed.
-//
-// In other words, we are marking all sqlite heap blocks as reported even
-// though we're not reporting them ourselves.  Instead we're trusting that
-// sqlite is fully and correctly accounting for all of its heap blocks via its
-// own memory accounting.  Well, we don't have to trust it entirely, because
-// it's easy to keep track (while doing this DMD-specific marking) of exactly
-// how much memory SQLite is using.  And we can compare that against what
-// SQLite reports it is using.
-
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(SqliteMallocSizeOfOnAlloc)
-MOZ_DEFINE_MALLOC_SIZE_OF_ON_FREE(SqliteMallocSizeOfOnFree)
-
-#endif
-
-static void *sqliteMemMalloc(int n)
-{
-  void* p = ::moz_malloc(n);
-#ifdef MOZ_DMD
-  gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(p);
-#endif
-  return p;
-}
-
-static void sqliteMemFree(void *p)
-{
-#ifdef MOZ_DMD
-  gSqliteMemoryUsed -= SqliteMallocSizeOfOnFree(p);
-#endif
-  ::moz_free(p);
-}
-
-static void *sqliteMemRealloc(void *p, int n)
-{
-#ifdef MOZ_DMD
-  gSqliteMemoryUsed -= SqliteMallocSizeOfOnFree(p);
-  void *pnew = ::moz_realloc(p, n);
-  if (pnew) {
-    gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(pnew);
-  } else {
-    // realloc failed;  undo the SqliteMallocSizeOfOnFree from above
-    gSqliteMemoryUsed += SqliteMallocSizeOfOnAlloc(p);
-  }
-  return pnew;
-#else
-  return ::moz_realloc(p, n);
-#endif
-}
-
-static int sqliteMemSize(void *p)
-{
-  return ::moz_malloc_usable_size(p);
-}
-
-static int sqliteMemRoundup(int n)
-{
-  n = malloc_good_size(n);
-
-  // jemalloc can return blocks of size 2 and 4, but SQLite requires that all
-  // allocations be 8-aligned.  So we round up sub-8 requests to 8.  This
-  // wastes a small amount of memory but is obviously safe.
-  return n <= 8 ? 8 : n;
-}
-
-static int sqliteMemInit(void *p)
-{
-  return 0;
-}
-
-static void sqliteMemShutdown(void *p)
-{
-}
-
-const sqlite3_mem_methods memMethods = {
-  &sqliteMemMalloc,
-  &sqliteMemFree,
-  &sqliteMemRealloc,
-  &sqliteMemSize,
-  &sqliteMemRoundup,
-  &sqliteMemInit,
-  &sqliteMemShutdown,
-  nullptr
-};
-
-} // anonymous namespace
-
-#endif  // MOZ_STORAGE_MEMORY
-
-static const char* sObserverTopics[] = {
-  "memory-pressure",
-  "xpcom-shutdown",
-  "xpcom-shutdown-threads"
-};
-
 nsresult
 Service::initialize()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Must be initialized on the main thread");
+  NS_TIME_FUNCTION;
 
   int rc;
-
-#ifdef MOZ_STORAGE_MEMORY
-  rc = ::sqlite3_config(SQLITE_CONFIG_MALLOC, &memMethods);
-  if (rc != SQLITE_OK)
-    return convertResultCode(rc);
-#endif
 
   // Explicitly initialize sqlite3.  Although this is implicitly called by
   // various sqlite3 functions (and the sqlite3_open calls in our case),
@@ -526,45 +340,23 @@ Service::initialize()
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 
-  mSqliteVFS = ConstructTelemetryVFS();
-  if (mSqliteVFS) {
-    rc = sqlite3_vfs_register(mSqliteVFS, 1);
-    if (rc != SQLITE_OK)
-      return convertResultCode(rc);
-  } else {
-    NS_WARNING("Failed to register telemetry VFS");
+  rc = ::sqlite3_quota_initialize(NULL, 0);
+  if (rc != SQLITE_OK)
+    return convertResultCode(rc);
+
+  // Set the default value for the toolkit.storage.synchronous pref.  It will be
+  // updated with the user preference on the main thread.
+  sSynchronousPref = PREF_TS_SYNCHRONOUS_DEFAULT;
+
+  // Run the things that need to run on the main thread there.
+  nsCOMPtr<nsIRunnable> event =
+    new ServiceMainThreadInitializer(this, &sXPConnect, &sSynchronousPref);
+  if (event && ::NS_IsMainThread()) {
+    (void)event->Run();
   }
-
-  // Register for xpcom-shutdown so we can cleanup after ourselves.  The
-  // observer service can only be used on the main thread.
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-
-  for (size_t i = 0; i < ArrayLength(sObserverTopics); ++i) {
-    nsresult rv = os->AddObserver(this, sObserverTopics[i], false);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
+  else {
+    (void)::NS_DispatchToMainThread(event);
   }
-
-  // We cache XPConnect for our language helpers.  XPConnect can only be
-  // used on the main thread.
-  (void)CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
-
-  // We need to obtain the toolkit.storage.synchronous preferences on the main
-  // thread because the preference service can only be accessed there.  This
-  // is cached in the service for all future Open[Unshared]Database calls.
-  sSynchronousPref =
-    Preferences::GetInt(PREF_TS_SYNCHRONOUS, PREF_TS_SYNCHRONOUS_DEFAULT);
-
-  // We need to obtain the toolkit.storage.pageSize preferences on the main
-  // thread because the preference service can only be accessed there.  This
-  // is cached in the service for all future Open[Unshared]Database calls.
-  sDefaultPageSize =
-      Preferences::GetInt(PREF_TS_PAGESIZE, PREF_TS_PAGESIZE_DEFAULT);
-
-  mozilla::RegisterWeakMemoryReporter(this);
-  mozilla::RegisterStorageSQLiteDistinguishedAmount(StorageSQLiteDistinguishedAmount);
 
   return NS_OK;
 }
@@ -572,7 +364,7 @@ Service::initialize()
 int
 Service::localeCompareStrings(const nsAString &aStr1,
                               const nsAString &aStr2,
-                              int32_t aComparisonStrength)
+                              PRInt32 aComparisonStrength)
 {
   // The implementation of nsICollation.CompareString() is platform-dependent.
   // On Linux it's not thread-safe.  It may not be on Windows and OS X either,
@@ -585,7 +377,7 @@ Service::localeCompareStrings(const nsAString &aStr1,
     return 0;
   }
 
-  int32_t res;
+  PRInt32 res;
   nsresult rv = coll->CompareString(aComparisonStrength, aStr1, aStr2, &res);
   if (NS_FAILED(rv)) {
     NS_ERROR("Collation compare string failed");
@@ -606,27 +398,27 @@ Service::getLocaleCollation()
   nsCOMPtr<nsILocaleService> svc(do_GetService(NS_LOCALESERVICE_CONTRACTID));
   if (!svc) {
     NS_WARNING("Could not get locale service");
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsILocale> appLocale;
   nsresult rv = svc->GetApplicationLocale(getter_AddRefs(appLocale));
   if (NS_FAILED(rv)) {
     NS_WARNING("Could not get application locale");
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsICollationFactory> collFact =
     do_CreateInstance(NS_COLLATIONFACTORY_CONTRACTID);
   if (!collFact) {
     NS_WARNING("Could not create collation factory");
-    return nullptr;
+    return nsnull;
   }
 
   rv = collFact->CreateCollation(appLocale, getter_AddRefs(mLocaleCollation));
   if (NS_FAILED(rv)) {
     NS_WARNING("Could not create collation");
-    return nullptr;
+    return nsnull;
   }
 
   return mLocaleCollation;
@@ -635,6 +427,9 @@ Service::getLocaleCollation()
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageService
 
+#ifndef NS_APP_STORAGE_50_FILE
+#define NS_APP_STORAGE_50_FILE "UStor"
+#endif
 
 NS_IMETHODIMP
 Service::OpenSpecialDatabase(const char *aStorageKey,
@@ -644,166 +439,32 @@ Service::OpenSpecialDatabase(const char *aStorageKey,
 
   nsCOMPtr<nsIFile> storageFile;
   if (::strcmp(aStorageKey, "memory") == 0) {
-    // just fall through with nullptr storageFile, this will cause the storage
+    // just fall through with NULL storageFile, this will cause the storage
     // connection to use a memory DB.
+  }
+  else if (::strcmp(aStorageKey, "profile") == 0) {
+
+    rv = NS_GetSpecialDirectory(NS_APP_STORAGE_50_FILE,
+                                getter_AddRefs(storageFile));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsString filename;
+    storageFile->GetPath(filename);
+    nsCString filename8 = NS_ConvertUTF16toUTF8(filename.get());
+    // fall through to DB initialization
   }
   else {
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsRefPtr<Connection> msc = new Connection(this, SQLITE_OPEN_READWRITE, false);
+  Connection *msc = new Connection(this, SQLITE_OPEN_READWRITE);
+  NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = storageFile ? msc->initialize(storageFile) : msc->initialize();
+  rv = msc->initialize(storageFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  msc.forget(_connection);
+  NS_ADDREF(*_connection = msc);
   return NS_OK;
-
-}
-
-namespace {
-
-class AsyncInitDatabase MOZ_FINAL : public nsRunnable
-{
-public:
-  AsyncInitDatabase(Connection* aConnection,
-                    nsIFile* aStorageFile,
-                    int32_t aGrowthIncrement,
-                    mozIStorageCompletionCallback* aCallback)
-    : mConnection(aConnection)
-    , mStorageFile(aStorageFile)
-    , mGrowthIncrement(aGrowthIncrement)
-    , mCallback(aCallback)
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-    nsresult rv = mStorageFile ? mConnection->initialize(mStorageFile)
-                               : mConnection->initialize();
-    if (NS_FAILED(rv)) {
-      return DispatchResult(rv, nullptr);
-    }
-
-    if (mGrowthIncrement >= 0) {
-      // Ignore errors. In the future, we might wish to log them.
-      (void)mConnection->SetGrowthIncrement(mGrowthIncrement, EmptyCString());
-    }
-
-    return DispatchResult(NS_OK, NS_ISUPPORTS_CAST(mozIStorageAsyncConnection*,
-                          mConnection));
-  }
-
-private:
-  nsresult DispatchResult(nsresult aStatus, nsISupports* aValue) {
-    nsRefPtr<CallbackComplete> event =
-      new CallbackComplete(aStatus,
-                           aValue,
-                           mCallback.forget());
-    return NS_DispatchToMainThread(event);
-  }
-
-  ~AsyncInitDatabase()
-  {
-    nsCOMPtr<nsIThread> thread;
-    DebugOnly<nsresult> rv = NS_GetMainThread(getter_AddRefs(thread));
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-    (void)NS_ProxyRelease(thread, mStorageFile);
-
-    // Handle ambiguous nsISupports inheritance.
-    Connection *rawConnection = nullptr;
-    mConnection.swap(rawConnection);
-    (void)NS_ProxyRelease(thread, NS_ISUPPORTS_CAST(mozIStorageConnection *,
-                                                    rawConnection));
-
-    // Generally, the callback will be released by CallbackComplete.
-    // However, if for some reason Run() is not executed, we still
-    // need to ensure that it is released here.
-    mozIStorageCompletionCallback *rawCallback = nullptr;
-    mCallback.swap(rawCallback);
-    (void)NS_ProxyRelease(thread, rawCallback);
-  }
-
-  nsRefPtr<Connection> mConnection;
-  nsCOMPtr<nsIFile> mStorageFile;
-  int32_t mGrowthIncrement;
-  nsRefPtr<mozIStorageCompletionCallback> mCallback;
-};
-
-} // anonymous namespace
-
-NS_IMETHODIMP
-Service::OpenAsyncDatabase(nsIVariant *aDatabaseStore,
-                           nsIPropertyBag2 *aOptions,
-                           mozIStorageCompletionCallback *aCallback)
-{
-  if (!NS_IsMainThread()) {
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-  NS_ENSURE_ARG(aDatabaseStore);
-  NS_ENSURE_ARG(aCallback);
-
-  nsCOMPtr<nsIFile> storageFile;
-  int flags = SQLITE_OPEN_READWRITE;
-
-  nsCOMPtr<nsISupports> dbStore;
-  nsresult rv = aDatabaseStore->GetAsISupports(getter_AddRefs(dbStore));
-  if (NS_SUCCEEDED(rv)) {
-    // Generally, aDatabaseStore holds the database nsIFile.
-    storageFile = do_QueryInterface(dbStore, &rv);
-    if (NS_FAILED(rv)) {
-      return NS_ERROR_INVALID_ARG;
-    }
-
-    rv = storageFile->Clone(getter_AddRefs(storageFile));
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-    // Ensure that SQLITE_OPEN_CREATE is passed in for compatibility reasons.
-    flags |= SQLITE_OPEN_CREATE;
-
-    // Extract and apply the shared-cache option.
-    bool shared = false;
-    if (aOptions) {
-      rv = aOptions->GetPropertyAsBool(NS_LITERAL_STRING("shared"), &shared);
-      if (NS_FAILED(rv) && rv != NS_ERROR_NOT_AVAILABLE) {
-        return NS_ERROR_INVALID_ARG;
-      }
-    }
-    flags |= shared ? SQLITE_OPEN_SHAREDCACHE : SQLITE_OPEN_PRIVATECACHE;
-  } else {
-    // Sometimes, however, it's a special database name.
-    nsAutoCString keyString;
-    rv = aDatabaseStore->GetAsACString(keyString);
-    if (NS_FAILED(rv) || !keyString.EqualsLiteral("memory")) {
-      return NS_ERROR_INVALID_ARG;
-    }
-
-    // Just fall through with nullptr storageFile, this will cause the storage
-    // connection to use a memory DB.
-  }
-
-  int32_t growthIncrement = -1;
-  if (aOptions && storageFile) {
-    rv = aOptions->GetPropertyAsInt32(NS_LITERAL_STRING("growthIncrement"),
-                                      &growthIncrement);
-    if (NS_FAILED(rv) && rv != NS_ERROR_NOT_AVAILABLE) {
-      return NS_ERROR_INVALID_ARG;
-    }
-  }
-
-  // Create connection on this thread, but initialize it on its helper thread.
-  nsRefPtr<Connection> msc = new Connection(this, flags, true);
-  nsCOMPtr<nsIEventTarget> target = msc->getAsyncExecutionTarget();
-  MOZ_ASSERT(target, "Cannot initialize a connection that has been closed already");
-
-  nsRefPtr<AsyncInitDatabase> asyncInit =
-    new AsyncInitDatabase(msc,
-                          storageFile,
-                          growthIncrement,
-                          aCallback);
-  return target->Dispatch(asyncInit, nsIEventTarget::DISPATCH_NORMAL);
 }
 
 NS_IMETHODIMP
@@ -812,16 +473,23 @@ Service::OpenDatabase(nsIFile *aDatabaseFile,
 {
   NS_ENSURE_ARG(aDatabaseFile);
 
+#ifdef NS_FUNCTION_TIMER
+  nsCString leafname;
+  (void)aDatabaseFile->GetNativeLeafName(leafname);
+  NS_TIME_FUNCTION_FMT("mozIStorageService::OpenDatabase(%s)", leafname.get());
+#endif
+
   // Always ensure that SQLITE_OPEN_CREATE is passed in for compatibility
   // reasons.
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_SHAREDCACHE |
               SQLITE_OPEN_CREATE;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
+  nsRefPtr<Connection> msc = new Connection(this, flags);
+  NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = msc->initialize(aDatabaseFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  msc.forget(_connection);
+  NS_ADDREF(*_connection = msc);
   return NS_OK;
 }
 
@@ -829,37 +497,24 @@ NS_IMETHODIMP
 Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
                               mozIStorageConnection **_connection)
 {
-  NS_ENSURE_ARG(aDatabaseFile);
+#ifdef NS_FUNCTION_TIMER
+  nsCString leafname;
+  (void)aDatabaseFile->GetNativeLeafName(leafname);
+  NS_TIME_FUNCTION_FMT("mozIStorageService::OpenUnsharedDatabase(%s)",
+                       leafname.get());
+#endif
 
   // Always ensure that SQLITE_OPEN_CREATE is passed in for compatibility
   // reasons.
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_PRIVATECACHE |
               SQLITE_OPEN_CREATE;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
+  nsRefPtr<Connection> msc = new Connection(this, flags);
+  NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = msc->initialize(aDatabaseFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  msc.forget(_connection);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-Service::OpenDatabaseWithFileURL(nsIFileURL *aFileURL,
-                                 mozIStorageConnection **_connection)
-{
-  NS_ENSURE_ARG(aFileURL);
-
-  // Always ensure that SQLITE_OPEN_CREATE is passed in for compatibility
-  // reasons.
-  int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_SHAREDCACHE |
-              SQLITE_OPEN_CREATE | SQLITE_OPEN_URI;
-  nsRefPtr<Connection> msc = new Connection(this, flags, false);
-
-  nsresult rv = msc->initialize(aFileURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  msc.forget(_connection);
+  NS_ADDREF(*_connection = msc);
   return NS_OK;
 }
 
@@ -892,7 +547,7 @@ Service::BackupDatabaseFile(nsIFile *aDBFile,
   rv = backupDB->GetLeafName(fileName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = backupDB->Remove(false);
+  rv = backupDB->Remove(PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   backupDB.forget(backup);
@@ -904,49 +559,64 @@ Service::BackupDatabaseFile(nsIFile *aDBFile,
 //// nsIObserver
 
 NS_IMETHODIMP
-Service::Observe(nsISupports *, const char *aTopic, const char16_t *)
+Service::Observe(nsISupports *, const char *aTopic, const PRUnichar *)
 {
-  if (strcmp(aTopic, "memory-pressure") == 0) {
-    minimizeMemory();
-  } else if (strcmp(aTopic, "xpcom-shutdown") == 0) {
+  if (strcmp(aTopic, "xpcom-shutdown") == 0)
     shutdown();
-  } else if (strcmp(aTopic, "xpcom-shutdown-threads") == 0) {
-    nsCOMPtr<nsIObserverService> os =
-      mozilla::services::GetObserverService();
+  return NS_OK;
+}
 
-    for (size_t i = 0; i < ArrayLength(sObserverTopics); ++i) {
-      (void)os->RemoveObserver(this, sObserverTopics[i]);
-    }
+////////////////////////////////////////////////////////////////////////////////
+//// mozIStorageServiceQuotaManagement
 
-    bool anyOpen = false;
-    do {
-      nsTArray<nsRefPtr<Connection> > connections;
-      getConnections(connections);
-      anyOpen = false;
-      for (uint32_t i = 0; i < connections.Length(); i++) {
-        nsRefPtr<Connection> &conn = connections[i];
-        if (conn->isClosing()) {
-          anyOpen = true;
-          break;
-        }
-      }
-      if (anyOpen) {
-        nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
-        NS_ProcessNextEvent(thread);
-      }
-    } while (anyOpen);
+NS_IMETHODIMP
+Service::OpenDatabaseWithVFS(nsIFile *aDatabaseFile,
+                             const nsACString &aVFSName,
+                             mozIStorageConnection **_connection)
+{
+  NS_ENSURE_ARG(aDatabaseFile);
 
-    if (gShutdownChecks == SCM_CRASH) {
-      nsTArray<nsRefPtr<Connection> > connections;
-      getConnections(connections);
-      for (uint32_t i = 0, n = connections.Length(); i < n; i++) {
-        if (!connections[i]->isClosed()) {
-          MOZ_CRASH();
-        }
-      }
-    }
+#ifdef NS_FUNCTION_TIMER
+  nsCString leafname;
+  (void)aDatabaseFile->GetNativeLeafName(leafname);
+  NS_TIME_FUNCTION_FMT("mozIStorageService::OpenDatabaseWithVFS(%s)",
+                       leafname.get());
+#endif
+
+  // Always ensure that SQLITE_OPEN_CREATE is passed in for compatibility
+  // reasons.
+  int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_SHAREDCACHE |
+              SQLITE_OPEN_CREATE;
+  nsRefPtr<Connection> msc = new Connection(this, flags);
+  NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = msc->initialize(aDatabaseFile,
+                                PromiseFlatCString(aVFSName).get());
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ADDREF(*_connection = msc);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Service::SetQuotaForFilenamePattern(const nsACString &aPattern,
+                                    PRInt64 aSizeLimit,
+                                    mozIStorageQuotaCallback *aCallback,
+                                    nsISupports *aUserData)
+{
+  NS_ENSURE_FALSE(aPattern.IsEmpty(), NS_ERROR_INVALID_ARG);
+
+  nsAutoPtr<QuotaCallbackData> data;
+  if (aSizeLimit && aCallback) {
+    data = new QuotaCallbackData(aCallback, aUserData);
   }
 
+  int rc = ::sqlite3_quota_set(PromiseFlatCString(aPattern).get(),
+                               aSizeLimit, QuotaCallbackData::Callback,
+                               data, QuotaCallbackData::Destroy);
+  NS_ENSURE_TRUE(rc == SQLITE_OK, convertResultCode(rc));
+
+  data.forget();
   return NS_OK;
 }
 

@@ -1,5 +1,5 @@
 const BinaryOutputStream = Components.Constructor("@mozilla.org/binaryoutputstream;1", "nsIBinaryOutputStream", "setOutputStream");
-/* This data is picked from image/test/reftest/generic/check-header.sjs */
+/* This data is picked from modules/libpr0n/test/reftest/generic/check-header.sjs */
 const IMAGE_DATA =
   [
    0x89,  0x50,  0x4E,  0x47,  0x0D,  0x0A,  0x1A,  0x0A,  0x00,  0x00,  0x00,
@@ -25,12 +25,6 @@ const IMAGE_DATA =
    0x49,  0x45,  0x4E,  0x44,  0xAE,  0x42,  0x60,  0x82,
   ];
 
-/**
- * The timer is needed when a delay is set. We need it to be out of the method
- * so it is not eaten alive by the GC.
- */
-var timer;
-
 function handleRequest(request, response) {
   var query = {};
   request.queryString.split('&').forEach(function (val) {
@@ -46,20 +40,16 @@ function handleRequest(request, response) {
     stream.writeByteArray(IMAGE_DATA, IMAGE_DATA.length);
   }
 
-  // If there is no delay, we write the image and leave.
-  if (!("delay" in query)) {
+  if ("delay" in query) {
+    response.processAsync();
+    const nsITimer = Components.interfaces.nsITimer;
+
+    var timer = Components.classes["@mozilla.org/timer;1"].createInstance(nsITimer);
+    timer.initWithCallback(function() {
+      imageWrite();
+      response.finish();
+    }, query["delay"], nsITimer.TYPE_ONE_SHOT);
+  } else {
     imageWrite();
-    return;
   }
-
-  // If there is a delay, we create a timer which, when it fires, will write
-  // image and leave.
-  response.processAsync();
-  const nsITimer = Components.interfaces.nsITimer;
-
-  timer = Components.classes["@mozilla.org/timer;1"].createInstance(nsITimer);
-  timer.initWithCallback(function() {
-    imageWrite();
-    response.finish();
-  }, query["delay"], nsITimer.TYPE_ONE_SHOT);
 }

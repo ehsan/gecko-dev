@@ -1,86 +1,66 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is thebes gfx code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxPlatformMac.h"
 
+#include "gfxImageSurface.h"
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzImageSurface.h"
-#include "mozilla/gfx/2D.h"
 
 #include "gfxMacPlatformFontList.h"
 #include "gfxMacFont.h"
 #include "gfxCoreTextShaper.h"
-#include "gfxTextRun.h"
 #include "gfxUserFontSet.h"
 
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
+#include "nsServiceManagerUtils.h"
+#include "nsCRT.h"
 #include "nsTArray.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/VsyncDispatcher.h"
+#include "nsUnicodeRange.h"
+
 #include "qcms.h"
-#include "gfx2DGlue.h"
-
-#include <dlfcn.h>
-#include <CoreVideo/CoreVideo.h>
-
-#include "nsCocoaFeatures.h"
-#include "mozilla/layers/CompositorParent.h"
-#include "VsyncSource.h"
-
-using namespace mozilla;
-using namespace mozilla::gfx;
-
-// cribbed from CTFontManager.h
-enum {
-   kAutoActivationDisabled = 1
-};
-typedef uint32_t AutoActivationSetting;
-
-// bug 567552 - disable auto-activation of fonts
-
-static void
-DisableFontActivation()
-{
-    // get the main bundle identifier
-    CFBundleRef mainBundle = ::CFBundleGetMainBundle();
-    CFStringRef mainBundleID = nullptr;
-
-    if (mainBundle) {
-        mainBundleID = ::CFBundleGetIdentifier(mainBundle);
-    }
-
-    // bug 969388 and bug 922590 - mainBundlID as null is sometimes problematic
-    if (!mainBundleID) {
-        NS_WARNING("missing bundle ID, packaging set up incorrectly");
-        return;
-    }
-
-    // if possible, fetch CTFontManagerSetAutoActivationSetting
-    void (*CTFontManagerSetAutoActivationSettingPtr)
-            (CFStringRef, AutoActivationSetting);
-    CTFontManagerSetAutoActivationSettingPtr =
-        (void (*)(CFStringRef, AutoActivationSetting))
-        dlsym(RTLD_DEFAULT, "CTFontManagerSetAutoActivationSetting");
-
-    // bug 567552 - disable auto-activation of fonts
-    if (CTFontManagerSetAutoActivationSettingPtr) {
-        CTFontManagerSetAutoActivationSettingPtr(mainBundleID,
-                                                 kAutoActivationDisabled);
-    }
-}
 
 gfxPlatformMac::gfxPlatformMac()
 {
-    DisableFontActivation();
+    mOSXVersion = 0;
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
-
-    uint32_t canvasMask = BackendTypeBit(BackendType::CAIRO) |
-                          BackendTypeBit(BackendType::SKIA) |
-                          BackendTypeBit(BackendType::COREGRAPHICS);
-    uint32_t contentMask = BackendTypeBit(BackendType::COREGRAPHICS);
-    InitBackendPrefs(canvasMask, BackendType::COREGRAPHICS,
-                     contentMask, BackendType::COREGRAPHICS);
 }
 
 gfxPlatformMac::~gfxPlatformMac()
@@ -96,24 +76,54 @@ gfxPlatformMac::CreatePlatformFontList()
         return list;
     }
     gfxPlatformFontList::Shutdown();
-    return nullptr;
+    return nsnull;
 }
 
 already_AddRefed<gfxASurface>
-gfxPlatformMac::CreateOffscreenSurface(const IntSize& size,
-                                       gfxContentType contentType)
+gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
+                                       gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> newSurface =
-      new gfxQuartzSurface(ThebesIntSize(size),
-                           OptimalFormatForContent(contentType));
-    return newSurface.forget();
+    gfxASurface *newSurface = nsnull;
+
+    newSurface = new gfxQuartzSurface(size, gfxASurface::FormatFromContent(contentType));
+
+    NS_IF_ADDREF(newSurface);
+    return newSurface;
 }
 
-TemporaryRef<ScaledFont>
-gfxPlatformMac::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
+already_AddRefed<gfxASurface>
+gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
+                              gfxASurface::gfxImageFormat format)
 {
-    gfxMacFont *font = static_cast<gfxMacFont*>(aFont);
-    return font->GetScaledFont(aTarget);
+    const gfxIntSize& surfaceSize = aSurface->GetSize();
+    nsRefPtr<gfxImageSurface> isurf = aSurface;
+
+    if (format != aSurface->Format()) {
+        isurf = new gfxImageSurface (surfaceSize, format);
+        if (!isurf->CopyFrom (aSurface)) {
+            // don't even bother doing anything more
+            NS_ADDREF(aSurface);
+            return aSurface;
+        }
+    }
+
+    nsRefPtr<gfxASurface> ret = new gfxQuartzImageSurface(isurf);
+    return ret.forget();
+}
+
+nsresult
+gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
+                                FontResolverCallback aCallback,
+                                void *aClosure, PRBool& aAborted)
+{
+    nsAutoString resolvedName;
+    if (!gfxPlatformFontList::PlatformFontList()->
+             ResolveFontName(aFontName, resolvedName)) {
+        aAborted = PR_FALSE;
+        return NS_OK;
+    }
+    aAborted = !(*aCallback)(resolvedName, aClosure);
+    return NS_OK;
 }
 
 nsresult
@@ -124,65 +134,56 @@ gfxPlatformMac::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFa
 }
 
 gfxFontGroup *
-gfxPlatformMac::CreateFontGroup(const FontFamilyList& aFontFamilyList,
+gfxPlatformMac::CreateFontGroup(const nsAString &aFamilies,
                                 const gfxFontStyle *aStyle,
                                 gfxUserFontSet *aUserFontSet)
 {
-    return new gfxFontGroup(aFontFamilyList, aStyle, aUserFontSet);
+    return new gfxFontGroup(aFamilies, aStyle, aUserFontSet);
 }
 
 // these will move to gfxPlatform once all platforms support the fontlist
 gfxFontEntry* 
-gfxPlatformMac::LookupLocalFont(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic)
+gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                const nsAString& aFontName)
 {
-    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aFontName,
-                                                                    aWeight,
-                                                                    aStretch,
-                                                                    aItalic);
+    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aProxyEntry, 
+                                                                    aFontName);
 }
 
 gfxFontEntry* 
-gfxPlatformMac::MakePlatformFont(const nsAString& aFontName,
-                                 uint16_t aWeight,
-                                 int16_t aStretch,
-                                 bool aItalic,
-                                 const uint8_t* aFontData,
-                                 uint32_t aLength)
+gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                 const PRUint8 *aFontData, PRUint32 aLength)
 {
     // Ownership of aFontData is received here, and passed on to
     // gfxPlatformFontList::MakePlatformFont(), which must ensure the data
     // is released with NS_Free when no longer needed
-    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aFontName,
-                                                                     aWeight,
-                                                                     aStretch,
-                                                                     aItalic,
+    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
                                                                      aFontData,
                                                                      aLength);
 }
 
-bool
-gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
+PRBool
+gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
     // check for strange format flags
     NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMATS_COMMON |
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
+                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
-        return true;
+        return PR_TRUE;
     }
 
     // reject all other formats, known and unknown
     if (aFormatFlags != 0) {
-        return false;
+        return PR_FALSE;
     }
 
     // no format hint set, need to look at data
-    return true;
+    return PR_TRUE;
 }
 
 // these will also move to gfxPlatform once all platforms support the fontlist
@@ -202,188 +203,42 @@ gfxPlatformMac::UpdateFontList()
     return NS_OK;
 }
 
-static const char kFontArialUnicodeMS[] = "Arial Unicode MS";
-static const char kFontAppleBraille[] = "Apple Braille";
-static const char kFontAppleColorEmoji[] = "Apple Color Emoji";
-static const char kFontAppleSymbols[] = "Apple Symbols";
-static const char kFontDevanagariSangamMN[] = "Devanagari Sangam MN";
-static const char kFontEuphemiaUCAS[] = "Euphemia UCAS";
-static const char kFontGeneva[] = "Geneva";
-static const char kFontGeezaPro[] = "Geeza Pro";
-static const char kFontGujaratiSangamMN[] = "Gujarati Sangam MN";
-static const char kFontGurmukhiMN[] = "Gurmukhi MN";
-static const char kFontHiraginoKakuGothic[] = "Hiragino Kaku Gothic ProN";
-static const char kFontHiraginoSansGB[] = "Hiragino Sans GB";
-static const char kFontKefa[] = "Kefa";
-static const char kFontKhmerMN[] = "Khmer MN";
-static const char kFontLaoMN[] = "Lao MN";
-static const char kFontLucidaGrande[] = "Lucida Grande";
-static const char kFontMenlo[] = "Menlo";
-static const char kFontMicrosoftTaiLe[] = "Microsoft Tai Le";
-static const char kFontMingLiUExtB[] = "MingLiU-ExtB";
-static const char kFontMyanmarMN[] = "Myanmar MN";
-static const char kFontPlantagenetCherokee[] = "Plantagenet Cherokee";
-static const char kFontSimSunExtB[] = "SimSun-ExtB";
-static const char kFontSongtiSC[] = "Songti SC";
-static const char kFontSTHeiti[] = "STHeiti";
-static const char kFontSTIXGeneral[] = "STIXGeneral";
-static const char kFontTamilMN[] = "Tamil MN";
-
-void
-gfxPlatformMac::GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
-                                       int32_t aRunScript,
-                                       nsTArray<const char*>& aFontList)
+PRInt32 
+gfxPlatformMac::OSXVersion()
 {
-    if (aNextCh == 0xfe0f) {
-        aFontList.AppendElement(kFontAppleColorEmoji);
-    }
-
-    aFontList.AppendElement(kFontLucidaGrande);
-
-    if (!IS_IN_BMP(aCh)) {
-        uint32_t p = aCh >> 16;
-        uint32_t b = aCh >> 8;
-        if (p == 1) {
-            if (b >= 0x1f0 && b < 0x1f7) {
-                aFontList.AppendElement(kFontAppleColorEmoji);
-            } else {
-                aFontList.AppendElement(kFontAppleSymbols);
-                aFontList.AppendElement(kFontSTIXGeneral);
-                aFontList.AppendElement(kFontGeneva);
-            }
-        } else if (p == 2) {
-            // OSX installations with MS Office may have these fonts
-            aFontList.AppendElement(kFontMingLiUExtB);
-            aFontList.AppendElement(kFontSimSunExtB);
-        }
-    } else {
-        uint32_t b = (aCh >> 8) & 0xff;
-
-        switch (b) {
-        case 0x03:
-        case 0x05:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x07:
-            aFontList.AppendElement(kFontGeezaPro);
-            break;
-        case 0x09:
-            aFontList.AppendElement(kFontDevanagariSangamMN);
-            break;
-        case 0x0a:
-            aFontList.AppendElement(kFontGurmukhiMN);
-            aFontList.AppendElement(kFontGujaratiSangamMN);
-            break;
-        case 0x0b:
-            aFontList.AppendElement(kFontTamilMN);
-            break;
-        case 0x0e:
-            aFontList.AppendElement(kFontLaoMN);
-            break;
-        case 0x0f:
-            aFontList.AppendElement(kFontSongtiSC);
-            break;
-        case 0x10:
-            aFontList.AppendElement(kFontMenlo);
-            aFontList.AppendElement(kFontMyanmarMN);
-            break;
-        case 0x13:  // Cherokee
-            aFontList.AppendElement(kFontPlantagenetCherokee);
-            aFontList.AppendElement(kFontKefa);
-            break;
-        case 0x14:  // Unified Canadian Aboriginal Syllabics
-        case 0x15:
-        case 0x16:
-            aFontList.AppendElement(kFontEuphemiaUCAS);
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x18:  // Mongolian, UCAS
-            aFontList.AppendElement(kFontSTHeiti);
-            aFontList.AppendElement(kFontEuphemiaUCAS);
-            break;
-        case 0x19:  // Khmer
-            aFontList.AppendElement(kFontKhmerMN);
-            aFontList.AppendElement(kFontMicrosoftTaiLe);
-            break;
-        case 0x1d:
-        case 0x1e:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x20:  // Symbol ranges
-        case 0x21:
-        case 0x22:
-        case 0x23:
-        case 0x24:
-        case 0x25:
-        case 0x26:
-        case 0x27:
-        case 0x29:
-        case 0x2a:
-        case 0x2b:
-        case 0x2e:
-            aFontList.AppendElement(kFontHiraginoKakuGothic);
-            aFontList.AppendElement(kFontAppleSymbols);
-            aFontList.AppendElement(kFontMenlo);
-            aFontList.AppendElement(kFontSTIXGeneral);
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontAppleColorEmoji);
-            break;
-        case 0x2c:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x2d:
-            aFontList.AppendElement(kFontKefa);
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x28:  // Braille
-            aFontList.AppendElement(kFontAppleBraille);
-            break;
-        case 0x31:
-            aFontList.AppendElement(kFontHiraginoSansGB);
-            break;
-        case 0x4d:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xa0:  // Yi
-        case 0xa1:
-        case 0xa2:
-        case 0xa3:
-        case 0xa4:
-            aFontList.AppendElement(kFontSTHeiti);
-            break;
-        case 0xa6:
-        case 0xa7:
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xab:
-            aFontList.AppendElement(kFontKefa);
-            break;
-        case 0xfc:
-        case 0xff:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        default:
-            break;
+    if (!mOSXVersion) {
+        // minor version is not accurate, use gestaltSystemVersionMajor, gestaltSystemVersionMinor, gestaltSystemVersionBugFix for these
+        OSErr err = ::Gestalt(gestaltSystemVersion, reinterpret_cast<SInt32*>(&mOSXVersion));
+        if (err != noErr) {
+            //This should probably be changed when our minimum version changes
+            NS_ERROR("Couldn't determine OS X version, assuming 10.4");
+            mOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
         }
     }
-
-    // Arial Unicode MS has lots of glyphs for obscure, use it as a last resort
-    aFontList.AppendElement(kFontArialUnicodeMS);
+    return mOSXVersion;
 }
 
-uint32_t
+PRUint32
 gfxPlatformMac::ReadAntiAliasingThreshold()
 {
-    uint32_t threshold = 0;  // default == no threshold
-
+    PRUint32 threshold = 0;  // default == no threshold
+    
     // first read prefs flag to determine whether to use the setting or not
-    bool useAntiAliasingThreshold = Preferences::GetBool("gfx.use_text_smoothing_setting", false);
-
+    PRBool useAntiAliasingThreshold = PR_FALSE;
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+        PRBool enabled;
+        nsresult rv =
+            prefs->GetBoolPref("gfx.use_text_smoothing_setting", &enabled);
+        if (NS_SUCCEEDED(rv)) {
+            useAntiAliasingThreshold = enabled;
+        }
+    }
+    
     // if the pref setting is disabled, return 0 which effectively disables this feature
     if (!useAntiAliasingThreshold)
         return threshold;
-
+        
     // value set via Appearance pref panel, "Turn off text smoothing for font sizes xxx and smaller"
     CFNumberRef prefValue = (CFNumberRef)CFPreferencesCopyAppValue(CFSTR("AppleAntiAliasingThreshold"), kCFPreferencesCurrentApplication);
 
@@ -397,156 +252,84 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
     return threshold;
 }
 
-bool
-gfxPlatformMac::UseAcceleratedCanvas()
+qcms_profile *
+gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
-  // Lion or later is required
-  return nsCocoaFeatures::OnLionOrLater() && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
-}
+    qcms_profile *profile = nsnull;
+    CMProfileRef cmProfile;
+    CMProfileLocation *location;
+    UInt32 locationSize;
 
-bool
-gfxPlatformMac::UseProgressivePaint()
-{
-  // Progressive painting requires cross-process mutexes, which don't work so
-  // well on OS X 10.6 so we disable there.
-  return nsCocoaFeatures::OnLionOrLater() && gfxPlatform::UseProgressivePaint();
-}
+    /* There a number of different ways that we could try to get a color
+       profile to use.  On 10.5 all of these methods seem to give the same
+       results. On 10.6, the results are different and the following method,
+       using CGMainDisplayID() seems to best match what we are looking for.
+       Currently, both Google Chrome and Qt4 use a similar method.
 
-// This is the renderer output callback function, called on the vsync thread
-static CVReturn VsyncCallback(CVDisplayLinkRef aDisplayLink,
-                              const CVTimeStamp* aNow,
-                              const CVTimeStamp* aOutputTime,
-                              CVOptionFlags aFlagsIn,
-                              CVOptionFlags* aFlagsOut,
-                              void* aDisplayLinkContext)
-{
-  VsyncSource::Display* display = (VsyncSource::Display*) aDisplayLinkContext;
-  int64_t timestamp = aOutputTime->hostTime;
-  mozilla::TimeStamp vsyncTime = mozilla::TimeStamp::FromSystemTime(timestamp);
-  display->NotifyVsync(vsyncTime);
-  return kCVReturnSuccess;
-}
+       CMTypes.h describes CMDisplayIDType:
+       "Data type for ColorSync DisplayID reference
+        On 8 & 9 this is a AVIDType
+	On X this is a CGSDisplayID"
 
-class OSXVsyncSource MOZ_FINAL : public VsyncSource
-{
-public:
-  OSXVsyncSource()
-  {
-  }
+       CGMainDisplayID gives us a CGDirectDisplayID which presumeably
+       corresponds directly to a CGSDisplayID */
+    CGDirectDisplayID displayID = CGMainDisplayID();
 
-  virtual Display& GetGlobalDisplay() MOZ_OVERRIDE
-  {
-    return mGlobalDisplay;
-  }
+    CMError err = CMGetProfileByAVID(static_cast<CMDisplayIDType>(displayID), &cmProfile);
+    if (err != noErr)
+        return nsnull;
 
-protected:
-  class OSXDisplay MOZ_FINAL : public VsyncSource::Display
-  {
-  public:
-    OSXDisplay()
-    {
-      EnableVsync();
-    }
+    // get the size of location
+    err = NCMGetProfileLocation(cmProfile, NULL, &locationSize);
+    if (err != noErr)
+        return nsnull;
 
-    ~OSXDisplay()
-    {
-      DisableVsync();
-    }
+    // allocate enough room for location
+    location = static_cast<CMProfileLocation*>(malloc(locationSize));
+    if (!location)
+        goto fail_close;
 
-    virtual void EnableVsync() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
+    err = NCMGetProfileLocation(cmProfile, location, &locationSize);
+    if (err != noErr)
+        goto fail_location;
 
-      // Create a display link capable of being used with all active displays
-      // TODO: See if we need to create an active DisplayLink for each monitor in multi-monitor
-      // situations. According to the docs, it is compatible with all displays running on the computer
-      // But if we have different monitors at different display rates, we may hit issues.
-      if (CVDisplayLinkCreateWithActiveCGDisplays(&mDisplayLink) != kCVReturnSuccess) {
-        NS_WARNING("Could not create a display link, returning");
-        return;
-      }
-
-      if (CVDisplayLinkSetOutputCallback(mDisplayLink, &VsyncCallback, this) != kCVReturnSuccess) {
-        NS_WARNING("Could not set displaylink output callback");
-        return;
-      }
-
-      if (CVDisplayLinkStart(mDisplayLink) != kCVReturnSuccess) {
-        NS_WARNING("Could not activate the display link");
-        mDisplayLink = nullptr;
-      }
-    }
-
-    virtual void DisableVsync() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      // Release the display link
-      if (mDisplayLink) {
-        CVDisplayLinkRelease(mDisplayLink);
-        mDisplayLink = nullptr;
-      }
-    }
-
-    virtual bool IsVsyncEnabled() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-      return mDisplayLink != nullptr;
-    }
-
-  private:
-    // Manages the display link render thread
-    CVDisplayLinkRef   mDisplayLink;
-  }; // OSXDisplay
-
-private:
-  virtual ~OSXVsyncSource()
-  {
-  }
-
-  OSXDisplay mGlobalDisplay;
-}; // OSXVsyncSource
-
-already_AddRefed<mozilla::gfx::VsyncSource>
-gfxPlatformMac::CreateHardwareVsyncSource()
-{
-  nsRefPtr<VsyncSource> osxVsyncSource = new OSXVsyncSource();
-  return osxVsyncSource.forget();
-}
-
-void
-gfxPlatformMac::GetPlatformCMSOutputProfile(void* &mem, size_t &size)
-{
-    mem = nullptr;
-    size = 0;
-
-    CGColorSpaceRef cspace = ::CGDisplayCopyColorSpace(::CGMainDisplayID());
-    if (!cspace) {
-        cspace = ::CGColorSpaceCreateDeviceRGB();
-    }
-    if (!cspace) {
-        return;
-    }
-
-    CFDataRef iccp = ::CGColorSpaceCopyICCProfile(cspace);
-
-    ::CFRelease(cspace);
-
-    if (!iccp) {
-        return;
-    }
-
-    // copy to external buffer
-    size = static_cast<size_t>(::CFDataGetLength(iccp));
-    if (size > 0) {
-        void *data = malloc(size);
-        if (data) {
-            memcpy(data, ::CFDataGetBytePtr(iccp), size);
-            mem = data;
-        } else {
-            size = 0;
+    switch (location->locType) {
+#ifndef __LP64__
+    case cmFileBasedProfile: {
+        FSRef fsRef;
+        if (!FSpMakeFSRef(&location->u.fileLoc.spec, &fsRef)) {
+            char path[512];
+            if (!FSRefMakePath(&fsRef, reinterpret_cast<UInt8*>(path), sizeof(path))) {
+                profile = qcms_profile_from_path(path);
+#ifdef DEBUG_tor
+                if (profile)
+                    fprintf(stderr,
+                            "ICM profile read from %s fileLoc successfully\n", path);
+#endif
+            }
         }
+        break;
+    }
+#endif
+    case cmPathBasedProfile:
+        profile = qcms_profile_from_path(location->u.pathLoc.path);
+#ifdef DEBUG_tor
+        if (profile)
+            fprintf(stderr,
+                    "ICM profile read from %s pathLoc successfully\n",
+                    device.u.pathLoc.path);
+#endif
+        break;
+    default:
+#ifdef DEBUG_tor
+        fprintf(stderr, "Unhandled ColorSync profile location\n");
+#endif
+        break;
     }
 
-    ::CFRelease(iccp);
+fail_location:
+    free(location);
+fail_close:
+    CMCloseProfile(cmProfile);
+    return profile;
 }

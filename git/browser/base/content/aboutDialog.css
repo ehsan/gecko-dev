@@ -1,17 +1,34 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #aboutDialog {
-  width: 620px;
+  padding-top: 0;
+  -moz-padding-end: 0;
+  padding-bottom: 10px;
+  -moz-padding-start: 0;
+  width: 600px;
+}
+
+#clientBox {
+  background-color: #F7F7F7;
+  color: #222222;
+}
+
+#leftBox {
+  background-image: url("chrome://branding/content/about-logo.png");
+  background-repeat: no-repeat;
+  /* min-width and min-height create room for the logo */
+  min-width: 210px;
+  min-height: 210px;
+  margin-top:20px;
+  -moz-margin-start: 30px;
 }
 
 #rightBox {
-  background-image: url("chrome://branding/content/about-wordmark.svg");
+  background-image: url("chrome://branding/content/about-wordmark.png");
   background-repeat: no-repeat;
   /* padding-top creates room for the wordmark */
   padding-top: 38px;
   margin-top:20px;
+  -moz-margin-end: 30px;
+  -moz-margin-start: 30px;
 }
 
 #rightBox:-moz-locale-dir(rtl) {
@@ -23,11 +40,8 @@
 }
 
 #version {
-  margin-top: 10px;
+  margin-top: 5px;
   -moz-margin-start: 0;
-  -moz-user-select: text;
-  -moz-user-focus: normal;
-  cursor: text;
 }
 
 #distribution,
@@ -44,10 +58,19 @@
   -moz-padding-start: 0;
 }
 
+#updateBox {
+  margin-bottom: 10px;
+}
+
 #updateButton,
 #updateDeck > hbox > label {
   -moz-margin-start: 0;
   -moz-padding-start: 0;
+}
+
+#updateDeck > hbox > label:not([class="text-link"]) {
+  color: #909090;
+  font-style:italic;
 }
 
 .update-throbber {
@@ -57,6 +80,7 @@
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
+.trademark-label,
 .text-link,
 .text-link:focus {
   margin: 0px;
@@ -69,8 +93,9 @@
   margin: 0 40px;
 }
 
-#currentChannel {
-  margin: 0;
-  padding: 0;
-  font-weight: bold;
+#trademark {
+  font-size: xx-small;
+  text-align: center;
+  color: #999999;
+  margin-top: 10px;
 }

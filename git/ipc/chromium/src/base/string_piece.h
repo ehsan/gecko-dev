@@ -37,9 +37,9 @@ class StringPiece {
   // in a "const char*" or a "string" wherever a "StringPiece" is
   // expected.
   StringPiece() : ptr_(NULL), length_(0) { }
-  MOZ_IMPLICIT StringPiece(const char* str)
+  StringPiece(const char* str)
     : ptr_(str), length_((str == NULL) ? 0 : strlen(str)) { }
-  MOZ_IMPLICIT StringPiece(const std::string& str)
+  StringPiece(const std::string& str)
     : ptr_(str.data()), length_(str.size()) { }
   StringPiece(const char* offset, size_type len)
     : ptr_(offset), length_(len) { }
@@ -154,31 +154,31 @@ class StringPiece {
   }
 };
 
-bool operator==(const ::StringPiece& x, const ::StringPiece& y);
+bool operator==(const StringPiece& x, const StringPiece& y);
 
-inline bool operator!=(const ::StringPiece& x, const ::StringPiece& y) {
+inline bool operator!=(const StringPiece& x, const StringPiece& y) {
   return !(x == y);
 }
 
-inline bool operator<(const ::StringPiece& x, const ::StringPiece& y) {
-  const int r = ::StringPiece::wordmemcmp(x.data(), y.data(),
+inline bool operator<(const StringPiece& x, const StringPiece& y) {
+  const int r = StringPiece::wordmemcmp(x.data(), y.data(),
                                         std::min(x.size(), y.size()));
   return ((r < 0) || ((r == 0) && (x.size() < y.size())));
 }
 
-inline bool operator>(const ::StringPiece& x, const ::StringPiece& y) {
+inline bool operator>(const StringPiece& x, const StringPiece& y) {
   return y < x;
 }
 
-inline bool operator<=(const ::StringPiece& x, const ::StringPiece& y) {
+inline bool operator<=(const StringPiece& x, const StringPiece& y) {
   return !(x > y);
 }
 
-inline bool operator>=(const ::StringPiece& x, const ::StringPiece& y) {
+inline bool operator>=(const StringPiece& x, const StringPiece& y) {
   return !(x < y);
 }
 
 // allow StringPiece to be logged (needed for unit testing).
-extern std::ostream& operator<<(std::ostream& o, const ::StringPiece& piece);
+extern std::ostream& operator<<(std::ostream& o, const StringPiece& piece);
 
 #endif  // BASE_STRING_PIECE_H_

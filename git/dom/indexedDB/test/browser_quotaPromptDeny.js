@@ -4,7 +4,7 @@
  */
 
 // Make sure this is a unique origin or the tests will randomly fail!
-const testPageURL = "http://bug704464-2.example.com/browser/" +
+const testPageURL = "http://test2.example.org/browser/" +
   "dom/indexedDB/test/browser_quotaPrompt.html";
 const notificationID = "indexedDB-quota-prompt";
 
@@ -37,7 +37,7 @@ function test1()
           is(result, "complete", "Got 'complete' result");
         }
         else {
-          is(result, "abort QuotaExceededError", "Got 'abort' result");
+          is(result, "abort", "Got 'abort' result");
         }
 
         if (addMoreTest1Count >= seenPopupCount + 5) {
@@ -77,7 +77,7 @@ function test1()
   }, true);
 
   info("loading test page: " + testPageURL);
-  content.location = testPageURL + "?v=5";
+  content.location = testPageURL;
 }
 
 function test2()
@@ -108,7 +108,7 @@ function test2()
         if (addMoreCount > addMoreTest1Count + 5) {
           setFinishedCallback(function(result) {
             is(result, "finished", "Got 'finished' result");
-            is(lastResult, "abort QuotaExceededError", "Aborted as expected");
+            is(lastResult, "abort", "Aborted as expected");
             ok(!seenPopup, "No popup");
             is(getPermission(testPageURL, "indexedDB-unlimited"),
                Components.interfaces.nsIPermissionManager.DENY_ACTION,
@@ -145,5 +145,5 @@ function test2()
   }, true);
 
   info("loading test page: " + testPageURL);
-  content.location = testPageURL + "?v=7";
+  content.location = testPageURL;
 }

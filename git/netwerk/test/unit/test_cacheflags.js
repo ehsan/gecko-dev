@@ -1,69 +1,30 @@
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
-var httpserver = new HttpServer();
-httpserver.start(-1);
+var httpserver = null;
 
 // Need to randomize, because apparently no one clears our cache
 var suffix = Math.random();
-var httpBase = "http://localhost:" + httpserver.identity.primaryPort;
+var httpBase = "http://localhost:4444";
 var httpsBase = "http://localhost:4445";
 var shortexpPath = "/shortexp" + suffix;
-var longexpPath = "/longexp/" + suffix;
-var longexp2Path = "/longexp/2/" + suffix;
+var longexpPath = "/longexp" + suffix;
 var nocachePath = "/nocache" + suffix;
 var nostorePath = "/nostore" + suffix;
 
-// We attach this to channel when we want to test Private Browsing mode
-function LoadContext(usePrivateBrowsing) {
-  this.usePrivateBrowsing = usePrivateBrowsing;
-}
-
-LoadContext.prototype = {
-  usePrivateBrowsing: false,
-  // don't bother defining rest of nsILoadContext fields: don't need 'em
-
-  QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsILoadContext))
-      return this;
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-
-  getInterface: function(iid) {
-    if (iid.equals(Ci.nsILoadContext))
-      return this;
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  }
-};
-
-PrivateBrowsingLoadContext = new LoadContext(true);
-
-function make_channel(url, flags, usePrivateBrowsing) {
+function make_channel(url, flags) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
     getService(Ci.nsIIOService);
-  var req = ios.newChannel2(url,
-                            null,
-                            null,
-                            null,      // aLoadingNode
-                            Services.scriptSecurityManager.getSystemPrincipal(),
-                            null,      // aTriggeringPrincipal
-                            Ci.nsILoadInfo.SEC_NORMAL,
-                            Ci.nsIContentPolicy.TYPE_OTHER);
+  var req = ios.newChannel(url, null, null);
   req.loadFlags = flags;
-  if (usePrivateBrowsing) {
-    req.notificationCallbacks = PrivateBrowsingLoadContext;    
-  }
   return req;
 }
 
-function Test(path, flags, expectSuccess, readFromCache, hitServer, 
-              usePrivateBrowsing /* defaults to false */) {
+function Test(path, flags, expectSuccess, readFromCache, hitServer) {
   this.path = path;
   this.flags = flags;
   this.expectSuccess = expectSuccess;
   this.readFromCache = readFromCache;
   this.hitServer = hitServer;
-  this.usePrivateBrowsing = usePrivateBrowsing;
 }
 
 Test.prototype = {
@@ -71,7 +32,6 @@ Test.prototype = {
   expectSuccess: true,
   readFromCache: false,
   hitServer: true,
-  usePrivateBrowsing: false,
   _buffer: "",
   _isFromCache: false,
 
@@ -84,7 +44,7 @@ Test.prototype = {
   },
 
   onStartRequest: function(request, context) {
-    var cachingChannel = request.QueryInterface(Ci.nsICacheInfoChannel);
+    var cachingChannel = request.QueryInterface(Ci.nsICachingChannel);
     this._isFromCache = request.isPending() && cachingChannel.isFromCache();
   },
 
@@ -108,7 +68,7 @@ Test.prototype = {
          "\n  " + this.readFromCache +
          "\n  " + this.hitServer + "\n");
     gHitServer = false;
-    var channel = make_channel(this.path, this.flags, this.usePrivateBrowsing);
+    var channel = make_channel(this.path, this.flags);
     channel.asyncOpen(this, null);
   }
 };
@@ -116,12 +76,6 @@ Test.prototype = {
 var gHitServer = false;
 
 var gTests = [
-
-  new Test(httpBase + shortexpPath, 0,
-           true,   // expect success
-           false,  // read from cache
-           true,   // hit server
-           true),  // USE PRIVATE BROWSING, so not cached for later requests
   new Test(httpBase + shortexpPath, 0,
            true,   // expect success
            false,  // read from cache
@@ -187,15 +141,6 @@ var gTests = [
            true,   // read from cache
            false), // hit server
 
-  new Test(httpBase + longexp2Path, 0,
-           true,   // expect success
-           false,  // read from cache
-           true),  // hit server
-  new Test(httpBase + longexp2Path, 0,
-           true,   // expect success
-           true,   // read from cache
-           false), // hit server
-
   new Test(httpBase + nocachePath, 0,
            true,   // expect success
            false,  // read from cache
@@ -208,16 +153,10 @@ var gTests = [
            false,  // expect success
            false,  // read from cache
            false), // hit server
-
-  // CACHE2: mayhemer - entry is doomed... I think the logic is wrong, we should not doom them
-  // as they are not valid, but take them as they need to reval
-  /*
   new Test(httpBase + nocachePath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
-  */
-
   // LOAD_ONLY_FROM_CACHE would normally fail (because no-cache forces
   // a validation), but VALIDATE_NEVER should override that.
   new Test(httpBase + nocachePath,
@@ -239,7 +178,6 @@ var gTests = [
            false,  // read from cache
            false)  // hit server
   */
-
   new Test(httpBase + nostorePath, 0,
            true,   // expect success
            false,  // read from cache
@@ -316,18 +254,13 @@ function longexp_handler(metadata, response) {
   handler(metadata, response);
 }
 
-// test spaces around max-age value token
-function longexp2_handler(metadata, response) {
-  response.setHeader("Cache-Control", "max-age = 10000", false);
-  handler(metadata, response);
-}
-
 function run_test() {
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(shortexpPath, shortexp_handler);
   httpserver.registerPathHandler(longexpPath, longexp_handler);
-  httpserver.registerPathHandler(longexp2Path, longexp2_handler);
   httpserver.registerPathHandler(nocachePath, nocache_handler);
   httpserver.registerPathHandler(nostorePath, nostore_handler);
+  httpserver.start(4444);
 
   run_next_test();
   do_test_pending();

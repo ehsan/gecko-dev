@@ -1,9 +1,44 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Duell <jduell.mcbugs@gmail.com>
+ *   Daniel Witte <dwitte@mozilla.com>
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_net_HttpChannelChild_h
 #define mozilla_net_HttpChannelChild_h
@@ -23,219 +58,147 @@
 #include "nsIUploadChannel2.h"
 #include "nsIResumableChannel.h"
 #include "nsIProxiedChannel.h"
+#include "nsITraceableChannel.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAssociatedContentSecurity.h"
 #include "nsIChildChannel.h"
 #include "nsIHttpChannelChild.h"
-#include "nsIDivertableChannel.h"
-#include "mozilla/net/DNS.h"
-
-class nsInputStreamPump;
 
 namespace mozilla {
 namespace net {
 
-class InterceptedChannelContent;
-class InterceptStreamListener;
-
-class HttpChannelChild MOZ_FINAL : public PHttpChannelChild
-                                 , public HttpBaseChannel
-                                 , public HttpAsyncAborter<HttpChannelChild>
-                                 , public nsICacheInfoChannel
-                                 , public nsIProxiedChannel
-                                 , public nsIApplicationCacheChannel
-                                 , public nsIAsyncVerifyRedirectCallback
-                                 , public nsIAssociatedContentSecurity
-                                 , public nsIChildChannel
-                                 , public nsIHttpChannelChild
-                                 , public nsIDivertableChannel
+class HttpChannelChild : public PHttpChannelChild
+                       , public HttpBaseChannel
+                       , public nsICacheInfoChannel
+                       , public nsIProxiedChannel
+                       , public nsITraceableChannel
+                       , public nsIApplicationCacheChannel
+                       , public nsIAsyncVerifyRedirectCallback
+                       , public nsIAssociatedContentSecurity
+                       , public nsIChildChannel
+                       , public nsIHttpChannelChild
+                       , public ChannelEventQueue<HttpChannelChild>
 {
-  virtual ~HttpChannelChild();
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICACHEINFOCHANNEL
   NS_DECL_NSIPROXIEDCHANNEL
+  NS_DECL_NSITRACEABLECHANNEL
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
   NS_DECL_NSIAPPLICATIONCACHECHANNEL
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
   NS_DECL_NSIASSOCIATEDCONTENTSECURITY
   NS_DECL_NSICHILDCHANNEL
   NS_DECL_NSIHTTPCHANNELCHILD
-  NS_DECL_NSIDIVERTABLECHANNEL
 
   HttpChannelChild();
+  virtual ~HttpChannelChild();
 
   // Methods HttpBaseChannel didn't implement for us or that we override.
   //
   // nsIRequest
-  NS_IMETHOD Cancel(nsresult status) MOZ_OVERRIDE;
-  NS_IMETHOD Suspend() MOZ_OVERRIDE;
-  NS_IMETHOD Resume() MOZ_OVERRIDE;
+  NS_IMETHOD Cancel(nsresult status);
+  NS_IMETHOD Suspend();
+  NS_IMETHOD Resume();
   // nsIChannel
-  NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo) MOZ_OVERRIDE;
-  NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext) MOZ_OVERRIDE;
+  NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
+  NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext);
   // HttpBaseChannel::nsIHttpChannel
-  NS_IMETHOD SetRequestHeader(const nsACString& aHeader,
-                              const nsACString& aValue,
-                              bool aMerge) MOZ_OVERRIDE;
-  NS_IMETHOD RedirectTo(nsIURI *newURI) MOZ_OVERRIDE;
+  NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
+                              const nsACString& aValue, 
+                              PRBool aMerge);
   // nsIHttpChannelInternal
-  NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey) MOZ_OVERRIDE;
-  NS_IMETHOD GetLocalAddress(nsACString& addr) MOZ_OVERRIDE;
-  NS_IMETHOD GetLocalPort(int32_t* port) MOZ_OVERRIDE;
-  NS_IMETHOD GetRemoteAddress(nsACString& addr) MOZ_OVERRIDE;
-  NS_IMETHOD GetRemotePort(int32_t* port) MOZ_OVERRIDE;
+  NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
   // nsISupportsPriority
-  NS_IMETHOD SetPriority(int32_t value) MOZ_OVERRIDE;
-  // nsIClassOfService
-  NS_IMETHOD SetClassFlags(uint32_t inFlags) MOZ_OVERRIDE;
-  NS_IMETHOD AddClassFlags(uint32_t inFlags) MOZ_OVERRIDE;
-  NS_IMETHOD ClearClassFlags(uint32_t inFlags) MOZ_OVERRIDE;
+  NS_IMETHOD SetPriority(PRInt32 value);
   // nsIResumableChannel
-  NS_IMETHOD ResumeAt(uint64_t startPos, const nsACString& entityID) MOZ_OVERRIDE;
+  NS_IMETHOD ResumeAt(PRUint64 startPos, const nsACString& entityID);
 
   // IPDL holds a reference while the PHttpChannel protocol is live (starting at
   // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
-  // which call NeckoChild::DeallocPHttpChannelChild()).
+  // which call NeckoChild::DeallocPHttpChannel()).
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
   bool IsSuspended();
 
-  bool RecvNotifyTrackingProtectionDisabled() MOZ_OVERRIDE;
-  void FlushedForDiversion();
-
 protected:
-  bool RecvOnStartRequest(const nsresult& channelStatus,
-                          const nsHttpResponseHead& responseHead,
-                          const bool& useResponseHead,
-                          const nsHttpHeaderArray& requestHeaders,
-                          const bool& isFromCache,
-                          const bool& cacheEntryAvailable,
-                          const uint32_t& cacheExpirationTime,
+  bool RecvOnStartRequest(const nsHttpResponseHead& responseHead,
+                          const PRBool& useResponseHead,
+                          const RequestHeaderTuples& requestHeaders,
+                          const PRBool& isFromCache,
+                          const PRBool& cacheEntryAvailable,
+                          const PRUint32& cacheExpirationTime,
                           const nsCString& cachedCharset,
-                          const nsCString& securityInfoSerialization,
-                          const NetAddr& selfAddr,
-                          const NetAddr& peerAddr,
-                          const int16_t& redirectCount) MOZ_OVERRIDE;
-  bool RecvOnTransportAndData(const nsresult& channelStatus,
-                              const nsresult& status,
-                              const uint64_t& progress,
-                              const uint64_t& progressMax,
-                              const nsCString& data,
-                              const uint64_t& offset,
-                              const uint32_t& count) MOZ_OVERRIDE;
-  bool RecvOnStopRequest(const nsresult& statusCode, const ResourceTimingStruct& timing) MOZ_OVERRIDE;
-  bool RecvOnProgress(const uint64_t& progress, const uint64_t& progressMax) MOZ_OVERRIDE;
-  bool RecvOnStatus(const nsresult& status) MOZ_OVERRIDE;
-  bool RecvFailedAsyncOpen(const nsresult& status) MOZ_OVERRIDE;
-  bool RecvRedirect1Begin(const uint32_t& newChannel,
-                          const URIParams& newURI,
-                          const uint32_t& redirectFlags,
-                          const nsHttpResponseHead& responseHead) MOZ_OVERRIDE;
-  bool RecvRedirect3Complete() MOZ_OVERRIDE;
+                          const nsCString& securityInfoSerialization);
+  bool RecvOnDataAvailable(const nsCString& data, 
+                           const PRUint32& offset,
+                           const PRUint32& count);
+  bool RecvOnStopRequest(const nsresult& statusCode);
+  bool RecvOnProgress(const PRUint64& progress, const PRUint64& progressMax);
+  bool RecvOnStatus(const nsresult& status, const nsString& statusArg);
+  bool RecvCancelEarly(const nsresult& status);
+  bool RecvRedirect1Begin(const PRUint32& newChannel,
+                          const URI& newURI,
+                          const PRUint32& redirectFlags,
+                          const nsHttpResponseHead& responseHead);
+  bool RecvRedirect3Complete();
   bool RecvAssociateApplicationCache(const nsCString& groupID,
-                                     const nsCString& clientID) MOZ_OVERRIDE;
-  bool RecvFlushedForDiversion() MOZ_OVERRIDE;
-  bool RecvDivertMessages() MOZ_OVERRIDE;
-  bool RecvDeleteSelf() MOZ_OVERRIDE;
+                                     const nsCString& clientID);
+  bool RecvDeleteSelf();
 
-  bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nullptr);
-  virtual void DoNotifyListenerCleanup() MOZ_OVERRIDE;
+  bool GetAssociatedContentSecurity(nsIAssociatedContentSecurity** res = nsnull);
 
 private:
-  nsresult ContinueAsyncOpen();
-
-  void DoOnStartRequest(nsIRequest* aRequest, nsISupports* aContext);
-  void DoOnStatus(nsIRequest* aRequest, nsresult status);
-  void DoOnProgress(nsIRequest* aRequest, uint64_t progress, uint64_t progressMax);
-  void DoOnDataAvailable(nsIRequest* aRequest, nsISupports* aContext, nsIInputStream* aStream,
-                         uint64_t offset, uint32_t count);
-  void DoPreOnStopRequest(nsresult aStatus);
-  void DoOnStopRequest(nsIRequest* aRequest, nsISupports* aContext);
-
-  // Discard the prior interception and continue with the original network request.
-  void ResetInterception();
-
-  // Override this channel's pending response with a synthesized one. The content will be
-  // asynchronously read from the pump.
-  void OverrideWithSynthesizedResponse(nsHttpResponseHead* aResponseHead, nsInputStreamPump* aPump);
-
-  RequestHeaderTuples mClientSetRequestHeaders;
+  RequestHeaderTuples mRequestHeaders;
   nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
+  nsCOMPtr<nsIURI> mRedirectOriginalURI;
   nsCOMPtr<nsISupports> mSecurityInfo;
-  nsRefPtr<InterceptStreamListener> mInterceptListener;
-  nsRefPtr<nsInputStreamPump> mSynthesizedResponsePump;
 
-  bool mIsFromCache;
-  bool mCacheEntryAvailable;
-  uint32_t     mCacheExpirationTime;
+  PRPackedBool mIsFromCache;
+  PRPackedBool mCacheEntryAvailable;
+  PRUint32     mCacheExpirationTime;
   nsCString    mCachedCharset;
 
   // If ResumeAt is called before AsyncOpen, we need to send extra data upstream
   bool mSendResumeAt;
+  // Current suspension depth for this channel object
+  PRUint32 mSuspendCount;
 
   bool mIPCOpen;
-  bool mKeptAlive;            // IPC kept open, but only for security info
-  nsRefPtr<ChannelEventQueue> mEventQ;
+  bool mKeptAlive;
 
-  // Once set, OnData and possibly OnStop will be diverted to the parent.
-  bool mDivertingToParent;
-  // Once set, no OnStart/OnData/OnStop callbacks should be received from the
-  // parent channel, nor dequeued from the ChannelEventQueue.
-  bool mFlushedForDiversion;
-  // Set if SendSuspend is called. Determines if SendResume is needed when
-  // diverting callbacks to parent.
-  bool mSuspendSent;
-
-  // true after successful AsyncOpen until OnStopRequest completes.
-  bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }
-
-  void AssociateApplicationCache(const nsCString &groupID,
-                                 const nsCString &clientID);
-  void OnStartRequest(const nsresult& channelStatus,
-                      const nsHttpResponseHead& responseHead,
-                      const bool& useResponseHead,
-                      const nsHttpHeaderArray& requestHeaders,
-                      const bool& isFromCache,
-                      const bool& cacheEntryAvailable,
-                      const uint32_t& cacheExpirationTime,
-                      const nsCString& cachedCharset,
-                      const nsCString& securityInfoSerialization,
-                      const NetAddr& selfAddr,
-                      const NetAddr& peerAddr);
-  void OnTransportAndData(const nsresult& channelStatus,
-                          const nsresult& status,
-                          const uint64_t progress,
-                          const uint64_t& progressMax,
-                          const nsCString& data,
-                          const uint64_t& offset,
-                          const uint32_t& count);
-  void OnStopRequest(const nsresult& channelStatus, const ResourceTimingStruct& timing);
-  void OnProgress(const uint64_t& progress, const uint64_t& progressMax);
-  void OnStatus(const nsresult& status);
-  void FailedAsyncOpen(const nsresult& status);
-  void HandleAsyncAbort();
-  void Redirect1Begin(const uint32_t& newChannelId,
-                      const URIParams& newUri,
-                      const uint32_t& redirectFlags,
+  void OnStartRequest(const nsHttpResponseHead& responseHead,
+                          const PRBool& useResponseHead,
+                          const RequestHeaderTuples& requestHeaders,
+                          const PRBool& isFromCache,
+                          const PRBool& cacheEntryAvailable,
+                          const PRUint32& cacheExpirationTime,
+                          const nsCString& cachedCharset,
+                          const nsCString& securityInfoSerialization);
+  void OnDataAvailable(const nsCString& data, 
+                       const PRUint32& offset,
+                       const PRUint32& count);
+  void OnStopRequest(const nsresult& statusCode);
+  void OnProgress(const PRUint64& progress, const PRUint64& progressMax);
+  void OnStatus(const nsresult& status, const nsString& statusArg);
+  void OnCancel(const nsresult& status);
+  void Redirect1Begin(const PRUint32& newChannelId,
+                      const URI& newUri,
+                      const PRUint32& redirectFlags,
                       const nsHttpResponseHead& responseHead);
   void Redirect3Complete();
   void DeleteSelf();
 
-  friend class AssociateApplicationCacheEvent;
   friend class StartRequestEvent;
   friend class StopRequestEvent;
-  friend class TransportAndDataEvent;
+  friend class DataAvailableEvent;
   friend class ProgressEvent;
   friend class StatusEvent;
-  friend class FailedAsyncOpenEvent;
+  friend class CancelEvent;
   friend class Redirect1Event;
   friend class Redirect3Event;
   friend class DeleteSelfEvent;
-  friend class HttpAsyncAborter<HttpChannelChild>;
-  friend class InterceptStreamListener;
-  friend class InterceptedChannelContent;
 };
 
 //-----------------------------------------------------------------------------

@@ -1,37 +1,72 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Novell code.
+ *
+ * The Initial Developer of the Original Code is Novell Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   robert@ocallahan.org
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NSTEXTRUNTRANSFORMATIONS_H_
 #define NSTEXTRUNTRANSFORMATIONS_H_
 
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "gfxTextRun.h"
-#include "nsStyleContext.h"
+#include "gfxFont.h"
 
 class nsTransformedTextRun;
+class nsStyleContext;
 
 class nsTransformingTextRunFactory {
 public:
   virtual ~nsTransformingTextRunFactory() {}
 
   // Default 8-bit path just transforms to Unicode and takes that path
-  nsTransformedTextRun* MakeTextRun(const uint8_t* aString, uint32_t aLength,
+  nsTransformedTextRun* MakeTextRun(const PRUint8* aString, PRUint32 aLength,
                                     const gfxFontGroup::Parameters* aParams,
-                                    gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                    nsStyleContext** aStyles,
-                                    bool aOwnsFactory);
-  nsTransformedTextRun* MakeTextRun(const char16_t* aString, uint32_t aLength,
+                                    gfxFontGroup* aFontGroup, PRUint32 aFlags,
+                                    nsStyleContext** aStyles, PRBool aOwnsFactory = PR_TRUE);
+  nsTransformedTextRun* MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
                                     const gfxFontGroup::Parameters* aParams,
-                                    gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                    nsStyleContext** aStyles,
-                                    bool aOwnsFactory);
+                                    gfxFontGroup* aFontGroup, PRUint32 aFlags,
+                                    nsStyleContext** aStyles, PRBool aOwnsFactory = PR_TRUE);
 
-  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun,
-                              gfxContext* aRefContext,
-                              gfxMissingFontRecorder* aMFR) = 0;
+  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext) = 0;
+};
+
+/**
+ * Builds textruns that render their text using a font-variant (i.e.,
+ * smallcaps).
+ */
+class nsFontVariantTextRunFactory : public nsTransformingTextRunFactory {
+public:
+  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext);
 };
 
 /**
@@ -47,52 +82,30 @@ public:
   // via the fontgroup.
   
   // Takes ownership of aInnerTransformTextRunFactory
-  explicit nsCaseTransformTextRunFactory(nsTransformingTextRunFactory* aInnerTransformingTextRunFactory,
-                                         bool aAllUppercase = false)
+  nsCaseTransformTextRunFactory(nsTransformingTextRunFactory* aInnerTransformingTextRunFactory,
+                                PRBool aAllUppercase = PR_FALSE)
     : mInnerTransformingTextRunFactory(aInnerTransformingTextRunFactory),
       mAllUppercase(aAllUppercase) {}
 
-  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun,
-                              gfxContext* aRefContext,
-                              gfxMissingFontRecorder* aMFR) MOZ_OVERRIDE;
-
-  // Perform a transformation on the given string, writing the result into
-  // aConvertedString. If aAllUppercase is true, the transform is (global)
-  // upper-casing, and aLanguage is used to determine any language-specific
-  // behavior; otherwise, an nsTransformedTextRun should be passed in
-  // as aTextRun and its styles will be used to determine the transform(s)
-  // to be applied.
-  // If such an input textrun is provided, then its line-breaks and styles
-  // will be copied to the output arrays, which must also be provided by
-  // the caller. For the global upper-casing usage (no input textrun),
-  // these are ignored.
-  static bool TransformString(const nsAString& aString,
-                              nsString& aConvertedString,
-                              bool aAllUppercase,
-                              const nsIAtom* aLanguage,
-                              nsTArray<bool>& aCharsToMergeArray,
-                              nsTArray<bool>& aDeletedCharsArray,
-                              nsTransformedTextRun* aTextRun = nullptr,
-                              nsTArray<uint8_t>* aCanBreakBeforeArray = nullptr,
-                              nsTArray<nsStyleContext*>* aStyleArray = nullptr);
+  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext);
 
 protected:
   nsAutoPtr<nsTransformingTextRunFactory> mInnerTransformingTextRunFactory;
-  bool                                    mAllUppercase;
+  PRPackedBool                            mAllUppercase;
 };
 
 /**
  * So that we can reshape as necessary, we store enough information
  * to fully rebuild the textrun contents.
  */
-class nsTransformedTextRun MOZ_FINAL : public gfxTextRun {
+class nsTransformedTextRun : public gfxTextRun {
 public:
   static nsTransformedTextRun *Create(const gfxTextRunFactory::Parameters* aParams,
                                       nsTransformingTextRunFactory* aFactory,
                                       gfxFontGroup* aFontGroup,
-                                      const char16_t* aString, uint32_t aLength,
-                                      const uint32_t aFlags, nsStyleContext** aStyles,
-                                      bool aOwnsFactory);
+                                      const PRUnichar* aString, PRUint32 aLength,
+                                      const PRUint32 aFlags, nsStyleContext** aStyles,
+                                      PRBool aOwnsFactory);
 
   ~nsTransformedTextRun() {
     if (mOwnsFactory) {
@@ -100,94 +113,47 @@ public:
     }
   }
   
-  void SetCapitalization(uint32_t aStart, uint32_t aLength,
-                         bool* aCapitalization,
+  void SetCapitalization(PRUint32 aStart, PRUint32 aLength,
+                         PRPackedBool* aCapitalization,
                          gfxContext* aRefContext);
-  virtual bool SetPotentialLineBreaks(uint32_t aStart, uint32_t aLength,
-                                        uint8_t* aBreakBefore,
+  virtual PRBool SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
+                                        PRPackedBool* aBreakBefore,
                                         gfxContext* aRefContext);
   /**
    * Called after SetCapitalization and SetPotentialLineBreaks
    * are done and before we request any data from the textrun. Also always
    * called after a Create.
    */
-  void FinishSettingProperties(gfxContext* aRefContext,
-                               gfxMissingFontRecorder* aMFR)
+  void FinishSettingProperties(gfxContext* aRefContext)
   {
     if (mNeedsRebuild) {
-      mNeedsRebuild = false;
-      mFactory->RebuildTextRun(this, aRefContext, aMFR);
+      mNeedsRebuild = PR_FALSE;
+      mFactory->RebuildTextRun(this, aRefContext);
     }
   }
 
-  // override the gfxTextRun impls to account for additional members here
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) MOZ_MUST_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) MOZ_MUST_OVERRIDE;
-
   nsTransformingTextRunFactory       *mFactory;
   nsTArray<nsRefPtr<nsStyleContext> > mStyles;
-  nsTArray<bool>                      mCapitalize;
-  nsString                            mString;
-  bool                                mOwnsFactory;
-  bool                                mNeedsRebuild;
+  nsTArray<PRPackedBool>              mCapitalize;
+  PRPackedBool                        mOwnsFactory;
+  PRPackedBool                        mNeedsRebuild;
 
 private:
   nsTransformedTextRun(const gfxTextRunFactory::Parameters* aParams,
                        nsTransformingTextRunFactory* aFactory,
                        gfxFontGroup* aFontGroup,
-                       const char16_t* aString, uint32_t aLength,
-                       const uint32_t aFlags, nsStyleContext** aStyles,
-                       bool aOwnsFactory)
-    : gfxTextRun(aParams, aLength, aFontGroup, aFlags),
-      mFactory(aFactory), mString(aString, aLength),
-      mOwnsFactory(aOwnsFactory), mNeedsRebuild(true)
+                       const PRUnichar* aString, PRUint32 aLength,
+                       const PRUint32 aFlags, nsStyleContext** aStyles,
+                       PRBool aOwnsFactory,
+                       CompressedGlyph *aGlyphStorage)
+    : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, aGlyphStorage),
+      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(PR_TRUE)
   {
-    mCharacterGlyphs = reinterpret_cast<CompressedGlyph*>(this + 1);
-
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < aLength; ++i) {
       mStyles.AppendElement(aStyles[i]);
     }
-  }
+  }  
 };
-
-/**
- * Copy a given textrun, but merge certain characters into a single logical
- * character. Glyphs for a character are added to the glyph list for the previous
- * character and then the merged character is eliminated. Visually the results
- * are identical.
- *
- * This is used for text-transform:uppercase when we encounter a SZLIG,
- * whose uppercase form is "SS", or other ligature or precomposed form
- * that expands to multiple codepoints during case transformation,
- * and for Greek text when combining diacritics have been deleted.
- *
- * This function is unable to merge characters when they occur in different
- * glyph runs. This only happens in tricky edge cases where a character was
- * decomposed by case-mapping (e.g. there's no precomposed uppercase version
- * of an accented lowercase letter), and then font-matching caused the
- * diacritics to be assigned to a different font than the base character.
- * In this situation, the diacritic(s) get discarded, which is less than
- * ideal, but they probably weren't going to render very well anyway.
- * Bug 543200 will improve this by making font-matching operate on entire
- * clusters instead of individual codepoints.
- *
- * For simplicity, this produces a textrun containing all DetailedGlyphs,
- * no simple glyphs. So don't call it unless you really have merging to do.
- *
- * @param aCharsToMerge when aCharsToMerge[i] is true, this character in aSrc
- * is merged into the previous character
- *
- * @param aDeletedChars when aDeletedChars[i] is true, the character at this
- * position in aDest was deleted (has no corresponding char in aSrc)
- */
-void
-MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
-                         const bool* aCharsToMerge, const bool* aDeletedChars);
-
-gfxTextRunFactory::Parameters
-GetParametersForInner(nsTransformedTextRun* aTextRun, uint32_t* aFlags,
-                      gfxContext* aRefContext);
-
 
 #endif /*NSTEXTRUNTRANSFORMATIONS_H_*/

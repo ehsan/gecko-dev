@@ -1,20 +1,49 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // vim:cindent:ai:sw=4:ts=4:et:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCounterManager.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* implementation of CSS counters (for numbering things) */
 
 #ifndef nsCounterManager_h_
 #define nsCounterManager_h_
 
-#include "mozilla/Attributes.h"
 #include "nsGenConList.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
-#include "mozilla/Likely.h"
-#include "CounterStyleManager.h"
 
 class nsCounterList;
 struct nsCounterUseNode;
@@ -26,11 +55,11 @@ struct nsCounterNode : public nsGenConNode {
         INCREMENT, // a "counter number" pair in 'counter-increment'
         USE        // counter() or counters() in 'content'
     };
-
+    
     Type mType;
 
     // Counter value after this node
-    int32_t mValueAfter;
+    PRInt32 mValueAfter;
 
     // mScopeStart points to the node (usually a RESET, but not in the
     // case of an implied 'counter-reset') that created the scope for
@@ -63,12 +92,12 @@ struct nsCounterNode : public nsGenConNode {
     // the 'content' property but offset to ensure that (reset,
     // increment, use) sort in that order.  (This slight weirdness
     // allows sharing a lot of code with 'quotes'.)
-    nsCounterNode(int32_t aContentIndex, Type aType)
+    nsCounterNode(PRInt32 aContentIndex, Type aType)
         : nsGenConNode(aContentIndex)
         , mType(aType)
         , mValueAfter(0)
-        , mScopeStart(nullptr)
-        , mScopePrev(nullptr)
+        , mScopeStart(nsnull)
+        , mScopePrev(nsnull)
     {
     }
 
@@ -80,35 +109,23 @@ struct nsCounterUseNode : public nsCounterNode {
     // The same structure passed through the style system:  an array
     // containing the values in the counter() or counters() in the order
     // given in the CSS spec.
-    nsRefPtr<nsCSSValue::Array> mCounterFunction;
-
-    nsPresContext* mPresContext;
-    nsRefPtr<mozilla::CounterStyle> mCounterStyle;
+    nsRefPtr<nsCSSValue::Array> mCounterStyle;
 
     // false for counter(), true for counters()
-    bool mAllCounters;
+    PRBool mAllCounters;
 
     // args go directly to member variables here and of nsGenConNode
-    nsCounterUseNode(nsPresContext* aPresContext,
-                     nsCSSValue::Array* aCounterFunction,
-                     uint32_t aContentIndex, bool aAllCounters)
+    nsCounterUseNode(nsCSSValue::Array* aCounterStyle,
+                     PRUint32 aContentIndex, PRBool aAllCounters)
         : nsCounterNode(aContentIndex, USE)
-        , mCounterFunction(aCounterFunction)
-        , mPresContext(aPresContext)
-        , mCounterStyle(nullptr)
+        , mCounterStyle(aCounterStyle)
         , mAllCounters(aAllCounters)
     {
-        NS_ASSERTION(aContentIndex <= INT32_MAX, "out of range");
+        NS_ASSERTION(aContentIndex <= PR_INT32_MAX, "out of range");
     }
-
-    virtual bool InitTextFrame(nsGenConList* aList,
-            nsIFrame* aPseudoFrame, nsIFrame* aTextFrame) MOZ_OVERRIDE;
-
-    mozilla::CounterStyle* GetCounterStyle();
-    void SetCounterStyleDirty()
-    {
-        mCounterStyle = nullptr;
-    }
+    
+    virtual PRBool InitTextFrame(nsGenConList* aList,
+            nsIFrame* aPseudoFrame, nsIFrame* aTextFrame);
 
     // assign the correct |mValueAfter| value to a node that has been inserted
     // Should be called immediately after calling |Insert|.
@@ -119,7 +136,7 @@ struct nsCounterUseNode : public nsCounterNode {
 };
 
 struct nsCounterChangeNode : public nsCounterNode {
-    int32_t mChangeValue; // the numeric value of the increment or reset
+    PRInt32 mChangeValue; // the numeric value of the increment or reset
 
     // |aPseudoFrame| is not necessarily a pseudo-element's frame, but
     // since it is for every other subclass of nsGenConNode, we follow
@@ -128,14 +145,14 @@ struct nsCounterChangeNode : public nsCounterNode {
     // 'counter-increment' or 'counter-reset' property.
     nsCounterChangeNode(nsIFrame* aPseudoFrame,
                         nsCounterNode::Type aChangeType,
-                        int32_t aChangeValue,
-                        int32_t aPropIndex)
+                        PRInt32 aChangeValue,
+                        PRInt32 aPropIndex)
         : nsCounterNode(// Fake a content index for resets and increments
                         // that comes before all the real content, with
                         // the resets first, in order, and then the increments.
                         aPropIndex + (aChangeType == RESET
-                                        ? (INT32_MIN) 
-                                        : (INT32_MIN / 2)),
+                                        ? (PR_INT32_MIN) 
+                                        : (PR_INT32_MIN / 2)),
                         aChangeType)
         , mChangeValue(aChangeValue)
     {
@@ -174,14 +191,14 @@ inline void nsCounterNode::Calc(nsCounterList* aList)
 class nsCounterList : public nsGenConList {
 public:
     nsCounterList() : nsGenConList(),
-                      mDirty(false)
+                      mDirty(PR_FALSE)
     {}
 
     void Insert(nsCounterNode* aNode) {
         nsGenConList::Insert(aNode);
         // Don't SetScope if we're dirty -- we'll reset all the scopes anyway,
         // and we can't usefully compute scopes right now.
-        if (MOZ_LIKELY(!IsDirty())) {
+        if (NS_LIKELY(!IsDirty())) {
             SetScope(aNode);
         }
     }
@@ -197,22 +214,22 @@ public:
         return static_cast<nsCounterNode*>(nsGenConList::Prev(aNode));
     }
 
-    static int32_t ValueBefore(nsCounterNode* aNode) {
+    static PRInt32 ValueBefore(nsCounterNode* aNode) {
         return aNode->mScopePrev ? aNode->mScopePrev->mValueAfter : 0;
     }
 
     // Correctly set |aNode->mScopeStart| and |aNode->mScopePrev|
     void SetScope(nsCounterNode *aNode);
-
+  
     // Recalculate |mScopeStart|, |mScopePrev|, and |mValueAfter| for
     // all nodes and update text in text content nodes.
     void RecalcAll();
 
-    bool IsDirty() { return mDirty; }
-    void SetDirty() { mDirty = true; }
+    PRBool IsDirty() { return mDirty; }
+    void SetDirty() { mDirty = PR_TRUE; }
 
 private:
-    bool mDirty;
+    PRBool mDirty;
 };
 
 /**
@@ -223,21 +240,18 @@ class nsCounterManager {
 public:
     nsCounterManager();
     // Returns true if dirty
-    bool AddCounterResetsAndIncrements(nsIFrame *aFrame);
+    PRBool AddCounterResetsAndIncrements(nsIFrame *aFrame);
 
     // Gets the appropriate counter list, creating it if necessary.
-    // Guaranteed to return non-null. (Uses an infallible hashtable API.)
+    // Returns null only on out-of-memory.
     nsCounterList* CounterListFor(const nsSubstring& aCounterName);
 
     // Clean up data in any dirty counter lists.
     void RecalcAll();
 
-    // Set all counter styles dirty
-    void SetAllCounterStylesDirty();
-
     // Destroy nodes for the frame in any lists, and return whether any
     // nodes were destroyed.
-    bool DestroyNodesFor(nsIFrame *aFrame);
+    PRBool DestroyNodesFor(nsIFrame *aFrame);
 
     // Clear all data.
     void Clear() { mNames.Clear(); }
@@ -246,33 +260,9 @@ public:
     void Dump();
 #endif
 
-    static int32_t IncrementCounter(int32_t aOldValue, int32_t aIncrement)
-    {
-        // Addition of unsigned values is defined to be arithmetic
-        // modulo 2^bits (C++ 2011, 3.9.1 [basic.fundamental], clause 4);
-        // addition of signed values is undefined (and clang does
-        // something very strange if we use it here).  Likewise integral
-        // conversion from signed to unsigned is also defined as modulo
-        // 2^bits (C++ 2011, 4.7 [conv.integral], clause 2); conversion
-        // from unsigned to signed is however undefined (ibid., clause 3),
-        // but to do what we want we must nonetheless depend on that
-        // small piece of undefined behavior.
-        int32_t newValue = int32_t(uint32_t(aOldValue) + uint32_t(aIncrement));
-        // The CSS Working Group resolved that a counter-increment that
-        // exceeds internal limits should not increment at all.
-        // http://lists.w3.org/Archives/Public/www-style/2013Feb/0392.html
-        // (This means, for example, that if aIncrement is 5, the
-        // counter will get stuck at the largest multiple of 5 less than
-        // the maximum 32-bit integer.)
-        if ((aIncrement > 0) != (newValue > aOldValue)) {
-          newValue = aOldValue;
-        }
-        return newValue;
-    }
-
 private:
     // for |AddCounterResetsAndIncrements| only
-    bool AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
+    PRBool AddResetOrIncrement(nsIFrame *aFrame, PRInt32 aIndex,
                                const nsStyleCounterData *aCounterData,
                                nsCounterNode::Type aType);
 

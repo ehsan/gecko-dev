@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Testing Microformats.js</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"></link>
@@ -188,13 +189,15 @@
 </div>
 
 <pre id="test">
-<script class="testbody" type="application/javascript;version=1.8">
+<script class="testbody" type="text/javascript">
 
 test_Microformats();
 test_hCard();
 
 function test_Microformats() {
-  let { Microformats, hCard, hCalendar } = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
 
   ok(Microformats, "Check global access to Microformats");
   var hCards = Microformats.get("hCard", document.getElementById("test_1"), {showHidden: true});
@@ -202,7 +205,7 @@ function test_Microformats() {
   is(Microformats.count("hCard", document.getElementById("test_1"),  {showHidden: true}), 1, "Check Microformats.count");
   is(Microformats.count("hCard", document.getElementById("test_1"),  {showHidden: true, debug: true}), 2, "Check Microformats.count (debug)");
   ok(Microformats.isMicroformat(document.getElementById("vcard1_node")), "Check isMicroformat");
-  is(SpecialPowers.unwrap(Microformats.getParent(document.getElementById("vcard1_org"))), document.getElementById("vcard1_node"), "Check getParent");
+  is(Microformats.getParent(document.getElementById("vcard1_org")), document.getElementById("vcard1_node"), "Check getParent");
   is(Microformats.getNamesFromNode(document.getElementById("vcard1_node")), "hCard", "Check getNamesFromNode");
   
   var hCardArray1 = Microformats.get("hCard", document.getElementById("test_1"), {showHidden: true});
@@ -287,7 +290,9 @@ function test_Microformats() {
 }
 
 function test_hCard() {
-  var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
   
   var hCards = Microformats.get("hCard", document.getElementById("test_1"),  {showHidden: true}); 
   

@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
     "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"
 [
@@ -66,9 +62,9 @@ td:last-child {
 <script type="application/javascript;version=1.8" src="chrome://global/content/crashes.js"/>
 
 <title>&crashes.title;</title>
-</head><body onload="populateReportList()" dir="&locale.dir;">
+</head><body onload="init()" dir="&locale.dir;">
 <button chromedir="&locale.dir;" id="clear-reports"
-        onclick="clearReports().then(null, Cu.reportError)">&clearAllReports.label;</button>
+        onclick="clearReports()">&clearAllReports.label;</button>
 <h1>&crashes.title;</h1>
 <div id="reportList">
   <table>

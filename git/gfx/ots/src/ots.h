@@ -5,20 +5,12 @@
 #ifndef OTS_H_
 #define OTS_H_
 
-#include <stddef.h>
 #include <cstdarg>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
 
 #include "opentype-sanitiser.h"
-
-// arraysize borrowed from base/basictypes.h
-template <typename T, size_t N>
-char (&ArraySizeHelper(T (&array)[N]))[N];
-#define arraysize(array) (sizeof(ArraySizeHelper(array)))
 
 namespace ots {
 
@@ -29,36 +21,29 @@ namespace ots {
 bool Failure(const char *f, int l, const char *fn);
 #endif
 
-// All OTS_FAILURE_* macros ultimately evaluate to 'false', just like the original
-// message-less OTS_FAILURE(), so that the current parser will return 'false' as
-// its result (indicating a failure).
-
-#if defined(_MSC_VER) || !defined(OTS_DEBUG)
-#define OTS_MESSAGE_(level,otf_,...) \
-  (otf_)->context->Message(level,__VA_ARGS__)
+#if defined(_MSC_VER)
+// MSVC supports C99 style variadic macros.
+#define OTS_WARNING(format, ...)
 #else
-#define OTS_MESSAGE_(level,otf_,...) \
-  OTS_FAILURE(), \
-  (otf_)->context->Message(level,__VA_ARGS__)
+// GCC
+#if defined(OTS_DEBUG)
+#define OTS_WARNING(format, args...) \
+    ots::Warning(__FILE__, __LINE__, format, ##args)
+void Warning(const char *f, int l, const char *format, ...)
+     __attribute__((format(printf, 3, 4)));
+#else
+#define OTS_WARNING(format, args...)
+#endif
 #endif
 
-// Generate a simple message
-#define OTS_FAILURE_MSG_(otf_,...) \
-  (OTS_MESSAGE_(0,otf_,__VA_ARGS__), false)
-
-#define OTS_WARNING_MSG_(otf_,...) \
-  OTS_MESSAGE_(1,otf_,__VA_ARGS__)
-
-// Generate a message with an associated table tag
-#define OTS_FAILURE_MSG_TAG_(otf_,msg_,tag_) \
-  (OTS_MESSAGE_(0,otf_,"%4.4s: %s", tag_, msg_), false)
-
-// Convenience macros for use in files that only handle a single table tag,
-// defined as TABLE_NAME at the top of the file; the 'file' variable is
-// expected to be the current OpenTypeFile pointer.
-#define OTS_FAILURE_MSG(...) OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__)
-
-#define OTS_WARNING(...) OTS_WARNING_MSG_(file, TABLE_NAME ": " __VA_ARGS__)
+// Define OTS_NO_TRANSCODE_HINTS (i.e., g++ -DOTS_NO_TRANSCODE_HINTS) if you
+// want to omit TrueType hinting instructions and variables in glyf, fpgm, prep,
+// and cvt tables.
+#if defined(OTS_NO_TRANSCODE_HINTS)
+const bool g_transcode_hints = false;
+#else
+const bool g_transcode_hints = true;
+#endif
 
 // -----------------------------------------------------------------------------
 // Buffer helper class
@@ -69,8 +54,8 @@ bool Failure(const char *f, int l, const char *fn);
 // -----------------------------------------------------------------------------
 class Buffer {
  public:
-  Buffer(const uint8_t *buf, size_t len)
-      : buffer_(buf),
+  Buffer(const uint8_t *buffer, size_t len)
+      : buffer_(buffer),
         length_(len),
         offset_(0) { }
 
@@ -78,7 +63,7 @@ class Buffer {
     return Read(NULL, n_bytes);
   }
 
-  bool Read(uint8_t *buf, size_t n_bytes) {
+  bool Read(uint8_t *buffer, size_t n_bytes) {
     if (n_bytes > 1024 * 1024 * 1024) {
       return OTS_FAILURE();
     }
@@ -86,8 +71,8 @@ class Buffer {
         (offset_ > length_ - n_bytes)) {
       return OTS_FAILURE();
     }
-    if (buf) {
-      std::memcpy(buf, buffer_ + offset_, n_bytes);
+    if (buffer) {
+      std::memcpy(buffer, buffer_ + offset_, n_bytes);
     }
     offset_ += n_bytes;
     return true;
@@ -117,12 +102,13 @@ class Buffer {
   }
 
   bool ReadU24(uint32_t *value) {
-    if (offset_ + 3 > length_) {
+    if (offset_ + 4 > length_) {
       return OTS_FAILURE();
     }
-    *value = static_cast<uint32_t>(buffer_[offset_]) << 16 |
-        static_cast<uint32_t>(buffer_[offset_ + 1]) << 8 |
-        static_cast<uint32_t>(buffer_[offset_ + 2]);
+    *value = 0;
+    std::memcpy(reinterpret_cast<uint8_t*>(value) + 1,
+                buffer_ + offset_, 3);
+    *value = ntohl(*value);
     offset_ += 3;
     return true;
   }
@@ -171,34 +157,13 @@ class Buffer {
   size_t offset_;
 };
 
-// Round a value up to the nearest multiple of 4. Don't round the value in the
-// case that rounding up overflows.
-template<typename T> T Round4(T value) {
-  if (std::numeric_limits<T>::max() - value < 3) {
-    return value;
-  }
-  return (value + 3) & ~3;
-}
-
-template<typename T> T Round2(T value) {
-  if (value == std::numeric_limits<T>::max()) {
-    return value;
-  }
-  return (value + 1) & ~1;
-}
-
-bool IsValidVersionTag(uint32_t tag);
-
 #define FOR_EACH_TABLE_TYPE \
   F(cff, CFF) \
   F(cmap, CMAP) \
   F(cvt, CVT) \
   F(fpgm, FPGM) \
   F(gasp, GASP) \
-  F(gdef, GDEF) \
   F(glyf, GLYF) \
-  F(gpos, GPOS) \
-  F(gsub, GSUB) \
   F(hdmx, HDMX) \
   F(head, HEAD) \
   F(hhea, HHEA) \
@@ -206,7 +171,6 @@ bool IsValidVersionTag(uint32_t tag);
   F(kern, KERN) \
   F(loca, LOCA) \
   F(ltsh, LTSH) \
-  F(math, MATH) \
   F(maxp, MAXP) \
   F(name, NAME) \
   F(os2, OS2) \
@@ -214,8 +178,9 @@ bool IsValidVersionTag(uint32_t tag);
   F(prep, PREP) \
   F(vdmx, VDMX) \
   F(vorg, VORG) \
-  F(vhea, VHEA) \
-  F(vmtx, VMTX)
+  F(gdef, GDEF) \
+  F(gpos, GPOS) \
+  F(gsub, GSUB)
 
 #define F(name, capname) struct OpenType##capname;
 FOR_EACH_TABLE_TYPE
@@ -234,21 +199,14 @@ struct OpenTypeFile {
   uint16_t entry_selector;
   uint16_t range_shift;
 
-  OTSContext *context;
+  // This is used to tell the GDEF/GPOS/GSUB parsers whether to preserve the
+  // OpenType Layout tables (**without** any checking).
+  bool preserve_otl;
 
 #define F(name, capname) OpenType##capname *name;
 FOR_EACH_TABLE_TYPE
 #undef F
 };
-
-#define F(name, capname) \
-bool ots_##name##_parse(OpenTypeFile *f, const uint8_t *d, size_t l); \
-bool ots_##name##_should_serialise(OpenTypeFile *f); \
-bool ots_##name##_serialise(OTSStream *s, OpenTypeFile *f); \
-void ots_##name##_free(OpenTypeFile *f);
-// TODO(yusukes): change these function names to follow Chromium coding rule.
-FOR_EACH_TABLE_TYPE
-#undef F
 
 }  // namespace ots
 

@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim:cindent:ts=2:et:sw=2:
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Clark <buster@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  * This Original Code has been modified by IBM Corporation. Modifications made by IBM 
  * described herein are Copyright (c) International Business Machines Corporation, 2000.
  * Modifications to Mozilla code or documentation identified per MPL Section 3.3
@@ -17,50 +50,42 @@
 #ifndef nsLineLayout_h___
 #define nsLineLayout_h___
 
+#include "nsFrame.h"
+#include "nsDeque.h"
 #include "nsLineBox.h"
 #include "nsBlockReflowState.h"
 #include "plarena.h"
 #include "gfxTypes.h"
-#include "WritingModes.h"
-#include "JustificationUtils.h"
+
+class nsBlockFrame;
 
 class nsFloatManager;
+class nsPlaceholderFrame;
 struct nsStyleText;
-
-namespace mozilla {
-class RubyReflowState;
-}
 
 class nsLineLayout {
 public:
-  /**
-   * @param aBaseLineLayout the nsLineLayout for ruby base,
-   * nullptr if no separate base nsLineLayout is needed.
-   */
   nsLineLayout(nsPresContext* aPresContext,
                nsFloatManager* aFloatManager,
                const nsHTMLReflowState* aOuterReflowState,
-               const nsLineList::iterator* aLine,
-               nsLineLayout* aBaseLineLayout);
+               const nsLineList::iterator* aLine);
   ~nsLineLayout();
 
-  void Init(nsBlockReflowState* aState, nscoord aMinLineBSize,
-            int32_t aLineNumber) {
+  void Init(nsBlockReflowState* aState, nscoord aMinLineHeight,
+            PRInt32 aLineNumber) {
     mBlockRS = aState;
-    mMinLineBSize = aMinLineBSize;
+    mMinLineHeight = aMinLineHeight;
     mLineNumber = aLineNumber;
   }
 
-  int32_t GetLineNumber() const {
+  PRInt32 GetLineNumber() const {
     return mLineNumber;
   }
 
-  void BeginLineReflow(nscoord aICoord, nscoord aBCoord,
-                       nscoord aISize, nscoord aBSize,
-                       bool aImpactedByFloats,
-                       bool aIsTopOfPage,
-                       mozilla::WritingMode aWritingMode,
-                       nscoord aContainerWidth);
+  void BeginLineReflow(nscoord aX, nscoord aY,
+                       nscoord aWidth, nscoord aHeight,
+                       PRBool aImpactedByFloats,
+                       PRBool aIsTopOfPage);
 
   void EndLineReflow();
 
@@ -72,76 +97,42 @@ public:
    * space rectangle, relative to the containing block.
    * @param aFloatFrame the float frame that was placed.
    */
-  void UpdateBand(mozilla::WritingMode aWM,
-                  const mozilla::LogicalRect& aNewAvailableSpace,
+  void UpdateBand(const nsRect& aNewAvailableSpace,
                   nsIFrame* aFloatFrame);
 
-  void BeginSpan(nsIFrame* aFrame, const nsHTMLReflowState* aSpanReflowState,
-                 nscoord aLeftEdge, nscoord aRightEdge, nscoord* aBaseline);
+  nsresult BeginSpan(nsIFrame* aFrame,
+                     const nsHTMLReflowState* aSpanReflowState,
+                     nscoord aLeftEdge,
+                     nscoord aRightEdge);
 
   // Returns the width of the span
   nscoord EndSpan(nsIFrame* aFrame);
 
-  // This method attaches the last frame reflowed in this line layout
-  // to that in the base line layout.
-  void AttachLastFrameToBaseLineLayout()
-  {
-    AttachFrameToBaseLineLayout(LastFrame());
-  }
+  PRInt32 GetCurrentSpanCount() const;
 
-  // This method attaches the root frame of this line layout to the
-  // last reflowed frame in the base line layout.
-  void AttachRootFrameToBaseLineLayout()
-  {
-    AttachFrameToBaseLineLayout(mRootSpan->mFrame);
-  }
+  void SplitLineTo(PRInt32 aNewCount);
 
-  int32_t GetCurrentSpanCount() const;
+  PRBool IsZeroHeight();
 
-  void SplitLineTo(int32_t aNewCount);
+  // Reflows the frame and returns the reflow status. aPushedFrame is PR_TRUE
+  // if the frame is pushed to the next line because it doesn't fit
+  nsresult ReflowFrame(nsIFrame* aFrame,
+                       nsReflowStatus& aReflowStatus,
+                       nsHTMLReflowMetrics* aMetrics,
+                       PRBool& aPushedFrame);
 
-  bool IsZeroBSize();
-
-  // The ruby layout will be passed to the next frame to be reflowed
-  // via the HTML reflow state.
-  void SetRubyReflowState(mozilla::RubyReflowState* aRubyReflowState)
-  {
-    mRubyReflowState = aRubyReflowState;
-  }
-
-  // Reflows the frame and returns the reflow status. aPushedFrame is true
-  // if the frame is pushed to the next line because it doesn't fit.
-  void ReflowFrame(nsIFrame* aFrame,
-                   nsReflowStatus& aReflowStatus,
-                   nsHTMLReflowMetrics* aMetrics,
-                   bool& aPushedFrame);
-
-  void AddBulletFrame(nsIFrame* aFrame, const nsHTMLReflowMetrics& aMetrics);
+  nsresult AddBulletFrame(nsIFrame* aFrame,
+                          const nsHTMLReflowMetrics& aMetrics);
 
   void RemoveBulletFrame(nsIFrame* aFrame) {
     PushFrame(aFrame);
   }
 
-  /**
-   * Place frames in the block direction (CSS property vertical-align)
-   */
   void VerticalAlignLine();
 
-  // Get the final size of the line, in the block direction.
-  // Do not call this until after we've called VerticalAlignLine.
-  nscoord GetFinalLineBSize() const
-  {
-    NS_ASSERTION(mFinalLineBSize != nscoord_MIN,
-                 "VerticalAlignLine should have been called before");
-    return mFinalLineBSize;
-  }
+  PRBool TrimTrailingWhiteSpace();
 
-  bool TrimTrailingWhiteSpace();
-
-  /**
-   * Place frames in the inline direction (CSS property text-align).
-   */
-  void TextAlignLine(nsLineBox* aLine, bool aIsLastLine);
+  void HorizontalAlignFrames(nsRect& aLineBounds, PRBool aAllowJustify);
 
   /**
    * Handle all the relative positioning in the line, compute the
@@ -150,20 +141,59 @@ public:
    */
   void RelativePositionFrames(nsOverflowAreas& aOverflowAreas);
 
+  //----------------------------------------
+
+  // Supporting methods and data for flags
+protected:
+#define LL_FIRSTLETTERSTYLEOK          0x00000008
+#define LL_ISTOPOFPAGE                 0x00000010
+#define LL_IMPACTEDBYFLOATS            0x00000040
+#define LL_LASTFLOATWASLETTERFRAME     0x00000080
+#define LL_LINEISEMPTY                 0x00000100
+#define LL_LINEENDSINBR                0x00000200
+#define LL_NEEDBACKUP                  0x00000400
+#define LL_INFIRSTLINE                 0x00000800
+#define LL_GOTLINEBOX                  0x00001000
+#define LL_INFIRSTLETTER               0x00002000
+#define LL_HASBULLET                   0x00004000
+#define LL_DIRTYNEXTLINE               0x00008000
+#define LL_LINEATSTART                 0x00010000
+#define LL_LASTFLAG                    LL_LINEATSTART
+
+  void SetFlag(PRUint32 aFlag, PRBool aValue)
+  {
+    NS_ASSERTION(aFlag<=LL_LASTFLAG, "bad flag");
+    NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
+    if (aValue) { // set flag
+      mFlags |= aFlag;
+    }
+    else {        // unset flag
+      mFlags &= ~aFlag;
+    }
+  }
+
+  PRBool GetFlag(PRUint32 aFlag) const
+  {
+    NS_ASSERTION(aFlag<=LL_LASTFLAG, "bad flag");
+    return !!(mFlags & aFlag);
+  }
+
+public:
+
   // Support methods for word-wrapping during line reflow
 
-  void SetJustificationInfo(const mozilla::JustificationInfo& aInfo)
-  {
-    mJustificationInfo = aInfo;
+  void SetTextJustificationWeights(PRInt32 aNumSpaces, PRInt32 aNumLetters) {
+    mTextJustificationNumSpaces = aNumSpaces;
+    mTextJustificationNumLetters = aNumLetters;
   }
 
   /**
    * @return true if so far during reflow no non-empty content has been
    * placed in the line (according to nsIFrame::IsEmpty())
    */
-  bool LineIsEmpty() const
+  PRBool LineIsEmpty() const
   {
-    return mLineIsEmpty;
+    return GetFlag(LL_LINEISEMPTY);
   }
 
   /**
@@ -171,74 +201,68 @@ public:
    * (non-collapsed whitespace, replaced element, inline-block, etc) has been
    * placed in the line
    */
-  bool LineAtStart() const
+  PRBool LineAtStart() const
   {
-    return mLineAtStart;
+    return GetFlag(LL_LINEATSTART);
   }
 
-  bool LineIsBreakable() const;
+  PRBool LineIsBreakable() const;
 
-  bool GetLineEndsInBR() const 
+  PRBool GetLineEndsInBR() const 
   { 
-    return mLineEndsInBR;
+    return GetFlag(LL_LINEENDSINBR); 
   }
 
-  void SetLineEndsInBR(bool aOn) 
+  void SetLineEndsInBR(PRBool aOn) 
   { 
-    mLineEndsInBR = aOn;
+    SetFlag(LL_LINEENDSINBR, aOn); 
   }
 
   //----------------------------------------
   // Inform the line-layout about the presence of a floating frame
   // XXX get rid of this: use get-frame-type?
-  bool AddFloat(nsIFrame* aFloat, nscoord aAvailableISize)
+  PRBool AddFloat(nsIFrame* aFloat, nscoord aAvailableWidth)
   {
-    // When reflowing ruby text frames, no block reflow state is
-    // provided to the line layout. However, floats should never be
-    // associated with ruby text containers, hence this method should
-    // not be called in that case.
-    NS_ABORT_IF_FALSE(mBlockRS, "Should not call this method "
-                      "if there is no block reflow state available");
-    return mBlockRS->AddFloat(this, aFloat, aAvailableISize);
+    return mBlockRS->AddFloat(this, aFloat, aAvailableWidth);
   }
 
-  void SetTrimmableISize(nscoord aTrimmableISize) {
-    mTrimmableISize = aTrimmableISize;
+  void SetTrimmableWidth(nscoord aTrimmableWidth) {
+    mTrimmableWidth = aTrimmableWidth;
   }
 
   //----------------------------------------
 
-  bool GetFirstLetterStyleOK() const {
-    return mFirstLetterStyleOK;
+  PRBool GetFirstLetterStyleOK() const {
+    return GetFlag(LL_FIRSTLETTERSTYLEOK);
   }
 
-  void SetFirstLetterStyleOK(bool aSetting) {
-    mFirstLetterStyleOK = aSetting;
+  void SetFirstLetterStyleOK(PRBool aSetting) {
+    SetFlag(LL_FIRSTLETTERSTYLEOK, aSetting);
   }
 
-  bool GetInFirstLetter() const {
-    return mInFirstLetter;
+  PRBool GetInFirstLetter() const {
+    return GetFlag(LL_INFIRSTLETTER);
   }
 
-  void SetInFirstLetter(bool aSetting) {
-    mInFirstLetter = aSetting;
+  void SetInFirstLetter(PRBool aSetting) {
+    SetFlag(LL_INFIRSTLETTER, aSetting);
   }
 
-  bool GetInFirstLine() const {
-    return mInFirstLine;
+  PRBool GetInFirstLine() const {
+    return GetFlag(LL_INFIRSTLINE);
   }
 
-  void SetInFirstLine(bool aSetting) {
-    mInFirstLine = aSetting;
+  void SetInFirstLine(PRBool aSetting) {
+    SetFlag(LL_INFIRSTLINE, aSetting);
   }
 
   // Calling this during block reflow ensures that the next line of inlines
   // will be marked dirty, if there is one.
   void SetDirtyNextLine() {
-    mDirtyNextLine = true;
+    SetFlag(LL_DIRTYNEXTLINE, PR_TRUE);
   }
-  bool GetDirtyNextLine() {
-    return mDirtyNextLine;
+  PRBool GetDirtyNextLine() {
+    return GetFlag(LL_DIRTYNEXTLINE);
   }
 
   //----------------------------------------
@@ -250,8 +274,8 @@ public:
    * frames containing optional break points (e.g., whitespace in text frames)
    * can call SetLastOptionalBreakPosition to record where a break could
    * have been made, but wasn't because we decided to place more content on
-   * the line. For non-text frames, offset 0 means before the frame, offset
-   * INT32_MAX means after the frame.
+   * the line. For non-text frames, offset 0 means
+   * before the content, offset PR_INT32_MAX means after the content.
    * 
    * Currently this is used to handle cases where a single word comprises
    * multiple frames, and the first frame fits on the line but the whole word
@@ -259,8 +283,6 @@ public:
    * reflow the whole line again, forcing a break at that position. The last
    * optional break position could be in a text frame or else after a frame
    * that cannot be part of a text run, so those are the positions we record.
-   *
-   * @param aFrame the frame which contains the optional break position.
    * 
    * @param aFits set to true if the break position is within the available width.
    * 
@@ -268,58 +290,58 @@ public:
    * prioritizing break opportunities, we will not set a break if we have
    * already set a break with a higher priority. @see gfxBreakPriority.
    *
-   * @return true if we are actually reflowing with forced break position and we
+   * @return PR_TRUE if we are actually reflowing with forced break position and we
    * should break here
    */
-  bool NotifyOptionalBreakPosition(nsIFrame* aFrame, int32_t aOffset,
-                                   bool aFits, gfxBreakPriority aPriority) {
-    NS_ASSERTION(!aFits || !mNeedBackup,
+  PRBool NotifyOptionalBreakPosition(nsIContent* aContent, PRInt32 aOffset,
+                                     PRBool aFits, gfxBreakPriority aPriority) {
+    NS_ASSERTION(!aFits || !GetFlag(LL_NEEDBACKUP),
                   "Shouldn't be updating the break position with a break that fits after we've already flagged an overrun");
     // Remember the last break position that fits; if there was no break that fit,
     // just remember the first break
     if ((aFits && aPriority >= mLastOptionalBreakPriority) ||
-        !mLastOptionalBreakFrame) {
-      mLastOptionalBreakFrame = aFrame;
-      mLastOptionalBreakFrameOffset = aOffset;
+        !mLastOptionalBreakContent) {
+      mLastOptionalBreakContent = aContent;
+      mLastOptionalBreakContentOffset = aOffset;
       mLastOptionalBreakPriority = aPriority;
     }
-    return aFrame && mForceBreakFrame == aFrame &&
-      mForceBreakFrameOffset == aOffset;
+    return aContent && mForceBreakContent == aContent &&
+      mForceBreakContentOffset == aOffset;
   }
   /**
-   * Like NotifyOptionalBreakPosition, but here it's OK for mNeedBackup
+   * Like NotifyOptionalBreakPosition, but here it's OK for LL_NEEDBACKUP
    * to be set, because the caller is merely pruning some saved break position(s)
    * that are actually not feasible.
    */
-  void RestoreSavedBreakPosition(nsIFrame* aFrame, int32_t aOffset,
+  void RestoreSavedBreakPosition(nsIContent* aContent, PRInt32 aOffset,
                                  gfxBreakPriority aPriority) {
-    mLastOptionalBreakFrame = aFrame;
-    mLastOptionalBreakFrameOffset = aOffset;
+    mLastOptionalBreakContent = aContent;
+    mLastOptionalBreakContentOffset = aOffset;
     mLastOptionalBreakPriority = aPriority;
   }
   /**
    * Signal that no backing up will be required after all.
    */
   void ClearOptionalBreakPosition() {
-    mNeedBackup = false;
-    mLastOptionalBreakFrame = nullptr;
-    mLastOptionalBreakFrameOffset = -1;
-    mLastOptionalBreakPriority = gfxBreakPriority::eNoBreak;
+    SetFlag(LL_NEEDBACKUP, PR_FALSE);
+    mLastOptionalBreakContent = nsnull;
+    mLastOptionalBreakContentOffset = -1;
+    mLastOptionalBreakPriority = eNoBreak;
   }
   // Retrieve last set optional break position. When this returns null, no
   // optional break has been recorded (which means that the line can't break yet).
-  nsIFrame* GetLastOptionalBreakPosition(int32_t* aOffset,
-                                         gfxBreakPriority* aPriority) {
-    *aOffset = mLastOptionalBreakFrameOffset;
+  nsIContent* GetLastOptionalBreakPosition(PRInt32* aOffset,
+                                           gfxBreakPriority* aPriority) {
+    *aOffset = mLastOptionalBreakContentOffset;
     *aPriority = mLastOptionalBreakPriority;
-    return mLastOptionalBreakFrame;
+    return mLastOptionalBreakContent;
   }
   
   /**
    * Check whether frames overflowed the available width and CanPlaceFrame
    * requested backing up to a saved break position.
    */  
-  bool NeedsBackup() { return mNeedBackup; }
+  PRBool NeedsBackup() { return GetFlag(LL_NEEDBACKUP); }
   
   // Line layout may place too much content on a line, overflowing its available
   // width. When that happens, if SetLastOptionalBreakPosition has been
@@ -330,13 +352,13 @@ public:
   // Record that we want to break at the given content+offset (which
   // should have been previously returned by GetLastOptionalBreakPosition
   // from another nsLineLayout).
-  void ForceBreakAtPosition(nsIFrame* aFrame, int32_t aOffset) {
-    mForceBreakFrame = aFrame;
-    mForceBreakFrameOffset = aOffset;
+  void ForceBreakAtPosition(nsIContent* aContent, PRInt32 aOffset) {
+    mForceBreakContent = aContent;
+    mForceBreakContentOffset = aOffset;
   }
-  bool HaveForcedBreakPosition() { return mForceBreakFrame != nullptr; }
-  int32_t GetForcedBreakPosition(nsIFrame* aFrame) {
-    return mForceBreakFrame == aFrame ? mForceBreakFrameOffset : -1;
+  PRBool HaveForcedBreakPosition() { return mForceBreakContent != nsnull; }
+  PRInt32 GetForcedBreakPosition(nsIContent* aContent) {
+    return mForceBreakContent == aContent ? mForceBreakContentOffset : -1;
   }
 
   /**
@@ -344,13 +366,12 @@ public:
    * some other kind of frame when inline frames are reflowed in a non-block
    * context (e.g. MathML or floating first-letter).
    */
-  nsIFrame* LineContainerFrame() const { return mBlockReflowState->frame; }
-  const nsHTMLReflowState* LineContainerRS() const { return mBlockReflowState; }
+  nsIFrame* GetLineContainerFrame() const { return mBlockReflowState->frame; }
   const nsLineList::iterator* GetLine() const {
-    return mGotLineBox ? &mLineBox : nullptr;
+    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
   nsLineList::iterator* GetLine() {
-    return mGotLineBox ? &mLineBox : nullptr;
+    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
   
   /**
@@ -360,24 +381,10 @@ public:
    * the right edge for RTL blocks and from the left edge for LTR blocks.
    * In other words, the current frame's distance from the line container's
    * start content edge is:
-   * <code>GetCurrentFrameInlineDistanceFromBlock() - lineContainer->GetUsedBorderAndPadding().left</code>
+   * <code>GetCurrentFrameXDistanceFromBlock() - lineContainer->GetUsedBorderAndPadding().left</code>
    * Note the use of <code>.left</code> for both LTR and RTL line containers.
    */
-  nscoord GetCurrentFrameInlineDistanceFromBlock();
-
-  /**
-   * Move the inline position where the next frame will be reflowed forward by
-   * aAmount.
-   */
-  void AdvanceICoord(nscoord aAmount);
-  /**
-   * Returns the writing mode for the root span.
-   */
-  mozilla::WritingMode GetWritingMode();
-  /**
-   * Returns the inline position where the next frame will be reflowed.
-   */
-  nscoord GetCurrentICoord();
+  nscoord GetCurrentFrameXDistanceFromBlock();
 
 protected:
   // This state is constant for a given block frame doing line layout
@@ -385,57 +392,29 @@ protected:
   const nsStyleText* mStyleText; // for the block
   const nsHTMLReflowState* mBlockReflowState;
 
-  // The line layout for the base text. It is usually same as |this|.
-  // It becomes different when the current line layout is for ruby
-  // annotations. All line layouts share the same base line layout
-  // when they are associated. The base line layout is responsible
-  // for managing the life cycle of per-frame data and per-span data,
-  // and handling floats.
-  nsLineLayout* const mBaseLineLayout;
-
-  nsIFrame* mLastOptionalBreakFrame;
-  nsIFrame* mForceBreakFrame;
+  nsIContent* mLastOptionalBreakContent;
+  nsIContent* mForceBreakContent;
   
   // XXX remove this when landing bug 154892 (splitting absolute positioned frames)
   friend class nsInlineFrame;
 
   nsBlockReflowState* mBlockRS;/* XXX hack! */
 
-  // XXX Take care that nsRubyBaseContainer would give nullptr to this
-  //     member. It should not be a problem currently, since the only
-  //     code use it is handling float, which does not affect ruby.
-  //     See comment in nsLineLayout::AddFloat
   nsLineList::iterator mLineBox;
 
   // Per-frame data recorded by the line-layout reflow logic. This
   // state is the state needed to post-process the line after reflow
-  // has completed (block-direction alignment, inline-direction alignment,
+  // has completed (vertical alignment, horizontal alignment,
   // justification and relative positioning).
 
   struct PerSpanData;
   struct PerFrameData;
   friend struct PerSpanData;
   friend struct PerFrameData;
-  struct PerFrameData
-  {
-    explicit PerFrameData(mozilla::WritingMode aWritingMode)
-      : mBounds(aWritingMode)
-      , mMargin(aWritingMode)
-      , mBorderPadding(aWritingMode)
-      , mOffsets(aWritingMode)
-    {}
-
+  struct PerFrameData {
     // link to next/prev frame in same span
     PerFrameData* mNext;
     PerFrameData* mPrev;
-
-    // Link to the frame of next ruby annotation.  It is a linked list
-    // through this pointer from ruby base to all its annotations.  It
-    // could be nullptr if there is no more annotation.
-    // If PFD_ISLINKEDTOBASE is set, the current PFD is one of the ruby
-    // annotations in the base's list, otherwise it is the ruby base,
-    // and its mNextAnnotation is the start of the linked list.
-    PerFrameData* mNextAnnotation;
 
     // pointer to child span data if this is an inline container frame
     PerSpanData* mSpan;
@@ -445,38 +424,53 @@ protected:
 
     // From metrics
     nscoord mAscent;
-    // note that mBounds is a logical rect in the *line*'s writing mode.
-    // When setting frame coordinates, we have to convert to the frame's
-    //  writing mode
-    mozilla::LogicalRect mBounds;
+    nsRect mBounds;
     nsOverflowAreas mOverflowAreas;
 
     // From reflow-state
-    mozilla::LogicalMargin mMargin;        // in *line* writing mode
-    mozilla::LogicalMargin mBorderPadding; // in *line* writing mode
-    mozilla::LogicalMargin mOffsets;       // in *frame* writing mode
+    nsMargin mMargin;
+    nsMargin mBorderPadding;
+    nsMargin mOffsets;
 
     // state for text justification
-    // Note that, although all frames would have correct inner
-    // opportunities computed after ComputeFrameJustification, start
-    // and end justifiable info are not reliable for non-text frames.
-    mozilla::JustificationInfo mJustificationInfo;
-    mozilla::JustificationAssignment mJustificationAssignment;
+    PRInt32 mJustificationNumSpaces;
+    PRInt32 mJustificationNumLetters;
     
-    // PerFrameData flags
-    bool mRelativePos : 1;
-    bool mIsTextFrame : 1;
-    bool mIsNonEmptyTextFrame : 1;
-    bool mIsNonWhitespaceTextFrame : 1;
-    bool mIsLetterFrame : 1;
-    bool mRecomputeOverflow : 1;
-    bool mIsBullet : 1;
-    bool mSkipWhenTrimmingWhitespace : 1;
-    bool mIsEmpty : 1;
-    bool mIsLinkedToBase : 1;
-
     // Other state we use
-    uint8_t mBlockDirAlign;
+    PRUint8 mVerticalAlign;
+
+// PerFrameData flags
+#define PFD_RELATIVEPOS                 0x00000001
+#define PFD_ISTEXTFRAME                 0x00000002
+#define PFD_ISNONEMPTYTEXTFRAME         0x00000004
+#define PFD_ISNONWHITESPACETEXTFRAME    0x00000008
+#define PFD_ISLETTERFRAME               0x00000010
+#define PFD_RECOMPUTEOVERFLOW           0x00000020
+#define PFD_ISBULLET                    0x00000040
+#define PFD_SKIPWHENTRIMMINGWHITESPACE  0x00000080
+#define PFD_LASTFLAG                    PFD_SKIPWHENTRIMMINGWHITESPACE
+
+    PRUint8 mFlags;
+
+    void SetFlag(PRUint32 aFlag, PRBool aValue)
+    {
+      NS_ASSERTION(aFlag<=PFD_LASTFLAG, "bad flag");
+      NS_ASSERTION(aFlag<=PR_UINT8_MAX, "bad flag");
+      NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
+      if (aValue) { // set flag
+        mFlags |= aFlag;
+      }
+      else {        // unset flag
+        mFlags &= ~aFlag;
+      }
+    }
+
+    PRBool GetFlag(PRUint32 aFlag) const
+    {
+      NS_ASSERTION(aFlag<=PFD_LASTFLAG, "bad flag");
+      return !!(mFlags & aFlag);
+    }
+
 
     PerFrameData* Last() {
       PerFrameData* pfd = this;
@@ -485,18 +479,6 @@ protected:
       }
       return pfd;
     }
-
-    bool IsStartJustifiable() const
-    {
-      return mJustificationInfo.mIsStartJustifiable;
-    }
-
-    bool IsEndJustifiable() const
-    {
-      return mJustificationInfo.mIsEndJustifiable;
-    }
-
-    bool ParticipatesInJustification() const;
   };
   PerFrameData* mFrameFreeList;
 
@@ -510,23 +492,23 @@ protected:
     PerFrameData* mLastFrame;
 
     const nsHTMLReflowState* mReflowState;
-    bool mNoWrap;
-    mozilla::WritingMode mWritingMode;
-    bool mZeroEffectiveSpanBox;
-    bool mContainsFloat;
-    bool mHasNonemptyContent;
+    PRPackedBool mNoWrap;
+    PRUint8 mDirection;
+    PRPackedBool mChangedFrameDirection;
+    PRPackedBool mZeroEffectiveSpanBox;
+    PRPackedBool mContainsFloat;
+    PRPackedBool mHasNonemptyContent;
 
-    nscoord mIStart;
-    nscoord mICoord;
-    nscoord mIEnd;
+    nscoord mLeftEdge;
+    nscoord mX;
+    nscoord mRightEdge;
 
-    nscoord mBStartLeading, mBEndLeading;
-    nscoord mLogicalBSize;
-    nscoord mMinBCoord, mMaxBCoord;
-    nscoord* mBaseline;
+    nscoord mTopLeading, mBottomLeading;
+    nscoord mLogicalHeight;
+    nscoord mMinY, mMaxY;
 
     void AppendFrame(PerFrameData* pfd) {
-      if (nullptr == mLastFrame) {
+      if (nsnull == mLastFrame) {
         mFirstFrame = pfd;
       }
       else {
@@ -540,21 +522,11 @@ protected:
   PerSpanData* mRootSpan;
   PerSpanData* mCurrentSpan;
 
-  // The container width to use when converting between logical and
-  // physical coordinates for frames in this span. For the root span
-  // this is the width of the block cached in mContainerWidth; for
-  // child spans it's the width of the root span
-  nscoord ContainerWidthForSpan(PerSpanData* aPSD) {
-    return (aPSD == mRootSpan)
-      ? mContainerWidth
-      : aPSD->mFrame->mBounds.Width(mRootSpan->mWritingMode);
-  }
-
   gfxBreakPriority mLastOptionalBreakPriority;
-  int32_t     mLastOptionalBreakFrameOffset;
-  int32_t     mForceBreakFrameOffset;
+  PRInt32     mLastOptionalBreakContentOffset;
+  PRInt32     mForceBreakContentOffset;
 
-  nscoord mMinLineBSize;
+  nscoord mMinLineHeight;
   
   // The amount of text indent that we applied to this line, needed for
   // max-element-size calculation.
@@ -562,99 +534,57 @@ protected:
 
   // This state varies during the reflow of a line but is line
   // "global" state not span "local" state.
-  int32_t mLineNumber;
-  mozilla::JustificationInfo mJustificationInfo;
+  PRInt32 mLineNumber;
+  PRInt32 mTextJustificationNumSpaces;
+  PRInt32 mTextJustificationNumLetters;
 
-  // The ruby layout for the next frame to be reflowed.
-  // It is reset every time it is used.
-  mozilla::RubyReflowState* mRubyReflowState;
+  PRInt32 mTotalPlacedFrames;
 
-  int32_t mTotalPlacedFrames;
+  nscoord mTopEdge;
+  nscoord mMaxTopBoxHeight;
+  nscoord mMaxBottomBoxHeight;
 
-  nscoord mBStartEdge;
-  nscoord mMaxStartBoxBSize;
-  nscoord mMaxEndBoxBSize;
-
-  nscoord mInflationMinFontSize;
-
-  // Final computed line-bSize value after VerticalAlignFrames for
+  // Final computed line-height value after VerticalAlignFrames for
   // the block has been called.
-  nscoord mFinalLineBSize;
+  nscoord mFinalLineHeight;
   
-  // Amount of trimmable whitespace inline size for the trailing text
-  // frame, if any
-  nscoord mTrimmableISize;
+  // Amount of trimmable whitespace width for the trailing text frame, if any
+  nscoord mTrimmableWidth;
 
-  // Physical width. Use only for physical <-> logical coordinate conversion.
-  nscoord mContainerWidth;
-
-  bool mFirstLetterStyleOK      : 1;
-  bool mIsTopOfPage             : 1;
-  bool mImpactedByFloats        : 1;
-  bool mLastFloatWasLetterFrame : 1;
-  bool mLineIsEmpty             : 1;
-  bool mLineEndsInBR            : 1;
-  bool mNeedBackup              : 1;
-  bool mInFirstLine             : 1;
-  bool mGotLineBox              : 1;
-  bool mInFirstLetter           : 1;
-  bool mHasBullet               : 1;
-  bool mDirtyNextLine           : 1;
-  bool mLineAtStart             : 1;
-  bool mHasRuby                 : 1;
-
-  int32_t mSpanDepth;
+  PRInt32 mSpanDepth;
 #ifdef DEBUG
-  int32_t mSpansAllocated, mSpansFreed;
-  int32_t mFramesAllocated, mFramesFreed;
+  PRInt32 mSpansAllocated, mSpansFreed;
+  PRInt32 mFramesAllocated, mFramesFreed;
 #endif
   PLArenaPool mArena; // Per span and per frame data, 4 byte aligned
 
-  /**
-   * Allocate a PerFrameData from the mArena pool. The allocation is infallible.
-   */
-  PerFrameData* NewPerFrameData(nsIFrame* aFrame);
+  PRUint32 mFlags;
 
-  /**
-   * Allocate a PerSpanData from the mArena pool. The allocation is infallible.
-   */
-  PerSpanData* NewPerSpanData();
+  PRUint8 mTextAlign;
 
-  PerFrameData* LastFrame() const { return mCurrentSpan->mLastFrame; }
+  nsresult NewPerFrameData(PerFrameData** aResult);
 
-  /**
-   * Unlink the given PerFrameData and all the siblings after it from
-   * the span. The unlinked PFDs are usually freed immediately.
-   * However, if PFD_ISLINKEDTOBASE is set, it won't be freed until
-   * the frame of its base is unlinked.
-   */
-  void UnlinkFrame(PerFrameData* pfd);
-
-  /**
-   * Free the given PerFrameData.
-   */
-  void FreeFrame(PerFrameData* pfd);
+  nsresult NewPerSpanData(PerSpanData** aResult);
 
   void FreeSpan(PerSpanData* psd);
 
-  bool InBlockContext() const {
+  PRBool InBlockContext() const {
     return mSpanDepth == 0;
   }
 
   void PushFrame(nsIFrame* aFrame);
 
-  void AllowForStartMargin(PerFrameData* pfd,
-                           nsHTMLReflowState& aReflowState);
+  void ApplyStartMargin(PerFrameData* pfd,
+                        nsHTMLReflowState& aReflowState);
 
-  void SyncAnnotationContainersBounds(PerFrameData* aRubyFrame);
-
-  bool CanPlaceFrame(PerFrameData* pfd,
-                       bool aNotSafeToBreak,
-                       bool aFrameCanContinueTextRun,
-                       bool aCanRollBackBeforeFrame,
+  PRBool CanPlaceFrame(PerFrameData* pfd,
+                       PRUint8 aFrameDirection,
+                       PRBool aNotSafeToBreak,
+                       PRBool aFrameCanContinueTextRun,
+                       PRBool aCanRollBackBeforeFrame,
                        nsHTMLReflowMetrics& aMetrics,
                        nsReflowStatus& aStatus,
-                       bool* aOptionalBreakAfterFits);
+                       PRBool* aOptionalBreakAfterFits);
 
   void PlaceFrame(PerFrameData* pfd,
                   nsHTMLReflowMetrics& aMetrics);
@@ -662,44 +592,34 @@ protected:
   void VerticalAlignFrames(PerSpanData* psd);
 
   void PlaceTopBottomFrames(PerSpanData* psd,
-                            nscoord aDistanceFromStart,
-                            nscoord aLineBSize);
+                            nscoord aDistanceFromTop,
+                            nscoord aLineHeight);
 
   void RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflowAreas);
 
-  bool TrimTrailingWhiteSpaceIn(PerSpanData* psd, nscoord* aDeltaISize);
+  PRBool TrimTrailingWhiteSpaceIn(PerSpanData* psd, nscoord* aDeltaWidth);
 
-  struct JustificationComputationState;
-  int32_t ComputeFrameJustification(PerSpanData* psd,
-                                    JustificationComputationState& aState);
+  void ComputeJustificationWeights(PerSpanData* psd, PRInt32* numSpaces, PRInt32* numLetters);
 
-  void AdvanceAnnotationInlineBounds(PerFrameData* aPFD,
-                                     nscoord aContainerWidth,
-                                     nscoord aDeltaICoord,
-                                     nscoord aDeltaISize);
-
-  void ApplyLineJustificationToAnnotations(PerFrameData* aPFD,
-                                           PerSpanData* aContainingSpan,
-                                           nscoord aDeltaICoord,
-                                           nscoord aDeltaISize);
+  struct FrameJustificationState {
+    PRInt32 mTotalNumSpaces;
+    PRInt32 mTotalNumLetters;
+    nscoord mTotalWidthForSpaces;
+    nscoord mTotalWidthForLetters;
+    PRInt32 mNumSpacesProcessed;
+    PRInt32 mNumLettersProcessed;
+    nscoord mWidthForSpacesProcessed;
+    nscoord mWidthForLettersProcessed;
+  };
 
   // Apply justification.  The return value is the amount by which the width of
   // the span corresponding to aPSD got increased due to justification.
-  nscoord ApplyFrameJustification(
-      PerSpanData* aPSD, mozilla::JustificationApplicationState& aState);
+  nscoord ApplyFrameJustification(PerSpanData* aPSD,
+                                  FrameJustificationState* aState);
 
-  void ExpandRubyBox(PerFrameData* aFrame, nscoord aReservedISize,
-                     nscoord aContainerWidth);
-
-  void ExpandRubyBoxWithAnnotations(PerFrameData* aFrame,
-                                    nscoord aContainerWidth);
-
-  void ExpandInlineRubyBoxes(PerSpanData* aSpan);
-
-  void AttachFrameToBaseLineLayout(PerFrameData* aFrame);
 
 #ifdef DEBUG
-  void DumpPerSpanData(PerSpanData* psd, int32_t aIndent);
+  void DumpPerSpanData(PerSpanData* psd, PRInt32 aIndent);
 #endif
 };
 

@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * CMS digestedData methods.
+ *
+ * $Id: cmsdigdata.c,v 1.5 2004/04/25 15:03:16 gerv%gerv.net Exp $
  */
 
 #include "cmslocal.h"
@@ -83,8 +117,7 @@ NSS_CMSDigestedData_Encode_BeforeStart(NSSCMSDigestedData *digd)
     SECItem *dummy;
 
     version = NSS_CMS_DIGESTED_DATA_VERSION_DATA;
-    if (!NSS_CMSType_IsData(NSS_CMSContentInfo_GetContentTypeTag(
-							&(digd->contentInfo))))
+    if (NSS_CMSContentInfo_GetContentTypeTag(&(digd->contentInfo)) != SEC_OID_PKCS7_DATA)
 	version = NSS_CMS_DIGESTED_DATA_VERSION_ENCAP;
 
     dummy = SEC_ASN1EncodeInteger(digd->cmsg->poolp, &(digd->version), version);
@@ -101,16 +134,11 @@ NSS_CMSDigestedData_Encode_BeforeStart(NSSCMSDigestedData *digd)
 SECStatus
 NSS_CMSDigestedData_Encode_BeforeData(NSSCMSDigestedData *digd)
 {
-    SECStatus rv =NSS_CMSContentInfo_Private_Init(&digd->contentInfo);
-    if (rv != SECSuccess)  {
-	return SECFailure;
-    }
-
     /* set up the digests */
     if (digd->digestAlg.algorithm.len != 0 && digd->digest.len == 0) {
 	/* if digest is already there, do nothing */
-	digd->contentInfo.privateInfo->digcx = NSS_CMSDigestContext_StartSingle(&(digd->digestAlg));
-	if (digd->contentInfo.privateInfo->digcx == NULL)
+	digd->contentInfo.digcx = NSS_CMSDigestContext_StartSingle(&(digd->digestAlg));
+	if (digd->contentInfo.digcx == NULL)
 	    return SECFailure;
     }
     return SECSuccess;
@@ -128,12 +156,12 @@ NSS_CMSDigestedData_Encode_AfterData(NSSCMSDigestedData *digd)
 {
     SECStatus rv = SECSuccess;
     /* did we have digest calculation going on? */
-    if (digd->contentInfo.privateInfo && digd->contentInfo.privateInfo->digcx) {
-	rv = NSS_CMSDigestContext_FinishSingle(digd->contentInfo.privateInfo->digcx,
+    if (digd->contentInfo.digcx) {
+	rv = NSS_CMSDigestContext_FinishSingle(digd->contentInfo.digcx,
 				               digd->cmsg->poolp, 
 					       &(digd->digest));
 	/* error has been set by NSS_CMSDigestContext_FinishSingle */
-	digd->contentInfo.privateInfo->digcx = NULL;
+	digd->contentInfo.digcx = NULL;
     }
 
     return rv;
@@ -149,19 +177,12 @@ NSS_CMSDigestedData_Encode_AfterData(NSSCMSDigestedData *digd)
 SECStatus
 NSS_CMSDigestedData_Decode_BeforeData(NSSCMSDigestedData *digd)
 {
-    SECStatus rv;
-
     /* is there a digest algorithm yet? */
     if (digd->digestAlg.algorithm.len == 0)
 	return SECFailure;
 
-    rv = NSS_CMSContentInfo_Private_Init(&digd->contentInfo);
-    if (rv != SECSuccess) {
-	return SECFailure;
-    }
-
-    digd->contentInfo.privateInfo->digcx = NSS_CMSDigestContext_StartSingle(&(digd->digestAlg));
-    if (digd->contentInfo.privateInfo->digcx == NULL)
+    digd->contentInfo.digcx = NSS_CMSDigestContext_StartSingle(&(digd->digestAlg));
+    if (digd->contentInfo.digcx == NULL)
 	return SECFailure;
 
     return SECSuccess;
@@ -179,12 +200,12 @@ NSS_CMSDigestedData_Decode_AfterData(NSSCMSDigestedData *digd)
 {
     SECStatus rv = SECSuccess;
     /* did we have digest calculation going on? */
-    if (digd->contentInfo.privateInfo && digd->contentInfo.privateInfo->digcx) {
-	rv = NSS_CMSDigestContext_FinishSingle(digd->contentInfo.privateInfo->digcx,
+    if (digd->contentInfo.digcx) {
+	rv = NSS_CMSDigestContext_FinishSingle(digd->contentInfo.digcx,
 				               digd->cmsg->poolp, 
 					       &(digd->cdigest));
 	/* error has been set by NSS_CMSDigestContext_FinishSingle */
-	digd->contentInfo.privateInfo->digcx = NULL;
+	digd->contentInfo.digcx = NULL;
     }
 
     return rv;

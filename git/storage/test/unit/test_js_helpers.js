@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 sts=2 et : */
 /**
  * Any copyright is dedicated to the Public Domain.
@@ -21,11 +21,8 @@ function test_params_enumerate()
   // Make sure they are right.
   let expected = ["a", "b", "c"];
   let index = 0;
-  for (let name in stmt.params) {
-    if (name == "QueryInterface")
-        continue;
+  for (let name in stmt.params)
     do_check_eq(name, expected[index++]);
-  }
 }
 
 function test_params_prototype()

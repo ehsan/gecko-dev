@@ -7,7 +7,7 @@
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
@@ -33,7 +33,7 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);
@@ -49,10 +49,7 @@ function end_test() {
 function installUpdate(aInstall, aCallback) {
   aInstall.addListener({
     onInstallEnded: function(aInstall) {
-      // give the startup time to run
-      do_execute_soon(function() {
-        aCallback(aInstall);
-      });
+      aCallback(aInstall);
     }
   });
 
@@ -93,14 +90,11 @@ function run_test_1() {
 }
 
 function check_test_1(install) {
-  AddonManager.getAddonByID("addon1@tests.mozilla.org", callback_soon(function(a1) {
+  AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     // Existing add-on should have a pending upgrade
     do_check_neq(a1.pendingUpgrade, null);
     do_check_eq(a1.pendingUpgrade.id, "addon2@tests.mozilla.org");
     do_check_eq(a1.pendingUpgrade.install.existingAddon, a1);
-    do_check_neq(a1.syncGUID);
-
-    let a1SyncGUID = a1.syncGUID;
 
     restartManager();
 
@@ -109,23 +103,19 @@ function check_test_1(install) {
       // Should have uninstalled the old and installed the new
       do_check_eq(a1, null);
       do_check_neq(a2, null);
-      do_check_neq(a2.syncGUID, null);
-
-      // The Sync GUID should change when the ID changes
-      do_check_neq(a1SyncGUID, a2.syncGUID);
 
       a2.uninstall();
 
-      do_execute_soon(run_test_2);
+      restartManager();
+      shutdownManager();
+
+      run_test_2();
     });
-  }));
+  });
 }
 
 // Test that when the new add-on already exists we just upgrade that
 function run_test_2() {
-  restartManager();
-  shutdownManager();
-
   writeInstallRDFForExtension({
     id: "addon1@tests.mozilla.org",
     version: "1.0",
@@ -164,8 +154,7 @@ function run_test_2() {
 
 function check_test_2(install) {
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                               "addon2@tests.mozilla.org"],
-                               callback_soon(function([a1, a2]) {
+                               "addon2@tests.mozilla.org"], function([a1, a2]) {
     do_check_eq(a1.pendingUpgrade, null);
     // Existing add-on should have a pending upgrade
     do_check_neq(a2.pendingUpgrade, null);
@@ -183,16 +172,16 @@ function check_test_2(install) {
       a1.uninstall();
       a2.uninstall();
 
-      do_execute_soon(run_test_3);
+      restartManager();
+      shutdownManager();
+
+      run_test_3();
     });
-  }));
+  });
 }
 
 // Test that we rollback correctly when removing the old add-on fails
 function run_test_3() {
-  restartManager();
-  shutdownManager();
-
   // This test only works on Windows
   if (!("nsIWindowsRegKey" in AM_Ci)) {
     run_test_4();
@@ -226,7 +215,7 @@ function run_test_3() {
 }
 
 function check_test_3(install) {
-  AddonManager.getAddonByID("addon1@tests.mozilla.org", callback_soon(function(a1) {
+  AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     // Existing add-on should have a pending upgrade
     do_check_neq(a1.pendingUpgrade, null);
     do_check_eq(a1.pendingUpgrade.id, "addon2@tests.mozilla.org");
@@ -249,34 +238,23 @@ function check_test_3(install) {
     fstream.close();
 
     AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                                 "addon2@tests.mozilla.org"],
-                                 callback_soon(function([a1, a2]) {
-      // Should not have installed the new add-on but it should still be
-      // pending install
+                                 "addon2@tests.mozilla.org"], function([a1, a2]) {
+      // Should not have installed the new add-on
       do_check_neq(a1, null);
       do_check_eq(a2, null);
 
+      a1.uninstall();
+
       restartManager();
+      shutdownManager();
 
-      AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                                   "addon2@tests.mozilla.org"], function([a1, a2]) {
-        // Should have installed the new add-on
-        do_check_eq(a1, null);
-        do_check_neq(a2, null);
-
-        a2.uninstall();
-
-        do_execute_soon(run_test_4);
-      });
-    }));
-  }));
+      run_test_4();
+    });
+  });
 }
 
 // Tests that upgrading to a bootstrapped add-on works but requires a restart
 function run_test_4() {
-  restartManager();
-  shutdownManager();
-
   writeInstallRDFForExtension({
     id: "addon2@tests.mozilla.org",
     version: "2.0",
@@ -295,7 +273,6 @@ function run_test_4() {
 
   AddonManager.getAddonByID("addon2@tests.mozilla.org", function(a2) {
     do_check_neq(a2, null);
-    do_check_neq(a2.syncGUID, null);
     do_check_eq(a2.version, "2.0");
 
     a2.findUpdates({
@@ -308,8 +285,7 @@ function run_test_4() {
 
 function check_test_4() {
   AddonManager.getAddonsByIDs(["addon2@tests.mozilla.org",
-                               "addon3@tests.mozilla.org"],
-                               callback_soon(function([a2, a3]) {
+                               "addon3@tests.mozilla.org"], function([a2, a3]) {
     // Should still be pending install even though the new add-on is restartless
     do_check_neq(a2, null);
     do_check_eq(a3, null);
@@ -331,9 +307,9 @@ function check_test_4() {
       do_check_eq(getInstalledVersion(), 3);
       do_check_eq(getActiveVersion(), 3);
 
-      do_execute_soon(run_test_5);
+      run_test_5();
     });
-  }));
+  });
 }
 
 // Tests that upgrading to another bootstrapped add-on works without a restart
@@ -352,8 +328,7 @@ function run_test_5() {
 
 function check_test_5() {
   AddonManager.getAddonsByIDs(["addon3@tests.mozilla.org",
-                               "addon4@tests.mozilla.org"],
-                               callback_soon(function([a3, a4]) {
+                               "addon4@tests.mozilla.org"], function([a3, a4]) {
     // Should have updated
     do_check_eq(a3, null);
     do_check_neq(a4, null);
@@ -374,7 +349,7 @@ function check_test_5() {
 
       run_test_6();
     });
-  }));
+  });
 }
 
 // Tests that upgrading to a non-bootstrapped add-on works but requires a restart
@@ -393,8 +368,7 @@ function run_test_6() {
 
 function check_test_6() {
   AddonManager.getAddonsByIDs(["addon4@tests.mozilla.org",
-                               "addon2@tests.mozilla.org"],
-                               callback_soon(function([a4, a2]) {
+                               "addon2@tests.mozilla.org"], function([a4, a2]) {
     // Should still be pending install even though the old add-on is restartless
     do_check_neq(a4, null);
     do_check_eq(a2, null);
@@ -413,10 +387,11 @@ function check_test_6() {
       do_check_eq(a4, null);
       do_check_neq(a2, null);
 
-      do_check_eq(getInstalledVersion(), 0);
+      // TODO bug 613294, uninstall methods aren't called in this case at the moment
+      do_check_eq(getInstalledVersion(), 4);
       do_check_eq(getActiveVersion(), 0);
 
       end_test();
     });
-  }));
+  });
 }

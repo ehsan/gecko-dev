@@ -1,14 +1,52 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chak Nanga <chak@netscape.com>
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsViewSourceChannel.h"
 #include "nsIIOService.h"
+#include "nsIServiceManager.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsIHttpHeaderVisitor.h"
 
 NS_IMPL_ADDREF(nsViewSourceChannel)
@@ -24,7 +62,6 @@ NS_INTERFACE_MAP_BEGIN(nsViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIHttpChannel, mHttpChannel)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIHttpChannelInternal, mHttpChannelInternal)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsICachingChannel, mCachingChannel)
-    NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIApplicationCacheChannel, mApplicationCacheChannel)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIUploadChannel, mUploadChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIRequest, nsIViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIChannel, nsIViewSourceChannel)
@@ -36,7 +73,7 @@ nsViewSourceChannel::Init(nsIURI* uri)
 {
     mOriginalURI = uri;
 
-    nsAutoCString path;
+    nsCAutoString path;
     nsresult rv = uri->GetPath(path);
     if (NS_FAILED(rv))
       return rv;
@@ -44,7 +81,7 @@ nsViewSourceChannel::Init(nsIURI* uri)
     nsCOMPtr<nsIIOService> pService(do_GetIOService(&rv));
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     rv = pService->ExtractScheme(path, scheme);
     if (NS_FAILED(rv))
       return rv;
@@ -55,55 +92,16 @@ nsViewSourceChannel::Init(nsIURI* uri)
       return NS_ERROR_INVALID_ARG;
     }
 
-    rv = pService->NewChannel(path, nullptr, nullptr, getter_AddRefs(mChannel));
+    rv = pService->NewChannel(path, nsnull, nsnull, getter_AddRefs(mChannel));
     if (NS_FAILED(rv))
       return rv;
-
-    mIsSrcdocChannel = false;
-
+ 
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
     mHttpChannelInternal = do_QueryInterface(mChannel);
     mCachingChannel = do_QueryInterface(mChannel);
-    mApplicationCacheChannel = do_QueryInterface(mChannel);
     mUploadChannel = do_QueryInterface(mChannel);
     
-    return NS_OK;
-}
-
-nsresult
-nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc)
-{
-
-    nsresult rv;
-
-    nsCOMPtr<nsIURI> inStreamURI;
-    // Need to strip view-source: from the URI.  Hardcoded to
-    // about:srcdoc as this is the only permissible URI for srcdoc 
-    // loads
-    rv = NS_NewURI(getter_AddRefs(inStreamURI),
-                   NS_LITERAL_STRING("about:srcdoc"));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = NS_NewInputStreamChannel(getter_AddRefs(mChannel),
-                                  inStreamURI,
-                                  aSrcdoc,
-                                  NS_LITERAL_CSTRING("text/html"),
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
-                                  true);
-
-    NS_ENSURE_SUCCESS(rv, rv);
-    mOriginalURI = aURI;
-    mIsSrcdocChannel = true;
-
-    mChannel->SetOriginalURI(mOriginalURI);
-    mHttpChannel = do_QueryInterface(mChannel);
-    mHttpChannelInternal = do_QueryInterface(mChannel);
-    mCachingChannel = do_QueryInterface(mChannel);
-    mApplicationCacheChannel = do_QueryInterface(mChannel);
-    mUploadChannel = do_QueryInterface(mChannel);
     return NS_OK;
 }
 
@@ -117,7 +115,7 @@ nsViewSourceChannel::GetName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::IsPending(bool *result)
+nsViewSourceChannel::IsPending(PRBool *result)
 {
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
@@ -192,12 +190,12 @@ nsViewSourceChannel::GetURI(nsIURI* *aURI)
       return NS_ERROR_UNEXPECTED;
     }
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     uri->GetSpec(spec);
 
     /* XXX Gross hack -- NS_NewURI goes into an infinite loop on
        non-flat specs.  See bug 136980 */
-    return NS_NewURI(aURI, nsAutoCString(NS_LITERAL_CSTRING("view-source:")+spec), nullptr);
+    return NS_NewURI(aURI, nsCAutoString(NS_LITERAL_CSTRING("view-source:")+spec), nsnull);
 }
 
 NS_IMETHODIMP
@@ -207,7 +205,7 @@ nsViewSourceChannel::Open(nsIInputStream **_retval)
 
     nsresult rv = mChannel->Open(_retval);
     if (NS_SUCCEEDED(rv)) {
-        mOpened = true;
+        mOpened = PR_TRUE;
     }
     
     return rv;
@@ -230,17 +228,17 @@ nsViewSourceChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *ctxt)
     mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup)
         loadGroup->AddRequest(static_cast<nsIViewSourceChannel*>
-                                         (this), nullptr);
+                                         (this), nsnull);
     
     nsresult rv = mChannel->AsyncOpen(this, ctxt);
 
     if (NS_FAILED(rv) && loadGroup)
         loadGroup->RemoveRequest(static_cast<nsIViewSourceChannel*>
                                             (this),
-                                 nullptr, rv);
+                                 nsnull, rv);
 
     if (NS_SUCCEEDED(rv)) {
-        mOpened = true;
+        mOpened = PR_TRUE;
     }
     
     return rv;
@@ -260,7 +258,7 @@ nsViewSourceChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *ctxt)
  */
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetLoadFlags(uint32_t *aLoadFlags)
+nsViewSourceChannel::GetLoadFlags(PRUint32 *aLoadFlags)
 {
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
@@ -278,7 +276,7 @@ nsViewSourceChannel::GetLoadFlags(uint32_t *aLoadFlags)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::SetLoadFlags(uint32_t aLoadFlags)
+nsViewSourceChannel::SetLoadFlags(PRUint32 aLoadFlags)
 {
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
@@ -290,7 +288,7 @@ nsViewSourceChannel::SetLoadFlags(uint32_t aLoadFlags)
     // the win32 compiler fails to deal due to amiguous inheritance.
     // nsIChannel::LOAD_DOCUMENT_URI/nsIRequest::LOAD_FROM_CACHE also fails; the
     // Win32 compiler thinks that's supposed to be a method.
-    mIsDocument = (aLoadFlags & ::nsIChannel::LOAD_DOCUMENT_URI) ? true : false;
+    mIsDocument = (aLoadFlags & ::nsIChannel::LOAD_DOCUMENT_URI) ? PR_TRUE : PR_FALSE;
 
     return mChannel->SetLoadFlags((aLoadFlags |
                                    ::nsIRequest::LOAD_FROM_CACHE) &
@@ -308,7 +306,7 @@ nsViewSourceChannel::GetContentType(nsACString &aContentType)
     {
         // Get the current content type
         nsresult rv;
-        nsAutoCString contentType;
+        nsCAutoString contentType;
         rv = mChannel->GetContentType(contentType);
         if (NS_FAILED(rv)) return rv;
 
@@ -373,40 +371,8 @@ nsViewSourceChannel::SetContentCharset(const nsACString &aContentCharset)
     return mChannel->SetContentCharset(aContentCharset);
 }
 
-// We don't forward these methods becacuse content-disposition isn't whitelisted
-// (see GetResponseHeader/VisitResponseHeaders).
 NS_IMETHODIMP
-nsViewSourceChannel::GetContentDisposition(uint32_t *aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetContentLength(int64_t *aContentLength)
+nsViewSourceChannel::GetContentLength(PRInt32 *aContentLength)
 {
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
@@ -414,7 +380,7 @@ nsViewSourceChannel::GetContentLength(int64_t *aContentLength)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::SetContentLength(int64_t aContentLength)
+nsViewSourceChannel::SetContentLength(PRInt32 aContentLength)
 {
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
@@ -451,22 +417,6 @@ nsViewSourceChannel::SetOwner(nsISupports* aOwner)
     NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
 
     return mChannel->SetOwner(aOwner);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetLoadInfo(nsILoadInfo* *aLoadInfo)
-{
-    NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
-
-    return mChannel->GetLoadInfo(aLoadInfo);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetLoadInfo(nsILoadInfo* aLoadInfo)
-{
-    NS_ENSURE_TRUE(mChannel, NS_ERROR_FAILURE);
-
-    return mChannel->SetLoadInfo(aLoadInfo);
 }
 
 NS_IMETHODIMP
@@ -513,13 +463,6 @@ nsViewSourceChannel::SetOriginalContentType(const nsACString &aContentType)
     return mChannel->SetContentType(aContentType);
 }
 
-NS_IMETHODIMP
-nsViewSourceChannel::GetIsSrcdocChannel(bool* aIsSrcdocChannel)
-{
-    *aIsSrcdocChannel = mIsSrcdocChannel;
-    return NS_OK;
-}
-
 // nsIRequestObserver methods
 NS_IMETHODIMP
 nsViewSourceChannel::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
@@ -550,7 +493,7 @@ nsViewSourceChannel::OnStopRequest(nsIRequest *aRequest, nsISupports* aContext,
         {
             loadGroup->RemoveRequest(static_cast<nsIViewSourceChannel*>
                                                 (this),
-                                     nullptr, aStatus);
+                                     nsnull, aStatus);
         }
     }
     return mListener->OnStopRequest(static_cast<nsIViewSourceChannel*>
@@ -562,9 +505,8 @@ nsViewSourceChannel::OnStopRequest(nsIRequest *aRequest, nsISupports* aContext,
 // nsIStreamListener methods
 NS_IMETHODIMP
 nsViewSourceChannel::OnDataAvailable(nsIRequest *aRequest, nsISupports* aContext,
-                                     nsIInputStream *aInputStream,
-                                     uint64_t aSourceOffset,
-                                     uint32_t aLength) 
+                               nsIInputStream *aInputStream, PRUint32 aSourceOffset,
+                               PRUint32 aLength) 
 {
     NS_ENSURE_TRUE(mListener, NS_ERROR_FAILURE);
     return mListener->OnDataAvailable(static_cast<nsIViewSourceChannel*>
@@ -608,21 +550,6 @@ nsViewSourceChannel::SetReferrer(nsIURI * aReferrer)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetReferrerPolicy(uint32_t *aReferrerPolicy)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->GetReferrerPolicy(aReferrerPolicy);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetReferrerWithPolicy(nsIURI * aReferrer,
-                                           uint32_t aReferrerPolicy)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->SetReferrerWithPolicy(aReferrer, aReferrerPolicy);
-}
-
-NS_IMETHODIMP
 nsViewSourceChannel::GetRequestHeader(const nsACString & aHeader,
                                       nsACString & aValue)
 {
@@ -633,7 +560,7 @@ nsViewSourceChannel::GetRequestHeader(const nsACString & aHeader,
 NS_IMETHODIMP
 nsViewSourceChannel::SetRequestHeader(const nsACString & aHeader,
                                       const nsACString & aValue,
-                                      bool aMerge)
+                                      PRBool aMerge)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->SetRequestHeader(aHeader, aValue, aMerge);
@@ -647,49 +574,35 @@ nsViewSourceChannel::VisitRequestHeaders(nsIHttpHeaderVisitor *aVisitor)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetAllowPipelining(bool *aAllowPipelining)
+nsViewSourceChannel::GetAllowPipelining(PRBool *aAllowPipelining)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->GetAllowPipelining(aAllowPipelining);
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::SetAllowPipelining(bool aAllowPipelining)
+nsViewSourceChannel::SetAllowPipelining(PRBool aAllowPipelining)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->SetAllowPipelining(aAllowPipelining);
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetAllowSTS(bool *aAllowSTS)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->GetAllowSTS(aAllowSTS);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetAllowSTS(bool aAllowSTS)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->SetAllowSTS(aAllowSTS);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetRedirectionLimit(uint32_t *aRedirectionLimit)
+nsViewSourceChannel::GetRedirectionLimit(PRUint32 *aRedirectionLimit)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->GetRedirectionLimit(aRedirectionLimit);
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::SetRedirectionLimit(uint32_t aRedirectionLimit)
+nsViewSourceChannel::SetRedirectionLimit(PRUint32 aRedirectionLimit)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->SetRedirectionLimit(aRedirectionLimit);
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetResponseStatus(uint32_t *aResponseStatus)
+nsViewSourceChannel::GetResponseStatus(PRUint32 *aResponseStatus)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->GetResponseStatus(aResponseStatus);
@@ -703,7 +616,7 @@ nsViewSourceChannel::GetResponseStatusText(nsACString & aResponseStatusText)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::GetRequestSucceeded(bool *aRequestSucceeded)
+nsViewSourceChannel::GetRequestSucceeded(PRBool *aRequestSucceeded)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->GetRequestSucceeded(aRequestSucceeded);
@@ -718,9 +631,9 @@ nsViewSourceChannel::GetResponseHeader(const nsACString & aHeader,
 
     if (!aHeader.Equals(NS_LITERAL_CSTRING("Content-Type"),
                         nsCaseInsensitiveCStringComparator()) &&
-        !aHeader.Equals(NS_LITERAL_CSTRING("Content-Security-Policy"),
+        !aHeader.Equals(NS_LITERAL_CSTRING("X-Content-Security-Policy"),
                         nsCaseInsensitiveCStringComparator()) &&
-        !aHeader.Equals(NS_LITERAL_CSTRING("Content-Security-Policy-Report-Only"),
+        !aHeader.Equals(NS_LITERAL_CSTRING("X-Content-Security-Policy-Report-Only"),
                         nsCaseInsensitiveCStringComparator()) &&
         !aHeader.Equals(NS_LITERAL_CSTRING("X-Frame-Options"),
                         nsCaseInsensitiveCStringComparator())) {
@@ -733,7 +646,7 @@ nsViewSourceChannel::GetResponseHeader(const nsACString & aHeader,
 
 NS_IMETHODIMP
 nsViewSourceChannel::SetResponseHeader(const nsACString & header,
-                                       const nsACString & value, bool merge)
+                                       const nsACString & value, PRBool merge)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->SetResponseHeader(header, value, merge);
@@ -746,7 +659,7 @@ nsViewSourceChannel::VisitResponseHeaders(nsIHttpHeaderVisitor *aVisitor)
         return NS_ERROR_NULL_POINTER;
 
     NS_NAMED_LITERAL_CSTRING(contentTypeStr, "Content-Type");
-    nsAutoCString contentType;
+    nsCAutoString contentType;
     nsresult rv =
         mHttpChannel->GetResponseHeader(contentTypeStr, contentType);
     if (NS_SUCCEEDED(rv))
@@ -755,23 +668,15 @@ nsViewSourceChannel::VisitResponseHeaders(nsIHttpHeaderVisitor *aVisitor)
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::IsNoStoreResponse(bool *_retval)
+nsViewSourceChannel::IsNoStoreResponse(PRBool *_retval)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->IsNoStoreResponse(_retval);
 }
 
 NS_IMETHODIMP
-nsViewSourceChannel::IsNoCacheResponse(bool *_retval)
+nsViewSourceChannel::IsNoCacheResponse(PRBool *_retval)
 {
     return !mHttpChannel ? NS_ERROR_NULL_POINTER :
         mHttpChannel->IsNoCacheResponse(_retval);
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::RedirectTo(nsIURI *uri)
-{
-    return !mHttpChannel ? NS_ERROR_NULL_POINTER :
-        mHttpChannel->RedirectTo(uri);
-}
-
+} 

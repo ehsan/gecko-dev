@@ -1,24 +1,51 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHttp.h"
+#include "nsAutoLock.h"
 #include "pldhash.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/HashFunctions.h"
 #include "nsCRT.h"
+#include "prbit.h"
 
 #if defined(PR_LOGGING)
-PRLogModuleInfo *gHttpLog = nullptr;
+PRLogModuleInfo *gHttpLog = nsnull;
 #endif
-
-namespace mozilla {
-namespace net {
 
 // define storage for all atoms
 #define HTTP_ATOM(_name, _value) nsHttpAtom nsHttp::_name = { _value };
@@ -42,9 +69,9 @@ struct HttpHeapAtom {
     char                 value[1];
 };
 
-static struct PLDHashTable  sAtomTable;
-static struct HttpHeapAtom *sHeapAtoms = nullptr;
-static Mutex               *sLock = nullptr;
+static struct PLDHashTable  sAtomTable = {0};
+static struct HttpHeapAtom *sHeapAtoms = nsnull;
+static PRLock              *sLock = nsnull;
 
 HttpHeapAtom *
 NewHeapAtom(const char *value) {
@@ -53,7 +80,7 @@ NewHeapAtom(const char *value) {
     HttpHeapAtom *a =
         reinterpret_cast<HttpHeapAtom *>(malloc(sizeof(*a) + len));
     if (!a)
-        return nullptr;
+        return nsnull;
     memcpy(a->value, value, len + 1);
 
     // add this heap atom to the list of all heap atoms
@@ -69,11 +96,11 @@ StringHash(PLDHashTable *table, const void *key)
 {
     PLDHashNumber h = 0;
     for (const char *s = reinterpret_cast<const char*>(key); *s; ++s)
-        h = AddToHash(h, nsCRT::ToLower(*s));
+        h = PR_ROTATE_LEFT32(h, 4) ^ nsCRT::ToLower(*s);
     return h;
 }
 
-static bool
+static PRBool
 StringCompare(PLDHashTable *table, const PLDHashEntryHdr *entry,
               const void *testKey)
 {
@@ -92,26 +119,27 @@ static const PLDHashTableOps ops = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 // We put the atoms in a hash table for speedy lookup.. see ResolveAtom.
 nsresult
 nsHttp::CreateAtomTable()
 {
-    MOZ_ASSERT(!sAtomTable.ops, "atom table already initialized");
+    NS_ASSERTION(!sAtomTable.ops, "atom table already initialized");
 
     if (!sLock) {
-        sLock = new Mutex("nsHttp.sLock");
+        sLock = PR_NewLock();
+        if (!sLock)
+            return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    // The initial length for this table is a value greater than the number of
-    // known atoms (NUM_HTTP_ATOMS) because we expect to encounter a few random
-    // headers right off the bat.
-    if (!PL_DHashTableInit(&sAtomTable, &ops, nullptr,
-                           sizeof(PLDHashEntryStub),
-                           fallible_t(), NUM_HTTP_ATOMS + 10)) {
-        sAtomTable.ops = nullptr;
+    // The capacity for this table is initialized to a value greater than the
+    // number of known atoms (NUM_HTTP_ATOMS) because we expect to encounter a
+    // few random headers right off the bat.
+    if (!PL_DHashTableInit(&sAtomTable, &ops, nsnull, sizeof(PLDHashEntryStub),
+                           NUM_HTTP_ATOMS + 10)) {
+        sAtomTable.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -120,16 +148,16 @@ nsHttp::CreateAtomTable()
 #define HTTP_ATOM(_name, _value) nsHttp::_name._val,
 #include "nsHttpAtomList.h"
 #undef HTTP_ATOM
-        nullptr
+        nsnull
     };
 
     for (int i = 0; atoms[i]; ++i) {
         PLDHashEntryStub *stub = reinterpret_cast<PLDHashEntryStub *>
-                                                 (PL_DHashTableAdd(&sAtomTable, atoms[i]));
+                                                 (PL_DHashTableOperate(&sAtomTable, atoms[i], PL_DHASH_ADD));
         if (!stub)
             return NS_ERROR_OUT_OF_MEMORY;
-
-        MOZ_ASSERT(!stub->key, "duplicate static atom");
+        
+        NS_ASSERTION(!stub->key, "duplicate static atom");
         stub->key = atoms[i];
     }
 
@@ -141,7 +169,7 @@ nsHttp::DestroyAtomTable()
 {
     if (sAtomTable.ops) {
         PL_DHashTableFinish(&sAtomTable);
-        sAtomTable.ops = nullptr;
+        sAtomTable.ops = nsnull;
     }
 
     while (sHeapAtoms) {
@@ -151,30 +179,24 @@ nsHttp::DestroyAtomTable()
     }
 
     if (sLock) {
-        delete sLock;
-        sLock = nullptr;
+        PR_DestroyLock(sLock);
+        sLock = nsnull;
     }
-}
-
-Mutex *
-nsHttp::GetLock()
-{
-    return sLock;
 }
 
 // this function may be called from multiple threads
 nsHttpAtom
 nsHttp::ResolveAtom(const char *str)
 {
-    nsHttpAtom atom = { nullptr };
+    nsHttpAtom atom = { nsnull };
 
     if (!str || !sAtomTable.ops)
         return atom;
 
-    MutexAutoLock lock(*sLock);
+    nsAutoLock lock(sLock);
 
     PLDHashEntryStub *stub = reinterpret_cast<PLDHashEntryStub *>
-                                             (PL_DHashTableAdd(&sAtomTable, str));
+                                             (PL_DHashTableOperate(&sAtomTable, str, PL_DHASH_ADD));
     if (!stub)
         return atom;  // out of memory
 
@@ -228,50 +250,32 @@ static const char kValidTokenMap[128] = {
     1, 1, 1, 1, 1, 1, 1, 1, // 112
     1, 1, 1, 0, 1, 0, 1, 0  // 120
 };
-bool
+PRBool
 nsHttp::IsValidToken(const char *start, const char *end)
 {
     if (start == end)
-        return false;
+        return PR_FALSE;
 
     for (; start != end; ++start) {
         const unsigned char idx = *start;
         if (idx > 127 || !kValidTokenMap[idx])
-            return false;
+            return PR_FALSE;
     }
 
-    return true;
-}
-
-// static
-bool
-nsHttp::IsReasonableHeaderValue(const nsACString &s)
-{
-  // Header values MUST NOT contain line-breaks.  RFC 2616 technically
-  // permits CTL characters, including CR and LF, in header values provided
-  // they are quoted.  However, this can lead to problems if servers do not
-  // interpret quoted strings properly.  Disallowing CR and LF here seems
-  // reasonable and keeps things simple.  We also disallow a null byte.
-  const nsACString::char_type* end = s.EndReading();
-  for (const nsACString::char_type* i = s.BeginReading(); i != end; ++i) {
-    if (*i == '\r' || *i == '\n' || *i == '\0') {
-      return false;
-    }
-  }
-  return true;
+    return PR_TRUE;
 }
 
 const char *
 nsHttp::FindToken(const char *input, const char *token, const char *seps)
 {
     if (!input)
-        return nullptr;
+        return nsnull;
 
     int inputLen = strlen(input);
     int tokenLen = strlen(token);
 
     if (inputLen < tokenLen)
-        return nullptr;
+        return nsnull;
 
     const char *inputTop = input;
     const char *inputEnd = input + inputLen - tokenLen;
@@ -285,189 +289,24 @@ nsHttp::FindToken(const char *input, const char *token, const char *seps)
         }
     }
 
-    return nullptr;
+    return nsnull;
 }
 
-bool
-nsHttp::ParseInt64(const char *input, const char **next, int64_t *r)
+PRBool
+nsHttp::ParseInt64(const char *input, const char **next, PRInt64 *r)
 {
     const char *start = input;
     *r = 0;
     while (*input >= '0' && *input <= '9') {
-        int64_t next = 10 * (*r) + (*input - '0');
+        PRInt64 next = 10 * (*r) + (*input - '0');
         if (next < *r) // overflow?
-            return false;
+            return PR_FALSE;
         *r = next;
         ++input;
     }
     if (input == start) // nothing parsed?
-        return false;
+        return PR_FALSE;
     if (next)
         *next = input;
-    return true;
+    return PR_TRUE;
 }
-
-bool
-nsHttp::IsPermanentRedirect(uint32_t httpStatus)
-{
-  return httpStatus == 301 || httpStatus == 308;
-}
-
-
-template<typename T> void
-localEnsureBuffer(nsAutoArrayPtr<T> &buf, uint32_t newSize,
-             uint32_t preserve, uint32_t &objSize)
-{
-  if (objSize >= newSize)
-    return;
-
-  // Leave a little slop on the new allocation - add 2KB to
-  // what we need and then round the result up to a 4KB (page)
-  // boundary.
-
-  objSize = (newSize + 2048 + 4095) & ~4095;
-
-  static_assert(sizeof(T) == 1, "sizeof(T) must be 1");
-  nsAutoArrayPtr<T> tmp(new T[objSize]);
-  if (preserve) {
-    memcpy(tmp, buf, preserve);
-  }
-  buf = tmp;
-}
-
-void EnsureBuffer(nsAutoArrayPtr<char> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize)
-{
-    localEnsureBuffer<char> (buf, newSize, preserve, objSize);
-}
-
-void EnsureBuffer(nsAutoArrayPtr<uint8_t> &buf, uint32_t newSize,
-                  uint32_t preserve, uint32_t &objSize)
-{
-    localEnsureBuffer<uint8_t> (buf, newSize, preserve, objSize);
-}
-///
-
-void
-ParsedHeaderValueList::Tokenize(char *input, uint32_t inputLen, char **token,
-                                uint32_t *tokenLen, bool *foundEquals, char **next)
-{
-    if (foundEquals) {
-        *foundEquals = false;
-    }
-    if (next) {
-        *next = nullptr;
-    }
-    if (inputLen < 1 || !input || !token) {
-        return;
-    }
-
-    bool foundFirst = false;
-    bool inQuote = false;
-    bool foundToken = false;
-    *token = input;
-    *tokenLen = inputLen;
-
-    for (uint32_t index = 0; !foundToken && index < inputLen; ++index) {
-        // strip leading cruft
-        if (!foundFirst &&
-            (input[index] == ' ' || input[index] == '"' || input[index] == '\t')) {
-            (*token)++;
-        } else {
-            foundFirst = true;
-        }
-
-        if (input[index] == '"') {
-            inQuote = !inQuote;
-            continue;
-        }
-
-        if (inQuote) {
-            continue;
-        }
-
-        if (input[index] == '=' || input[index] == ';') {
-            *tokenLen = (input + index) - *token;
-            if (next && ((index + 1) < inputLen)) {
-                *next = input + index + 1;
-            }
-            foundToken = true;
-            if (foundEquals && input[index] == '=') {
-                *foundEquals = true;
-            }
-            break;
-        }
-    }
-
-    if (!foundToken) {
-        *tokenLen = (input + inputLen) - *token;
-    }
-
-    // strip trailing cruft
-    for (char *index = *token + *tokenLen - 1; index >= *token; --index) {
-        if (*index != ' ' && *index != '\t' && *index != '"') {
-            break;
-        }
-        --(*tokenLen);
-        if (*index == '"') {
-            break;
-        }
-    }
-}
-
-ParsedHeaderValueList::ParsedHeaderValueList(char *t, uint32_t len)
-{
-    char *name = nullptr;
-    uint32_t nameLen = 0;
-    char *value = nullptr;
-    uint32_t valueLen = 0;
-    char *next = nullptr;
-    bool foundEquals;
-
-    while (t) {
-        Tokenize(t, len, &name, &nameLen, &foundEquals, &next);
-        if (next) {
-            len -= next - t;
-        }
-        t = next;
-        if (foundEquals && t) {
-            Tokenize(t, len, &value, &valueLen, nullptr, &next);
-            if (next) {
-                len -= next - t;
-            }
-            t = next;
-        }
-        mValues.AppendElement(ParsedHeaderPair(name, nameLen, value, valueLen));
-        value = name = nullptr;
-        valueLen = nameLen = 0;
-        next = nullptr;
-    }
-}
-
-ParsedHeaderValueListList::ParsedHeaderValueListList(const nsCString &fullHeader)
-    : mFull(fullHeader)
-{
-    char *t = mFull.BeginWriting();
-    uint32_t len = mFull.Length();
-    char *last = t;
-    bool inQuote = false;
-    for (uint32_t index = 0; index < len; ++index) {
-        if (t[index] == '"') {
-            inQuote = !inQuote;
-            continue;
-        }
-        if (inQuote) {
-            continue;
-        }
-        if (t[index] == ',') {
-            mValues.AppendElement(ParsedHeaderValueList(last, (t + index) - last));
-            last = t + index + 1;
-        }
-    }
-    if (!inQuote) {
-        mValues.AppendElement(ParsedHeaderValueList(last, (t + len) - last));
-    }
-}
-
-} // namespace mozilla::net
-} // namespace mozilla

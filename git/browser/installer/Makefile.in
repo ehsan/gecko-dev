@@ -1,98 +1,108 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Mozilla Browser code.
+#
+# The Initial Developer of the Original Code is
+# IBM Corporation.
+# Portions created by the Initial Developer are Copyright (C) 2004
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Brian Ryner <bryner@brianryner.com>
+#  Benjamin Smedberg <benjamin@smedbergs.us>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-STANDALONE_MAKEFILE := 1
-DIST_SUBDIR := browser
+DEPTH		= ../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
 
 include $(topsrcdir)/config/rules.mk
 
 MOZ_PKG_REMOVALS = $(srcdir)/removed-files.in
 
+ifdef MOZ_ENABLE_LIBXUL
 MOZ_PKG_MANIFEST_P = $(srcdir)/package-manifest.in
-
-ifdef MOZ_MULET
-MOZ_PKG_MANIFEST_P += $(topsrcdir)/b2g/installer/package-manifest.in
+else
+define message
+You need to build with --enable-libxul (the default, unless you specify
+--disable-libxul or --enable-shared or --enable-debug) to package a build.
+endef
+default libs installer::
+	$(error $(message))
 endif
 
-# Some files have been already bundled with xulrunner
-ifndef MOZ_MULET
-MOZ_PKG_FATAL_WARNINGS = 1
-endif
+MOZ_NONLOCALIZED_PKG_LIST = \
+	xpcom \
+	browser \
+	$(NULL)
 
-DEFINES += -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(PREF_DIR)
+MOZ_LOCALIZED_PKG_LIST = $(AB_CD)
 
-ifdef LIBXUL_SDK
-DEFINES += -DLIBXUL_SDK=1
-endif
-
-ifdef MOZ_DEBUG
-DEFINES += -DMOZ_DEBUG=1
-endif
-
+DEFINES += -DAB_CD=$(AB_CD) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(PREF_DIR)
 ifdef MOZ_ENABLE_GNOME_COMPONENT
 DEFINES += -DMOZ_ENABLE_GNOME_COMPONENT=1
 endif
 
-ifdef MOZ_WIDGET_GTK
-DEFINES += -DMOZ_GTK=1
-ifdef MOZ_ENABLE_GTK3
-DEFINES += -DMOZ_GTK3=1
-endif
-endif
-
-ifdef MOZ_NATIVE_NSPR
-DEFINES += -DMOZ_NATIVE_NSPR=1
-endif
-
-ifdef MOZ_NATIVE_NSS
-DEFINES += -DMOZ_NATIVE_NSS=1
+ifeq (gtk2, $(MOZ_WIDGET_TOOLKIT))
+DEFINES += -DMOZ_GTK2=1
 endif
 
 ifdef NSS_DISABLE_DBM
 DEFINES += -DNSS_DISABLE_DBM=1
 endif
 
+ifdef _MSC_VER
+DEFINES += -D_MSC_VER=$(_MSC_VER)
+endif
+
+ifeq ($(MOZ_CHROME_FILE_FORMAT),jar)
+DEFINES += -DJAREXT=.jar
+else
 DEFINES += -DJAREXT=
-
-ifdef MOZ_ANGLE_RENDERER
-DEFINES += -DMOZ_ANGLE_RENDERER=$(MOZ_ANGLE_RENDERER)
-ifdef MOZ_D3DCOMPILER_VISTA_DLL
-DEFINES += -DMOZ_D3DCOMPILER_VISTA_DLL=$(MOZ_D3DCOMPILER_VISTA_DLL)
-endif
-ifdef MOZ_D3DCOMPILER_XP_DLL
-DEFINES += -DMOZ_D3DCOMPILER_XP_DLL=$(MOZ_D3DCOMPILER_XP_DLL)
-endif
 endif
 
+ifdef MOZ_ANGLE
+DEFINES += -DMOZ_ANGLE=$(MOZ_ANGLE)
+DEFINES += -DMOZ_D3DX9_DLL=$(MOZ_D3DX9_DLL)
+DEFINES += -DMOZ_D3DCOMPILER_DLL=$(MOZ_D3DCOMPILER_DLL)
+endif
+
+# Don't ifdef MOZ_IPC this because mac ppc needs it too.
+include $(topsrcdir)/ipc/app/defs.mk
 DEFINES += -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
-
-# Set MSVC dlls version to package, if any.
-ifdef WIN32_REDIST_DIR
-ifdef MOZ_NO_DEBUG_RTL
-DEFINES += -DMOZ_PACKAGE_MSVC_DLLS=1
-DEFINES += -DMSVC_C_RUNTIME_DLL=$(MSVC_C_RUNTIME_DLL)
-DEFINES += -DMSVC_CXX_RUNTIME_DLL=$(MSVC_CXX_RUNTIME_DLL)
-endif
-endif
-
-ifneq (,$(filter WINNT Darwin Android,$(OS_TARGET)))
-DEFINES += -DMOZ_SHARED_MOZGLUE=1
-endif
-
-ifdef NECKO_WIFI
-DEFINES += -DNECKO_WIFI
-endif
-
-ifdef GKMEDIAS_SHARED_LIBRARY
-DEFINES += -DGKMEDIAS_SHARED_LIBRARY
-endif
 
 ifdef MOZ_PKG_MANIFEST_P
 MOZ_PKG_MANIFEST = package-manifest
 
-$(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) $(GLOBAL_DEPS)
-	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $(MOZ_PKG_MANIFEST_P) -o $@)
+$(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $< > $@
 
 GARBAGE += $(MOZ_PKG_MANIFEST)
 endif
@@ -101,14 +111,13 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 MOZ_PKG_MAC_DSSTORE=branding/dsstore
 MOZ_PKG_MAC_BACKGROUND=branding/background.png
 MOZ_PKG_MAC_ICON=branding/disk.icns
-MOZ_PKG_MAC_EXTRA=--symlink '/Applications:/ '
+MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
 endif
 
 ifndef LIBXUL_SDK
 INSTALL_SDK = 1
 endif
 
-include $(topsrcdir)/toolkit/mozapps/installer/signing.mk
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
 
 ifeq (bundle, $(MOZ_FS_LAYOUT))
@@ -119,42 +128,6 @@ else
 BINPATH = bin
 endif
 DEFINES += -DBINPATH=$(BINPATH)
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-RESPATH = $(_APPNAME)/Contents/Resources
-else
-RESPATH = $(BINPATH)
-endif
-DEFINES += -DRESPATH=$(RESPATH)
-
-AB = $(firstword $(subst -, ,$(AB_CD)))
-DEFINES += -DAB=$(AB)
-
-DEFINES += -DMOZ_ICU_VERSION=$(MOZ_ICU_VERSION)
-ifdef MOZ_NATIVE_ICU
-DEFINES += -DMOZ_NATIVE_ICU
-endif
-ifdef MOZ_SHARED_ICU
-DEFINES += -DMOZ_SHARED_ICU
-endif
-ifdef MOZ_JEMALLOC3
-DEFINES += -DMOZ_JEMALLOC3
-endif
-DEFINES += -DMOZ_ICU_DBG_SUFFIX=$(MOZ_ICU_DBG_SUFFIX)
-ifdef CLANG_CXX
-DEFINES += -DCLANG_CXX
-endif
-ifdef CLANG_CL
-DEFINES += -DCLANG_CL
-endif
-ifeq (x86,$(CPU_ARCH))
-ifdef _MSC_VER
-ifndef CLANG_CL
-DEFINES += -DWOW_HELPER
-endif
-endif
-endif
-
 
 libs::
 	$(MAKE) -C $(DEPTH)/browser/locales langpack
@@ -173,16 +146,12 @@ endif
 package-compare:: $(MOZ_PKG_MANIFEST)
 ifdef MOZ_PKG_MANIFEST_P
 	cd $(DIST); find $(PKGCOMP_FIND_OPTS) $(FINDPATH) -type f | sort > bin-list.txt
-	grep '^$(BINPATH)' $(MOZ_PKG_MANIFEST) | sed -e 's/^\///' | sort > $(DIST)/pack-list.txt
+	grep "^$(BINPATH)" $(MOZ_PKG_MANIFEST) | sed -e 's/^\///' | sort > $(DIST)/pack-list.txt
 	-diff -u $(DIST)/pack-list.txt $(DIST)/bin-list.txt
 	rm -f $(DIST)/pack-list.txt $(DIST)/bin-list.txt
 endif
 
-installer::
+installer:: removed-files
 ifdef INSTALLER_DIR
 	$(MAKE) -C $(INSTALLER_DIR)
-endif
-
-ifdef ENABLE_MARIONETTE
-DEFINES += -DENABLE_MARIONETTE=1
 endif

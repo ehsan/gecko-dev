@@ -7,13 +7,10 @@
 
 #include "base/message_pump.h"
 #include "base/time.h"
-#include "nsAutoPtr.h"
 
 // Declare structs we need from libevent.h rather than including it
 struct event_base;
 struct event;
-
-class nsDependentCSubstring;
 
 namespace base {
 
@@ -62,6 +59,7 @@ class MessagePumpLibevent : public MessagePump {
   };
 
   MessagePumpLibevent();
+  virtual ~MessagePumpLibevent();
 
   enum Mode {
     WATCH_READ = 1 << 0,
@@ -87,6 +85,7 @@ class MessagePumpLibevent : public MessagePump {
                            Watcher *delegate);
 
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
   // This is analagous to FileDescriptorWatcher above, which really is
   // just a wrapper around libevent's |struct event|.  This class acts
   // as a sort of "scoped event watcher" in that it guarantees that
@@ -130,17 +129,14 @@ class MessagePumpLibevent : public MessagePump {
   bool CatchSignal(int sig,
                    SignalEvent* sigevent,
                    SignalWatcher* delegate);
+#endif  // defined(CHROMIUM_MOZILLA_BUILD)
 
 
   // MessagePump methods:
   virtual void Run(Delegate* delegate);
   virtual void Quit();
   virtual void ScheduleWork();
-  virtual void ScheduleDelayedWork(const TimeTicks& delayed_work_time);
-
- protected:
-
-  virtual ~MessagePumpLibevent();
+  virtual void ScheduleDelayedWork(const Time& delayed_work_time);
 
  private:
 
@@ -154,7 +150,7 @@ class MessagePumpLibevent : public MessagePump {
   bool in_run_;
 
   // The time at which we should call DoDelayedWork.
-  TimeTicks delayed_work_time_;
+  Time delayed_work_time_;
 
   // Libevent dispatcher.  Watches all sockets registered with it, and sends
   // readiness callbacks when a socket is ready for I/O.
@@ -164,9 +160,11 @@ class MessagePumpLibevent : public MessagePump {
   static void OnLibeventNotification(int fd, short flags,
                                      void* context);
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
   // Called by libevent upon receiving a signal
   static void OnLibeventSignalNotification(int sig, short flags,
                                            void* context);
+#endif
 
   // Unix pipe used to implement ScheduleWork()
   // ... callback; called by libevent inside Run() when pipe is ready to read
@@ -181,38 +179,6 @@ class MessagePumpLibevent : public MessagePump {
   DISALLOW_COPY_AND_ASSIGN(MessagePumpLibevent);
 };
 
-/**
- *  LineWatcher overrides OnFileCanReadWithoutBlocking. It separates the read
- *  data by mTerminator and passes each line to OnLineRead.
- */
-class LineWatcher : public MessagePumpLibevent::Watcher
-{
-public:
-  LineWatcher(char aTerminator, int aBufferSize) : mReceivedIndex(0),
-    mBufferSize(aBufferSize),
-    mTerminator(aTerminator)
-  {
-    mReceiveBuffer = new char[mBufferSize];
-  }
-
-  ~LineWatcher() {}
-
-protected:
-  /**
-   * OnError will be called when |read| returns error. Derived class should
-   * implement this function to handle error cases when needed.
-   */
-  virtual void OnError() {}
-  virtual void OnLineRead(int aFd, nsDependentCSubstring& aMessage) = 0;
-  virtual void OnFileCanWriteWithoutBlocking(int /* aFd */) {}
-private:
-  virtual void OnFileCanReadWithoutBlocking(int aFd) MOZ_FINAL;
-
-  nsAutoPtr<char> mReceiveBuffer;
-  int mReceivedIndex;
-  int mBufferSize;
-  char mTerminator;
-};
 }  // namespace base
 
 #endif  // BASE_MESSAGE_PUMP_LIBEVENT_H_

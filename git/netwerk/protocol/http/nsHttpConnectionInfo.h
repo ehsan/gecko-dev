@@ -1,8 +1,40 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHttpConnectionInfo_h__
 #define nsHttpConnectionInfo_h__
@@ -10,146 +42,97 @@
 #include "nsHttp.h"
 #include "nsProxyInfo.h"
 #include "nsCOMPtr.h"
-#include "nsStringFwd.h"
-
-extern PRLogModuleInfo *gHttpLog;
+#include "nsDependentString.h"
+#include "nsString.h"
+#include "plstr.h"
+#include "nsCRT.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpConnectionInfo - holds the properties of a connection
 //-----------------------------------------------------------------------------
 
-// http:// uris through a proxy will all share the same CI, because they can
-// all use the same connection. (modulo pb and anonymous flags). They just use
-// the proxy as the origin host name.
-// however, https:// uris tunnel through the proxy so they will have different
-// CIs - the CI reflects both the proxy and the origin.
-// however, proxy conenctions made with http/2 (or spdy) can tunnel to the origin
-// and multiplex non tunneled transactions at the same time, so they have a
-// special wildcard CI that accepts all origins through that proxy.
-
-namespace mozilla { namespace net {
-
 class nsHttpConnectionInfo
 {
 public:
-    nsHttpConnectionInfo(const nsACString &physicalHost,
-                         int32_t physicalPort,
-                         const nsACString &npnToken,
-                         const nsACString &username,
-                         nsProxyInfo *proxyInfo,
-                         bool endToEndSSL = false);
-
-    // this version must use TLS and you may supply the domain
-    // information to be validated
-    nsHttpConnectionInfo(const nsACString &physicalHost,
-                         int32_t physicalPort,
-                         const nsACString &npnToken,
-                         const nsACString &username,
-                         nsProxyInfo *proxyInfo,
-                         const nsACString &logicalHost,
-                         int32_t logicalPort);
-
-private:
-    virtual ~nsHttpConnectionInfo()
+    nsHttpConnectionInfo(const nsACString &host, PRInt32 port,
+                         nsProxyInfo* proxyInfo,
+                         PRBool usingSSL=PR_FALSE)
+        : mRef(0)
+        , mProxyInfo(proxyInfo)
+        , mUsingSSL(usingSSL)
     {
-        PR_LOG(gHttpLog, 4, ("Destroying nsHttpConnectionInfo @%x\n", this));
+        LOG(("Creating nsHttpConnectionInfo @%x\n", this));
+
+        mUsingHttpProxy = (proxyInfo && !nsCRT::strcmp(proxyInfo->Type(), "http"));
+
+        SetOriginServer(host, port);
+    }
+    
+   ~nsHttpConnectionInfo()
+    {
+        LOG(("Destroying nsHttpConnectionInfo @%x\n", this));
     }
 
-public:
+    nsrefcnt AddRef()
+    {
+        nsrefcnt n = PR_AtomicIncrement((PRInt32 *) &mRef);
+        NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
+        return n;
+    }
+
+    nsrefcnt Release()
+    {
+        nsrefcnt n = PR_AtomicDecrement((PRInt32 *) &mRef);
+        NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
+        if (n == 0)
+            delete this;
+        return n;
+    }
+
     const nsAFlatCString &HashKey() const { return mHashKey; }
 
-    const nsCString &GetAuthenticationHost() const { return mAuthenticationHost; }
-    int32_t GetAuthenticationPort() const { return mAuthenticationPort; }
+    void SetOriginServer(const nsACString &host, PRInt32 port);
 
-    // OK to treat these as an infalible allocation
+    void SetOriginServer(const char *host, PRInt32 port)
+    {
+        SetOriginServer(nsDependentCString(host), port);
+    }
+    
     nsHttpConnectionInfo* Clone() const;
-    void CloneAsDirectRoute(nsHttpConnectionInfo **outParam);
-    nsresult CreateWildCard(nsHttpConnectionInfo **outParam);
 
-    const char *ProxyHost() const { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
-    int32_t     ProxyPort() const { return mProxyInfo ? mProxyInfo->Port() : -1; }
-    const char *ProxyType() const { return mProxyInfo ? mProxyInfo->Type() : nullptr; }
+    const char *ProxyHost() const { return mProxyInfo ? mProxyInfo->Host().get() : nsnull; }
+    PRInt32     ProxyPort() const { return mProxyInfo ? mProxyInfo->Port() : -1; }
+    const char *ProxyType() const { return mProxyInfo ? mProxyInfo->Type() : nsnull; }
 
     // Compare this connection info to another...
     // Two connections are 'equal' if they end up talking the same
     // protocol to the same server. This is needed to properly manage
     // persistent connections to proxies
-    // Note that we don't care about transparent proxies -
+    // Note that we don't care about transparent proxies - 
     // it doesn't matter if we're talking via socks or not, since
     // a request will end up at the same host.
-    bool Equals(const nsHttpConnectionInfo *info)
+    PRBool Equals(const nsHttpConnectionInfo *info)
     {
         return mHashKey.Equals(info->HashKey());
     }
 
     const char   *Host() const           { return mHost.get(); }
-    int32_t       Port() const           { return mPort; }
-    const char   *Username() const       { return mUsername.get(); }
+    PRInt32       Port() const           { return mPort; }
     nsProxyInfo  *ProxyInfo()            { return mProxyInfo; }
-    int32_t       DefaultPort() const    { return mEndToEndSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
-    void          SetAnonymous(bool anon)
+    PRBool        UsingHttpProxy() const { return mUsingHttpProxy; }
+    PRBool        UsingSSL() const       { return mUsingSSL; }
+    PRInt32       DefaultPort() const    { return mUsingSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
+    void          SetAnonymous(PRBool anon)         
                                          { mHashKey.SetCharAt(anon ? 'A' : '.', 2); }
-    bool          GetAnonymous() const   { return mHashKey.CharAt(2) == 'A'; }
-    void          SetPrivate(bool priv)  { mHashKey.SetCharAt(priv ? 'P' : '.', 3); }
-    bool          GetPrivate() const     { return mHashKey.CharAt(3) == 'P'; }
-    void          SetRelaxed(bool relaxed)
-                                       { mHashKey.SetCharAt(relaxed ? 'R' : '.', 4); }
-    bool          GetRelaxed() const   { return mHashKey.CharAt(4) == 'R'; }
-
-    void          SetNoSpdy(bool aNoSpdy)
-                                       { mHashKey.SetCharAt(aNoSpdy ? 'X' : '.', 5); }
-    bool          GetNoSpdy() const    { return mHashKey.CharAt(5) == 'X'; }
-
-    const nsCString &GetHost() { return mHost; }
-    const nsCString &GetNPNToken() { return mNPNToken; }
-
-    // Returns true for any kind of proxy (http, socks, https, etc..)
-    bool UsingProxy();
-
-    // Returns true when proxying over HTTP or HTTPS
-    bool UsingHttpProxy() const { return mUsingHttpProxy || mUsingHttpsProxy; }
-
-    // Returns true when proxying over HTTPS
-    bool UsingHttpsProxy() const { return mUsingHttpsProxy; }
-
-    // Returns true when a resource is in SSL end to end (e.g. https:// uri)
-    bool EndToEndSSL() const { return mEndToEndSSL; }
-
-    // Returns true when at least first hop is SSL (e.g. proxy over https or https uri)
-    bool FirstHopSSL() const { return mEndToEndSSL || mUsingHttpsProxy; }
-
-    // Returns true when CONNECT is used to tunnel through the proxy (e.g. https:// or ws://)
-    bool UsingConnect() const { return mUsingConnect; }
-
-    // Returns true when mHost is an RFC1918 literal.
-    bool HostIsLocalIPLiteral() const;
-
+            
 private:
-    void Init(const nsACString &host,
-              int32_t port,
-              const nsACString &npnToken,
-              const nsACString &username,
-              nsProxyInfo* proxyInfo,
-              bool EndToEndSSL);
-    void SetOriginServer(const nsACString &host, int32_t port);
-
+    nsrefcnt               mRef;
     nsCString              mHashKey;
     nsCString              mHost;
-    int32_t                mPort;
-    nsCString              mUsername;
-    nsCString              mAuthenticationHost;
-    int32_t                mAuthenticationPort;
+    PRInt32                mPort;
     nsCOMPtr<nsProxyInfo>  mProxyInfo;
-    bool                   mUsingHttpProxy;
-    bool                   mUsingHttpsProxy;
-    bool                   mEndToEndSSL;
-    bool                   mUsingConnect;  // if will use CONNECT with http proxy
-    nsCString              mNPNToken;
-
-// for nsRefPtr
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHttpConnectionInfo)
+    PRPackedBool           mUsingHttpProxy;
+    PRPackedBool           mUsingSSL;
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpConnectionInfo_h__

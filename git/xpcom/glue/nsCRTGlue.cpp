@@ -1,79 +1,107 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Application Update.
+ * This file is based on code originally located at
+ * mozilla/toolkit/mozapps/update/updater/updater.cpp
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCRTGlue.h"
 #include "nsXPCOM.h"
 #include "nsDebug.h"
-#include "prtime.h"
-
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 
 #ifdef XP_WIN
 #include <io.h>
-#include <windows.h>
 #endif
 
 #ifdef ANDROID
 #include <android/log.h>
-#include <unistd.h>
 #endif
 
 const char*
-NS_strspnp(const char* aDelims, const char* aStr)
+NS_strspnp(const char *delims, const char *str)
 {
-  const char* d;
+  const char *d;
   do {
-    for (d = aDelims; *d != '\0'; ++d) {
-      if (*aStr == *d) {
-        ++aStr;
+    for (d = delims; *d != '\0'; ++d) {
+      if (*str == *d) {
+        ++str;
         break;
       }
     }
   } while (*d);
 
-  return aStr;
+  return str;
 }
 
 char*
-NS_strtok(const char* aDelims, char** aStr)
+NS_strtok(const char *delims, char **str)
 {
-  if (!*aStr) {
-    return nullptr;
-  }
+  if (!*str)
+    return NULL;
 
-  char* ret = (char*)NS_strspnp(aDelims, *aStr);
+  char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
-    *aStr = ret;
-    return nullptr;
+    *str = ret;
+    return NULL;
   }
 
-  char* i = ret;
+  char *i = ret;
   do {
-    for (const char* d = aDelims; *d != '\0'; ++d) {
+    for (const char *d = delims; *d != '\0'; ++d) {
       if (*i == *d) {
         *i = '\0';
-        *aStr = ++i;
+        *str = ++i;
         return ret;
       }
     }
     ++i;
   } while (*i);
 
-  *aStr = nullptr;
+  *str = NULL;
   return ret;
 }
 
-uint32_t
-NS_strlen(const char16_t* aString)
+PRUint32
+NS_strlen(const PRUnichar *aString)
 {
-  const char16_t* end;
+  const PRUnichar *end;
 
   for (end = aString; *end; ++end) {
     // empty loop
@@ -83,44 +111,43 @@ NS_strlen(const char16_t* aString)
 }
 
 int
-NS_strcmp(const char16_t* aStrA, const char16_t* aStrB)
+NS_strcmp(const PRUnichar *a, const PRUnichar *b)
 {
-  while (*aStrB) {
-    int r = *aStrA - *aStrB;
-    if (r) {
+  while (*b) {
+    int r = *a - *b;
+    if (r)
       return r;
-    }
 
-    ++aStrA;
-    ++aStrB;
+    ++a;
+    ++b;
   }
 
-  return *aStrA != '\0';
+  return *a != '\0';
 }
 
-char16_t*
-NS_strdup(const char16_t* aString)
+PRUnichar*
+NS_strdup(const PRUnichar *aString)
 {
-  uint32_t len = NS_strlen(aString);
+  PRUint32 len = NS_strlen(aString);
   return NS_strndup(aString, len);
 }
 
-char16_t*
-NS_strndup(const char16_t* aString, uint32_t aLen)
+PRUnichar*
+NS_strndup(const PRUnichar *aString, PRUint32 aLen)
 {
-  char16_t* newBuf = (char16_t*)NS_Alloc((aLen + 1) * sizeof(char16_t));
+  PRUnichar *newBuf = (PRUnichar*) NS_Alloc((aLen + 1) * sizeof(PRUnichar));
   if (newBuf) {
-    memcpy(newBuf, aString, aLen * sizeof(char16_t));
+    memcpy(newBuf, aString, aLen * sizeof(PRUnichar));
     newBuf[aLen] = '\0';
   }
   return newBuf;
 }
 
 char*
-NS_strdup(const char* aString)
+NS_strdup(const char *aString)
 {
-  uint32_t len = strlen(aString);
-  char* str = (char*)NS_Alloc(len + 1);
+  PRUint32 len = strlen(aString);
+  char *str = (char*) NS_Alloc(len + 1);
   if (str) {
     memcpy(str, aString, len);
     str[len] = '\0';
@@ -178,70 +205,59 @@ const unsigned char nsLowerUpperUtils::kLower2Upper[256] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-bool
-NS_IsUpper(char aChar)
+PRBool NS_IsUpper(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kUpper2Lower[(unsigned char)aChar];
 }
 
-bool
-NS_IsLower(char aChar)
+PRBool NS_IsLower(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kLower2Upper[(unsigned char)aChar];
 }
 
-bool
-NS_IsAscii(char16_t aChar)
+PRBool NS_IsAscii(PRUnichar aChar)
 {
   return (0x0080 > aChar);
 }
 
-bool
-NS_IsAscii(const char16_t* aString)
+PRBool NS_IsAscii(const PRUnichar *aString)
 {
-  while (*aString) {
-    if (0x0080 <= *aString) {
-      return false;
-    }
+  while(*aString) {
+    if( 0x0080 <= *aString)
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
-NS_IsAscii(const char* aString)
+PRBool NS_IsAscii(const char *aString)
 {
-  while (*aString) {
-    if (0x80 & *aString) {
-      return false;
-    }
+  while(*aString) {
+    if( 0x80 & *aString)
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
-NS_IsAscii(const char* aString, uint32_t aLength)
+PRBool NS_IsAscii(const char* aString, PRUint32 aLength)
 {
   const char* end = aString + aLength;
   while (aString < end) {
-    if (0x80 & *aString) {
-      return false;
-    }
+    if (0x80 & *aString)
+      return PR_FALSE;
     ++aString;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
-NS_IsAsciiAlpha(char16_t aChar)
+PRBool NS_IsAsciiAlpha(PRUnichar aChar)
 {
-  return (aChar >= 'A' && aChar <= 'Z') ||
-         (aChar >= 'a' && aChar <= 'z');
+  return ((aChar >= 'A') && (aChar <= 'Z')) ||
+         ((aChar >= 'a') && (aChar <= 'z'));
 }
 
-bool
-NS_IsAsciiWhitespace(char16_t aChar)
+PRBool NS_IsAsciiWhitespace(PRUnichar aChar)
 {
   return aChar == ' ' ||
          aChar == '\r' ||
@@ -249,162 +265,42 @@ NS_IsAsciiWhitespace(char16_t aChar)
          aChar == '\t';
 }
 
-bool
-NS_IsAsciiDigit(char16_t aChar)
+PRBool NS_IsAsciiDigit(PRUnichar aChar)
 {
   return aChar >= '0' && aChar <= '9';
 }
 
-
-#ifndef XPCOM_GLUE_AVOID_NSPR
-#define TABLE_SIZE 36
-static const char table[] = {
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-  'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-  'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3',
-  '4', '5', '6', '7', '8', '9'
-};
-
+#if defined(XP_WIN) && !defined(WINCE)
 void
-NS_MakeRandomString(char* aBuf, int32_t aBufLen)
+printf_stderr(const char *fmt, ...)
 {
-  // turn PR_Now() into milliseconds since epoch
-  // and salt rand with that.
-  static unsigned int seed = 0;
-  if (seed == 0) {
-    double fpTime = double(PR_Now());
-    seed = (unsigned int)(fpTime * 1e-6 + 0.5); // use 1e-6, granularity of PR_Now() on the mac is seconds
-    srand(seed);
-  }
+  FILE *fp = _fdopen(_dup(2), "a");
+  if (!fp)
+      return;
 
-  int32_t i;
-  for (i = 0; i < aBufLen; ++i) {
-    *aBuf++ = table[rand() % TABLE_SIZE];
-  }
-  *aBuf = 0;
-}
-
-#endif
-
-static StderrCallback sStderrCallback = nullptr;
-
-void
-set_stderr_callback(StderrCallback aCallback)
-{
-  sStderrCallback = aCallback;
-}
-
-#if defined(ANDROID) && !defined(RELEASE_BUILD)
-static FILE* sStderrCopy = nullptr;
-
-void
-stderr_to_file(const char* aFmt, va_list aArgs)
-{
-  vfprintf(sStderrCopy, aFmt, aArgs);
-}
-
-void
-copy_stderr_to_file(const char* aFile)
-{
-  if (sStderrCopy) {
-    return;
-  }
-  char* buf = (char*)malloc(strlen(aFile) + 16);
-  sprintf(buf, "%s.%u", aFile, (uint32_t)getpid());
-  sStderrCopy = fopen(buf, "w");
-  free(buf);
-  set_stderr_callback(stderr_to_file);
-}
-#endif
-
-#ifdef HAVE_VA_COPY
-#define VARARGS_ASSIGN(foo, bar)        VA_COPY(foo,bar)
-#elif defined(HAVE_VA_LIST_AS_ARRAY)
-#define VARARGS_ASSIGN(foo, bar)     foo[0] = bar[0]
-#else
-#define VARARGS_ASSIGN(foo, bar)     (foo) = (bar)
-#endif
-
-#if defined(XP_WIN)
-
-void
-vprintf_stderr(const char* aFmt, va_list aArgs)
-{
-  if (sStderrCallback) {
-    va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
-    va_end(argsCpy);
-  }
-
-  if (IsDebuggerPresent()) {
-    char buf[2048];
-    va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    vsnprintf(buf, sizeof(buf), aFmt, argsCpy);
-    buf[sizeof(buf) - 1] = '\0';
-    va_end(argsCpy);
-    OutputDebugStringA(buf);
-  }
-
-  FILE* fp = _fdopen(_dup(2), "a");
-  if (!fp) {
-    return;
-  }
-
-  vfprintf(fp, aFmt, aArgs);
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(fp, fmt, args);
+  va_end(args);
 
   fclose(fp);
 }
-
 #elif defined(ANDROID)
 void
-vprintf_stderr(const char* aFmt, va_list aArgs)
+printf_stderr(const char *fmt, ...)
 {
-  if (sStderrCallback) {
-    va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
-    va_end(argsCpy);
-  }
-
-  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", aFmt, aArgs);
+  va_list args;
+  va_start(args, fmt);
+  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", fmt, args);
+  va_end(args);
 }
 #else
 void
-vprintf_stderr(const char* aFmt, va_list aArgs)
+printf_stderr(const char *fmt, ...)
 {
-  if (sStderrCallback) {
-    va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
-    va_end(argsCpy);
-  }
-
-  vfprintf(stderr, aFmt, aArgs);
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
 }
 #endif
-
-void
-printf_stderr(const char* aFmt, ...)
-{
-  va_list args;
-  va_start(args, aFmt);
-  vprintf_stderr(aFmt, args);
-  va_end(args);
-}
-
-void
-fprintf_stderr(FILE* aFile, const char* aFmt, ...)
-{
-  va_list args;
-  va_start(args, aFmt);
-  if (aFile == stderr) {
-    vprintf_stderr(aFmt, args);
-  } else {
-    vfprintf(aFile, aFmt, args);
-  }
-  va_end(args);
-}
-
-

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -8,23 +8,14 @@
 // such as the client area of a window, including any back buffers.
 // Implements EGLSurface and related functionality. [EGL 1.4] section 2.2 page 3.
 
-#ifndef LIBEGL_SURFACE_H_
-#define LIBEGL_SURFACE_H_
+#ifndef INCLUDE_SURFACE_H_
+#define INCLUDE_SURFACE_H_
 
+#define EGLAPI
 #include <EGL/egl.h>
+#include <d3d9.h>
 
 #include "common/angleutils.h"
-#include "common/NativeWindow.h"
-
-namespace gl
-{
-class Texture2D;
-}
-namespace rx
-{
-class Renderer;
-class SwapChain;
-}
 
 namespace egl
 {
@@ -34,57 +25,45 @@ class Config;
 class Surface
 {
   public:
-    Surface(Display *display, const egl::Config *config, EGLNativeWindowType window, EGLint fixedSize, EGLint width, EGLint height, EGLint postSubBufferSupported);
-    Surface(Display *display, const egl::Config *config, HANDLE shareHandle, EGLint width, EGLint height, EGLenum textureFormat, EGLenum textureTarget);
+    Surface(Display *display, const egl::Config *config, HWND window);
+    Surface(Display *display, const egl::Config *config, EGLint width, EGLint height);
 
-    virtual ~Surface();
+    ~Surface();
 
-    bool initialize();
     void release();
-    bool resetSwapChain();
+    void resetSwapChain();
 
-    EGLNativeWindowType getWindowHandle();
+    HWND getWindowHandle();
     bool swap();
-    bool postSubBuffer(EGLint x, EGLint y, EGLint width, EGLint height);
 
-    virtual EGLint isPostSubBufferSupported() const;
+    virtual EGLint getWidth() const;
+    virtual EGLint getHeight() const;
 
-    virtual rx::SwapChain *getSwapChain() const;
+    virtual IDirect3DSurface9 *getRenderTarget();
+    virtual IDirect3DSurface9 *getDepthStencil();
+
+    HANDLE getShareHandle() { return mShareHandle; }
 
     void setSwapInterval(EGLint interval);
     bool checkForOutOfDateSwapChain();   // Returns true if swapchain changed due to resize or interval update
-
-    virtual EGLint getConfigID() const;
-    virtual EGLint getWidth() const;
-    virtual EGLint getHeight() const;
-    virtual EGLint getPixelAspectRatio() const;
-    virtual EGLenum getRenderBuffer() const;
-    virtual EGLenum getSwapBehavior() const;
-    virtual EGLenum getTextureFormat() const;
-    virtual EGLenum getTextureTarget() const;
-    virtual EGLenum getFormat() const;
-
-    virtual void setBoundTexture(gl::Texture2D *texture);
-    virtual gl::Texture2D *getBoundTexture() const;
-
-    EGLint isFixedSize() const;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(Surface);
 
     Display *const mDisplay;
-    rx::Renderer *mRenderer;
+    IDirect3DSwapChain9 *mSwapChain;
+    IDirect3DSurface9 *mDepthStencil;
+    IDirect3DSurface9* mRenderTarget;
+    IDirect3DTexture9* mOffscreenTexture;
 
     HANDLE mShareHandle;
-    rx::SwapChain *mSwapChain;
 
     void subclassWindow();
     void unsubclassWindow();
-    bool resizeSwapChain(int backbufferWidth, int backbufferHeight);
-    bool resetSwapChain(int backbufferWidth, int backbufferHeight);
-    bool swapRect(EGLint x, EGLint y, EGLint width, EGLint height);
+    void resetSwapChain(int backbufferWidth, int backbufferHeight);
+    static DWORD convertInterval(EGLint interval);
 
-    rx::NativeWindow mNativeWindow;   // Handler for the Window that the surface is created for.
+    const HWND mWindow;            // Window that the surface is created for.
     bool mWindowSubclassed;        // Indicates whether we successfully subclassed mWindow for WM_RESIZE hooking
     const egl::Config *mConfig;    // EGL config surface was created with
     EGLint mHeight;                // Height of surface
@@ -98,17 +77,14 @@ private:
     EGLint mPixelAspectRatio;      // Display aspect ratio
     EGLenum mRenderBuffer;         // Render buffer
     EGLenum mSwapBehavior;         // Buffer swap behavior
-    EGLenum mTextureFormat;        // Format of texture: RGB, RGBA, or no texture
-    EGLenum mTextureTarget;        // Type of texture: 2D or no texture
+//  EGLenum textureFormat;         // Format of texture: RGB, RGBA, or no texture
+//  EGLenum textureTarget;         // Type of texture: 2D or no texture
 //  EGLenum vgAlphaFormat;         // Alpha format for OpenVG
 //  EGLenum vgColorSpace;          // Color space for OpenVG
     EGLint mSwapInterval;
-    EGLint mPostSubBufferSupported;
-    EGLint mFixedSize;
-
-    bool mSwapIntervalDirty;
-    gl::Texture2D *mTexture;
+    DWORD mPresentInterval;
+    bool mPresentIntervalDirty;
 };
 }
 
-#endif   // LIBEGL_SURFACE_H_
+#endif   // INCLUDE_SURFACE_H_

@@ -1,13 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 .tabbrowser-tabbox {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabbox");
-}
-
-.tabbrowser-tabpanels {
-  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabpanels");
 }
 
 .tabbrowser-arrowscrollbox {
@@ -16,11 +8,18 @@
 
 .tab-close-button {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-close-tab-button");
+  display: none;
 }
 
-.tab-close-button[pinned],
-.tabbrowser-tabs[closebuttons="activetab"] > * > * > * > .tab-close-button:not([selected="true"]) {
-  display: none;
+.tabbrowser-tabs[closebuttons="activetab"] > * > * > * > .tab-close-button:not([pinned])[selected="true"],
+.tabbrowser-tabs[closebuttons="alltabs"] > * > * > * > .tab-close-button:not([pinned]) {
+  display: -moz-box;
+}
+
+.tab-close-button[selected="true"] {
+  /* Make this button focusable so clicking on it will not focus the tab while
+     it's getting closed */
+  -moz-user-focus: normal;
 }
 
 .tab-label[pinned] {
@@ -36,7 +35,7 @@
 }
 
 tabpanels {
-  background-color: transparent;
+  background-color: white;
 }
 
 .tab-drop-indicator {
@@ -44,43 +43,7 @@ tabpanels {
   z-index: 2;
 }
 
-/* Apply crisp rendering for favicons at exactly 2dppx resolution */
-@media (resolution: 2dppx) {
-  .tab-icon-image {
-    image-rendering: -moz-crisp-edges;
-  }
-}
-
-.tab-icon-image:not([src]):not([pinned]),
 .tab-throbber:not([busy]),
 .tab-throbber[busy] + .tab-icon-image {
   display: none;
-}
-
-.closing-tabs-spacer {
-  pointer-events: none;
-}
-
-.tabbrowser-tabs:not(:hover) > .tabbrowser-arrowscrollbox > .closing-tabs-spacer {
-  transition: width .15s ease-out;
-}
-
-/**
- * Optimization for tabs that are restored lazily. We can save a good amount of
- * memory that to-be-restored tabs would otherwise consume simply by setting
- * their browsers to 'display: none' as that will prevent them from having to
- * create a presentation and the like.
- */
-browser[pending] {
-  display: none;
-}
-
-browser[pendingpaint] {
-  opacity: 0;
-}
-
-tabbrowser[pendingpaint] {
-  background-image: url(chrome://browser/skin/tabbrowser/pendingpaint.png);
-  background-repeat: no-repeat;
-  background-position: center center;
 }

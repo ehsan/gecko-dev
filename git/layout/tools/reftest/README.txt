@@ -8,15 +8,6 @@ in the same format.  The tests are run based on a manifest file, and for
 each test, PASS or FAIL is reported, and UNEXPECTED is reported if the
 result (PASS or FAIL) was not the expected result noted in the manifest.
 
-Images of the display of both tests are captured, and most test types
-involve comparing these images (e.g., test types == or !=) to determine
-whether the test passed.  The captures of the tests are taken in a
-viewport that is 800 pixels wide and 1000 pixels tall, so any content
-outside that area will be ignored (except for any scrollbars that are
-displayed).  Ideally, however, tests should be written so that they fit
-within 600x600, since we may in the future want to switch to 600x600 to
-match http://lists.w3.org/Archives/Public/www-style/2012Sep/0562.html .
-
 Why this way?
 =============
 
@@ -49,19 +40,11 @@ must be one of the following:
 
 1. Inclusion of another manifest
 
-   <failure-type>* include <relative_path>
-
-   <failure-type> is the same as listed below for a test item.  As for 
-   test items, multiple failure types listed on the same line are 
-   combined by using the last matching failure type listed.  However, 
-   the failure type on a manifest is combined with the failure type on 
-   the test (or on a nested manifest) with the rule that the last in the
-   following list wins:  fails, random, skip.  (In other words, skip 
-   always wins, and random beats fails.)
+   include <relative_path>
 
 2. A test item
 
-   [ <failure-type> | <preference> ]* [<http>] <type> <url> <url_ref>
+   <failure-type>* [<http>] <type> <url> <url_ref>
 
    where
 
@@ -115,24 +98,6 @@ must be one of the following:
                          fast on a 32-bit system but inordinately slow on a
                          64-bit system).
 
-      fuzzy(maxDiff, diffCount)
-          This allows a test to pass if the pixel value differences are <=
-          maxDiff and the total number of different pixels is <= diffCount.
-          It can also be used with '!=' to ensure that the difference is
-          greater than maxDiff.
-
-      fuzzy-if(condition, maxDiff, diffCount)
-          If the condition is met, the test is treated as if 'fuzzy' had been
-          specified. This is useful if there are differences on particular
-          platforms.
-
-      require-or(cond1&&cond2&&...,fallback)
-          Require some particular setup be performed or environmental
-          condition(s) made true (eg setting debug mode) before the test
-          is run. If any condition is unknown, unimplemented, or fails,
-          revert to the fallback failure-type.
-          Example: require-or(debugMode,skip)
-
       asserts(count)
           Loading the test and reference is known to assert exactly
           count times.
@@ -166,26 +131,7 @@ must be one of the following:
           fails-if(winWidget) == test reference
           asserts-if(cocoaWidget,2) load crashtest
 
-   b. <preference> (optional) is a string of the form
-
-          pref(<name>,<value>)
-          test-pref(<name>,<value>)
-          ref-pref(<name>,<value>)
-
-      where <name> is the name of a preference setting, as seen in
-      about:config, and <value> is the value to which this preference should
-      be set. <value> may be a boolean (true/false), an integer, or a
-      quoted string *without spaces*, according to the type of the preference.
-
-      The preference will be set to the specified value prior to
-      rendering the test and/or reference canvases (pref() applies to
-      both, test-pref() only to the test, and ref-pref() only to the
-      reference), and will be restored afterwards so that following
-      tests are not affected. Note that this feature is only useful for
-      "live" preferences that take effect immediately, without requiring
-      a browser restart.
-
-   c. <http>, if present, is one of the strings (sans quotes) "HTTP" or
+   b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
       "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that
       the test should be run over an HTTP server because it requires certain
       HTTP headers or a particular HTTP status.  (Don't use this if your test
@@ -244,7 +190,7 @@ must be one of the following:
       on request/response in handleRequest, see the nsIHttpRe(quest|sponse)
       definitions in <netwerk/test/httpserver/nsIHttpServer.idl>.
 
-   d. <type> is one of the following:
+   c. <type> is one of the following:
 
       ==     The test passes if the images of the two renderings are the
              SAME.
@@ -272,10 +218,10 @@ must be one of the following:
              url_ref must be omitted. The test may be marked as fails or
              random. (Used to test the JavaScript Engine.)
 
-   e. <url> is either a relative file path or an absolute URL for the
+   d. <url> is either a relative file path or an absolute URL for the
       test page
 
-   f. <url_ref> is either a relative file path or an absolute URL for
+   e. <url_ref> is either a relative file path or an absolute URL for
       the reference page
 
    The only difference between <url> and <url_ref> is that results of
@@ -298,28 +244,6 @@ must be one of the following:
    While the typical use of url-prefix is expected to be as the first line of
    a manifest, it is legal to use it anywhere in a manifest. Subsequent uses
    of url-prefix overwrite any existing values.
-
-4. Specification of default preferences
-
-   default-preferences <preference>*
-
-   where <preference> is defined above.
-
-   The <preference> settings will be used for all following test items in the
-   manifest.
-
-   If a test item includes its own preference settings, then they will override
-   any settings for preferences of the same names that are set using
-   default-preferences, just as later items within a line override earlier ones.
-
-   A default-preferences line with no <preference> settings following it will
-   reset the set of default preferences to be empty.
-
-   As with url-prefix, default-preferences will often be used at the start of a
-   manifest file so that it applies to all test items, but it is legal for
-   default-preferences to appear anywhere in the manifest. A subsequent
-   default-preferences will reset any previous default preference values and
-   overwrite them with the specified <preference> values.
 
 This test manifest format could be used by other harnesses, such as ones
 that do not depend on XUL, or even ones testing other layout engines.
@@ -409,8 +333,8 @@ reference identical in as many aspects as possible.  For example:
     <div style="color:green"><table><tr><td>green
     </td></tr></table></div>
 
-Asynchronous Tests: class="reftest-wait"
-========================================
+Asynchronous Tests
+==================
 
 Normally reftest takes a snapshot of the given markup's rendering right
 after the load event fires for content. If your test needs to postpone
@@ -430,8 +354,8 @@ Note that in layout tests it is often enough to trigger layout using
 When possible, you should use this technique instead of making your
 test async.
 
-Invalidation Tests: MozReftestInvalidate Event
-==============================================
+Invalidation Tests
+==================
 
 When a test (or reference) uses reftest-wait, reftest tracks invalidation
 via MozAfterPaint and updates the test image in the same way that
@@ -451,23 +375,8 @@ function doTest() {
 }
 document.addEventListener("MozReftestInvalidate", doTest, false);
 
-Painting Tests: class="reftest-no-paint"
-========================================
-
-If an element shouldn't be painted, set the class "reftest-no-paint" on it
-when doing an invalidation test. Causing a repaint in your
-MozReftestInvalidate handler (for example, by changing the body's background
-colour) will accurately test whether the element is painted.
-
-Snapshot The Whole Window: class="reftest-snapshot-all"
-=======================================================
-
-In a reftest-wait test, to disable testing of invalidation and force the final
-snapshot to be taken of the whole window, set the "reftest-snapshot-all"
-class on the root element.
-
-Zoom Tests: reftest-zoom="<float>"
-==================================
+Zoom Tests
+==========
 
 When the root element of a test has a "reftest-zoom" attribute, that zoom
 factor is applied when rendering the test. The reftest document will be
@@ -477,43 +386,8 @@ therefore, choose zoom factors that do not require rounding when we calculate
 the number of appunits per device pixel; i.e. the zoom factor should divide 60,
 so 60/zoom is an integer.
 
-Setting Viewport Size: reftest-viewport-w/h="<int>"
-===================================================
-
-If either of the "reftest-viewport-w" and "reftest-viewport-h" attributes on
-the root element are non-zero, sets the CSS viewport to the given size in
-CSS pixels. This does not affect the size of the snapshot that is taken.
-
-Setting Async Scroll Mode: reftest-async-scroll attribute
-=========================================================
-
-If the "reftest-async-scroll" attribute is set on the root element, we try to
-enable async scrolling for the document. This is unsupported in many
-configurations.
-
-Setting Displayport Dimensions: reftest-displayport-x/y/w/h="<int>"
-===================================================================
-
-If any of the "reftest-displayport-x", "reftest-displayport-y",
-"reftest-displayport-w" and "reftest-displayport-h" attributes on the root
-element are nonzero, sets the displayport dimensions to the given bounds in
-CSS pixels. This does not affect the size of the snapshot that is taken.
-
-When the "reftest-async-scroll" attribute is set on the root element, *all*
-elements in the document are checked for "reftest-displayport-x/y/w/h" and have
-displayports set on them when those attributes are present.
-
-Testing Async Scrolling: reftest-async-scroll-x/y="<int>"
-=========================================================
-
-When the "reftest-async-scroll" attribute is set on the root element, for any
-element where either the "reftest-async-scroll-x" or "reftest-async-scroll-y
-attributes are nonzero, at the end of the test take the snapshot with the given
-offset (in CSS pixels) added to the async scroll offset.
-
-Printing Tests: class="reftest-print"
-=====================================
-
+Printing Tests
+==============
 Now that the patch for bug 374050 has landed
 (https://bugzilla.mozilla.org/show_bug.cgi?id=374050), it is possible to
 create reftests that run in a paginated context.
@@ -531,41 +405,11 @@ The suggested first lines for any printing test is
 <style>html{font-size:12pt}</style>
 
 The reftest-print class on the root element triggers the reftest to
-switch into page mode. Fixing the font size is suggested, although not
-required, because the pages are a fixed size in inches. The switch to page mode
-happens on load if the reftest-wait class is not present; otherwise it happens
-immediately after firing the MozReftestInvalidate event.
+switch into page mode on load. Fixing the font size is suggested,
+although not required, because the pages are a fixed size in inches.
 
 The underlying layout support for this mode isn't really complete; it
 doesn't use exactly the same codepath as real print preview/print. In
 particular, scripting and frames are likely to cause problems; it is untested,
 though.  That said, it should be sufficient for testing layout issues related
 to pagination.
-
-Plugin and IPC Process Crash Tests: class="reftest-expect-process-crash"
-========================================================================
-
-If you are running a test that causes an out-of-process plugin or IPC process
-under Electrolysis to crash as part of a reftest, this will cause process
-crash minidump files to be left in the profile directory.  The test
-infrastructure that runs the reftests will notice these minidump files and
-dump out information from them, and these additional error messages in the logs
-can end up erroneously being associated with other errors from the reftest run.
-They are also confusing, since the appearance of "PROCESS-CRASH" messages in
-the test run output can seem like a real problem, when in fact it is the
-expected behavior.
-
-To indicate to the reftest framework that a test is expecting a plugin or
-IPC process crash, have the test include "reftest-expect-process-crash" as
-one of the root element's classes by the time the test has finished.  This will
-cause any minidump files that are generated while running the test to be removed
-and they won't cause any error messages in the test run output.
-
-Skip Forcing A Content Process Layer-Tree Update: reftest-no-sync-layers attribute
-==================================================================================
-
-Normally when an multi-process reftest test ends, we force the content process
-to push a layer-tree update to the compositor before taking the snapshot.
-Setting the "reftest-no-sync-layers" attribute on the root element skips this
-step, enabling testing that layer-tree updates are being correctly generated.
-However the test must manually wait for a MozAfterPaint event before ending.
