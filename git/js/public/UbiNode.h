@@ -250,6 +250,9 @@ class Node {
         Concrete<T>::construct(base(), ptr);
     }
 
+    typedef void (Node::* ConvertibleToBool)();
+    void nonNull() {}
+
   public:
     Node() { construct<void>(nullptr); }
 
@@ -301,8 +304,8 @@ class Node {
     bool operator==(const Node &rhs) const { return *base() == *rhs.base(); }
     bool operator!=(const Node &rhs) const { return *base() != *rhs.base(); }
 
-    explicit operator bool() const {
-        return base()->ptr != nullptr;
+    operator ConvertibleToBool() const {
+        return base()->ptr ? &Node::nonNull : 0;
     }
 
     template<typename T>

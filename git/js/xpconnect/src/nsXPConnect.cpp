@@ -822,9 +822,10 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
                "Bad return value from xpc_CreateSandboxObject()!");
 
     if (NS_SUCCEEDED(rv) && !rval.isPrimitive()) {
-        JSObject *obj = rval.toObjectOrNull();
-        nsRefPtr<XPCJSObjectHolder> rval = new XPCJSObjectHolder(obj);
-        rval.forget(_retval);
+        *_retval = XPCJSObjectHolder::newHolder(rval.toObjectOrNull());
+        NS_ENSURE_TRUE(*_retval, NS_ERROR_OUT_OF_MEMORY);
+
+        NS_ADDREF(*_retval);
     }
 
     return rv;
@@ -871,13 +872,12 @@ nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext,
     if (!proto)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    JSObject *protoObj = proto->GetJSProtoObject();
-    if (!protoObj)
+    nsIXPConnectJSObjectHolder* holder;
+    *_retval = holder = XPCJSObjectHolder::newHolder(proto->GetJSProtoObject());
+    if (!holder)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    nsRefPtr<XPCJSObjectHolder> holder = new XPCJSObjectHolder(protoObj);
-    holder.forget(_retval);
-
+    NS_ADDREF(holder);
     return NS_OK;
 }
 
@@ -1199,10 +1199,11 @@ nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObjectArg,
                         nsIXPConnectJSObjectHolder **aHolder)
 {
     RootedObject aObject(aJSContext, aObjectArg);
-    if (!aObject)
-        return NS_ERROR_FAILURE;
-    nsRefPtr<XPCJSObjectHolder> objHolder = new XPCJSObjectHolder(aObject);
-    objHolder.forget(aHolder);
+    XPCJSObjectHolder* objHolder = XPCJSObjectHolder::newHolder(aObject);
+    if (!objHolder)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    NS_ADDREF(*aHolder = objHolder);
     return NS_OK;
 }
 

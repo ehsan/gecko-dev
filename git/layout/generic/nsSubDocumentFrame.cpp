@@ -363,23 +363,21 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     decorations.MoveTo(aLists);
   }
 
-  // We only care about mozpasspointerevents if we're doing hit-testing
-  // related things.
-  bool passPointerEventsToChildren =
-    (aBuilder->IsForEventDelivery() || aBuilder->IsBuildingLayerEventRegions())
-    ? PassPointerEventsToChildren() : false;
-
-  // If mozpasspointerevents is set, then we should allow subdocument content
-  // to handle events even if we're pointer-events:none.
-  if (aBuilder->IsForEventDelivery() && pointerEventsNone && !passPointerEventsToChildren) {
-    return;
+  bool passPointerEventsToChildren = false;
+  if (aBuilder->IsForEventDelivery()) {
+    passPointerEventsToChildren = PassPointerEventsToChildren();
+    // If mozpasspointerevents is set, then we should allow subdocument content
+    // to handle events even if we're pointer-events:none.
+    if (pointerEventsNone && !passPointerEventsToChildren) {
+      return;
+    }
   }
 
   // If we're passing pointer events to children then we have to descend into
   // subdocuments no matter what, to determine which parts are transparent for
-  // hit-testing or event regions.
-  bool needToDescend = aBuilder->GetDescendIntoSubdocuments() || passPointerEventsToChildren;
-  if (!mInnerView || !needToDescend) {
+  // elementFromPoint.
+  if (!mInnerView ||
+      (!aBuilder->GetDescendIntoSubdocuments() && !passPointerEventsToChildren)) {
     return;
   }
 
@@ -442,8 +440,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     }
 
-    aBuilder->EnterPresShell(subdocRootFrame,
-                             pointerEventsNone && !passPointerEventsToChildren);
+    aBuilder->EnterPresShell(subdocRootFrame);
   } else {
     dirty = aDirtyRect;
   }

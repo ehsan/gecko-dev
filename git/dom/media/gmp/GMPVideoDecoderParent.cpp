@@ -199,6 +199,7 @@ GMPVideoDecoderParent::Shutdown()
     mCallback->Terminated();
     mCallback = nullptr;
   }
+  mVideoHost.DoneWithAPI();
 
   mIsOpen = false;
   unused << SendDecodingComplete();
@@ -211,8 +212,6 @@ void
 GMPVideoDecoderParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   mIsOpen = false;
-  mVideoHost.DoneWithAPI();
-
   if (mCallback) {
     // May call Close() (and Shutdown()) immediately or with a delay
     mCallback->Terminated();

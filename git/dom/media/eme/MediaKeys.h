@@ -65,8 +65,7 @@ public:
   void GetKeySystem(nsString& retval) const;
 
   // JavaScript: MediaKeys.createSession()
-  already_AddRefed<MediaKeySession> CreateSession(JSContext* aCx,
-                                                  SessionType aSessionType,
+  already_AddRefed<MediaKeySession> CreateSession(SessionType aSessionType,
                                                   ErrorResult& aRv);
 
   // JavaScript: MediaKeys.SetServerCertificate()

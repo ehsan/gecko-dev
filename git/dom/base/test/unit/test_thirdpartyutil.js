@@ -4,13 +4,10 @@
 
 // Test ThirdPartyUtil methods. See mozIThirdPartyUtil.
 
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
+
 let Cc = Components.classes;
 let Ci = Components.interfaces;
-let Cu = Components.utils;
-
-Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-
 let NS_ERROR_INVALID_ARG = Components.results.NS_ERROR_INVALID_ARG;
 
 function do_check_throws(f, result, stack)
@@ -41,44 +38,16 @@ function run_test() {
   let spec2 = "http://bar.com/bar.html";
   let uri1 = NetUtil.newURI(spec1);
   let uri2 = NetUtil.newURI(spec2);
-  let channel1 = NetUtil.newChannel2(uri1,
-                                     null,
-                                     null,
-                                     null,      // aLoadingNode
-                                     Services.scriptSecurityManager.getSystemPrincipal(),
-                                     null,      // aTriggeringPrincipal
-                                     Ci.nsILoadInfo.SEC_NORMAL,
-                                     Ci.nsIContentPolicy.TYPE_OTHER);
-  let channel2 = NetUtil.newChannel2(uri2,
-                                     null,
-                                     null,
-                                     null,      // aLoadingNode
-                                     Services.scriptSecurityManager.getSystemPrincipal(),
-                                     null,      // aTriggeringPrincipal
-                                     Ci.nsILoadInfo.SEC_NORMAL,
-                                     Ci.nsIContentPolicy.TYPE_OTHER);
+  let channel1 = NetUtil.newChannel(uri1);
+  let channel2 = NetUtil.newChannel(uri2);
 
   // Create some file:// URIs.
   let filespec1 = "file://foo.txt";
   let filespec2 = "file://bar.txt";
   let fileuri1 = NetUtil.newURI(filespec1);
   let fileuri2 = NetUtil.newURI(filespec2);
-  let filechannel1 = NetUtil.newChannel2(fileuri1,
-                                         null,
-                                         null,
-                                         null,      // aLoadingNode
-                                         Services.scriptSecurityManager.getSystemPrincipal(),
-                                         null,      // aTriggeringPrincipal
-                                         Ci.nsILoadInfo.SEC_NORMAL,
-                                         Ci.nsIContentPolicy.TYPE_OTHER);
-  let filechannel2 = NetUtil.newChannel2(fileuri2,
-                                         null,
-                                         null,
-                                         null,      // aLoadingNode
-                                         Services.scriptSecurityManager.getSystemPrincipal(),
-                                         null,      // aTriggeringPrincipal
-                                         Ci.nsILoadInfo.SEC_NORMAL,
-                                         Ci.nsIContentPolicy.TYPE_OTHER);
+  let filechannel1 = NetUtil.newChannel(fileuri1);
+  let filechannel2 = NetUtil.newChannel(fileuri2);
 
   // Test isThirdPartyURI.
   do_check_false(util.isThirdPartyURI(uri1, uri1));

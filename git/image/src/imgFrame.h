@@ -386,6 +386,10 @@ private: // data
  */
 class DrawableFrameRef MOZ_FINAL
 {
+  // Implementation details for safe boolean conversion.
+  typedef void (DrawableFrameRef::* ConvertibleToBool)(float*****, double*****);
+  void nonNull(float*****, double*****) {}
+
 public:
   DrawableFrameRef() { }
 
@@ -412,7 +416,10 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  operator ConvertibleToBool() const
+  {
+    return bool(mFrame) ? &DrawableFrameRef::nonNull : 0;
+  }
 
   imgFrame* operator->()
   {
@@ -454,6 +461,10 @@ private:
  */
 class RawAccessFrameRef MOZ_FINAL
 {
+  // Implementation details for safe boolean conversion.
+  typedef void (RawAccessFrameRef::* ConvertibleToBool)(float*****, double*****);
+  void nonNull(float*****, double*****) {}
+
 public:
   RawAccessFrameRef() { }
 
@@ -492,7 +503,10 @@ public:
     return *this;
   }
 
-  explicit operator bool() const { return bool(mFrame); }
+  operator ConvertibleToBool() const
+  {
+    return bool(mFrame) ? &RawAccessFrameRef::nonNull : 0;
+  }
 
   imgFrame* operator->()
   {

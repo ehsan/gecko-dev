@@ -9,6 +9,11 @@
 #include "BluetoothService.h"
 
 #include "BluetoothCommon.h"
+#include "BluetoothA2dpManager.h"
+#include "BluetoothHfpManager.h"
+#include "BluetoothHidManager.h"
+#include "BluetoothManager.h"
+#include "BluetoothOppManager.h"
 #include "BluetoothParent.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothServiceChildProcess.h"

@@ -33,6 +33,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
+#include "nsVoidArray.h"
 #include "nsDeleteDir.h"
 #include "nsNetCID.h"
 #include <math.h>  // for log()
@@ -2966,7 +2967,7 @@ nsCacheService::GetActiveEntries(PLDHashTable *    table,
                                  uint32_t          number,
                                  void *            arg)
 {
-    static_cast<nsTArray<nsCacheEntry*>*>(arg)->AppendElement(
+    static_cast<nsVoidArray *>(arg)->AppendElement(
         ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry);
     return PL_DHASH_NEXT;
 }
@@ -3021,12 +3022,12 @@ nsCacheService::CloseAllStreams()
     {
         nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_CLOSEALLSTREAMS));
 
-        nsTArray<nsCacheEntry*> entries;
+        nsVoidArray entries;
 
 #if DEBUG
         // make sure there is no active entry
         mActiveEntries.VisitEntries(GetActiveEntries, &entries);
-        NS_ASSERTION(entries.IsEmpty(), "Bad state");
+        NS_ASSERTION(entries.Count() == 0, "Bad state");
 #endif
 
         // Get doomed entries
@@ -3038,8 +3039,8 @@ nsCacheService::CloseAllStreams()
         }
 
         // Iterate through all entries and collect input and output streams
-        for (size_t i = 0; i < entries.Length(); i++) {
-            entry = entries.ElementAt(i);
+        for (int32_t i = 0 ; i < entries.Count() ; i++) {
+            entry = static_cast<nsCacheEntry *>(entries.ElementAt(i));
 
             nsTArray<nsRefPtr<nsCacheEntryDescriptor> > descs;
             entry->GetDescriptors(descs);
@@ -3048,8 +3049,10 @@ nsCacheService::CloseAllStreams()
                 if (descs[j]->mOutputWrapper)
                     outputs.AppendElement(descs[j]->mOutputWrapper);
 
-                for (size_t k = 0; k < descs[j]->mInputWrappers.Length(); k++)
-                    inputs.AppendElement(descs[j]->mInputWrappers[k]);
+                for (int32_t k = 0 ; k < descs[j]->mInputWrappers.Count() ; k++)
+                    inputs.AppendElement(static_cast<
+                        nsCacheEntryDescriptor::nsInputStreamWrapper *>(
+                        descs[j]->mInputWrappers[k]));
             }
         }
     }

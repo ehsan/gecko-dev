@@ -142,6 +142,8 @@ class Builder {
     class BuiltThing {
         friend class BuilderOrigin;
 
+        void nonNull() {}
+
       protected:
         // The Builder to which this trusted thing belongs.
         Builder &owner;
@@ -168,9 +170,10 @@ class Builder {
             return *this;
         }
 
-        explicit operator bool() const {
-            // If we ever instantiate BuiltThing<Value>, this might not suffice.
-            return value;
+        typedef void (BuiltThing::* ConvertibleToBool)();
+        operator ConvertibleToBool() const {
+            // If we ever instantiate BuiltThink<Value>, this might not suffice.
+            return value ? &BuiltThing::nonNull : 0;
         }
 
       private:
@@ -218,7 +221,8 @@ class Builder {
         bool defineProperty(JSContext *cx, const char *name, JS::HandleObject value);
         bool defineProperty(JSContext *cx, const char *name, Object &value);
 
-        using Base::operator bool;
+        using Base::ConvertibleToBool;
+        using Base::operator ConvertibleToBool;
     };
 
     // Build an empty object for direct use by debugger code, owned by this

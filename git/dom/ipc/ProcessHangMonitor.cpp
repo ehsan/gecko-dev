@@ -751,7 +751,7 @@ HangMonitoredProcess::TerminateProcess()
     return NS_ERROR_UNEXPECTED;
   }
 
-  mContentParent->KillHard("HangMonitor");
+  mContentParent->KillHard();
   return NS_OK;
 }
 

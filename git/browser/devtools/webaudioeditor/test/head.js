@@ -486,7 +486,7 @@ const NODE_DEFAULT_VALUES = {
     "oversample": "none"
   },
   "PannerNode": {
-    "panningModel": "equalpower",
+    "panningModel": "HRTF",
     "distanceModel": "inverse",
     "refDistance": 1,
     "maxDistance": 10000,

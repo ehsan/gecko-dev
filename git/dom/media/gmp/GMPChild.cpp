@@ -459,9 +459,9 @@ GMPChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 void
-GMPChild::ProcessingError(Result aCode, const char* aReason)
+GMPChild::ProcessingError(Result aWhat)
 {
-  switch (aCode) {
+  switch (aWhat) {
     case MsgDropped:
       _exit(0); // Don't trigger a crash report.
     case MsgNotKnown:

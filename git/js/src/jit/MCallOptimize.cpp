@@ -371,7 +371,7 @@ IonBuilder::inlineArray(CallInfo &callInfo)
         initLength = callInfo.argc();
         allocating = NewArray_FullyAllocating;
 
-        types::TypeSetObjectKey *key = types::TypeSetObjectKey::get(templateArray);
+        types::ObjectGroupKey *key = types::ObjectGroupKey::get(templateArray);
         if (!key->unknownProperties()) {
             types::HeapTypeSetKey elemTypes = key->property(JSID_VOID);
 
@@ -735,7 +735,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     types::ObjectGroup *thisGroup = thisTypes->getGroup(0);
     if (!thisGroup)
         return InliningStatus_NotInlined;
-    types::TypeSetObjectKey *thisKey = types::TypeSetObjectKey::get(thisGroup);
+    types::ObjectGroupKey *thisKey = types::ObjectGroupKey::get(thisGroup);
     if (thisKey->unknownProperties())
         return InliningStatus_NotInlined;
 
@@ -758,7 +758,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
         return InliningStatus_NotInlined;
 
     for (unsigned i = 0; i < argTypes->getObjectCount(); i++) {
-        types::TypeSetObjectKey *key = argTypes->getObject(i);
+        types::ObjectGroupKey *key = argTypes->getObject(i);
         if (!key)
             continue;
 
@@ -1371,7 +1371,7 @@ IonBuilder::inlineStringSplit(CallInfo &callInfo)
         return InliningStatus_NotInlined;
     MOZ_ASSERT(templateObject->is<ArrayObject>());
 
-    types::TypeSetObjectKey *retKey = types::TypeSetObjectKey::get(templateObject);
+    types::ObjectGroupKey *retKey = types::ObjectGroupKey::get(templateObject);
     if (retKey->unknownProperties())
         return InliningStatus_NotInlined;
 

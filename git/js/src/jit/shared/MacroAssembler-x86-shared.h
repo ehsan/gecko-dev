@@ -655,40 +655,36 @@ class MacroAssemblerX86Shared : public Assembler
     // such instructions, even if the original register passed in wasn't. This
     // only applies to x86, as on x64 all registers are valid single byte regs.
     // This doesn't lead to great code but helps to simplify code generation.
-    //
-    // Note that this can currently only be used in cases where the register is
-    // read from by the guarded instruction, not written to.
     class AutoEnsureByteRegister {
         MacroAssemblerX86Shared *masm;
-        Register original_;
-        Register substitute_;
+        Register reg_;
+        bool read_;
 
       public:
         template <typename T>
-        AutoEnsureByteRegister(MacroAssemblerX86Shared *masm, T address, Register reg)
-          : masm(masm), original_(reg)
+        AutoEnsureByteRegister(MacroAssemblerX86Shared *masm, T address, Register reg, bool read)
+          : masm(masm), reg_(reg), read_(read)
         {
-            GeneralRegisterSet singleByteRegs(Registers::SingleByteRegs);
-            if (singleByteRegs.has(reg)) {
-                substitute_ = reg;
-            } else {
+            if (!GeneralRegisterSet(Registers::SingleByteRegs).has(reg_)) {
                 MOZ_ASSERT(address.base != StackPointer);
-                do {
-                    substitute_ = singleByteRegs.takeAny();
-                } while (Operand(address).containsReg(substitute_));
-
-                masm->push(substitute_);
-                masm->mov(reg, substitute_);
+                masm->push(eax);
+                if (read)
+                    masm->mov(reg_, eax);
             }
         }
 
         ~AutoEnsureByteRegister() {
-            if (original_ != substitute_)
-                masm->pop(substitute_);
+            if (!GeneralRegisterSet(Registers::SingleByteRegs).has(reg_)) {
+                if (!read_)
+                    masm->mov(eax, reg_);
+                masm->pop(eax);
+            }
         }
 
         Register reg() {
-            return substitute_;
+            if (!GeneralRegisterSet(Registers::SingleByteRegs).has(reg_))
+                return eax;
+            return reg_;
         }
     };
 
@@ -710,7 +706,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
     template <typename T>
     void store8(Register src, const T &dest) {
-        AutoEnsureByteRegister ensure(this, dest, src);
+        AutoEnsureByteRegister ensure(this, dest, src, /* read = */ true);
         movb(ensure.reg(), Operand(dest));
     }
     template <typename T>

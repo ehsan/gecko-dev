@@ -1805,9 +1805,9 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 }
 
 void
-ContentChild::ProcessingError(Result aCode, const char* aReason)
+ContentChild::ProcessingError(Result what)
 {
-    switch (aCode) {
+    switch (what) {
     case MsgDropped:
         NS_WARNING("MsgDropped in ContentChild");
         return;

@@ -2697,8 +2697,7 @@ MarionetteServerConnection.prototype = {
     else {
       this.sendAsync("takeScreenshot",
                    {id: aRequest.parameters.id,
-                    highlights: aRequest.parameters.highlights,
-                    full: aRequest.parameters.full},
+                    highlights: aRequest.parameters.highlights},
                    this.command_id);
     }
   },

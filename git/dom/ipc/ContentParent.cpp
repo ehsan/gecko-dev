@@ -662,7 +662,7 @@ ContentParent::GetNewOrPreallocatedAppProcess(mozIApplication* aApp,
         if (!process->SetPriorityAndCheckIsAlive(aInitialPriority)) {
             // Kill the process just in case it's not actually dead; we don't want
             // to "leak" this process!
-            process->KillHard("GetNewOrPreallocatedAppProcess");
+            process->KillHard();
         }
         else {
             nsAutoString manifestURL;
@@ -954,7 +954,7 @@ ContentParent::RecvBridgeToChildProcess(const ContentParentId& aCpId)
     }
 
     // You can't bridge to a process you didn't open!
-    KillHard("BridgeToChildProcess");
+    KillHard();
     return false;
 }
 
@@ -1197,7 +1197,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         // other process has already died.
         if (!reused) {
             // Don't leave a broken ContentParent in the hashtable.
-            parent->AsContentParent()->KillHard("CreateBrowserOrApp");
+            parent->AsContentParent()->KillHard();
             sAppContentParents->Remove(manifestURL);
             parent = nullptr;
         }
@@ -1581,7 +1581,7 @@ ContentParent::ShutDownProcess(ShutDownMethod aMethod)
         // Kill Nuwa process forcibly to break its IPC channels and finalize
         // corresponding parents.
         if (IsNuwaProcess()) {
-            KillHard("ShutDownProcess");
+            KillHard();
         }
 #endif
     }
@@ -1739,13 +1739,14 @@ ContentParent::OnChannelConnected(int32_t pid)
 }
 
 void
-ContentParent::ProcessingError(Result aCode, const char* aReason)
+ContentParent::ProcessingError(Result what)
 {
-    if (MsgDropped == aCode) {
+    if (MsgDropped == what) {
+        // Messages sent after crashes etc. are not a big deal.
         return;
     }
     // Other errors are big deals.
-    KillHard(aReason);
+    KillHard();
 }
 
 typedef std::pair<ContentParent*, std::set<uint64_t> > IDPair;
@@ -1785,7 +1786,7 @@ ContentParent::RecvDeallocateLayerTreeId(const uint64_t& aId)
         CompositorParent::DeallocateLayerTreeId(aId);
     } else {
         // You can't deallocate layer tree ids that you didn't allocate
-        KillHard("DeallocateLayerTreeId");
+        KillHard();
     }
     return true;
 }
@@ -2367,7 +2368,7 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     }
 #endif
     if (shouldSandbox && !SendSetProcessSandbox()) {
-        KillHard("SandboxInitFailed");
+        KillHard();
     }
 #endif
 }
@@ -2710,7 +2711,7 @@ ContentParent::RecvNuwaReady()
                 "Terminating child process %d for unauthorized IPC message: NuwaReady",
                 Pid()).get());
 
-        KillHard("NuwaReady");
+        KillHard();
         return false;
     }
     sNuwaReady = true;
@@ -2746,7 +2747,7 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
                 "Terminating child process %d for unauthorized IPC message: "
                 "AddNewProcess(%d)", Pid(), aPid).get());
 
-        KillHard("AddNewProcess");
+        KillHard();
         return false;
     }
     nsRefPtr<ContentParent> content;
@@ -3230,11 +3231,11 @@ ContentParent::DeallocPRemoteSpellcheckEngineParent(PRemoteSpellcheckEngineParen
 ContentParent::ForceKillTimerCallback(nsITimer* aTimer, void* aClosure)
 {
     auto self = static_cast<ContentParent*>(aClosure);
-    self->KillHard("ShutDownKill");
+    self->KillHard();
 }
 
 void
-ContentParent::KillHard(const char* aReason)
+ContentParent::KillHard()
 {
     // On Windows, calling KillHard multiple times causes problems - the
     // process handle becomes invalid on the first call, causing a second call
@@ -3267,15 +3268,6 @@ ContentParent::KillHard(const char* aReason)
             crashReporter->AnnotateCrashReport(
                 NS_LITERAL_CSTRING("additional_minidumps"),
                 additionalDumps);
-            if (IsKillHardAnnotationSet()) {
-              crashReporter->AnnotateCrashReport(
-                  NS_LITERAL_CSTRING("kill_hard"),
-                  GetKillHardAnnotation());
-            }
-            nsDependentCString reason(aReason);
-            crashReporter->AnnotateCrashReport(
-                NS_LITERAL_CSTRING("ipc_channel_error"),
-                reason);
         }
     }
 #endif
@@ -4219,7 +4211,7 @@ ContentParent::CheckAppHasStatus(unsigned short aStatus)
 bool
 ContentParent::KillChild()
 {
-  KillHard("KillChild");
+  KillHard();
   return true;
 }
 

@@ -1506,7 +1506,7 @@ void
 MessageChannel::ReportMessageRouteError(const char* channelName) const
 {
     PrintErrorMessage(mSide, channelName, "Need a route");
-    mListener->OnProcessingError(MsgRouteError, "MsgRouteError");
+    mListener->OnProcessingError(MsgRouteError);
 }
 
 void
@@ -1540,7 +1540,7 @@ MessageChannel::ReportConnectionError(const char* aChannelName) const
     PrintErrorMessage(mSide, aChannelName, errorMsg);
 
     MonitorAutoUnlock unlock(*mMonitor);
-    mListener->OnProcessingError(MsgDropped, errorMsg);
+    mListener->OnProcessingError(MsgDropped);
 }
 
 bool
@@ -1575,14 +1575,14 @@ MessageChannel::MaybeHandleError(Result code, const Message& aMsg, const char* c
         return false;
     }
 
-    char reason[512];
-    PR_snprintf(reason, sizeof(reason),
+    char printedMsg[512];
+    PR_snprintf(printedMsg, sizeof(printedMsg),
                 "(msgtype=0x%lX,name=%s) %s",
                 aMsg.type(), aMsg.name(), errorMsg);
 
-    PrintErrorMessage(mSide, channelName, reason);
+    PrintErrorMessage(mSide, channelName, printedMsg);
 
-    mListener->OnProcessingError(code, reason);
+    mListener->OnProcessingError(code);
 
     return false;
 }

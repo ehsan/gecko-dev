@@ -157,6 +157,9 @@ inline bool
 js::GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index,
                MutableHandleValue vp)
 {
+    if (ElementIdOp op = obj->getOps()->getElement)
+        return op(cx, obj, receiver, index, vp);
+
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
@@ -166,7 +169,7 @@ js::GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t 
 inline bool
 js::GetElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t index, Value *vp)
 {
-    if (obj->getOps()->getProperty)
+    if (obj->getOps()->getElement)
         return false;
 
     if (index > JSID_INT_MAX)
@@ -178,7 +181,7 @@ inline bool
 js::DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     types::MarkTypePropertyNonData(cx, obj, id);
-    if (DeletePropertyOp op = obj->getOps()->deleteProperty)
+    if (DeleteGenericOp op = obj->getOps()->deleteGeneric)
         return op(cx, obj, id, succeeded);
     return NativeDeleteProperty(cx, obj.as<NativeObject>(), id, succeeded);
 }
@@ -199,7 +202,7 @@ inline bool
 js::SetPropertyAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
     types::MarkTypePropertyNonData(cx, obj, id);
-    SetAttributesOp op = obj->getOps()->setAttributes;
+    GenericAttributesOp op = obj->getOps()->setGenericAttributes;
     if (op)
         return op(cx, obj, id, attrsp);
     return NativeSetPropertyAttributes(cx, obj.as<NativeObject>(), id, attrsp);
