@@ -42,6 +42,7 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/util.js");
 Cu.import("resource://weave/dav.js");
@@ -64,17 +65,21 @@ ClientDataSvc.prototype = {
   },
 
   get name() {
-    return this._getCharPref("client.name", function() "cheese");
+    return this._getCharPref("client.name", function() "Firefox");
   },
   set GUID(value) {
     Utils.prefs.setCharPref("client.name", value);
   },
 
   get type() {
-    return this._getCharPref("client.type", function() "gruyere");
+    return this._getCharPref("client.type", function() "desktop");
   },
   set GUID(value) {
     Utils.prefs.setCharPref("client.type", value);
+  },
+
+  clients: function ClientData__clients() {
+    return this._remote.data;
   },
 
   _getCharPref: function ClientData__getCharPref(pref, defaultCb) {
