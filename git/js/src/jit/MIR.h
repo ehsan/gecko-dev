@@ -9899,7 +9899,7 @@ class MIteratorMore
 class MIsNoIter
   : public MUnaryInstruction
 {
-    explicit MIsNoIter(MDefinition *def)
+    MIsNoIter(MDefinition *def)
       : MUnaryInstruction(def)
     {
         setResultType(MIRType_Boolean);

@@ -301,7 +301,7 @@ class MozconfigLoader(ProcessExecutionMixin):
             name, value = match.group('var'), match.group('value')
 
             if name == 'MOZ_MAKE_FLAGS':
-                result['make_flags'] = value.split()
+                result['make_flags'] = value
                 continue
 
             if name == 'MOZ_OBJDIR':

@@ -7004,10 +7004,14 @@ class CGMethodCall(CGThing):
             # 2)  A Date object being passed to a Date or "object" arg.
             # 3)  A RegExp object being passed to a RegExp or "object" arg.
             # 4)  A callable object being passed to a callback or "object" arg.
-            # 5)  An iterable object being passed to a sequence arg.
-            # 6)  Any non-Date and non-RegExp object being passed to a
-            #     array or callback interface or dictionary or
+            # 5)  Any non-Date and non-RegExp object being passed to a
+            #     array or sequence or callback interface dictionary or
             #     "object" arg.
+            #
+            # We can can coalesce these five cases together, as long as we make
+            # sure to check whether our object works as an interface argument
+            # before checking whether it works as an arraylike or dictionary or
+            # callback function or callback interface.
 
             # First grab all the overloads that have a non-callback interface
             # (which includes typed arrays and arraybuffers) at the
@@ -7027,20 +7031,17 @@ class CGMethodCall(CGThing):
             objectSigs.extend(s for s in possibleSignatures
                               if distinguishingType(s).isCallback())
 
-            # And all the overloads that take sequences
+            # Now append all the overloads that take an array or sequence or
+            # dictionary or callback interface:
             objectSigs.extend(s for s in possibleSignatures
-                              if distinguishingType(s).isSequence())
+                              if (distinguishingType(s).isArray() or
+                                  distinguishingType(s).isSequence() or
+                                  distinguishingType(s).isDictionary() or
+                                  distinguishingType(s).isCallbackInterface()))
 
-            # Now append all the overloads that take an array or dictionary or
-            # callback interface or MozMap.  There should be only one of these!
-            genericObjectSigs = [
-                s for s in possibleSignatures
-                if (distinguishingType(s).isArray() or
-                    distinguishingType(s).isDictionary() or
-                    distinguishingType(s).isMozMap() or
-                    distinguishingType(s).isCallbackInterface()) ]
-            assert len(genericObjectSigs) <= 1
-            objectSigs.extend(genericObjectSigs)
+            # Now append all the overloads that take MozMap:
+            objectSigs.extend(s for s in possibleSignatures
+                              if (distinguishingType(s).isMozMap()))
 
             # There might be more than one thing in objectSigs; we need to check
             # which ones we unwrap to.
@@ -11553,17 +11554,14 @@ class CGDictionary(CGThing):
             # that we throw if we have no value provided.
             conversion += dedent(
                 """
-                if (!isNull && !temp->isUndefined()) {
-                ${convert}
-                } else if (cx) {
-                  // Don't error out if we have no cx.  In that
-                  // situation the caller is default-constructing us and we'll
-                  // just assume they know what they're doing.
+                // Skip the undefined check if we have no cx.  In that
+                // situation the caller is default-constructing us and we'll
+                // just assume they know what they're doing.
+                if (cx && (isNull || temp->isUndefined())) {
                   return ThrowErrorMessage(cx, MSG_MISSING_REQUIRED_DICTIONARY_MEMBER,
                                            "%s");
                 }
-                """ % self.getMemberSourceDescription(member))
-            conversionReplacements["convert"] = indent(conversionReplacements["convert"]).rstrip();
+                ${convert}""" % self.getMemberSourceDescription(member))
         else:
             conversion += (
                 "if (!isNull && !temp->isUndefined()) {\n"

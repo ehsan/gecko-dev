@@ -180,7 +180,6 @@ this.DOMApplicationRegistry = {
                      "Webapps:Download", "Webapps:ApplyDownload",
                      "Webapps:Install:Return:Ack", "Webapps:AddReceipt",
                      "Webapps:RemoveReceipt", "Webapps:ReplaceReceipt",
-                     "Webapps:RegisterBEP",
                      "child-process-shutdown"];
 
     this.frameMessages = ["Webapps:ClearBrowserData"];
@@ -1178,14 +1177,6 @@ this.DOMApplicationRegistry = {
         return null;
       }
     }
-    // And RegisterBEP requires "browser" permission...
-    if ("Webapps:RegisterBEP" == aMessage.name) {
-      if (!aMessage.target.assertPermission("browser")) {
-        debug("mozApps message " + aMessage.name +
-        " from a content process with no 'browser' privileges.");
-        return null;
-      }
-    }
 
     let msg = aMessage.data || {};
     let mm = aMessage.target;
@@ -1293,9 +1284,6 @@ this.DOMApplicationRegistry = {
           break;
         case "Webapps:ReplaceReceipt":
           this.replaceReceipt(msg, mm);
-          break;
-        case "Webapps:RegisterBEP":
-          this.registerBrowserElementParentForApp(msg, mm);
           break;
       }
     });
@@ -4284,16 +4272,14 @@ this.DOMApplicationRegistry = {
     }
   },
 
-  registerBrowserElementParentForApp: function(aMsg, aMn) {
-    let appId = this.getAppLocalIdByManifestURL(aMsg.manifestURL);
-    if (appId == Ci.nsIScriptSecurityManager.NO_APP_ID) {
-      return;
-    }
+  registerBrowserElementParentForApp: function(bep, appId) {
+    let mm = bep._mm;
+
     // Make a listener function that holds on to this appId.
     let listener = this.receiveAppMessage.bind(this, appId);
 
     this.frameMessages.forEach(function(msgName) {
-      aMn.addMessageListener(msgName, listener);
+      mm.addMessageListener(msgName, listener);
     });
   },
 

@@ -26,7 +26,7 @@ class WebGLTransformFeedback MOZ_FINAL
 
 public:
 
-    explicit WebGLTransformFeedback(WebGLContext* aContext);
+    WebGLTransformFeedback(WebGLContext* context);
 
     void Delete();
     WebGLContext* GetParentObject() const;

@@ -585,7 +585,6 @@ public:
                                  JSFinalizeStatus status,
                                  bool isCompartmentGC,
                                  void *data);
-    static void WeakPointerCallback(JSRuntime *rt, void *data);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
@@ -629,8 +628,6 @@ public:
 
     PRTime GetWatchdogTimestamp(WatchdogTimestampCategory aCategory);
     void OnAfterProcessNextEvent() { mSlowScriptCheckpoint = mozilla::TimeStamp(); }
-
-    nsTArray<nsXPCWrappedJS*>& WrappedJSToReleaseArray() { return mWrappedJSToReleaseArray; }
 
 private:
     XPCJSRuntime(); // no implementation
@@ -1087,6 +1084,12 @@ public:
     SuspectAllWrappers(XPCJSRuntime* rt, nsCycleCollectionNoteRootCallback &cb);
 
     static void
+    StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* rt);
+
+    static void
+    FinishedFinalizationPhaseOfGC();
+
+    static void
     MarkAllWrappedNativesAndProtos();
 
 #ifdef DEBUG
@@ -1096,12 +1099,6 @@ public:
 
     static void
     SweepAllWrappedNativeTearOffs();
-
-    static void
-    UpdateWeakPointersAfterGC(XPCJSRuntime* rt);
-
-    static void
-    KillDyingScopes();
 
     static void
     DebugDumpAllScopes(int16_t depth);
@@ -1181,6 +1178,8 @@ public:
 
 protected:
     virtual ~XPCWrappedNativeScope();
+
+    static void KillDyingScopes();
 
     XPCWrappedNativeScope(); // not implemented
 
@@ -1851,7 +1850,6 @@ public:
 
     bool CallPostCreatePrototype();
     void JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj);
-    void JSProtoObjectMoved(JSObject *obj, const JSObject *old);
 
     void SystemIsBeingShutDown();
 
@@ -1946,7 +1944,6 @@ public:
     void SetJSObject(JSObject*  JSObj);
 
     void JSObjectFinalized() {SetJSObject(nullptr);}
-    void JSObjectMoved(JSObject *obj, const JSObject *old);
 
     XPCWrappedNativeTearOff()
         : mInterface(nullptr), mNative(nullptr), mJSObject(nullptr) {}
@@ -2471,7 +2468,7 @@ public:
     // to find non-rooting wrappers for dying JS objects. See the top of
     // XPCWrappedJS.cpp for more details.
     bool IsSubjectToFinalization() const {return IsValid() && mRefCnt == 1;}
-    void UpdateObjectPointerAfterGC() {JS_UpdateWeakPointerAfterGC(&mJSObj);}
+    bool IsObjectAboutToBeFinalized() {return JS_IsAboutToBeFinalized(&mJSObj);}
 
     bool IsAggregatedToNative() const {return mRoot->mOuter != nullptr;}
     nsISupports* GetAggregatedNativeObject() const {return mRoot->mOuter;}

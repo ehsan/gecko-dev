@@ -1379,6 +1379,6 @@ this.MozLoopService = {
    */
   hawkRequest: function(sessionType, path, method, payloadObj) {
     return MozLoopServiceInternal.hawkRequest(sessionType, path, method, payloadObj).catch(
-      error => {MozLoopServiceInternal._hawkRequestError(error);});
+      error => {this._hawkRequestError(error);});
   },
 };

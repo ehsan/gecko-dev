@@ -53,7 +53,7 @@ def main():
             download_file(entity["url"], entity["path"], key)
         else:
             print "ERROR: You have tried to download a file " + \
-                  "from: %s " % entity["url"] + \
+                  "from: %s " % fileUrl + \
                   "which is a location different than http://talos-bundles.pvt.build.mozilla.org/"
             print "ERROR: This is only allowed for the certain branches."
             sys.exit(1)
@@ -66,12 +66,10 @@ def passesRestrictions(talosJsonUrl, fileUrl):
     Only certain branches are exempted from having to host their downloadable files
     in talos-bundles.pvt.build.mozilla.org
     '''
-    if talosJsonUrl.startswith("http://hg.mozilla.org/try/") or \
-       talosJsonUrl.startswith("https://hg.mozilla.org/try/") or \
-       talosJsonUrl.startswith("http://hg.mozilla.org/projects/pine/") or \
-       talosJsonUrl.startswith("https://hg.mozilla.org/projects/pine/") or \
-       talosJsonUrl.startswith("http://hg.mozilla.org/projects/ash/") or \
-       talosJsonUrl.startswith("https://hg.mozilla.org/projects/ash/"):
+    if talosJsonUrl.startswith("http://hg.mozilla.org/try/") == True or \
+       talosJsonUrl.startswith("https://hg.mozilla.org/try/") == True or \
+       talosJsonUrl.startswith("http://hg.mozilla.org/projects/pine/") == True or \
+       talosJsonUrl.startswith("https://hg.mozilla.org/projects/pine/") == True:
         return True
     else:
         p = re.compile('^http://talos-bundles.pvt.build.mozilla.org/')

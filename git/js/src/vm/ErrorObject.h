@@ -7,8 +7,6 @@
 #ifndef vm_ErrorObject_h_
 #define vm_ErrorObject_h_
 
-#include "mozilla/ArrayUtils.h"
-
 #include "jsobj.h"
 
 #include "vm/Shape.h"
@@ -65,17 +63,7 @@ class ErrorObject : public JSObject
     static const uint32_t RESERVED_SLOTS = MESSAGE_SLOT + 1;
 
   public:
-    static const Class classes[JSEXN_LIMIT];
-
-    static const Class * classForType(JSExnType type) {
-        MOZ_ASSERT(type != JSEXN_NONE);
-        MOZ_ASSERT(type < JSEXN_LIMIT);
-        return &classes[type];
-    }
-
-    static bool isErrorClass(const Class *clasp) {
-        return &classes[0] <= clasp && clasp < &classes[0] + mozilla::ArrayLength(classes);
-    }
+    static const Class class_;
 
     // Create an error of the given type corresponding to the provided location
     // info.  If |message| is non-null, then the error will have a .message
@@ -111,12 +99,5 @@ class ErrorObject : public JSObject
 };
 
 } // namespace js
-
-template<>
-inline bool
-JSObject::is<js::ErrorObject>() const
-{
-    return js::ErrorObject::isErrorClass(getClass());
-}
 
 #endif // vm_ErrorObject_h_

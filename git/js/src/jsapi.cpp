@@ -1888,29 +1888,28 @@ JS_RemoveFinalizeCallback(JSRuntime *rt, JSFinalizeCallback cb)
 }
 
 JS_PUBLIC_API(bool)
-JS_AddWeakPointerCallback(JSRuntime *rt, JSWeakPointerCallback cb, void *data)
+JS_AddMovingGCCallback(JSRuntime *rt, JSMovingGCCallback cb, void *data)
 {
     AssertHeapIsIdle(rt);
-    return rt->gc.addWeakPointerCallback(cb, data);
+    return rt->gc.addMovingGCCallback(cb, data);
 }
 
 JS_PUBLIC_API(void)
-JS_RemoveWeakPointerCallback(JSRuntime *rt, JSWeakPointerCallback cb)
+JS_RemoveMovingGCCallback(JSRuntime *rt, JSMovingGCCallback cb)
 {
-    rt->gc.removeWeakPointerCallback(cb);
+    rt->gc.removeMovingGCCallback(cb);
 }
 
-JS_PUBLIC_API(void)
-JS_UpdateWeakPointerAfterGC(JS::Heap<JSObject *> *objp)
+JS_PUBLIC_API(bool)
+JS_IsAboutToBeFinalized(JS::Heap<JSObject *> *objp)
 {
-    JS_UpdateWeakPointerAfterGCUnbarriered(objp->unsafeGet());
+    return IsObjectAboutToBeFinalized(objp->unsafeGet());
 }
 
-JS_PUBLIC_API(void)
-JS_UpdateWeakPointerAfterGCUnbarriered(JSObject **objp)
+JS_PUBLIC_API(bool)
+JS_IsAboutToBeFinalizedUnbarriered(JSObject **objp)
 {
-    if (IsObjectAboutToBeFinalized(objp))
-        *objp = nullptr;
+    return IsObjectAboutToBeFinalized(objp);
 }
 
 JS_PUBLIC_API(void)

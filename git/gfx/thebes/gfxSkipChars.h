@@ -25,9 +25,6 @@
  */
 class gfxSkipChars
 {
-    friend struct SkippedRangeStartComparator;
-    friend struct SkippedRangeOffsetComparator;
-
 private:
     class SkippedRange
     {

@@ -26,20 +26,18 @@ function test() {
 
     ss.setTabState(tab, JSON.stringify(tabState));
     whenTabRestored(tab, function() {
-      TabState.flush(tab.linkedBrowser);
+      SyncHandlers.get(tab.linkedBrowser).flush();
       tabState = JSON.parse(ss.getTabState(tab));
       is(tabState.entries.length, max_entries, "session history filled to the limit");
       is(tabState.entries[0].url, baseURL + 0, "... but not more");
 
       // visit yet another anchor (appending it to session history)
-      runInContent(tab.linkedBrowser, function(win) {
-        win.document.querySelector("a").click();
-      }, null).then(check);
+      tab.linkedBrowser.contentDocument.querySelector("a").click();
 
       function check() {
-        TabState.flush(tab.linkedBrowser);
+        SyncHandlers.get(tab.linkedBrowser).flush();
         tabState = JSON.parse(ss.getTabState(tab));
-        if (tab.linkedBrowser.currentURI.spec != baseURL + "end") {
+        if (tabState.entries[tabState.entries.length - 1].url != baseURL + "end") {
           // It may take a few passes through the event loop before we
           // get the right URL.
           executeSoon(check);
@@ -57,6 +55,8 @@ function test() {
         gBrowser.removeTab(tab);
         finish();
       }
+
+      check();
     });
   });
 }

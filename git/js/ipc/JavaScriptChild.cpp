@@ -21,9 +21,17 @@ using namespace mozilla::jsipc;
 using mozilla::AutoSafeJSContext;
 
 static void
-UpdateChildWeakPointersAfterGC(JSRuntime *rt, void *data)
+FinalizeChild(JSFreeOp *fop, JSFinalizeStatus status, bool isCompartment, void *data)
 {
-    static_cast<JavaScriptChild *>(data)->updateWeakPointers();
+    if (status == JSFINALIZE_GROUP_START) {
+        static_cast<JavaScriptChild *>(data)->finalize();
+    }
+}
+
+static void
+FixupChildAfterMovingGC(JSRuntime *rt, void *data)
+{
+    static_cast<JavaScriptChild *>(data)->fixupAfterMovingGC();
 }
 
 JavaScriptChild::JavaScriptChild(JSRuntime *rt)
@@ -34,7 +42,8 @@ JavaScriptChild::JavaScriptChild(JSRuntime *rt)
 
 JavaScriptChild::~JavaScriptChild()
 {
-    JS_RemoveWeakPointerCallback(rt_, UpdateChildWeakPointersAfterGC);
+    JS_RemoveFinalizeCallback(rt_, FinalizeChild);
+    JS_RemoveMovingGCCallback(rt_, FixupChildAfterMovingGC);
 }
 
 bool
@@ -45,12 +54,13 @@ JavaScriptChild::init()
     if (!WrapperAnswer::init())
         return false;
 
-    JS_AddWeakPointerCallback(rt_, UpdateChildWeakPointersAfterGC, this);
+    JS_AddFinalizeCallback(rt_, FinalizeChild, this);
+    JS_AddMovingGCCallback(rt_, FixupChildAfterMovingGC, this);
     return true;
 }
 
 void
-JavaScriptChild::updateWeakPointers()
+JavaScriptChild::finalize()
 {
     objects_.sweep();
     objectIds_.sweep();

@@ -71,21 +71,16 @@ bool KillProcess(ProcessHandle process_id, int exit_code, bool wait) {
 
   if (result && wait) {
     int tries = 60;
-    bool exited = false;
     // The process may not end immediately due to pending I/O
     while (tries-- > 0) {
       int pid = HANDLE_EINTR(waitpid(process_id, NULL, WNOHANG));
-      if (pid == process_id) {
-        exited = true;
+      if (pid == process_id)
         break;
-      }
 
       sleep(1);
     }
 
-    if (!exited) {
-      result = kill(process_id, SIGKILL) == 0;
-    }
+    result = kill(process_id, SIGKILL) == 0;
   }
 
   if (!result)

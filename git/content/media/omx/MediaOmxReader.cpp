@@ -351,7 +351,6 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
       return false;
     }
     doSeek = false;
-    mVideoSeekTimeUs = -1;
 
     // Ignore empty buffer which stagefright media read will sporadically return
     if (frame.mSize == 0 && !frame.mGraphicBuffer) {
@@ -366,6 +365,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
     mSkipCount = 0;
 
+    mVideoSeekTimeUs = -1;
     aKeyframeSkip = false;
 
     IntRect picture = ToIntRect(mPicture);

@@ -156,20 +156,20 @@ function test_flag_histogram()
   var c = h.snapshot().counts;
   var s = h.snapshot().sum;
   do_check_eq(uneval(c), uneval([1, 0, 0]));
-  do_check_eq(s, 0);
+  do_check_eq(s, 1);
   // Should switch counts.
-  h.add(1);
+  h.add(2);
   var c2 = h.snapshot().counts;
   var s2 = h.snapshot().sum;
   do_check_eq(uneval(c2), uneval([0, 1, 0]));
-  do_check_eq(s2, 1);
+  do_check_eq(s, 1);
   // Should only switch counts once.
-  h.add(1);
+  h.add(3);
   var c3 = h.snapshot().counts;
   var s3 = h.snapshot().sum;
   do_check_eq(uneval(c3), uneval([0, 1, 0]));
   do_check_eq(s3, 1);
-  do_check_eq(h.snapshot().histogram_type, Telemetry.HISTOGRAM_FLAG);
+  do_check_eq(h.snapshot().histogram_type, Telemetry.FLAG_HISTOGRAM);
 }
 
 function test_getHistogramById() {
@@ -378,7 +378,6 @@ function run_test()
   do_check_false("NEWTAB_PAGE_PINNED_SITES_COUNT" in Telemetry.histogramSnapshots);
 
   test_boolean_histogram();
-  test_flag_histogram();
   test_getHistogramById();
   test_histogramFrom();
   test_getSlowSQL();

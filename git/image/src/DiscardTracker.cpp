@@ -8,7 +8,6 @@
 #include "RasterImage.h"
 #include "DiscardTracker.h"
 #include "mozilla/Preferences.h"
-#include "gfxPrefs.h"
 
 namespace mozilla {
 namespace image {
@@ -22,6 +21,8 @@ static const char* sDiscardTimeoutPref = "image.mem.min_discard_timeout_ms";
 /* static */ Atomic<bool> DiscardTracker::sDiscardRunnablePending(false);
 /* static */ uint64_t DiscardTracker::sCurrentDecodedImageBytes = 0;
 /* static */ uint32_t DiscardTracker::sMinDiscardTimeoutMs = 10000;
+/* static */ uint32_t DiscardTracker::sMaxDecodedImageKB = 42 * 1024;
+/* static */ uint32_t DiscardTracker::sHardLimitDecodedImageKB = 0;
 /* static */ PRLock * DiscardTracker::sAllocationLock = nullptr;
 /* static */ Mutex* DiscardTracker::sNodeListMutex = nullptr;
 /* static */ Atomic<bool> DiscardTracker::sShutdown(false);
@@ -66,7 +67,7 @@ DiscardTracker::Reset(Node *node)
   sDiscardableImages.insertFront(node);
 
   // If the node wasn't already in the list of discardable images, then we may
-  // need to discard some images to stay under gfxPrefs::ImageMemMaxDecodedImageKB() limit.
+  // need to discard some images to stay under the sMaxDecodedImageKB limit.
   // Call MaybeDiscardSoon to do this check.
   if (!wasInList) {
     MaybeDiscardSoon();
@@ -145,8 +146,8 @@ DiscardTracker::TryAllocation(uint64_t aBytes)
 
   PR_Lock(sAllocationLock);
   bool enoughSpace =
-    !gfxPrefs::ImageMemHardLimitDecodedImageKB() ||
-    (gfxPrefs::ImageMemHardLimitDecodedImageKB() * 1024) - sCurrentDecodedImageBytes >= aBytes;
+    !sHardLimitDecodedImageKB ||
+    (sHardLimitDecodedImageKB * 1024) - sCurrentDecodedImageBytes >= aBytes;
 
   if (enoughSpace) {
     sCurrentDecodedImageBytes += aBytes;
@@ -183,6 +184,13 @@ DiscardTracker::Initialize()
   Preferences::RegisterCallback(DiscardTimeoutChangedCallback,
                                 sDiscardTimeoutPref);
 
+  Preferences::AddUintVarCache(&sMaxDecodedImageKB,
+                              "image.mem.max_decoded_image_kb",
+                              50 * 1024);
+
+  Preferences::AddUintVarCache(&sHardLimitDecodedImageKB,
+                               "image.mem.hard_limit_decoded_image_kb",
+                               0);
   // Create the timer.
   sTimer = do_CreateInstance("@mozilla.org/timer;1");
 
@@ -269,7 +277,7 @@ DiscardTracker::DisableTimer()
 /**
  * Routine activated when the timer fires. This discards everything that's
  * older than sMinDiscardTimeoutMs, and tries to discard enough images so that
- * we go under gfxPrefs::ImageMemMaxDecodedImageKB().
+ * we go under sMaxDecodedImageKB.
  */
 void
 DiscardTracker::TimerCallback(nsITimer *aTimer, void *aClosure)
@@ -283,13 +291,13 @@ DiscardTracker::DiscardNow()
   // Assuming the list is ordered with oldest discard tracker nodes at the back
   // and newest ones at the front, iterate from back to front discarding nodes
   // until we encounter one which is new enough to keep and until we go under
-  // our gfxPrefs::ImageMemMaxDecodedImageKB() limit.
+  // our sMaxDecodedImageKB limit.
 
   TimeStamp now = TimeStamp::Now();
   Node* node;
   while ((node = sDiscardableImages.getLast())) {
     if ((now - node->timestamp).ToMilliseconds() > sMinDiscardTimeoutMs ||
-        sCurrentDecodedImageBytes > gfxPrefs::ImageMemMaxDecodedImageKB() * 1024) {
+        sCurrentDecodedImageBytes > sMaxDecodedImageKB * 1024) {
 
       // Discarding the image should cause sCurrentDecodedImageBytes to
       // decrease via a call to InformDeallocation().
@@ -314,7 +322,7 @@ DiscardTracker::MaybeDiscardSoon()
 {
   // Are we carrying around too much decoded image data?  If so, enqueue an
   // event to try to get us down under our limit.
-  if (sCurrentDecodedImageBytes > gfxPrefs::ImageMemMaxDecodedImageKB() * 1024 &&
+  if (sCurrentDecodedImageBytes > sMaxDecodedImageKB * 1024 &&
       !sDiscardableImages.isEmpty()) {
     // Check if the value of sDiscardRunnablePending used to be false
     if (!sDiscardRunnablePending.exchange(true)) {

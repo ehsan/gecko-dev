@@ -33,6 +33,9 @@ interface GeometryUtils {
   DOMPoint convertPointFromNode(DOMPointInit point, GeometryNode from, optional ConvertCoordinateOptions options);
 };
 
+Text implements GeometryUtils;
+Element implements GeometryUtils;
 // PseudoElement implements GeometryUtils;
+Document implements GeometryUtils;
 
 typedef (Text or Element /* or PseudoElement */ or Document) GeometryNode;

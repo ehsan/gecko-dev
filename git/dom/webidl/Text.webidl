@@ -17,5 +17,3 @@ interface Text : CharacterData {
   [Throws]
   readonly attribute DOMString wholeText;
 };
-
-Text implements GeometryUtils;

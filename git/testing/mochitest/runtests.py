@@ -1201,28 +1201,17 @@ class Mochitest(MochitestUtilsMixin):
     if options.gmp_path:
       return options.gmp_path
 
-    gmp_parentdirs = [
-      # For local builds, GMP plugins will be under dist/bin.
-      options.xrePath,
-      # For packaged builds, GMP plugins will get copied under $profile/plugins.
-      os.path.join(self.profile.profile, 'plugins'),
-    ]
+    # For local builds, gmp-fake will be under dist/bin.
+    gmp_path = os.path.join(options.xrePath, 'gmp-fake', '1.0')
+    if os.path.isdir(gmp_path):
+      return gmp_path
 
-    gmp_subdirs = [
-      os.path.join('gmp-fake', '1.0'),
-      os.path.join('gmp-clearkey', '0.1'),
-    ]
-
-    gmp_paths = [os.path.join(parent, sub)
-      for parent in gmp_parentdirs
-      for sub in gmp_subdirs
-      if os.path.isdir(os.path.join(parent, sub))]
-
-    if not gmp_paths:
-      # This is fatal for desktop environments.
-      raise EnvironmentError('Could not find test gmp plugins')
-
-    return os.pathsep.join(gmp_paths)
+    # For packaged builds, gmp-fake will get copied under $profile/plugins.
+    gmp_path = os.path.join(self.profile.profile, 'plugins', 'gmp-fake', '1.0')
+    if os.path.isdir(gmp_path):
+      return gmp_path
+    # This is fatal for desktop environments.
+    raise EnvironmentError('Could not find gmp-fake')
 
   def buildBrowserEnv(self, options, debugger=False, env=None):
     """build the environment variables for the specific test and operating system"""
@@ -1532,10 +1521,11 @@ class Mochitest(MochitestUtilsMixin):
 
       # check for crashes
       minidump_path = os.path.join(self.profile.profile, "minidumps")
-      crash_count = mozcrash.log_crashes(self.log, minidump_path, symbolsPath,
-                                         test=self.lastTestSeen)
+      crashed = mozcrash.check_for_crashes(minidump_path,
+                                           symbolsPath,
+                                           test_name=self.lastTestSeen)
 
-      if crash_count or zombieProcesses:
+      if crashed or zombieProcesses:
         status = 1
 
     finally:

@@ -4,16 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxSkipChars.h"
-#include "mozilla/BinarySearch.h"
-
-struct SkippedRangeStartComparator
-{
-    const uint32_t mOffset;
-    SkippedRangeStartComparator(const uint32_t aOffset) : mOffset(aOffset) {}
-    int operator()(const gfxSkipChars::SkippedRange& aRange) const {
-        return (mOffset < aRange.Start()) ? -1 : 1;
-    }
-};
 
 void
 gfxSkipCharsIterator::SetOriginalOffset(int32_t aOffset)
@@ -24,7 +14,7 @@ gfxSkipCharsIterator::SetOriginalOffset(int32_t aOffset)
 
     mOriginalStringOffset = aOffset;
 
-    const uint32_t rangeCount = mSkipChars->mRanges.Length();
+    uint32_t rangeCount = mSkipChars->mRanges.Length();
     if (rangeCount == 0) {
         mSkippedStringOffset = aOffset;
         return;
@@ -39,22 +29,27 @@ gfxSkipCharsIterator::SetOriginalOffset(int32_t aOffset)
     }
 
     // find the range that includes or precedes aOffset
-    const nsTArray<gfxSkipChars::SkippedRange>& ranges = mSkipChars->mRanges;
-    size_t idx;
-    mozilla::BinarySearchIf(ranges, 0, rangeCount,
-                            SkippedRangeStartComparator(aOffset),
-                            &idx);
+    uint32_t lo = 0, hi = rangeCount;
+    const gfxSkipChars::SkippedRange* ranges = mSkipChars->mRanges.Elements();
+    while (lo < hi) {
+        uint32_t mid = (lo + hi) / 2;
+        if (uint32_t(aOffset) < ranges[mid].Start()) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
 
-    if (idx == rangeCount) {
+    if (lo == rangeCount) {
         mCurrentRangeIndex = rangeCount - 1;
-    } else if (uint32_t(aOffset) < ranges[idx].Start()) {
-        mCurrentRangeIndex = idx - 1;
+    } else if (uint32_t(aOffset) < ranges[lo].Start()) {
+        mCurrentRangeIndex = lo - 1;
         if (mCurrentRangeIndex == -1) {
             mSkippedStringOffset = aOffset;
             return;
         }
     } else {
-        mCurrentRangeIndex = idx;
+        mCurrentRangeIndex = lo;
     }
 
     const gfxSkipChars::SkippedRange& r = ranges[mCurrentRangeIndex];
@@ -65,15 +60,6 @@ gfxSkipCharsIterator::SetOriginalOffset(int32_t aOffset)
 
     mSkippedStringOffset = aOffset - r.NextDelta();
 }
-
-struct SkippedRangeOffsetComparator
-{
-    const uint32_t mOffset;
-    SkippedRangeOffsetComparator(const uint32_t aOffset) : mOffset(aOffset) {}
-    int operator()(const gfxSkipChars::SkippedRange& aRange) const {
-        return (mOffset < aRange.SkippedOffset()) ? -1 : 1;
-    }
-};
 
 void
 gfxSkipCharsIterator::SetSkippedOffset(uint32_t aOffset)
@@ -92,22 +78,27 @@ gfxSkipCharsIterator::SetSkippedOffset(uint32_t aOffset)
         return;
     }
 
-    const nsTArray<gfxSkipChars::SkippedRange>& ranges = mSkipChars->mRanges;
-    size_t idx;
-    mozilla::BinarySearchIf(ranges, 0, rangeCount,
-                            SkippedRangeOffsetComparator(aOffset),
-                            &idx);
+    uint32_t lo = 0, hi = rangeCount;
+    const gfxSkipChars::SkippedRange* ranges = mSkipChars->mRanges.Elements();
+    while (lo < hi) {
+        uint32_t mid = (lo + hi) / 2;
+        if (aOffset < ranges[mid].SkippedOffset()) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
 
-    if (idx == rangeCount) {
+    if (lo == rangeCount) {
         mCurrentRangeIndex = rangeCount - 1;
-    } else if (aOffset < ranges[idx].SkippedOffset()) {
-        mCurrentRangeIndex = idx - 1;
+    } else if (aOffset < ranges[lo].SkippedOffset()) {
+        mCurrentRangeIndex = lo - 1;
         if (mCurrentRangeIndex == -1) {
             mOriginalStringOffset = aOffset;
             return;
         }
     } else {
-        mCurrentRangeIndex = idx;
+        mCurrentRangeIndex = lo;
     }
 
     const gfxSkipChars::SkippedRange& r = ranges[mCurrentRangeIndex];

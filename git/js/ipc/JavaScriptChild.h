@@ -21,7 +21,7 @@ class JavaScriptChild : public JavaScriptBase<PJavaScriptChild>
     virtual ~JavaScriptChild();
 
     bool init();
-    void updateWeakPointers();
+    void finalize();
 
     void drop(JSObject *obj);
 

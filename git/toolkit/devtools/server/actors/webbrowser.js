@@ -96,21 +96,15 @@ exports.sendShutdownEvent = sendShutdownEvent;
  *          failed.
  */
 const unwrapDebuggerObjectGlobal = wrappedGlobal => {
+  let global;
   try {
-    // Because of bug 991399 we sometimes get nuked window references here. We
-    // just bail out in that case.
-    //
-    // Note that addon sandboxes have a DOMWindow as their prototype. So make
-    // sure that we can touch the prototype too (whatever it is), in case _it_
-    // is it a nuked window reference. We force stringification to make sure
-    // that any dead object proxies make themselves known.
-    let global = wrappedGlobal.unsafeDereference();
-    Object.getPrototypeOf(global) + "";
-    return global;
+    global = wrappedGlobal.unsafeDereference();
   }
   catch (e) {
-    return undefined;
+    // Because of bug 991399 we sometimes get bad objects here. If we
+    // can't dereference them then they won't be useful to us.
   }
+  return global;
 };
 
 /**
@@ -663,34 +657,6 @@ TabActor.prototype = {
   },
 
   /**
-   * Getter for the original docShell the tabActor got attached to in the first
-   * place.
-   * Note that your actor should normally *not* rely on this top level docShell
-   * if you want it to show information relative to the iframe that's currently
-   * being inspected in the toolbox.
-   */
-  get originalDocShell() {
-    if (!this._originalWindow) {
-      return this.docShell;
-    }
-
-    return this._originalWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                               .getInterface(Ci.nsIWebNavigation)
-                               .QueryInterface(Ci.nsIDocShell);
-  },
-
-  /**
-   * Getter for the original window the tabActor got attached to in the first
-   * place.
-   * Note that your actor should normally *not* rely on this top level window if
-   * you want it to show information relative to the iframe that's currently
-   * being inspected in the toolbox.
-   */
-  get originalWindow() {
-    return this._originalWindow || this.window;
-  },
-
-  /**
    * Getter for the nsIWebProgress for watching this window.
    */
   get webProgress() {
@@ -823,9 +789,7 @@ TabActor.prototype = {
       metadata = Cu.getSandboxMetadata(global);
     }
     catch (e) {}
-    if (metadata
-        && metadata["inner-window-id"]
-        && metadata["inner-window-id"] == id) {
+    if (metadata["inner-window-id"] && metadata["inner-window-id"] == id) {
       return true;
     }
 

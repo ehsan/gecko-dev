@@ -13,6 +13,13 @@ describe("loop.panel", function() {
 
   var sandbox, notifications, fakeXHR, requests = [];
 
+  function createTestRouter(fakeDocument) {
+    return new loop.panel.PanelRouter({
+      notifications: notifications,
+      document: fakeDocument
+    });
+  }
+
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
     fakeXHR = sandbox.useFakeXMLHttpRequest();

@@ -145,7 +145,7 @@ class JSONWriter
     }
 
   public:
-    explicit EscapedString(const char* aStr)
+    EscapedString(const char* aStr)
       : mUnownedStr(nullptr)
       , mOwnedStr(nullptr)
     {

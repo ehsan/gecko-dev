@@ -37,7 +37,6 @@
 #include "nsIMemoryReporter.h"
 #include "Image.h"
 #include "DiscardTracker.h"
-#include "gfxPrefs.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -1120,9 +1119,19 @@ void imgLoader::GlobalInit()
     os->AddObserver(gCacheObserver, "app-theme-changed", false);
   }
 
-  sCacheTimeWeight = gfxPrefs::ImageCacheTimeWeight() / 1000.0;
-  int32_t cachesize = gfxPrefs::ImageCacheSize();
-  sCacheMaxSize = cachesize > 0 ? cachesize : 0;
+  int32_t timeweight;
+  nsresult rv = Preferences::GetInt("image.cache.timeweight", &timeweight);
+  if (NS_SUCCEEDED(rv))
+    sCacheTimeWeight = timeweight / 1000.0;
+  else
+    sCacheTimeWeight = 0.5;
+
+  int32_t cachesize;
+  rv = Preferences::GetInt("image.cache.size", &cachesize);
+  if (NS_SUCCEEDED(rv))
+    sCacheMaxSize = cachesize > 0 ? cachesize : 0;
+  else
+    sCacheMaxSize = 5 * 1024 * 1024;
 
   sMemReporter = new imgMemoryReporter();
   RegisterStrongMemoryReporter(sMemReporter);

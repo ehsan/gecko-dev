@@ -3032,7 +3032,7 @@ const Class DateObject::class_ = {
     nullptr,                 /* trace */
     {
         GenericCreateConstructor<js_Date, MAXARGS, JSFunction::FinalizeKind>,
-        GenericCreatePrototype,
+        GenericCreatePrototype<&DateObject::class_>,
         date_static_methods,
         date_methods,
         nullptr,

@@ -9,9 +9,7 @@
 
 /* Utilities and common inline code for TypedArray and SharedTypedArray */
 
-#include "mozilla/Assertions.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/PodOperations.h"
 
 #include "js/Value.h"
 
@@ -156,425 +154,86 @@ IsAnyTypedArrayClass(const Class *clasp)
     return IsTypedArrayClass(clasp) || IsSharedTypedArrayClass(clasp);
 }
 
-template<class SpecificArray>
-class ElementSpecific
+// The subarray() method on TypedArray and SharedTypedArray
+
+template<typename Adapter>
+class TypedArraySubarrayTemplate
 {
-    typedef typename SpecificArray::ElementType T;
-    typedef typename SpecificArray::AnyTypedArray AnyTypedArray;
+    typedef typename Adapter::ElementType NativeType;
+    typedef typename Adapter::TypedArrayObjectType ArrayType;
+    typedef typename Adapter::ArrayBufferObjectType BufferType;
 
   public:
-    /*
-     * Copy |source|'s elements into |target|, starting at |target[offset]|.
-     * Act as if the assignments occurred from a fresh copy of |source|, in
-     * case the two memory ranges overlap.
-     */
-    static bool
-    setFromTypedArray(JSContext *cx,
-                       Handle<AnyTypedArray*> target, Handle<AnyTypedArray*> source,
-                       uint32_t offset)
+    static JSObject *
+    createSubarray(JSContext *cx, HandleObject tarrayArg, uint32_t begin, uint32_t end)
     {
-        MOZ_ASSERT(SpecificArray::ArrayTypeID() == target->type(),
-                   "calling wrong setFromTypedArray specialization");
+        Rooted<ArrayType*> tarray(cx, &tarrayArg->as<ArrayType>());
 
-        MOZ_ASSERT(offset <= target->length());
-        MOZ_ASSERT(source->length() <= target->length() - offset);
-
-        if (AnyTypedArray::sameBuffer(target, source))
-            return setFromOverlappingTypedArray(cx, target, source, offset);
-
-        T *dest = static_cast<T*>(target->viewData()) + offset;
-        uint32_t count = source->length();
-
-        if (source->type() == target->type()) {
-            mozilla::PodCopy(dest, static_cast<T*>(source->viewData()), count);
-            return true;
+        if (begin > tarray->length() || end > tarray->length() || begin > end) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_INDEX);
+            return nullptr;
         }
 
-        void *data = source->viewData();
-        switch (source->type()) {
-          case Scalar::Int8: {
-            int8_t *src = static_cast<int8_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint8:
-          case Scalar::Uint8Clamped: {
-            uint8_t *src = static_cast<uint8_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Int16: {
-            int16_t *src = static_cast<int16_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint16: {
-            uint16_t *src = static_cast<uint16_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Int32: {
-            int32_t *src = static_cast<int32_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint32: {
-            uint32_t *src = static_cast<uint32_t*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Float32: {
-            float *src = static_cast<float*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Float64: {
-            double *src = static_cast<double*>(data);
-            for (uint32_t i = 0; i < count; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          default:
-            MOZ_CRASH("setFromTypedArray with a typed array with bogus type");
-        }
+        if (!Adapter::ensureHasBuffer(cx, tarray))
+            return nullptr;
 
-        return true;
+        Rooted<BufferType *> bufobj(cx, tarray->buffer());
+        JS_ASSERT(bufobj);
+
+        uint32_t length = end - begin;
+
+        JS_ASSERT(begin < UINT32_MAX / sizeof(NativeType));
+        uint32_t arrayByteOffset = tarray->byteOffset();
+        JS_ASSERT(UINT32_MAX - begin * sizeof(NativeType) >= arrayByteOffset);
+        uint32_t byteOffset = arrayByteOffset + begin * sizeof(NativeType);
+
+        return Adapter::ThisTypedArrayObjectType::makeInstance(cx, bufobj, byteOffset, length);
     }
 
-    /*
-     * Copy |source[0]| to |source[len]| (exclusive) elements into the typed
-     * array |target|, starting at index |offset|.  |source| must not be a
-     * typed array.
-     */
     static bool
-    setFromNonTypedArray(JSContext *cx, Handle<AnyTypedArray*> target, HandleObject source,
-                         uint32_t len, uint32_t offset = 0)
+    fun_subarray_impl(JSContext *cx, CallArgs args)
     {
-        MOZ_ASSERT(target->type() == SpecificArray::ArrayTypeID(),
-                   "target type and NativeType must match");
-        MOZ_ASSERT(!source->is<AnyTypedArray>(),
-                   "use setFromTypedArray instead of this method");
+        JS_ASSERT(Adapter::ThisTypedArrayObjectType::IsThisClass(args.thisv()));
+        Rooted<ArrayType *> tarray(cx, &args.thisv().toObject().as<ArrayType>());
 
-        uint32_t i = 0;
-        if (source->isNative()) {
-            // Attempt fast-path infallible conversion of dense elements up to
-            // the first potentially side-effectful lookup or conversion.
-            uint32_t bound = Min(source->getDenseInitializedLength(), len);
+        // these are the default values
+        uint32_t length = tarray->length();
+        uint32_t begin = 0, end = length;
 
-            T *dest = static_cast<T*>(target->viewData()) + offset;
-
-            MOZ_ASSERT(!canConvertInfallibly(MagicValue(JS_ELEMENTS_HOLE)),
-                       "the following loop must abort on holes");
-
-            const Value *srcValues = source->getDenseElements();
-            for (; i < bound; i++) {
-                if (!canConvertInfallibly(srcValues[i]))
-                    break;
-                dest[i] = infallibleValueToNative(srcValues[i]);
-            }
-            if (i == len)
-                return true;
-        }
-
-        // Convert and copy any remaining elements generically.
-        RootedValue v(cx);
-        for (; i < len; i++) {
-            if (!JSObject::getElement(cx, source, source, i, &v))
-                return false;
-
-            T n;
-            if (!valueToNative(cx, v, &n))
-                return false;
-
-            len = Min(len, target->length());
-            if (i >= len)
-                break;
-
-            // Compute every iteration in case getElement/valueToNative is wacky.
-            void *data = target->viewData();
-            static_cast<T*>(data)[offset + i] = n;
-        }
-
-        return true;
-    }
-
-  private:
-    static bool
-    setFromOverlappingTypedArray(JSContext *cx,
-                                 Handle<AnyTypedArray*> target,
-                                 Handle<AnyTypedArray*> source,
-                                 uint32_t offset)
-    {
-        MOZ_ASSERT(SpecificArray::ArrayTypeID() == target->type(),
-                   "calling wrong setFromTypedArray specialization");
-        MOZ_ASSERT(AnyTypedArray::sameBuffer(target, source),
-                   "provided arrays don't actually overlap, so it's "
-                   "undesirable to use this method");
-
-        MOZ_ASSERT(offset <= target->length());
-        MOZ_ASSERT(source->length() <= target->length() - offset);
-
-        T *dest = static_cast<T*>(target->viewData()) + offset;
-        uint32_t len = source->length();
-
-        if (source->type() == target->type()) {
-            mozilla::PodMove(dest, static_cast<T*>(source->viewData()), len);
-            return true;
-        }
-
-        // Copy |source| in case it overlaps the target elements being set.
-        size_t sourceByteLen = len * source->bytesPerElement();
-        void *data = target->zone()->template pod_malloc<uint8_t>(sourceByteLen);
-        if (!data)
+        if (args.length() > 0 && !ToClampedIndex(cx, args[0], length, &begin))
             return false;
-        mozilla::PodCopy(static_cast<uint8_t*>(data),
-                         static_cast<uint8_t*>(source->viewData()),
-                         sourceByteLen);
-
-        switch (source->type()) {
-          case Scalar::Int8: {
-            int8_t *src = static_cast<int8_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint8:
-          case Scalar::Uint8Clamped: {
-            uint8_t *src = static_cast<uint8_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Int16: {
-            int16_t *src = static_cast<int16_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint16: {
-            uint16_t *src = static_cast<uint16_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Int32: {
-            int32_t *src = static_cast<int32_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Uint32: {
-            uint32_t *src = static_cast<uint32_t*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Float32: {
-            float *src = static_cast<float*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          case Scalar::Float64: {
-            double *src = static_cast<double*>(data);
-            for (uint32_t i = 0; i < len; ++i)
-                *dest++ = T(*src++);
-            break;
-          }
-          default:
-            MOZ_CRASH("setFromOverlappingTypedArray with a typed array with bogus type");
-        }
-
-        js_free(data);
-        return true;
-    }
-
-    static bool
-    canConvertInfallibly(const Value &v)
-    {
-        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined();
-    }
-
-    static T
-    infallibleValueToNative(const Value &v)
-    {
-        if (v.isInt32())
-            return T(v.toInt32());
-        if (v.isDouble())
-            return doubleToNative(v.toDouble());
-        if (v.isBoolean())
-            return T(v.toBoolean());
-        if (v.isNull())
-            return T(0);
-
-        MOZ_ASSERT(v.isUndefined());
-        return TypeIsFloatingPoint<T>() ? T(JS::GenericNaN()) : T(0);
-    }
-
-    static bool
-    valueToNative(JSContext *cx, const Value &v, T *result)
-    {
-        MOZ_ASSERT(!v.isMagic());
-
-        if (MOZ_LIKELY(canConvertInfallibly(v))) {
-            *result = infallibleValueToNative(v);
-            return true;
-        }
-
-        double d;
-        MOZ_ASSERT(v.isString() || v.isObject() || v.isSymbol());
-        if (!(v.isString() ? StringToNumber(cx, v.toString(), &d) : ToNumber(cx, v, &d)))
-            return false;
-
-        *result = doubleToNative(d);
-        return true;
-    }
-
-    static T
-    doubleToNative(double d)
-    {
-        if (TypeIsFloatingPoint<T>()) {
-#ifdef JS_MORE_DETERMINISTIC
-            // The JS spec doesn't distinguish among different NaN values, and
-            // it deliberately doesn't specify the bit pattern written to a
-            // typed array when NaN is written into it.  This bit-pattern
-            // inconsistency could confuse deterministic testing, so always
-            // canonicalize NaN values in more-deterministic builds.
-            d = JS::CanonicalizeNaN(d);
-#endif
-            return T(d);
-        }
-        if (MOZ_UNLIKELY(mozilla::IsNaN(d)))
-            return T(0);
-        if (TypeIsUnsigned<T>())
-            return T(ToUint32(d));
-        return T(ToInt32(d));
-    }
-};
-
-template<typename AnyTypedArray>
-class TypedArrayMethods
-{
-    static_assert(mozilla::IsSame<AnyTypedArray, TypedArrayObject>::value ||
-                  mozilla::IsSame<AnyTypedArray, SharedTypedArrayObject>::value,
-                  "methods must be shared/unshared-specific, not "
-                  "element-type-specific");
-
-    typedef typename AnyTypedArray::BufferType BufferType;
-
-    typedef typename AnyTypedArray::template OfType<int8_t>::Type Int8ArrayType;
-    typedef typename AnyTypedArray::template OfType<uint8_t>::Type Uint8ArrayType;
-    typedef typename AnyTypedArray::template OfType<int16_t>::Type Int16ArrayType;
-    typedef typename AnyTypedArray::template OfType<uint16_t>::Type Uint16ArrayType;
-    typedef typename AnyTypedArray::template OfType<int32_t>::Type Int32ArrayType;
-    typedef typename AnyTypedArray::template OfType<uint32_t>::Type Uint32ArrayType;
-    typedef typename AnyTypedArray::template OfType<float>::Type Float32ArrayType;
-    typedef typename AnyTypedArray::template OfType<double>::Type Float64ArrayType;
-    typedef typename AnyTypedArray::template OfType<uint8_clamped>::Type Uint8ClampedArrayType;
-
-  public:
-    /* subarray(start[, end]) */
-    static bool
-    subarray(JSContext *cx, CallArgs args)
-    {
-        MOZ_ASSERT(AnyTypedArray::is(args.thisv()));
-
-        Rooted<AnyTypedArray*> tarray(cx, &args.thisv().toObject().as<AnyTypedArray>());
-
-        // These are the default values.
-        uint32_t initialLength = tarray->length();
-        uint32_t begin = 0, end = initialLength;
-
-        if (args.length() > 0) {
-            if (!ToClampedIndex(cx, args[0], initialLength, &begin))
-                return false;
-
-            if (args.length() > 1) {
-                if (!ToClampedIndex(cx, args[1], initialLength, &end))
+        if (args.length() > 1 && !ToClampedIndex(cx, args[1], length, &end))
                     return false;
-            }
-        }
 
         if (begin > end)
             begin = end;
 
-        if (begin > tarray->length() || end > tarray->length() || begin > end) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_INDEX);
-            return false;
-        }
-
-        if (!AnyTypedArray::ensureHasBuffer(cx, tarray))
-            return nullptr;
-
-        Rooted<BufferType*> bufobj(cx, tarray->buffer());
-        MOZ_ASSERT(bufobj);
-
-        uint32_t length = end - begin;
-
-        size_t elementSize = tarray->bytesPerElement();
-        MOZ_ASSERT(begin < UINT32_MAX / elementSize);
-
-        uint32_t arrayByteOffset = tarray->byteOffset();
-        MOZ_ASSERT(UINT32_MAX - begin * elementSize >= arrayByteOffset);
-
-        uint32_t byteOffset = arrayByteOffset + begin * elementSize;
-
-        JSObject *nobj = nullptr;
-        switch (tarray->type()) {
-          case Scalar::Int8:
-            nobj = Int8ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Uint8:
-            nobj = Uint8ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Int16:
-            nobj = Int16ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Uint16:
-            nobj = Uint16ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Int32:
-            nobj = Int32ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Uint32:
-            nobj = Uint32ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Float32:
-            nobj = Float32ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Float64:
-            nobj = Float64ArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          case Scalar::Uint8Clamped:
-            nobj = Uint8ClampedArrayType::makeInstance(cx, bufobj, byteOffset, length);
-            break;
-          default:
-            MOZ_CRASH("nonsense target element type");
-            break;
-        }
+        JSObject *nobj = createSubarray(cx, tarray, begin, end);
         if (!nobj)
             return false;
-
         args.rval().setObject(*nobj);
         return true;
     }
+};
 
+// The copyWithin() method on TypedArray and SharedTypedArray
+
+template<typename Adapter>
+class TypedArrayCopyWithinTemplate
+{
+    typedef typename Adapter::ElementType NativeType;
+    typedef typename Adapter::TypedArrayObjectType ArrayType;
+
+  public:
     /* copyWithin(target, start[, end]) */
     // ES6 draft rev 26, 22.2.3.5
     static bool
-    copyWithin(JSContext *cx, CallArgs args)
+    fun_copyWithin_impl(JSContext *cx, CallArgs args)
     {
-        MOZ_ASSERT(AnyTypedArray::is(args.thisv()));
+        MOZ_ASSERT(Adapter::ThisTypedArrayObjectType::IsThisClass(args.thisv()));
 
         // Steps 1-2.
-        Rooted<AnyTypedArray*> obj(cx, &args.thisv().toObject().as<AnyTypedArray>());
+        Rooted<ArrayType*> obj(cx, &args.thisv().toObject().as<ArrayType>());
 
         // Steps 3-4.
         uint32_t len = obj->length();
@@ -612,38 +271,34 @@ class TypedArrayMethods
         uint32_t count = Min(final - from, len - to);
         uint32_t lengthDuringMove = obj->length(); // beware ToClampedIndex
 
-        // Technically |from + count| and |to + count| can't overflow, because
-        // buffer contents are limited to INT32_MAX length.  But eventually
-        // we're going to lift this restriction, and the extra checking cost is
-        // negligible, so just handle it anyway.
-        if (from > lengthDuringMove ||
-            to > lengthDuringMove ||
-            count > lengthDuringMove - from ||
-            count > lengthDuringMove - to)
-        {
+        MOZ_ASSERT(to <= INT32_MAX, "size limited to 2**31");
+        MOZ_ASSERT(from <= INT32_MAX, "size limited to 2**31");
+        MOZ_ASSERT(count <= INT32_MAX, "size limited to 2**31");
+
+        if (from + count > lengthDuringMove || to + count > lengthDuringMove) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return false;
         }
 
-        const size_t ElementSize = obj->bytesPerElement();
+        const size_t ElementSize = sizeof(NativeType);
+        MOZ_ASSERT(to <= INT32_MAX / ElementSize, "overall byteLength capped at INT32_MAX");
+        MOZ_ASSERT(from <= INT32_MAX / ElementSize, "overall byteLength capped at INT32_MAX");
+        MOZ_ASSERT(count <= INT32_MAX / ElementSize, "overall byteLength capped at INT32_MAX");
 
-        MOZ_ASSERT(to <= UINT32_MAX / ElementSize);
         uint32_t byteDest = to * ElementSize;
-
-        MOZ_ASSERT(from <= UINT32_MAX / ElementSize);
         uint32_t byteSrc = from * ElementSize;
-
-        MOZ_ASSERT(count <= UINT32_MAX / ElementSize);
         uint32_t byteSize = count * ElementSize;
-
 
 #ifdef DEBUG
         uint32_t viewByteLength = obj->byteLength();
-        MOZ_ASSERT(byteSize <= viewByteLength);
-        MOZ_ASSERT(byteDest <= viewByteLength);
-        MOZ_ASSERT(byteSrc <= viewByteLength);
-        MOZ_ASSERT(byteDest <= viewByteLength - byteSize);
-        MOZ_ASSERT(byteSrc <= viewByteLength - byteSize);
+        JS_ASSERT(byteDest <= viewByteLength);
+        JS_ASSERT(byteSrc <= viewByteLength);
+        JS_ASSERT(byteDest + byteSize <= viewByteLength);
+        JS_ASSERT(byteSrc + byteSize <= viewByteLength);
+
+        // Should not overflow because size is limited to 2^31
+        JS_ASSERT(byteDest + byteSize >= byteDest);
+        JS_ASSERT(byteSrc + byteSize >= byteSrc);
 #endif
 
         uint8_t *data = static_cast<uint8_t*>(obj->viewData());
@@ -653,16 +308,26 @@ class TypedArrayMethods
         args.rval().set(args.thisv());
         return true;
     }
+};
 
+// The set() method on TypedArray and SharedTypedArray
+
+template<class Adapter>
+class TypedArraySetTemplate
+{
+    typedef typename Adapter::ElementType NativeType;
+    typedef typename Adapter::TypedArrayObjectType ArrayType;
+
+  public:
     /* set(array[, offset]) */
     static bool
-    set(JSContext *cx, CallArgs args)
+    fun_set_impl(JSContext *cx, CallArgs args)
     {
-        MOZ_ASSERT(AnyTypedArray::is(args.thisv()));
+        MOZ_ASSERT(Adapter::ThisTypedArrayObjectType::IsThisClass(args.thisv()));
 
-        Rooted<AnyTypedArray*> target(cx, &args.thisv().toObject().as<AnyTypedArray>());
+        Rooted<ArrayType*> tarray(cx, &args.thisv().toObject().as<ArrayType>());
 
-        // The first argument must be either a typed array or arraylike.
+        // first arg must be either a typed array or a JS array
         if (args.length() == 0 || !args[0].isObject()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return false;
@@ -673,7 +338,7 @@ class TypedArrayMethods
             if (!ToInt32(cx, args[1], &offset))
                 return false;
 
-            if (offset < 0 || uint32_t(offset) > target->length()) {
+            if (offset < 0 || uint32_t(offset) > tarray->length()) {
                 // the given offset is bogus
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                                      JSMSG_TYPED_ARRAY_BAD_INDEX, "2");
@@ -681,27 +346,31 @@ class TypedArrayMethods
             }
         }
 
-        RootedObject arg0(cx, &args[0].toObject());
-        if (arg0->is<AnyTypedArray>()) {
-            Rooted<AnyTypedArray*> source(cx, &arg0->as<AnyTypedArray>());
-            if (source->length() > target->length() - offset) {
+        if (!args[0].isObject()) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
+            return false;
+        }
+
+        RootedObject arg0(cx, args[0].toObjectOrNull());
+        if (IsAnyTypedArray(arg0.get())) {
+            if (AnyTypedArrayLength(arg0.get()) > tarray->length() - offset) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
                 return false;
             }
 
-            if (!setFromTypedArray(cx, target, source, offset))
+            if (!copyFromTypedArray(cx, tarray, arg0, offset))
                 return false;
         } else {
             uint32_t len;
             if (!GetLengthProperty(cx, arg0, &len))
                 return false;
 
-            if (uint32_t(offset) > target->length() || len > target->length() - offset) {
+            if (uint32_t(offset) > tarray->length() || len > tarray->length() - offset) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
                 return false;
             }
 
-            if (!setFromNonTypedArray(cx, target, arg0, len, offset))
+            if (!copyFromArray(cx, tarray, arg0, len, offset))
                 return false;
         }
 
@@ -710,81 +379,276 @@ class TypedArrayMethods
     }
 
     static bool
-    setFromArrayLike(JSContext *cx, Handle<AnyTypedArray*> target, HandleObject source, uint32_t len,
-                     uint32_t offset = 0)
+    copyFromArray(JSContext *cx, HandleObject thisTypedArrayObj,
+                  HandleObject source, uint32_t len, uint32_t offset = 0)
     {
-        MOZ_ASSERT(offset <= target->length());
-        MOZ_ASSERT(len <= target->length() - offset);
+        Rooted<ArrayType*> thisTypedArray(cx, &thisTypedArrayObj->as<ArrayType>());
+        JS_ASSERT(offset <= thisTypedArray->length());
+        JS_ASSERT(len <= thisTypedArray->length() - offset);
+        if (source->is<TypedArrayObject>())
+            return copyFromTypedArray(cx, thisTypedArray, source, offset);
 
-        if (source->is<AnyTypedArray>()) {
-            Rooted<AnyTypedArray*> src(cx, &source->as<AnyTypedArray>());
-            return setFromTypedArray(cx, target, src, offset);
+        uint32_t i = 0;
+        if (source->isNative()) {
+            // Attempt fast-path infallible conversion of dense elements up to
+            // the first potentially side-effectful lookup or conversion.
+            uint32_t bound = Min(source->getDenseInitializedLength(), len);
+
+            NativeType *dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
+
+            const Value *srcValues = source->getDenseElements();
+            for (; i < bound; i++) {
+                // Note: holes don't convert infallibly.
+                if (!canConvertInfallibly(srcValues[i]))
+                    break;
+                dest[i] = infallibleValueToNative(srcValues[i]);
+            }
+            if (i == len)
+                return true;
         }
 
-        return setFromNonTypedArray(cx, target, source, len, offset);
+        // Convert and copy any remaining elements generically.
+        RootedValue v(cx);
+        for (; i < len; i++) {
+            if (!JSObject::getElement(cx, source, source, i, &v))
+                return false;
+
+            NativeType n;
+            if (!valueToNative(cx, v, &n))
+                return false;
+
+            len = Min(len, thisTypedArray->length());
+            if (i >= len)
+                break;
+
+            // Compute every iteration in case getElement acts wacky.
+            void *data = thisTypedArray->viewData();
+            static_cast<NativeType*>(data)[offset + i] = n;
+        }
+
+        return true;
     }
 
-  private:
     static bool
-    setFromTypedArray(JSContext *cx, Handle<AnyTypedArray*> target, Handle<AnyTypedArray*> source,
-                      uint32_t offset)
+    copyFromTypedArray(JSContext *cx, JSObject *thisTypedArrayObj, JSObject *tarrayObj,
+                       uint32_t offset)
     {
-        switch (target->type()) {
-          case Scalar::Int8:
-            return ElementSpecific<Int8ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Uint8:
-            return ElementSpecific<Uint8ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Int16:
-            return ElementSpecific<Int16ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Uint16:
-            return ElementSpecific<Uint16ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Int32:
-            return ElementSpecific<Int32ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Uint32:
-            return ElementSpecific<Uint32ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Float32:
-            return ElementSpecific<Float32ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Float64:
-            return ElementSpecific<Float64ArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::Uint8Clamped:
-            return ElementSpecific<Uint8ClampedArrayType>::setFromTypedArray(cx, target, source, offset);
-          case Scalar::TypeMax:
-            break;
+        Rooted<ArrayType *> thisTypedArray(cx, &thisTypedArrayObj->as<ArrayType>());
+        Rooted<ArrayType *> tarray(cx, &tarrayObj->as<ArrayType>());
+        JS_ASSERT(offset <= thisTypedArray->length());
+        JS_ASSERT(tarray->length() <= thisTypedArray->length() - offset);
+
+        // Object equality is not good enough for SharedArrayBufferObject.
+        if (Adapter::sameBuffer(tarray->buffer(), thisTypedArray->buffer()))
+            return copyFromWithOverlap(cx, thisTypedArray, tarray, offset);
+
+        NativeType *dest = static_cast<NativeType*>(thisTypedArray->viewData()) + offset;
+
+        if (tarray->type() == thisTypedArray->type()) {
+            js_memcpy(dest, tarray->viewData(), tarray->byteLength());
+            return true;
         }
 
-        MOZ_CRASH("nonsense target element type");
+        unsigned srclen = tarray->length();
+        switch (tarray->type()) {
+          case Scalar::Int8: {
+            int8_t *src = static_cast<int8_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint8:
+          case Scalar::Uint8Clamped: {
+            uint8_t *src = static_cast<uint8_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Int16: {
+            int16_t *src = static_cast<int16_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint16: {
+            uint16_t *src = static_cast<uint16_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Int32: {
+            int32_t *src = static_cast<int32_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint32: {
+            uint32_t *src = static_cast<uint32_t*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Float32: {
+            float *src = static_cast<float*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Float64: {
+            double *src = static_cast<double*>(tarray->viewData());
+            for (unsigned i = 0; i < srclen; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          default:
+            MOZ_CRASH("copyFrom with a TypedArrayObject of unknown type");
+        }
+
+        return true;
     }
 
     static bool
-    setFromNonTypedArray(JSContext *cx, Handle<AnyTypedArray*> target, HandleObject source,
-                         uint32_t len, uint32_t offset)
+    copyFromWithOverlap(JSContext *cx, JSObject *selfObj, JSObject *tarrayObj, uint32_t offset)
     {
-        MOZ_ASSERT(!source->is<AnyTypedArray>(), "use setFromTypedArray");
+        ArrayType *self = &selfObj->as<ArrayType>();
+        ArrayType *tarray = &tarrayObj->as<ArrayType>();
 
-        switch (target->type()) {
-          case Scalar::Int8:
-            return ElementSpecific<Int8ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Uint8:
-            return ElementSpecific<Uint8ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Int16:
-            return ElementSpecific<Int16ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Uint16:
-            return ElementSpecific<Uint16ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Int32:
-            return ElementSpecific<Int32ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Uint32:
-            return ElementSpecific<Uint32ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Float32:
-            return ElementSpecific<Float32ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Float64:
-            return ElementSpecific<Float64ArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::Uint8Clamped:
-            return ElementSpecific<Uint8ClampedArrayType>::setFromNonTypedArray(cx, target, source, len, offset);
-          case Scalar::TypeMax:
-            break;
+        JS_ASSERT(offset <= self->length());
+
+        NativeType *dest = static_cast<NativeType*>(self->viewData()) + offset;
+        uint32_t byteLength = tarray->byteLength();
+
+        if (tarray->type() == self->type()) {
+            memmove(dest, tarray->viewData(), byteLength);
+            return true;
         }
 
-        MOZ_CRASH("bad target array type");
+        // We have to make a copy of the source array here, since
+        // there's overlap, and we have to convert types.
+        uint8_t *srcbuf = self->zone()->template pod_malloc<uint8_t>(byteLength);
+        if (!srcbuf)
+            return false;
+        js_memcpy(srcbuf, tarray->viewData(), byteLength);
+
+        uint32_t len = tarray->length();
+        switch (tarray->type()) {
+          case Scalar::Int8: {
+            int8_t *src = (int8_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint8:
+          case Scalar::Uint8Clamped: {
+            uint8_t *src = (uint8_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Int16: {
+            int16_t *src = (int16_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint16: {
+            uint16_t *src = (uint16_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Int32: {
+            int32_t *src = (int32_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Uint32: {
+            uint32_t *src = (uint32_t*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Float32: {
+            float *src = (float*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          case Scalar::Float64: {
+            double *src = (double*) srcbuf;
+            for (unsigned i = 0; i < len; ++i)
+                *dest++ = NativeType(*src++);
+            break;
+          }
+          default:
+            MOZ_CRASH("copyFromWithOverlap with a TypedArrayObject of unknown type");
+        }
+
+        js_free(srcbuf);
+        return true;
+    }
+
+    static bool
+    canConvertInfallibly(const Value &v)
+    {
+        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined();
+    }
+
+    static NativeType
+    infallibleValueToNative(const Value &v)
+    {
+        if (v.isInt32())
+            return NativeType(v.toInt32());
+        if (v.isDouble())
+            return doubleToNative(v.toDouble());
+        if (v.isBoolean())
+            return NativeType(v.toBoolean());
+        if (v.isNull())
+            return NativeType(0);
+
+        MOZ_ASSERT(v.isUndefined());
+        return TypeIsFloatingPoint<NativeType>() ? NativeType(JS::GenericNaN()) : NativeType(0);
+    }
+
+    static bool
+    valueToNative(JSContext *cx, const Value &v, NativeType *result)
+    {
+        MOZ_ASSERT(!v.isMagic());
+
+        if (MOZ_LIKELY(canConvertInfallibly(v))) {
+            *result = infallibleValueToNative(v);
+            return true;
+        }
+
+        double d;
+        MOZ_ASSERT(v.isString() || v.isObject() || v.isSymbol());
+        if (!(v.isString() ? StringToNumber(cx, v.toString(), &d) : ToNumber(cx, v, &d)))
+            return false;
+
+        *result = doubleToNative(d);
+        return true;
+    }
+
+    static NativeType
+    doubleToNative(double d)
+    {
+        if (TypeIsFloatingPoint<NativeType>()) {
+#ifdef JS_MORE_DETERMINISTIC
+            // The JS spec doesn't distinguish among different NaN values, and
+            // it deliberately doesn't specify the bit pattern written to a
+            // typed array when NaN is written into it.  This bit-pattern
+            // inconsistency could confuse deterministic testing, so always
+            // canonicalize NaN values in more-deterministic builds.
+            d = JS::CanonicalizeNaN(d);
+#endif
+            return NativeType(d);
+        }
+        if (MOZ_UNLIKELY(mozilla::IsNaN(d)))
+            return NativeType(0);
+        if (TypeIsUnsigned<NativeType>())
+            return NativeType(ToUint32(d));
+        return NativeType(ToInt32(d));
     }
 };
 

@@ -49,7 +49,7 @@ add_task(function *test_history_cap() {
 
   ss.setTabState(tab, JSON.stringify(tabState));
   yield promiseTabRestored(tab);
-  TabState.flush(tab.linkedBrowser);
+  SyncHandlers.get(tab.linkedBrowser).flush();
 
   let restoredTabState = JSON.parse(ss.getTabState(tab));
   is(restoredTabState.entries.length, maxBack1 + 1 + maxFwd1,
@@ -70,7 +70,7 @@ add_task(function *test_history_cap() {
 
   ss.setTabState(tab, JSON.stringify(tabState));
   yield promiseTabRestored(tab);
-  TabState.flush(tab.linkedBrowser);
+  SyncHandlers.get(tab.linkedBrowser).flush();
 
   restoredTabState = JSON.parse(ss.getTabState(tab));
   is(restoredTabState.entries.length, maxEntries,
@@ -89,7 +89,7 @@ add_task(function *test_history_cap() {
 
   ss.setTabState(tab, JSON.stringify(tabState));
   yield promiseTabRestored(tab);
-  TabState.flush(tab.linkedBrowser);
+  SyncHandlers.get(tab.linkedBrowser).flush();
 
   restoredTabState = JSON.parse(ss.getTabState(tab));
   is(restoredTabState.entries.length, 1 + maxFwd2,
@@ -108,7 +108,7 @@ add_task(function *test_history_cap() {
 
   ss.setTabState(tab, JSON.stringify(tabState));
   yield promiseTabRestored(tab);
-  TabState.flush(tab.linkedBrowser);
+  SyncHandlers.get(tab.linkedBrowser).flush();
 
   restoredTabState = JSON.parse(ss.getTabState(tab));
   is(restoredTabState.entries.length, maxBack2 + 1,

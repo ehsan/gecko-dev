@@ -238,7 +238,7 @@ var StarUI = {
 
   cancelButtonOnCommand: function SU_cancelButtonOnCommand() {
     this._actionOnHide = "cancel";
-    this.panel.hidePopup(true);
+    this.panel.hidePopup();
   },
 
   removeBookmarkButtonCommand: function SU_removeBookmarkButtonCommand() {
@@ -312,7 +312,7 @@ var PlacesCommandHook = {
       PlacesUtils.transactionManager.doTransaction(txn);
       itemId = txn.item.id;
       // Set the character-set
-      if (charset && !PrivateBrowsingUtils.isBrowserPrivate(aBrowser))
+      if (charset && !PrivateBrowsingUtils.isWindowPrivate(aBrowser.contentWindow))
         PlacesUtils.setCharsetForURI(uri, charset);
     }
 

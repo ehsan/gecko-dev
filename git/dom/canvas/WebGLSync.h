@@ -24,7 +24,7 @@ class WebGLSync MOZ_FINAL
 
 public:
 
-    explicit WebGLSync(WebGLContext* aContext);
+    WebGLSync(WebGLContext* context);
 
     void Delete();
     WebGLContext* GetParentObject() const;

@@ -937,11 +937,8 @@
 
                     var isMouseOver = (event.type == "mouseover");
 
-                    var controlRect = this.controlBar.getBoundingClientRect();
-                    var isMouseInControls = event.clientY > controlRect.top &&
-                                            event.clientY < controlRect.bottom &&
-                                            event.clientX > controlRect.left &&
-                                            event.clientX < controlRect.right;
+                    var isMouseInControls = event.clientY > this.controlBar.getBoundingClientRect().top &&
+                                            event.clientY < this.controlBar.getBoundingClientRect().bottom;
 
                     // Suppress fading out the controls until the video has rendered
                     // its first frame. But since autoplay videos start off with no

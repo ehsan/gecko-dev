@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
 
 #include "nsIHttpChannel.h"
@@ -27,9 +28,24 @@
 namespace mozilla {
 namespace image {
 
+// Global preferences related to image containers.
+static bool gInitializedPrefCaches = false;
+static bool gDecodeOnDraw = false;
+static bool gDiscardable = false;
+static bool gEnableMozSampleSize = false;
+
 /*static*/ void
 ImageFactory::Initialize()
 {
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!gInitializedPrefCaches) {
+    // Initialize the graphics preferences
+    gfxPrefs::GetSingleton();
+    Preferences::AddBoolVarCache(&gDiscardable, "image.mem.discardable");
+    Preferences::AddBoolVarCache(&gDecodeOnDraw, "image.mem.decodeondraw");
+    Preferences::AddBoolVarCache(&gEnableMozSampleSize, "image.mozsamplesize.enabled");
+    gInitializedPrefCaches = true;
+  }
 }
 
 static uint32_t
@@ -38,8 +54,8 @@ ComputeImageFlags(ImageURL* uri, bool isMultiPart)
   nsresult rv;
 
   // We default to the static globals.
-  bool isDiscardable = gfxPrefs::ImageMemDiscardable();
-  bool doDecodeOnDraw = gfxPrefs::ImageMemDecodeOnDraw();
+  bool isDiscardable = gDiscardable;
+  bool doDecodeOnDraw = gDecodeOnDraw;
 
   // We want UI to be as snappy as possible and not to flicker. Disable discarding
   // and decode-on-draw for chrome URLS.
@@ -102,7 +118,7 @@ ImageFactory::CreateImage(nsIRequest* aRequest,
                           bool aIsMultiPart,
                           uint32_t aInnerWindowId)
 {
-  MOZ_ASSERT(gfxPrefs::SingletonExists(),
+  MOZ_ASSERT(gInitializedPrefCaches,
              "Pref observers should have been initialized already");
 
   // Compute the image's initialization flags.
@@ -236,7 +252,7 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
 
       if ((principal &&
            principal->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED) ||
-          gfxPrefs::ImageMozSampleSizeEnabled()) {
+          gEnableMozSampleSize) {
         newImage->SetRequestedSampleSize(parser.GetSampleSize());
       }
   }

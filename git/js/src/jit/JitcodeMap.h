@@ -481,11 +481,7 @@ class JitcodeGlobalTable
     EntryVector entries_;
 
   public:
-    JitcodeGlobalTable() : treeAlloc_(LIFO_CHUNK_SIZE), tree_(&treeAlloc_), entries_() {
-        // Always checking coherency in DEBUG builds may cause tests to time
-        // out under --baseline-eager or --ion-eager.
-        tree_.disableCheckCoherency();
-    }
+    JitcodeGlobalTable() : treeAlloc_(LIFO_CHUNK_SIZE), tree_(&treeAlloc_), entries_() {}
     ~JitcodeGlobalTable() {}
 
     bool empty() const {

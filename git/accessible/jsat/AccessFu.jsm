@@ -664,7 +664,7 @@ var Input = {
       case 'doubletap1':
         this.activateCurrent();
         break;
-      case 'taphold1':
+      case 'doubletaphold1':
         this.sendContextMenuMessage();
         break;
       case 'swiperight1':

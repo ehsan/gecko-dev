@@ -318,8 +318,8 @@ TabTracker.prototype = {
 
   onTab: function onTab(event) {
     if (event.originalTarget.linkedBrowser) {
-      let browser = event.originalTarget.linkedBrowser;
-      if (PrivateBrowsingUtils.isBrowserPrivate(browser) &&
+      let win = event.originalTarget.linkedBrowser.contentWindow;
+      if (PrivateBrowsingUtils.isWindowPrivate(win) &&
           !PrivateBrowsingUtils.permanentPrivateBrowsing) {
         this._log.trace("Ignoring tab event from private browsing.");
         return;

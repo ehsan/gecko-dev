@@ -36,6 +36,7 @@ IdToObjectMap::trace(JSTracer *trc)
     for (Table::Range r(table_.all()); !r.empty(); r.popFront()) {
         DebugOnly<JSObject *> prior = r.front().value().get();
         JS_CallObjectTracer(trc, &r.front().value(), "ipc-object");
+        MOZ_ASSERT(r.front().value() == prior);
     }
 }
 
@@ -43,9 +44,8 @@ void
 IdToObjectMap::sweep()
 {
     for (Table::Enum e(table_); !e.empty(); e.popFront()) {
-        JS::Heap<JSObject *> *objp = &e.front().value();
-        JS_UpdateWeakPointerAfterGC(objp);
-        if (!*objp)
+        DebugOnly<JSObject *> prior = e.front().value().get();
+        if (JS_IsAboutToBeFinalized(&e.front().value()))
             e.removeFront();
     }
 }
@@ -95,23 +95,11 @@ ObjectToIdMap::init()
 }
 
 void
-ObjectToIdMap::trace(JSTracer *trc)
-{
-    for (Table::Enum e(*table_); !e.empty(); e.popFront()) {
-        JSObject *obj = e.front().key();
-        JS_CallUnbarrieredObjectTracer(trc, &obj, "ipc-object");
-        if (obj != e.front().key())
-            e.rekeyFront(obj);
-    }
-}
-
-void
 ObjectToIdMap::sweep()
 {
     for (Table::Enum e(*table_); !e.empty(); e.popFront()) {
         JSObject *obj = e.front().key();
-        JS_UpdateWeakPointerAfterGCUnbarriered(&obj);
-        if (!obj)
+        if (JS_IsAboutToBeFinalizedUnbarriered(&obj))
             e.removeFront();
         else if (obj != e.front().key())
             e.rekeyFront(obj);
@@ -579,4 +567,10 @@ JavaScriptShared::Wrap(JSContext *cx, HandleObject aObj, InfallibleTArray<CpowEn
     }
 
     return true;
+}
+void JavaScriptShared::fixupAfterMovingGC()
+{
+    objects_.sweep();
+    cpows_.sweep();
+    objectIds_.sweep();
 }

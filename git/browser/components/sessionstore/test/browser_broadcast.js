@@ -93,14 +93,14 @@ add_task(function flush_on_settabstate() {
   let browser = tab.linkedBrowser;
 
   // Flush to make sure our tab state is up-to-date.
-  TabState.flush(browser);
+  SyncHandlers.get(browser).flush();
 
   let state = ss.getTabState(tab);
   yield modifySessionStorage(browser, {test: "on-set-tab-state"});
 
   // Flush all data contained in the content script but send it using
   // asynchronous messages.
-  TabState.flushAsync(browser);
+  SyncHandlers.get(browser).flushAsync();
 
   ss.setTabState(tab, state);
   yield promiseTabRestored(tab);
@@ -122,13 +122,13 @@ add_task(function flush_on_tabclose_racy() {
   let browser = tab.linkedBrowser;
 
   // Flush to make sure we start with an empty queue.
-  TabState.flush(browser);
+  SyncHandlers.get(browser).flush();
 
   yield modifySessionStorage(browser, {test: "on-tab-close-racy"});
 
   // Flush all data contained in the content script but send it using
   // asynchronous messages.
-  TabState.flushAsync(browser);
+  SyncHandlers.get(browser).flushAsync();
   gBrowser.removeTab(tab);
 
   let [{state: {storage}}] = JSON.parse(ss.getClosedTabData(window));

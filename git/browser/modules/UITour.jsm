@@ -98,7 +98,6 @@ this.UITour = {
     ["help",        {query: "#PanelUI-help"}],
     ["home",        {query: "#home-button"}],
     ["loop",        {query: "#loop-call-button"}],
-    ["privateWindow",  {query: "#privatebrowsing-button"}],
     ["quit",        {query: "#PanelUI-quit"}],
     ["search",      {
       query: "#searchbar",
@@ -1132,7 +1131,8 @@ this.UITour = {
         });
         break;
       case "appinfo":
-        let props = ["defaultUpdateChannel", "version"];
+        let props = ["defaultUpdateChannel", "distributionID", "isOfficialBranding",
+                     "isReleaseBuild", "name", "vendor", "version"];
         let appinfo = {};
         props.forEach(property => appinfo[property] = Services.appinfo[property]);
         this.sendPageCallback(aContentDocument, aCallbackID, appinfo);

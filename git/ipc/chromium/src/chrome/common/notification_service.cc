@@ -3,16 +3,16 @@
 // found in the LICENSE file.
 
 #include "chrome/common/notification_service.h"
+
+#include "base/lazy_instance.h"
 #include "base/thread_local.h"
 
-static base::ThreadLocalPointer<NotificationService>& get_tls_ptr() {
-  static base::ThreadLocalPointer<NotificationService> tls_ptr;
-  return tls_ptr;
-}
+static base::LazyInstance<base::ThreadLocalPointer<NotificationService> >
+    lazy_tls_ptr = LAZY_INSTANCE_INITIALIZER;
 
 // static
 NotificationService* NotificationService::current() {
-  return get_tls_ptr().Get();
+  return lazy_tls_ptr.Pointer()->Get();
 }
 
 // static
@@ -27,7 +27,7 @@ NotificationService::NotificationService() {
   memset(observer_counts_, 0, sizeof(observer_counts_));
 #endif
 
-  get_tls_ptr().Set(this);
+  lazy_tls_ptr.Pointer()->Set(this);
 }
 
 void NotificationService::AddObserver(NotificationObserver* observer,
@@ -117,7 +117,7 @@ void NotificationService::Notify(NotificationType type,
 
 
 NotificationService::~NotificationService() {
-  get_tls_ptr().Set(NULL);
+  lazy_tls_ptr.Pointer()->Set(NULL);
 
 #ifndef NDEBUG
   for (int i = 0; i < NotificationType::NOTIFICATION_TYPE_COUNT; i++) {

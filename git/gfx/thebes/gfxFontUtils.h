@@ -967,8 +967,6 @@ public:
                                     nsTArray<mozilla::gfx::Color> &aColors);
 
 protected:
-    friend struct MacCharsetMappingComparator;
-
     static nsresult
     ReadNames(const char *aNameData, uint32_t aDataLen, uint32_t aNameID,
               int32_t aLangID, int32_t aPlatformID, nsTArray<nsString>& aNames);

@@ -18,7 +18,10 @@ interface MediaKeys {
   readonly attribute DOMString keySystem;
 
   [NewObject, Throws]
-  MediaKeySession createSession(optional SessionType sessionType = "temporary");
+  Promise<MediaKeySession> createSession(DOMString initDataType, (ArrayBufferView or ArrayBuffer) initData, optional SessionType sessionType = "temporary");
+
+  [NewObject, Throws]
+  Promise<MediaKeySession> loadSession(DOMString sessionId);
 
   // void, not any: https://www.w3.org/Bugs/Public/show_bug.cgi?id=26457
   [NewObject, Throws]

@@ -4,6 +4,7 @@
 
 #include "base/thread.h"
 
+#include "base/lazy_instance.h"
 #include "base/string_util.h"
 #include "base/thread_local.h"
 #include "base/waitable_event.h"
@@ -57,22 +58,19 @@ namespace {
 // because its Stop method was called.  This allows us to catch cases where
 // MessageLoop::Quit() is called directly, which is unexpected when using a
 // Thread to setup and run a MessageLoop.
-
-static base::ThreadLocalBoolean& get_tls_bool() {
-  static base::ThreadLocalBoolean tls_ptr;
-  return tls_ptr;
-}
+base::LazyInstance<base::ThreadLocalBoolean> lazy_tls_bool =
+    LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
 void Thread::SetThreadWasQuitProperly(bool flag) {
-  get_tls_bool().Set(flag);
+  lazy_tls_bool.Pointer()->Set(flag);
 }
 
 bool Thread::GetThreadWasQuitProperly() {
   bool quit_properly = true;
 #ifndef NDEBUG
-  quit_properly = get_tls_bool().Get();
+  quit_properly = lazy_tls_bool.Pointer()->Get();
 #endif
   return quit_properly;
 }
