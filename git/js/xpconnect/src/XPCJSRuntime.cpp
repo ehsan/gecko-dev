@@ -503,19 +503,19 @@ Scriptability::Get(JSObject *aScope)
 }
 
 bool
-IsContentXBLScope(JSCompartment *compartment)
+IsXBLScope(JSCompartment *compartment)
 {
     // We always eagerly create compartment privates for XBL scopes.
     CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv || !priv->scope)
         return false;
-    return priv->scope->IsContentXBLScope();
+    return priv->scope->IsXBLScope();
 }
 
 bool
-IsInContentXBLScope(JSObject *obj)
+IsInXBLScope(JSObject *obj)
 {
-    return IsContentXBLScope(js::GetObjectCompartment(obj));
+    return IsXBLScope(js::GetObjectCompartment(obj));
 }
 
 bool

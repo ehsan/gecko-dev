@@ -46,8 +46,9 @@ nsNSSCertificateFakeTransport::GetDbKey(char * *aDbKey)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+/* readonly attribute string windowTitle; */
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetWindowTitle(nsAString& aWindowTitle)
+nsNSSCertificateFakeTransport::GetWindowTitle(char * *aWindowTitle)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;

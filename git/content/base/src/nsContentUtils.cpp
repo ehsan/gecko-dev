@@ -1714,7 +1714,7 @@ nsContentUtils::ThreadsafeIsCallerChrome()
 }
 
 bool
-nsContentUtils::IsCallerContentXBL()
+nsContentUtils::IsCallerXBL()
 {
     JSContext *cx = GetCurrentJSContext();
     if (!cx)
@@ -1724,12 +1724,12 @@ nsContentUtils::IsCallerContentXBL()
 
     // For remote XUL, we run XBL in the XUL scope. Given that we care about
     // compat and not security for remote XUL, just always claim to be XBL.
-    if (!xpc::AllowContentXBLScope(c)) {
+    if (!xpc::AllowXBLScope(c)) {
       MOZ_ASSERT(nsContentUtils::AllowXULXBLForPrincipal(xpc::GetCompartmentPrincipal(c)));
       return true;
     }
 
-    return xpc::IsContentXBLScope(c);
+    return xpc::IsXBLScope(c);
 }
 
 
@@ -5585,7 +5585,7 @@ nsContentTypeParser::GetParameter(const char* aParameterName, nsAString& aResult
 bool
 nsContentUtils::CanAccessNativeAnon()
 {
-  return IsCallerChrome() || IsCallerContentXBL();
+  return IsCallerChrome() || IsCallerXBL();
 }
 
 /* static */ nsresult

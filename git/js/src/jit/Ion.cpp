@@ -11,6 +11,7 @@
 
 #include "jscompartment.h"
 #include "jsprf.h"
+#include "jsworkers.h"
 
 #include "gc/Marking.h"
 #include "jit/AliasAnalysis.h"
@@ -40,7 +41,6 @@
 #include "jit/UnreachableCodeElimination.h"
 #include "jit/ValueNumbering.h"
 #include "vm/ForkJoin.h"
-#include "vm/HelperThreads.h"
 #include "vm/TraceLogging.h"
 
 #include "jscompartmentinlines.h"

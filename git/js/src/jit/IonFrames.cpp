@@ -1656,51 +1656,9 @@ JitFrameIterator::osiIndex() const
     return ionScript()->getOsiIndex(reader.osiReturnPointOffset());
 }
 
-InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const JitFrameIterator *iter)
-  : callee_(cx),
-    script_(cx)
-{
-    resetOn(iter);
-}
-
-InlineFrameIterator::InlineFrameIterator(JSRuntime *rt, const JitFrameIterator *iter)
-  : callee_(rt),
-    script_(rt)
-{
-    resetOn(iter);
-}
-
-InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const IonBailoutIterator *iter)
-  : frame_(iter),
-    framesRead_(0),
-    frameCount_(UINT32_MAX),
-    callee_(cx),
-    script_(cx)
-{
-    if (iter) {
-        start_ = SnapshotIterator(*iter);
-        findNextFrame();
-    }
-}
-
-InlineFrameIterator::InlineFrameIterator(ThreadSafeContext *cx, const InlineFrameIterator *iter)
-  : frame_(iter ? iter->frame_ : nullptr),
-    framesRead_(0),
-    frameCount_(iter ? iter->frameCount_ : UINT32_MAX),
-    callee_(cx),
-    script_(cx)
-{
-    if (frame_) {
-        start_ = SnapshotIterator(*frame_);
-        // findNextFrame will iterate to the next frame and init. everything.
-        // Therefore to settle on the same frame, we report one frame less readed.
-        framesRead_ = iter->framesRead_ - 1;
-        findNextFrame();
-    }
-}
-
+template <AllowGC allowGC>
 void
-InlineFrameIterator::resetOn(const JitFrameIterator *iter)
+InlineFrameIteratorMaybeGC<allowGC>::resetOn(const JitFrameIterator *iter)
 {
     frame_ = iter;
     framesRead_ = 0;
@@ -1711,9 +1669,12 @@ InlineFrameIterator::resetOn(const JitFrameIterator *iter)
         findNextFrame();
     }
 }
+template void InlineFrameIteratorMaybeGC<NoGC>::resetOn(const JitFrameIterator *iter);
+template void InlineFrameIteratorMaybeGC<CanGC>::resetOn(const JitFrameIterator *iter);
 
+template <AllowGC allowGC>
 void
-InlineFrameIterator::findNextFrame()
+InlineFrameIteratorMaybeGC<allowGC>::findNextFrame()
 {
     JS_ASSERT(more());
 
@@ -1795,30 +1756,17 @@ InlineFrameIterator::findNextFrame()
 
     framesRead_++;
 }
+template void InlineFrameIteratorMaybeGC<NoGC>::findNextFrame();
+template void InlineFrameIteratorMaybeGC<CanGC>::findNextFrame();
 
-JSObject *
-InlineFrameIterator::computeScopeChain(Value scopeChainValue) const
-{
-    if (scopeChainValue.isObject())
-        return &scopeChainValue.toObject();
-
-    if (isFunctionFrame()) {
-        // Heavyweight functions should always have a scope chain.
-        MOZ_ASSERT(!callee()->isHeavyweight());
-        return callee()->environment();
-    }
-
-    // Ion does not handle scripts that are not compile-and-go.
-    MOZ_ASSERT(!script()->isForEval());
-    MOZ_ASSERT(script()->compileAndGo());
-    return &script()->global();
-}
-
+template <AllowGC allowGC>
 bool
-InlineFrameIterator::isFunctionFrame() const
+InlineFrameIteratorMaybeGC<allowGC>::isFunctionFrame() const
 {
     return !!callee_;
 }
+template bool InlineFrameIteratorMaybeGC<NoGC>::isFunctionFrame() const;
+template bool InlineFrameIteratorMaybeGC<CanGC>::isFunctionFrame() const;
 
 MachineState
 MachineState::FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
@@ -1834,12 +1782,13 @@ MachineState::FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
     return machine;
 }
 
+template <AllowGC allowGC>
 bool
-InlineFrameIterator::isConstructing() const
+InlineFrameIteratorMaybeGC<allowGC>::isConstructing() const
 {
     // Skip the current frame and look at the caller's.
     if (more()) {
-        InlineFrameIterator parent(GetJSContextFromJitCode(), this);
+        InlineFrameIteratorMaybeGC<allowGC> parent(GetJSContextFromJitCode(), this);
         ++parent;
 
         // Inlined Getters and Setters are never constructing.
@@ -1854,6 +1803,8 @@ InlineFrameIterator::isConstructing() const
 
     return frame_->isConstructing();
 }
+template bool InlineFrameIteratorMaybeGC<NoGC>::isConstructing() const;
+template bool InlineFrameIteratorMaybeGC<CanGC>::isConstructing() const;
 
 bool
 JitFrameIterator::isConstructing() const
@@ -1970,8 +1921,9 @@ JitFrameIterator::dumpBaseline() const
     }
 }
 
+template <AllowGC allowGC>
 void
-InlineFrameIterator::dump() const
+InlineFrameIteratorMaybeGC<allowGC>::dump() const
 {
     if (more())
         fprintf(stderr, " JS frame (inlined)\n");
@@ -2030,6 +1982,8 @@ InlineFrameIterator::dump() const
 
     fputc('\n', stderr);
 }
+template void InlineFrameIteratorMaybeGC<NoGC>::dump() const;
+template void InlineFrameIteratorMaybeGC<CanGC>::dump() const;
 
 void
 JitFrameIterator::dump() const

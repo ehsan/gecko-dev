@@ -453,7 +453,8 @@ class SnapshotIterator
 
 // Reads frame information in callstack order (that is, innermost frame to
 // outermost frame).
-class InlineFrameIterator
+template <AllowGC allowGC=CanGC>
+class InlineFrameIteratorMaybeGC
 {
     const JitFrameIterator *frame_;
     SnapshotIterator start_;
@@ -466,8 +467,8 @@ class InlineFrameIterator
     // frames contained in the recover buffer.
     uint32_t frameCount_;
 
-    RootedFunction callee_;
-    RootedScript script_;
+    typename MaybeRooted<JSFunction*, allowGC>::RootType callee_;
+    typename MaybeRooted<JSScript*, allowGC>::RootType script_;
     jsbytecode *pc_;
     uint32_t numActualArgs_;
 
@@ -477,13 +478,55 @@ class InlineFrameIterator
 
   private:
     void findNextFrame();
-    JSObject *computeScopeChain(Value scopeChainValue) const;
+
+    JSObject *computeScopeChain(Value scopeChainValue) const {
+        if (scopeChainValue.isObject())
+            return &scopeChainValue.toObject();
+
+        if (isFunctionFrame()) {
+            // Heavyweight functions should always have a scope chain.
+            MOZ_ASSERT(!callee()->isHeavyweight());
+            return callee()->environment();
+        }
+
+        // Ion does not handle scripts that are not compile-and-go.
+        MOZ_ASSERT(!script()->isForEval());
+        MOZ_ASSERT(script()->compileAndGo());
+        return &script()->global();
+    }
 
   public:
-    InlineFrameIterator(ThreadSafeContext *cx, const JitFrameIterator *iter);
-    InlineFrameIterator(JSRuntime *rt, const JitFrameIterator *iter);
-    InlineFrameIterator(ThreadSafeContext *cx, const IonBailoutIterator *iter);
-    InlineFrameIterator(ThreadSafeContext *cx, const InlineFrameIterator *iter);
+    InlineFrameIteratorMaybeGC(ThreadSafeContext *cx, const JitFrameIterator *iter)
+      : callee_(cx),
+        script_(cx)
+    {
+        resetOn(iter);
+    }
+
+    InlineFrameIteratorMaybeGC(JSRuntime *rt, const JitFrameIterator *iter)
+      : callee_(rt),
+        script_(rt)
+    {
+        resetOn(iter);
+    }
+
+    InlineFrameIteratorMaybeGC(ThreadSafeContext *cx, const IonBailoutIterator *iter);
+
+    InlineFrameIteratorMaybeGC(ThreadSafeContext *cx, const InlineFrameIteratorMaybeGC *iter)
+      : frame_(iter ? iter->frame_ : nullptr),
+        framesRead_(0),
+        frameCount_(iter ? iter->frameCount_ : UINT32_MAX),
+        callee_(cx),
+        script_(cx)
+    {
+        if (frame_) {
+            start_ = SnapshotIterator(*frame_);
+            // findNextFrame will iterate to the next frame and init. everything.
+            // Therefore to settle on the same frame, we report one frame less readed.
+            framesRead_ = iter->framesRead_ - 1;
+            findNextFrame();
+        }
+    }
 
     bool more() const {
         return frame_ && framesRead_ < frameCount_;
@@ -544,7 +587,7 @@ class InlineFrameIterator
                     // The overflown arguments are not available in current frame.
                     // They are the last pushed arguments in the parent frame of
                     // this inlined frame.
-                    InlineFrameIterator it(cx, this);
+                    InlineFrameIteratorMaybeGC it(cx, this);
                     ++it;
                     unsigned argsObjAdj = it.script()->argumentsHasVarBinding() ? 1 : 0;
                     SnapshotIterator parent_s(it.snapshotIterator());
@@ -630,7 +673,7 @@ class InlineFrameIterator
         return s.read();
     }
 
-    InlineFrameIterator &operator++() {
+    InlineFrameIteratorMaybeGC &operator++() {
         findNextFrame();
         return *this;
     }
@@ -653,9 +696,11 @@ class InlineFrameIterator
     }
 
   private:
-    InlineFrameIterator() MOZ_DELETE;
-    InlineFrameIterator(const InlineFrameIterator &iter) MOZ_DELETE;
+    InlineFrameIteratorMaybeGC() MOZ_DELETE;
+    InlineFrameIteratorMaybeGC(const InlineFrameIteratorMaybeGC &iter) MOZ_DELETE;
 };
+typedef InlineFrameIteratorMaybeGC<CanGC> InlineFrameIterator;
+typedef InlineFrameIteratorMaybeGC<NoGC> InlineFrameIteratorNoGC;
 
 } // namespace jit
 } // namespace js

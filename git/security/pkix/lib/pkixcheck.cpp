@@ -427,25 +427,25 @@ MatchEKU(der::Input& value, KeyPurposeId requiredEKU,
         // Comodo has issued certificates that require this behavior that don't
         // expire until June 2020! TODO(bug 982932): Limit this exception to
         // old certificates.
-        match = value.MatchRest(server) ||
+        match = value.MatchBytes(server) ||
                 (endEntityOrCA == EndEntityOrCA::MustBeCA &&
-                 value.MatchRest(serverStepUp));
+                 value.MatchBytes(serverStepUp));
         break;
 
       case KeyPurposeId::id_kp_clientAuth:
-        match = value.MatchRest(client);
+        match = value.MatchBytes(client);
         break;
 
       case KeyPurposeId::id_kp_codeSigning:
-        match = value.MatchRest(code);
+        match = value.MatchBytes(code);
         break;
 
       case KeyPurposeId::id_kp_emailProtection:
-        match = value.MatchRest(email);
+        match = value.MatchBytes(email);
         break;
 
       case KeyPurposeId::id_kp_OCSPSigning:
-        match = value.MatchRest(ocsp);
+        match = value.MatchBytes(ocsp);
         break;
 
       case KeyPurposeId::anyExtendedKeyUsage:
@@ -459,11 +459,13 @@ MatchEKU(der::Input& value, KeyPurposeId requiredEKU,
   }
 
   if (match) {
-    found = true;
-    if (requiredEKU == KeyPurposeId::id_kp_OCSPSigning) {
-      foundOCSPSigning = true;
+    if (value.AtEnd()) {
+      found = true;
+      if (requiredEKU == KeyPurposeId::id_kp_OCSPSigning) {
+        foundOCSPSigning = true;
+      }
     }
-  } else if (value.MatchRest(ocsp)) {
+  } else if (value.MatchBytes(ocsp) && value.AtEnd()) {
     foundOCSPSigning = true;
   }
 

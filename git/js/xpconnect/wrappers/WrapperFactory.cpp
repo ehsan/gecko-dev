@@ -431,7 +431,7 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
     // See bug 843829.
     else if (targetSubsumesOrigin && !originSubsumesTarget &&
              !waiveXrayFlag && xrayType == NotXray &&
-             IsContentXBLScope(target))
+             IsXBLScope(target))
     {
         wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper, GentlyOpaque>::singleton;
     }
@@ -462,10 +462,10 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
 
         // We have slightly different behavior for the case when the object
         // being wrapped is in an XBL scope.
-        bool originIsContentXBLScope = IsContentXBLScope(origin);
+        bool originIsXBLScope = IsXBLScope(origin);
 
         wrapper = SelectWrapper(securityWrapper, wantXrays, xrayType, waiveXrays,
-                                originIsContentXBLScope);
+                                originIsXBLScope);
     }
 
     if (!targetSubsumesOrigin) {
