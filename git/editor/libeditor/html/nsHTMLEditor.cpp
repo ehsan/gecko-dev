@@ -72,8 +72,6 @@
 #include "nsIDOMEventGroup.h"
 #include "nsILinkHandler.h"
 
-#include "TransactionFactory.h"
-
 #include "nsICSSLoader.h"
 #include "nsICSSStyleSheet.h"
 #include "nsIDOMStyleSheet.h"
@@ -97,8 +95,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIImage.h"
-#include "nsAOLCiter.h"
-#include "nsInternetCiter.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "SetDocTitleTxn.h"
@@ -703,21 +699,17 @@ nsHTMLEditor::IsBlockNode(nsIDOMNode *aNode)
 NS_IMETHODIMP 
 nsHTMLEditor::SetDocumentTitle(const nsAString &aTitle)
 {
-  nsRefPtr<EditTxn> txn;
-  nsresult result = TransactionFactory::GetNewTransaction(SetDocTitleTxn::GetCID(), getter_AddRefs(txn));
-  if (NS_SUCCEEDED(result))  
-  {
-    result = static_cast<SetDocTitleTxn*>(txn.get())->Init(this, &aTitle);
+  nsRefPtr<SetDocTitleTxn> txn = new SetDocTitleTxn();
+  if (!txn)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-    if (NS_SUCCEEDED(result)) 
-    {
-      //Don't let Rules System change the selection
-      nsAutoTxnsConserveSelection dontChangeSelection(this);
+  nsresult result = txn->Init(this, &aTitle);
+  if (NS_FAILED(result))
+    return result;
 
-      result = nsEditor::DoTransaction(txn);  
-    }
-  }
-  return result;
+  //Don't let Rules System change the selection
+  nsAutoTxnsConserveSelection dontChangeSelection(this);
+  return nsEditor::DoTransaction(txn);  
 }
 
 /* ------------ Block methods moved from nsEditor -------------- */
