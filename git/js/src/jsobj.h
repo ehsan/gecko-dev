@@ -57,12 +57,8 @@
  * structure.
  */
 struct PropertyDescriptor {
-  friend class AutoDescriptorArray;
-
-  private:
     PropertyDescriptor();
 
-  public:
     /* 8.10.5 ToPropertyDescriptor(Obj) */
     bool initialize(JSContext* cx, jsid id, jsval v);
 
@@ -338,11 +334,6 @@ struct JSObject {
     inline void initSharingEmptyScope(JSClass *clasp, JSObject *proto, JSObject *parent,
                                       jsval privateSlotValue);
 
-    inline bool hasSlotsArray() const { return dslots; }
-
-    /* This method can only be called when hasSlotsArray() returns true. */
-    inline void freeSlotsArray(JSContext *cx);
-
     JSBool lookupProperty(JSContext *cx, jsid id,
                           JSObject **objp, JSProperty **propp) {
         return map->ops->lookupProperty(cx, this, id, objp, propp);
@@ -400,6 +391,12 @@ struct JSObject {
         if (map->ops->dropProperty)
             map->ops->dropProperty(cx, this, prop);
     }
+
+    inline bool isArray() const;
+    inline bool isDenseArray() const;
+    inline bool isFunction() const;
+    inline bool isRegExp() const;
+    inline bool isXML() const;
 };
 
 /* Compatibility macros. */
@@ -754,6 +751,13 @@ js_GrowSlots(JSContext *cx, JSObject *obj, size_t nslots);
 
 extern void
 js_ShrinkSlots(JSContext *cx, JSObject *obj, size_t nslots);
+
+static inline void
+js_FreeSlots(JSContext *cx, JSObject *obj)
+{
+    if (obj->dslots)
+        js_ShrinkSlots(cx, obj, 0);
+}
 
 /*
  * Ensure that the object has at least JSCLASS_RESERVED_SLOTS(clasp)+nreserved

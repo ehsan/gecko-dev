@@ -56,12 +56,4 @@ JSObject::initSharingEmptyScope(JSClass *clasp, JSObject *proto, JSObject *paren
     map = emptyScope;
 }
 
-inline void
-JSObject::freeSlotsArray(JSContext *cx)
-{
-    JS_ASSERT(hasSlotsArray());
-    JS_ASSERT(size_t(dslots[-1]) > JS_INITIAL_NSLOTS);
-    cx->free(dslots - 1);
-}
-
 #endif /* jsobjinlines_h___ */
