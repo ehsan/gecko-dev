@@ -66,8 +66,6 @@ AllowXBLScope(JSCompartment *c);
 bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
-bool
-IsReflector(JSObject *obj);
 } /* namespace xpc */
 
 namespace JS {
