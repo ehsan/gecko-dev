@@ -790,15 +790,8 @@ HttpChannelChild::Resume()
   NS_ENSURE_TRUE(mSuspendCount > 0, NS_ERROR_UNEXPECTED);
   SendResume();
   mSuspendCount--;
-  if (!mSuspendCount) {
-    // If we were suspended outside of an event handler (bug 595972) we'll
-    // consider ourselves unqueued. This is a legal state of affairs but
-    // FlushEventQueue() can't easily ensure this fact, so we'll do some
-    // fudging to set the invariants correctly.    
-    if (mQueuePhase == PHASE_UNQUEUED)
-      mQueuePhase = PHASE_FINISHED_QUEUEING;
+  if (!mSuspendCount)
     FlushEventQueue();
-  }
   return NS_OK;
 }
 

@@ -111,11 +111,6 @@ BytecodeAnalyzer::analyze(uint32 index)
           case JSOP_TRAP:
             return false;
 
-          case JSOP_SETRVAL:
-          case JSOP_POPV:
-            usesRval = true;
-            break;
-
           case JSOP_DEFAULT:
           case JSOP_GOTO:
             offs = (pc + JSOP_GOTO_LENGTH) - script->code;
