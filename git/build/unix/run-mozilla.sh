@@ -59,9 +59,6 @@ echo ""
 echo "    -d debugger          Debugger to use."
 echo "    --debugger debugger"
 echo ""
-echo "    -a debugger_args     Arguments passed to [debugger]."
-echo "    --debugger-args debugger_args"
-echo ""
 echo "  Examples:"
 echo ""
 echo "  Run the mozilla-bin binary"
@@ -71,10 +68,6 @@ echo ""
 echo "  Debug the mozilla-bin binary in gdb"
 echo ""
 echo "    ${cmdname} -g mozilla-bin -d gdb"
-echo ""
-echo "  Run mozilla-bin under valgrind with arguments"
-echo ""
-echo "    ${cmdname} -g -d valgrind -a '--tool=memcheck --leak-check=full' mozilla-bin"
 echo ""
 	return 0
 }
@@ -169,16 +162,16 @@ moz_debug_program()
 # If you are not using ddd, gdb and know of a way to convey the arguments 
 # over to the prog then add that here- Gagan Saksena 03/15/00
         case `basename $debugger` in
-            gdb) echo "$debugger $moz_debugger_args --args $prog" ${1+"$@"}
-                exec "$debugger" $moz_debugger_args --args "$prog" ${1+"$@"}
+            gdb) echo "$debugger --args $prog" ${1+"$@"}
+                exec "$debugger" --args "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
-            ddd) echo "$debugger $moz_debugger_args --gdb -- --args $prog" ${1+"$@"}
-		exec "$debugger" $moz_debugger_args --gdb -- --args "$prog" ${1+"$@"}
+            ddd) echo "$debugger --gdb -- --args $prog" ${1+"$@"}
+		exec "$debugger" --gdb -- --args "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
-            *) echo "$debugger $moz_debugger_args $prog ${1+"$@"}"
-                exec $debugger $moz_debugger_args "$prog" ${1+"$@"}
+            *) echo "$debugger $prog ${1+"$@"}"
+                exec $debugger "$prog" ${1+"$@"}
 		exitcode=$?
                 ;;
         esac
@@ -192,7 +185,6 @@ moz_debug_program()
 ##
 moz_debug=0
 moz_debugger=""
-moz_debugger_args=""
 #
 ##
 ## Parse the command line
@@ -210,15 +202,6 @@ do
 	shift 2
       else
         echo "-d requires an argument"
-        exit 1
-      fi
-      ;;
-    -a | --debugger-args)
-      moz_debugger_args=$2;
-      if [ "${moz_debugger_args}" != "" ]; then
-	shift 2
-      else
-        echo "-a requires an argument"
         exit 1
       fi
       ;;
@@ -380,7 +363,6 @@ then
   echo "      MOZ_TOOLKIT=$MOZ_TOOLKIT"
   echo "        moz_debug=$moz_debug"
   echo "     moz_debugger=$moz_debugger"
-  echo "moz_debugger_args=$moz_debugger_args"
 fi
 #
 export MOZILLA_FIVE_HOME LD_LIBRARY_PATH

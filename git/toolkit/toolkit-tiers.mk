@@ -80,12 +80,7 @@ endif
 # tier "gecko" - core components
 #
 
-ifdef MOZ_IPC
-tier_gecko_dirs += ipc
-endif
-
 tier_gecko_dirs += \
-		$(tier_necko_dirs) \
 		js/src/xpconnect \
 		js/ctypes \
 		intl/chardet \

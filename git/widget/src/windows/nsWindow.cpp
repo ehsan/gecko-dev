@@ -104,10 +104,6 @@
  **************************************************************
  **************************************************************/
 
-#ifdef MOZ_IPC
-#include "mozilla/ipc/SyncChannel.h"
-#endif
-
 #include "nsWindow.h"
 
 #include <windows.h>
@@ -3591,11 +3587,6 @@ PRBool nsWindow::ConvertStatus(nsEventStatus aStatus)
 // The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-#ifdef MOZ_IPC
-  NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
-               "Failed to prevent a nonqueued message from running!");
-#endif
-
   // create this here so that we store the last rolled up popup until after
   // the event has been processed.
   nsAutoRollup autoRollup;
