@@ -10,7 +10,6 @@ module.metadata = {
 var { exit, stdout } = require("../system");
 var cfxArgs = require("../test/options");
 var events = require("../system/events");
-const { resolve } = require("../core/promise");
 
 function runTests(findAndRunTests) {
   var harness = require("./harness");
@@ -121,9 +120,7 @@ exports.runTestsFromModule = function runTestsFromModule(module) {
     var { TestRunner } = loader.require("../deprecated/unit-test");
     var runner = new TestRunner();
     runner.startMany({
-      tests: {
-        getNext: () => resolve(tests.shift())
-      },
+      tests: tests,
       stopOnError: cfxArgs.stopOnError,
       onDone: nextIteration
     });

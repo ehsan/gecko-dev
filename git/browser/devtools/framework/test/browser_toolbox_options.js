@@ -1,60 +1,46 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-// Tests that changing preferences in the options panel updates the prefs
-// and toggles appropriate things in the toolbox.
-
 let doc = null, toolbox = null, panelWin = null, modifiedPrefs = [];
 
-let test = asyncTest(function*() {
+function test() {
   const URL = "data:text/html;charset=utf8,test for dynamically registering and unregistering tools";
-  registerNewTool();
-  let tab = yield addTab(URL);
-  let target = TargetFactory.forTab(tab);
-  toolbox = yield gDevTools.showToolbox(target);
+  Task.spawn(function* () {
+    let tab = yield addTab(URL);
+    let target = TargetFactory.forTab(tab);
+    let toolbox = yield gDevTools.showToolbox(target);
+    yield testSelectTool(toolbox);
+    yield testOptionsShortcut();
+    yield testOptions();
+    yield testToggleTools();
+  }).then(cleanup, errorHandler);
+}
+
+function testSelectTool(aToolbox) {
+  let deferred = promise.defer();
+
+  toolbox = aToolbox;
   doc = toolbox.doc;
-  yield testSelectTool();
-  yield testOptionsShortcut();
-  yield testOptions();
-  yield testToggleTools();
-  yield cleanup();
-});
-
-function registerNewTool() {
-  let toolDefinition = {
-    id: "test-tool",
-    isTargetSupported: function() true,
-    visibilityswitch: "devtools.test-tool.enabled",
-    url: "about:blank",
-    label: "someLabel"
-  };
-
-  ok(gDevTools, "gDevTools exists");
-  ok(!gDevTools.getToolDefinitionMap().has("test-tool"),
-    "The tool is not registered");
-
-  gDevTools.registerTool(toolDefinition);
-  ok(gDevTools.getToolDefinitionMap().has("test-tool"),
-    "The tool is registered");
-}
-
-function* testSelectTool() {
-  info ("Checking to make sure that the options panel can be selected.");
-
-  let onceSelected = toolbox.once("options-selected");
+  toolbox.once("options-selected", () => {
+    ok(true, "Toolbox selected via selectTool method");
+    deferred.resolve();
+  });
   toolbox.selectTool("options");
-  yield onceSelected;
-  ok(true, "Toolbox selected via selectTool method");
+
+  return deferred.promise;
 }
 
-function* testOptionsShortcut() {
-  info ("Selecting another tool, then reselecting options panel with keyboard.");
+function testOptionsShortcut() {
+  let deferred = promise.defer();
 
-  yield toolbox.selectTool("webconsole")
+  toolbox.selectTool("webconsole")
          .then(() => synthesizeKeyFromKeyTag("toolbox-options-key", doc))
          .then(() => {
            ok(true, "Toolbox selected via shortcut key");
+           deferred.resolve();
          });
+
+  return deferred.promise;
 }
 
 function* testOptions() {
@@ -117,7 +103,7 @@ function* testMenuList(menulist) {
   }
 }
 
-function* testMouseClick(node, prefValue) {
+function testMouseClick(node, prefValue) {
   let deferred = promise.defer();
 
   let pref = node.getAttribute("data-pref");
@@ -141,17 +127,14 @@ function* testMouseClick(node, prefValue) {
     EventUtils.synthesizeMouseAtCenter(node, {}, panelWin);
   });
 
-  yield deferred.promise;
+  return deferred.promise;
 }
 
-function* testToggleTools() {
-  let toolNodes = panelWin.document.querySelectorAll("#default-tools-box > checkbox:not([unsupported]), #additional-tools-box > checkbox:not([unsupported])");
-  let enabledTools = [...toolNodes].filter(node => node.checked);
+function testToggleTools() {
+  let toolNodes = panelWin.document.querySelectorAll("#default-tools-box > checkbox:not([unsupported])");
+  let enabledTools = Array.prototype.filter.call(toolNodes, node => node.checked);
 
-  let toggleableTools = gDevTools.getDefaultTools().filter(tool => {
-    return tool.visibilityswitch;
-  }).concat(gDevTools.getAdditionalTools());
-
+  let toggleableTools = gDevTools.getDefaultTools().filter(tool => tool.visibilityswitch);
   for (let node of toolNodes) {
     let id = node.getAttribute("id");
     ok (toggleableTools.some(tool => tool.id === id),
@@ -165,22 +148,23 @@ function* testToggleTools() {
   }
 
   // Toggle each tool
+  let p = promise.resolve();
   for (let node of toolNodes) {
-    yield toggleTool(node);
+    p = p.then(toggleTool.bind(null, node));
   }
   // Toggle again to reset tool enablement state
   for (let node of toolNodes) {
-    yield toggleTool(node);
+    p = p.then(toggleTool.bind(null, node));
   }
 
   // Test that a tool can still be added when no tabs are present:
   // Disable all tools
   for (let node of enabledTools) {
-    yield toggleTool(node);
+    p = p.then(toggleTool.bind(null, node));
   }
   // Re-enable the tools which are enabled by default
   for (let node of enabledTools) {
-    yield toggleTool(node);
+    p = p.then(toggleTool.bind(null, node));
   }
 
   // Toggle first, middle, and last tools to ensure that toolbox tabs are
@@ -189,19 +173,20 @@ function* testToggleTools() {
       middleTool = toolNodes[(toolNodes.length / 2) | 0],
       lastTool   = toolNodes[toolNodes.length - 1];
 
-  yield toggleTool(firstTool);
-  yield toggleTool(firstTool);
-  yield toggleTool(middleTool);
-  yield toggleTool(middleTool);
-  yield toggleTool(lastTool);
-  yield toggleTool(lastTool);
+  p = p.then(toggleTool.bind(null, firstTool))
+       .then(toggleTool.bind(null, firstTool))
+       .then(toggleTool.bind(null, middleTool))
+       .then(toggleTool.bind(null, middleTool))
+       .then(toggleTool.bind(null, lastTool))
+       .then(toggleTool.bind(null, lastTool));
+
+  return p;
 }
 
-function* toggleTool(node) {
+function toggleTool(node) {
   let deferred = promise.defer();
 
   let toolId = node.getAttribute("id");
-  let onRegistrationChange;
   if (node.checked) {
     gDevTools.once("tool-unregistered", checkUnregistered.bind(null, toolId, deferred));
   } else {
@@ -210,7 +195,7 @@ function* toggleTool(node) {
   node.scrollIntoView();
   EventUtils.synthesizeMouseAtCenter(node, {}, panelWin);
 
-  yield deferred.promise;
+  return deferred.promise;
 }
 
 function checkUnregistered(toolId, deferred, event, data) {
@@ -264,12 +249,32 @@ function GetPref(name) {
   }
 }
 
-function* cleanup() {
-  gDevTools.unregisterTool("test-tool");
-  yield toolbox.destroy();
-  gBrowser.removeCurrentTab();
-  for (let pref of modifiedPrefs) {
-    Services.prefs.clearUserPref(pref);
+function SetPref(name, value) {
+  let type = Services.prefs.getPrefType(name);
+  switch (type) {
+    case Services.prefs.PREF_STRING:
+      return Services.prefs.setCharPref(name, value);
+    case Services.prefs.PREF_INT:
+      return Services.prefs.setIntPref(name, value);
+    case Services.prefs.PREF_BOOL:
+      return Services.prefs.setBoolPref(name, value);
+    default:
+      throw new Error("Unknown type");
   }
-  toolbox = doc = panelWin = modifiedPrefs = null;
+}
+
+function cleanup() {
+  toolbox.destroy().then(function() {
+    gBrowser.removeCurrentTab();
+    for (let pref of modifiedPrefs) {
+      Services.prefs.clearUserPref(pref);
+    }
+    toolbox = doc = panelWin = modifiedPrefs = null;
+    finish();
+  });
+}
+
+function errorHandler(error) {
+  ok(false, "Unexpected error: " + error);
+  cleanup();
 }

@@ -135,8 +135,8 @@ loop.webapp = (function($, _, OT, mozL10n) {
      * Constructor.
      *
      * Required options:
-     * - {loop.shared.models.ConversationModel}    model    Conversation model.
-     * - {loop.shared.models.NotificationCollection} notifications
+     * - {loop.shared.model.ConversationModel}    model    Conversation model.
+     * - {loop.shared.views.NotificationListView} notifier Notifier component.
      *
      */
 
@@ -156,7 +156,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       model: React.PropTypes.instanceOf(sharedModels.ConversationModel)
                                        .isRequired,
       // XXX Check more tightly here when we start injecting window.loop.*
-      notifications: React.PropTypes.object.isRequired,
+      notifier: React.PropTypes.object.isRequired,
       client: React.PropTypes.object.isRequired
     },
 
@@ -167,11 +167,14 @@ loop.webapp = (function($, _, OT, mozL10n) {
                                 this._onSessionError);
       this.props.client.requestCallUrlInfo(this.props.model.get("loopToken"),
                                            this._setConversationTimestamp);
+      // XXX DOM element does not exist before React view gets instantiated
+      // We should turn the notifier into a react component
+      this.props.notifier.$el = $("#messages");
     },
 
     _onSessionError: function(error) {
       console.error(error);
-      this.props.notifications.errorL10n("unable_retrieve_call_info");
+      this.props.notifier.errorL10n("unable_retrieve_call_info");
     },
 
     /**
@@ -192,7 +195,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
 
     _setConversationTimestamp: function(err, callUrlInfo) {
       if (err) {
-        this.props.notifications.errorL10n("unable_retrieve_call_info");
+        this.props.notifier.errorL10n("unable_retrieve_call_info");
       } else {
         var date = (new Date(callUrlInfo.urlCreationDate * 1000));
         var options = {year: "numeric", month: "long", day: "numeric"};
@@ -340,7 +343,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     setupOutgoingCall: function() {
       var loopToken = this._conversation.get("loopToken");
       if (!loopToken) {
-        this._notifications.errorL10n("missing_conversation_info");
+        this._notifier.errorL10n("missing_conversation_info");
         this.navigate("home", {trigger: true});
       } else {
         var callType = this._conversation.get("selectedCallType");
@@ -358,7 +361,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
                 this._onSessionExpired();
                 break;
               default:
-                this._notifications.errorL10n("missing_conversation_info");
+                this._notifier.errorL10n("missing_conversation_info");
                 this.navigate("home", {trigger: true});
                 break;
             }
@@ -375,7 +378,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     startCall: function() {
       var loopToken = this._conversation.get("loopToken");
       if (!loopToken) {
-        this._notifications.errorL10n("missing_conversation_info");
+        this._notifier.errorL10n("missing_conversation_info");
         this.navigate("home", {trigger: true});
       } else {
         this._setupWebSocketAndCallView(loopToken);
@@ -401,7 +404,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
       }.bind(this), function() {
         // XXX Not the ideal response, but bug 1047410 will be replacing
         // this by better "call failed" UI.
-        this._notifications.errorL10n("cannot_start_call_session_not_ready");
+        this._notifier.errorL10n("cannot_start_call_session_not_ready");
         return;
       }.bind(this));
 
@@ -448,7 +451,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
      */
     _handleCallRejected: function() {
       this.endCall();
-      this._notifications.errorL10n("call_timeout_notification_text");
+      this._notifier.errorL10n("call_timeout_notification_text");
     },
 
     /**
@@ -463,7 +466,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     },
 
     _onTimeout: function() {
-      this._notifications.errorL10n("call_timeout_notification_text");
+      this._notifier.errorL10n("call_timeout_notification_text");
     },
 
     /**
@@ -501,7 +504,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
 
       var startView = StartConversationView({
         model: this._conversation,
-        notifications: this._notifications,
+        notifier: this._notifier,
         client: this._client
       });
       this._conversation.once("call:outgoing:setup", this.setupOutgoingCall, this);
@@ -554,7 +557,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
     });
     var router = new WebappRouter({
       helper: helper,
-      notifications: new sharedModels.NotificationCollection(),
+      notifier: new sharedViews.NotificationListView({el: "#messages"}),
       client: client,
       conversation: new sharedModels.ConversationModel({}, {
         sdk: OT,

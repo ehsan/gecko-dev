@@ -231,7 +231,8 @@ function* UpdateTests(front, win, client) {
 
 
 function test() {
-  addTab(MAIN_DOMAIN + "storage-updates.html").then(function(doc) {
+  waitForExplicitFinish();
+  addTab(MAIN_DOMAIN + "storage-updates.html", function(doc) {
     try {
       // Sometimes debugger server does not get destroyed correctly by previous
       // tests.

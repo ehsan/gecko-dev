@@ -68,7 +68,6 @@ function runTest()
         }
 
         waitForLivemarkLoad(aLivemark, function (aLivemark) {
-          aLivemarkData.loaded = true;
           let nodes = aLivemark.getNodesForContainer({});
           is(nodes.length, aLivemarkData.urls.length,
              "Ensure all the livemark items were created.");
@@ -79,8 +78,9 @@ function runTest()
 
           PlacesUtils.bookmarks.removeItem(aLivemark.id);
 
-          if (LIVEMARKS.every(lm => lm.loaded))
+          if (aLivemark.feedURI.equals(LIVEMARKS[LIVEMARKS.length - 1].feedURI)) {
             SimpleTest.finish();
+          }          
         });
       }, function () {
         is(true, false, "Should not fail adding a livemark");

@@ -305,7 +305,8 @@ function testRemoveIframe() {
 }
 
 function test() {
-  addTab(MAIN_DOMAIN + "storage-dynamic-windows.html").then(function(doc) {
+  waitForExplicitFinish();
+  addTab(MAIN_DOMAIN + "storage-dynamic-windows.html", function(doc) {
     try {
       // Sometimes debugger server does not get destroyed correctly by previous
       // tests.
