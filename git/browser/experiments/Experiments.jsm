@@ -28,8 +28,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryPing",
                                   "resource://gre/modules/TelemetryPing.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryLog",
-                                  "resource://gre/modules/TelemetryLog.jsm");
 // CertUtils.jsm doesn't expose a single "CertUtils" object like a normal .jsm
 // would.
 XPCOMUtils.defineLazyGetter(this, "CertUtils",
@@ -63,27 +61,6 @@ const PREF_HEALTHREPORT_ENABLED = "datareporting.healthreport.service.enabled";
 const PREF_BRANCH_TELEMETRY     = "toolkit.telemetry.";
 const PREF_TELEMETRY_ENABLED    = "enabled";
 const PREF_TELEMETRY_PRERELEASE = "enabledPreRelease";
-
-const TELEMETRY_LOG = {
-  // log(key, [kind, experimentId, details])
-  ACTIVATION_KEY: "EXPERIMENT_ACTIVATION",
-  ACTIVATION: {
-    ACTIVATED: "ACTIVATED",             // successfully activated
-    INSTALL_FAILURE: "INSTALL_FAILURE", // failed to install the extension
-    REJECTED: "REJECTED",               // experiment was rejected because of it's conditions,
-                                        // provides details on which
-  },
-
-  // log(key, [kind, experimentId, optionalDetails...])
-  TERMINATION_KEY: "EXPERIMENT_TERMINATION",
-  TERMINATION: {
-    USERDISABLED: "USERDISABLED", // the user disabled this experiment
-    FROM_API: "FROM_API",         // the experiment disabled itself
-    EXPIRED: "EXPIRED",           // experiment expired e.g. by exceeding the end-date
-    RECHECK: "RECHECK",           // disabled after re-evaluating conditions,
-                                  // provides details on which
-  },
-};
 
 const gPrefs = new Preferences(PREF_BRANCH);
 const gPrefsTelemetry = new Preferences(PREF_BRANCH_TELEMETRY);
@@ -528,34 +505,23 @@ Experiments.Experiments.prototype = {
   },
 
   onDisabled: function (addon) {
-    gLogger.trace("Experiments::onDisabled() - addon id: " + addon.id)
-    this.disableExperiment(addon.id);
-  },
-
-  onUninstalled: function (addon) {
-    gLogger.trace("Experiments::onUninstalled() - addon id: " + addon.id);
-    this.disableExperiment(addon.id);
-  },
-
-  _getExperimentByAddonId: function (addonId) {
-    for (let [, entry] of this._experiments) {
-      if (entry._addonId === addonId) {
-        return entry;
-      }
-    }
-
-    return null;
-  },
-
-  _disableExperimentByAddonId: function (addonId) {
     this._checkForShutdown();
-    gLogger.trace("Experiments::disableExperimentByAddonId() - addon id: " + addonId);
-    let experiment = this._getExperimentByAddonId(addonId);
+    let experiment = this._experiments.get(addon.id);
     if (!experiment) {
       return;
     }
 
-    this.disableExperiment(experiment.id);
+    this.disableExperiment(addon.id);
+  },
+
+  onUninstalled: function (addon) {
+    this._checkForShutdown();
+    let experiment = this._experiments.get(addon.id);
+    if (!experiment) {
+      return;
+    }
+
+    this.disableExperiment(addon.id);
   },
 
   /*
@@ -760,12 +726,11 @@ Experiments.Experiments.prototype = {
     // Make sure we keep experiments that are or were running.
     // We remove them after KEEP_HISTORY_N_DAYS.
     for (let [id, entry] of this._experiments) {
-      if (experiments.has(id) || !entry.startDate || entry.shouldDiscard()) {
-        gLogger.trace("Experiments::updateExperiments() - discarding entry for " + id);
+      if (experiments.has(id) || !entry.startDate || !entry.shouldDiscard()) {
         continue;
       }
 
-      experiments.set(id, entry);
+      experiments.set(id, experiment);
     }
 
     this._experiments = experiments;
@@ -829,25 +794,16 @@ Experiments.Experiments.prototype = {
     }
 
     if (!experiment.enabled) {
-      let message = "experiment is not enabled";
-      gLogger.debug("Experiments::disableExperiment() - " + message);
-      return Promise.reject(new Error(message));
+      return Promise.reject();
     }
 
     return Task.spawn(function* Experiments_disableExperimentTaskOuter() {
-      gLogger.trace("Experiments_disableExperimentTaskOuter");
       // We need to wait on possible previous disable tasks.
       yield this._pendingTasks.disableExperiment;
 
       let disableTask = Task.spawn(function* Experiments_disableExperimentTaskInner() {
         yield this._pendingTasksDone([this._pendingTasks.disableExperiment]);
-
-        let terminationKind = TELEMETRY_LOG.TERMINATION.USERDISABLED;
-        if (!userDisabled) {
-          terminationKind = TELEMETRY_LOG.TERMINATION.FROM_API;
-        }
-
-        yield experiment.stop(terminationKind);
+        yield experiment.stop(userDisabled);
         Services.obs.notifyObservers(null, OBSERVER_TOPIC, null);
         this._pendingTasks.disableExperiment = null;
       }.bind(this));
@@ -872,7 +828,6 @@ Experiments.Experiments.prototype = {
       this._checkForShutdown();
       let activeExperiment = this._getActiveExperiment();
       let activeChanged = false;
-      let now = this._policy.now();
 
       if (activeExperiment) {
         let wasStopped = yield activeExperiment.maybeStop();
@@ -899,22 +854,13 @@ Experiments.Experiments.prototype = {
       if (!activeExperiment) {
         for (let [id, experiment] of this._experiments) {
           let applicable;
-          let reason = null;
           yield experiment.isApplicable().then(
             result => applicable = result,
-            result => {
+            reason => {
               applicable = false;
-              reason = result;
+              // TODO telemetry: experiment rejection reason
             }
           );
-
-          if (!applicable && reason && reason[0] != "was-active") {
-            // Report this from here to avoid over-reporting.
-            let desc = TELEMETRY_LOG.ACTIVATION;
-            let data = [TELEMETRY_LOG.ACTIVATION.REJECTED, id];
-            data = data.concat(reason);
-            TelemetryLog.log(TELEMETRY_LOG.ACTIVATION_KEY, data);
-          }
 
           if (applicable) {
             gLogger.debug("Experiments::evaluateExperiments() - activating experiment " + id);
@@ -942,32 +888,22 @@ Experiments.Experiments.prototype = {
    */
   _scheduleExperimentEvaluation: function () {
     this._checkForShutdown();
-
-    if (this._timer) {
-      this._timer.clear();
-    }
-
     if (!gExperimentsEnabled || this._experiments.length == 0) {
       return;
     }
 
-    let time = null;
+    let time = new Date(90000, 0, 1, 12).getTime();
     let now = this._policy.now().getTime();
 
     for (let [id, experiment] of this._experiments) {
       let scheduleTime = experiment.getScheduleTime();
       if (scheduleTime > now) {
-        if (time !== null) {
-          time = Math.min(time, scheduleTime);
-        } else {
-          time = scheduleTime;
-        }
+        time = Math.min(time, scheduleTime);
       }
     }
 
-    if (time === null) {
-      // No schedule time found.
-      return;
+    if (this._timer) {
+      this._timer.clear();
     }
 
     gLogger.trace("Experiments::scheduleExperimentEvaluation() - scheduling for "+time+", now: "+now);
@@ -1004,7 +940,6 @@ Experiments.ExperimentEntry = function (policy) {
   this._name = null;
   this._description = null;
   this._homepageURL = null;
-  this._addonId = null;
 };
 
 Experiments.ExperimentEntry.prototype = {
@@ -1216,7 +1151,7 @@ Experiments.ExperimentEntry.prototype = {
     // Not applicable if it already ran.
 
     if (!this.enabled && this._endDate) {
-      return Promise.reject(["was-active"]);
+      return Promise.reject("was already active");
     }
 
     // Define and run the condition checks.
@@ -1265,7 +1200,7 @@ Experiments.ExperimentEntry.prototype = {
       if (!result) {
         gLogger.debug("ExperimentEntry::isApplicable() - id="
                       + data.id + " - test '" + check.name + "' failed");
-        return Promise.reject([check.name]);
+        return Promise.reject(check.name);
       }
     }
 
@@ -1299,7 +1234,7 @@ Experiments.ExperimentEntry.prototype = {
         Cu.evalInSandbox(jsfilter, sandbox);
       } catch (e) {
         gLogger.error("ExperimentEntry::runFilterFunction() - failed to eval jsfilter: " + e.message);
-        throw ["jsfilter-evalfailed"];
+        throw "jsfilter:evalFailure";
       }
 
       // You can't insert arbitrarily complex objects into a sandbox, so
@@ -1315,17 +1250,13 @@ Experiments.ExperimentEntry.prototype = {
       catch (e) {
         gLogger.debug("ExperimentEntry::runFilterFunction() - filter function failed: "
                       + e.message + ", " + e.stack);
-        throw ["jsfilter-threw", e.message];
+        throw "jsfilter:rejected " + e.message;
       }
       finally {
         Cu.nukeSandbox(sandbox);
       }
 
-      if (!result) {
-        throw ["jsfilter-false"];
-      }
-
-      throw new Task.Result(true);
+      throw new Task.Result(result);
     }.bind(this));
   },
 
@@ -1344,8 +1275,7 @@ Experiments.ExperimentEntry.prototype = {
         gLogger.error("ExperimentEntry::start() - " + message);
         this._failedStart = true;
 
-        TelemetryLog.log(TELEMETRY_LOG.ACTIVATION_KEY,
-                         [TELEMETRY_LOG.ACTIVATION.INSTALL_FAILURE, this.id]);
+        // TODO telemetry: install failure
 
         deferred.reject(new Error(message));
       };
@@ -1353,6 +1283,13 @@ Experiments.ExperimentEntry.prototype = {
       let listener = {
         onDownloadEnded: install => {
           gLogger.trace("ExperimentEntry::start() - onDownloadEnded for " + this.id);
+          let addon = install.addon;
+
+          if (addon.id !== this.id) {
+            let message = "id mismatch: '" + this.id + "' vs. '" + addon.id + "'";
+            gLogger.error("ExperimentEntry::start() - " + message);
+            install.cancel();
+          }
         },
 
         onInstallStarted: install => {
@@ -1365,7 +1302,6 @@ Experiments.ExperimentEntry.prototype = {
 
           let addon = install.addon;
           this._name = addon.name;
-          this._addonId = addon.id;
           this._description = addon.description || "";
           this._homepageURL = addon.homepageURL || "";
         },
@@ -1376,17 +1312,14 @@ Experiments.ExperimentEntry.prototype = {
           this._startDate = this._policy.now();
           this._enabled = true;
 
-          TelemetryLog.log(TELEMETRY_LOG.ACTIVATION_KEY,
-                           [TELEMETRY_LOG.ACTIVATION.ACTIVATED, this.id]);
+          // TODO telemetry: install success
 
           deferred.resolve();
         },
       };
 
       ["onDownloadCancelled", "onDownloadFailed", "onInstallCancelled", "onInstallFailed"]
-        .forEach(what => {
-          listener[what] = install => failureHandler(install, what)
-        });
+        .forEach(what => listener[what] = install => failureHandler(install, what));
 
       install.addListener(listener);
       install.install();
@@ -1401,13 +1334,11 @@ Experiments.ExperimentEntry.prototype = {
 
   /*
    * Stop running the experiment if it is active.
-   * @param terminationKind (optional) The termination kind, e.g. USERDISABLED or EXPIRED.
-   * @param terminationReason (optional) The termination reason details for
-   *                          termination kind RECHECK.
+   * @param userDisabled (optional) Whether this is disabled by user action, defaults to false.
    * @return Promise<> Resolved when the operation is complete.
    */
-  stop: function (terminationKind, terminationReason) {
-    gLogger.trace("ExperimentEntry::stop() - id=" + this.id + ", terminationKind=" + terminationKind);
+  stop: function (userDisabled=false) {
+    gLogger.trace("ExperimentEntry::stop() - id=" + this.id + ", userDisabled=" + userDisabled);
     if (!this._enabled) {
       gLogger.warning("ExperimentEntry::stop() - experiment not enabled: " + id);
       return Promise.reject();
@@ -1421,7 +1352,7 @@ Experiments.ExperimentEntry.prototype = {
       this._endDate = now;
     };
 
-    AddonManager.getAddonByID(this._addonId, addon => {
+    AddonManager.getAddonByID(this.id, addon => {
       if (!addon) {
         let message = "could not get Addon for " + this.id;
         gLogger.warn("ExperimentEntry::stop() - " + message);
@@ -1432,12 +1363,11 @@ Experiments.ExperimentEntry.prototype = {
 
       let listener = {};
       let handler = addon => {
-        if (addon.id !== this._addonId) {
+        if (addon.id !== this.id) {
           return;
         }
 
         updateDates();
-        this._logTermination(terminationKind, terminationReason);
 
         AddonManager.removeAddonListener(listener);
         deferred.resolve();
@@ -1449,27 +1379,11 @@ Experiments.ExperimentEntry.prototype = {
       AddonManager.addAddonListener(listener);
 
       addon.uninstall();
+
+      // TODO telemetry: experiment disabling, differentiate by userDisabled
     });
 
     return deferred.promise;
-  },
-
-  _logTermination: function (terminationKind, terminationReason) {
-    if (terminationKind === undefined) {
-      return;
-    }
-
-    if (!(terminationKind in TELEMETRY_LOG.TERMINATION)) {
-      gLogger.warn("ExperimentEntry::stop() - unknown terminationKind " + terminationKind);
-      return;
-    }
-
-    let data = [terminationKind, this.id];
-    if (terminationReason) {
-      data = data.concat(terminationReason);
-    }
-
-    TelemetryLog.log(TELEMETRY_LOG.TERMINATION_KEY, data);
   },
 
   /*
@@ -1481,17 +1395,11 @@ Experiments.ExperimentEntry.prototype = {
     gLogger.trace("ExperimentEntry::maybeStop()");
 
     return Task.spawn(function ExperimentEntry_maybeStop_task() {
-      let result = yield this._shouldStop();
-      if (result.shouldStop) {
-        let expireReasons = ["endTime", "maxActiveSeconds"];
-        if (expireReasons.indexOf(result.reason[0]) != -1) {
-          yield this.stop(TELEMETRY_LOG.TERMINATION.EXPIRED);
-        } else {
-          yield this.stop(TELEMETRY_LOG.TERMINATION.RECHECK, result.reason);
-        }
+      let shouldStop = yield this._shouldStop();
+      if (shouldStop) {
+        yield this.stop();
       }
-
-      throw new Task.Result(result.shouldStop);
+      throw new Task.Result(shouldStop);
     }.bind(this));
   },
 
@@ -1501,13 +1409,13 @@ Experiments.ExperimentEntry.prototype = {
     let maxActiveSec = data.maxActiveSeconds || 0;
 
     if (!this._enabled) {
-      return Promise.resolve({shouldStop: false});
+      return Promise.resolve(false);
     }
 
     let deferred = Promise.defer();
     this.isApplicable().then(
-      () => deferred.resolve({shouldStop: false}),
-      reason => deferred.resolve({shouldStop: true, reason: reason})
+      () => deferred.resolve(false),
+      () => deferred.resolve(true)
     );
 
     return deferred.promise;
