@@ -731,7 +731,7 @@ function _persistImages(aData) {
 }
 
 function _getLocalImageURI(localFileName) {
-  var localFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  var localFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
   localFile.append(localFileName);
   return Services.io.newFileURI(localFile);
 }
