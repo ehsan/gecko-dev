@@ -806,7 +806,6 @@ public:
   bool TakeOverFling(ScreenPoint aVelocity);
 
 private:
-  friend class OverscrollableAnimation;
   friend class FlingAnimation;
   friend class OverscrollSnapBackAnimation;
   // The initial velocity of the most recent fling.
