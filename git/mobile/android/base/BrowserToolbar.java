@@ -202,8 +202,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         mTitle = (GeckoTextView) findViewById(R.id.awesome_bar_title);
         mTitlePadding = mTitle.getPaddingRight();
-        if (Build.VERSION.SDK_INT >= 16)
-            mTitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
 
         mTabs = (ShapedButton) findViewById(R.id.tabs);
         mTabsCounter = (TabCounter) findViewById(R.id.tabs_counter);
@@ -1192,7 +1190,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         if (!mHasSoftMenuButton)
             return false;
 
-        if (mMenuPopup.isShowing())
+        if (mMenuPopup != null && mMenuPopup.isShowing())
             mMenuPopup.dismiss();
 
         return true;

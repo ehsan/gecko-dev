@@ -599,7 +599,7 @@ AssertSafelyDiscardable(MDefinition *def)
 #ifdef DEBUG
     // Instructions captured by resume points cannot be safely discarded, since
     // they are necessary for interpreter frame reconstruction in case of bailout.
-    JS_ASSERT(def->useCount() == 0);
+    JS_ASSERT(!def->hasUses());
 #endif
 }
 
@@ -921,7 +921,7 @@ MBasicBlock::getSuccessorIndex(MBasicBlock *block) const
         if (getSuccessor(i) == block)
             return i;
     }
-    JS_NOT_REACHED("Invalid successor");
+    MOZ_ASSUME_UNREACHABLE("Invalid successor");
 }
 
 void
@@ -953,7 +953,7 @@ MBasicBlock::replacePredecessor(MBasicBlock *old, MBasicBlock *split)
         }
     }
 
-    JS_NOT_REACHED("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void
@@ -990,7 +990,7 @@ MBasicBlock::removePredecessor(MBasicBlock *pred)
         return;
     }
 
-    JS_NOT_REACHED("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void
