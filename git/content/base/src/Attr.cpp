@@ -373,6 +373,12 @@ Attr::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+nsresult
+Attr::AppendChildTo(nsIContent* aKid, bool aNotify)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 void
 Attr::RemoveChildAt(uint32_t aIndex, bool aNotify)
 {

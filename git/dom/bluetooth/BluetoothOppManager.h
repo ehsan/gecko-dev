@@ -101,7 +101,7 @@ private:
   bool WriteToFile(const uint8_t* aData, int aDataLength);
   void DeleteReceivedFile();
   void ReplyToConnect();
-  void ReplyToDisconnectOrAbort();
+  void ReplyToDisconnect();
   void ReplyToPut(bool aFinal, bool aContinue);
   void AfterOppConnected();
   void AfterFirstPut();

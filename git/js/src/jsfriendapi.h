@@ -1064,9 +1064,7 @@ class ArrayBufferBuilder
     }
 
     JSObject* getArrayBuffer(JSContext *cx) {
-        // we need to check for length_ == 0, because nothing may have been
-        // added
-        if (capacity_ > length_ || length_ == 0) {
+        if (capacity_ > length_) {
             if (!setCapacity(length_))
                 return NULL;
         }
