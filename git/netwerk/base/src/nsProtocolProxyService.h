@@ -220,8 +220,6 @@ protected:
      *        The URI to test.
      * @param info
      *        Information about the URI's protocol.
-     * @param flags
-     *        The flags passed to either the resolve or the asyncResolve method.
      * @param usePAC
      *        If this flag is set upon return, then PAC should be queried to
      *        resolve the proxy info.
@@ -230,7 +228,6 @@ protected:
      */
     NS_HIDDEN_(nsresult) Resolve_Internal(nsIURI *uri,
                                           const nsProtocolInfo &info,
-                                          PRUint32 flags,
                                           PRBool *usePAC, 
                                           nsIProxyInfo **result);
 
@@ -309,6 +306,17 @@ public:
         PRUint32 host_len;
     };
 
+    // These values correspond to the integer network.proxy.type preference
+    enum ProxyConfig {
+        eProxyConfig_Direct,
+        eProxyConfig_Manual,
+        eProxyConfig_PAC,
+        eProxyConfig_Direct4x,
+        eProxyConfig_WPAD,
+        eProxyConfig_System, // use system proxy settings if available, otherwise DIRECT
+        eProxyConfig_Last
+    };
+
 protected:
 
     // simplified array of filters defined by this struct
@@ -349,7 +357,7 @@ protected:
     // of FilterLink objects.
     FilterLink                  *mFilters;
 
-    PRUint32                     mProxyConfig;
+    ProxyConfig                  mProxyConfig;
 
     nsCString                    mHTTPProxyHost;
     PRInt32                      mHTTPProxyPort;

@@ -491,10 +491,6 @@ protected:
    *  Used by nsSafeOptionListMutation.
    */
   PRPackedBool    mMutating;
-  /**
-   * True if DoneAddingChildren will get called but shouldn't restore state.
-   */
-  PRPackedBool    mInhibitStateRestoration;
   /** The number of non-options as children of the select */
   PRUint32  mNonOptionChildren;
   /** The number of optgroups anywhere under the select */

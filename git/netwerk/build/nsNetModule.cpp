@@ -228,7 +228,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFtpProtocolHandler, Init)
 #undef LOG
 #undef LOG_ENABLED
 #include "nsHttpAuthManager.h"
-#include "nsHttpChannelAuthProvider.h"
 #include "nsHttpBasicAuth.h"
 #include "nsHttpDigestAuth.h"
 #include "nsHttpNTLMAuth.h"
@@ -239,7 +238,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpNTLMAuth)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpsHandler, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpAuthManager, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpChannelAuthProvider)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHttpActivityDistributor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpBasicAuth)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHttpDigestAuth)
@@ -977,11 +975,6 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
       NS_HTTPAUTHMANAGER_CID,
       NS_HTTPAUTHMANAGER_CONTRACTID,
       nsHttpAuthManagerConstructor },
-
-   { NS_HTTPCHANNELAUTHPROVIDER_CLASSNAME,
-     NS_HTTPCHANNELAUTHPROVIDER_CID,
-     NS_HTTPCHANNELAUTHPROVIDER_CONTRACTID,
-     nsHttpChannelAuthProviderConstructor },
 
    { NS_HTTPACTIVITYDISTRIBUTOR_CLASSNAME,
      NS_HTTPACTIVITYDISTRIBUTOR_CID,

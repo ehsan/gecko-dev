@@ -76,7 +76,6 @@
 #include "nsDOMError.h"
 #include "mozAutoDocUpdate.h"
 #include "nsISupportsPrimitives.h"
-#include "nsContentCreatorFunctions.h"
 
 #include "nsTextEditorState.h"
 
@@ -205,8 +204,6 @@ protected:
   /** Whether or not we are done adding children (always PR_TRUE if not
       created by a parser */
   PRPackedBool             mDoneAddingChildren;
-  /** Whether state restoration should be inhibited in DoneAddingChildren. */
-  PRPackedBool             mInhibitStateRestoration;
   /** Whether our disabled state has changed from the default **/
   PRPackedBool             mDisabledChanged;
   /** The state of the text editor (selection controller and the editor) **/
@@ -252,7 +249,6 @@ nsHTMLTextAreaElement::nsHTMLTextAreaElement(nsINodeInfo *aNodeInfo,
     mValueChanged(PR_FALSE),
     mHandlingSelect(PR_FALSE),
     mDoneAddingChildren(!aFromParser),
-    mInhibitStateRestoration(!!(aFromParser & NS_FROM_PARSER_FRAGMENT)),
     mDisabledChanged(PR_FALSE),
     mState(new nsTextEditorState(this))
 {
@@ -680,9 +676,8 @@ nsHTMLTextAreaElement::DoneAddingChildren(PRBool aHaveNotified)
       // sneak some text in without calling AppendChildTo.
       Reset();
     }
-    if (!mInhibitStateRestoration) {
-      RestoreFormControlState(this, this);
-    }
+
+    RestoreFormControlState(this, this);
   }
 
   mDoneAddingChildren = PR_TRUE;

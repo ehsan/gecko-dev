@@ -1,10 +1,9 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
- * The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
  * http://www.mozilla.org/MPL/
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
@@ -12,15 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Raw Decoder code.
  *
- * The Initial Developer of the Original Code is 
- * Wellington Fernando de Macedo.
+ * The Initial Developer of the Original Code is
+ *   Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Wellington Fernando de Macedo <wfernandom2004@gmail.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,36 +34,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsDOMCloseEvent_h__
-#define nsDOMCloseEvent_h__
+#if !defined(nsRawDecoder_h_)
+#define nsRawDecoder_h_
 
-#include "nsIDOMCloseEvent.h"
-#include "nsDOMEvent.h"
+#include "nsBuiltinDecoder.h"
 
-/**
- * Implements the CloseEvent event, used for notifying that a WebSocket
- * connection has been closed.
- *
- * See http://dev.w3.org/html5/websockets/#closeevent for further details.
- */
-class nsDOMCloseEvent : public nsDOMEvent,
-                        public nsIDOMCloseEvent
+class nsRawDecoder : public nsBuiltinDecoder
 {
 public:
-  nsDOMCloseEvent(nsPresContext* aPresContext, nsEvent* aEvent)
-    : nsDOMEvent(aPresContext, aEvent), mWasClean(PR_FALSE)
-  {
-  }
-                     
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // Forward to base class
-  NS_FORWARD_TO_NSDOMEVENT
-
-  NS_DECL_NSIDOMCLOSEEVENT
-
-private:
-  PRBool mWasClean;
+  virtual nsMediaDecoder* Clone() { return new nsRawDecoder(); }
+  virtual nsDecoderStateMachine* CreateStateMachine();
 };
 
-#endif // nsDOMCloseEvent_h__
+#endif
