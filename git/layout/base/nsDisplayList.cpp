@@ -472,6 +472,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     }
   }
 
+  nsCSSRendering::BeginFrameTreesLocked();
   PR_STATIC_ASSERT(nsDisplayItem::TYPE_MAX < (1 << nsDisplayItem::TYPE_BITS));
 }
 
@@ -653,6 +654,8 @@ nsDisplayListBuilder::~nsDisplayListBuilder() {
   NS_ASSERTION(mPresShellStates.Length() == 0,
                "All presshells should have been exited");
   NS_ASSERTION(!mCurrentTableItem, "No table item should be active");
+
+  nsCSSRendering::EndFrameTreesLocked();
 
   PL_FreeArenaPool(&mPool);
   PL_FinishArenaPool(&mPool);
@@ -1050,7 +1053,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   NotifySubDocInvalidationFunc computeInvalidFunc =
     presContext->MayHavePaintEventListenerInSubDocument() ? nsPresContext::NotifySubDocInvalidation : 0;
   bool computeInvalidRect = (computeInvalidFunc ||
-                             (layerManager->GetBackendType() == LAYERS_BASIC)) &&
+                             !layerManager->IsCompositingCheap()) &&
                             widgetTransaction;
 
   nsAutoPtr<LayerProperties> props(computeInvalidRect ? 
@@ -1120,7 +1123,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   aBuilder->SetIsCompositingCheap(temp);
   layerBuilder->DidEndTransaction();
 
-  nsIntRect invalid;
+  nsIntRegion invalid;
   if (props) {
     invalid = props->ComputeDifferences(root, computeInvalidFunc);
   } else if (widgetTransaction) {
@@ -1130,12 +1133,13 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   if (view) {
     if (props) {
       if (!invalid.IsEmpty()) {
-        nsRect rect(presContext->DevPixelsToAppUnits(invalid.x),
-                    presContext->DevPixelsToAppUnits(invalid.y),
-                    presContext->DevPixelsToAppUnits(invalid.width),
-                    presContext->DevPixelsToAppUnits(invalid.height));
+        nsIntRect bounds = invalid.GetBounds();
+        nsRect rect(presContext->DevPixelsToAppUnits(bounds.x),
+                    presContext->DevPixelsToAppUnits(bounds.y),
+                    presContext->DevPixelsToAppUnits(bounds.width),
+                    presContext->DevPixelsToAppUnits(bounds.height));
         view->GetViewManager()->InvalidateViewNoSuppression(view, rect);
-        presContext->NotifyInvalidation(invalid, 0);
+        presContext->NotifyInvalidation(bounds, 0);
       }
     } else {
       view->GetViewManager()->InvalidateView(view);
@@ -1146,7 +1150,6 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     FrameLayerBuilder::InvalidateAllLayers(layerManager);
   }
 
-  nsCSSRendering::DidPaint();
   layerManager->SetUserData(&gLayerManagerLayerBuilder, oldBuilder);
 }
 

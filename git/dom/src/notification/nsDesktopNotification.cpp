@@ -43,15 +43,7 @@ nsDOMDesktopNotification::PostDesktopNotification()
 
 DOMCI_DATA(DesktopNotification, nsDOMDesktopNotification)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDesktopNotification)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMDesktopNotification, nsDOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMDesktopNotification, nsDOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDesktopNotification)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDesktopNotification)
+NS_INTERFACE_MAP_BEGIN(nsDOMDesktopNotification)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDesktopNotification)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DesktopNotification)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
@@ -106,8 +98,10 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     nsRefPtr<nsDesktopNotificationRequest> copy = request;
 
-    nsCString type = NS_LITERAL_CSTRING("desktop-notification");
-    child->SendPContentPermissionRequestConstructor(copy.forget().get(), type, IPC::Principal(mPrincipal));
+    child->SendPContentPermissionRequestConstructor(copy.forget().get(),
+                                                    NS_LITERAL_CSTRING("desktop-notification"),
+                                                    NS_LITERAL_CSTRING("unused"),
+                                                    IPC::Principal(mPrincipal));
 
     request->Sendprompt();
     return;
@@ -271,3 +265,9 @@ nsDesktopNotificationRequest::GetType(nsACString & aType)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsDesktopNotificationRequest::GetAccess(nsACString & aAccess)
+{
+  aAccess = "unused";
+  return NS_OK;
+}

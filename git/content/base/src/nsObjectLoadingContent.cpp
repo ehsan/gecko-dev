@@ -158,59 +158,25 @@ InDocCheckEvent::Run()
 /**
  * A task for firing PluginNotFound and PluginBlocklisted DOM Events.
  */
-class nsPluginErrorEvent : public nsRunnable {
+class nsPluginOutdatedEvent : public nsRunnable {
 public:
-  nsPluginErrorEvent(nsIContent* aContent,
-                     nsObjectLoadingContent::FallbackType aFallbackType)
-    : mContent(aContent),
-      mFallbackType(aFallbackType) {}
+  nsPluginOutdatedEvent(nsIContent* aContent) : mContent(aContent) {}
 
-  ~nsPluginErrorEvent() {}
+  ~nsPluginOutdatedEvent() {}
 
   NS_IMETHOD Run();
 
 private:
   nsCOMPtr<nsIContent> mContent;
-  nsObjectLoadingContent::FallbackType mFallbackType;
 };
 
 NS_IMETHODIMP
-nsPluginErrorEvent::Run()
+nsPluginOutdatedEvent::Run()
 {
-  nsString type;
-  switch (mFallbackType) {
-    case nsObjectLoadingContent::eFallbackVulnerableUpdatable:
-      type = NS_LITERAL_STRING("PluginVulnerableUpdatable");
-      break;
-    case nsObjectLoadingContent::eFallbackVulnerableNoUpdate:
-      type = NS_LITERAL_STRING("PluginVulnerableNoUpdate");
-      break;
-    case nsObjectLoadingContent::eFallbackClickToPlay:
-      type = NS_LITERAL_STRING("PluginClickToPlay");
-      break;
-    case nsObjectLoadingContent::eFallbackPlayPreview:
-      type = NS_LITERAL_STRING("PluginPlayPreview");
-      break;
-    case nsObjectLoadingContent::eFallbackUnsupported:
-      type = NS_LITERAL_STRING("PluginNotFound");
-      break;
-    case nsObjectLoadingContent::eFallbackDisabled:
-      type = NS_LITERAL_STRING("PluginDisabled");
-      break;
-    case nsObjectLoadingContent::eFallbackBlocklisted:
-      type = NS_LITERAL_STRING("PluginBlocklisted");
-      break;
-    case nsObjectLoadingContent::eFallbackOutdated:
-      type = NS_LITERAL_STRING("PluginOutdated");
-      break;
-    default:
-      return NS_OK;
-  }
-  LOG(("OBJLC [%p]: nsPluginErrorEvent firing '%s'",
-       mContent.get(), NS_ConvertUTF16toUTF8(type).get()));
+  LOG(("OBJLC [%p]: nsPluginOutdatedEvent firing", mContent.get()));
   nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
-                                       type, true, true);
-
+                                       NS_LITERAL_STRING("PluginOutdated"),
+                                       true, true);
   return NS_OK;
 }
 
@@ -773,8 +739,16 @@ nsObjectLoadingContent::InstantiatePluginInstance()
       uint32_t blockState = nsIBlocklistService::STATE_NOT_BLOCKED;
       blocklist->GetPluginBlocklistState(pluginTag, EmptyString(),
                                          EmptyString(), &blockState);
-      if (blockState == nsIBlocklistService::STATE_OUTDATED)
-        FirePluginError(eFallbackOutdated);
+      if (blockState == nsIBlocklistService::STATE_OUTDATED) {
+        // Fire plugin outdated event if necessary
+        LOG(("OBJLC [%p]: Dispatching nsPluginOutdatedEvent for content %p\n",
+             this));
+        nsCOMPtr<nsIRunnable> ev = new nsPluginOutdatedEvent(thisContent);
+        nsresult rv = NS_DispatchToCurrentThread(ev);
+        if (NS_FAILED(rv)) {
+          NS_WARNING("failed to dispatch nsPluginOutdatedEvent");
+        }
+      }
     }
   }
 
@@ -1550,13 +1524,18 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   // NOTE LoadFallback can override this in some cases
   FallbackType fallbackType = eFallbackAlternate;
 
-  if (mType == eType_Null) {
+  // mType can differ with GetTypeOfContent(mContentType) if we support this
+  // type, but the parameters are invalid e.g. a embed tag with type "image/png"
+  // but no URI -- don't show a plugin error or unknown type error in that case.
+  if (mType == eType_Null && GetTypeOfContent(mContentType) == eType_Null) {
+    // See if a disabled or blocked plugin could've handled this
     nsresult pluginsupport = IsPluginEnabledForType(mContentType);
     if (pluginsupport == NS_ERROR_PLUGIN_DISABLED) {
       fallbackType = eFallbackDisabled;
     } else if (pluginsupport == NS_ERROR_PLUGIN_BLOCKLISTED) {
       fallbackType = eFallbackBlocklisted;
     } else {
+      // Completely unknown type
       fallbackType = eFallbackUnsupported;
     }
   }
@@ -1824,21 +1803,13 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
       CloseChannel();
     }
 
-    // Don't notify or send events - we'll handle those ourselves
+    // Don't notify, as LoadFallback doesn't know of our previous state
     // (so really this is just setting mFallbackType)
     LoadFallback(fallbackType, false);
   }
 
-  // Notify of our final state if we haven't already
+  // Notify of our final state
   NotifyStateChanged(oldType, oldState, false, aNotify);
-  
-  if (mType == eType_Null && !mContentType.IsEmpty() &&
-      mFallbackType != eFallbackAlternate) {
-    // if we have a content type and are not showing alternate
-    // content, fire a pluginerror to trigger (we stopped LoadFallback
-    // from doing so above, it doesn't know of our old state)
-    FirePluginError(mFallbackType);
-  }
 
   //
   // Pass load on to finalListener if loading with a channel
@@ -2073,23 +2044,6 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   }
 }
 
-void
-nsObjectLoadingContent::FirePluginError(FallbackType aFallbackType)
-{
-  nsCOMPtr<nsIContent> thisContent = 
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-  NS_ASSERTION(thisContent, "must be a content");
-
-  LOG(("OBJLC [%p]: Dispatching nsPluginErrorEvent for content %p\n",
-       this));
-
-  nsCOMPtr<nsIRunnable> ev = new nsPluginErrorEvent(thisContent, aFallbackType);
-  nsresult rv = NS_DispatchToCurrentThread(ev);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("failed to dispatch nsPluginErrorEvent");
-  }
-}
-
 nsObjectLoadingContent::ObjectType
 nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
 {
@@ -2304,58 +2258,31 @@ nsObjectLoadingContent::LoadFallback(FallbackType aType, bool aNotify) {
     aType = eFallbackAlternate;
   }
 
-  /// XXX(johns): This block is just mimicing legacy behavior, not any spec
-  // Check if we have any significant content (excluding param tags) OR a
-  // param named 'pluginUrl'
-  bool hasAlternateContent = false;
-  bool hasPluginUrl = false;
   if (thisContent->Tag() == nsGkAtoms::object &&
       (aType == eFallbackUnsupported ||
        aType == eFallbackDisabled ||
        aType == eFallbackBlocklisted))
   {
+    // Show alternate content instead, if it exists
     for (nsIContent* child = thisContent->GetFirstChild();
-         child; child = child->GetNextSibling())
-    {
-      if (child->IsHTML(nsGkAtoms::param)) {
-        if (child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-          NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
-          hasPluginUrl = true;
-        }
-      } else if (nsStyleUtil::IsSignificantChild(child, true, false)) {
-        hasAlternateContent = true;
+         child; child = child->GetNextSibling()) {
+      if (!child->IsHTML(nsGkAtoms::param) &&
+          nsStyleUtil::IsSignificantChild(child, true, false)) {
+        aType = eFallbackAlternate;
+        break;
       }
-    }
-
-    // Show alternate content if it exists, unless we have a 'pluginurl' param,
-    // in which case the missing-plugin fallback handler will want to handle
-    // it
-    if (hasAlternateContent && !hasPluginUrl) {
-      LOG(("OBJLC [%p]: Unsupported/disabled/blocked plugin has alternate "
-      "content, showing instead of custom handler", this));
-      aType = eFallbackAlternate;
     }
   }
 
   mType = eType_Null;
   mFallbackType = aType;
 
-  //
-  // Notify & send events
-  //
+  // Notify
   if (!aNotify) {
     return; // done
   }
 
   NotifyStateChanged(oldType, oldState, false, true);
-
-  if (mFallbackType != eFallbackCrashed &&
-      mFallbackType != eFallbackAlternate)
-  {
-    // Alternate content doesn't trigger a pluginError, and nsPluginCrashedEvent
-    // is only handled by ::PluginCrashed
-    FirePluginError(mFallbackType);
-  }
 }
 
 void
