@@ -422,7 +422,6 @@ public:
     }
 
     virtual ~GLContext() {
-        printf_stderr("~GLContext destructor begin\n");
         NS_ASSERTION(IsDestroyed(), "GLContext implementation must call MarkDestroyed in destructor!");
 #ifdef DEBUG
         if (mSharedContext) {
@@ -433,7 +432,6 @@ public:
             tip->ReportOutstandingNames();
         }
 #endif
-        printf_stderr("~GLContext destructor end\n");
     }
 
     enum GLContextType {
@@ -494,11 +492,6 @@ public:
 
     const ContextFormat& CreationFormat() { return mCreationFormat; }
     const ContextFormat& ActualFormat() { return mActualFormat; }
-
-    /**
-     * If this GL context has a D3D texture share handle, returns non-null.
-     */
-    virtual void *GetD3DShareHandle() { return nsnull; }
 
     /**
      * If this context is double-buffered, returns TRUE.
@@ -1885,7 +1878,55 @@ public:
     }
 
 
-#ifdef DEBUG
+ #ifndef DEBUG
+     GLuint GLAPIENTRY fCreateProgram() {
+         return mSymbols.fCreateProgram();
+     }
+
+     GLuint GLAPIENTRY fCreateShader(GLenum t) {
+         return mSymbols.fCreateShader(t);
+     }
+
+     void GLAPIENTRY fGenBuffers(GLsizei n, GLuint* names) {
+         mSymbols.fGenBuffers(n, names);
+     }
+
+     void GLAPIENTRY fGenTextures(GLsizei n, GLuint* names) {
+         mSymbols.fGenTextures(n, names);
+     }
+
+     void GLAPIENTRY fGenFramebuffers(GLsizei n, GLuint* names) {
+         mSymbols.fGenFramebuffers(n, names);
+     }
+
+     void GLAPIENTRY fGenRenderbuffers(GLsizei n, GLuint* names) {
+         mSymbols.fGenRenderbuffers(n, names);
+     }
+
+     void GLAPIENTRY fDeleteProgram(GLuint program) {
+         mSymbols.fDeleteProgram(program);
+     }
+
+     void GLAPIENTRY fDeleteShader(GLuint shader) {
+         mSymbols.fDeleteShader(shader);
+     }
+
+     void GLAPIENTRY fDeleteBuffers(GLsizei n, GLuint *names) {
+         mSymbols.fDeleteBuffers(n, names);
+     }
+
+     void GLAPIENTRY fDeleteTextures(GLsizei n, GLuint *names) {
+         mSymbols.fDeleteTextures(n, names);
+     }
+
+     void GLAPIENTRY fDeleteFramebuffers(GLsizei n, GLuint *names) {
+         mSymbols.fDeleteFramebuffers(n, names);
+     }
+
+     void GLAPIENTRY fDeleteRenderbuffers(GLsizei n, GLuint *names) {
+         mSymbols.fDeleteRenderbuffers(n, names);
+     }
+ #else
      GLContext *TrackingContext() {
          GLContext *tip = this;
          while (tip->mSharedContext)
@@ -1893,16 +1934,11 @@ public:
          return tip;
      }
 
-#define TRACKING_CONTEXT(a) do { TrackingContext()->a; } while (0)
-#else
-#define TRACKING_CONTEXT(a) do {} while (0)
-#endif
-
      GLuint GLAPIENTRY fCreateProgram() {
          BEFORE_GL_CALL;
          GLuint ret = mSymbols.fCreateProgram();
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedProgram(this, ret));
+         TrackingContext()->CreatedProgram(this, ret);
          return ret;
      }
 
@@ -1910,7 +1946,7 @@ public:
          BEFORE_GL_CALL;
          GLuint ret = mSymbols.fCreateShader(t);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedShader(this, ret));
+         TrackingContext()->CreatedShader(this, ret);
          return ret;
      }
 
@@ -1918,76 +1954,72 @@ public:
          BEFORE_GL_CALL;
          mSymbols.fGenBuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedBuffers(this, n, names));
+         TrackingContext()->CreatedBuffers(this, n, names);
      }
 
      void GLAPIENTRY fGenTextures(GLsizei n, GLuint* names) {
          BEFORE_GL_CALL;
          mSymbols.fGenTextures(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedTextures(this, n, names));
+         TrackingContext()->CreatedTextures(this, n, names);
      }
 
      void GLAPIENTRY fGenFramebuffers(GLsizei n, GLuint* names) {
          BEFORE_GL_CALL;
          mSymbols.fGenFramebuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedFramebuffers(this, n, names));
+         TrackingContext()->CreatedFramebuffers(this, n, names);
      }
 
      void GLAPIENTRY fGenRenderbuffers(GLsizei n, GLuint* names) {
          BEFORE_GL_CALL;
          mSymbols.fGenRenderbuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(CreatedRenderbuffers(this, n, names));
+         TrackingContext()->CreatedRenderbuffers(this, n, names);
      }
 
      void GLAPIENTRY fDeleteProgram(GLuint program) {
          BEFORE_GL_CALL;
          mSymbols.fDeleteProgram(program);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedProgram(this, program));
+         TrackingContext()->DeletedProgram(this, program);
      }
 
      void GLAPIENTRY fDeleteShader(GLuint shader) {
          BEFORE_GL_CALL;
          mSymbols.fDeleteShader(shader);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedShader(this, shader));
+         TrackingContext()->DeletedShader(this, shader);
      }
 
      void GLAPIENTRY fDeleteBuffers(GLsizei n, GLuint *names) {
          BEFORE_GL_CALL;
          mSymbols.fDeleteBuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedBuffers(this, n, names));
+         TrackingContext()->DeletedBuffers(this, n, names);
      }
 
      void GLAPIENTRY fDeleteTextures(GLsizei n, GLuint *names) {
          BEFORE_GL_CALL;
          mSymbols.fDeleteTextures(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedTextures(this, n, names));
+         TrackingContext()->DeletedTextures(this, n, names);
      }
 
      void GLAPIENTRY fDeleteFramebuffers(GLsizei n, GLuint *names) {
          BEFORE_GL_CALL;
-         if (n == 1 && *names == 0) {
-            /* Deleting framebuffer 0 causes hangs on the DROID. See bug 623228 */
-         } else {
-            mSymbols.fDeleteFramebuffers(n, names);
-         }
+         mSymbols.fDeleteFramebuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedFramebuffers(this, n, names));
+         TrackingContext()->DeletedFramebuffers(this, n, names);
      }
 
      void GLAPIENTRY fDeleteRenderbuffers(GLsizei n, GLuint *names) {
          BEFORE_GL_CALL;
          mSymbols.fDeleteRenderbuffers(n, names);
          AFTER_GL_CALL;
-         TRACKING_CONTEXT(DeletedRenderbuffers(this, n, names));
+         TrackingContext()->DeletedRenderbuffers(this, n, names);
      }
-#ifdef DEBUG
+
     void THEBES_API CreatedProgram(GLContext *aOrigin, GLuint aName);
     void THEBES_API CreatedShader(GLContext *aOrigin, GLuint aName);
     void THEBES_API CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames);

@@ -4505,8 +4505,7 @@ JSTerm.prototype = {
   {
     this.completionValue = suffix;
 
-    // completion prefix = input, with non-control chars replaced by spaces
-    let prefix = this.inputNode.value.replace(/[\S]/g, " ");
+    let prefix = new Array(this.inputNode.value.length + 1).join(" ");
     this.completeNode.value = prefix + this.completionValue;
   },
 };

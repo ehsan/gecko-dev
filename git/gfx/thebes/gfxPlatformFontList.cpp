@@ -418,18 +418,16 @@ gfxPlatformFontList::FindFamily(const nsAString& aFamily)
     }
 
     // lookup in other family names list (mostly localized names)
-    if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found)) != nsnull) {
+    if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found))) {
         return familyEntry;
     }
 
     // name not found and other family names not yet fully initialized so
     // initialize the rest of the list and try again.  this is done lazily
-    // since reading name table entries is expensive.
-    // although ASCII localized family names are possible they don't occur
-    // in practice so avoid pulling in names at startup
-    if (!mOtherFamilyNamesInitialized && !IsASCII(aFamily)) {
+    // since reading name table entries is expensive
+    if (!mOtherFamilyNamesInitialized) {
         InitOtherFamilyNames();
-        if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found)) != nsnull) {
+        if ((familyEntry = mOtherFamilyNames.GetWeak(key, &found))) {
             return familyEntry;
         }
     }

@@ -100,16 +100,14 @@ let UI = {
 
   // Variable: _privateBrowsing
   // Keeps track of info related to private browsing, including: 
+  //   transitionStage - what step we're on in entering/exiting PB
   //   transitionMode - whether we're entering or exiting PB
   //   wasInTabView - whether TabView was visible before we went into PB
   _privateBrowsing: {
+    transitionStage: 0,
     transitionMode: "",
     wasInTabView: false 
   },
-  
-  // Variable: _storageBusyCount
-  // Used to keep track of how many calls to storageBusy vs storageReady.
-  _storageBusyCount: 0,
 
   // ----------
   // Function: init
@@ -174,21 +172,24 @@ let UI = {
       // ___ add tab action handlers
       this._addTabActionHandlers();
 
-      // ___ groups
-      GroupItems.init();
+      // ___ Storage
       GroupItems.pauseArrange();
-      let hasGroupItemsData = GroupItems.load();
+      GroupItems.init();
+
+      let firstTime = true;
+      if (gPrefBranch.prefHasUserValue("experienced_first_run"))
+        firstTime = !gPrefBranch.getBoolPref("experienced_first_run");
+      let groupItemsData = Storage.readGroupItemsData(gWindow);
+      let groupItemData = Storage.readGroupItemData(gWindow);
+      GroupItems.reconstitute(groupItemsData, groupItemData);
+      GroupItems.killNewTabGroup(); // temporary?
 
       // ___ tabs
       TabItems.init();
       TabItems.pausePainting();
 
       // if first time in Panorama or no group data:
-      let firstTime = true;
-      if (gPrefBranch.prefHasUserValue("experienced_first_run"))
-        firstTime = !gPrefBranch.getBoolPref("experienced_first_run");
-
-      if (firstTime || !hasGroupItemsData)
+      if (firstTime || !groupItemsData || Utils.isEmptyObject(groupItemsData))
         this.reset(firstTime);
 
       // ___ resizing
@@ -514,64 +515,50 @@ let UI = {
 #endif
 
   // ----------
-  // Function: storageBusy
-  // Pauses the storage activity that conflicts with sessionstore updates and 
-  // private browsing mode switches. Calls can be nested. 
-  storageBusy: function UI_storageBusy() {
-    if (!this._storageBusyCount)
-      TabItems.pauseReconnecting();
-    
-    this._storageBusyCount++;
-  },
-  
-  // ----------
-  // Function: storageReady
-  // Resumes the activity paused by storageBusy, and updates for any new group
-  // information in sessionstore. Calls can be nested. 
-  storageReady: function UI_storageReady() {
-    this._storageBusyCount--;
-    if (!this._storageBusyCount) {
-      let hasGroupItemsData = GroupItems.load();
-      if (!hasGroupItemsData)
-        this.reset(false);
-  
-      TabItems.resumeReconnecting();
-    }
-  },
-
-  // ----------
   // Function: _addTabActionHandlers
   // Adds handlers to handle tab actions.
   _addTabActionHandlers: function UI__addTabActionHandlers() {
     var self = this;
 
-    // session restore events
-    function handleSSWindowStateBusy() {
-      self.storageBusy();
+    // session restore
+    function srObserver(aSubject, aTopic, aData) {
+      if (aTopic != "sessionstore-browser-state-restored")
+        return;
+        
+      // if we're transitioning into/out of private browsing, update appropriately
+      if (self._privateBrowsing.transitionStage == 1)
+        self._privateBrowsing.transitionStage = 2;
+      else if (self._privateBrowsing.transitionStage == 3) {
+        if (self._privateBrowsing.transitionMode == "exit" &&
+            self._privateBrowsing.wasInTabView)
+          self.showTabView(false);
+
+        self._privateBrowsing.transitionStage = 0;
+        self._privateBrowsing.transitionMode = "";
+      }
     }
-    
-    function handleSSWindowStateReady() {
-      self.storageReady();
-    }
-    
-    gWindow.addEventListener("SSWindowStateBusy", handleSSWindowStateBusy, false);
-    gWindow.addEventListener("SSWindowStateReady", handleSSWindowStateReady, false);
+
+    Services.obs.addObserver(srObserver, "sessionstore-browser-state-restored", false);
 
     this._cleanupFunctions.push(function() {
-      gWindow.removeEventListener("SSWindowStateBusy", handleSSWindowStateBusy, false);
-      gWindow.removeEventListener("SSWindowStateReady", handleSSWindowStateReady, false);
+      Services.obs.removeObserver(srObserver, "sessionstore-browser-state-restored");
     });
 
     // Private Browsing:
-    // When transitioning to PB, we exit Panorama if necessary (making note of the
+    // We keep track of the transition to/from PB with the transitionStage
+    // and transitionMode properties of _privateBrowsing. The stage is 0 if
+    // not transitioning, 1 if just started ("change-granted"), 2 after the
+    // first sessionrestore, 3 after the "private-browsing" notification, and
+    // then back to 0 after the second sessionrestore. The mode is "" if not
+    // transitioning, otherwise it's "enter" or "exit" as appropriate. When
+    // transitioning to PB, we exit Panorama if necessary (making note of the
     // fact that we were there so we can return after PB) and make sure we
     // don't reenter Panorama due to all of the session restore tab
     // manipulation (which otherwise we might). When transitioning away from
     // PB, we reenter Panorama if we had been there directly before PB.
     function pbObserver(aSubject, aTopic, aData) {
       if (aTopic == "private-browsing") {
-        // We could probably do this in private-browsing-change-granted, but
-        // this seems like a nicer spot, right in the middle of the process.
+        self._privateBrowsing.transitionStage = 3;
         if (aData == "enter") {
           // If we are in Tab View, exit. 
           self._privateBrowsing.wasInTabView = self.isTabViewVisible();
@@ -580,30 +567,18 @@ let UI = {
         }
       } else if (aTopic == "private-browsing-change-granted") {
         if (aData == "enter" || aData == "exit") {
+          self._privateBrowsing.transitionStage = 1;
           self._privateBrowsing.transitionMode = aData;
-          GroupItems.pauseUpdatingTabBar();
-          self.storageBusy();
         }
-      } else if (aTopic == "private-browsing-transition-complete") {
-        // We use .transitionMode here, as aData is empty.
-        if (self._privateBrowsing.transitionMode == "exit" &&
-            self._privateBrowsing.wasInTabView)
-          self.showTabView(false);
-
-        self._privateBrowsing.transitionMode = "";
-        self.storageReady();
-        GroupItems.resumeUpdatingTabBar();
       }
     }
 
     Services.obs.addObserver(pbObserver, "private-browsing", false);
     Services.obs.addObserver(pbObserver, "private-browsing-change-granted", false);
-    Services.obs.addObserver(pbObserver, "private-browsing-transition-complete", false);
 
     this._cleanupFunctions.push(function() {
       Services.obs.removeObserver(pbObserver, "private-browsing");
       Services.obs.removeObserver(pbObserver, "private-browsing-change-granted");
-      Services.obs.removeObserver(pbObserver, "private-browsing-transition-complete");
     });
 
     // TabOpen
@@ -632,7 +607,7 @@ let UI = {
       } else {
         // If we're currently in the process of entering private browsing,
         // we don't want to go to the Tab View UI. 
-        if (self._privateBrowsing.transitionMode)
+        if (self._privateBrowsing.transitionStage > 0)
           return; 
           
         // if not closing the last tab

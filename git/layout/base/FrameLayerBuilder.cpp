@@ -278,8 +278,7 @@ protected:
   void InvalidateForLayerChange(nsDisplayItem* aItem, Layer* aNewLayer);
   /**
    * Try to determine whether the ThebesLayer at aThebesLayerIndex
-   * has a single opaque color behind it, over the entire bounds of its visible
-   * region.
+   * has an opaque single color covering the visible area behind it.
    * If successful, return that color, otherwise return NS_RGBA(0,0,0,0).
    */
   nscolor FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex);
@@ -347,10 +346,6 @@ public:
   ThebesDisplayItemLayerUserData() :
     mForcedBackgroundColor(NS_RGBA(0,0,0,0)) {}
 
-  /**
-   * A color that should be painted over the bounds of the layer's visible
-   * region before any other content is painted.
-   */
   nscolor mForcedBackgroundColor;
 };
 
@@ -941,8 +936,7 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
                                             const FrameLayerBuilder::Clip& aClip)
 {
   nscolor uniformColor;
-  if (aItem->IsUniform(aBuilder, &uniformColor) &&
-      aItem->GetBounds(aBuilder).ToInsidePixels(AppUnitsPerDevPixel(aItem)).Contains(aVisibleRect)) {
+  if (aItem->IsUniform(aBuilder, &uniformColor)) {
     if (mVisibleRegion.IsEmpty()) {
       // This color is all we have
       mSolidColor = uniformColor;
@@ -974,7 +968,7 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
       // is a large opaque background at the bottom of z-order (e.g.,
       // a canvas background), so we need to make sure that the first rect
       // we see doesn't get discarded.
-      nsIntRect rect = aClip.ApproximateIntersect(*r).ToInsidePixels(appUnitsPerDevPixel);
+      nsIntRect rect = aClip.ApproximateIntersect(*r).ToNearestPixels(appUnitsPerDevPixel);
       nsIntRegion tmp;
       tmp.Or(mOpaqueRegion, rect);
        // Opaque display items in chrome documents whose window is partially
@@ -1083,7 +1077,7 @@ BuildTempManagerForInactiveLayer(nsDisplayListBuilder* aBuilder,
   }
   PRInt32 appUnitsPerDevPixel = AppUnitsPerDevPixel(aItem);
   nsIntRect itemVisibleRect =
-    aItem->GetVisibleRect().ToOutsidePixels(appUnitsPerDevPixel);
+    aItem->GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
   SetVisibleRectForLayer(layer, itemVisibleRect);
 
   tempManager->SetRoot(layer);
@@ -1127,12 +1121,12 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       "items in a container layer should all have the same app units per dev pixel");
 
     nsIntRect itemVisibleRect =
-      item->GetVisibleRect().ToOutsidePixels(appUnitsPerDevPixel);
+      item->GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
     nsRect itemContent = item->GetBounds(mBuilder);
     if (aClip.mHaveClipRect) {
       itemContent.IntersectRect(aClip.mClipRect, itemContent);
     }
-    nsIntRect itemDrawRect = itemContent.ToOutsidePixels(appUnitsPerDevPixel);
+    nsIntRect itemDrawRect = itemContent.ToNearestPixels(appUnitsPerDevPixel);
     nsDisplayItem::LayerState layerState =
       item->GetLayerState(mBuilder, mManager);
 
@@ -1642,11 +1636,8 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
       (aLayer->GetUserData(&gThebesDisplayItemLayerUserData));
   NS_ASSERTION(userData, "where did our user data go?");
   if (NS_GET_A(userData->mForcedBackgroundColor) > 0) {
-    nsIntRect r = aLayer->GetVisibleRegion().GetBounds();
-    aContext->NewPath();
-    aContext->Rectangle(gfxRect(r.x, r.y, r.width, r.height));
     aContext->SetColor(gfxRGBA(userData->mForcedBackgroundColor));
-    aContext->Fill();
+    aContext->Paint();
   }
 
   gfxMatrix transform;

@@ -201,12 +201,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    nsRect r = frame->CanvasArea() + ToReferenceFrame();
-    if (mSnappingEnabled) {
-      nscoord appUnitsPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
-      r = r.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
-    }
-    return r;
+    return frame->CanvasArea() + ToReferenceFrame();
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)

@@ -624,9 +624,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
     return true;
 #endif
 
-    // XXX A previous call to mPluginIface->event might block, e.g. right click
-    // for context menu. Still, we might get here again, calling into the plugin
-    // a second time while it's in the previous call.
     if (!mPluginIface->event)
         *handled = false;
     else
@@ -2077,24 +2074,6 @@ StreamNotifyChild::Recv__delete__(const NPReason& reason)
     return true;
 }
 
-bool
-StreamNotifyChild::RecvRedirectNotify(const nsCString& url, const int32_t& status)
-{
-    // NPP_URLRedirectNotify requires a non-null closure. Since core logic
-    // assumes that all out-of-process notify streams have non-null closure
-    // data it will assume that the plugin was notified at this point and
-    // expect a response otherwise the redirect will hang indefinitely.
-    if (!mClosure) {
-        SendRedirectNotifyResponse(false);
-    }
-
-    PluginInstanceChild* instance = static_cast<PluginInstanceChild*>(Manager());
-    if (instance->mPluginIface->urlredirectnotify)
-      instance->mPluginIface->urlredirectnotify(instance->GetNPP(), mURL.get(), status, mClosure);
-
-    return true;
-}
-
 void
 StreamNotifyChild::NPP_URLNotify(NPReason reason)
 {
@@ -2164,26 +2143,6 @@ PluginInstanceChild::NPN_NewStream(NPMIMEType aMIMEType, const char* aWindow,
 
     *aStream = &ps->mStream;
     return NPERR_NO_ERROR;
-}
-
-void
-PluginInstanceChild::NPN_URLRedirectResponse(void* notifyData, NPBool allow)
-{
-    if (!notifyData) {
-        return;
-    }
-
-    InfallibleTArray<PStreamNotifyChild*> notifyStreams;
-    ManagedPStreamNotifyChild(notifyStreams);
-    PRUint32 notifyStreamCount = notifyStreams.Length();
-    for (PRUint32 i = 0; i < notifyStreamCount; i++) {
-        StreamNotifyChild* sn = static_cast<StreamNotifyChild*>(notifyStreams[i]);
-        if (sn->mClosure == notifyData) {
-            sn->SendRedirectNotifyResponse(static_cast<bool>(allow));
-            return;
-        }
-    }
-    NS_ASSERTION(PR_FALSE, "Couldn't find stream for redirect response!");
 }
 
 bool

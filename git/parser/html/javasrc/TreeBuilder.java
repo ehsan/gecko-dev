@@ -832,7 +832,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     public final void characters(@Const @NoLength char[] buf, int start, int length)
             throws SAXException {
         if (needToDropLF) {
-            needToDropLF = false;
             if (buf[start] == '\n') {
                 start++;
                 length--;
@@ -840,6 +839,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     return;
                 }
             }
+            needToDropLF = false;
         }
 
         // optimize the most common case

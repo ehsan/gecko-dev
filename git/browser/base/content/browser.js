@@ -719,12 +719,6 @@ const gXPInstallObserver = {
       options.installs = installInfo.installs;
       options.contentWindow = browser.contentWindow;
       options.sourceURI = browser.currentURI;
-      options.eventCallback = function(aNotification, aEvent) {
-        if (aEvent != "removed")
-          return;
-        aNotification.options.contentWindow = null;
-        aNotification.options.sourceURI = null;
-      };
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               null, null, options);
       break;
@@ -2741,10 +2735,10 @@ var PrintPreviewListener = {
   onExit: function () {
     gBrowser.selectedTab = this._tabBeforePrintPreview;
     this._tabBeforePrintPreview = null;
-    gInPrintPreviewMode = false;
-    this._toggleAffectedChrome();
     gBrowser.removeTab(this._printPreviewTab);
     this._printPreviewTab = null;
+    gInPrintPreviewMode = false;
+    this._toggleAffectedChrome();
   },
   _toggleAffectedChrome: function () {
 #ifdef MENUBAR_CAN_AUTOHIDE

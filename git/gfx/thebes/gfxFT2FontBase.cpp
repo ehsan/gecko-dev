@@ -193,7 +193,7 @@ gfxFT2FontBase::GetFontTable(PRUint32 aTag)
     if (mFontEntry->GetExistingFontTable(aTag, &blob))
         return blob;
 
-    FallibleTArray<PRUint8> buffer;
+    nsTArray<PRUint8> buffer;
     PRBool haveTable = gfxFT2LockedFace(this).GetFontTable(aTag, buffer);
 
     // Cache even when there is no table to save having to open the FT_Face

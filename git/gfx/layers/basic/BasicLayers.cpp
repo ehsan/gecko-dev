@@ -429,17 +429,11 @@ protected:
   Buffer mBuffer;
 };
 
-/**
- * Clips to the smallest device-pixel-aligned rectangle containing aRect
- * in user space.
- * Returns true if the clip is "perfect", i.e. we actually clipped exactly to
- * aRect.
- */
-static PRBool
+static void
 ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
 {
-  gfxRect userRect(aRect.x, aRect.y, aRect.width, aRect.height);
-  gfxRect deviceRect = aContext->UserToDevice(userRect);
+  gfxRect deviceRect =
+    aContext->UserToDevice(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
   deviceRect.RoundOut();
 
   gfxMatrix currentMatrix = aContext->CurrentMatrix();
@@ -448,8 +442,6 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   aContext->Rectangle(deviceRect);
   aContext->Clip();
   aContext->SetMatrix(currentMatrix);
-
-  return aContext->DeviceToUser(deviceRect) == userRect;
 }
 
 static nsIntRegion
@@ -476,29 +468,6 @@ SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
       !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
 }
 
-static PRBool
-PushGroupForLayer(gfxContext* aContext, Layer* aLayer, const nsIntRegion& aRegion)
-{
-  // If we need to call PushGroup, we should clip to the smallest possible
-  // area first to minimize the size of the temporary surface.
-  PRBool didCompleteClip = ClipToContain(aContext, aRegion.GetBounds());
-
-  gfxASurface::gfxContentType contentType = gfxASurface::CONTENT_COLOR_ALPHA;
-  PRBool needsClipToVisibleRegion = PR_FALSE;
-  if (aLayer->CanUseOpaqueSurface() &&
-      ((didCompleteClip && aRegion.GetNumRects() == 1) ||
-       !aContext->CurrentMatrix().HasNonIntegerTranslation())) {
-    // If the layer is opaque in its visible region we can push a CONTENT_COLOR
-    // group. We need to make sure that only pixels inside the layer's visible
-    // region are copied back to the destination. Remember if we've already
-    // clipped precisely to the visible region.
-    needsClipToVisibleRegion = !didCompleteClip || aRegion.GetNumRects() > 1;
-    contentType = gfxASurface::CONTENT_COLOR;
-  }
-  aContext->PushGroupAndCopyBackground(contentType);
-  return needsClipToVisibleRegion;
-}
-
 void
 BasicThebesLayer::Paint(gfxContext* aContext,
                         LayerManager::DrawThebesLayerCallback aCallback,
@@ -506,6 +475,8 @@ BasicThebesLayer::Paint(gfxContext* aContext,
 {
   NS_ASSERTION(BasicManager()->InDrawing(),
                "Can only draw in drawing phase");
+  gfxContext* target = BasicManager()->GetTarget();
+  NS_ASSERTION(target, "We shouldn't be called if there's no target");
   nsRefPtr<gfxASurface> targetSurface = aContext->CurrentSurface();
 
   PRBool canUseOpaqueSurface = CanUseOpaqueSurface();
@@ -521,30 +492,25 @@ BasicThebesLayer::Paint(gfxContext* aContext,
     mValidRegion.SetEmpty();
     mBuffer.Clear();
 
-    nsIntRegion toDraw = IntersectWithClip(mVisibleRegion, aContext);
+    nsIntRegion toDraw = IntersectWithClip(mVisibleRegion, target);
     if (!toDraw.IsEmpty()) {
       if (!aCallback) {
         BasicManager()->SetTransactionIncomplete();
         return;
       }
 
-      aContext->Save();
-
-      PRBool needsClipToVisibleRegion = PR_FALSE;
+      target->Save();
+      gfxUtils::ClipToRegionSnapped(target, toDraw);
       if (opacity != 1.0) {
-        needsClipToVisibleRegion = PushGroupForLayer(aContext, this, toDraw);
+        target->PushGroupAndCopyBackground(contentType);
       }
-      SetAntialiasingFlags(this, aContext);
-      aCallback(this, aContext, toDraw, nsIntRegion(), aCallbackData);
+      SetAntialiasingFlags(this, target);
+      aCallback(this, target, toDraw, nsIntRegion(), aCallbackData);
       if (opacity != 1.0) {
-        aContext->PopGroupToSource();
-        if (needsClipToVisibleRegion) {
-          gfxUtils::ClipToRegion(aContext, toDraw);
-        }
-        aContext->Paint(opacity);
+        target->PopGroupToSource();
+        target->Paint(opacity);
       }
-
-      aContext->Restore();
+      target->Restore();
     }
     return;
   }
@@ -577,7 +543,7 @@ BasicThebesLayer::Paint(gfxContext* aContext,
     }
   }
 
-  mBuffer.DrawTo(this, aContext, opacity);
+  mBuffer.DrawTo(this, target, opacity);
 }
 
 static PRBool
@@ -1365,10 +1331,14 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
     pushedTargetOpaqueRect = PR_TRUE;
   }
 
-  PRBool needsClipToVisibleRegion = PR_FALSE;
   if (needsGroup) {
-    needsClipToVisibleRegion =
-        PushGroupForLayer(mTarget, aLayer, aLayer->GetEffectiveVisibleRegion());
+    // If we need to call PushGroup, we should clip to the smallest possible
+    // area first to minimize the size of the temporary surface.
+    ClipToContain(mTarget, aLayer->GetEffectiveVisibleRegion().GetBounds());
+
+    gfxASurface::gfxContentType type = aLayer->CanUseOpaqueSurface()
+        ? gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
+    mTarget->PushGroupAndCopyBackground(type);
   }
 
   /* Only paint ourself, or our children - This optimization relies on this! */
@@ -1392,9 +1362,10 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
 
   if (needsGroup) {
     mTarget->PopGroupToSource();
-    if (needsClipToVisibleRegion) {
-      gfxUtils::ClipToRegion(mTarget, aLayer->GetEffectiveVisibleRegion());
-    }
+    // If the layer is opaque in its visible region we pushed a CONTENT_COLOR
+    // group. We need to make sure that only pixels inside the layer's visible
+    // region are copied back to the destination.
+    gfxUtils::ClipToRegionSnapped(mTarget, aLayer->GetEffectiveVisibleRegion());
     mTarget->Paint(aLayer->GetEffectiveOpacity());
   }
 

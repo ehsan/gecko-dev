@@ -47,9 +47,6 @@
 #include "nsITimer.h"
 #include "nsIPluginTagInfo.h"
 #include "nsIURI.h"
-#include "nsIChannel.h"
-#include "nsInterfaceHashtable.h"
-#include "nsHashKeys.h"
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
@@ -96,8 +93,10 @@ public:
   void SetEventModel(NPEventModel aModel);
 #endif
 
-  nsresult NewStreamListener(const char* aURL, void* notifyData,
-                             nsIPluginStreamListener** listener);
+  nsresult NewNotifyStream(nsIPluginStreamListener** listener, 
+                           void* notifyData, 
+                           PRBool aCallNotify,
+                           const char * aURL);
 
   nsNPAPIPluginInstance(nsNPAPIPlugin* plugin);
   virtual ~nsNPAPIPluginInstance();
@@ -137,14 +136,12 @@ public:
   NPError       PopUpContextMenu(NPMenu* menu);
   NPBool        ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
 
-
-  nsTArray<nsNPAPIPluginStreamListener*> *StreamListeners();
-
-  nsTArray<nsPluginStreamListenerPeer*> *FileCachedStreamListeners();
+  // Returns the array of plugin-initiated streams.
+  nsTArray<nsNPAPIPluginStreamListener*> *PStreamListeners();
+  // Returns the array of browser-initiated streams.
+  nsTArray<nsPluginStreamListenerPeer*> *BStreamListeners();
 
   nsresult AsyncSetWindow(NPWindow& window);
-
-  void URLRedirectResponse(void* notifyData, NPBool allow);
 
 protected:
   nsresult InitializePlugin();
@@ -188,9 +185,11 @@ public:
 private:
   nsNPAPIPlugin* mPlugin;
 
-  nsTArray<nsNPAPIPluginStreamListener*> mStreamListeners;
-
-  nsTArray<nsPluginStreamListenerPeer*> mFileCachedStreamListeners;
+  // array of plugin-initiated stream listeners
+  nsTArray<nsNPAPIPluginStreamListener*> mPStreamListeners;
+  
+  // array of browser-initiated stream listeners
+  nsTArray<nsPluginStreamListenerPeer*> mBStreamListeners;
 
   nsTArray<PopupControlState> mPopupStates;
 

@@ -197,6 +197,10 @@ var gSyncSetup = {
     }
   },
 
+  onPassphraseKeyUp: function (event) {
+    this.checkFields();
+  },
+
   // fun with validation!
   checkFields: function () {
     this.wizard.canAdvance = this.readyToAdvance();
@@ -329,7 +333,6 @@ var gSyncSetup = {
         this.wizard.getButton("next").hidden = false;
         this.wizard.getButton("back").hidden = false;
         this.wizard.getButton("extra1").hidden = false;
-        this.wizard.canAdvance = false;
         this.wizard.canRewind = true;
         this.startEasySetup();
         break;
@@ -774,6 +777,8 @@ var gSyncSetup = {
               "strftime('%s','now','localtime','utc') - " +
               "( " +
                 "SELECT visit_date FROM moz_historyvisits " +
+                "UNION ALL " +
+                "SELECT visit_date FROM moz_historyvisits_temp " +
                 "ORDER BY visit_date ASC LIMIT 1 " +
                 ")/1000000 " +
               ")/86400) AS daysOfHistory ");

@@ -558,7 +558,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
     // focus actually.
     Focus();
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
     GtkIMContext *im = GetContext();
     if (im) {
         if (IsEnabled()) {

@@ -37,9 +37,8 @@
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      ok(event.target.source === mozIndexedDB,
-         "event.target.source is correct");
-      let db = event.target.result;
+      ok(event.source === mozIndexedDB, "event.source is correct");
+      let db = event.result;
 
       let count = db.objectStoreNames.length;
       is(count, 0, "correct objectStoreNames length");
@@ -49,7 +48,7 @@
       request.onsuccess = grabEventAndContinueHandler;
       event = yield;
 
-      ok(event.target.source === db, "event.target.source is correct");
+      ok(event.source === db, "event.source is correct");
 
       try {
         db.createObjectStore(null);
@@ -109,18 +108,17 @@
            "Bad keyPath");
         if(objectStore.indexNames.length, 0, "Bad indexNames");
 
-        ok(event.target.transaction, "event has a transaction");
-        ok(event.target.transaction.db === db, "transaction has the right db");
-        is(event.target.transaction.readyState, nsIIDBTransaction.LOADING,
+        ok(event.transaction, "event has a transaction");
+        ok(event.transaction.db === db, "transaction has the right db");
+        is(event.transaction.readyState, nsIIDBTransaction.LOADING,
            "transaction has the correct readyState");
-        is(event.target.transaction.mode, nsIIDBTransaction.VERSION_CHANGE,
+        is(event.transaction.mode, nsIIDBTransaction.VERSION_CHANGE,
            "transaction has the correct mode");
-        is(event.target.transaction.objectStoreNames.length, index + 1,
+        is(event.transaction.objectStoreNames.length, index + 1,
            "transaction has correct objectStoreNames list");
         found = false;
-        for (let j = 0; j < event.target.transaction.objectStoreNames.length;
-             j++) {
-          if (event.target.transaction.objectStoreNames.item(j) == info.name) {
+        for (let j = 0; j < event.transaction.objectStoreNames.length; j++) {
+          if (event.transaction.objectStoreNames.item(j) == info.name) {
             found = true;
             break;
           }

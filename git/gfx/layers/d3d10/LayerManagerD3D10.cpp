@@ -92,10 +92,12 @@ LayerManagerD3D10::Initialize()
 {
   HRESULT hr;
 
-  mDevice = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
-  if (!mDevice) {
-      return false;
+  cairo_device_t *device = gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+  if (!device) {
+    return false;
   }
+
+  mDevice = cairo_d2d_device_get_device(device);
 
   UINT size = sizeof(ID3D10Effect*);
   if (FAILED(mDevice->GetPrivateData(sEffect, &size, mEffect.StartAssignment()))) {

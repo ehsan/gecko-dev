@@ -24,7 +24,6 @@ Surface::Surface(Display *display, const Config *config, HWND window)
     mDepthStencil = NULL;
     mBackBuffer = NULL;
     mFlipTexture = NULL;
-    mShareHandle = NULL;
     mFlipState = NULL;
     mPreFlipState = NULL;
 
@@ -36,27 +35,6 @@ Surface::Surface(Display *display, const Config *config, HWND window)
 
     subclassWindow();
     resetSwapChain();
-}
-
-Surface::Surface(Display *display, const Config *config, EGLint width, EGLint height)
-    : mDisplay(display), mConfig(config), mWindow(NULL), mWindowSubclassed(false),
-      mWidth(width), mHeight(height)
-{
-    mSwapChain = NULL;
-    mDepthStencil = NULL;
-    mBackBuffer = NULL;
-    mFlipTexture = NULL;
-    mShareHandle = NULL;
-    mFlipState = NULL;
-    mPreFlipState = NULL;
-
-    mPixelAspectRatio = (EGLint)(1.0 * EGL_DISPLAY_SCALING);   // FIXME: Determine actual pixel aspect ratio
-    mRenderBuffer = EGL_BACK_BUFFER;
-    mSwapBehavior = EGL_BUFFER_PRESERVED;
-    mSwapInterval = -1;
-    setSwapInterval(1);
-
-    resetSwapChain(width, height);
 }
 
 Surface::~Surface()
@@ -106,11 +84,6 @@ void Surface::release()
 
 void Surface::resetSwapChain()
 {
-    if (!mWindow) {
-        resetSwapChain(mWidth, mHeight);
-        return;
-    }
-
     RECT windowRect;
     if (!GetClientRect(getWindowHandle(), &windowRect))
     {
@@ -136,9 +109,8 @@ void Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     // before reallocating them to free up as much video memory as possible.
     device->EvictManagedResources();
     release();
-
+    
     D3DPRESENT_PARAMETERS presentParameters = {0};
-    HRESULT result;
 
     presentParameters.AutoDepthStencilFormat = mConfig->mDepthStencilFormat;
     presentParameters.BackBufferCount = 1;
@@ -154,16 +126,14 @@ void Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     presentParameters.BackBufferWidth = backbufferWidth;
     presentParameters.BackBufferHeight = backbufferHeight;
 
-    if (mWindow) {
-        result = device->CreateAdditionalSwapChain(&presentParameters, &mSwapChain);
+    HRESULT result = device->CreateAdditionalSwapChain(&presentParameters, &mSwapChain);
 
-        if (FAILED(result))
-        {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
+    if (FAILED(result))
+    {
+        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
 
-            ERR("Could not create additional swap chains: %08lX", result);
-            return error(EGL_BAD_ALLOC);
-        }
+        ERR("Could not create additional swap chains: %08lX", result);
+        return error(EGL_BAD_ALLOC);
     }
 
     result = device->CreateDepthStencilSurface(presentParameters.BackBufferWidth, presentParameters.BackBufferHeight,
@@ -174,8 +144,7 @@ void Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     {
         ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
 
-        if (mSwapChain)
-            mSwapChain->Release();
+        mSwapChain->Release();
 
         ERR("Could not create depthstencil surface for new swap chain: %08lX", result);
         return error(EGL_BAD_ALLOC);
@@ -183,39 +152,27 @@ void Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
 
     ASSERT(SUCCEEDED(result));
 
-    HANDLE *pShareHandle = NULL;
-    if (mDisplay->isD3d9exDevice()) {
-        pShareHandle = &mShareHandle;
-    }
-
     result = device->CreateTexture(presentParameters.BackBufferWidth, presentParameters.BackBufferHeight, 1, D3DUSAGE_RENDERTARGET,
-                                   presentParameters.BackBufferFormat, D3DPOOL_DEFAULT, &mFlipTexture, pShareHandle);
+                                   presentParameters.BackBufferFormat, D3DPOOL_DEFAULT, &mFlipTexture, NULL);
 
     if (FAILED(result))
     {
         ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
 
-        if (mSwapChain)
-            mSwapChain->Release();
+        mSwapChain->Release();
         mDepthStencil->Release();
 
         ERR("Could not create flip texture for new swap chain: %08lX", result);
         return error(EGL_BAD_ALLOC);
     }
 
-    if (mSwapChain) {
-        mSwapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &mBackBuffer);
-    } else {
-        mFlipTexture->GetSurfaceLevel(0, &mBackBuffer);
-    }
-
+    mSwapChain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &mBackBuffer);
     mWidth = presentParameters.BackBufferWidth;
     mHeight = presentParameters.BackBufferHeight;
 
     mPresentIntervalDirty = false;
 
-    if (mWindow)
-        InvalidateRect(mWindow, NULL, FALSE);
+    InvalidateRect(mWindow, NULL, FALSE);
 
     // The flip state block recorded mFlipTexture so it is now invalid.
     releaseRecordedState(device);
@@ -370,9 +327,6 @@ static LRESULT CALLBACK SurfaceWindowProc(HWND hwnd, UINT message, WPARAM wparam
 
 void Surface::subclassWindow()
 {
-  if (!mWindow)
-    return;
-
   SetLastError(0);
   LONG oldWndProc = SetWindowLong(mWindow, GWL_WNDPROC, reinterpret_cast<LONG>(SurfaceWindowProc));
   if(oldWndProc == 0 && GetLastError() != ERROR_SUCCESS) {

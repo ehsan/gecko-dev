@@ -793,7 +793,7 @@ DOMStorageImpl::InitDB()
 
 void
 DOMStorageImpl::InitFromChild(bool aUseDB, bool aCanUseChromePersist,
-                              bool aSessionOnly, const nsACString& aDomain,
+                              const nsACString& aDomain,
                               const nsACString& aScopeDBKey,
                               const nsACString& aQuotaDomainDBKey,
                               const nsACString& aQuotaETLDplus1DomainDBKey,
@@ -801,7 +801,6 @@ DOMStorageImpl::InitFromChild(bool aUseDB, bool aCanUseChromePersist,
 {
   mUseDB = aUseDB;
   mCanUseChromePersist = aCanUseChromePersist;
-  mSessionOnly = aSessionOnly;
   mDomain = aDomain;
   mScopeDBKey = aScopeDBKey;
   mQuotaDomainDBKey = aQuotaDomainDBKey;
@@ -809,12 +808,7 @@ DOMStorageImpl::InitFromChild(bool aUseDB, bool aCanUseChromePersist,
   mStorageType = static_cast<nsPIDOMStorage::nsDOMStorageType>(aStorageType);
   if (mStorageType != nsPIDOMStorage::SessionStorage)
     RegisterObservers();
-}
-
-void
-DOMStorageImpl::SetSessionOnly(bool aSessionOnly)
-{
-  mSessionOnly = aSessionOnly;
+  CacheStoragePermissions();
 }
 
 void
@@ -1353,6 +1347,9 @@ nsresult
 DOMStorageImpl::RemoveValue(bool aCallerSecure, const nsAString& aKey,
                             nsAString& aOldValue)
 {
+  if (!CacheStoragePermissions())
+    return NS_ERROR_DOM_SECURITY_ERR;
+  
   nsString oldValue;
   nsSessionStorageEntry *entry = mItems.GetEntry(aKey);
 

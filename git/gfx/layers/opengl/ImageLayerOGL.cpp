@@ -752,12 +752,6 @@ ShadowImageLayerOGL::DestroyFrontBuffer()
 }
 
 void
-ShadowImageLayerOGL::Disconnect()
-{
-  Destroy();
-}
-
-void
 ShadowImageLayerOGL::Destroy()
 {
   if (!mDestroyed) {

@@ -467,18 +467,6 @@ protected:
                                       gfxImageSurface **imageOut,
                                       int *format);
 
-    nsresult CopyTexSubImage2D_base(WebGLenum target,
-                                    WebGLint level,
-                                    WebGLenum internalformat,
-                                    WebGLint xoffset,
-                                    WebGLint yoffset,
-                                    WebGLint x,
-                                    WebGLint y,
-                                    WebGLsizei width,
-                                    WebGLsizei height,
-                                    bool sub
-                                  );
-
     // Conversion from public nsI* interfaces to concrete objects
     template<class ConcreteObjectType, class BaseInterfaceType>
     PRBool GetConcreteObject(const char *info,
@@ -522,10 +510,7 @@ protected:
 
     WebGLObjectRefPtr<WebGLBuffer> mBoundArrayBuffer;
     WebGLObjectRefPtr<WebGLBuffer> mBoundElementArrayBuffer;
-    // note nsRefPtr -- this stays alive even after being deleted,
-    // and is only explicitly removed from the current state via
-    // a call to UseProgram.
-    nsRefPtr<WebGLProgram> mCurrentProgram;
+    WebGLObjectRefPtr<WebGLProgram> mCurrentProgram;
 
     PRUint32 mMaxFramebufferColorAttachments;
 
@@ -1160,7 +1145,7 @@ public:
     WebGLShader(WebGLContext *context, WebGLuint name, WebGLenum stype) :
         WebGLContextBoundObject(context),
         mName(name), mDeleted(PR_FALSE), mType(stype),
-        mNeedsTranslation(true), mAttachCount(0)
+        mNeedsTranslation(true)
     { }
 
     void Delete() {
@@ -1170,13 +1155,9 @@ public:
         mDeleted = PR_TRUE;
     }
 
-    PRBool Deleted() { return mDeleted && mAttachCount == 0; }
+    PRBool Deleted() { return mDeleted; }
     WebGLuint GLName() { return mName; }
     WebGLenum ShaderType() { return mType; }
-
-    PRUint32 AttachCount() { return mAttachCount; }
-    void IncrementAttachCount() { mAttachCount++; }
-    void DecrementAttachCount() { mAttachCount--; }
 
     void SetSource(const nsCString& src) {
         // XXX do some quick gzip here maybe -- getting this will be very rare
@@ -1208,7 +1189,6 @@ protected:
     nsCString mSource;
     nsCString mTranslationLog;
     bool mNeedsTranslation;
-    PRUint32 mAttachCount;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLShader, WEBGLSHADER_PRIVATE_IID)
@@ -1225,8 +1205,7 @@ public:
 
     WebGLProgram(WebGLContext *context, WebGLuint name) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mDeletePending(PR_FALSE),
-        mLinkStatus(PR_FALSE), mGeneration(0),
+        mName(name), mDeleted(PR_FALSE), mLinkStatus(PR_FALSE), mGeneration(0),
         mUniformMaxNameLength(0), mAttribMaxNameLength(0),
         mUniformCount(0), mAttribCount(0)
     {
@@ -1240,18 +1219,7 @@ public:
         mDeleted = PR_TRUE;
     }
 
-    void DetachShaders() {
-        for (PRUint32 i = 0; i < mAttachedShaders.Length(); ++i) {
-            mAttachedShaders[i]->DecrementAttachCount();
-        }
-        mAttachedShaders.Clear();
-    }
-
-    PRBool Deleted() { return mDeleted && !mDeletePending; }
-    void SetDeletePending() { mDeletePending = PR_TRUE; }
-    void ClearDeletePending() { mDeletePending = PR_FALSE; }
-    PRBool HasDeletePending() { return mDeletePending; }
-
+    PRBool Deleted() { return mDeleted; }
     WebGLuint GLName() { return mName; }
     const nsTArray<WebGLShader*>& AttachedShaders() const { return mAttachedShaders; }
     PRBool LinkStatus() { return mLinkStatus; }
@@ -1267,17 +1235,12 @@ public:
         if (ContainsShader(shader))
             return PR_FALSE;
         mAttachedShaders.AppendElement(shader);
-        shader->IncrementAttachCount();
         return PR_TRUE;
     }
 
     // return true if the shader was found and removed
     PRBool DetachShader(WebGLShader *shader) {
-        if (mAttachedShaders.RemoveElement(shader)) {
-            shader->DecrementAttachCount();
-            return PR_TRUE;
-        }
-        return PR_FALSE;
+        return mAttachedShaders.RemoveElement(shader);
     }
 
     PRBool HasAttachedShaderOfType(GLenum shaderType) {
@@ -1322,14 +1285,10 @@ public:
 protected:
     WebGLuint mName;
     PRPackedBool mDeleted;
-    PRPackedBool mDeletePending;
     PRPackedBool mLinkStatus;
-    // attached shaders of the program object
     nsTArray<WebGLShader*> mAttachedShaders;
-    CheckedUint32 mGeneration;
-
-    // post-link data
     nsRefPtrHashtable<nsUint32HashKey, WebGLUniformLocation> mMapUniformLocations;
+    CheckedUint32 mGeneration;
     GLint mUniformMaxNameLength;
     GLint mAttribMaxNameLength;
     GLint mUniformCount;
@@ -1389,12 +1348,9 @@ NS_DEFINE_STATIC_IID_ACCESSOR(WebGLRenderbuffer, WEBGLRENDERBUFFER_PRIVATE_IID)
 
 class WebGLFramebufferAttachment
 {
-    // deleting a texture or renderbuffer immediately detaches it
-    WebGLObjectRefPtr<WebGLTexture> mTexturePtr;
-    WebGLObjectRefPtr<WebGLRenderbuffer> mRenderbufferPtr;
+    nsRefPtr<WebGLTexture> mTexturePtr;
+    nsRefPtr<WebGLRenderbuffer> mRenderbufferPtr;
     WebGLenum mAttachmentPoint;
-    WebGLint mTextureLevel;
-    WebGLenum mTextureCubeMapFace;
 
 public:
     WebGLFramebufferAttachment(WebGLenum aAttachmentPoint)
@@ -1418,11 +1374,9 @@ public:
                format == LOCAL_GL_RGB5_A1;
     }
 
-    void SetTexture(WebGLTexture *tex, WebGLint level, WebGLenum face) {
+    void SetTexture(WebGLTexture *tex) {
         mTexturePtr = tex;
         mRenderbufferPtr = nsnull;
-        mTextureLevel = level;
-        mTextureCubeMapFace = face;
     }
     void SetRenderbuffer(WebGLRenderbuffer *rb) {
         mTexturePtr = nsnull;
@@ -1433,12 +1387,6 @@ public:
     }
     WebGLRenderbuffer *Renderbuffer() const {
         return mRenderbufferPtr.get();
-    }
-    WebGLint TextureLevel() const {
-        return mTextureLevel;
-    }
-    WebGLenum TextureCubeMapFace() const {
-        return mTextureCubeMapFace;
     }
 
     PRBool IsIncompatibleWithAttachmentPoint() const
@@ -1545,12 +1493,7 @@ public:
         }
 
         mContext->MakeContextCurrent();
-        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-            mContext->gl->fFramebufferRenderbuffer(target, LOCAL_GL_DEPTH_ATTACHMENT, rbtarget, renderbuffername);
-            mContext->gl->fFramebufferRenderbuffer(target, LOCAL_GL_STENCIL_ATTACHMENT, rbtarget, renderbuffername);
-        } else {
-            mContext->gl->fFramebufferRenderbuffer(target, attachment, rbtarget, renderbuffername);
-        }
+        mContext->gl->fFramebufferRenderbuffer(target, attachment, rbtarget, renderbuffername);
 
         return NS_OK;
     }
@@ -1582,16 +1525,15 @@ public:
         if (!isNull && level > 0)
             return mContext->ErrorInvalidValue("framebufferTexture2D: level must be 0");
 
-        WebGLint face = (textarget == LOCAL_GL_TEXTURE_2D) ? 0 : textarget;
         switch (attachment) {
         case LOCAL_GL_DEPTH_ATTACHMENT:
-            mDepthAttachment.SetTexture(wtex, level, face);
+            mDepthAttachment.SetTexture(wtex);
             break;
         case LOCAL_GL_STENCIL_ATTACHMENT:
-            mStencilAttachment.SetTexture(wtex, level, face);
+            mStencilAttachment.SetTexture(wtex);
             break;
         case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
-            mDepthStencilAttachment.SetTexture(wtex, level, face);
+            mDepthStencilAttachment.SetTexture(wtex);
             break;
         default:
             if (attachment != LOCAL_GL_COLOR_ATTACHMENT0)
@@ -1600,17 +1542,12 @@ public:
             // keep data for readPixels, function only uses COLOR_ATTACHMENT0
             setDimensions(wtex);
 
-            mColorAttachment.SetTexture(wtex, level, face);
+            mColorAttachment.SetTexture(wtex);
             break;
         }
 
         mContext->MakeContextCurrent();
-        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-            mContext->gl->fFramebufferTexture2D(target, LOCAL_GL_DEPTH_ATTACHMENT, textarget, texturename, level);
-            mContext->gl->fFramebufferTexture2D(target, LOCAL_GL_STENCIL_ATTACHMENT, textarget, texturename, level);
-        } else {
-            mContext->gl->fFramebufferTexture2D(target, attachment, textarget, texturename, level);
-        }
+        mContext->gl->fFramebufferTexture2D(target, attachment, textarget, texturename, level);
 
         return NS_OK;
     }
@@ -1652,31 +1589,7 @@ public:
         else return PR_FALSE;
     }
 
-    const WebGLFramebufferAttachment& ColorAttachment() const {
-        return mColorAttachment;
-    }
-
-    const WebGLFramebufferAttachment& DepthAttachment() const {
-        return mDepthAttachment;
-    }
-
-    const WebGLFramebufferAttachment& StencilAttachment() const {
-        return mStencilAttachment;
-    }
-
-    const WebGLFramebufferAttachment& DepthStencilAttachment() const {
-        return mDepthStencilAttachment;
-    }
-
-    const WebGLFramebufferAttachment& GetAttachment(WebGLenum attachment) const {
-        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return mDepthStencilAttachment;
-        if (attachment == LOCAL_GL_DEPTH_ATTACHMENT)
-            return mDepthAttachment;
-        if (attachment == LOCAL_GL_STENCIL_ATTACHMENT)
-            return mStencilAttachment;
-
-        NS_ASSERTION(attachment == LOCAL_GL_COLOR_ATTACHMENT0, "bad attachment!");
+    const WebGLFramebufferAttachment ColorAttachment() const {
         return mColorAttachment;
     }
 

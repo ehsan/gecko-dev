@@ -80,8 +80,6 @@ public:
         mBrowserDOMWindow = aBrowserDOMWindow;
     }
  
-    void Destroy();
-
     virtual bool RecvMoveFocus(const bool& aForward);
     virtual bool RecvEvent(const RemoteDOMEvent& aEvent);
 

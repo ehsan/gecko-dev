@@ -56,7 +56,7 @@
 #include "nsFilePicker.h"
 #include "nsAccessibilityHelper.h"
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
 #include <hildon-fm-2/hildon/hildon-file-chooser-dialog.h>
 #endif
 
@@ -434,7 +434,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
   GtkFileChooserAction action = GetGtkFileChooserAction(mMode);
   const gchar *accept_button = (action == GTK_FILE_CHOOSER_ACTION_SAVE)
                                ? GTK_STOCK_SAVE : GTK_STOCK_OPEN;
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
   GtkWidget *file_chooser =
     hildon_file_chooser_dialog_new_with_properties(parent_widget,
                                                    "action", action,

@@ -92,7 +92,7 @@ function onTabViewWindowLoaded() {
     };
     let tabItem = groupItem.getChild(0);
     // the item may not be connected so subscriber would be used in that case.
-    if (tabItem._reconnected) {
+    if (tabItem.reconnected) {
       checkAndFinish();
     } else {
       tabItem.addSubscriber(tabItem, "reconnected", function() {

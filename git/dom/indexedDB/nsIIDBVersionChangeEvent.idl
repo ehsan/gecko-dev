@@ -37,10 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMEvent.idl"
+#include "nsIIDBEvent.idl"
 
-[scriptable, uuid(6a232c30-1bc4-4d5b-9ce0-6e7c08934755)]
-interface nsIIDBVersionChangeEvent : nsIDOMEvent
+[scriptable, uuid(07519073-e626-4d86-994c-801c170d263a)]
+interface nsIIDBVersionChangeEvent : nsIIDBEvent
 {
   readonly attribute AString version;
 };

@@ -68,7 +68,6 @@ class PluginInstanceParent : public PPluginInstanceParent
     friend class PluginModuleParent;
     friend class BrowserStreamParent;
     friend class PluginStreamParent;
-    friend class StreamNotifyParent;
 
 public:
     PluginInstanceParent(PluginModuleParent* parent,
@@ -217,9 +216,6 @@ public:
 
     NPError NPP_GetValue(NPPVariable variable, void* retval);
     NPError NPP_SetValue(NPNVariable variable, void* value);
-
-    void NPP_URLRedirectNotify(const char* url, int32_t status,
-                               void* notifyData);
 
     NPError NPP_NewStream(NPMIMEType type, NPStream* stream,
                           NPBool seekable, uint16_t* stype);

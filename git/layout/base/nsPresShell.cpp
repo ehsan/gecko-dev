@@ -5354,9 +5354,6 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   PRBool wouldFlushRetainedLayers = PR_FALSE;
   PRUint32 flags = nsLayoutUtils::PAINT_IGNORE_SUPPRESSION;
-  if (aThebesContext->CurrentMatrix().HasNonIntegerTranslation()) {
-    flags |= nsLayoutUtils::PAINT_IN_TRANSFORM;
-  }
   if (!(aFlags & RENDER_ASYNC_DECODE_IMAGES)) {
     flags |= nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES;
   }
@@ -5572,6 +5569,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   info->mBuilder.EnterPresShell(ancestorFrame, ancestorRect);
   ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
                                                     ancestorRect, &info->mList);
+  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -5581,8 +5579,6 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 #endif
 
   nsRect rangeRect = ClipListToRange(&info->mBuilder, &info->mList, range);
-
-  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {

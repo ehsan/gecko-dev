@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,15 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -32,11 +35,18 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-namespace mozilla {
-namespace gl {
+#ifndef nsLWBrkConstructors_h__
+#define nsLWBrkConstructors_h__
 
-const char*
-GetVendor();
+#include "nsLWBrkCIID.h"
+#include "nsILineBreaker.h"
+#include "nsIWordBreaker.h"
+#include "nsJISx4501LineBreaker.h"
+#include "nsSampleWordBreaker.h"
+#include "nsLWBRKDll.h"
 
-}
-}
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsJISx4051LineBreaker)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsSampleWordBreaker)
+
+#endif
+     

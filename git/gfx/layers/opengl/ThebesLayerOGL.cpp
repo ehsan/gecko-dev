@@ -710,12 +710,6 @@ ShadowThebesLayerOGL::DestroyFrontBuffer()
 }
 
 void
-ShadowThebesLayerOGL::Disconnect()
-{
-  Destroy();
-}
-
-void
 ShadowThebesLayerOGL::Destroy()
 {
   if (!mDestroyed) {

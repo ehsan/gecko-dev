@@ -105,8 +105,6 @@ public:
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion);
   virtual void DestroyFrontBuffer();
 
-  virtual void Disconnect();
-
   // LayerOGL impl
   void Destroy();
   Layer* GetLayer();

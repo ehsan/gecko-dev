@@ -907,7 +907,7 @@ bool UIMoveFile(const string& file, const string& newfile)
   if (!source || !dest)
     return false;
 
-  [fileManager moveItemAtPath:source toPath:dest error:NULL];
+  [fileManager movePath:source toPath:dest handler:nil];
   return UIFileExists(newfile);
 }
 

@@ -1458,6 +1458,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBDatabase, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(IDBErrorEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(IDBSuccessEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(IDBTransactionEvent, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBObjectStore, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBTransaction, nsDOMGenericSH,
@@ -4092,6 +4098,25 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(IDBErrorEvent, nsIIDBErrorEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBErrorEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(IDBSuccessEvent, nsIIDBSuccessEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBSuccessEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(IDBTransactionEvent, nsIIDBTransactionEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBTransactionEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBSuccessEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(IDBObjectStore, nsIIDBObjectStore)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStore)
   DOM_CLASSINFO_MAP_END
@@ -4116,6 +4141,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeEvent, nsIIDBVersionChangeEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
   DOM_CLASSINFO_MAP_END
 
@@ -6089,19 +6115,8 @@ GetXPCProto(nsIXPConnect *aXPConnect, JSContext *cx, nsGlobalWindow *aWin,
   }
   NS_ENSURE_TRUE(ci, NS_ERROR_UNEXPECTED);
 
-  nsresult rv =
-    aXPConnect->GetWrappedNativePrototype(cx, aWin->GetGlobalJSObject(), ci,
-                                          aProto);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  JSObject *proto_obj;
-  (*aProto)->GetJSObject(&proto_obj);
-  if (!JS_WrapObject(cx, &proto_obj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  NS_IF_RELEASE(*aProto);
-  return aXPConnect->HoldObject(cx, proto_obj, aProto);
+  return aXPConnect->GetWrappedNativePrototype(cx, aWin->GetGlobalJSObject(),
+                                               ci, aProto);
 }
 
 // Either ci_data must be non-null or name_struct must be non-null and of type

@@ -15,7 +15,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ *   Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -392,10 +392,6 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
     if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
         mDebugMode |= DebugAbortOnError;
 #endif
-
-    // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
-    if (!mInitialized)
-      mSymbols.Zero();
 
     return mInitialized;
 }
@@ -1349,9 +1345,6 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
       break;
     default:
       NS_ASSERTION(false, "Unhandled image surface format!");
-      format = 0;
-      type = 0;
-      shader = ShaderProgramType(0);
   }
 
 #ifndef USE_GLES2

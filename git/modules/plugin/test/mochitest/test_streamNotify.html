@@ -23,43 +23,43 @@
   function runTests() {
     var p = document.getElementById('plugin1');
 
-    ok(p.streamTest("loremipsum.txt", false, null, null,
+    ok(p.streamTest("loremipsum.txt", false, null,
                     function(r, t) {
                       is(r, 0, "GET loremipsum.txt");
                       is(t.substr(0, 11), "Lorem ipsum",
                          "GET loremipsum.txt correct");
                       testDone();
-                    }, true), "streamTest GET");
+                    }), "streamTest GET");
 
-    ok(!p.streamTest("post.sjs", true, null, null,
+    ok(!p.streamTest("post.sjs", true, null,
                      function(r, t) {
                        ok(false, "Shouldn't get callback from null post");
-                     }, true), "streamTest POST null postdata");
+                     }), "streamTest POST null postdata");
 
-    ok(p.streamTest("post.sjs", true, "Something good", null,
+    ok(p.streamTest("post.sjs", true, "Something good",
                     function(r, t) {
                       is(r, 0, "POST something good");
                       is(t, "Something good", "POST non-null correct");
                       testDone();
-                    }, true), "streamTest POST valid postdata");
+                    }), "streamTest POST valid postdata");
 
-    ok(p.streamTest("http://example.invalid/", false, null, null,
+    ok(p.streamTest("http://example.invalid/", false, null,
                     function(r, t) {
                       is(r, 1, "Shouldn't load example.invalid DNS name");
                       testDone();
-                    }, true), "streamTest GET bad DNS");
+                    }), "streamTest GET bad DNS");
 
-    ok(!p.streamTest("http://localhost:-8/", false, null, null,
+    ok(!p.streamTest("http://localhost:-8/", false, null,
                     function(r, t) {
                       ok(false, "Shouldn't get callback from malformed URI");
-                    }, true), "streamTest GET invalid URL");
+                    }), "streamTest GET invalid URL");
 
-    ok(p.streamTest("javascript:'Hello';", false, null, null,
+    ok(p.streamTest("javascript:'Hello';", false, null,
                     function(r, t) {
                       is(r, 0, "GET javascript: URI");
                       is(t, "Hello", "GET javascript: URI correct");
                       testDone();
-                    }, true), "streamTest GET javascript: URI");
+                    }), "streamTest GET javascript: URI");
 
 /*
  * XXX/cjones: disabled for now because it appears to be hard to make
@@ -72,16 +72,16 @@
                      }), "streamTest GET bad javascript: URI");
 */
 
-    ok(p.streamTest("data:text/plain,World", false, null, null,
+    ok(p.streamTest("data:text/plain,World", false, null,
                     function(r, t) {
                       is(r, 0, "GET data: URI");
                       is(t, "World", "GET data: URI correct");
                       testDone();
-                    }, true), "streamTest GET data: URI");
+                    }), "streamTest GET data: URI");
 
-    ok(!p.streamTest("data:malformed?", false, null, null,
+    ok(!p.streamTest("data:malformed?", false, null,
                      function(r, t) {
                        todo(false, "Shouldn't get callback for invalid data: URI");
-                     }, true), "streamTest GET bad data: URI");
+                     }), "streamTest GET bad data: URI");
   }
   </script>
