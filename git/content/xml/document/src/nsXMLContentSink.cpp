@@ -319,7 +319,7 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
         nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(child);
         CheckXSLTParamPI(pi, mXSLTProcessor, mDocument);
       }
-      else if (child->IsElement()) {
+      else if (child->IsNodeOfType(nsINode::eELEMENT)) {
         // Only honor PIs in the prolog
         break;
       }
@@ -441,13 +441,13 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
   // into the document.  
   // XXX do we need to notify for things like PIs?  Or just the
   // documentElement?
-  nsIContent *rootElement = mDocument->GetRootElement();
-  if (rootElement) {
-    NS_ASSERTION(mDocument->IndexOf(rootElement) != -1,
-                 "rootElement not in doc?");
+  nsIContent *rootContent = mDocument->GetRootContent();
+  if (rootContent) {
+    NS_ASSERTION(mDocument->IndexOf(rootContent) != -1,
+                 "rootContent not in doc?");
     mDocument->BeginUpdate(UPDATE_CONTENT_MODEL);
-    nsNodeUtils::ContentInserted(mDocument, rootElement,
-                                 mDocument->IndexOf(rootElement));
+    nsNodeUtils::ContentInserted(mDocument, rootContent,
+                                 mDocument->IndexOf(rootContent));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
   
@@ -963,7 +963,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
 
   mDocElement = aContent;
   NS_ADDREF(mDocElement);
-  nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
+  nsresult rv = mDocument->AppendChildTo(mDocElement, PR_TRUE);
   if (NS_FAILED(rv)) {
     // If we return PR_FALSE here, the caller will bail out because it won't
     // find a parent content node to append to, which is fine.

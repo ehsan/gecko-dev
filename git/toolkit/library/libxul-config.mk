@@ -153,6 +153,7 @@ COMPONENT_LIBS += \
 	toolkitcomps \
 	pipboot \
 	pipnss \
+	mozfind \
 	appcomps \
 	$(NULL)
 
@@ -243,6 +244,7 @@ ifdef MOZ_RDF
 COMPONENT_LIBS += \
 	rdf \
 	windowds \
+	intlapp \
 	$(NULL)
 endif
 
@@ -305,7 +307,7 @@ DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
 
-STATIC_LIBS += thebes ycbcr
+STATIC_LIBS += thebes layers ycbcr
 COMPONENT_LIBS += gkgfxthebes
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))

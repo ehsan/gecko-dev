@@ -255,7 +255,8 @@ nsFileUploadContentStream::AsyncWait(nsIInputStreamCallback *callback,
 
   if (IsNonBlocking()) {
     nsCOMPtr<nsIRunnable> callback =
-      NS_NewRunnableMethod(this, &nsFileUploadContentStream::OnCopyComplete);
+        NS_NEW_RUNNABLE_METHOD(nsFileUploadContentStream, this,
+                               OnCopyComplete);
     mCopyEvent->Dispatch(callback, mSink, target);
   }
 

@@ -375,13 +375,13 @@ nsDOMAttribute::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 NS_IMETHODIMP
 nsDOMAttribute::InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild, nsIDOMNode** aReturn)
 {
-  return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -393,7 +393,7 @@ nsDOMAttribute::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDOMAttribute::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 {
-  return InsertBefore(aNewChild, nsnull, aReturn);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult
@@ -842,10 +842,7 @@ nsDOMAttribute::EnsureChildState(PRBool aSetText, PRBool &aHasChild) const
   aHasChild = !value.IsEmpty();
 
   if (aSetText && aHasChild) {
-    // aNotify should probably be PR_TRUE sometimes, but it's unlikely that
-    // anyone cares. And we aren't updating the node when the attribute changes
-    // anyway so any notifications are way late.
-    mChild->SetText(value, PR_FALSE);
+    mChild->SetText(value, PR_TRUE);
   }
 
   return NS_OK;

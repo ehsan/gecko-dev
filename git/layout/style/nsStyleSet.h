@@ -97,8 +97,7 @@ class nsStyleSet
 
   // get a style context for a non-pseudo frame.
   already_AddRefed<nsStyleContext>
-  ResolveStyleFor(mozilla::dom::Element* aElement,
-                  nsStyleContext* aParentContext);
+  ResolveStyleFor(nsIContent* aContent, nsStyleContext* aParentContext);
 
   // Get a style context (with the given parent) for the
   // sequence of style rules in the |aRules| array.
@@ -123,11 +122,11 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleForNonElement(nsStyleContext* aParentContext);
 
-  // Get a style context for a pseudo-element.  aParentElement must be
+  // Get a style context for a pseudo-element.  aParentContent must be
   // non-null.  aPseudoID is the nsCSSPseudoElements::Type for the
   // pseudo-element.
   already_AddRefed<nsStyleContext>
-  ResolvePseudoElementStyle(mozilla::dom::Element* aParentElement,
+  ResolvePseudoElementStyle(nsIContent* aParentContent,
                             nsCSSPseudoElements::Type aType,
                             nsStyleContext* aParentContext);
 
@@ -135,7 +134,7 @@ class nsStyleSet
   // return nsnull if there are no explicit style rules for that
   // pseudo element.
   already_AddRefed<nsStyleContext>
-  ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
+  ProbePseudoElementStyle(nsIContent* aParentContent,
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext);
   
@@ -149,7 +148,7 @@ class nsStyleSet
   // pseudo-tag to use and must be non-null.  aParentContent must be
   // non-null.  aComparator must be non-null.
   already_AddRefed<nsStyleContext>
-  ResolveXULTreePseudoStyle(mozilla::dom::Element* aParentElement,
+  ResolveXULTreePseudoStyle(nsIContent* aParentContent,
                             nsIAtom* aPseudoTag,
                             nsStyleContext* aParentContext,
                             nsICSSPseudoComparator* aComparator);

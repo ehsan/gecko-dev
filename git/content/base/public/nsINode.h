@@ -66,12 +66,6 @@ class nsNodeWeakReference;
 class nsNodeSupportsWeakRefTearoff;
 class nsIEditor;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 enum {
   // This bit will be set if the node doesn't have nsSlots
   NODE_DOESNT_HAVE_SLOTS =       0x00000001U,
@@ -160,11 +154,8 @@ enum {
   // node(s) with NODE_NEEDS_FRAME and the root content.
   NODE_DESCENDANTS_NEED_FRAMES = 0x00100000U,
 
-  // Set if the node is an element.
-  NODE_IS_ELEMENT              = 0x00200000U,
-
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               22,
+  NODE_SCRIPT_TYPE_OFFSET =               21,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -307,25 +298,27 @@ public:
     eDOCUMENT            = 1 << 1,
     /** nsIAttribute nodes */
     eATTRIBUTE           = 1 << 2,
+    /** elements */
+    eELEMENT             = 1 << 3,
     /** text nodes */
-    eTEXT                = 1 << 3,
+    eTEXT                = 1 << 4,
     /** xml processing instructions */
-    ePROCESSING_INSTRUCTION = 1 << 4,
+    ePROCESSING_INSTRUCTION = 1 << 5,
     /** comment nodes */
-    eCOMMENT             = 1 << 5,
+    eCOMMENT             = 1 << 6,
     /** form control elements */
-    eHTML_FORM_CONTROL   = 1 << 6,
+    eHTML_FORM_CONTROL   = 1 << 7,
     /** svg elements */
-    eSVG                 = 1 << 7,
+    eSVG                 = 1 << 8,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 8,
+    eDOCUMENT_FRAGMENT   = 1 << 9,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 19,
+    eDATA_NODE           = 1 << 10,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 10,
+    eMEDIA               = 1 << 11,
     /** animation elements */
-    eANIMATION           = 1 << 11
+    eANIMATION           = 1 << 12
   };
 
   /**
@@ -337,19 +330,6 @@ public:
    * @return whether the content matches ALL flags passed in
    */
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const = 0;
-
-  /**
-   * Return whether the node is an Element node
-   */
-  PRBool IsElement() const {
-    return HasFlag(NODE_IS_ELEMENT);
-  }
-
-  /**
-   * Return this node as an Element.  Should only be used for nodes
-   * for which IsElement() is true.
-   */
-  mozilla::dom::Element* AsElement();
 
   /**
    * Get the number of children
@@ -440,10 +420,6 @@ public:
       return NS_ERROR_NULL_POINTER;
     }
 
-    if (IsNodeOfType(eDATA_NODE)) {
-      return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
-    }
-
     PRInt32 index = IndexOf(aOldChild);
     if (index == -1) {
       // aOldChild isn't one of our children.
@@ -467,7 +443,7 @@ public:
    * @throws NS_ERROR_DOM_HIERARCHY_REQUEST_ERR if one attempts to have more
    * than one element node as a child of a document.  Doing this will also
    * assert -- you shouldn't be doing it!  Check with
-   * nsIDocument::GetRootElement() first if you're not sure.  Apart from this
+   * nsIDocument::GetRootContent() first if you're not sure.  Apart from this
    * one constraint, this doesn't do any checking on whether aKid is a valid
    * child of |this|.
    *
@@ -488,7 +464,7 @@ public:
    * @throws NS_ERROR_DOM_HIERARCHY_REQUEST_ERR if one attempts to have more
    * than one element node as a child of a document.  Doing this will also
    * assert -- you shouldn't be doing it!  Check with
-   * nsIDocument::GetRootElement() first if you're not sure.  Apart from this
+   * nsIDocument::GetRootContent() first if you're not sure.  Apart from this
    * one constraint, this doesn't do any checking on whether aKid is a valid
    * child of |this|.
    *

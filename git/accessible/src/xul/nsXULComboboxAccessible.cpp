@@ -40,10 +40,9 @@
 
 #include "nsXULComboboxAccessible.h"
 
-#include "nsAccessibilityService.h"
-
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
+#include "nsServiceManagerUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULComboboxAccessible

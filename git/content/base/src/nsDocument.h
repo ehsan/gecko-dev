@@ -164,8 +164,8 @@ public:
 
   void SetInvalidName();
   PRBool IsInvalidName();
-  void AddNameElement(mozilla::dom::Element* aElement);
-  void RemoveNameElement(mozilla::dom::Element* aElement);
+  void AddNameContent(nsIContent* aContent);
+  void RemoveNameContent(nsIContent* aContent);
   PRBool HasNameContentList() {
     return mNameContentList != nsnull;
   }
@@ -178,7 +178,7 @@ public:
    * Returns the element if we know the element associated with this
    * id. Otherwise returns null.
    */
-  mozilla::dom::Element* GetIdElement();
+  nsIContent* GetIdContent();
   /**
    * Append all the elements with this id to aElements
    */
@@ -188,12 +188,12 @@ public:
    * @return true if the content could be added, false if we failed due
    * to OOM.
    */
-  PRBool AddIdElement(mozilla::dom::Element* aElement);
+  PRBool AddIdContent(nsIContent* aContent);
   /**
    * This can fire ID change callbacks.
    * @return true if this map entry should be removed
    */
-  PRBool RemoveIdElement(mozilla::dom::Element* aElement);
+  PRBool RemoveIdContent(nsIContent* aContent);
 
   PRBool HasContentChangeCallback() { return mChangeCallbacks != nsnull; }
   void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
@@ -236,14 +236,12 @@ public:
   };
 
 private:
-  void FireChangeCallbacks(mozilla::dom::Element* aOldElement,
-                           mozilla::dom::Element* aNewElement);
+  void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
-  // empty if there are no elementswith this ID.
-  // The elementsnodes are stored addrefed.
+  // empty if there are no nodes with this ID.
+  // The content nodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
-  // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
-  // stores Elements.
+  // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
@@ -591,7 +589,7 @@ public:
                                      nsIDocument* aSubDoc);
   virtual nsIDocument* GetSubDocumentFor(nsIContent *aContent) const;
   virtual nsIContent* FindContentForSubDocument(nsIDocument *aDocument) const;
-  virtual mozilla::dom::Element* GetRootElementInternal() const;
+  virtual nsIContent* GetRootContentInternal() const;
 
   /**
    * Get the style sheets owned by this document.
@@ -650,6 +648,11 @@ public:
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
   virtual nsIScriptGlobalObject* GetScopeObject();
+
+  /**
+   * Return the window containing the document (the outer window).
+   */
+  virtual nsPIDOMWindow *GetWindow();
 
   /**
    * Get the script loader for this document
@@ -941,17 +944,14 @@ public:
 
   virtual void RegisterFileDataUri(nsACString& aUri);
 
-  // Only BlockOnload should call this!
-  void AsyncBlockOnload();
-
 protected:
   friend class nsNodeUtils;
   void RegisterNamedItems(nsIContent *aContent);
   void UnregisterNamedItems(nsIContent *aContent);
-  void UpdateNameTableEntry(mozilla::dom::Element *aElement);
-  void UpdateIdTableEntry(mozilla::dom::Element *aElement);
-  void RemoveFromNameTable(mozilla::dom::Element *aElement);
-  void RemoveFromIdTable(mozilla::dom::Element *aElement);
+  void UpdateNameTableEntry(nsIContent *aContent);
+  void UpdateIdTableEntry(nsIContent *aContent);
+  void RemoveFromNameTable(nsIContent *aContent);
+  void RemoveFromIdTable(nsIContent *aContent);
 
   /**
    * Check that aId is not empty and log a message to the console
@@ -1008,7 +1008,6 @@ protected:
                               const nsAString& aType,
                               PRBool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
 
   // nsContentList match functions for GetElementsByClassName
@@ -1175,10 +1174,7 @@ private:
   // 2)  We haven't had Destroy() called on us yet.
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
 
-  // Currently active onload blockers
   PRUint32 mOnloadBlockCount;
-  // Onload blockers which haven't been activated yet
-  PRUint32 mAsyncOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
   ReadyState mReadyState;
 
@@ -1198,7 +1194,7 @@ private:
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
   nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
-  nsRevocableEventPtr<nsRunnableMethod<nsDocument, void, false> >
+  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsDocument> >
     mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;

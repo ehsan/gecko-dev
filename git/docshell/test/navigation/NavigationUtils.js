@@ -208,11 +208,7 @@ function xpcWaitForFinishedFrames(callback, numFrames) {
   }
 
   function searchForFinishedFrames(win) {
-    if (escape(unescape(win.location)) == escape(target_url) && 
-        win.document && 
-        win.document.body && 
-        win.document.body.textContent == body && 
-        win.document.readyState == "complete") {
+    if (escape(unescape(win.location)) == escape(target_url)) {
       if (!contains(win, finishedWindows)) {
         finishedWindows.push(win);
         frameFinished();

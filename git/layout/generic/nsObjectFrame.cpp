@@ -1263,8 +1263,7 @@ nsObjectFrame::SetAbsoluteScreenPosition(nsIDOMElement* element,
 
 nsresult
 nsObjectFrame::PluginEventNotifier::Run() {
-  nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obsSvc = do_GetService("@mozilla.org/observer-service;1");
   obsSvc->NotifyObservers(nsnull, "plugin-changed-event", mEventType.get());
   return NS_OK;
 }
@@ -4397,29 +4396,27 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       EventRecord synthCarbonEvent;
 #endif
       NPCocoaEvent synthCocoaEvent;
+
       void* event = anEvent.pluginEvent;
-      nsPoint pt =
-        nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame) -
-        mObjectFrame->GetUsedBorderAndPadding().TopLeft();
-      nsPresContext* presContext = mObjectFrame->PresContext();
-      nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
-                      presContext->AppUnitsToDevPixels(pt.y));
-#ifndef NP_NO_CARBON
-      nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-      Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
-      if (eventModel == NPEventModelCarbon) {
-        if (event && anEvent.eventStructType == NS_MOUSE_EVENT) {
-          static_cast<EventRecord*>(event)->where = carbonPt;
-        }
-      }
-#endif
+
       if (!event) {
+        nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame)
+          - mObjectFrame->GetUsedBorderAndPadding().TopLeft();
+        nsPresContext* presContext = mObjectFrame->PresContext();
+        nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
+                        presContext->AppUnitsToDevPixels(pt.y));
+
 #ifndef NP_NO_CARBON
         if (eventModel == NPEventModelCarbon) {
+          nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+          Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
+
+          event = &synthCarbonEvent;
           InitializeEventRecord(&synthCarbonEvent, &carbonPt);
         } else
 #endif
         {
+          event = &synthCocoaEvent;
           InitializeNPCocoaEvent(&synthCocoaEvent);
         }
 
@@ -4430,44 +4427,45 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = (anEvent.message == NS_FOCUS_CONTENT) ?
             NPEventType_GetFocusEvent : NPEventType_LoseFocusEvent;
-            event = &synthCarbonEvent;
-          }
+          } else
 #endif
+          {
+            synthCocoaEvent.type = NPCocoaEventFocusChanged;
+            synthCocoaEvent.data.focus.hasFocus = (anEvent.message == NS_FOCUS_CONTENT);
+          }
           break;
         case NS_MOUSE_MOVE:
           {
             // Ignore mouse-moved events that happen as part of a dragging
             // operation that started over another frame.  See bug 525078.
             nsCOMPtr<nsFrameSelection> frameselection = mObjectFrame->GetFrameSelection();
-            if (!frameselection->GetMouseDownState() ||
-                (nsIPresShell::GetCapturingContent() == mObjectFrame->GetContent())) {
-#ifndef NP_NO_CARBON
-              if (eventModel == NPEventModelCarbon) {
-                synthCarbonEvent.what = osEvt;
-                event = &synthCarbonEvent;
-              } else
-#endif
-              {
-                synthCocoaEvent.type = NPCocoaEventMouseMoved;
-                synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
-                synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-                event = &synthCocoaEvent;
-              }
+            if (frameselection->GetMouseDownState() &&
+                (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
+              pluginWidget->EndDrawPlugin();
+              return nsEventStatus_eIgnore;
             }
+          }
+#ifndef NP_NO_CARBON
+          if (eventModel == NPEventModelCarbon) {
+            synthCarbonEvent.what = osEvt;
+          } else
+#endif
+          {
+            synthCocoaEvent.type = NPCocoaEventMouseMoved;
+            synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
+            synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         case NS_MOUSE_BUTTON_DOWN:
 #ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = mouseDown;
-            event = &synthCarbonEvent;
           } else
 #endif
           {
             synthCocoaEvent.type = NPCocoaEventMouseDown;
             synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
             synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-            event = &synthCocoaEvent;
           }
           break;
         case NS_MOUSE_BUTTON_UP:
@@ -4477,33 +4475,31 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           // See bug 525078.
           if ((static_cast<const nsMouseEvent&>(anEvent).button == nsMouseEvent::eLeftButton) &&
               (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
-            if (eventModel == NPEventModelCocoa) {
+#ifndef NP_NO_CARBON
+            if (eventModel == NPEventModelCarbon) {
+              pluginWidget->EndDrawPlugin();
+              return nsEventStatus_eIgnore;
+            } else
+#endif
+            {
               synthCocoaEvent.type = NPCocoaEventMouseEntered;
               synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
               synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-              event = &synthCocoaEvent;
             }
           } else {
 #ifndef NP_NO_CARBON
             if (eventModel == NPEventModelCarbon) {
               synthCarbonEvent.what = mouseUp;
-              event = &synthCarbonEvent;
             } else
 #endif
             {
               synthCocoaEvent.type = NPCocoaEventMouseUp;
               synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
               synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-              event = &synthCocoaEvent;
             }
           }
           break;
         default:
-          break;
-        }
-        
-        // If we still don't have an event, bail.
-        if (!event) {
           pluginWidget->EndDrawPlugin();
           return nsEventStatus_eIgnore;
         }

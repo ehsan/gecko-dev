@@ -514,7 +514,13 @@ nsSVGPathElement::DidModifySVGObservable(nsISVGValue* observable,
 already_AddRefed<gfxFlattenedPath>
 nsSVGPathElement::GetFlattenedPath(const gfxMatrix &aMatrix)
 {
-  return mPathData.GetFlattenedPath(aMatrix);
+  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
+
+  ctx.SetMatrix(aMatrix);
+  mPathData.Playback(&ctx);
+  ctx.IdentityMatrix();
+
+  return ctx.GetFlattenedPath();
 }
 
 //----------------------------------------------------------------------
@@ -986,11 +992,7 @@ nsSVGPathElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
     aMarks->ElementAt(aMarks->Length() - 1).angle = prevAngle;
 }
 
-void
-nsSVGPathElement::ConstructPath(gfxContext *aCtx)
-{
-  mPathData.Playback(aCtx);
-}
+
 
 //==================================================================
 // nsSVGPathList
@@ -1038,14 +1040,8 @@ nsSVGPathList::Playback(gfxContext *aCtx)
   }
 }
 
-already_AddRefed<gfxFlattenedPath>
-nsSVGPathList::GetFlattenedPath(const gfxMatrix& aMatrix)
+void
+nsSVGPathElement::ConstructPath(gfxContext *aCtx)
 {
-  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
-
-  ctx.SetMatrix(aMatrix);
-  Playback(&ctx);
-  ctx.IdentityMatrix();
-
-  return ctx.GetFlattenedPath();
+  mPathData.Playback(aCtx);
 }

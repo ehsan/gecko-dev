@@ -71,7 +71,7 @@
 #include "nsIDOMProgressEvent.h"
 #include "nsHTMLMediaError.h"
 #include "nsICategoryManager.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "nsCommaSeparatedTokenizer.h"
 #include "nsMediaStream.h"
 
 #include "nsIDOMHTMLVideoElement.h"
@@ -1320,7 +1320,7 @@ static CanPlayStatus GetCanPlay(const nsAString& aType)
   CanPlayStatus result = CANPLAY_YES;
   // See http://www.rfc-editor.org/rfc/rfc4281.txt for the description
   // of the 'codecs' parameter
-  nsCharSeparatedTokenizer tokenizer(codecs, ',');
+  nsCommaSeparatedTokenizer tokenizer(codecs);
   PRBool expectMoreTokens = PR_FALSE;
   while (tokenizer.hasMoreTokens()) {
     const nsSubstring& token = tokenizer.nextToken();
@@ -1329,7 +1329,7 @@ static CanPlayStatus GetCanPlay(const nsAString& aType)
       // Totally unsupported codec
       return CANPLAY_NO;
     }
-    expectMoreTokens = tokenizer.lastTokenEndedWithSeparator();
+    expectMoreTokens = tokenizer.lastTokenEndedWithComma();
   }
   if (expectMoreTokens) {
     // Last codec name was empty
@@ -2023,7 +2023,7 @@ void nsHTMLMediaElement::AddRemoveSelfReference()
       // Dispatch Release asynchronously so that we don't destroy this object
       // inside a call stack of method calls on this object
       nsCOMPtr<nsIRunnable> event =
-        NS_NewRunnableMethod(this, &nsHTMLMediaElement::DoRemoveSelfReference);
+        NS_NEW_RUNNABLE_METHOD(nsHTMLMediaElement, this, DoRemoveSelfReference);
       NS_DispatchToMainThread(event);
     }
   }
@@ -2049,7 +2049,7 @@ nsresult nsHTMLMediaElement::Observe(nsISupports* aSubject,
 PRBool
 nsHTMLMediaElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eMEDIA));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eMEDIA));
 }
 
 void nsHTMLMediaElement::NotifyAddedSource()

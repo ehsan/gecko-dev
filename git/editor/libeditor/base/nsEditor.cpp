@@ -68,7 +68,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsIEnumerator.h"
-#include "nsEditProperty.h"
 #include "nsIAtom.h"
 #include "nsCaret.h"
 #include "nsIWidget.h"
@@ -1207,10 +1206,9 @@ NS_IMETHODIMP
 nsEditor::MarkNodeDirty(nsIDOMNode* aNode)
 {  
   //  mark the node dirty.
-  nsCOMPtr<nsIContent> element (do_QueryInterface(aNode));
+  nsCOMPtr<nsIDOMElement> element (do_QueryInterface(aNode));
   if (element)
-    element->SetAttr(kNameSpaceID_None, nsEditProperty::mozdirty,
-                     EmptyString(), PR_FALSE);
+    element->SetAttribute(NS_LITERAL_STRING("_moz_dirty"), EmptyString());
   return NS_OK;
 }
 
@@ -3499,7 +3497,7 @@ PRBool
 nsEditor::IsBlockNode(nsIDOMNode *aNode)
 {
   // stub to be overridden in nsHTMLEditor.
-  // screwing around with the class hierarchy here in order
+  // screwing around with the class heirarchy here in order
   // to not duplicate the code in GetNextNode/GetPrevNode
   // across both nsEditor/nsHTMLEditor.  
   return PR_FALSE;
@@ -3608,7 +3606,7 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
     if (!resultFrame)   // if it has no frame, it is not editable
       return PR_FALSE;
     NS_ASSERTION(content->IsNodeOfType(nsINode::eTEXT) ||
-                 content->IsElement(),
+                 content->IsNodeOfType(nsINode::eELEMENT),
                  "frame for non element-or-text?");
     if (!content->IsNodeOfType(nsINode::eTEXT))
       return PR_TRUE;  // not a text node; has a frame
@@ -3635,10 +3633,20 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
 PRBool
 nsEditor::IsMozEditorBogusNode(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsIContent> element = do_QueryInterface(aNode);
-  return element &&
-         element->AttrValueIs(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                              kMOZEditorBogusNodeValue, eCaseMatters);
+  if (!aNode)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMElement>element = do_QueryInterface(aNode);
+  if (element)
+  {
+    nsAutoString val;
+    (void)element->GetAttribute(kMOZEditorBogusNodeAttr, val);
+    if (val.Equals(kMOZEditorBogusNodeValue)) {
+      return PR_TRUE;
+    }
+  }
+    
+  return PR_FALSE;
 }
 
 nsresult

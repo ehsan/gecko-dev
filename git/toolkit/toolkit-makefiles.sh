@@ -324,12 +324,37 @@ MAKEFILES_libtheora="
   media/libtheora/include/theora/Makefile
 "
 
+MAKEFILES_liboggz="
+  media/liboggz/Makefile
+  media/liboggz/src/Makefile
+  media/liboggz/src/liboggz/Makefile
+  media/liboggz/include/Makefile
+  media/liboggz/include/oggz/Makefile
+"
+
 MAKEFILES_libogg="
   media/libogg/Makefile
   media/libogg/src/Makefile
   media/libogg/include/Makefile
   media/libogg/include/ogg/Makefile
 "
+
+MAKEFILES_libfishsound="
+  media/libfishsound/Makefile
+  media/libfishsound/src/Makefile
+  media/libfishsound/src/libfishsound/Makefile
+  media/libfishsound/include/Makefile
+  media/libfishsound/include/fishsound/Makefile
+"
+
+MAKEFILES_liboggplay="
+  media/liboggplay/Makefile
+  media/liboggplay/src/Makefile
+  media/liboggplay/src/liboggplay/Makefile
+  media/liboggplay/include/Makefile
+  media/liboggplay/include/oggplay/Makefile
+"
+
 MAKEFILES_libsydneyaudio="
   media/libsydneyaudio/Makefile
   media/libsydneyaudio/include/Makefile
@@ -565,6 +590,10 @@ MAKEFILES_xpfe="
   toolkit/components/remote/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
+  xpfe/components/find/Makefile
+  xpfe/components/find/public/Makefile
+  xpfe/components/find/src/Makefile
+  xpfe/components/intl/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
@@ -672,11 +701,7 @@ MAKEFILES_xulapp="
   toolkit/components/filepicker/Makefile
   toolkit/components/filepicker/public/Makefile
   toolkit/components/filepicker/src/Makefile
-  toolkit/components/find/Makefile
-  toolkit/components/find/public/Makefile
-  toolkit/components/find/src/Makefile
   toolkit/components/help/Makefile
-  toolkit/components/intl/Makefile
   toolkit/components/microformats/Makefile
   toolkit/components/microformats/src/Makefile
   toolkit/components/parentalcontrols/Makefile
@@ -1238,7 +1263,10 @@ if [ "$MOZ_OGG" ]; then
  add_makefiles "
    $MAKEFILES_libvorbis
    $MAKEFILES_libtheora
+   $MAKEFILES_liboggz
    $MAKEFILES_libogg
+   $MAKEFILES_libfishsound
+   $MAKEFILES_liboggplay
    content/media/ogg/Makefile
  "
 fi

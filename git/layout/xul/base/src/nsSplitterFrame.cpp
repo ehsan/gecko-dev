@@ -338,7 +338,7 @@ nsSplitterFrame::Init(nsIContent*      aContent,
                           NS_LITERAL_STRING("vertical"), PR_FALSE);
         nsStyleContext* parentStyleContext = GetStyleContext()->GetParent();
         nsRefPtr<nsStyleContext> newContext = PresContext()->StyleSet()->
-          ResolveStyleFor(aContent->AsElement(), parentStyleContext);
+          ResolveStyleFor(aContent, parentStyleContext);
         SetStyleContextWithoutNotification(newContext);
       }
     }

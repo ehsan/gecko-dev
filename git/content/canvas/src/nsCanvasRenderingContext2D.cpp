@@ -2021,8 +2021,8 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     if (content && content->IsInDoc()) {
         // inherit from the canvas element
-        parentContext = nsComputedDOMStyle::GetStyleContextForElement(
-                content->AsElement(),
+        parentContext = nsComputedDOMStyle::GetStyleContextForContent(
+                content,
                 nsnull,
                 presShell);
     } else {
@@ -2372,7 +2372,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (content && content->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
-            nsComputedDOMStyle::GetStyleContextForElement(content->AsElement(),
+            nsComputedDOMStyle::GetStyleContextForContent(content,
                                                           nsnull,
                                                           presShell);
         if (!canvasStyle)

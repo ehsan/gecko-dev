@@ -53,7 +53,6 @@
 #include "nsIGenericFactory.h"
 #include "nsIObserverService.h"
 #include "nsIDOMKeyEvent.h"
-#include "mozilla/Services.h"
 
 static const char *kAutoCompleteSearchCID = "@mozilla.org/autocomplete/search;1?name=";
 
@@ -1134,7 +1133,7 @@ nsAutoCompleteController::EnterMatch(PRBool aIsPopupSelection)
   }
 
   nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_STATE(obsSvc);
   obsSvc->NotifyObservers(input, "autocomplete-will-enter-text", nsnull);
 
@@ -1170,7 +1169,7 @@ nsAutoCompleteController::RevertTextValue()
 
   if (!cancel) {
     nsCOMPtr<nsIObserverService> obsSvc =
-      mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
     NS_ENSURE_STATE(obsSvc);
     obsSvc->NotifyObservers(input, "autocomplete-will-revert-text", nsnull);
 

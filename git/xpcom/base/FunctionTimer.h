@@ -144,36 +144,18 @@ public:
     static int ft_vsnprintf(char *str, int maxlen, const char *fmt, va_list args);
     static int ft_snprintf(char *str, int maxlen, const char *fmt, ...);
 
-    static void LogMessage(const char *s, ...) {
-        va_list ap;
-        va_start(ap, s);
-
-        if (sLog) {
-            ft_vsnprintf(sBuf1, sBufSize, s, ap);
-            sLog->LogString(sBuf1);
-        }
-
-        va_end(ap);
-    }
-
 public:
     inline void TimeInit() {
-        if (sLog) {
-            mStart = TimeStamp::Now();
-            mLastMark = mStart;
-        }
+        mStart = TimeStamp::Now();
+        mLastMark = mStart;
     }
 
     inline double Elapsed() {
-        if (sLog)
-            return (TimeStamp::Now() - mStart).ToSeconds() * 1000.0;
-        return 0.0;
+        return (TimeStamp::Now() - mStart).ToSeconds() * 1000.0;
     }
 
     inline double ElapsedSinceMark() {
-        if (sLog)
-            return (TimeStamp::Now() - mLastMark).ToSeconds() * 1000.0;
-        return 0.0;
+        return (TimeStamp::Now() - mLastMark).ToSeconds() * 1000.0;
     }
 
     FunctionTimer(double minms, const char *s, ...)
@@ -214,33 +196,29 @@ public:
         va_list ap;
         va_start(ap, s);
 
-        if (sLog) {
-            ft_vsnprintf(sBuf1, sBufSize, s, ap);
+        ft_vsnprintf(sBuf1, sBufSize, s, ap);
 
-            TimeStamp now(TimeStamp::Now());
-            double ms = (now - mStart).ToSeconds() * 1000.0;
-            double msl = (now - mLastMark).ToSeconds() * 1000.0;
-            mLastMark = now;
+        TimeStamp now(TimeStamp::Now());
+        double ms = (now - mStart).ToSeconds() * 1000.0;
+        double msl = (now - mLastMark).ToSeconds() * 1000.0;
+        mLastMark = now;
 
-            if (msl > mMinMs) {
-                ft_snprintf(sBuf2, sBufSize, "%s- %9.2f ms (%9.2f ms total) - %s [%s]", mMinMs < 0.0 ? "" : "*", msl, ms, mString, sBuf1);
-                sLog->LogString(sBuf2);
-            }
+        if (msl > mMinMs) {
+            ft_snprintf(sBuf2, sBufSize, "%s- %5.2f ms (%5.2f ms total) - %s [%s]", mMinMs < 0.0 ? "" : "*", msl, ms, mString, sBuf1);
+            sLog->LogString(sBuf2);
         }
 
         va_end(ap);
     }
 
     ~FunctionTimer() {
-        if (sLog) {
-            TimeStamp now(TimeStamp::Now());
-            double ms = (now - mStart).ToSeconds() * 1000.0;
-            double msl = (now - mLastMark).ToSeconds() * 1000.0;
+        TimeStamp now(TimeStamp::Now());
+        double ms = (now - mStart).ToSeconds() * 1000.0;
+        double msl = (now - mLastMark).ToSeconds() * 1000.0;
 
-            if (mMinMs < 0.0 || (mMinMs >= 0.0 && msl > mMinMs)) {
-                ft_snprintf(sBuf1, sBufSize, "%s %9.2f ms (%9.2f ms total) - %s", mMinMs < 0.0 ? "<" : "*", msl, ms, mString);
-                sLog->LogString(sBuf1);
-            }
+        if (mMinMs < 0.0 || (mMinMs >= 0.0 && msl > mMinMs)) {
+            ft_snprintf(sBuf1, sBufSize, "%s %5.2f ms (%5.2f ms total) - %s", mMinMs < 0.0 ? "<" : "*", msl, ms, mString);
+            sLog->LogString(sBuf1);
         }
     }
 

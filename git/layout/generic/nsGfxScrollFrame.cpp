@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -80,9 +80,6 @@
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
 #include "nsIPrefService.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 
@@ -1816,7 +1813,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
                "curPos.y not a multiple of device pixels");
 
   // notify the listeners.
-  for (PRUint32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->ScrollPositionWillChange(pt.x, pt.y);
   }
   
@@ -1831,7 +1828,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   PostScrollEvent();
 
   // notify the listeners.
-  for (PRUint32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->ScrollPositionDidChange(pt.x, pt.y);
   }
 }
@@ -2690,14 +2687,14 @@ nsGfxScrollFrameInner::IsLTR() const
     // If we're the root scrollframe, we need the root element's style data.
     nsPresContext *presContext = mOuter->PresContext();
     nsIDocument *document = presContext->Document();
-    Element *root = document->GetRootElement();
+    nsIContent *root = document->GetRootContent();
 
-    // But for HTML and XHTML we want the body element.
+    // But for HTML we want the body element.
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
     if (htmlDoc) {
-      Element *bodyElement = document->GetBodyElement();
-      if (bodyElement)
-        root = bodyElement; // we can trust the document to hold on to it
+      nsIContent *bodyContent = htmlDoc->GetBodyContentExternal();
+      if (bodyContent)
+        root = bodyContent; // we can trust the document to hold on to it
     }
 
     if (root) {

@@ -869,8 +869,8 @@ RangeSubtreeIterator::Init(nsIDOMRange *aRange)
     PRInt32 startIndex;
     aRange->GetStartOffset(&startIndex);
     nsCOMPtr<nsINode> iNode = do_QueryInterface(node);
-    if (iNode->IsElement() && 
-        PRInt32(iNode->AsElement()->GetChildCount()) == startIndex) {
+    if (iNode->IsNodeOfType(nsINode::eELEMENT) && 
+        PRInt32(iNode->GetChildCount()) == startIndex) {
       mStart = node;
     }
   }
@@ -889,7 +889,7 @@ RangeSubtreeIterator::Init(nsIDOMRange *aRange)
     PRInt32 endIndex;
     aRange->GetEndOffset(&endIndex);
     nsCOMPtr<nsINode> iNode = do_QueryInterface(node);
-    if (iNode->IsElement() && endIndex == 0) {
+    if (iNode->IsNodeOfType(nsINode::eELEMENT) && endIndex == 0) {
       mEnd = node;
     }
   }
@@ -1345,10 +1345,10 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
     if (!handled && (node == endContainer || node == startContainer))
     {
       nsCOMPtr<nsINode> iNode = do_QueryInterface(node);
-      if (iNode && iNode->IsElement() &&
+      if (iNode && iNode->IsNodeOfType(nsINode::eELEMENT) &&
           ((node == endContainer && endOffset == 0) ||
            (node == startContainer &&
-            PRInt32(iNode->AsElement()->GetChildCount()) == startOffset)))
+            PRInt32(iNode->GetChildCount()) == startOffset)))
       {
         if (retval) {
           nsCOMPtr<nsIDOMNode> clone;
@@ -1624,11 +1624,10 @@ nsresult nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
   {
     nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
     nsCOMPtr<nsINode> iNode = do_QueryInterface(node);
-    PRBool deepClone = !iNode->IsElement() ||
+    PRBool deepClone = !(iNode->IsNodeOfType(nsINode::eELEMENT)) ||
                        (!(iNode == mEndParent && mEndOffset == 0) &&
                         !(iNode == mStartParent &&
-                          mStartOffset ==
-                            PRInt32(iNode->AsElement()->GetChildCount())));
+                          mStartOffset == PRInt32(iNode->GetChildCount())));
 
     // Clone the current subtree!
 
@@ -2072,20 +2071,18 @@ static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
     nsIFrame* relativeTo = nsLayoutUtils::GetContainingBlockForClientRect(textFrame);
     for (nsTextFrame* f = textFrame; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
       PRInt32 fstart = f->GetContentOffset(), fend = f->GetContentEnd();
+      PRBool rtl = f->GetTextRun()->IsRightToLeft();
       if (fend <= aStartOffset || fstart >= aEndOffset)
         continue;
 
-      // overlapping with the offset we want
-      f->EnsureTextRun();
-      NS_ENSURE_TRUE(f->GetTextRun(), NS_ERROR_OUT_OF_MEMORY);
-      PRBool rtl = f->GetTextRun()->IsRightToLeft();
+      //overlaping with the offset we want
       nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
       if (fstart < aStartOffset) {
-        // aStartOffset is within this frame
+        //aStartOffset is within this frame
         ExtractRectFromOffset(f, relativeTo, aStartOffset, &r, rtl);
       }
       if (fend > aEndOffset) {
-        // aEndOffset is in the middle of this frame
+        //aEndOffset is in the middle of this frame
         ExtractRectFromOffset(f, relativeTo, aEndOffset, &r, !rtl);
       }
       aCallback->AddRect(r);

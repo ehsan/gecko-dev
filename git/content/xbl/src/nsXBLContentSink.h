@@ -118,9 +118,7 @@ protected:
                            PRInt32 aNameSpaceID, 
                            nsIAtom* aTagName,
                            PRUint32 aLineNumber);
-
-    PRBool NotifyForDocElement() { return PR_FALSE; }
-
+    
     nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                            nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                            nsIContent** aResult, PRBool* aAppendContent,

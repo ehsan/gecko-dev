@@ -48,7 +48,6 @@
 #include "nsICacheSession.h"
 #include "nsICachingChannel.h"
 #include "nsIContent.h"
-#include "Element.h"
 #include "nsIDocumentLoader.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMWindow.h"
@@ -1851,7 +1850,8 @@ nsOfflineCacheUpdate::ScheduleImplicit()
         if (!uri)
             continue;
 
-        nsCOMPtr<nsIDOMElement> root = do_QueryInterface(doc->GetRootElement());
+        nsIContent* content = doc->GetRootContent();
+        nsCOMPtr<nsIDOMElement> root = do_QueryInterface(content);
         if (!root)
             continue;
 
@@ -2342,6 +2342,8 @@ nsOfflineCacheUpdateService::~nsOfflineCacheUpdateService()
 nsresult
 nsOfflineCacheUpdateService::Init()
 {
+    nsresult rv;
+
 #if defined(PR_LOGGING)
     if (!gOfflineCacheUpdateLog)
         gOfflineCacheUpdateLog = PR_NewLogModule("nsOfflineCacheUpdate");
@@ -2349,13 +2351,12 @@ nsOfflineCacheUpdateService::Init()
 
     // Observe xpcom-shutdown event
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return NS_ERROR_FAILURE;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsresult rv = observerService->AddObserver(this,
-                                               NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                               PR_TRUE);
+    rv = observerService->AddObserver(this,
+                                      NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                      PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     gOfflineCacheUpdateService = this;
@@ -2406,10 +2407,10 @@ nsOfflineCacheUpdateService::Schedule(nsOfflineCacheUpdate *aUpdate)
 
     aUpdate->SetOwner(this);
 
+    nsresult rv;
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return NS_ERROR_FAILURE;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     observerService->NotifyObservers(static_cast<nsIOfflineCacheUpdate*>(aUpdate),
                                      "offline-cache-update-added",
@@ -2465,10 +2466,10 @@ nsOfflineCacheUpdateService::UpdateFinished(nsOfflineCacheUpdate *aUpdate)
     mUpdates.RemoveElementAt(0);
     mUpdateRunning = PR_FALSE;
 
+    nsresult rv;
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (!observerService)
-      return NS_ERROR_FAILURE;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     observerService->NotifyObservers(static_cast<nsIOfflineCacheUpdate*>(aUpdate),
                                      "offline-cache-update-completed",

@@ -44,9 +44,6 @@ TestShmemParent::RecvTake(Shmem& mem, const size_t& expectedSize)
     if (strcmp(mem.get<char>(), "And yourself!"))
         fail("expected message was not written");
 
-    if (!DeallocShmem(mem))
-        fail("DeallocShmem");
-
     Close();
 
     return true;

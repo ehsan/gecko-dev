@@ -108,14 +108,7 @@ pluginInstanceShutdown(InstanceData* instanceData)
   GtkWidget* plug = instanceData->platformData->plug;
   if (plug) {
     instanceData->platformData->plug = 0;
-    if (instanceData->cleanupWidget) {
-      // Default/tidy behavior
-      gtk_widget_destroy(plug);
-    } else {
-      // Flash Player style: let the GtkPlug destroy itself on disconnect.
-      g_signal_handlers_disconnect_matched(plug, G_SIGNAL_MATCH_DATA, 0, 0,
-                                           NULL, NULL, instanceData);
-    }
+    gtk_widget_destroy(plug);
   }
 
   NPN_MemFree(instanceData->platformData);
@@ -291,10 +284,6 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 
   /* create a GtkPlug container */
   GtkWidget* plug = gtk_plug_new(nativeWinId);
-
-  // Test for bugs 539138 and 561308
-  if (!plug->window)
-    g_error("Plug has no window"); // aborts
 
   /* make sure the widget is capable of receiving focus */
   GTK_WIDGET_SET_FLAGS (GTK_WIDGET(plug), GTK_CAN_FOCUS);

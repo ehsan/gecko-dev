@@ -58,7 +58,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
-#include "Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsStubDocumentObserver.h"
@@ -211,7 +210,6 @@
 static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
 CapturingContentInfo nsIPresShell::gCaptureInfo;
@@ -1649,7 +1647,8 @@ PresShell::Init(nsIDocument* aDocument,
   }
 
   {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os =
+      do_GetService("@mozilla.org/observer-service;1", &result);
     if (os) {
       os->AddObserver(this, "agent-sheet-added", PR_FALSE);
       os->AddObserver(this, "user-sheet-added", PR_FALSE);
@@ -1724,7 +1723,8 @@ PresShell::Destroy()
   }
 
   {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os =
+      do_GetService("@mozilla.org/observer-service;1");
     if (os) {
       os->RemoveObserver(this, "agent-sheet-added");
       os->RemoveObserver(this, "user-sheet-added");
@@ -2487,7 +2487,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  Element *root = mDocument->GetRootElement();
+  nsIContent *root = mDocument->GetRootContent();
 
   if (root) {
     {
@@ -2674,7 +2674,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       }
     } else {
       nsRefPtr<nsRunnableMethod<PresShell> > resizeEvent =
-        NS_NewRunnableMethod(this, &PresShell::FireResizeEvent);
+        NS_NEW_RUNNABLE_METHOD(PresShell, this, FireResizeEvent);
       if (NS_SUCCEEDED(NS_DispatchToCurrentThread(resizeEvent))) {
         mResizeEvent = resizeEvent;
       }
@@ -3237,9 +3237,9 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
     printf("\nPresShell@%p: frame %p needs reflow\n", (void*)this, (void*)aFrame);
     if (VERIFY_REFLOW_REALLY_NOISY_RC & gVerifyReflowFlags) {
       printf("Current content model:\n");
-      Element *rootElement = mDocument->GetRootElement();
-      if (rootElement) {
-        rootElement->List(stdout, 0);
+      nsIContent *rootContent = mDocument->GetRootContent();
+      if (rootContent) {
+        rootContent->List(stdout, 0);
       }
     }
   }  
@@ -4730,9 +4730,9 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
 
   if (mDidInitialReflow &&
       mStyleSet->HasDocumentStateDependentStyle(mPresContext,
-                                                mDocument->GetRootElement(),
+                                                mDocument->GetRootContent(),
                                                 aStateMask)) {
-    mFrameConstructor->PostRestyleEvent(mDocument->GetRootElement(),
+    mFrameConstructor->PostRestyleEvent(mDocument->GetRootContent(),
                                         eRestyle_Self, NS_STYLE_HINT_NONE);
     VERIFY_STYLE_TREE;
   }
@@ -4896,7 +4896,7 @@ nsIPresShell::ReconstructStyleDataInternal()
     mPresContext->RebuildUserFontSet();
   }
 
-  Element* root = mDocument->GetRootElement();
+  nsIContent* root = mDocument->GetRootContent();
   if (!mDidInitialReflow) {
     // Nothing to do here, since we have no frames yet
     return;
@@ -6168,7 +6168,7 @@ PresShell::HandleEvent(nsIView         *aView,
       // still get sent to the window properly if nothing is focused or if a
       // frame goes away while it is focused.
       if (!mCurrentEventContent || !GetCurrentEventFrame())
-        mCurrentEventContent = mDocument->GetRootElement();
+        mCurrentEventContent = mDocument->GetRootContent();
       mCurrentEventFrame = nsnull;
         
       if (!mCurrentEventContent || !GetCurrentEventFrame() ||
@@ -6253,7 +6253,8 @@ PresShell::HandlePositionedEvent(nsIView*       aView,
       //
       // We use weak pointers because during this tight loop, the node
       // will *not* go away.  And this happens on every mousemove.
-      while (targetElement && !targetElement->IsElement()) {
+      while (targetElement &&
+             !targetElement->IsNodeOfType(nsINode::eELEMENT)) {
         targetElement = targetElement->GetParent();
       }
 

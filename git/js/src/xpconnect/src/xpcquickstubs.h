@@ -409,8 +409,8 @@ castNativeFromWrapper(JSContext *cx,
                       JSObject *obj,
                       JSObject *callee,
                       PRUint32 interfaceBit,
-                      nsISupports **pRef,
-                      jsval *pVal,
+                      nsISupports **pThisRef,
+                      jsval *pThisVal,
                       XPCLazyCallContext *lccx,
                       nsresult *rv NS_OUTPARAM)
 {
@@ -434,16 +434,18 @@ castNativeFromWrapper(JSContext *cx,
     }
 
     nsISupports *native;
+    JSObject *thisObj;
     if(wrapper)
     {
         native = wrapper->GetIdentityObject();
-        cur = wrapper->GetFlatJSObject();
+        thisObj = wrapper->GetFlatJSObject();
     }
     else
     {
         native = cur ?
                  static_cast<nsISupports*>(xpc_GetJSPrivate(cur)) :
                  nsnull;
+        thisObj = cur;
     }
 
     *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
@@ -451,22 +453,22 @@ castNativeFromWrapper(JSContext *cx,
     if(!native)
         return nsnull;
 
-    NS_ASSERTION(IS_WRAPPER_CLASS(cur->getClass()), "Not a wrapper?");
+    NS_ASSERTION(IS_WRAPPER_CLASS(thisObj->getClass()), "Not a wrapper?");
 
     XPCNativeScriptableSharedJSClass *clasp =
-      (XPCNativeScriptableSharedJSClass*)cur->getClass();
+      (XPCNativeScriptableSharedJSClass*)thisObj->getClass();
     if(!(clasp->interfacesBitmap & (1 << interfaceBit)))
         return nsnull;
 
-    *pRef = nsnull;
-    *pVal = OBJECT_TO_JSVAL(cur);
+    *pThisRef = nsnull;
+    *pThisVal = OBJECT_TO_JSVAL(thisObj);
 
     if(lccx)
     {
         if(wrapper)
             lccx->SetWrapper(wrapper, tearoff);
         else
-            lccx->SetWrapper(cur);
+            lccx->SetWrapper(obj);
     }
 
     *rv = NS_OK;

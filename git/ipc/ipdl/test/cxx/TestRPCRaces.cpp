@@ -28,8 +28,7 @@ MediateRace(const RPCChannel::Message& parent,
 void
 TestRPCRacesParent::Main()
 {
-    if (!SendStart())
-        fail("sending Start()");
+    SendStart();
 }
 
 bool

@@ -73,7 +73,6 @@
 #include "nsThemeConstants.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsThemeConstants.h"
-#include "Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY
@@ -82,7 +81,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_FRAMEARENA_HELPERS(nsContainerFrame)
 
@@ -455,7 +453,7 @@ IsTopLevelWidget(nsIWidget* aWidget)
   nsWindowType windowType;
   aWidget->GetWindowType(windowType);
   return windowType == eWindowType_toplevel ||
-         windowType == eWindowType_dialog ||
+         windowType == eWindowType_dialog || 
          windowType == eWindowType_sheet;
   // popups aren't toplevel so they're not handled here
 }
@@ -480,8 +478,8 @@ nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
   if (aView != rootView)
     return;
 
-  Element* rootElement = aPresContext->Document()->GetRootElement();
-  if (!rootElement || !rootElement->IsXUL()) {
+  nsIContent* rootContent = aPresContext->Document()->GetRootContent();
+  if (!rootContent || !rootContent->IsXUL()) {
     // Scrollframes use native widgets which don't work well with
     // translucent windows, at least in Windows XP. So if the document
     // has a root scrollrame it's useless to try to make it transparent,
@@ -551,7 +549,7 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
   }
 
   nsIViewManager* vm = aView->GetViewManager();
-
+ 
   if (nsnull == aStyleContext) {
     aStyleContext = aFrame->GetStyleContext();
   }
@@ -606,7 +604,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   NS_PRECONDITION(aType == nsLayoutUtils::MIN_WIDTH ||
                   aType == nsLayoutUtils::PREF_WIDTH, "bad type");
 
-  mozilla::css::Side startSide, endSide;
+  PRUint8 startSide, endSide;
   if (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR) {
     startSide = NS_SIDE_LEFT;
     endSide = NS_SIDE_RIGHT;
@@ -624,7 +622,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // (implemented in bug 328168), the startSide border is always on the
   // first line.
   // This frame is a first-in-flow, but it might have a previous bidi
-  // continuation, in which case that continuation should handle the startSide
+  // continuation, in which case that continuation should handle the startSide 
   // border.
   if (!GetPrevContinuation()) {
     aData->currentLine +=
@@ -648,7 +646,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
         kid->AddInlinePrefWidth(aRenderingContext,
                                 static_cast<InlinePrefWidthData*>(aData));
     }
-
+    
     // After we advance to our next-in-flow, the stored line and line container
     // may no longer be correct. Just forget them.
     aData->line = nsnull;
@@ -656,7 +654,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
 
     lastInFlow = nif;
   }
-
+  
   aData->line = savedLine;
   aData->lineContainer = savedLineContainer;
 
@@ -665,7 +663,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // (implemented in bug 328168), the endSide border is always on the
   // last line.
   // We reached the last-in-flow, but it might have a next bidi
-  // continuation, in which case that continuation should handle
+  // continuation, in which case that continuation should handle 
   // the endSide border.
   if (!lastInFlow->GetNextContinuation()) {
     aData->currentLine +=
@@ -848,7 +846,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // invalidate the overflow area too.
     aKidFrame->Invalidate(aDesiredSize.mOverflowArea);
   }
-
+  
   return aKidFrame->DidReflow(aPresContext, aReflowState, NS_FRAME_REFLOW_FINISHED);
 }
 
@@ -1126,7 +1124,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
-  nsresult rv =
+  nsresult rv = 
 #endif
     StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
