@@ -2039,6 +2039,7 @@ Tab.prototype = {
     }
     ViewportHandler.setMetadataForDocument(this.browser.contentDocument, aMetadata);
     this.updateViewportSize();
+    this.updateViewport(true);
   },
 
   /** Update viewport when the metadata or the window size changes. */
