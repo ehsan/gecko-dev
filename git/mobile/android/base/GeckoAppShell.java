@@ -47,6 +47,7 @@ import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.mozglue.generatorannotations.OptionalGeneratedParameter;
 import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 import org.mozilla.gecko.prompts.PromptService;
+import org.mozilla.gecko.SmsManager;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GeckoRequest;
 import org.mozilla.gecko.util.HardwareUtils;
@@ -59,6 +60,7 @@ import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.DownloadManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -103,7 +105,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
 import android.os.SystemClock;
-import android.os.UserManager;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
@@ -137,6 +138,13 @@ public class GeckoAppShell
 
     private static final Queue<GeckoEvent> PENDING_EVENTS = new ConcurrentLinkedQueue<GeckoEvent>();
     private static final Map<String, String> ALERT_COOKIES = new ConcurrentHashMap<String, String>();
+
+    @SuppressWarnings("serial")
+    private static final List<String> UNKNOWN_MIME_TYPES = new ArrayList<String>(3) {{
+        add("unknown/unknown"); // This will be used as a default mime type for unknown files
+        add("application/unknown");
+        add("application/octet-stream"); // Github uses this for APK files
+    }};
 
     private static volatile boolean locationHighAccuracyEnabled;
 
@@ -197,8 +205,6 @@ public class GeckoAppShell
     public static native void nativeInit();
 
     // helper methods
-    //    public static native void setSurfaceView(GeckoSurfaceView sv);
-    public static native void setLayerClient(Object client);
     public static native void onResume();
     public static void callObserver(String observerKey, String topic, String data) {
         sendEventToGecko(GeckoEvent.createCallObserverEvent(observerKey, topic, data));
@@ -211,7 +217,9 @@ public class GeckoAppShell
     public static native void dispatchMemoryPressure();
 
     public static void registerGlobalExceptionHandler() {
-        systemUncaughtHandler = Thread.getDefaultUncaughtExceptionHandler();
+        if (systemUncaughtHandler == null) {
+            systemUncaughtHandler = Thread.getDefaultUncaughtExceptionHandler();
+        }
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
@@ -301,7 +309,12 @@ public class GeckoAppShell
     private static LayerView sLayerView;
 
     public static void setLayerView(LayerView lv) {
+        if (sLayerView == lv) {
+            return;
+        }
         sLayerView = lv;
+        // Install new Gecko-to-Java editable listener.
+        editableListener = new GeckoEditable();
     }
 
     @RobocopTarget
@@ -327,9 +340,6 @@ public class GeckoAppShell
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
 
-        if (sLayerView != null)
-            GeckoAppShell.setLayerClient(sLayerView.getLayerClientObject());
-
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;
         if (args != null)
@@ -352,13 +362,6 @@ public class GeckoAppShell
         DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
-        ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    geckoLoaded();
-                }
-            });
-
         if (!AppConstants.MOZILLA_OFFICIAL) {
             Log.d(LOGTAG, "GeckoLoader.nativeRun " + combinedArgs);
         }
@@ -367,13 +370,6 @@ public class GeckoAppShell
 
         // Remove pumpMessageLoop() idle handler
         Looper.myQueue().removeIdleHandler(idleHandler);
-    }
-
-    // Called on the UI thread after Gecko loads.
-    private static void geckoLoaded() {
-        GeckoEditable editable = new GeckoEditable();
-        // install the gecko => editable listener
-        editableListener = editable;
     }
 
     static void sendPendingEventsToGecko() {
@@ -450,6 +446,9 @@ public class GeckoAppShell
     // Tell the Gecko event loop that an event is available.
     public static native void notifyGeckoOfEvent(GeckoEvent event);
 
+    // Synchronously notify a Gecko observer; must be called from Gecko thread.
+    public static native void notifyGeckoObservers(String subject, String data);
+
     /*
      *  The Gecko-side API: API methods that Gecko calls
      */
@@ -488,6 +487,9 @@ public class GeckoAppShell
                 SharedPreferences prefs = getSharedPreferences();
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, true);
+
+                // Synchronously write to disk so we know it's done before we
+                // shutdown
                 editor.commit();
             }
         } catch (final Throwable exc) {
@@ -1799,17 +1801,46 @@ public class GeckoAppShell
     }
 
     @WrapElementForJNI
-    public static void scanMedia(String aFile, String aMimeType) {
+    public static void scanMedia(final String aFile, String aMimeType) {
+        String mimeType = aMimeType;
+        if (UNKNOWN_MIME_TYPES.contains(mimeType)) {
+            // If this is a generic undefined mimetype, erase it so that we can try to determine
+            // one from the file extension below.
+            mimeType = "";
+        }
+
         // If the platform didn't give us a mimetype, try to guess one from the filename
-        if (TextUtils.isEmpty(aMimeType)) {
+        if (TextUtils.isEmpty(mimeType)) {
             int extPosition = aFile.lastIndexOf(".");
             if (extPosition > 0 && extPosition < aFile.length() - 1) {
-                aMimeType = getMimeTypeFromExtension(aFile.substring(extPosition+1));
+                mimeType = getMimeTypeFromExtension(aFile.substring(extPosition+1));
             }
         }
 
-        Context context = getContext();
-        GeckoMediaScannerClient.startScan(context, aFile, aMimeType);
+        // addCompletedDownload will throw if it received any null parameters. Use aMimeType or a default
+        // if we still don't have one.
+        if (TextUtils.isEmpty(mimeType)) {
+            if (TextUtils.isEmpty(aMimeType)) {
+                mimeType = UNKNOWN_MIME_TYPES.get(0);
+            } else {
+                mimeType = aMimeType;
+            }
+        }
+
+        if (AppConstants.ANDROID_DOWNLOADS_INTEGRATION) {
+            final File f = new File(aFile);
+            final DownloadManager dm = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            dm.addCompletedDownload(f.getName(),
+                                    f.getName(),
+                                    true, // Media scanner should scan this
+                                    mimeType,
+                                    f.getAbsolutePath(),
+                                    Math.max(0, f.length()),
+                                    false); // Don't show a notification.
+        } else {
+            Context context = getContext();
+            GeckoMediaScannerClient.startScan(context, aFile, mimeType);
+        }
     }
 
     @WrapElementForJNI(stubName = "GetIconForExtensionWrapper")
@@ -2363,7 +2394,7 @@ public class GeckoAppShell
      */
     @WrapElementForJNI(stubName = "SendMessageWrapper")
     public static void sendMessage(String aNumber, String aMessage, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2372,7 +2403,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "GetMessageWrapper")
     public static void getMessage(int aMessageId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2381,7 +2412,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "DeleteMessageWrapper")
     public static void deleteMessage(int aMessageId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2390,7 +2421,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "CreateMessageListWrapper")
     public static void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, String aDelivery, boolean aHasRead, boolean aRead, long aThreadId, boolean aReverse, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2399,7 +2430,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "GetNextMessageInListWrapper")
     public static void getNextMessageInList(int aListId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2408,7 +2439,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI
     public static void clearMessageList(int aListId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2562,39 +2593,6 @@ public class GeckoAppShell
         }
 
         return "DIRECT";
-    }
-
-    @WrapElementForJNI
-    public static boolean isUserRestricted() {
-        if (Versions.preJBMR2) {
-            return false;
-        }
-
-        UserManager mgr = (UserManager)getContext().getSystemService(Context.USER_SERVICE);
-        Bundle restrictions = mgr.getUserRestrictions();
-
-        return !restrictions.isEmpty();
-    }
-
-    @WrapElementForJNI
-    public static String getUserRestrictions() {
-        if (Versions.preJBMR2) {
-            return "{}";
-        }
-
-        JSONObject json = new JSONObject();
-        UserManager mgr = (UserManager)getContext().getSystemService(Context.USER_SERVICE);
-        Bundle restrictions = mgr.getUserRestrictions();
-
-        Set<String> keys = restrictions.keySet();
-        for (String key : keys) {
-            try {
-                json.put(key, restrictions.get(key));
-            } catch (JSONException e) {
-            }
-        }
-
-        return json.toString();
     }
 
     /* Downloads the URI pointed to by a share intent, and alters the intent to point to the locally stored file.

@@ -10,8 +10,8 @@
 
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
-#include "jit/IonSpewer.h"
 #include "jit/JitCompartment.h"
+#include "jit/JitSpewer.h"
 #include "jit/Snapshots.h"
 #include "vm/TraceLogging.h"
 
@@ -75,7 +75,7 @@ uint32_t
 jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
 {
     JSContext *cx = GetJSContextFromJitCode();
-    JS_ASSERT(bailoutInfo);
+    MOZ_ASSERT(bailoutInfo);
 
     // We don't have an exit frame.
     MOZ_ASSERT(IsInRange(FAKE_JIT_TOP_FOR_BAILOUT, 0, 0x1000) &&
@@ -91,16 +91,16 @@ jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
     TraceLogTimestamp(logger, TraceLogger::Bailout);
 
-    IonSpew(IonSpew_Bailouts, "Took bailout! Snapshot offset: %d", iter.snapshotOffset());
+    JitSpew(JitSpew_IonBailouts, "Took bailout! Snapshot offset: %d", iter.snapshotOffset());
 
-    JS_ASSERT(IsBaselineEnabled(cx));
+    MOZ_ASSERT(IsBaselineEnabled(cx));
 
     *bailoutInfo = nullptr;
     uint32_t retval = BailoutIonToBaseline(cx, activation, iter, false, bailoutInfo);
-    JS_ASSERT(retval == BAILOUT_RETURN_OK ||
-              retval == BAILOUT_RETURN_FATAL_ERROR ||
-              retval == BAILOUT_RETURN_OVERRECURSED);
-    JS_ASSERT_IF(retval == BAILOUT_RETURN_OK, *bailoutInfo != nullptr);
+    MOZ_ASSERT(retval == BAILOUT_RETURN_OK ||
+               retval == BAILOUT_RETURN_FATAL_ERROR ||
+               retval == BAILOUT_RETURN_OVERRECURSED);
+    MOZ_ASSERT_IF(retval == BAILOUT_RETURN_OK, *bailoutInfo != nullptr);
 
     if (retval != BAILOUT_RETURN_OK) {
         // If the bailout failed, then bailout trampoline will pop the
@@ -144,19 +144,19 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
     TraceLogTimestamp(logger, TraceLogger::Invalidation);
 
-    IonSpew(IonSpew_Bailouts, "Took invalidation bailout! Snapshot offset: %d", iter.snapshotOffset());
+    JitSpew(JitSpew_IonBailouts, "Took invalidation bailout! Snapshot offset: %d", iter.snapshotOffset());
 
     // Note: the frame size must be computed before we return from this function.
     *frameSizeOut = iter.topFrameSize();
 
-    JS_ASSERT(IsBaselineEnabled(cx));
+    MOZ_ASSERT(IsBaselineEnabled(cx));
 
     *bailoutInfo = nullptr;
     uint32_t retval = BailoutIonToBaseline(cx, activation, iter, true, bailoutInfo);
-    JS_ASSERT(retval == BAILOUT_RETURN_OK ||
-              retval == BAILOUT_RETURN_FATAL_ERROR ||
-              retval == BAILOUT_RETURN_OVERRECURSED);
-    JS_ASSERT_IF(retval == BAILOUT_RETURN_OK, *bailoutInfo != nullptr);
+    MOZ_ASSERT(retval == BAILOUT_RETURN_OK ||
+               retval == BAILOUT_RETURN_FATAL_ERROR ||
+               retval == BAILOUT_RETURN_OVERRECURSED);
+    MOZ_ASSERT_IF(retval == BAILOUT_RETURN_OK, *bailoutInfo != nullptr);
 
     if (retval != BAILOUT_RETURN_OK) {
         // If the bailout failed, then bailout trampoline will pop the
@@ -176,18 +176,18 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
         probes::ExitScript(cx, script, script->functionNonDelazifying(), popSPSFrame);
 
         IonJSFrameLayout *frame = iter.jsFrame();
-        IonSpew(IonSpew_Invalidate, "Bailout failed (%s): converting to exit frame",
+        JitSpew(JitSpew_IonInvalidate, "Bailout failed (%s): converting to exit frame",
                 (retval == BAILOUT_RETURN_FATAL_ERROR) ? "Fatal Error" : "Over Recursion");
-        IonSpew(IonSpew_Invalidate, "   orig calleeToken %p", (void *) frame->calleeToken());
-        IonSpew(IonSpew_Invalidate, "   orig frameSize %u", unsigned(frame->prevFrameLocalSize()));
-        IonSpew(IonSpew_Invalidate, "   orig ra %p", (void *) frame->returnAddress());
+        JitSpew(JitSpew_IonInvalidate, "   orig calleeToken %p", (void *) frame->calleeToken());
+        JitSpew(JitSpew_IonInvalidate, "   orig frameSize %u", unsigned(frame->prevFrameLocalSize()));
+        JitSpew(JitSpew_IonInvalidate, "   orig ra %p", (void *) frame->returnAddress());
 
         frame->replaceCalleeToken(nullptr);
         EnsureExitFrame(frame);
 
-        IonSpew(IonSpew_Invalidate, "   new  calleeToken %p", (void *) frame->calleeToken());
-        IonSpew(IonSpew_Invalidate, "   new  frameSize %u", unsigned(frame->prevFrameLocalSize()));
-        IonSpew(IonSpew_Invalidate, "   new  ra %p", (void *) frame->returnAddress());
+        JitSpew(JitSpew_IonInvalidate, "   new  calleeToken %p", (void *) frame->calleeToken());
+        JitSpew(JitSpew_IonInvalidate, "   new  frameSize %u", unsigned(frame->prevFrameLocalSize()));
+        JitSpew(JitSpew_IonInvalidate, "   new  ra %p", (void *) frame->returnAddress());
     }
 
     iter.ionScript()->decref(cx->runtime()->defaultFreeOp());
@@ -288,7 +288,7 @@ jit::CheckFrequentBailouts(JSContext *cx, JSScript *script)
         {
             script->setHadFrequentBailouts();
 
-            IonSpew(IonSpew_Invalidate, "Invalidating due to too many bailouts");
+            JitSpew(JitSpew_IonInvalidate, "Invalidating due to too many bailouts");
 
             if (!Invalidate(cx, script))
                 return false;

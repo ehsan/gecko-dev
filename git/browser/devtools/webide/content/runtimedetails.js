@@ -83,13 +83,12 @@ function CheckLockState() {
   certCheckResult.textContent = sUnknown;
 
   if (AppManager.connection &&
-      AppManager.connection.status == Connection.Status.CONNECTED &&
-      AppManager.deviceFront) {
+      AppManager.connection.status == Connection.Status.CONNECTED) {
 
     // ADB check
     if (AppManager.selectedRuntime instanceof USBRuntime) {
       let device = Devices.getByName(AppManager.selectedRuntime.id);
-      if (device.summonRoot) {
+      if (device && device.summonRoot) {
         device.isRoot().then(isRoot => {
           if (isRoot) {
             adbCheckResult.textContent = sYes;

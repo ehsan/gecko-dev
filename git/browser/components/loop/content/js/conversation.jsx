@@ -15,6 +15,7 @@ loop.conversation = (function(mozL10n) {
   var sharedMixins = loop.shared.mixins;
   var sharedModels = loop.shared.models;
   var OutgoingConversationView = loop.conversationViews.OutgoingConversationView;
+  var CallIdentifierView = loop.conversationViews.CallIdentifierView;
 
   var IncomingCallView = React.createClass({
     mixins: [sharedMixins.DropdownMenuMixin],
@@ -64,7 +65,8 @@ loop.conversation = (function(mozL10n) {
     _answerModeProps: function() {
       var videoButton = {
         handler: this._handleAccept("audio-video"),
-        className: "fx-embedded-btn-icon-video"
+        className: "fx-embedded-btn-icon-video",
+        tooltip: "incoming_call_accept_audio_video_tooltip"
       };
       var audioButton = {
         handler: this._handleAccept("audio"),
@@ -93,9 +95,14 @@ loop.conversation = (function(mozL10n) {
         "conversation-window-dropdown": true,
         "visually-hidden": !this.state.showMenu
       });
+
       return (
         <div className="call-window">
-          <h2>{mozL10n.get("incoming_call_title2")}</h2>
+          <CallIdentifierView video={this.props.video}
+            peerIdentifier={this.props.model.getCallIdentifier()}
+            urlCreationDate={this.props.model.get("urlCreationDate")}
+            showIcons={true} />
+
           <div className="btn-group call-action-group">
 
             <div className="fx-embedded-call-button-spacer"></div>
@@ -145,16 +152,13 @@ loop.conversation = (function(mozL10n) {
 
     render: function() {
       var mode = this.props.mode;
-      // As we don't have both strings in Fx34, we check to see if the tooltip exists
-      // if it doesn't, then we don't display a tooltip. Bug 1080387 will make it
-      // so this can be unit tested.
-      var secondaryTooltip = mode.secondary.tooltip ? mozL10n.get(mode.secondary.tooltip) : "";
       return (
         /* jshint ignore:start */
         <div className="btn-chevron-menu-group">
           <div className="btn-group">
             <button className="btn btn-accept"
-                    onClick={mode.primary.handler}>
+                    onClick={mode.primary.handler}
+                    title={mozL10n.get(mode.primary.tooltip)}>
               <span className="fx-embedded-answer-btn-text">
                 {mozL10n.get("incoming_call_accept_button")}
               </span>
@@ -162,7 +166,7 @@ loop.conversation = (function(mozL10n) {
             </button>
             <div className={mode.secondary.className}
                  onClick={mode.secondary.handler}
-                 title={secondaryTooltip}>
+                 title={mozL10n.get(mode.secondary.tooltip)}>
             </div>
           </div>
         </div>
@@ -231,8 +235,7 @@ loop.conversation = (function(mozL10n) {
           );
         }
         case "connected": {
-          // XXX This should be the caller id (bug 1020449)
-          document.title = mozL10n.get("incoming_call_title2");
+          document.title = this.props.conversation.getCallIdentifier();
 
           var callType = this.props.conversation.get("selectedCallType");
 

@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1423908606444000);
+const PRTime gPreloadListExpirationTime = INT64_C(1423908549615000);
 
 class nsSTSPreload
 {

@@ -55,11 +55,11 @@ public class BrowserLocaleManager implements LocaleManager {
     private volatile Locale currentLocale;
     private volatile Locale systemLocale = Locale.getDefault();
 
-    private AtomicBoolean inited = new AtomicBoolean(false);
+    private final AtomicBoolean inited = new AtomicBoolean(false);
     private boolean systemLocaleDidChange;
     private BroadcastReceiver receiver;
 
-    private static AtomicReference<LocaleManager> instance = new AtomicReference<LocaleManager>();
+    private static final AtomicReference<LocaleManager> instance = new AtomicReference<LocaleManager>();
 
     public static LocaleManager getInstance() {
         LocaleManager localeManager = instance.get();
@@ -75,8 +75,35 @@ public class BrowserLocaleManager implements LocaleManager {
         }
     }
 
+    @Override
     public boolean isEnabled() {
         return AppConstants.MOZ_LOCALE_SWITCHER;
+    }
+
+    /**
+     * Sometimes we want just the language for a locale, not the entire
+     * language tag. But Java's .getLanguage method is wrong.
+     *
+     * This method is equivalent to the first part of {@link #getLanguageTag(Locale)}.
+     *
+     * @return a language string, such as "he" for the Hebrew locales.
+     */
+    public static String getLanguage(final Locale locale) {
+        final String language = locale.getLanguage();  // Can, but should never be, an empty string.
+        // Modernize certain language codes.
+        if (language.equals("iw")) {
+            return "he";
+        }
+
+        if (language.equals("in")) {
+            return "id";
+        }
+
+        if (language.equals("ji")) {
+            return "yi";
+        }
+
+        return language;
     }
 
     /**
@@ -91,17 +118,8 @@ public class BrowserLocaleManager implements LocaleManager {
         // If this were Java 7:
         // return locale.toLanguageTag();
 
-        String language = locale.getLanguage();  // Can, but should never be, an empty string.
-        // Modernize certain language codes.
-        if (language.equals("iw")) {
-            language = "he";
-        } else if (language.equals("in")) {
-            language = "id";
-        } else if (language.equals("ji")) {
-            language = "yi";
-        }
-
-        String country = locale.getCountry();    // Can be an empty string.
+        final String language = getLanguage(locale);
+        final String country = locale.getCountry();    // Can be an empty string.
         if (country.equals("")) {
             return language;
         }
@@ -282,7 +300,7 @@ public class BrowserLocaleManager implements LocaleManager {
     public void resetToSystemLocale(Context context) {
         // Wipe the pref.
         final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().remove(PREF_LOCALE).commit();
+        settings.edit().remove(PREF_LOCALE).apply();
 
         // Apply the system locale.
         updateLocale(context, systemLocale);
@@ -324,7 +342,7 @@ public class BrowserLocaleManager implements LocaleManager {
 
     private void persistLocale(Context context, String localeCode) {
         final SharedPreferences settings = getSharedPreferences(context);
-        settings.edit().putString(PREF_LOCALE, localeCode).commit();
+        settings.edit().putString(PREF_LOCALE, localeCode).apply();
     }
 
     @Override

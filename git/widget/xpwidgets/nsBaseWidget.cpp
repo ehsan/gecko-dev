@@ -784,12 +784,7 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
   // those versions of the OS.
   // This will still let full-screen video be accelerated on OpenGL, because
   // that XUL widget opts in to acceleration, but that's probably OK.
-  SInt32 major = nsCocoaFeatures::OSXVersionMajor();
-  SInt32 minor = nsCocoaFeatures::OSXVersionMinor();
-  SInt32 bugfix = nsCocoaFeatures::OSXVersionBugFix();
-  if (major == 10 && minor == 6 && bugfix <= 2) {
-    accelerateByDefault = false;
-  }
+  accelerateByDefault = nsCocoaFeatures::AccelerateByDefault();
 #endif
 
   // we should use AddBoolPrefVarCache
@@ -874,6 +869,9 @@ nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
 
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 {
+  // This makes sure that gfxPlatforms gets initialized if it hasn't by now.
+  gfxPlatform::GetPlatform();
+
   MOZ_ASSERT(gfxPlatform::UsesOffMainThreadCompositing(),
              "This function assumes OMTC");
 

@@ -178,17 +178,16 @@ TranslateShadowLayer2D(Layer* aLayer,
                            1.0f/c->GetPreYScale(),
                            1);
   }
-  layerTransform3D = layerTransform3D *
-    Matrix4x4().Scale(1.0f/aLayer->GetPostXScale(),
-                      1.0f/aLayer->GetPostYScale(),
-                      1);
+  layerTransform3D.PostScale(1.0f/aLayer->GetPostXScale(),
+                             1.0f/aLayer->GetPostYScale(),
+                             1);
 
   LayerComposite* layerComposite = aLayer->AsLayerComposite();
   layerComposite->SetShadowTransform(layerTransform3D);
   layerComposite->SetShadowTransformSetByAnimation(false);
 
   if (aAdjustClipRect) {
-    TransformClipRect(aLayer, Matrix4x4().Translate(aTranslation.x, aTranslation.y, 0));
+    TransformClipRect(aLayer, Matrix4x4::Translation(aTranslation.x, aTranslation.y, 0));
   }
 }
 
@@ -308,8 +307,7 @@ AsyncCompositionManager::AlignFixedAndStickyLayers(Layer* aLayer,
   if (newCumulativeTransform.IsSingular()) {
     return;
   }
-  Matrix newCumulativeTransformInverse = newCumulativeTransform;
-  newCumulativeTransformInverse.Invert();
+  Matrix newCumulativeTransformInverse = newCumulativeTransform.Inverse();
 
   // Now work out the translation necessary to make sure the layer doesn't
   // move given the new sub-tree root transform.
@@ -501,9 +499,7 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
     {
       Matrix4x4 matrix = interpolatedValue.get_ArrayOfTransformFunction()[0].get_TransformMatrix().value();
       if (ContainerLayer* c = aLayer->AsContainerLayer()) {
-        matrix = matrix * Matrix4x4().Scale(c->GetInheritedXScale(),
-                                            c->GetInheritedYScale(),
-                                            1);
+        matrix.PostScale(c->GetInheritedXScale(), c->GetInheritedYScale(), 1);
       }
       layerComposite->SetShadowTransform(matrix);
       layerComposite->SetShadowTransformSetByAnimation(true);
@@ -628,9 +624,9 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer)
                       1.0f/container->GetPreYScale(),
                       1);
     }
-    transform = transform * Matrix4x4().Scale(1.0f/aLayer->GetPostXScale(),
-                                              1.0f/aLayer->GetPostYScale(),
-                                              1);
+    transform.PostScale(1.0f/aLayer->GetPostXScale(),
+                        1.0f/aLayer->GetPostYScale(),
+                        1);
     layerComposite->SetShadowTransform(transform);
     NS_ASSERTION(!layerComposite->GetShadowTransformSetByAnimation(),
                  "overwriting animated transform!");
@@ -676,7 +672,7 @@ LayerIsScrollbarTarget(const LayerMetricsWrapper& aTarget, Layer* aScrollbar)
   if (metrics.GetScrollId() != aScrollbar->GetScrollbarTargetContainerId()) {
     return false;
   }
-  return true;
+  return !aTarget.IsScrollInfoLayer();
 }
 
 static void
@@ -698,9 +694,7 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
 
   Matrix4x4 asyncTransform = apzc->GetCurrentAsyncTransform();
   Matrix4x4 nontransientTransform = apzc->GetNontransientAsyncTransform();
-  Matrix4x4 nontransientUntransform = nontransientTransform;
-  nontransientUntransform.Invert();
-  Matrix4x4 transientTransform = nontransientUntransform * asyncTransform;
+  Matrix4x4 transientTransform = nontransientTransform.Inverse() * asyncTransform;
 
   // |transientTransform| represents the amount by which we have scrolled and
   // zoomed since the last paint. Because the scrollbar was sized and positioned based
@@ -728,16 +722,16 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
       // normally account for the resolution.
       scale *= metrics.mResolution.scale;
     }
-    scrollbarTransform = scrollbarTransform * Matrix4x4().Scale(1.f, 1.f / transientTransform._22, 1.f);
-    scrollbarTransform = scrollbarTransform * Matrix4x4().Translate(0, -transientTransform._42 * scale, 0);
+    scrollbarTransform.PostScale(1.f, 1.f / transientTransform._22, 1.f);
+    scrollbarTransform.PostTranslate(0, -transientTransform._42 * scale, 0);
   }
   if (aScrollbar->GetScrollbarDirection() == Layer::HORIZONTAL) {
     float scale = metrics.CalculateCompositedSizeInCssPixels().width / metrics.mScrollableRect.width;
     if (aScrollbarIsDescendant) {
       scale *= metrics.mResolution.scale;
     }
-    scrollbarTransform = scrollbarTransform * Matrix4x4().Scale(1.f / transientTransform._11, 1.f, 1.f);
-    scrollbarTransform = scrollbarTransform * Matrix4x4().Translate(-transientTransform._41 * scale, 0, 0);
+    scrollbarTransform.PostScale(1.f / transientTransform._11, 1.f, 1.f);
+    scrollbarTransform.PostTranslate(-transientTransform._41 * scale, 0, 0);
   }
 
   Matrix4x4 transform = scrollbarTransform * aScrollbar->GetTransform();
@@ -753,11 +747,9 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     // transform, we need to make sure to unapply the async transform in the
     // same coordinate space. This requires applying the content transform and
     // then unapplying it after unapplying the async transform.
-    Matrix4x4 asyncUntransform = (asyncTransform * apzc->GetOverscrollTransform());
-    asyncUntransform.Invert();
+    Matrix4x4 asyncUntransform = (asyncTransform * apzc->GetOverscrollTransform()).Inverse();
     Matrix4x4 contentTransform = aContent.GetTransform();
-    Matrix4x4 contentUntransform = contentTransform;
-    contentUntransform.Invert();
+    Matrix4x4 contentUntransform = contentTransform.Inverse();
 
     Matrix4x4 compensation = contentTransform * asyncUntransform * contentUntransform;
     transform = transform * compensation;
@@ -779,41 +771,48 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
                     1.0f/container->GetPreYScale(),
                     1);
   }
-  transform = transform * Matrix4x4().Scale(1.0f/aScrollbar->GetPostXScale(),
-                                            1.0f/aScrollbar->GetPostYScale(),
-                                            1);
+  transform.PostScale(1.0f/aScrollbar->GetPostXScale(),
+                      1.0f/aScrollbar->GetPostYScale(),
+                      1);
   aScrollbar->AsLayerComposite()->SetShadowTransform(transform);
+}
+
+static LayerMetricsWrapper
+FindScrolledLayerRecursive(Layer* aScrollbar, const LayerMetricsWrapper& aSubtreeRoot)
+{
+  if (LayerIsScrollbarTarget(aSubtreeRoot, aScrollbar)) {
+    return aSubtreeRoot;
+  }
+  for (LayerMetricsWrapper child = aSubtreeRoot.GetFirstChild(); child;
+         child = child.GetNextSibling()) {
+    LayerMetricsWrapper target = FindScrolledLayerRecursive(aScrollbar, child);
+    if (target) {
+      return target;
+    }
+  }
+  return LayerMetricsWrapper();
 }
 
 static LayerMetricsWrapper
 FindScrolledLayerForScrollbar(Layer* aScrollbar, bool* aOutIsAncestor)
 {
-  // XXX: once bug 967844 is implemented there might be multiple scrolled layers
-  // that correspond to the scrollbar's scrollId. Verify that we deal with those
-  // cases correctly.
-
-  // Search all siblings of aScrollbar and of its ancestors.
-  LayerMetricsWrapper scrollbar(aScrollbar, LayerMetricsWrapper::StartAt::BOTTOM);
+  // Search ancestors first.
+  LayerMetricsWrapper scrollbar(aScrollbar);
   for (LayerMetricsWrapper ancestor = scrollbar; ancestor; ancestor = ancestor.GetParent()) {
-    for (LayerMetricsWrapper scrollTarget = ancestor;
-         scrollTarget;
-         scrollTarget = scrollTarget.GetPrevSibling()) {
-      if (scrollTarget != scrollbar &&
-          LayerIsScrollbarTarget(scrollTarget, aScrollbar)) {
-        *aOutIsAncestor = (scrollTarget == ancestor);
-        return scrollTarget;
-      }
-    }
-    for (LayerMetricsWrapper scrollTarget = ancestor.GetNextSibling();
-         scrollTarget;
-         scrollTarget = scrollTarget.GetNextSibling()) {
-      if (LayerIsScrollbarTarget(scrollTarget, aScrollbar)) {
-        *aOutIsAncestor = false;
-        return scrollTarget;
-      }
+    if (LayerIsScrollbarTarget(ancestor, aScrollbar)) {
+      *aOutIsAncestor = true;
+      return ancestor;
     }
   }
-  return LayerMetricsWrapper();
+
+  // If the scrolled target is not an ancestor, search the whole layer tree.
+  // XXX It would be much better to search the APZC tree instead of the layer
+  // tree. That way we would ignore non-scrollable layers, and we'd only visit
+  // each scroll ID once. In the end we only need the APZC and the FrameMetrics
+  // of the scrolled target.
+  *aOutIsAncestor = false;
+  LayerMetricsWrapper root(aScrollbar->Manager()->GetRoot());
+  return FindScrolledLayerRecursive(aScrollbar, root);
 }
 
 void

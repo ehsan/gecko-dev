@@ -487,6 +487,10 @@ function ThreadActor(aParent, aGlobal)
     autoBlackBox: false
   };
 
+  this.breakpointStore = new BreakpointStore();
+  this.blackBoxedSources = new Set(["self-hosted"]);
+  this.prettyPrintedSources = new Map();
+
   // A map of actorID -> actor for breakpoints created and managed by the
   // server.
   this._hiddenBreakpoints = new Map();
@@ -500,12 +504,6 @@ function ThreadActor(aParent, aGlobal)
   this.onDebuggerStatement = this.onDebuggerStatement.bind(this);
   this.onNewScript = this.onNewScript.bind(this);
 }
-
-/**
- * The breakpoint store must be shared across instances of ThreadActor so that
- * page reloads don't blow away all of our breakpoints.
- */
-ThreadActor.breakpointStore = new BreakpointStore();
 
 ThreadActor.prototype = {
   // Used by the ObjectActor to keep track of the depth of grip() calls.
@@ -534,8 +532,6 @@ ThreadActor.prototype = {
   get attached() this.state == "attached" ||
                  this.state == "running" ||
                  this.state == "paused",
-
-  get breakpointStore() { return ThreadActor.breakpointStore; },
 
   get threadLifetimePool() {
     if (!this._threadLifetimePool) {
@@ -1480,7 +1476,7 @@ ThreadActor.prototype = {
     */
 
     // Find all innermost scripts matching the given location
-    let scripts = this.dbg.findScripts({
+    scripts = this.dbg.findScripts({
       url: aLocation.url,
       line: aLocation.line,
       innermost: true
@@ -2466,14 +2462,15 @@ PauseScopedActor.prototype = {
  *         resolved nsIURI
  */
 function resolveURIToLocalPath(aURI) {
+  let resolved;
   switch (aURI.scheme) {
     case "jar":
     case "file":
       return aURI;
 
     case "chrome":
-      let resolved = Cc["@mozilla.org/chrome/chrome-registry;1"].
-                     getService(Ci.nsIChromeRegistry).convertChromeURL(aURI);
+      resolved = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                 getService(Ci.nsIChromeRegistry).convertChromeURL(aURI);
       return resolveURIToLocalPath(resolved);
 
     case "resource":
@@ -2639,6 +2636,66 @@ SourceActor.prototype = {
     });
 
     return sourceFetched;
+  },
+
+  /**
+   * Get all executable lines from the current source
+   * @return Array - Executable lines of the current script
+   **/
+  getExecutableLines: function () {
+    // Check if the original source is source mapped
+    let packet = {
+      from: this.actorID
+    };
+
+    let lines;
+
+    if (this._sourceMap) {
+      lines = new Set();
+
+      // Position of executable lines in the generated source
+      let offsets = this.getExecutableOffsets(this._generatedSource, false);
+      for (let offset of offsets) {
+        let {line, source} = this._sourceMap.originalPositionFor({
+          line: offset.lineNumber,
+          column: offset.columnNumber
+        });
+
+        if (source === this._url) {
+          lines.add(line);
+        }
+      }
+    } else {
+      // Converting the set given by getExecutableOffsets to an array
+      lines = this.getExecutableOffsets(this._url, true);
+    }
+
+    // Converting the Set into an array
+    packet.lines = [line for (line of lines)];
+    packet.lines.sort((a, b) => {
+      return a - b;
+    });
+
+    return packet;
+  },
+
+  /**
+   * Extract all executable offsets from the given script
+   * @param String url - extract offsets of the script with this url
+   * @param Boolean onlyLine - will return only the line number
+   * @return Set - Executable offsets/lines of the script
+   **/
+  getExecutableOffsets: function (url, onlyLine) {
+    let offsets = new Set();
+    for (let s of this.threadActor.dbg.findScripts(this.threadActor.global)) {
+      if (s.url === url) {
+        for (let offset of s.getAllColumnOffsets()) {
+          offsets.add(onlyLine ? offset.lineNumber : offset);
+        }
+      }
+    }
+
+    return offsets;
   },
 
   /**
@@ -2857,7 +2914,8 @@ SourceActor.prototype.requestTypes = {
   "blackbox": SourceActor.prototype.onBlackBox,
   "unblackbox": SourceActor.prototype.onUnblackBox,
   "prettyPrint": SourceActor.prototype.onPrettyPrint,
-  "disablePrettyPrint": SourceActor.prototype.onDisablePrettyPrint
+  "disablePrettyPrint": SourceActor.prototype.onDisablePrettyPrint,
+  "getExecutableLines": SourceActor.prototype.getExecutableLines
 };
 
 
@@ -4620,9 +4678,10 @@ EnvironmentActor.prototype = {
       }
 
       let value = this.obj.getVariable(name);
-      // The slot is optimized out or arguments on a dead scope.
+      // The slot is optimized out, arguments on a dead scope, or an
+      // uninitialized binding.
       // FIXME: Need actual UI, bug 941287.
-      if (value && (value.optimizedOut || value.missingArguments)) {
+      if (value && (value.optimizedOut || value.missingArguments || value.uninitialized)) {
         continue;
       }
 
@@ -4844,13 +4903,6 @@ function ThreadSources(aThreadActor, aOptions, aAllowPredicate,
 }
 
 /**
- * Must be a class property because it needs to persist across reloads, same as
- * the breakpoint store.
- */
-ThreadSources._blackBoxedSources = new Set(["self-hosted"]);
-ThreadSources._prettyPrintedSources = new Map();
-
-/**
  * Matches strings of the form "foo.min.js" or "foo-min.js", etc. If the regular
  * expression matches, we can be fairly sure that the source is minified, and
  * treat it as such.
@@ -4974,7 +5026,7 @@ ThreadSources.prototype = {
    * of an array of source actors for those.
    */
   sourcesForScript: function (aScript) {
-    if (!this._useSourceMaps || !aScript.sourceMapURL) {
+    if (!this._useSourceMaps || !aScript.source.sourceMapURL) {
       return resolve([this._sourceForScript(aScript)].filter(isNotNull));
     }
 
@@ -5001,8 +5053,8 @@ ThreadSources.prototype = {
    * |aScript| must have a non-null sourceMapURL.
    */
   sourceMap: function (aScript) {
-    dbg_assert(aScript.sourceMapURL, "Script should have a sourceMapURL");
-    let sourceMapURL = this._normalize(aScript.sourceMapURL, aScript.url);
+    dbg_assert(aScript.source.sourceMapURL, "Script should have a sourceMapURL");
+    let sourceMapURL = this._normalize(aScript.source.sourceMapURL, aScript.url);
     let map = this._fetchSourceMap(sourceMapURL, aScript.url)
       .then(aSourceMap => this.saveSourceMap(aSourceMap, aScript.url));
     this._sourceMapsByGeneratedSource[aScript.url] = map;
@@ -5075,14 +5127,17 @@ ThreadSources.prototype = {
 
       return this._sourceMapsByGeneratedSource[url]
         .then((aSourceMap) => {
-          let { source: aSourceURL, line: aLine, column: aColumn } = aSourceMap.originalPositionFor({
-            line: line,
-            column: column
-          });
+          let {
+            source: aSourceURL,
+            line: aLine,
+            column: aColumn,
+            name: aName
+          } = aSourceMap.originalPositionFor({ line, column });
           return {
             url: aSourceURL,
             line: aLine,
-            column: aColumn
+            column: aColumn,
+            name: aName
           };
         })
         .then(null, error => {
@@ -5143,7 +5198,7 @@ ThreadSources.prototype = {
    *        boxed or not.
    */
   isBlackBoxed: function (aURL) {
-    return ThreadSources._blackBoxedSources.has(aURL);
+    return this._thread.blackBoxedSources.has(aURL);
   },
 
   /**
@@ -5153,7 +5208,7 @@ ThreadSources.prototype = {
    *        The URL of the source which we are black boxing.
    */
   blackBox: function (aURL) {
-    ThreadSources._blackBoxedSources.add(aURL);
+    this._thread.blackBoxedSources.add(aURL);
   },
 
   /**
@@ -5163,7 +5218,7 @@ ThreadSources.prototype = {
    *        The URL of the source which we are no longer black boxing.
    */
   unblackBox: function (aURL) {
-    ThreadSources._blackBoxedSources.delete(aURL);
+    this._thread.blackBoxedSources.delete(aURL);
   },
 
   /**
@@ -5173,7 +5228,7 @@ ThreadSources.prototype = {
    *        The URL of the source that might be pretty printed.
    */
   isPrettyPrinted: function (aURL) {
-    return ThreadSources._prettyPrintedSources.has(aURL);
+    return this._thread.prettyPrintedSources.has(aURL);
   },
 
   /**
@@ -5183,14 +5238,14 @@ ThreadSources.prototype = {
    *        The URL of the source to be pretty printed.
    */
   prettyPrint: function (aURL, aIndent) {
-    ThreadSources._prettyPrintedSources.set(aURL, aIndent);
+    this._thread.prettyPrintedSources.set(aURL, aIndent);
   },
 
   /**
    * Return the indent the given URL was pretty printed by.
    */
   prettyPrintIndent: function (aURL) {
-    return ThreadSources._prettyPrintedSources.get(aURL);
+    return this._thread.prettyPrintedSources.get(aURL);
   },
 
   /**
@@ -5200,7 +5255,7 @@ ThreadSources.prototype = {
    *        The URL of the source that is no longer pretty printed.
    */
   disablePrettyPrint: function (aURL) {
-    ThreadSources._prettyPrintedSources.delete(aURL);
+    this._thread.prettyPrintedSources.delete(aURL);
   },
 
   /**
@@ -5348,7 +5403,14 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
       channel.loadFlags = aOptions.loadFromCache
         ? channel.LOAD_FROM_CACHE
         : channel.LOAD_BYPASS_CACHE;
-      channel.asyncOpen(streamListener, null);
+      try {
+        channel.asyncOpen(streamListener, null);
+      } catch(e) {
+        deferred.reject(new Error("Request failed for '"
+                                  + url
+                                  + "': "
+                                  + e.message));
+      }
       break;
   }
 
@@ -5427,15 +5489,3 @@ function getSymbolName(symbol) {
   const name = symbolProtoToString.call(symbol).slice("Symbol(".length, -1);
   return name || undefined;
 }
-
-exports.register = function(handle) {
-  ThreadActor.breakpointStore = new BreakpointStore();
-  ThreadSources._blackBoxedSources = new Set(["self-hosted"]);
-  ThreadSources._prettyPrintedSources = new Map();
-};
-
-exports.unregister = function(handle) {
-  ThreadActor.breakpointStore = null;
-  ThreadSources._blackBoxedSources.clear();
-  ThreadSources._prettyPrintedSources.clear();
-};

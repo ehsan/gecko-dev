@@ -14,8 +14,8 @@ Cu.import("resource://gre/modules/Promise.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LightweightThemeManager",
   "resource://gre/modules/LightweightThemeManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PermissionsUtils",
-  "resource://gre/modules/PermissionsUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "ResetProfile",
+  "resource://gre/modules/ResetProfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
   "resource:///modules/CustomizableUI.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "UITelemetry",
@@ -25,7 +25,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
 
 
 const UITOUR_PERMISSION   = "uitour";
-const PREF_PERM_BRANCH    = "browser.uitour.";
 const PREF_SEENPAGEIDS    = "browser.uitour.seenPageIDs";
 const MAX_BUTTONS         = 4;
 
@@ -99,6 +98,11 @@ this.UITour = {
     ["help",        {query: "#PanelUI-help"}],
     ["home",        {query: "#home-button"}],
     ["loop",        {query: "#loop-call-button"}],
+    ["forget", {
+      query: "#panic-button",
+      widgetName: "panic-button",
+      allowAdd: true }],
+    ["privateWindow",  {query: "#privatebrowsing-button"}],
     ["quit",        {query: "#PanelUI-quit"}],
     ["search",      {
       query: "#searchbar",
@@ -424,7 +428,22 @@ this.UITour = {
         // 'signup' is the only action that makes sense currently, so we don't
         // accept arbitrary actions just to be safe...
         // We want to replace the current tab.
-        contentDocument.location.href = "about:accounts?action=signup";
+        contentDocument.location.href = "about:accounts?action=signup&entrypoint=uitour";
+        break;
+      }
+
+      case "resetFirefox": {
+        // Open a reset profile dialog window.
+        ResetProfile.openConfirmationDialog(window);
+        break;
+      }
+
+      case "addNavBarWidget": {
+        // Add a widget to the toolbar
+        let targetPromise = this.getTarget(window, data.name);
+        targetPromise.then(target => {
+          this.addNavBarWidget(target, contentDocument, data.callbackID);
+        }).then(null, Cu.reportError);
         break;
       }
     }
@@ -594,14 +613,6 @@ this.UITour = {
                            .wrappedJSObject;
   },
 
-  importPermissions: function() {
-    try {
-      PermissionsUtils.importFromPrefs(PREF_PERM_BRANCH, UITOUR_PERMISSION);
-    } catch (e) {
-      Cu.reportError(e);
-    }
-  },
-
   ensureTrustedOrigin: function(aDocument) {
     if (aDocument.defaultView.top != aDocument.defaultView)
       return false;
@@ -614,7 +625,6 @@ this.UITour = {
     if (!this.isSafeScheme(uri))
       return false;
 
-    this.importPermissions();
     let permission = Services.perms.testPermission(uri, UITOUR_PERMISSION);
     return permission == Services.perms.ALLOW_ACTION;
   },
@@ -700,6 +710,7 @@ this.UITour = {
         removeTargetListener: targetObject.removeTargetListener,
         targetName: aTargetName,
         widgetName: targetObject.widgetName,
+        allowAdd: targetObject.allowAdd,
       });
     }).then(null, Cu.reportError);
     return deferred.promise;
@@ -1134,6 +1145,12 @@ this.UITour = {
           setup: Services.prefs.prefHasUserValue("services.sync.username"),
         });
         break;
+      case "appinfo":
+        let props = ["defaultUpdateChannel", "version"];
+        let appinfo = {};
+        props.forEach(property => appinfo[property] = Services.appinfo[property]);
+        this.sendPageCallback(aContentDocument, aCallbackID, appinfo);
+        break;
       default:
         Cu.reportError("getConfiguration: Unknown configuration requested: " + aConfiguration);
         break;
@@ -1171,6 +1188,24 @@ this.UITour = {
         targets: [],
       });
     });
+  },
+
+  addNavBarWidget: function (aTarget, aContentDocument, aCallbackID) {
+    if (aTarget.node) {
+      Cu.reportError("UITour: can't add a widget already present: " + data.target);
+      return;
+    }
+    if (!aTarget.allowAdd) {
+      Cu.reportError("UITour: not allowed to add this widget: " + data.target);
+      return;
+    }
+    if (!aTarget.widgetName) {
+      Cu.reportError("UITour: can't add a widget without a widgetName property: " + data.target);
+      return;
+    }
+
+    CustomizableUI.addWidgetToArea(aTarget.widgetName, CustomizableUI.AREA_NAVBAR);
+    this.sendPageCallback(aContentDocument, aCallbackID);
   },
 
   _addAnnotationPanelMutationObserver: function(aPanelEl) {

@@ -227,9 +227,8 @@ WebGLContextOptions::WebGLContextOptions()
 
 WebGLContext::WebGLContext()
     : gl(nullptr)
+    , mNeedsFakeNoAlpha(false)
 {
-    SetIsDOMBinding();
-
     mGeneration = 0;
     mInvalidated = false;
     mShouldPresent = true;
@@ -271,7 +270,9 @@ WebGLContext::WebGLContext()
     mGLMaxVertexAttribs = 0;
     mGLMaxTextureUnits = 0;
     mGLMaxTextureSize = 0;
+    mGLMaxTextureSizeLog2 = 0;
     mGLMaxCubeMapTextureSize = 0;
+    mGLMaxCubeMapTextureSizeLog2 = 0;
     mGLMaxRenderbufferSize = 0;
     mGLMaxTextureImageUnits = 0;
     mGLMaxVertexTextureImageUnits = 0;
@@ -322,6 +323,7 @@ WebGLContext::WebGLContext()
 
 WebGLContext::~WebGLContext()
 {
+    RemovePostRefreshObserver();
     mContextObserver->Destroy();
 
     DestroyResourcesAndContext();
@@ -659,8 +661,12 @@ CreateOffscreen(GLContext* gl,
     baseCaps.alpha = options.alpha;
     baseCaps.antialias = options.antialias;
     baseCaps.depth = options.depth;
+    baseCaps.premultAlpha = options.premultipliedAlpha;
     baseCaps.preserve = options.preserveDrawingBuffer;
     baseCaps.stencil = options.stencil;
+
+    if (!baseCaps.alpha)
+        baseCaps.premultAlpha = true;
 
     // we should really have this behind a
     // |gfxPlatform::GetPlatform()->GetScreenDepth() == 16| check, but
@@ -923,6 +929,12 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
+    if (gl->WorkAroundDriverBugs() && gl->IsANGLE()) {
+        if (!mOptions.alpha) {
+            mNeedsFakeNoAlpha = true;
+        }
+    }
+
     AssertCachedBindings();
     AssertCachedState();
 
@@ -1129,7 +1141,7 @@ namespace mozilla {
 
 class WebGLContextUserData : public LayerUserData {
 public:
-    WebGLContextUserData(HTMLCanvasElement *aContent)
+    explicit WebGLContextUserData(HTMLCanvasElement* aContent)
         : mContent(aContent)
     {}
 
@@ -1337,7 +1349,12 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield mask, const bool
         }
 
         gl->fColorMask(1, 1, 1, 1);
-        gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+        if (mNeedsFakeNoAlpha) {
+            gl->fClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        } else {
+            gl->fClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        }
     }
 
     if (initializeDepthBuffer) {
@@ -1408,10 +1425,14 @@ WebGLContext::PresentScreenBuffer()
     if (!mShouldPresent) {
         return false;
     }
+    MOZ_ASSERT(!mBackbufferNeedsClear);
 
     gl->MakeCurrent();
-    MOZ_ASSERT(!mBackbufferNeedsClear);
-    if (!gl->PublishFrame()) {
+
+    GLScreenBuffer* screen = gl->Screen();
+    MOZ_ASSERT(screen);
+
+    if (!screen->PublishFrame(screen->Size())) {
         ForceLoseContext();
         return false;
     }
@@ -1428,7 +1449,7 @@ WebGLContext::PresentScreenBuffer()
 void
 WebGLContext::DummyFramebufferOperation(const char *info)
 {
-    GLenum status = CheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    FBStatus status = CheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
         ErrorInvalidFramebufferOperation("%s: incomplete framebuffer", info);
 }
@@ -1510,8 +1531,8 @@ class UpdateContextLossStatusTask : public nsRunnable
     nsRefPtr<WebGLContext> mContext;
 
 public:
-    UpdateContextLossStatusTask(WebGLContext* context)
-        : mContext(context)
+    explicit UpdateContextLossStatusTask(WebGLContext* aContext)
+        : mContext(aContext)
     {
     }
 
@@ -1724,10 +1745,7 @@ WebGLContext::GetSurfaceSnapshot(bool* aPremultAlpha)
         return nullptr;
     }
 
-    Matrix m;
-    m.Translate(0.0, mHeight);
-    m.Scale(1.0, -1.0);
-    dt->SetTransform(m);
+    dt->SetTransform(Matrix::Translation(0.0, mHeight).PreScale(1.0, -1.0));
 
     dt->DrawSurface(surf,
                     Rect(0, 0, mWidth, mHeight),
@@ -1738,10 +1756,25 @@ WebGLContext::GetSurfaceSnapshot(bool* aPremultAlpha)
     return dt->Snapshot();
 }
 
-bool WebGLContext::TexImageFromVideoElement(GLenum target, GLint level,
+void
+WebGLContext::DidRefresh()
+{
+    if (gl) {
+        gl->FlushIfHeavyGLCallsSinceLastFlush();
+    }
+}
+
+bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget, GLint level,
                               GLenum internalformat, GLenum format, GLenum type,
                               mozilla::dom::Element& elt)
 {
+    if (type == LOCAL_GL_HALF_FLOAT_OES) {
+        type = LOCAL_GL_HALF_FLOAT;
+    }
+
+    if (!ValidateTexImageFormatAndType(format, type, WebGLTexImageFunc::TexImage))
+        return false;
+
     HTMLVideoElement* video = HTMLVideoElement::FromContentOrNull(&elt);
     if (!video) {
         return false;
@@ -1778,28 +1811,55 @@ bool WebGLContext::TexImageFromVideoElement(GLenum target, GLint level,
 
     gl->MakeCurrent();
     nsRefPtr<mozilla::layers::Image> srcImage = container->LockCurrentImage();
-    WebGLTexture* tex = activeBoundTextureForTarget(target);
+    WebGLTexture* tex = activeBoundTextureForTexImageTarget(texImageTarget);
 
-    const WebGLTexture::ImageInfo& info = tex->ImageInfoAt(target, 0);
+    const WebGLTexture::ImageInfo& info = tex->ImageInfoAt(texImageTarget, 0);
     bool dimensionsMatch = info.Width() == srcImage->GetSize().width &&
                            info.Height() == srcImage->GetSize().height;
     if (!dimensionsMatch) {
         // we need to allocation
-        gl->fTexImage2D(target, level, internalformat, srcImage->GetSize().width, srcImage->GetSize().height, 0, format, type, nullptr);
+        gl->fTexImage2D(texImageTarget.get(), level, internalformat, srcImage->GetSize().width, srcImage->GetSize().height, 0, format, type, nullptr);
     }
-    bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage.get(), srcImage->GetSize(), tex->GLName(), target, mPixelStoreFlipY);
+    bool ok = gl->BlitHelper()->BlitImageToTexture(srcImage.get(), srcImage->GetSize(), tex->GLName(), texImageTarget.get(), mPixelStoreFlipY);
     if (ok) {
-        tex->SetImageInfo(target, level, srcImage->GetSize().width, srcImage->GetSize().height, format, type, WebGLImageDataStatus::InitializedImageData);
-        tex->Bind(target);
+        TexInternalFormat effectiveinternalformat =
+            EffectiveInternalFormatFromInternalFormatAndType(internalformat, type);
+        MOZ_ASSERT(effectiveinternalformat != LOCAL_GL_NONE);
+        tex->SetImageInfo(texImageTarget, level, srcImage->GetSize().width, srcImage->GetSize().height,
+                          effectiveinternalformat, WebGLImageDataStatus::InitializedImageData);
+        tex->Bind(TexImageTargetToTexTarget(texImageTarget));
     }
     srcImage = nullptr;
     container->UnlockCurrentImage();
     return ok;
 }
 
-//
+////////////////////////////////////////////////////////////////////////////////
+
+
+WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
+    : mWebGL(webgl)
+    , mNeedsChange(NeedsChange(webgl))
+{
+    if (mNeedsChange) {
+        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
+                              mWebGL.mColorWriteMask[1],
+                              mWebGL.mColorWriteMask[2],
+                              false);
+    }
+}
+
+WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
+{
+    if (mNeedsChange) {
+        mWebGL.gl->fColorMask(mWebGL.mColorWriteMask[0],
+                              mWebGL.mColorWriteMask[1],
+                              mWebGL.mColorWriteMask[2],
+                              mWebGL.mColorWriteMask[3]);
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
 // XPCOM goop
-//
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)

@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-PROGRAM = 'jsapi-tests'
+Program('jsapi-tests')
 
 UNIFIED_SOURCES += [
     'selfTest.cpp',
@@ -17,7 +17,6 @@ UNIFIED_SOURCES += [
     'testChromeBuffer.cpp',
     'testClassGetter.cpp',
     'testCloneScript.cpp',
-    'testConservativeGC.cpp',
     'testContexts.cpp',
     'testCustomIterator.cpp',
     'testDebugger.cpp',
@@ -30,6 +29,7 @@ UNIFIED_SOURCES += [
     'testException.cpp',
     'testExternalStrings.cpp',
     'testFindSCCs.cpp',
+    'testForOfIterator.cpp',
     'testFreshGlobalEvalRedefinition.cpp',
     'testFuncCallback.cpp',
     'testFunctionProperties.cpp',
@@ -50,14 +50,15 @@ UNIFIED_SOURCES += [
     'testLookup.cpp',
     'testLooselyEqual.cpp',
     'testMappedArrayBuffer.cpp',
+    'testMutedErrors.cpp',
     'testNewObject.cpp',
     'testNullRoot.cpp',
     'testObjectEmulatingUndefined.cpp',
     'testOOM.cpp',
     'testOps.cpp',
-    'testOriginPrincipals.cpp',
     'testParseJSON.cpp',
     'testPersistentRooted.cpp',
+    'testPreserveJitCode.cpp',
     'testProfileStrings.cpp',
     'testPropCache.cpp',
     'testRegExp.cpp',
@@ -86,6 +87,8 @@ if CONFIG['ENABLE_ION']:
     UNIFIED_SOURCES += [
         'testJitDCEinGVN.cpp',
         'testJitFoldsTo.cpp',
+        'testJitGVN.cpp',
+        'testJitMoveEmitterCycles-mips.cpp',
         'testJitMoveEmitterCycles.cpp',
         'testJitRValueAlloc.cpp',
     ]

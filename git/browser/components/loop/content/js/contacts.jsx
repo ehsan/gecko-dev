@@ -460,6 +460,9 @@ loop.contacts = (function(_, mozL10n) {
             {shownContacts.available ?
               shownContacts.available.sort(this.sortContacts).map(viewForItem) :
               null}
+            {shownContacts.blocked && shownContacts.blocked.length > 0 ?
+              <div className="contact-separator">{mozL10n.get("contacts_blocked_contacts")}</div> :
+              null}
             {shownContacts.blocked ?
               shownContacts.blocked.sort(this.sortContacts).map(viewForItem) :
               null}

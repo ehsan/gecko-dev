@@ -179,4 +179,15 @@ if (typeof Mozilla == 'undefined') {
 		_sendEvent('showFirefoxAccounts');
 	};
 
+	Mozilla.UITour.resetFirefox = function() {
+		_sendEvent('resetFirefox');
+	};
+
+	Mozilla.UITour.addNavBarWidget= function(name, callback) {
+		_sendEvent('addNavBarWidget', {
+			name: name,
+			callbackID: _waitForCallback(callback),
+		});
+	};
+
 })();

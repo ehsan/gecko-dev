@@ -29,24 +29,21 @@
 
 namespace mozilla { namespace pkix { namespace der {
 
-namespace internal {
-
 // Too complicated to be inline
 Result
-ExpectTagAndGetLength(Reader& input, uint8_t expectedTag, uint16_t& length)
+ReadTagAndGetValue(Reader& input, /*out*/ uint8_t& tag, /*out*/ Input& value)
 {
-  assert((expectedTag & 0x1F) != 0x1F); // high tag number form not allowed
-
-  uint8_t tag;
   Result rv;
+
   rv = input.Read(tag);
   if (rv != Success) {
     return rv;
   }
-
-  if (tag != expectedTag) {
-    return Result::ERROR_BAD_DER;
+  if ((tag & 0x1F) == 0x1F) {
+    return Result::ERROR_BAD_DER; // high tag number form not allowed
   }
+
+  uint16_t length;
 
   // The short form of length is a single byte with the high order bit set
   // to zero. The long form of length is one byte with the high order bit
@@ -84,11 +81,8 @@ ExpectTagAndGetLength(Reader& input, uint8_t expectedTag, uint16_t& length)
     return Result::ERROR_BAD_DER;
   }
 
-  // Ensure the input is long enough for the length it says it has.
-  return input.EnsureLength(length);
+  return input.Skip(length, value);
 }
-
-} // namespace internal
 
 static Result
 OptionalNull(Reader& input)
@@ -240,8 +234,7 @@ SignatureAlgorithmOIDValue(Reader& algorithmID,
     // XXX(bug 1042479): recognize this old OID for compatibility.
     algorithm = SignatureAlgorithm::rsa_pkcs1_with_sha1;
   } else {
-    // Any MD5-based signature algorithm, or any unknown signature algorithm.
-    return Result::ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED;
+    algorithm = SignatureAlgorithm::unsupported_algorithm;
   }
 
   return Success;

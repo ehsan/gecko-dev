@@ -6,9 +6,12 @@
 package org.mozilla.gecko.overlays.ui;
 
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.v4.content.LocalBroadcastManager;
@@ -22,7 +25,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.mozilla.gecko.Assert;
+import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.overlays.OverlayConstants;
 import org.mozilla.gecko.overlays.service.OverlayActionService;
 import org.mozilla.gecko.overlays.service.sharemethods.ParcelableClientRecord;
@@ -30,7 +35,10 @@ import org.mozilla.gecko.overlays.service.sharemethods.SendTab;
 import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
 import org.mozilla.gecko.LocaleAware;
 import org.mozilla.gecko.sync.setup.activities.WebURLFinder;
+import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.StringUtils;
+import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.util.UIAsyncTask;
 
 /**
  * A transparent activity that displays the share overlay.
@@ -105,6 +113,7 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
         getWindow().setWindowAnimations(0);
 
         Intent intent = getIntent();
+        final Resources resources = getResources();
 
         // The URL is usually hiding somewhere in the extra text. Extract it.
         final String extraText = StringUtils.getStringExtra(intent, Intent.EXTRA_TEXT);
@@ -113,7 +122,7 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
             return;
         }
 
-        String pageUrl = new WebURLFinder(extraText).bestWebURL();
+        final String pageUrl = new WebURLFinder(extraText).bestWebURL();
         if (TextUtils.isEmpty(pageUrl)) {
             abortDueToNoURL();
             return;
@@ -121,8 +130,9 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
 
         setContentView(R.layout.overlay_share_dialog);
 
+
         LocalBroadcastManager.getInstance(this).registerReceiver(uiEventListener,
-                                                                 new IntentFilter(OverlayConstants.SHARE_METHOD_UI_EVENT));
+                                                                  new IntentFilter(OverlayConstants.SHARE_METHOD_UI_EVENT));
 
         // Have the service start any initialisation work that's necessary for us to show the correct
         // UI. The results of such work will come in via the BroadcastListener.
@@ -154,19 +164,21 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
         Animation anim = AnimationUtils.loadAnimation(this, R.anim.overlay_slide_up);
         findViewById(R.id.sharedialog).startAnimation(anim);
 
-        // Add button event listeners.
+        // Configure buttons.
+        final OverlayDialogButton bookmarkBtn = (OverlayDialogButton) findViewById(R.id.overlay_share_bookmark_btn);
 
-        findViewById(R.id.overlay_share_bookmark_btn).setOnClickListener(new View.OnClickListener() {
+        final String bookmarkEnabledLabel = resources.getString(R.string.overlay_share_bookmark_btn_label);
+        final Drawable bookmarkEnabledIcon = resources.getDrawable(R.drawable.overlay_bookmark_icon);
+        bookmarkBtn.setEnabledLabelAndIcon(bookmarkEnabledLabel, bookmarkEnabledIcon);
+
+        final String bookmarkDisabledLabel = resources.getString(R.string.overlay_share_bookmark_btn_label_already);
+        final Drawable bookmarkDisabledIcon = resources.getDrawable(R.drawable.overlay_bookmarked_already_icon);
+        bookmarkBtn.setDisabledLabelAndIcon(bookmarkDisabledLabel, bookmarkDisabledIcon);
+
+        bookmarkBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 addBookmark();
-            }
-        });
-
-        findViewById(R.id.overlay_share_reading_list_btn).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                addToReadingList();
             }
         });
 
@@ -174,9 +186,68 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
         SendTabList sendTabList = (SendTabList) findViewById(R.id.overlay_send_tab_btn);
 
         // Register ourselves as both the listener and the context for the Adapter.
-        SendTabDeviceListArrayAdapter adapter = new SendTabDeviceListArrayAdapter(this, this, R.layout.sync_list_item);
+        SendTabDeviceListArrayAdapter adapter = new SendTabDeviceListArrayAdapter(this, this);
         sendTabList.setAdapter(adapter);
         sendTabList.setSendTabTargetSelectedListener(this);
+
+        // If we're a low memory device, just hide the reading list button. Otherwise, configure it.
+        final OverlayDialogButton readinglistBtn = (OverlayDialogButton) findViewById(R.id.overlay_share_reading_list_btn);
+
+        if (HardwareUtils.isLowMemoryPlatform()) {
+            readinglistBtn.setVisibility(View.GONE);
+            return;
+        }
+
+        final String readingListEnabledLabel = resources.getString(R.string.overlay_share_reading_list_btn_label);
+        final Drawable readingListEnabledIcon = resources.getDrawable(R.drawable.overlay_readinglist_icon);
+        readinglistBtn.setEnabledLabelAndIcon(readingListEnabledLabel, readingListEnabledIcon);
+
+        final String readingListDisabledLabel = resources.getString(R.string.overlay_share_reading_list_btn_label_already);
+        final Drawable readingListDisabledIcon = resources.getDrawable(R.drawable.overlay_readinglist_already_icon);
+        readinglistBtn.setDisabledLabelAndIcon(readingListDisabledLabel, readingListDisabledIcon);
+
+        readinglistBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                addToReadingList();
+            }
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        LocalBrowserDB browserDB = new LocalBrowserDB(getCurrentProfile());
+        disableButtonsIfAlreadyAdded(url, browserDB);
+    }
+
+    /**
+     * Disables the bookmark/reading list buttons if the given URL is already in the corresponding
+     * list.
+     */
+    private void disableButtonsIfAlreadyAdded(final String pageURL, final LocalBrowserDB browserDB) {
+        new UIAsyncTask.WithoutParams<Void>(ThreadUtils.getBackgroundHandler()) {
+            // Flags to hold the result
+            boolean isBookmark;
+            boolean isReadingListItem;
+
+            @Override
+            protected Void doInBackground() {
+                final ContentResolver contentResolver = getApplicationContext().getContentResolver();
+
+                isBookmark = browserDB.isBookmark(contentResolver, pageURL);
+                isReadingListItem = browserDB.isReadingListItem(contentResolver, pageURL);
+
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void aVoid) {
+                findViewById(R.id.overlay_share_bookmark_btn).setEnabled(!isBookmark);
+                findViewById(R.id.overlay_share_reading_list_btn).setEnabled(!isReadingListItem);
+            }
+        }.execute();
     }
 
     /**
@@ -245,6 +316,10 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
     public void addBookmark() {
         startService(getServiceIntent(ShareMethod.Type.ADD_BOOKMARK));
         slideOut();
+    }
+
+    private String getCurrentProfile() {
+        return GeckoProfile.DEFAULT_PROFILE;
     }
 
     /**

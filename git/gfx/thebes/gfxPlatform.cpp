@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTracker
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -18,6 +14,7 @@
 
 #include "gfxPlatform.h"
 #include "gfxPrefs.h"
+#include "gfxTextRun.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -60,6 +57,9 @@
 #include "nsILocaleService.h"
 #include "nsIObserverService.h"
 #include "MainThreadUtils.h"
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
 
 #include "nsWeakReference.h"
 
@@ -70,6 +70,7 @@
 #include "nsCRT.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
+#include "mozilla/gfx/Logging.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "TexturePoolOGL.h"
@@ -140,6 +141,22 @@ class SRGBOverrideObserver MOZ_FINAL : public nsIObserver,
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
+};
+
+class CrashStatsLogForwarder: public mozilla::gfx::LogForwarder
+{
+public:
+    virtual void Log(const std::string& aString) MOZ_OVERRIDE {
+        if (!NS_IsMainThread()) {
+            return;
+        }
+#ifdef MOZ_CRASHREPORTER
+        nsCString reportString(aString.c_str());
+        CrashReporter::AppendAppNotesToCrashReport(reportString);
+#else
+        printf("GFX ERROR: %s", aString.c_str());
+#endif
+    }
 };
 
 NS_IMPL_ISUPPORTS(SRGBOverrideObserver, nsIObserver, nsISupportsWeakReference)
@@ -330,6 +347,8 @@ gfxPlatform::Init()
     }
     gEverInitialized = true;
 
+    mozilla::gfx::Factory::SetLogForwarder(new CrashStatsLogForwarder);
+
     // Initialize the preferences by creating the singleton.
     gfxPrefs::GetSingleton();
 
@@ -489,6 +508,9 @@ gfxPlatform::Shutdown()
     // WebGL on Optimus.
     mozilla::gl::GLContextProviderEGL::Shutdown();
 #endif
+
+    delete mozilla::gfx::Factory::GetLogForwarder();
+    mozilla::gfx::Factory::SetLogForwarder(nullptr);
 
     delete gGfxPlatformPrefsLock;
 
@@ -993,6 +1015,8 @@ gfxPlatform::BackendTypeForName(const nsCString& aName)
     return BackendType::SKIA;
   if (aName.EqualsLiteral("direct2d"))
     return BackendType::DIRECT2D;
+  if (aName.EqualsLiteral("direct2d1.1"))
+    return BackendType::DIRECT2D1_1;
   if (aName.EqualsLiteral("cg"))
     return BackendType::COREGRAPHICS;
   return BackendType::NONE;
@@ -1085,8 +1109,11 @@ gfxPlatform::UseGraphiteShaping()
 }
 
 gfxFontEntry*
-gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                              const uint8_t *aFontData,
+gfxPlatform::MakePlatformFont(const nsAString& aFontName,
+                              uint16_t aWeight,
+                              int16_t aStretch,
+                              bool aItalic,
+                              const uint8_t* aFontData,
                               uint32_t aLength)
 {
     // Default implementation does not handle activating downloaded fonts;
@@ -1460,8 +1487,18 @@ gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, BackendType aCanvasDefaul
     if (mPreferredCanvasBackend == BackendType::NONE) {
         mPreferredCanvasBackend = aCanvasDefault;
     }
-    mFallbackCanvasBackend =
-        GetCanvasBackendPref(aCanvasBitmask & ~BackendTypeBit(mPreferredCanvasBackend));
+
+    if (mPreferredCanvasBackend == BackendType::DIRECT2D1_1) {
+      // Falling back to D2D 1.0 won't help us here. When D2D 1.1 DT creation
+      // fails it means the surface was too big or there's something wrong with
+      // the device. D2D 1.0 will encounter a similar situation.
+      mFallbackCanvasBackend =
+          GetCanvasBackendPref(aCanvasBitmask &
+                               ~(BackendTypeBit(mPreferredCanvasBackend) | BackendTypeBit(BackendType::DIRECT2D)));
+    } else {
+      mFallbackCanvasBackend =
+          GetCanvasBackendPref(aCanvasBitmask & ~BackendTypeBit(mPreferredCanvasBackend));
+    }
 
     mContentBackendBitmask = aContentBitmask;
     mContentBackend = GetContentBackendPref(mContentBackendBitmask);
@@ -1588,6 +1625,26 @@ gfxPlatform::TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *tra
 
     else if (&out != &in)
         out = in;
+}
+
+Color
+gfxPlatform::MaybeTransformColor(const gfxRGBA& aColor)
+{
+    // We only return this object to get some return value optimization goodness:
+    Color color;
+    if (GetCMSMode() == eCMSMode_All) {
+        gfxRGBA cms;
+        qcms_transform *transform = GetCMSRGBTransform();
+        if (transform) {
+            TransformPixel(aColor, cms, transform);
+            // Use the original alpha to avoid unnecessary float->byte->float
+            // conversion errors
+            color = ToColor(cms);
+            return color;
+        }
+    }
+    color = ToColor(aColor);
+    return color;
 }
 
 void

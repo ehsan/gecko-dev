@@ -3788,10 +3788,11 @@ nsFrame::GetCursor(const nsPoint& aPoint,
   if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
     // If this is editable, I-beam cursor is better for most elements.
     aCursor.mCursor =
-      (mContent && mContent->IsEditable()) ? NS_STYLE_CURSOR_TEXT :
-                                             NS_STYLE_CURSOR_DEFAULT;
+      (mContent && mContent->IsEditable())
+      ? GetWritingMode().IsVertical()
+        ? NS_STYLE_CURSOR_VERTICAL_TEXT : NS_STYLE_CURSOR_TEXT
+      : NS_STYLE_CURSOR_DEFAULT;
   }
-
 
   return NS_OK;
 }
@@ -4784,10 +4785,9 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
     // XXXjwatt: seems like this will double count offsets in the face of preserve-3d:
     nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     /* Combine the raw transform with a translation to our parent. */
-    result = result * Matrix4x4().Translate
-      (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-       NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-       0.0f);
+    result.PostTranslate(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                         NSAppUnitsToFloatPixels(delta.y, scaleFactor),
+                         0.0f);
     return result;
   }
 
@@ -4863,10 +4863,9 @@ nsIFrame::GetTransformMatrix(const nsIFrame* aStopAtAncestor,
    */
   nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
   int32_t scaleFactor = PresContext()->AppUnitsPerDevPixel();
-  return Matrix4x4().Translate
-    (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-     NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-     0.0f);
+  return Matrix4x4::Translation(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                                NSAppUnitsToFloatPixels(delta.y, scaleFactor),
+                                0.0f);
 }
 
 static void InvalidateFrameInternal(nsIFrame *aFrame, bool aHasDisplayItem = true)
@@ -5873,7 +5872,7 @@ nsresult
 nsFrame::GetPointFromOffset(int32_t inOffset, nsPoint* outPoint)
 {
   NS_PRECONDITION(outPoint != nullptr, "Null parameter");
-  nsRect contentRect = GetContentRect() - GetPosition();
+  nsRect contentRect = GetContentRectRelativeToSelf();
   nsPoint pt = contentRect.TopLeft();
   if (mContent)
   {

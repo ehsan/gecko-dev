@@ -56,9 +56,10 @@ using namespace mozilla::dom;
 #include "GLContextProvider.h"
 #include "GLContext.h"
 #include "TexturePoolOGL.h"
-#include "GLSharedHandleHelpers.h"
 #include "SurfaceTypes.h"
+#include "EGLUtils.h"
 
+using namespace mozilla;
 using namespace mozilla::gl;
 
 typedef nsNPAPIPluginInstance::VideoInfo VideoInfo;
@@ -127,7 +128,7 @@ public:
     mLock.Unlock();
   }
 
-  SharedTextureHandle CreateSharedHandle()
+  EGLImage CreateEGLImage()
   {
     MutexAutoLock lock(mLock);
 
@@ -137,18 +138,15 @@ public:
     if (mTextureInfo.mWidth == 0 || mTextureInfo.mHeight == 0)
       return 0;
 
-    SharedTextureHandle handle =
-      gl::CreateSharedHandle(sPluginContext,
-                             gl::SharedTextureShareType::SameProcess,
-                             (void*)mTextureInfo.mTexture,
-                             gl::SharedTextureBufferType::TextureID);
+    GLuint& tex = mTextureInfo.mTexture;
+    EGLImage image = gl::CreateEGLImage(sPluginContext, tex);
 
     // We want forget about this now, so delete the texture. Assigning it to zero
     // ensures that we create a new one in Lock()
-    sPluginContext->fDeleteTextures(1, &mTextureInfo.mTexture);
-    mTextureInfo.mTexture = 0;
+    sPluginContext->fDeleteTextures(1, &tex);
+    tex = 0;
 
-    return handle;
+    return image;
   }
 
 private:
@@ -560,16 +558,21 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     NPPAutoPusher nppPusher(&mNPP);
 
-    DebugOnly<NPError> error;
+    NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), this,
                             NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+    // 'error' is only used if this is a logging-enabled build.
+    // That is somewhat complex to check, so we just use "unused"
+    // to suppress any compiler warnings in build configurations
+    // where the logging is a no-op.
+    mozilla::unused << error;
 
     mInPluginInitCall = oldVal;
 
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP SetWindow called: this=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d], return=%d\n",
     this, window->x, window->y, window->width, window->height,
-    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, (NPError)error));
+    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, error));
   }
   return NS_OK;
 }
@@ -985,17 +988,22 @@ void* nsNPAPIPluginInstance::AcquireContentWindow()
   return mContentSurface->GetNativeWindow();
 }
 
-SharedTextureHandle nsNPAPIPluginInstance::CreateSharedHandle()
+EGLImage
+nsNPAPIPluginInstance::AsEGLImage()
 {
-  if (mContentTexture) {
-    return mContentTexture->CreateSharedHandle();
-  } else if (mContentSurface) {
-    EnsureGLContext();
-    return gl::CreateSharedHandle(sPluginContext,
-                                  gl::SharedTextureShareType::SameProcess,
-                                  mContentSurface,
-                                  gl::SharedTextureBufferType::SurfaceTexture);
-  } else return 0;
+  if (!mContentTexture)
+    return 0;
+
+  return mContentTexture->CreateEGLImage();
+}
+
+nsSurfaceTexture*
+nsNPAPIPluginInstance::AsSurfaceTexture()
+{
+  if (!mContentSurface)
+    return nullptr;
+
+  return mContentSurface;
 }
 
 void* nsNPAPIPluginInstance::AcquireVideoWindow()
@@ -1153,7 +1161,7 @@ nsNPAPIPluginInstance::IsWindowless(bool* isWindowless)
 class MOZ_STACK_CLASS AutoPluginLibraryCall
 {
 public:
-  AutoPluginLibraryCall(nsNPAPIPluginInstance* aThis)
+  explicit AutoPluginLibraryCall(nsNPAPIPluginInstance* aThis)
     : mThis(aThis), mGuard(aThis), mLibrary(nullptr)
   {
     nsNPAPIPlugin* plugin = mThis->GetPlugin();
@@ -1669,7 +1677,7 @@ class CarbonEventModelFailureEvent : public nsRunnable {
 public:
   nsCOMPtr<nsIContent> mContent;
 
-  CarbonEventModelFailureEvent(nsIContent* aContent)
+  explicit CarbonEventModelFailureEvent(nsIContent* aContent)
     : mContent(aContent)
   {}
 

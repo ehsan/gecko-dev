@@ -130,8 +130,8 @@ CheckOCSPResponseSignerCert(TrustDomain& trustDomain,
   }
 
   // TODO(bug 926260): check name constraints
-  rv = trustDomain.VerifySignedData(potentialSigner.GetSignedData(),
-                                    issuerSubjectPublicKeyInfo);
+  rv = WrappedVerifySignedData(trustDomain, potentialSigner.GetSignedData(),
+                               issuerSubjectPublicKeyInfo);
 
   // TODO: check for revocation of the OCSP responder certificate unless no-check
   // or the caller forcing no-check. To properly support the no-check policy, we'd
@@ -207,7 +207,7 @@ VerifyOCSPSignedData(TrustDomain& trustDomain,
                      const SignedDataWithSignature& signedResponseData,
                      Input spki)
 {
-  Result rv = trustDomain.VerifySignedData(signedResponseData, spki);
+  Result rv = WrappedVerifySignedData(trustDomain, signedResponseData, spki);
   if (rv == Result::ERROR_BAD_SIGNATURE) {
     rv = Result::ERROR_OCSP_BAD_SIGNATURE;
   }
@@ -552,8 +552,8 @@ SingleResponse(Reader& input, Context& context)
   // * revoked overrides good and unknown
   // * good overrides unknown
   if (input.Peek(static_cast<uint8_t>(CertStatus::Good))) {
-    rv = der::ExpectTagAndLength(input, static_cast<uint8_t>(CertStatus::Good),
-                                 0);
+    rv = der::ExpectTagAndEmptyValue(input,
+                                     static_cast<uint8_t>(CertStatus::Good));
     if (rv != Success) {
       return rv;
     }
@@ -572,8 +572,8 @@ SingleResponse(Reader& input, Context& context)
     }
     context.certStatus = CertStatus::Revoked;
   } else {
-    rv = der::ExpectTagAndLength(input,
-                                 static_cast<uint8_t>(CertStatus::Unknown), 0);
+    rv = der::ExpectTagAndEmptyValue(input,
+                                     static_cast<uint8_t>(CertStatus::Unknown));
     if (rv != Success) {
       return rv;
     }

@@ -21,16 +21,21 @@
 #include "GLContextTypes.h"
 #include "GLDefs.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/gfx/Point.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WeakPtr.h"
+#include "ScopedGLHelpers.h"
 #include "SurfaceTypes.h"
+
+class nsIThread;
 
 namespace mozilla {
 namespace gl {
 
 class GLContext;
 class SurfaceFactory;
+class ShSurfHandle;
 
 class SharedSurface
 {
@@ -45,20 +50,13 @@ public:
     const bool mHasAlpha;
 protected:
     bool mIsLocked;
+    DebugOnly<nsIThread* const> mOwningThread;
 
     SharedSurface(SharedSurfaceType type,
                   AttachmentType attachType,
                   GLContext* gl,
                   const gfx::IntSize& size,
-                  bool hasAlpha)
-        : mType(type)
-        , mAttachType(attachType)
-        , mGL(gl)
-        , mSize(size)
-        , mHasAlpha(hasAlpha)
-        , mIsLocked(false)
-    {
-    }
+                  bool hasAlpha);
 
 public:
     virtual ~SharedSurface() {
@@ -84,6 +82,24 @@ public:
     virtual bool WaitSync() = 0;
     virtual bool PollSync() = 0;
 
+    // Use these if you can. They can only be called from the Content
+    // thread, though!
+    void Fence_ContentThread();
+    bool WaitSync_ContentThread();
+    bool PollSync_ContentThread();
+
+protected:
+    virtual void Fence_ContentThread_Impl() {
+        Fence();
+    }
+    virtual bool WaitSync_ContentThread_Impl() {
+        return WaitSync();
+    }
+    virtual bool PollSync_ContentThread_Impl() {
+        return PollSync();
+    }
+
+public:
     // This function waits until the buffer is no longer being used.
     // To optimize the performance, some implementaions recycle SharedSurfaces
     // even when its buffer is still being used.
@@ -110,6 +126,10 @@ public:
                             GLenum format, GLenum type,
                             GLvoid* pixels)
     {
+        return false;
+    }
+
+    virtual bool NeedsIndirectReads() const {
         return false;
     }
 };
@@ -145,9 +165,13 @@ public:
     }
 };
 
-class SurfaceFactory
+class SurfaceFactory : public SupportsWeakPtr<SurfaceFactory>
 {
 public:
+    // Should use the VIRTUAL version, but it's currently incompatible
+    // with SupportsWeakPtr. (bug 1049278)
+    MOZ_DECLARE_REFCOUNTED_TYPENAME(SurfaceFactory)
+
     GLContext* const mGL;
     const SurfaceCaps mCaps;
     const SharedSurfaceType mType;
@@ -179,9 +203,54 @@ protected:
 
 public:
     UniquePtr<SharedSurface> NewSharedSurface(const gfx::IntSize& size);
+    TemporaryRef<ShSurfHandle> NewShSurfHandle(const gfx::IntSize& size);
 
     // Auto-deletes surfs of the wrong type.
     void Recycle(UniquePtr<SharedSurface> surf);
+};
+
+class ShSurfHandle : public RefCounted<ShSurfHandle>
+{
+public:
+    MOZ_DECLARE_REFCOUNTED_TYPENAME(ShSurfHandle)
+
+private:
+    const WeakPtr<SurfaceFactory> mFactory;
+    UniquePtr<SharedSurface> mSurf;
+
+public:
+    ShSurfHandle(SurfaceFactory* factory, UniquePtr<SharedSurface> surf)
+        : mFactory(factory)
+        , mSurf(Move(surf))
+    {
+        MOZ_ASSERT(mFactory);
+        MOZ_ASSERT(mSurf);
+    }
+
+    ~ShSurfHandle() {
+        if (mFactory) {
+            mFactory->Recycle(Move(mSurf));
+        }
+    }
+
+    SharedSurface* Surf() const {
+        MOZ_ASSERT(mSurf.get());
+        return mSurf.get();
+    }
+};
+
+class ScopedReadbackFB
+{
+    GLContext* const mGL;
+    ScopedBindFramebuffer mAutoFB;
+    GLuint mTempFB;
+    GLuint mTempTex;
+    SharedSurface* mSurfToUnlock;
+    SharedSurface* mSurfToLock;
+
+public:
+    ScopedReadbackFB(SharedSurface* src);
+    ~ScopedReadbackFB();
 };
 
 } // namespace gl

@@ -790,7 +790,7 @@ DebuggerClient.prototype = {
       throw Error("'" + request.type + "' bulk packet has no length.");
     }
 
-    let request = new Request(request);
+    request = new Request(request);
     request.format = "bulk";
 
     this._pendingRequests.push(request);
@@ -2424,6 +2424,23 @@ SourceClient.prototype = {
       return aResponse;
     }
   }),
+
+  /**
+   * Get Executable Lines from a source
+   *
+   * @param aCallback Function
+   *        The callback function called when we receive the response from the server.
+   */
+  getExecutableLines: function(cb){
+    let packet = {
+      to: this._form.actor,
+      type: "getExecutableLines"
+    };
+
+    this._client.request(packet, res => {
+      cb(res.lines);
+    });
+  },
 
   /**
    * Get a long string grip for this SourceClient's source.

@@ -65,6 +65,8 @@ enum TelemetryAlgorithm {
   TA_SHA_512         = 18,
   // Later additions
   TA_AES_KW          = 19,
+  TA_ECDH            = 20,
+  TA_PBKDF2          = 21
 };
 
 // Convenience functions for extracting / converting information
@@ -101,7 +103,7 @@ enum TelemetryAlgorithm {
 class ClearException
 {
 public:
-  ClearException(JSContext* aCx)
+  explicit ClearException(JSContext* aCx)
     : mCx(aCx)
   {}
 
@@ -341,8 +343,8 @@ WebCryptoTask::CallCallback(nsresult rv)
 class FailureTask : public WebCryptoTask
 {
 public:
-  FailureTask(nsresult rv) {
-    mEarlyRv = rv;
+  explicit FailureTask(nsresult aRv) {
+    mEarlyRv = aRv;
   }
 };
 
@@ -1146,7 +1148,7 @@ public:
     mDataIsSet = false;
 
     // Get the current global object from the context
-    nsIGlobalObject *global = xpc::GetNativeForGlobal(JS::CurrentGlobalOrNull(aCx));
+    nsIGlobalObject *global = xpc::NativeGlobal(JS::CurrentGlobalOrNull(aCx));
     if (!global) {
       mEarlyRv = NS_ERROR_DOM_UNKNOWN_ERR;
       return;
@@ -1805,7 +1807,7 @@ public:
       const ObjectOrString& aAlgorithm, bool aExtractable,
       const Sequence<nsString>& aKeyUsages)
   {
-    nsIGlobalObject* global = xpc::GetNativeForGlobal(JS::CurrentGlobalOrNull(aCx));
+    nsIGlobalObject* global = xpc::NativeGlobal(JS::CurrentGlobalOrNull(aCx));
     if (!global) {
       mEarlyRv = NS_ERROR_DOM_UNKNOWN_ERR;
       return;
@@ -1931,7 +1933,7 @@ public:
       const ObjectOrString& aAlgorithm, bool aExtractable,
       const Sequence<nsString>& aKeyUsages)
   {
-    nsIGlobalObject* global = xpc::GetNativeForGlobal(JS::CurrentGlobalOrNull(aCx));
+    nsIGlobalObject* global = xpc::NativeGlobal(JS::CurrentGlobalOrNull(aCx));
     if (!global) {
       mEarlyRv = NS_ERROR_DOM_UNKNOWN_ERR;
       return;
@@ -2139,6 +2141,7 @@ public:
   void Init(JSContext* aCx, const ObjectOrString& aAlgorithm, CryptoKey& aKey,
             uint32_t aLength)
   {
+    Telemetry::Accumulate(Telemetry::WEBCRYPTO_ALG, TA_PBKDF2);
     CHECK_KEY_ALGORITHM(aKey.Algorithm(), WEBCRYPTO_ALG_PBKDF2);
 
     // Check that we got a symmetric key
@@ -2297,6 +2300,7 @@ public:
 
   void Init(JSContext* aCx, const ObjectOrString& aAlgorithm, CryptoKey& aKey)
   {
+    Telemetry::Accumulate(Telemetry::WEBCRYPTO_ALG, TA_ECDH);
     CHECK_KEY_ALGORITHM(aKey.Algorithm(), WEBCRYPTO_ALG_ECDH);
 
     // Check that we have a private key.
@@ -2885,7 +2889,6 @@ WebCryptoTask::CreateUnwrapKeyTask(JSContext* aCx,
   }
 
   return new FailureTask(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-
 }
 
 } // namespace dom

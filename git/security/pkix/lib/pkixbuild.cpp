@@ -181,8 +181,8 @@ PathBuildingStep::Check(Input potentialIssuerDER,
     return RecordResult(rv, keepGoing);
   }
 
-  rv = trustDomain.VerifySignedData(subject.GetSignedData(),
-                                    potentialIssuer.GetSubjectPublicKeyInfo());
+  rv = WrappedVerifySignedData(trustDomain, subject.GetSignedData(),
+                               potentialIssuer.GetSubjectPublicKeyInfo());
   if (rv != Success) {
     return RecordResult(rv, keepGoing);
   }
@@ -254,7 +254,7 @@ BuildForward(TrustDomain& trustDomain,
 
     // This must be done here, after the chain is built but before any
     // revocation checks have been done.
-    return trustDomain.IsChainValid(chain);
+    return trustDomain.IsChainValid(chain, time);
   }
 
   if (subject.endEntityOrCA == EndEntityOrCA::MustBeCA) {

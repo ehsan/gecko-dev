@@ -77,7 +77,7 @@ template<class EntryType>
 class AutoHashtable : public nsTHashtable<EntryType>
 {
 public:
-  AutoHashtable(uint32_t initLength = PL_DHASH_DEFAULT_INITIAL_LENGTH);
+  explicit AutoHashtable(uint32_t initLength = PL_DHASH_DEFAULT_INITIAL_LENGTH);
   typedef bool (*ReflectEntryFunc)(EntryType *entry, JSContext *cx, JS::Handle<JSObject*> obj);
   bool ReflectIntoJS(ReflectEntryFunc entryFunc, JSContext *cx, JS::Handle<JSObject*> obj);
 private:
@@ -306,7 +306,7 @@ class TelemetryIOInterposeObserver : public IOInterposeObserver
   };
 
 public:
-  TelemetryIOInterposeObserver(nsIFile* aXreDir);
+  explicit TelemetryIOInterposeObserver(nsIFile* aXreDir);
 
   /**
    * An implementation of Observe that records statistics of all
@@ -714,7 +714,8 @@ bool
 IsExpired(const char *expiration){
   static Version current_version = Version(MOZ_APP_VERSION);
   MOZ_ASSERT(expiration);
-  return strcmp(expiration, "never") && (mozilla::Version(expiration) <= current_version);
+  return strcmp(expiration, "never") && strcmp(expiration, "default") &&
+    (mozilla::Version(expiration) <= current_version);
 }
 
 bool
@@ -727,7 +728,8 @@ HistogramGet(const char *name, const char *expiration, uint32_t min, uint32_t ma
              uint32_t bucketCount, uint32_t histogramType, Histogram **result)
 {
   if (histogramType != nsITelemetry::HISTOGRAM_BOOLEAN
-      && histogramType != nsITelemetry::HISTOGRAM_FLAG) {
+      && histogramType != nsITelemetry::HISTOGRAM_FLAG
+      && histogramType != nsITelemetry::HISTOGRAM_COUNT) {
     // Sanity checks for histogram parameters.
     if (min >= max)
       return NS_ERROR_ILLEGAL_VALUE;
@@ -759,6 +761,9 @@ HistogramGet(const char *name, const char *expiration, uint32_t min, uint32_t ma
     break;
   case nsITelemetry::HISTOGRAM_FLAG:
     *result = FlagHistogram::FactoryGet(name, Histogram::kUmaTargetedHistogramFlag);
+    break;
+  case nsITelemetry::HISTOGRAM_COUNT:
+    *result = CountHistogram::FactoryGet(name, Histogram::kUmaTargetedHistogramFlag);
     break;
   default:
     return NS_ERROR_INVALID_ARG;
@@ -903,33 +908,37 @@ IsEmpty(const Histogram *h)
 bool
 JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JS::CallArgs args = CallArgsFromVp(argc, vp);
-  if (!args.length()) {
-    JS_ReportError(cx, "Expected one argument");
+  JSObject *obj = JS_THIS_OBJECT(cx, vp);
+  if (!obj) {
     return false;
   }
 
-  if (!(args[0].isNumber() || args[0].isBoolean())) {
-    JS_ReportError(cx, "Not a number");
-    return false;
-  }
+  Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
+  Histogram::ClassType type = h->histogram_type();
 
-  int32_t value;
-  if (!JS::ToInt32(cx, args[0], &value)) {
-    return false;
-  }
-
-  if (TelemetryImpl::CanRecord()) {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj) {
+  int32_t value = 1;
+  if (type != base::CountHistogram::COUNT_HISTOGRAM) {
+    JS::CallArgs args = CallArgsFromVp(argc, vp);
+    if (!args.length()) {
+      JS_ReportError(cx, "Expected one argument");
       return false;
     }
 
-    Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
+    if (!(args[0].isNumber() || args[0].isBoolean())) {
+      JS_ReportError(cx, "Not a number");
+      return false;
+    }
+
+    if (!JS::ToInt32(cx, args[0], &value)) {
+      return false;
+    }
+  }
+
+  if (TelemetryImpl::CanRecord()) {
     h->Add(value);
   }
-  return true;
 
+  return true;
 }
 
 bool
@@ -1582,10 +1591,12 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value>
     return NS_ERROR_FAILURE;
   ret.setObject(*root_obj);
 
-  // Ensure that all the HISTOGRAM_FLAG histograms have been created, so
-  // that their values are snapshotted.
+  // Ensure that all the HISTOGRAM_FLAG & HISTOGRAM_COUNT histograms have
+  // been created, so that their values are snapshotted.
   for (size_t i = 0; i < Telemetry::HistogramCount; ++i) {
-    if (gHistograms[i].histogramType == nsITelemetry::HISTOGRAM_FLAG) {
+    const uint32_t type = gHistograms[i].histogramType;
+    if (type == nsITelemetry::HISTOGRAM_FLAG ||
+        type == nsITelemetry::HISTOGRAM_COUNT) {
       Histogram *h;
       DebugOnly<nsresult> rv = GetHistogramByEnumId(Telemetry::ID(i), &h);
       MOZ_ASSERT(NS_SUCCEEDED(rv));

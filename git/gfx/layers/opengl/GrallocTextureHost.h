@@ -16,7 +16,7 @@ namespace layers {
 
 class GrallocTextureHostOGL;
 
-class GrallocTextureSourceOGL : public NewTextureSource
+class GrallocTextureSourceOGL : public TextureSource
                               , public TextureSourceOGL
 {
 public:
@@ -46,7 +46,7 @@ public:
     return LOCAL_GL_CLAMP_TO_EDGE;
   }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData) MOZ_OVERRIDE;
+  virtual void SetTextureBackendSpecificData(TextureSharedDataGonkOGL* aBackendData);
 
   void DeallocateDeviceData();
 
@@ -66,9 +66,15 @@ public:
 
   void BindEGLImage();
 
+  EGLImage GetEGLImage()
+  {
+    return mEGLImage;
+  }
+
   bool Lock();
 
 protected:
+  RefPtr<TextureSharedDataGonkOGL> mTextureBackendSpecificData;
   CompositorOGL* mCompositor;
   GrallocTextureHostOGL* mTextureHost;
   android::sp<android::GraphicBuffer> mGraphicBuffer;
@@ -110,7 +116,7 @@ public:
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
 
-  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
+  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE
   {
     return mTextureSource;
   }
@@ -126,6 +132,8 @@ public:
 
   virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData) MOZ_OVERRIDE;
 
+  virtual void UnsetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData) MOZ_OVERRIDE;
+
   bool IsValid() const;
 
   virtual const char* Name() MOZ_OVERRIDE { return "GrallocTextureHostOGL"; }
@@ -134,6 +142,9 @@ private:
   NewSurfaceDescriptorGralloc mGrallocHandle;
   RefPtr<GrallocTextureSourceOGL> mTextureSource;
   gfx::IntSize mSize; // See comment in textureClientOGL.h
+
+  RefPtr<TextureSharedDataGonkOGL> mTextureBackendSpecificData;
+  UniquePtr<std::map<uint64_t, RefPtr<CompositableBackendSpecificData> > > mBackendDatas;
 };
 
 } // namespace layers

@@ -491,6 +491,7 @@ SECITEM_CompareItem
 SECITEM_CompareItem_Util
 SECITEM_CopyItem
 SECITEM_CopyItem_Util
+SECITEM_DupArray
 SECITEM_DupItem
 SECITEM_DupItem_Util
 SECITEM_FreeItem
@@ -515,10 +516,12 @@ SECKEY_ECParamsToBasePointOrderLen
 SECKEY_ECParamsToKeySize
 SECKEY_EncodeDERSubjectPublicKeyInfo
 SECKEY_ExtractPublicKey
+SECKEY_GetPublicKeyType
 SECKEY_ImportDERPublicKey
 SECKEY_PublicKeyStrength
 SECKEY_PublicKeyStrengthInBits
 SECKEY_RSAPSSParamsTemplate DATA
+SECKEY_SignatureLen
 SECMIME_DecryptionAllowed
 SECMOD_AddNewModule
 SECMOD_AddNewModuleEx

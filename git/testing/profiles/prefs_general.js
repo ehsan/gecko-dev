@@ -77,8 +77,6 @@ user_pref("geo.wifi.timeToWaitBeforeSending", 2000);
 user_pref("geo.wifi.scan", false);
 user_pref("geo.wifi.logging.enabled", true);
 
-user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
-
 // Make url-classifier updates so rare that they won't affect tests
 user_pref("urlclassifier.updateinterval", 172800);
 // Point the url-classifier to the local testing server for fast failures
@@ -144,11 +142,20 @@ user_pref("layout.css.report_errors", true);
 // Enable CSS Grid for testing
 user_pref("layout.css.grid.enabled", true);
 
+// Enable CSS object-fit & object-position for testing
+user_pref("layout.css.object-fit-and-position.enabled", true);
+
 // Enable CSS Ruby for testing
 user_pref("layout.css.ruby.enabled", true);
 
+// Enable CSS Font Loading API for testing
+user_pref("layout.css.font-loading-api.enabled", true);
+
 // Disable spammy layout warnings because they pollute test logs
 user_pref("layout.spammy_warnings.enabled", false);
+
+// Enable Media Source Extensions for testing
+user_pref("media.mediasource.enabled", true);
 
 // Enable mozContacts
 user_pref("dom.mozContacts.enabled", true);
@@ -250,3 +257,8 @@ user_pref("loop.CSP","default-src 'self' about: file: chrome: data: wss://* http
 // Ensure UITour won't hit the network
 user_pref("browser.uitour.pinnedTabUrl", "http://%(server)s/uitour-dummy/pinnedTab");
 user_pref("browser.uitour.url", "http://%(server)s/uitour-dummy/tour");
+
+user_pref("media.eme.enabled", true);
+
+// Don't prompt about e10s
+user_pref("browser.displayedE10SPrompt.1", 5);

@@ -19,7 +19,7 @@ namespace layers {
  * It does not own any GL texture, and attaches its shared handle to one of
  * the compositor's temporary textures when binding.
  */
-class MacIOSurfaceTextureSourceOGL : public NewTextureSource
+class MacIOSurfaceTextureSourceOGL : public TextureSource
                                    , public TextureSourceOGL
 {
 public:
@@ -64,7 +64,7 @@ public:
   MacIOSurfaceTextureHostOGL(TextureFlags aFlags,
                              const SurfaceDescriptorMacIOSurface& aDescriptor);
 
-  // SharedTextureHostOGL doesn't own any GL texture
+  // MacIOSurfaceTextureSourceOGL doesn't own any GL texture
   virtual void DeallocateDeviceData() MOZ_OVERRIDE {}
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
@@ -73,7 +73,7 @@ public:
 
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
-  virtual NewTextureSource* GetTextureSources() MOZ_OVERRIDE
+  virtual TextureSource* GetTextureSources() MOZ_OVERRIDE
   {
     return mTextureSource;
   }

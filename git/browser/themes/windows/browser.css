@@ -1247,7 +1247,7 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
   -moz-margin-end: 3px;
 }
 
-#urlbar-display {
+.urlbar-display {
   margin-top: 0;
   margin-bottom: 0;
   -moz-margin-start: 0;
@@ -1394,12 +1394,24 @@ richlistitem[selected="true"][current="true"] > .ac-title-box > .ac-result-type-
 }
 
 .ac-result-type-keyword,
-.autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage) {
-  list-style-image: url(chrome://global/skin/icons/Search-glass.png);
-  -moz-image-region: rect(0px 32px 16px 16px);
+.autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage),
+richlistitem[type~="action"][actiontype="searchengine"] > .ac-title-box > .ac-site-icon {
+  list-style-image: url(chrome://global/skin/icons/autocomplete-search.svg#search-icon);
   width: 16px;
   height: 16px;
 }
+
+%ifdef WINDOWS_AERO
+@media not all and (-moz-windows-default-theme) {
+%endif
+  .ac-result-type-keyword[selected="true"],
+  .autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage, selected),
+  richlistitem[type~="action"][actiontype="searchengine"][selected="true"] > .ac-title-box > .ac-site-icon {
+    list-style-image: url(chrome://global/skin/icons/autocomplete-search.svg#search-icon-inverted);
+  }
+%ifdef WINDOWS_AERO
+}
+%endif
 
 .ac-result-type-tag,
 .autocomplete-treebody::-moz-tree-image(tag, treecolAutoCompleteImage) {
@@ -2142,10 +2154,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginBlocked-64.png);
 }
 
-.popup-notification-icon[popupid="plugins-not-found"] {
-  list-style-image: url(chrome://browser/skin/pluginInstall-64.png);
-}
-
 .popup-notification-icon[popupid="web-notifications"] {
   list-style-image: url(chrome://browser/skin/notification-64.png);
 }
@@ -2200,6 +2208,11 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 .popup-notification-icon[popupid="bad-content"] {
   list-style-image: url(chrome://browser/skin/bad-content-blocked-64.png);
+}
+
+.popup-notification-icon[popupid="bad-content"][mixedblockdisabled],
+.popup-notification-icon[popupid="bad-content"][trackingblockdisabled] {
+  list-style-image: url(chrome://browser/skin/bad-content-unblocked-64.png);
 }
 
 .popup-notification-icon[popupid="webRTC-sharingDevices"],
@@ -2306,10 +2319,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 #plugins-notification-icon:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-#plugin-install-notification-icon {
-  list-style-image: url(chrome://browser/skin/pluginInstall-16.png);
 }
 
 #notification-popup-box[hidden] {
@@ -2688,59 +2697,6 @@ toolbar[brighttext] #switch-to-metro-button[cui-areatype="toolbar"] {
 #switch-to-metro-button[cui-areatype="menu-panel"],
 toolbarpaletteitem[place="palette"] > #switch-to-metro-button {
   list-style-image: url(chrome://browser/skin/Metro_Glyph-menuPanel.png);
-}
-
-.toolbarbutton-badge-container {
-  margin: 0;
-  padding: 0;
-  position: relative;
-}
-
-#nav-bar .toolbarbutton-1 > .toolbarbutton-badge-container {
-  padding: 2px 5px;
-}
-
-.toolbarbutton-1 > .toolbarbutton-badge-container > .toolbar-icon {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-}
-
-.toolbarbutton-badge-container > .toolbarbutton-icon[label]:not([label=""]) {
-  -moz-margin-end: 0;
-}
-
-.toolbarbutton-badge[badge=""] {
-  display: none;
-}
-.toolbarbutton-badge[badge]:not([badge=""])::after {
-  /* The |content| property is set in the content stylesheet. */
-  font-size: 9px;
-  font-weight: bold;
-  padding: 0 1px;
-  color: #fff;
-  background-color: rgb(240,61,37);
-  border: 1px solid rgb(216,55,34);
-  border-radius: 2px;
-  box-shadow: 0 1px 0 rgba(0,39,121,0.77);
-  position: absolute;
-  top: 0;
-  right: 0;
-}
-
-#nav-bar .toolbarbutton-badge[badge]:not([badge=""])::after {
-  top: 1px;
-  right: 1px;
-}
-
-.toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
-  left: 0;
-  right: auto;
-}
-
-#nav-bar .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
-  left: 1px;
-  right: auto;
 }
 
 .popup-notification-icon[popupid="servicesInstall"] {
