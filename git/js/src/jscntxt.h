@@ -1669,12 +1669,10 @@ struct JSContext
     explicit JSContext(JSRuntime *rt);
 
     /*
-     * If this flag is non-zero, we were asked to interrupt execution as soon
-     * as possible. The bits below describe the reason.
+     * If this flag is set, we were asked to call back the operation callback
+     * as soon as possible.
      */
-    volatile jsword     interruptFlags;
-
-    static const jsword INTERRUPT_OPERATION_CALLBACK = 0x1;
+    volatile jsint      operationCallbackFlag;
 
     /* JSRuntime contextList linkage. */
     JSCList             link;
@@ -2900,8 +2898,7 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
  * false otherwise.
  */
 #define JS_CHECK_OPERATION_LIMIT(cx) \
-    (!((cx)->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK) || \
-     js_InvokeOperationCallback(cx))
+    (!(cx)->operationCallbackFlag || js_InvokeOperationCallback(cx))
 
 /*
  * Invoke the operation callback and return false if the current execution
@@ -2917,9 +2914,6 @@ js_InvokeOperationCallback(JSContext *cx);
 
 void
 js_TriggerAllOperationCallbacks(JSRuntime *rt, JSBool gcLocked);
-
-extern JSBool
-js_HandleExecutionInterrupt(JSContext *cx);
 
 extern JSStackFrame *
 js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp);
