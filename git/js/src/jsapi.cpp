@@ -4312,7 +4312,7 @@ JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions &rhs)
     werrorOption = rhs.werrorOption;
     asmJSOption = rhs.asmJSOption;
     sourcePolicy = rhs.sourcePolicy;
-    introductionType = rhs.introductionType;
+    introducer = rhs.introducer;
     introductionLineno = rhs.introductionLineno;
     introductionOffset = rhs.introductionOffset;
     hasIntroductionInfo = rhs.hasIntroductionInfo;
